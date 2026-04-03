@@ -10,6 +10,7 @@ import useAuthStore from '../../stores/authStore';
 import useCoverLetterStore from '../../stores/coverLetterStore';
 import ImportModal from '../../components/ImportModal';
 import KeywordTag from '../../components/KeywordTag';
+import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -226,6 +227,15 @@ export default function CoverLetterEditor() {
             />
           </div>
         </div>
+        {/* 연결된 기업 공고 */}
+        {coverLetter.jobAnalysis && (
+          <div className="mt-4">
+            <JobAnalysisBadge
+              analysis={coverLetter.jobAnalysis}
+              onRemove={() => handleFieldChange('jobAnalysis', null)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Questions */}

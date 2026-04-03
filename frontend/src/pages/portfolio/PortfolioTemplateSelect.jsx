@@ -1,12 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Code, Palette, Briefcase, GraduationCap, Rocket, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Code, Palette, Briefcase, GraduationCap, Rocket, Check, Loader2, BookOpen, Building2, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
+import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 import toast from 'react-hot-toast';
 
 const PORTFOLIO_TEMPLATES = [
+  {
+    id: 'notion',
+    name: 'Notion 이력서/포트폴리오',
+    icon: BookOpen,
+    color: 'bg-amber-50 border-amber-200 text-amber-700',
+    iconColor: 'bg-amber-500 text-white',
+    description: '노션 스타일의 이력서 + 포트폴리오 통합 템플릿. 프로필, 학력, 경험, 수상, 기술, 교과/비교과 활동을 한 눈에 정리하고 Notion으로 내보내기까지!',
+    tags: ['이력서', '포트폴리오', 'Notion 내보내기', 'All-in-One'],
+    sections: [],
+    isNotion: true,
+  },
   {
     id: 'developer',
     name: '개발자 포트폴리오',
@@ -111,24 +123,53 @@ export default function PortfolioTemplateSelect() {
   const { createPortfolio } = usePortfolioStore();
   const [selected, setSelected] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [step, setStep] = useState('template'); // template | joblink
+  const [jobAnalysis, setJobAnalysis] = useState(null);
 
-  const handleCreate = async () => {
-    if (!selected) {
-      toast.error('템플릿을 선택해주세요');
-      return;
-    }
+  const handleNext = () => {
+    if (!selected) { toast.error('템플릿을 선택해주세요'); return; }
+    setStep('joblink');
+  };
+
+  const handleCreate = async (analysis) => {
+    const finalAnalysis = analysis || jobAnalysis;
     const template = PORTFOLIO_TEMPLATES.find(t => t.id === selected);
     if (!template) return;
 
     setCreating(true);
     try {
-      const id = await createPortfolio(user.uid, {
+      const data = {
         title: template.id === 'blank' ? '새 포트폴리오' : `${template.name}`,
         userName: user.displayName || '',
         sections: template.sections.map((s, i) => ({ ...s, order: i })),
         templateId: template.id,
-      });
-      navigate(`/app/portfolio/edit/${id}`);
+      };
+      if (finalAnalysis) {
+        data.targetCompany = finalAnalysis.company || '';
+        data.targetPosition = finalAnalysis.position || '';
+        data.jobAnalysis = finalAnalysis;
+      }
+      if (template.isNotion) {
+        data.templateType = 'notion';
+        data.headline = '';
+        data.education = [];
+        data.awards = [];
+        data.experiences = [];
+        data.contact = { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '' };
+        data.skills = { tools: [], languages: [], frameworks: [], others: [] };
+        data.goals = [];
+        data.values = [];
+        data.interests = [];
+        data.curricular = { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
+        data.extracurricular = { summary: '', badges: [], languages: [], details: [] };
+        data.valuesEssay = '';
+      }
+      const id = await createPortfolio(user.uid, data);
+      if (template.isNotion) {
+        navigate(`/app/portfolio/edit-notion/${id}`);
+      } else {
+        navigate(`/app/portfolio/edit/${id}`);
+      }
       toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
@@ -142,12 +183,27 @@ export default function PortfolioTemplateSelect() {
         <ArrowLeft size={16} /> 포트폴리오 목록으로
       </Link>
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">포트폴리오 템플릿 선택</h1>
-        <p className="text-gray-500 text-sm">
-          직무에 맞는 템플릿을 선택하면, 최적화된 섹션 구조가 자동으로 구성됩니다
-        </p>
+      {/* 스텝 인디케이터 */}
+      <div className="flex items-center gap-3 mb-8">
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${step === 'template' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
+          <span className="w-5 h-5 rounded-full bg-primary-500 text-white text-xs flex items-center justify-center">1</span>
+          템플릿 선택
+        </div>
+        <ArrowRight size={14} className="text-gray-300" />
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${step === 'joblink' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-400'}`}>
+          <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${step === 'joblink' ? 'bg-primary-500 text-white' : 'bg-gray-300 text-white'}`}>2</span>
+          기업 공고 연결 (선택)
+        </div>
       </div>
+
+      {step === 'template' && (
+        <>
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold mb-2">포트폴리오 템플릿 선택</h1>
+            <p className="text-gray-500 text-sm">
+              직무에 맞는 템플릿을 선택하면, 최적화된 섹션 구조가 자동으로 구성됩니다
+            </p>
+          </div>
 
       {/* Template Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -213,20 +269,56 @@ export default function PortfolioTemplateSelect() {
         </div>
       )}
 
-      {/* Create Button */}
+      {/* Next Button */}
       <div className="sticky bottom-6">
         <button
-          onClick={handleCreate}
-          disabled={!selected || creating}
+          onClick={handleNext}
+          disabled={!selected}
           className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {creating ? (
-            <><Loader2 size={18} className="animate-spin" /> 생성 중...</>
-          ) : (
-            <><FileText size={18} /> {selected ? '이 템플릿으로 포트폴리오 만들기' : '템플릿을 선택해주세요'}</>
-          )}
+          <ArrowRight size={18} /> {selected ? '다음: 기업 공고 연결' : '템플릿을 선택해주세요'}
         </button>
       </div>
+        </>
+      )}
+
+      {step === 'joblink' && (
+        <>
+          <div className="mb-6">
+            <button onClick={() => setStep('template')} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 mb-4">
+              <ArrowLeft size={14} /> 템플릿 다시 선택
+            </button>
+            <h1 className="text-2xl font-bold mb-2">기업 공고 연결</h1>
+            <p className="text-gray-500 text-sm">
+              지원할 기업의 채용공고 링크를 넣으면 기업 맞춤형 포트폴리오가 생성됩니다 (선택사항)
+            </p>
+          </div>
+
+          {jobAnalysis ? (
+            <div className="space-y-4">
+              <JobAnalysisBadge analysis={jobAnalysis} onRemove={() => setJobAnalysis(null)} />
+              <button
+                onClick={() => handleCreate(jobAnalysis)}
+                disabled={creating}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              >
+                {creating ? (
+                  <><Loader2 size={18} className="animate-spin" /> 생성 중...</>
+                ) : (
+                  <><Building2 size={18} /> {jobAnalysis.company} 맞춤 포트폴리오 만들기</>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <JobLinkInput
+                onAnalysisComplete={(analysis) => setJobAnalysis(analysis)}
+                onSkip={() => handleCreate(null)}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

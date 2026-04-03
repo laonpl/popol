@@ -220,3 +220,190 @@ function generatePDFFallback(data) {
 
   return text;
 }
+
+/**
+ * Notion 포트폴리오 템플릿 전용 내보내기
+ * 구조화된 포트폴리오 데이터를 Notion Markdown으로 변환
+ */
+export async function exportNotionPortfolio(data) {
+  // 무조건 구조적 Markdown 생성 (AI 불필요)
+  return generateNotionPortfolioMarkdown(data);
+}
+
+function generateNotionPortfolioMarkdown(p) {
+  let md = '';
+  const contact = p.contact || {};
+  const skills = p.skills || {};
+  const curr = p.curricular || {};
+  const extra = p.extracurricular || {};
+
+  // ── Title
+  md += `# ${p.headline || p.title || '포트폴리오'}\n\n`;
+  md += `> 본 포트폴리오는 PC 환경에 최적화되어 있습니다.\n\n`;
+
+  // ── Quick Menu
+  md += `---\n\n`;
+  md += `#### ⚡ Quick Menu\n\n`;
+  md += `| [📝 교과 활동](#교과-활동) | [💡 비교과 활동](#비교과-활동) | [🛠 기술](#기술) | [✨ 목표와 계획](#목표와-계획) | [💬 가치관](#가치관) |\n`;
+  md += `|---|---|---|---|---|\n\n`;
+  md += `---\n\n`;
+
+  // ── Profile
+  md += `## PROFILE\n\n`;
+  if (p.profileImageUrl) md += `![프로필](${p.profileImageUrl})\n\n`;
+  md += `### ${p.userName || '이름'}`;
+  if (p.nameEn) md += ` (${p.nameEn})`;
+  md += `\n\n`;
+  if (p.location) md += `📍 ${p.location}\n\n`;
+  if (p.birthDate) md += `📅 ${p.birthDate}\n\n`;
+
+  // ── Values keywords
+  if ((p.values || []).length > 0) {
+    md += `#### My Own Values\n\n`;
+    const emojis = ['➕', '➖', '✖️', '➗', '🎓'];
+    p.values.forEach((v, i) => {
+      md += `> ${emojis[i % 5]} **${v.keyword}**\n\n`;
+    });
+  }
+
+  md += `---\n\n`;
+
+  // ── Education
+  if ((p.education || []).length > 0) {
+    md += `## 🎓 Education\n\n`;
+    p.education.forEach(edu => {
+      md += `### ${edu.name}`;
+      if (edu.nameEn) md += ` (${edu.nameEn})`;
+      md += `\n\n`;
+      if (edu.period) md += `*${edu.period}*\n\n`;
+      if (edu.degree) md += `${edu.degree}\n\n`;
+      if (edu.detail) md += `${edu.detail}\n\n`;
+    });
+    md += `---\n\n`;
+  }
+
+  // ── Interests
+  if ((p.interests || []).length > 0) {
+    md += `#### 💡 Interest\n\n`;
+    p.interests.forEach(i => { md += `- ${i}\n`; });
+    md += `\n---\n\n`;
+  }
+
+  // ── Awards
+  if ((p.awards || []).length > 0) {
+    md += `## 🏆 Scholarship and Awards\n\n`;
+    p.awards.forEach(a => {
+      md += `**${a.date}** ${a.title}\n\n`;
+    });
+    md += `---\n\n`;
+  }
+
+  // ── Experience
+  if ((p.experiences || []).length > 0) {
+    md += `## 🔥 Experience\n\n`;
+    p.experiences.forEach(e => {
+      md += `**${e.date}** ${e.title}\n\n`;
+      if (e.description) md += `${e.description}\n\n`;
+    });
+    md += `---\n\n`;
+  }
+
+  // ── Contact
+  if (contact.phone || contact.email || contact.linkedin) {
+    md += `#### 📞 Contact Information\n\n`;
+    if (contact.phone) md += `📱 Phone : ${contact.phone}\n\n`;
+    if (contact.email) md += `📧 Email : ${contact.email}\n\n`;
+    if (contact.linkedin) md += `🔗 LinkedIn : ${contact.linkedin}\n\n`;
+    if (contact.instagram) md += `📸 Instagram : ${contact.instagram}\n\n`;
+    if (contact.github) md += `💻 GitHub : ${contact.github}\n\n`;
+    if (contact.website) md += `🌐 Website : ${contact.website}\n\n`;
+    md += `---\n\n`;
+  }
+
+  // ── 교과 활동
+  md += `## 📝 교과 활동 | Curricular Activities\n\n`;
+  if (curr.summary?.credits || curr.summary?.gpa) {
+    md += `#### 요약 | Summary\n\n`;
+    if (curr.summary?.credits) md += `> 📚 이수 학점: ${curr.summary.credits}\n\n`;
+    if (curr.summary?.gpa) md += `> 📊 평점 평균: ${curr.summary.gpa}\n\n`;
+  }
+  if ((curr.courses || []).length > 0) {
+    md += `#### 교과목 수강 내역 | Course History\n\n`;
+    md += `| 학기 | 과목명 | 성적 |\n|---|---|---|\n`;
+    curr.courses.forEach(c => {
+      md += `| ${c.semester || ''} | ${c.name || ''} | ${c.grade || ''} |\n`;
+    });
+    md += `\n`;
+  }
+  md += `---\n\n`;
+
+  // ── 비교과 활동
+  md += `## 💡 비교과 활동 | Extracurricular Activities\n\n`;
+  if (extra.summary) {
+    md += `#### 요약 | Summary\n\n`;
+    md += `> ${extra.summary}\n\n`;
+  }
+  if ((extra.badges || []).length > 0) {
+    md += `#### 🏅 디지털 배지 | Digital Badge\n\n`;
+    extra.badges.forEach(b => {
+      md += `- **${b.name}** (${b.issuer})\n`;
+    });
+    md += `\n`;
+  }
+  if ((extra.languages || []).length > 0) {
+    md += `#### 🌍 어학 성적 | Language Certification\n\n`;
+    md += `| 시험명 | 점수/등급 | 취득일 |\n|---|---|---|\n`;
+    extra.languages.forEach(l => {
+      md += `| ${l.name || ''} | ${l.score || ''} | ${l.date || ''} |\n`;
+    });
+    md += `\n`;
+  }
+  if ((extra.details || []).length > 0) {
+    md += `#### 📋 세부 사항 | Details\n\n`;
+    extra.details.forEach(d => {
+      md += `<details><summary><b>${d.title}</b> (${d.period || ''})</summary>\n\n`;
+      md += `${d.description || ''}\n\n`;
+      md += `</details>\n\n`;
+    });
+  }
+  md += `---\n\n`;
+
+  // ── 기술
+  md += `## 🛠 기술 | Skills\n\n`;
+  const categoryNames = { tools: '도구', languages: '프로그래밍 언어', frameworks: '프레임워크', others: '기타' };
+  for (const [cat, items] of Object.entries(skills)) {
+    if (items && items.length > 0) {
+      md += `**${categoryNames[cat] || cat}**: ${items.map(s => '`' + s + '`').join(' ')}\n\n`;
+    }
+  }
+  md += `---\n\n`;
+
+  // ── 목표
+  md += `## ✨ 목표와 계획 | Future Plans\n\n`;
+  if ((p.goals || []).length > 0) {
+    const typeLabel = { short: '단기', mid: '중기', long: '장기' };
+    p.goals.forEach(g => {
+      const checked = g.status === 'done' ? 'x' : g.status === 'ing' ? '~' : ' ';
+      md += `- [${checked}] **[${typeLabel[g.type] || ''}]** ${g.title}\n`;
+      if (g.description) md += `  ${g.description}\n`;
+    });
+    md += `\n`;
+  }
+  md += `---\n\n`;
+
+  // ── 가치관
+  md += `## 💬 가치관 | Values\n\n`;
+  if (p.valuesEssay) {
+    md += `${p.valuesEssay}\n\n`;
+  } else if ((p.values || []).length > 0) {
+    const emojis = ['➕', '➖', '✖️', '➗', '🎓'];
+    p.values.forEach((v, i) => {
+      md += `### ${emojis[i % 5]} ${v.keyword}\n\n`;
+      if (v.description) md += `${v.description}\n\n`;
+    });
+  }
+
+  md += `---\n\n*[맨 위로 ↑↑](#)*\n`;
+
+  return md;
+}

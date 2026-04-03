@@ -39,7 +39,7 @@ const usePortfolioStore = create((set, get) => ({
   },
 
   createPortfolio: async (userId, data) => {
-    const docRef = await addDoc(collection(db, 'portfolios'), {
+    const docData = {
       userId,
       title: data.title || '새 포트폴리오',
       targetCompany: data.targetCompany || '',
@@ -59,7 +59,15 @@ const usePortfolioStore = create((set, get) => ({
       },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    // Notion 템플릿 추가 필드
+    const extraFields = [
+      'templateType', 'templateId', 'headline', 'education', 'awards', 'experiences',
+      'contact', 'skills', 'goals', 'values', 'interests', 'curricular',
+      'extracurricular', 'valuesEssay', 'jobAnalysis',
+    ];
+    extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
+    const docRef = await addDoc(collection(db, 'portfolios'), docData);
     return docRef.id;
   },
 

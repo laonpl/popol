@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, PenTool, Trash2, Edit, Upload, Download, Eye } from 'lucide-react';
+import { Plus, PenTool, Trash2, Edit, Upload, Download, Eye, X, Building2, ArrowRight, Loader2, FileText } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useCoverLetterStore from '../../stores/coverLetterStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
+import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 
 export default function CoverLetterHub() {
   const { user } = useAuthStore();
@@ -15,22 +16,45 @@ export default function CoverLetterHub() {
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
+  const [showJobLink, setShowJobLink] = useState(false);
+  const [jobAnalysis, setJobAnalysis] = useState(null);
 
   useEffect(() => {
     if (user?.uid) fetchCoverLetters(user.uid);
   }, [user?.uid]);
 
-  const handleCreate = async () => {
+  const doCreate = async (analysis) => {
     setCreating(true);
     try {
-      const id = await createCoverLetter(user.uid, {
-        title: '새 자기소개서',
-      });
+      const data = { title: '새 자기소개서' };
+      if (analysis) {
+        data.targetCompany = analysis.company || '';
+        data.targetPosition = analysis.position || '';
+        data.jobAnalysis = analysis;
+        // 공고에 자소서 문항이 있으면 자동 세팅
+        if (analysis.applicationFormat?.questions?.length > 0) {
+          data.title = `${analysis.company || '기업'} 자기소개서`;
+          data.questions = analysis.applicationFormat.questions.map(q => ({
+            question: q.question || '',
+            answer: '',
+            linkedExperienceIds: [],
+            wordCount: 0,
+            maxWordCount: q.maxLength || 500,
+          }));
+        }
+      }
+      const id = await createCoverLetter(user.uid, data);
       navigate(`/app/coverletter/edit/${id}`);
     } catch (error) {
       console.error(error);
     }
     setCreating(false);
+    setShowJobLink(false);
+    setJobAnalysis(null);
+  };
+
+  const handleCreate = () => {
+    setShowJobLink(true);
   };
 
   const handleImport = async ({ imported, structured }) => {
@@ -169,6 +193,43 @@ export default function CoverLetterHub() {
 
       {exportData && (
         <ExportModal type="coverletter" data={exportData} onClose={() => setExportData(null)} />
+      )}
+
+      {/* 기업 공고 연결 모달 */}
+      {showJobLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => { setShowJobLink(false); setJobAnalysis(null); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+              <X size={18} />
+            </button>
+            <h2 className="text-lg font-bold mb-1">새 자기소개서</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              채용공고 링크를 넣으면 기업 맞춤형 자소서가 생성됩니다 (선택)
+            </p>
+
+            {jobAnalysis ? (
+              <div className="space-y-4">
+                <JobAnalysisBadge analysis={jobAnalysis} onRemove={() => setJobAnalysis(null)} />
+                <button
+                  onClick={() => doCreate(jobAnalysis)}
+                  disabled={creating}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  {creating ? (
+                    <><Loader2 size={14} className="animate-spin" /> 생성 중...</>
+                  ) : (
+                    <><Building2 size={14} /> {jobAnalysis.company} 맞춤 자소서 만들기</>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <JobLinkInput
+                onAnalysisComplete={(analysis) => setJobAnalysis(analysis)}
+                onSkip={() => doCreate(null)}
+              />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

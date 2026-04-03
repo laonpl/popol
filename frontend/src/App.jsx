@@ -11,6 +11,8 @@ import AnalysisResult from './pages/experience/AnalysisResult';
 import PortfolioHub from './pages/portfolio/PortfolioHub';
 import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
+import NotionPortfolioEditor from './pages/portfolio/NotionPortfolioEditor';
+import NotionPortfolioPreview from './pages/portfolio/NotionPortfolioPreview';
 import CoverLetterHub from './pages/coverletter/CoverLetterHub';
 import CoverLetterEditor from './pages/coverletter/CoverLetterEditor';
 
@@ -38,6 +40,8 @@ export default function App() {
         <Route path="portfolio" element={<PortfolioHub />} />
         <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
         <Route path="portfolio/edit/:id" element={<PortfolioEditor />} />
+        <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
+        <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
         {/* 자소서 */}
         <Route path="coverletter" element={<CoverLetterHub />} />
         <Route path="coverletter/edit/:id" element={<CoverLetterEditor />} />

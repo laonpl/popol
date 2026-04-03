@@ -133,8 +133,9 @@ export default function PortfolioHub() {
 }
 
 function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
-  const { id, title, targetCompany, targetPosition, status, exportFormat, createdAt } = portfolio;
+  const { id, title, targetCompany, targetPosition, status, exportFormat, createdAt, templateType } = portfolio;
   const date = createdAt?.toDate?.()?.toLocaleDateString('ko-KR') || '';
+  const isNotion = templateType === 'notion';
   const statusMap = {
     draft: { label: '작성 중', color: 'bg-yellow-50 text-yellow-700' },
     review: { label: '검토 중', color: 'bg-blue-50 text-blue-700' },
@@ -145,7 +146,10 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
   return (
     <div className="bg-white rounded-2xl border border-surface-200 p-6 hover:shadow-lg transition-all">
       <div className="flex items-start justify-between mb-3">
-        <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${s.color}`}>{s.label}</span>
+        <div className="flex items-center gap-2">
+          <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${s.color}`}>{s.label}</span>
+          {isNotion && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Notion</span>}
+        </div>
         <div className="flex items-center gap-1">
           <span className="text-xs text-gray-400">{date}</span>
         </div>
@@ -155,14 +159,24 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
         <p className="text-sm text-gray-500">{targetCompany} · {targetPosition}</p>
       )}
       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-surface-100">
-        <button
-          onClick={onDetail}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
-        >
-          <Eye size={14} /> 자세히보기
-        </button>
+        {isNotion && (
+          <Link
+            to={`/app/portfolio/preview/${id}`}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
+          >
+            <Eye size={14} /> 미리보기
+          </Link>
+        )}
+        {!isNotion && (
+          <button
+            onClick={onDetail}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
+          >
+            <Eye size={14} /> 자세히보기
+          </button>
+        )}
         <Link
-          to={`/app/portfolio/edit/${id}`}
+          to={isNotion ? `/app/portfolio/edit-notion/${id}` : `/app/portfolio/edit/${id}`}
           className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
         >
           <Edit size={14} /> 편집

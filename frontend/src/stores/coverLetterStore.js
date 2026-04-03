@@ -30,7 +30,7 @@ const useCoverLetterStore = create((set, get) => ({
   },
 
   createCoverLetter: async (userId, data) => {
-    const docRef = await addDoc(collection(db, 'coverLetters'), {
+    const docData = {
       userId,
       title: data.title || '새 자기소개서',
       targetCompany: data.targetCompany || '',
@@ -42,7 +42,9 @@ const useCoverLetterStore = create((set, get) => ({
       status: 'draft',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (data.jobAnalysis) docData.jobAnalysis = data.jobAnalysis;
+    const docRef = await addDoc(collection(db, 'coverLetters'), docData);
     return docRef.id;
   },
 
