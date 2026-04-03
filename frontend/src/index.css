@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background-color: #f5f5f7;
+  color: #1a1a1a;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Highlight colors for experience analysis */
+.highlight-core {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-bottom: 2px solid #ef4444;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+.highlight-derived {
+  background-color: rgba(245, 158, 11, 0.15);
+  border-bottom: 2px solid #f59e0b;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+.highlight-growth {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-bottom: 2px solid #22c55e;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+/* Textarea auto-resize */
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes pulse-check {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+.animate-pulse-check {
+  animation: pulse-check 0.5s ease-in-out;
+}
