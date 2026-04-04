@@ -108,12 +108,26 @@ export default function ImportModal({ targetType, onClose, onImport }) {
   };
 
   const handleApply = () => {
-    onImport({ imported: importedData, structured: structuredData });
+    // 수동 입력 상태에서 바로 적용하기를 누른 경우, manualText를 반영
+    if (importedData?.needsManualInput && manualText.trim()) {
+      const updated = {
+        ...importedData,
+        content: manualText.trim(),
+        rawText: manualText.trim(),
+        needsManualInput: false,
+      };
+      onImport({ imported: updated, structured: structuredData });
+    } else {
+      onImport({ imported: importedData, structured: structuredData });
+    }
     onClose();
   };
 
-  const handleManualApply = () => {
-    if (!manualText.trim()) return;
+  const handleManualApply = async () => {
+    if (!manualText.trim()) {
+      toast.error('내용을 붙여넣어 주세요');
+      return;
+    }
     const updated = {
       ...importedData,
       content: manualText.trim(),
@@ -122,6 +136,59 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     };
     setImportedData(updated);
     setManualText('');
+
+    // PDF처럼 자동으로 AI 구조화 실행
+    if (targetType) {
+      setStructuring(true);
+      try {
+        const response = await api.post('/import/structure', { importedData: updated, targetType }, { timeout: 60000 });
+        setStructuredData(response.data.structured);
+        toast.success('AI 구조화가 완료되었습니다!');
+      } catch (error) {
+        if (error.response?.status === 429) {
+          toast.error('AI 요청이 너무 많습니다. 10초 후 다시 시도해주세요.');
+        } else {
+          toast.error('AI 구조화에 실패했습니다. 수동으로 편집할 수 있습니다.');
+        }
+      }
+      setStructuring(false);
+    }
+  };
+
+  // Notion 클립보드 paste 핸들러 — HTML을 우선 파싱하여 구조화된 텍스트 추출
+  const handleManualPaste = (e) => {
+    const html = e.clipboardData.getData('text/html');
+    if (html && html.trim().length > 50) {
+      e.preventDefault();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+
+      // script / style 제거
+      tempDiv.querySelectorAll('script, style, svg, [aria-hidden="true"]').forEach(el => el.remove());
+
+      // 블록 요소들 사이에 줄바꿈 삽입
+      tempDiv.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, tr, br').forEach(el => {
+        el.insertAdjacentText('afterend', '\n');
+      });
+
+      const raw = tempDiv.textContent || tempDiv.innerText || '';
+      // 중복 공백·빈줄 정리
+      const cleaned = raw
+        .split('\n')
+        .map(l => l.replace(/\s+/g, ' ').trim())
+        .filter(l => l.length > 0)
+        .join('\n');
+
+      setManualText(cleaned);
+      return;
+    }
+
+    // HTML이 없거나 너무 짧을 때: plain text 기본 동작
+    const plainText = e.clipboardData.getData('text/plain');
+    if (plainText && plainText.trim()) {
+      e.preventDefault();
+      setManualText(plainText.trim());
+    }
   };
 
   const targetTypeLabel = {
@@ -293,37 +360,50 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl mb-4">
                     <p className="text-sm font-bold text-yellow-700 mb-1">⚠ Notion 페이지 자동 추출에 실패했습니다</p>
                     <p className="text-xs text-yellow-600">
-                      비공개 페이지이거나 접근이 제한됩니다. 아래에 직접 내용을 붙여넣어 주세요.
+                      Notion은 JavaScript로 렌더링되어 서버에서 직접 읽을 수 없습니다. 브라우저에서 복사해서 붙여넣으세요 — HTML 서식도 자동으로 텍스트로 변환됩니다.
                     </p>
                   </div>
 
                   <div className="p-4 bg-surface-50 rounded-xl mb-3">
-                    <p className="text-xs font-bold text-gray-600 mb-2">💡 Notion에서 내용 복사하는 방법:</p>
-                    <ol className="text-xs text-gray-500 space-y-1 ml-4 list-decimal">
+                    <p className="text-xs font-bold text-gray-600 mb-2">💡 올바른 복사 방법:</p>
+                    <ol className="text-xs text-gray-500 space-y-1.5 ml-4 list-decimal">
                       <li>브라우저에서 Notion 페이지를 열어주세요</li>
-                      <li><b>Ctrl + A</b>로 전체 선택 후 <b>Ctrl + C</b>로 복사</li>
-                      <li>아래 입력란에 <b>Ctrl + V</b>로 붙여넣기</li>
+                      <li>페이지 본문 아무 곳이나 클릭하여 포커스를 맞추세요</li>
+                      <li><b>Ctrl + A</b>로 전체 선택</li>
+                      <li><b>Ctrl + C</b>로 복사 (HTML 서식 포함됨)</li>
+                      <li>아래 입력란 클릭 후 <b>Ctrl + V</b>로 붙여넣기</li>
                     </ol>
+                    <p className="text-xs text-primary-600 mt-2 font-medium">✓ 붙여넣기하면 표·목록·제목 등의 서식이 텍스트로 자동 변환됩니다</p>
                   </div>
 
                   <textarea
                     value={manualText}
                     onChange={e => setManualText(e.target.value)}
+                    onPaste={handleManualPaste}
                     placeholder="Notion 페이지 내용을 여기에 붙여넣으세요...&#10;&#10;프로젝트 설명, 기술 스택, 역할, 성과 등의 내용을 포함해주세요."
                     rows={10}
                     className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-y"
                   />
-                  {manualText && (
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-xs text-gray-400">{manualText.length}자</p>
-                      <button
-                        onClick={handleManualApply}
-                        className="px-4 py-2 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                      >
-                        내용 적용하기
-                      </button>
+                  {structuring && (
+                    <div className="flex items-center justify-center gap-2 mt-3 py-3">
+                      <Loader2 size={16} className="animate-spin text-primary-600" />
+                      <p className="text-sm text-primary-600">AI가 내용을 분석 중입니다...</p>
                     </div>
                   )}
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-gray-400">{manualText ? `${manualText.length}자` : '내용을 붙여넣어 주세요'}</p>
+                    <button
+                      onClick={handleManualApply}
+                      disabled={!manualText.trim() || structuring}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {structuring ? (
+                        <><Loader2 size={14} className="animate-spin" /> AI 분석 중...</>
+                      ) : (
+                        <><Sparkles size={14} /> AI로 분석하기</>
+                      )}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -426,7 +506,8 @@ export default function ImportModal({ targetType, onClose, onImport }) {
           {step === 'preview' && (
             <button
               onClick={handleApply}
-              className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+              disabled={structuring || (importedData?.needsManualInput && !manualText.trim())}
+              className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <ArrowRight size={16} /> 적용하기
             </button>

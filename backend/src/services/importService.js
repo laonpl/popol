@@ -46,12 +46,13 @@ export async function importFromNotion(notionUrl) {
   }
 
   const cleanId = pageId.replace(/-/g, '');
+  const formattedId = cleanId.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
   let content = '';
   let title = 'Notion에서 가져온 내용';
 
-  // Method 1: loadPageChunk API
+  // Method 1: getPublicPageData (공개 페이지용)
   try {
-    const response = await fetch('https://www.notion.so/api/v3/loadPageChunk', {
+    const response = await fetch('https://www.notion.so/api/v3/getPublicPageData', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,27 +60,66 @@ export async function importFromNotion(notionUrl) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
       body: JSON.stringify({
-        pageId: cleanId,
-        limit: 100,
-        cursor: { stack: [] },
-        chunkNumber: 0,
-        verticalColumns: false,
+        blockId: formattedId,
+        type: 'block-space',
+        name: 'page',
+        showMoveTo: false,
+        saveParent: false,
+        shouldDuplicate: false,
+        projectManagementLaunch: false,
+        requestedOnPublicDomain: false,
+        showShareMenu: false,
+        allowDuplicate: false,
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
-      const blocks = extractNotionBlocks(data);
-      if (blocks.text?.trim().length > 10) {
-        content = blocks.text;
-        title = blocks.title || title;
+      if (data?.recordMap?.block) {
+        const blocks = extractNotionBlocks({ recordMap: { block: data.recordMap.block } });
+        if (blocks.text?.trim().length > 10) {
+          content = blocks.text;
+          title = blocks.title || title;
+        }
       }
     }
   } catch (e) {
-    console.warn('Notion API loadPageChunk failed:', e.message);
+    console.warn('Notion getPublicPageData failed:', e.message);
   }
 
-  // Method 2: loadCachedPageChunk API
+  // Method 2: loadPageChunk API
+  if (!content) {
+    try {
+      const response = await fetch('https://www.notion.so/api/v3/loadPageChunk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          pageId: cleanId,
+          limit: 100,
+          cursor: { stack: [] },
+          chunkNumber: 0,
+          verticalColumns: false,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const blocks = extractNotionBlocks(data);
+        if (blocks.text?.trim().length > 10) {
+          content = blocks.text;
+          title = blocks.title || title;
+        }
+      }
+    } catch (e) {
+      console.warn('Notion API loadPageChunk failed:', e.message);
+    }
+  }
+
+  // Method 3: loadCachedPageChunk API
   if (!content) {
     try {
       const response = await fetch('https://www.notion.so/api/v3/loadCachedPageChunk', {
@@ -110,7 +150,7 @@ export async function importFromNotion(notionUrl) {
     }
   }
 
-  // Method 3: HTML 스크레이핑
+  // Method 4: HTML 스크레이핑
   if (!content) {
     try {
       const response = await fetch(notionUrl, {
@@ -148,13 +188,13 @@ export async function importFromNotion(notionUrl) {
           } catch (e) { /* ignore parse errors */ }
         }
 
-        // HTML 본문에서 텍스트 추출 시도
+        // HTML 본문에서 텍스트 추출 시도 (div, p, span, h1-h6, li)
         if (!content) {
           const textParts = [];
-          const spanMatches = html.matchAll(/<span[^>]*>([^<]+)<\/span>/g);
-          for (const m of spanMatches) {
+          const tagMatches = html.matchAll(/<(?:span|p|div|h[1-6]|li)[^>]*>([^<]{3,})<\/(?:span|p|div|h[1-6]|li)>/g);
+          for (const m of tagMatches) {
             const t = m[1].trim();
-            if (t.length > 2 && !t.startsWith('{') && !t.startsWith('<')) {
+            if (t.length > 2 && !t.startsWith('{') && !t.startsWith('<') && !t.match(/^[\s{}[\]()]+$/)) {
               textParts.push(t);
             }
           }

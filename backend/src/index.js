@@ -8,6 +8,7 @@ import coverletterRoutes from './routes/coverletter.js';
 import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
+import uploadRoutes from './routes/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,7 @@ app.use('/api/coverletter', coverletterRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/job', jobRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

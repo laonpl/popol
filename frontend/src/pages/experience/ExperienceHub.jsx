@@ -182,10 +182,20 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
 
       {/* 그라디언트 썸네일 */}
       <div className={`relative mx-4 rounded-xl overflow-hidden bg-gradient-to-br ${gradient} aspect-square flex flex-col items-center justify-center`}>
-        {/* 추상 장식 */}
-        <div className="absolute top-4 right-6 w-16 h-16 rounded-full bg-white/10 blur-sm" />
-        <div className="absolute bottom-6 left-4 w-10 h-10 rounded-lg bg-white/10 rotate-12 blur-sm" />
-        <div className="absolute top-1/3 left-1/3 w-20 h-20 rounded-full bg-white/5" />
+        {experience.images?.length > 0 ? (
+          <img
+            src={experience.images[0].url}
+            alt={experience.images[0].name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <>
+            {/* 추상 장식 */}
+            <div className="absolute top-4 right-6 w-16 h-16 rounded-full bg-white/10 blur-sm" />
+            <div className="absolute bottom-6 left-4 w-10 h-10 rounded-lg bg-white/10 rotate-12 blur-sm" />
+            <div className="absolute top-1/3 left-1/3 w-20 h-20 rounded-full bg-white/5" />
+          </>
+        )}
         {/* 프레임워크 배지 */}
         <span className="absolute bottom-3 left-3 px-2.5 py-1 bg-black/40 backdrop-blur-sm text-white text-xs font-semibold rounded-lg">
           {framework}

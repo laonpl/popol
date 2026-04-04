@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
   GraduationCap, Award, Briefcase, Mail, Phone, Globe,
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, X,
-  BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles
+  BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -259,7 +259,8 @@ export default function NotionPortfolioEditor() {
       <div className="min-h-[500px]">
         {activeSection === 'profile' && (
           <ProfileSection portfolio={portfolio} update={update} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} />
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem}
+            userId={user.uid} portfolioId={id} />
         )}
         {activeSection === 'education' && (
           <EducationSection portfolio={portfolio} addToArray={addToArray}
@@ -346,7 +347,61 @@ function TextareaField({ label, value, onChange, placeholder, rows = 4 }) {
 }
 
 // ── Profile Section ──
-function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem }) {
+function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem, userId, portfolioId }) {
+  const profileImageInputRef = useRef(null);
+  const [uploadingProfile, setUploadingProfile] = useState(false);
+
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 파일만 업로드할 수 있습니다');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('파일 크기는 5MB 이하여야 합니다');
+      return;
+    }
+    setUploadingProfile(true);
+    try {
+      // 기존 이미지 삭제
+      if (portfolio.profileImageStoragePath) {
+        try {
+          await api.delete('/upload/image', { data: { storagePath: portfolio.profileImageStoragePath } });
+        } catch {}
+      }
+      const timestamp = Date.now();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `portfolios/${userId}/${portfolioId}/profile_${timestamp}_${safeName}`;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('storagePath', storagePath);
+
+      const { data } = await api.post('/upload/image', formData, {
+        timeout: 60000,
+      });
+      update('profileImageUrl', data.url);
+      update('profileImageStoragePath', data.storagePath);
+      toast.success('프로필 이미지가 업로드되었습니다');
+    } catch (err) {
+      console.error('프로필 이미지 업로드 실패:', err);
+      toast.error('이미지 업로드에 실패했습니다');
+    }
+    setUploadingProfile(false);
+    e.target.value = '';
+  };
+
+  const handleProfileImageDelete = async () => {
+    if (portfolio.profileImageStoragePath) {
+      try {
+        await api.delete('/upload/image', { data: { storagePath: portfolio.profileImageStoragePath } });
+      } catch {}
+    }
+    update('profileImageUrl', '');
+    update('profileImageStoragePath', '');
+  };
+
   return (
     <>
       <SectionCard title="기본 정보" icon={Heart} description="프로필 좌측에 표시되는 기본 인적 사항입니다">
@@ -356,7 +411,39 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
           <InputField label="거주지" value={portfolio.location} onChange={v => update('location', v)} placeholder="Seoul, South Korea" />
           <InputField label="생년월일" value={portfolio.birthDate} onChange={v => update('birthDate', v)} placeholder="2000.01.01" />
           <div className="col-span-2">
-            <InputField label="프로필 이미지 URL" value={portfolio.profileImageUrl} onChange={v => update('profileImageUrl', v)} placeholder="https://..." />
+            <label className="block text-xs text-gray-500 mb-1 font-medium">프로필 이미지</label>
+            {portfolio.profileImageUrl ? (
+              <div className="flex items-center gap-3 p-3 border border-surface-200 rounded-lg">
+                <img src={portfolio.profileImageUrl} alt="profile" className="w-14 h-14 rounded-xl object-cover border border-surface-200" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-600 truncate">{portfolio.profileImageStoragePath?.split('/').pop() || '업로드된 이미지'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">클릭하여 교체</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => profileImageInputRef.current?.click()}
+                    disabled={uploadingProfile}
+                    className="px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 disabled:opacity-40 transition-colors">
+                    {uploadingProfile ? <Loader2 size={12} className="animate-spin" /> : '교체'}
+                  </button>
+                  <button type="button" onClick={handleProfileImageDelete}
+                    className="px-3 py-1.5 text-xs text-red-400 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                    삭제
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => profileImageInputRef.current?.click()}
+                disabled={uploadingProfile}
+                className="w-full flex items-center gap-3 px-4 py-3 border-2 border-dashed border-surface-300 rounded-lg text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 disabled:opacity-40 transition-all">
+                {uploadingProfile ? (
+                  <><Loader2 size={18} className="animate-spin" /><span className="text-sm">업로드 중...</span></>
+                ) : (
+                  <><ImagePlus size={18} /><span className="text-sm">사진 선택 · JPG, PNG, WEBP · 최대 5MB</span></>
+                )}
+              </button>
+            )}
+            <input ref={profileImageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleProfileImageUpload} className="hidden" />
           </div>
         </div>
       </SectionCard>

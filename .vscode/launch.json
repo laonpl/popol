@@ -5,12 +5,12 @@
       "type": "node",
       "request": "launch",
       "name": "Backend 서버 실행",
-      "program": "${workspaceFolder}/backend/src/index.js",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "cwd": "${workspaceFolder}/backend",
       "envFile": "${workspaceFolder}/backend/.env",
       "console": "integratedTerminal",
-      "restart": true,
-      "runtimeExecutable": "node",
+      "outputCapture": "std",
       "skipFiles": ["<node_internals>/**"]
     }
   ]
