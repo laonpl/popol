@@ -6,6 +6,7 @@ import {
   matchExperiencesToJob,
   generateTailoredCoverLetter,
   generateTailoredPortfolio,
+  tailorExperienceContent,
 } from '../services/jobAnalysisService.js';
 
 const router = Router();
@@ -125,6 +126,21 @@ router.post('/generate-portfolio', async (req, res) => {
     res.json({ portfolioSuggestion });
   } catch (err) {
     console.error('[Job] 포트폴리오 제안 실패:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 경험 내용을 기업에 맞게 재작성 ────────────────────
+router.post('/tailor-experience', async (req, res) => {
+  try {
+    const { jobAnalysis, experience } = req.body;
+    if (!jobAnalysis || !experience) {
+      return res.status(400).json({ error: '기업 분석 결과와 경험 데이터가 필요합니다' });
+    }
+    const tailored = await tailorExperienceContent(jobAnalysis, experience);
+    res.json({ tailored });
+  } catch (err) {
+    console.error('[Job] 경험 맞춤화 실패:', err);
     res.status(500).json({ error: err.message });
   }
 });

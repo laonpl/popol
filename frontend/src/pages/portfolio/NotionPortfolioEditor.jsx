@@ -4,13 +4,14 @@ import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
   GraduationCap, Award, Briefcase, Mail, Phone, Globe,
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, X,
-  BookOpen, Code, Target, Star, MessageSquare, Upload
+  BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const EMPTY_PORTFOLIO = {
@@ -468,6 +469,8 @@ const CLASSIFY_OPTIONS = ['교내 활동', '교외 활동', '동아리', '공모
 
 function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, showExpPicker, setShowExpPicker }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const [tailoringIdx, setTailoringIdx] = useState(null);
+  const [tailorResult, setTailorResult] = useState(null);
 
   const toggleClassify = (i, tag) => {
     const exp = portfolio.experiences[i];
@@ -505,6 +508,30 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
   const removeSkill = (i, si) => {
     const exp = portfolio.experiences[i];
     updateArrayItem('experiences', i, { skills: exp.skills.filter((_, idx) => idx !== si) });
+  };
+
+  const handleTailorExperience = async (i) => {
+    if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
+    setTailoringIdx(i);
+    setTailorResult(null);
+    try {
+      const { data } = await api.post('/job/tailor-experience', {
+        jobAnalysis: portfolio.jobAnalysis,
+        experience: portfolio.experiences[i],
+      });
+      setTailorResult({ idx: i, ...data });
+    } catch { toast.error('맞춤 변환 실패'); }
+    setTailoringIdx(null);
+  };
+
+  const applyTailoredResult = (i) => {
+    if (!tailorResult || tailorResult.idx !== i) return;
+    updateArrayItem('experiences', i, {
+      description: tailorResult.tailoredDescription,
+      skills: tailorResult.highlightedSkills || portfolio.experiences[i].skills,
+    });
+    toast.success('기업 맞춤으로 변환 완료!');
+    setTailorResult(null);
   };
 
   return (
@@ -635,6 +662,62 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                       </button>
                     </div>
                   </div>
+
+                  {/* 기업 맞춤 변환 */}
+                  {portfolio.jobAnalysis && (
+                    <div className="border-t border-surface-100 pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">🎯 기업 맞춤 변환</span>
+                        <button
+                          onClick={() => handleTailorExperience(i)}
+                          disabled={tailoringIdx === i}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                          {tailoringIdx === i ? (
+                            <><Loader2 size={12} className="animate-spin" /> 분석 중...</>
+                          ) : (
+                            <><Sparkles size={12} /> {portfolio.jobAnalysis.company}에 맞게 변환</>
+                          )}
+                        </button>
+                      </div>
+                      {tailorResult && tailorResult.idx === i && (
+                        <div className="bg-indigo-50 rounded-xl p-4 space-y-3 text-xs">
+                          <div>
+                            <span className="font-bold text-indigo-700">맞춤 소개:</span>
+                            <p className="text-gray-700 mt-1 leading-relaxed">{tailorResult.tailoredDescription}</p>
+                          </div>
+                          {tailorResult.subtitle && (
+                            <div>
+                              <span className="font-bold text-indigo-700">한줄 소개:</span>
+                              <p className="text-gray-700 mt-1">{tailorResult.subtitle}</p>
+                            </div>
+                          )}
+                          {tailorResult.keyAchievements?.length > 0 && (
+                            <div>
+                              <span className="font-bold text-indigo-700">강조 성과:</span>
+                              <ul className="mt-1 space-y-0.5">
+                                {tailorResult.keyAchievements.map((a, ai) => (
+                                  <li key={ai} className="text-gray-700">✓ {a}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {tailorResult.relevanceNote && (
+                            <div>
+                              <span className="font-bold text-indigo-700">적합도:</span>
+                              <p className="text-gray-700 mt-1">{tailorResult.relevanceNote}</p>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => applyTailoredResult(i)}
+                            className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors"
+                          >
+                            ✨ 이 내용으로 적용하기
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

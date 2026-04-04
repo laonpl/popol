@@ -63,22 +63,20 @@ export async function scrapeJobPosting(url) {
 
 // ── 채용공고 분석 (Gemini) ─────────────────────────────
 export async function analyzeJobPosting(text) {
-  const prompt = `당신은 한국 채용시장 전문 분석가입니다. 아래 채용공고 텍스트를 분석해서 구조화된 JSON으로 추출하세요.
+  const prompt = `당신은 한국 채용시장 전문 분석가이자 기업분석 전문가입니다. 아래 채용공고 텍스트를 분석해서 구조화된 JSON으로 추출하세요.
+채용공고 텍스트에 없더라도 해당 기업에 대한 공개적으로 알려진 정보(사업 내용, 산업 트렌드, 기업 문화 등)를 기반으로 가능한 풍부하게 작성하세요.
 
 ## 채용공고 텍스트:
 ${text.substring(0, 12000)}
 
-## 추출 항목:
-1. 기업명, 채용 직무/포지션
-2. 주요 업무 내용
-3. 자격 요건 (필수/우대 분리)
-4. 요구 스킬/역량
-5. 제출 서류 형식 (자소서 문항, 글자수 제한, 파일 용량/형식 제한 등)
-6. 채용 일정/마감일
-7. 근무 조건 (급여, 복리후생, 근무지 등)
-8. 인재상/핵심가치 키워드
+## 추출 및 분석 항목:
+1. 기본 채용 정보 (기업명, 직무, 업무, 요건, 스킬, 서류형식, 마감일, 근무조건, 인재상)
+2. **기업 분석**: 기업 소개, 주요 사업 내용, 산업 분야, 최근 동향/성장세, 기업 문화/가치
+3. **직무 분석**: 해당 직무가 기업에서 어떤 역할인지, 성장 가능성, 필요 역량 상세
+4. **지원 전략**: 지원동기 포인트, 면접 예상 질문, 어필 포인트
+5. **산업 트렌드**: 해당 산업의 최신 동향, 기술 트렌드
 
-텍스트에 없는 정보는 null로 두세요. 반드시 아래 JSON 형식으로만 응답하세요 (마크다운 없이):
+텍스트에 없는 정보는 기업명이 식별되면 공개 정보 기반으로 추론하세요. 그래도 모르면 null. 반드시 아래 JSON 형식으로만 응답 (마크다운 없이):
 {
   "company": "기업명",
   "position": "직무/포지션",
@@ -101,7 +99,29 @@ ${text.substring(0, 12000)}
     "benefits": ["복리후생1"],
     "location": "근무지 또는 null"
   },
-  "coreValues": ["인재상 키워드1", "인재상 키워드2"]
+  "coreValues": ["인재상 키워드1", "인재상 키워드2"],
+  "companyAnalysis": {
+    "overview": "기업 소개 및 현황 (3-5문장)",
+    "industry": "산업 분야",
+    "businessAreas": ["주요 사업 영역1", "주요 사업 영역2"],
+    "recentTrends": "최근 동향/성장세 (2-3문장)",
+    "culture": "기업 문화/특징 (2-3문장)",
+    "strengths": ["기업 강점1", "기업 강점2"],
+    "homepage": "홈페이지 URL 또는 null"
+  },
+  "positionAnalysis": {
+    "roleDescription": "이 직무가 기업 내에서 담당하는 역할 상세 설명 (3-5문장)",
+    "growthPath": "커리어 성장 가능성 및 경로",
+    "keyCompetencies": ["핵심역량1", "핵심역량2", "핵심역량3"],
+    "dailyTasks": "실제 일상 업무 예상 설명"
+  },
+  "applicationStrategy": {
+    "motivationPoints": ["지원동기에 녹일 포인트1", "포인트2"],
+    "interviewQuestions": ["면접 예상 질문1", "예상 질문2", "예상 질문3"],
+    "appealPoints": ["어필 포인트1", "어필 포인트2"],
+    "cautionPoints": ["주의할 점1"]
+  },
+  "industryTrends": ["산업 트렌드1", "트렌드2", "트렌드3"]
 }`;
 
   const raw = await generateWithRetry(prompt);
@@ -282,5 +302,50 @@ JSON 형식으로만 응답:
   const raw = await generateWithRetry(prompt);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('포트폴리오 제안 생성 실패');
+  return JSON.parse(jsonMatch[0]);
+}
+
+// ── 경험 내용을 기업에 맞게 재작성 ─────────────────────
+export async function tailorExperienceContent(jobAnalysis, experience) {
+  const content = experience.content
+    ? Object.entries(experience.content).map(([k, v]) => `${k}: ${v}`).join('\n')
+    : '';
+  const sections = (experience.sections || []).map(s => `${s.title}: ${s.content}`).join('\n');
+
+  const prompt = `당신은 취업 컨설턴트입니다. 사용자의 프로젝트/경험을 지원 기업과 직무에 최적화되도록 재작성해주세요.
+원래 내용의 사실을 유지하되, 기업이 원하는 역량과 가치를 강조하도록 표현을 조정하세요.
+
+## 지원 기업 정보:
+- 기업: ${jobAnalysis.company || ''}
+- 직무: ${jobAnalysis.position || ''}
+- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
+- 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
+- 주요 업무: ${(jobAnalysis.tasks || []).join(', ')}
+
+## 원본 경험:
+- 제목: ${experience.title || ''}
+- 설명: ${experience.description || ''}
+- 역할: ${experience.role || ''}
+- 스킬: ${(experience.skills || []).join(', ')}
+${content}
+${sections}
+
+## 재작성 요청:
+1. 경험 설명을 기업이 원하는 역량을 부각하도록 재작성
+2. 프로젝트 제목은 유지하되, 기업에 어필하는 부제/한줄소개 추가
+3. 이 경험에서 기업이 관심 가질 성과/수치를 강조
+
+JSON으로만 응답:
+{
+  "tailoredDescription": "기업 맞춤 재작성된 경험 설명",
+  "subtitle": "기업 어필용 한줄 소개",
+  "highlightedSkills": ["이 경험에서 기업에 어필할 스킬"],
+  "keyAchievements": ["강조할 성과1", "성과2"],
+  "relevanceNote": "이 경험이 해당 기업/직무에 왜 적합한지 설명"
+}`;
+
+  const raw = await generateWithRetry(prompt);
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('경험 맞춤화 실패');
   return JSON.parse(jsonMatch[0]);
 }

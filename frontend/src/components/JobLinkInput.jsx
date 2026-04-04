@@ -3,9 +3,9 @@ import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, Chev
 import api from '../services/api';
 
 const JOB_SITES = [
-  { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com' },
-  { name: '잡코리아', domain: 'jobkorea.co.kr', color: 'bg-blue-500', url: 'https://www.jobkorea.co.kr' },
-  { name: '사람인', domain: 'saramin.co.kr', color: 'bg-green-500', url: 'https://www.saramin.co.kr' },
+  { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
+  { name: '잡코리아', domain: 'jobkorea.co.kr', color: 'bg-blue-500', url: 'https://www.jobkorea.co.kr/starter/calendar' },
+  { name: '사람인', domain: 'saramin.co.kr', color: 'bg-green-500', url: 'https://calendar.saramin.co.kr' },
 ];
 
 export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
@@ -145,79 +145,286 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
   );
 }
 
-/* ── 분석 결과 요약 뱃지 (에디터에서 표시용) ── */
+/* ── 상세 기업 분석 패널 (에디터에서 표시용) ── */
 export function JobAnalysisBadge({ analysis, onRemove }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState('company');
 
   if (!analysis) return null;
 
+  const ca = analysis.companyAnalysis || {};
+  const pa = analysis.positionAnalysis || {};
+  const as_ = analysis.applicationStrategy || {};
+  const trends = analysis.industryTrends || [];
+
+  const tabs = [
+    { key: 'company', label: '기업 분석', icon: '🏢' },
+    { key: 'position', label: '직무 분석', icon: '💼' },
+    { key: 'strategy', label: '지원 전략', icon: '🎯' },
+    { key: 'trends', label: '산업 트렌드', icon: '📈' },
+  ];
+
   return (
-    <div className="bg-blue-50 border border-blue-100 rounded-xl overflow-hidden">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl overflow-hidden shadow-sm">
+      {/* 헤더 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-100/50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-100/40 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Building2 size={15} className="text-blue-600" />
-          <span className="text-sm font-medium text-blue-800">
-            {analysis.company || '기업'} · {analysis.position || '직무'}
-          </span>
-          {analysis.deadline && (
-            <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-600 rounded-full">
-              마감: {analysis.deadline}
-            </span>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
+            <Building2 size={18} className="text-white" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-blue-900">
+              {analysis.company || '기업'} · {analysis.position || '직무'}
+            </p>
+            <p className="text-[11px] text-blue-500">
+              AI 기업 분석 완료 {analysis.deadline && `· 마감 ${analysis.deadline}`}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {onRemove && (
-            <span
-              onClick={e => { e.stopPropagation(); onRemove(); }}
-              className="text-xs text-gray-400 hover:text-red-500 cursor-pointer"
-            >
+            <span onClick={e => { e.stopPropagation(); onRemove(); }} className="text-gray-400 hover:text-red-500 cursor-pointer p-1">
               <X size={14} />
             </span>
           )}
-          {expanded ? <ChevronUp size={14} className="text-blue-400" /> : <ChevronDown size={14} className="text-blue-400" />}
+          {expanded
+            ? <ChevronUp size={16} className="text-blue-400" />
+            : <ChevronDown size={16} className="text-blue-400" />}
         </div>
       </button>
+
       {expanded && (
-        <div className="px-4 pb-3 space-y-2 text-xs border-t border-blue-100 pt-2">
-          {analysis.skills?.length > 0 && (
-            <div>
-              <span className="font-medium text-blue-700">요구 스킬: </span>
-              <span className="text-blue-600">{analysis.skills.join(', ')}</span>
-            </div>
-          )}
-          {analysis.requirements?.essential?.length > 0 && (
-            <div>
-              <span className="font-medium text-red-600">필수: </span>
-              <span className="text-gray-600">{analysis.requirements.essential.join(' / ')}</span>
-            </div>
-          )}
-          {analysis.requirements?.preferred?.length > 0 && (
-            <div>
-              <span className="font-medium text-blue-600">우대: </span>
-              <span className="text-gray-600">{analysis.requirements.preferred.join(' / ')}</span>
-            </div>
-          )}
-          {analysis.coreValues?.length > 0 && (
-            <div>
-              <span className="font-medium text-purple-600">인재상: </span>
-              <span className="text-gray-600">{analysis.coreValues.join(', ')}</span>
-            </div>
-          )}
-          {analysis.applicationFormat?.questions?.length > 0 && (
-            <div>
-              <span className="font-medium text-green-600">자소서 문항 {analysis.applicationFormat.questions.length}개 </span>
-              {analysis.applicationFormat.questions.map((q, i) => (
-                <p key={i} className="text-gray-500 ml-2">
-                  {i + 1}. {q.question} {q.maxLength && `(${q.maxLength}자)`}
-                </p>
-              ))}
-            </div>
-          )}
+        <div className="border-t border-blue-200">
+          {/* 기본 정보 요약 바 */}
+          <div className="px-5 py-3 bg-white/60 flex flex-wrap gap-2">
+            {analysis.skills?.slice(0, 6).map((s, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{s}</span>
+            ))}
+            {analysis.coreValues?.slice(0, 3).map((v, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">{v}</span>
+            ))}
+          </div>
+
+          {/* 탭 네비게이션 */}
+          <div className="flex border-b border-blue-200 px-3 bg-white/40">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors 
+                  ${activeTab === tab.key
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              >
+                <span className="text-sm">{tab.icon}</span> {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 탭 콘텐츠 */}
+          <div className="px-5 py-4 max-h-[420px] overflow-y-auto text-xs space-y-3">
+            {/* ── 기업 분석 탭 ── */}
+            {activeTab === 'company' && (
+              <>
+                {ca.overview && (
+                  <AnalysisCard title="기업 개요" icon="📋">
+                    <p className="text-gray-700 leading-relaxed">{ca.overview}</p>
+                  </AnalysisCard>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {ca.industry && (
+                    <AnalysisCard title="업종" icon="🏭" compact>
+                      <p className="text-gray-700">{ca.industry}</p>
+                    </AnalysisCard>
+                  )}
+                  {ca.homepage && (
+                    <AnalysisCard title="홈페이지" icon="🌐" compact>
+                      <a href={ca.homepage} target="_blank" rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline truncate block">{ca.homepage}</a>
+                    </AnalysisCard>
+                  )}
+                </div>
+                {ca.businessAreas?.length > 0 && (
+                  <AnalysisCard title="사업 영역" icon="📊">
+                    <div className="flex flex-wrap gap-1.5">
+                      {ca.businessAreas.map((a, i) => (
+                        <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>
+                      ))}
+                    </div>
+                  </AnalysisCard>
+                )}
+                {ca.strengths?.length > 0 && (
+                  <AnalysisCard title="기업 강점" icon="💪">
+                    <ul className="space-y-1">
+                      {ca.strengths.map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                          <span className="text-green-500 mt-0.5">✓</span> {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {ca.culture && (
+                  <AnalysisCard title="기업 문화" icon="🤝">
+                    <p className="text-gray-700 leading-relaxed">{ca.culture}</p>
+                  </AnalysisCard>
+                )}
+                {ca.recentTrends && (
+                  <AnalysisCard title="최근 동향" icon="📰">
+                    <p className="text-gray-700 leading-relaxed">{ca.recentTrends}</p>
+                  </AnalysisCard>
+                )}
+              </>
+            )}
+
+            {/* ── 직무 분석 탭 ── */}
+            {activeTab === 'position' && (
+              <>
+                {pa.roleDescription && (
+                  <AnalysisCard title="직무 설명" icon="📝">
+                    <p className="text-gray-700 leading-relaxed">{pa.roleDescription}</p>
+                  </AnalysisCard>
+                )}
+                {pa.dailyTasks && (
+                  <AnalysisCard title="주요 업무" icon="📋">
+                    <p className="text-gray-700 leading-relaxed">{pa.dailyTasks}</p>
+                  </AnalysisCard>
+                )}
+                {pa.keyCompetencies?.length > 0 && (
+                  <AnalysisCard title="핵심 역량" icon="⭐">
+                    <div className="flex flex-wrap gap-1.5">
+                      {pa.keyCompetencies.map((c, i) => (
+                        <span key={i} className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg font-medium">{c}</span>
+                      ))}
+                    </div>
+                  </AnalysisCard>
+                )}
+                {pa.growthPath && (
+                  <AnalysisCard title="성장 경로" icon="🚀">
+                    <p className="text-gray-700 leading-relaxed">{pa.growthPath}</p>
+                  </AnalysisCard>
+                )}
+                {analysis.requirements?.essential?.length > 0 && (
+                  <AnalysisCard title="필수 요건" icon="🔴">
+                    <ul className="space-y-1">
+                      {analysis.requirements.essential.map((r, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                          <span className="text-red-400 mt-0.5">•</span> {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {analysis.requirements?.preferred?.length > 0 && (
+                  <AnalysisCard title="우대 요건" icon="🔵">
+                    <ul className="space-y-1">
+                      {analysis.requirements.preferred.map((r, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                          <span className="text-blue-400 mt-0.5">•</span> {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+              </>
+            )}
+
+            {/* ── 지원 전략 탭 ── */}
+            {activeTab === 'strategy' && (
+              <>
+                {as_.motivationPoints?.length > 0 && (
+                  <AnalysisCard title="지원동기 포인트" icon="💡">
+                    <ul className="space-y-2">
+                      {as_.motivationPoints.map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-gray-700">
+                          <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {as_.interviewQuestions?.length > 0 && (
+                  <AnalysisCard title="면접 예상 질문" icon="🎤">
+                    <ul className="space-y-2">
+                      {as_.interviewQuestions.map((q, i) => (
+                        <li key={i} className="flex items-start gap-2 text-gray-700">
+                          <span className="text-indigo-400 font-bold">Q{i + 1}.</span> {q}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {as_.appealPoints?.length > 0 && (
+                  <AnalysisCard title="어필 포인트" icon="✨">
+                    <div className="flex flex-wrap gap-1.5">
+                      {as_.appealPoints.map((p, i) => (
+                        <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded-lg">{p}</span>
+                      ))}
+                    </div>
+                  </AnalysisCard>
+                )}
+                {as_.cautionPoints?.length > 0 && (
+                  <AnalysisCard title="주의 사항" icon="⚠️">
+                    <ul className="space-y-1">
+                      {as_.cautionPoints.map((p, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                          <span className="text-orange-400 mt-0.5">!</span> {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {analysis.applicationFormat?.questions?.length > 0 && (
+                  <AnalysisCard title="자소서 문항" icon="📄">
+                    <ul className="space-y-2">
+                      {analysis.applicationFormat.questions.map((q, i) => (
+                        <li key={i} className="text-gray-700 bg-gray-50 p-2 rounded-lg">
+                          <span className="font-medium text-gray-800">{i + 1}.</span> {q.question}
+                          {q.maxLength && <span className="ml-1 text-[10px] text-gray-400">({q.maxLength}자)</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </AnalysisCard>
+                )}
+              </>
+            )}
+
+            {/* ── 산업 트렌드 탭 ── */}
+            {activeTab === 'trends' && (
+              <>
+                {trends.length > 0 ? (
+                  <div className="space-y-2">
+                    {trends.map((t, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-white rounded-xl border border-gray-100">
+                        <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+                        <p className="text-gray-700 leading-relaxed">{t}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-center py-8">산업 트렌드 정보가 없습니다</p>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─ 분석 카드 서브 컴포넌트 ─ */
+function AnalysisCard({ title, icon, compact, children }) {
+  return (
+    <div className={`bg-white rounded-xl border border-gray-100 ${compact ? 'p-2.5' : 'p-3'}`}>
+      <p className={`font-semibold text-gray-800 flex items-center gap-1.5 ${compact ? 'text-[11px] mb-1' : 'text-xs mb-2'}`}>
+        <span>{icon}</span> {title}
+      </p>
+      {children}
     </div>
   );
 }
