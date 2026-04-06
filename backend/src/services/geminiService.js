@@ -41,41 +41,62 @@ async function generateWithRetry(prompt, retries = 5, delayMs = 3000) {
   throw lastError;
 }
 
-export async function analyzeExperience(content, framework) {
+export async function analyzeExperience(content) {
   const contentText = Object.entries(content)
     .map(([key, val]) => `[${key}]: ${val}`)
     .join('\n');
 
-  const prompt = `당신은 HR 전문가이자 취업 컨설턴트입니다. 아래의 ${framework} 프레임워크로 작성된 경험을 분석해주세요.
+  const prompt = `당신은 "스타 커리어 코치"입니다. 아래 경험 내용을 분석하여 7가지 섹션으로 구조화해주세요.
 
 ## 경험 내용:
 ${contentText}
 
-## 분석 요청사항:
-1. **역량 키워드 추출**: 이 경험에서 드러나는 핵심 역량 키워드를 3-5개 추출 (예: 문제해결, 협업 능력, 리더십, 도전/열정 등)
-2. **텍스트 하이라이팅**: 각 필드에서 핵심적인 문장/구절을 찾아서 하이라이트 정보 제공
-   - type: "core" (핵심 역량), "derived" (파생 역량), "growth" (성장 관점)
-   - field 값은 반드시 위 경험 내용의 [key] 부분을 그대로 사용 (예: situation, fact, keep 등)
-   - text 값은 위 경험 내용에 있는 문장을 **그대로** 복사 (수정 없이)
-   - keywords 값은 해당 문장/구절이 나타내는 역량 키워드를 1-2개만 (competencyKeywords 중에서 선택)
-3. **추천 자소서 문항**: 이 경험을 활용할 수 있는 자기소개서 문항 3개 추천
-4. **HR Insight**: HR 담당자 관점에서의 평가 한 줄
+## 구조화 규칙:
+1. **프로젝트명**: 경험/프로젝트의 핵심을 담은 명확한 제목
+2. **기간**: 활동 기간 (내용에서 추정 가능하면 작성, 없으면 빈 문자열)
+3. **선정이유**: 왜 이 프로젝트/활동을 하게 되었는지, 문제 인식과 동기
+4. **솔루션**: 어떤 해결책을 제시하고 구현했는지 구체적으로
+5. **솔루션 채택 이유**: 여러 대안 중 왜 이 솔루션을 선택했는지 논리적 근거
+6. **사용된 역량**: 이 경험에서 발휘한 핵심 역량 (기술적 역량 + 소프트 스킬)
+7. **결과**: 정량적/정성적 성과와 배운 점
+
+추가로:
+- **keywords**: 이 경험에서 드러나는 핵심 역량 키워드 3~5개
+- **highlights**: 각 섹션(reason, solution, solutionReason, skills, result)에서 핵심적인 문장/구절을 찾아 하이라이트 정보 제공
+  - field: 섹션 key (예: reason, solution 등)
+  - text: 해당 섹션 내용에서 **그대로** 복사한 문장 (수정 없이)
+  - type: "core" (핵심 역량), "derived" (파생 역량), "growth" (성장 관점)
+  - keywords: 해당 구절이 나타내는 역량 키워드 1~2개 (keywords 배열에서 선택)
+- **imageTips**: 각 섹션별로 어떤 이미지/자료를 첨부하면 좋을지 팁 (섹션 key를 키로 사용)
+- **followUpQuestions**: 내용을 더 풍부하게 만들기 위한 후속 질문 3개
 
 반드시 아래 JSON 형식으로만 응답하세요 (마크다운 없이):
 {
-  "competencyKeywords": ["키워드1", "키워드2", "키워드3"],
+  "projectName": "프로젝트 제목",
+  "period": "기간",
+  "reason": "선정이유 내용",
+  "solution": "솔루션 내용",
+  "solutionReason": "솔루션 채택 이유 내용",
+  "skills": "사용된 역량 내용",
+  "result": "결과 내용",
+  "keywords": ["키워드1", "키워드2", "키워드3"],
   "highlights": [
-    {"field": "필드키", "text": "경험 내용에서 그대로 복사한 텍스트", "type": "core", "keywords": ["이 구절에 해당하는 키워드"]},
-    {"field": "필드키", "text": "경험 내용에서 그대로 복사한 텍스트", "type": "derived", "keywords": ["이 구절에 해당하는 키워드"]}
+    {"field": "reason", "text": "경험 내용에서 그대로 복사한 텍스트", "type": "core", "keywords": ["키워드"]},
+    {"field": "solution", "text": "경험 내용에서 그대로 복사한 텍스트", "type": "derived", "keywords": ["키워드"]}
   ],
-  "suggestedQuestions": ["문항1", "문항2", "문항3"],
-  "hrInsight": "HR 관점 평가",
-  "summary": "경험 요약 한 줄"
+  "imageTips": {
+    "projectName": "팁",
+    "reason": "팁",
+    "solution": "팁",
+    "solutionReason": "팁",
+    "skills": "팁",
+    "result": "팁"
+  },
+  "followUpQuestions": ["질문1", "질문2", "질문3"]
 }`;
 
   const text = await generateWithRetry(prompt);
 
-  // Parse JSON from response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('AI 응답 파싱 실패');

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Sparkles, Upload, ChevronLeft, ChevronRight, BookOpen, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FolderOpen, Sparkles, Upload, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
@@ -45,8 +45,8 @@ export default function ExperienceHub() {
       const data = structured || {};
       const newId = await createExperience(user.uid, {
         title: data.title || imported?.title || '임포트된 경험',
-        framework: data.framework || 'STAR',
-        content: data.content || { situation: imported?.content || '' },
+        framework: data.framework || 'STRUCTURED',
+        content: data.content || { projectName: imported?.content || '' },
       });
       navigate(`/app/experience/edit/${newId}`);
     } catch (error) {
@@ -156,11 +156,11 @@ export default function ExperienceHub() {
 }
 
 function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
-  const { id, title, framework, content, keywords, aiAnalysis, createdAt } = experience;
+  const { id, title, framework, content, keywords, structuredResult, createdAt } = experience;
   const date = createdAt?.toDate?.()?.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) || '';
   const gradient = getGradient(id);
-  const summary = aiAnalysis?.summary || (content && Object.values(content)[0]?.slice(0, 40)) || '';
-  const suggestedQuestions = aiAnalysis?.suggestedQuestions || [];
+  const displayKeywords = keywords || structuredResult?.keywords || [];
+  const summary = structuredResult?.projectName || (content && Object.values(content)[0]?.slice(0, 40)) || '';
 
   return (
     <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
@@ -168,7 +168,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs text-gray-400">{date}</span>
         <Link
-          to={`/app/experience/analysis/${id}`}
+          to={`/app/experience/structured/${id}`}
           className="text-xs text-gray-400 hover:text-primary-600 transition-colors"
         >
           자세히 보기 →
@@ -210,14 +210,14 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
       {/* 본문 영역 */}
       <div className="px-4 pt-4 pb-2 flex-1">
         {/* AI 키워드 */}
-        {(keywords && keywords.length > 0) ? (
+        {(displayKeywords && displayKeywords.length > 0) ? (
           <div className="mb-3">
             <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
               <Sparkles size={11} className="text-primary-500" />
               AI가 분석한 역량 키워드
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {keywords.slice(0, 3).map(k => (
+              {displayKeywords.slice(0, 3).map(k => (
                 <span key={k} className="px-2.5 py-1 rounded-full text-xs font-medium border bg-primary-50 text-primary-700 border-primary-200">
                   {k}
                 </span>
@@ -230,23 +230,6 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
               <Sparkles size={11} />
               AI 분석 전
             </p>
-          </div>
-        )}
-
-        {/* 추천 자소서 문항 */}
-        {suggestedQuestions.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-              <BookOpen size={11} />
-              추천 자기소개서 문항
-            </p>
-            <div className="space-y-1.5">
-              {suggestedQuestions.slice(0, 2).map((q, i) => (
-                <div key={i} className="pl-2 border-l-2 border-primary-200">
-                  <p className="text-xs text-gray-500 line-clamp-1">{q}</p>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -262,7 +245,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
             편집
           </Link>
           <Link
-            to={`/app/experience/analysis/${id}`}
+            to={`/app/experience/structured/${id}`}
             className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
           >
             <Sparkles size={12} />

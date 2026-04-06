@@ -8,6 +8,7 @@ import ExperienceHub from './pages/experience/ExperienceHub';
 import TemplateSelect from './pages/experience/TemplateSelect';
 import ExperienceEditor from './pages/experience/ExperienceEditor';
 import AnalysisResult from './pages/experience/AnalysisResult';
+import StructuredResult from './pages/experience/StructuredResult';
 import PortfolioHub from './pages/portfolio/PortfolioHub';
 import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="experience/edit/:id" element={<ExperienceEditor />} />
         <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
         <Route path="experience/analysis/:id" element={<AnalysisResult />} />
+        <Route path="experience/structured/:id" element={<StructuredResult />} />
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
         <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />

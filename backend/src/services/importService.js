@@ -322,11 +322,13 @@ export async function importFromFile(buffer, mimeType, fileName) {
   let extractedText = '';
 
   if (mimeType === 'application/pdf') {
-    // 1단계: pdf-parse로 텍스트 추출 시도
+    // 1단계: pdf-parse v2로 텍스트 추출 ({ data: buffer } 생성자 전달, getText()로 추출)
     try {
-      const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-      const data = await pdfParse(buffer);
-      extractedText = data.text || '';
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      await parser.destroy();
+      extractedText = result?.text || '';
     } catch (e) {
       console.warn('pdf-parse 실패, Gemini Vision으로 전환:', e.message);
     }

@@ -17,7 +17,7 @@ export default function ExperienceEditor() {
   const imageInputRef = useRef(null);
 
   const [title, setTitle] = useState('');
-  const [framework, setFramework] = useState(paramFramework || 'STAR');
+  const [framework, setFramework] = useState(paramFramework || 'STRUCTURED');
   const [content, setContent] = useState({});
   const [images, setImages] = useState([]); // [{ url, storagePath, name }]
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -93,7 +93,7 @@ export default function ExperienceEditor() {
       }
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
-      navigate(`/app/experience/analysis/${experienceId}`, { state: { analysis, title, framework, content } });
+      navigate(`/app/experience/structured/${experienceId}`, { state: { analysis, title, framework, content } });
     } catch (error) {
       toast.error('AI 분석에 실패했습니다. 다시 시도해주세요.');
     }

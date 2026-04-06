@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function TemplateSelect() {
   const frameworkList = Object.entries(FRAMEWORKS);
-  const recommended = 'STAR';
+  const recommended = 'STRUCTURED';
   const [showTemplates, setShowTemplates] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const { user } = useAuthStore();
@@ -32,8 +32,8 @@ export default function TemplateSelect() {
 
       const newId = await createExperience(user.uid, {
         title: data.title || imported?.title || '임포트된 경험',
-        framework: data.framework || 'STAR',
-        content: data.content || { situation: situationContent },
+        framework: data.framework || 'STRUCTURED',
+        content: data.content || { projectName: situationContent },
       });
       navigate(`/app/experience/edit/${newId}`);
     } catch (error) {

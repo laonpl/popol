@@ -5,7 +5,7 @@ import { analyzeExperience } from '../services/geminiService.js';
 
 const router = Router();
 
-// POST /api/experience/analyze - AI 경험 분석
+// POST /api/experience/analyze - AI 경험 구조화
 router.post('/analyze', authMiddleware, async (req, res, next) => {
   try {
     const { experienceId } = req.body;
@@ -29,7 +29,7 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
 
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, data.framework || 'STAR');
+      analysis = await analyzeExperience(data.content || {});
     } catch (aiError) {
       console.error('Gemini AI 분석 실패:', aiError.message);
       return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' });
@@ -37,8 +37,8 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
-      aiAnalysis: analysis,
-      keywords: analysis.competencyKeywords || [],
+      structuredResult: analysis,
+      keywords: analysis.keywords || [],
       updatedAt: new Date(),
     });
 
