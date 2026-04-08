@@ -19,7 +19,7 @@ export default function Layout() {
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
       {/* 상단 네비게이션 */}
       <header className="bg-white border-b border-surface-200">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+        <div className="relative px-6 flex items-center h-16">
           {/* 로고 */}
           <button onClick={() => navigate('/app')} className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center">
@@ -27,8 +27,8 @@ export default function Layout() {
             </div>
           </button>
 
-          {/* 메뉴 탭 */}
-          <nav className="flex items-center bg-surface-100 rounded-full p-1">
+          {/* 메뉴 탭 - 절대 가운데 */}
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center bg-surface-100 rounded-full p-1">
             {navItems.map(({ to, label }) => (
               <NavLink
                 key={to}
@@ -47,7 +47,7 @@ export default function Layout() {
           </nav>
 
           {/* 유저 */}
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3">
             <span className="text-sm font-medium text-bluewood-700">
               {user?.displayName || '사용자'}
             </span>
