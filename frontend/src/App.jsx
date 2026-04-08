@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
 import ExperienceHub from './pages/experience/ExperienceHub';
 import TemplateSelect from './pages/experience/TemplateSelect';
 import ExperienceEditor from './pages/experience/ExperienceEditor';
@@ -14,8 +13,7 @@ import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
 import NotionPortfolioEditor from './pages/portfolio/NotionPortfolioEditor';
 import NotionPortfolioPreview from './pages/portfolio/NotionPortfolioPreview';
-import CoverLetterHub from './pages/coverletter/CoverLetterHub';
-import CoverLetterEditor from './pages/coverletter/CoverLetterEditor';
+
 
 // 로그인 없이 바로 접근 가능
 function PrivateRoute({ children }) {
@@ -30,7 +28,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/app" element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<Navigate to="/app/experience" replace />} />
         {/* 경험정리 */}
         <Route path="experience" element={<ExperienceHub />} />
         <Route path="experience/new" element={<TemplateSelect />} />
@@ -44,9 +42,7 @@ export default function App() {
         <Route path="portfolio/edit/:id" element={<PortfolioEditor />} />
         <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-        {/* 자소서 */}
-        <Route path="coverletter" element={<CoverLetterHub />} />
-        <Route path="coverletter/edit/:id" element={<CoverLetterEditor />} />
+
       </Route>
     </Routes>
   );

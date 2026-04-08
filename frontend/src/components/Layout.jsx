@@ -1,15 +1,13 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderOpen, FileText, PenTool,
+  FolderOpen, FileText,
   LogOut, User, Briefcase
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 
 const navItems = [
-  { to: '/app', icon: LayoutDashboard, label: '대시보드', end: true },
   { to: '/app/experience', icon: FolderOpen, label: '경험 정리' },
   { to: '/app/portfolio', icon: FileText, label: '포트폴리오' },
-  { to: '/app/coverletter', icon: PenTool, label: '자기소개서' },
 ];
 
 export default function Layout() {

@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, FileText, Image, Globe, Github,
-  Loader2, X, Plus, ClipboardPaste, Sparkles, CheckCircle2
+  ArrowLeft, Upload, FileText, Globe, Github,
+  Loader2, X, Sparkles, CheckCircle2, Calendar, Tag
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -17,12 +17,14 @@ export default function TemplateSelect() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [step, setStep] = useState('collect'); // collect | loading | done
+  const [step, setStep] = useState('collect');
+  const [title, setTitle] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [files, setFiles] = useState([]);
   const [textInput, setTextInput] = useState('');
   const [notionUrl, setNotionUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
-  const [inputMode, setInputMode] = useState('file'); // file | text | notion | github
   const [loadingMsg, setLoadingMsg] = useState('');
 
   const handleFileAdd = (e) => {
@@ -48,8 +50,12 @@ export default function TemplateSelect() {
   const hasInput = files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim();
 
   const handleSubmit = async () => {
+    if (!title.trim()) {
+      toast.error('경험 이름을 입력해주세요');
+      return;
+    }
     if (!hasInput) {
-      toast.error('파일이나 텍스트를 입력해주세요');
+      toast.error('파일이나 텍스트, 링크를 하나 이상 입력해주세요');
       return;
     }
 
@@ -58,9 +64,8 @@ export default function TemplateSelect() {
 
     try {
       let allText = '';
-      let importedTitle = '';
 
-      // 1) 파일 업로드 처리
+      // 1) 파일 업로드
       if (files.length > 0) {
         setLoadingMsg(`${files.length}개 파일을 업로드하고 분석 중...`);
         for (const file of files) {
@@ -72,9 +77,6 @@ export default function TemplateSelect() {
             if (data.imported?.content) {
               allText += `\n\n--- ${file.name} ---\n${data.imported.content}`;
             }
-            if (data.imported?.title && !importedTitle) {
-              importedTitle = data.imported.title;
-            }
           } catch (err) {
             console.error(`${file.name} 임포트 실패:`, err);
             toast.error(`${file.name} 처리 실패`);
@@ -82,12 +84,12 @@ export default function TemplateSelect() {
         }
       }
 
-      // 2) 텍스트 입력 처리
+      // 2) 텍스트
       if (textInput.trim()) {
         allText += `\n\n--- 직접 입력 ---\n${textInput}`;
       }
 
-      // 3) Notion URL 처리
+      // 3) Notion
       if (notionUrl.trim()) {
         setLoadingMsg('Notion 페이지를 분석 중...');
         try {
@@ -95,13 +97,12 @@ export default function TemplateSelect() {
           if (data.imported?.content) {
             allText += `\n\n--- Notion ---\n${data.imported.content}`;
           }
-          if (data.imported?.title && !importedTitle) importedTitle = data.imported.title;
         } catch (err) {
           toast.error('Notion 페이지 불러오기 실패');
         }
       }
 
-      // 4) GitHub URL 처리
+      // 4) GitHub
       if (githubUrl.trim()) {
         setLoadingMsg('GitHub 리포지토리를 분석 중...');
         try {
@@ -109,7 +110,6 @@ export default function TemplateSelect() {
           if (data.imported?.content) {
             allText += `\n\n--- GitHub ---\n${data.imported.content}`;
           }
-          if (data.imported?.title && !importedTitle) importedTitle = data.imported.title;
         } catch (err) {
           toast.error('GitHub 리포지토리 불러오기 실패');
         }
@@ -121,21 +121,23 @@ export default function TemplateSelect() {
         return;
       }
 
-      // 5) 경험 생성 (raw 내용으로)
+      // 5) 경험 생성
       setLoadingMsg('AI가 경험을 정리하고 있습니다...');
+      const period = startDate ? `${startDate}${endDate ? ` ~ ${endDate}` : ''}` : '';
       const experienceId = await createExperience(user.uid, {
-        title: importedTitle || '새 경험',
+        title: title.trim(),
         framework: 'STRUCTURED',
+        period,
         content: { rawInput: allText.trim() },
       });
 
-      // 6) AI 분석으로 구조화
+      // 6) AI 분석
       setLoadingMsg('7가지 섹션으로 구조화하는 중...');
       const { data: analysis } = await api.post('/experience/analyze', { experienceId }, { timeout: 120000 });
 
       toast.success('경험 정리가 완료되었습니다!');
       navigate(`/app/experience/structured/${experienceId}`, {
-        state: { analysis, title: importedTitle || analysis.intro || '새 경험', framework: 'STRUCTURED', content: { rawInput: allText.trim() } },
+        state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: allText.trim() } },
       });
     } catch (error) {
       console.error('경험 생성 실패:', error);
@@ -166,7 +168,7 @@ export default function TemplateSelect() {
     );
   }
 
-  // ===== 자료 수집 화면 =====
+  // ===== 자료 수집 화면 - 한 화면에 모두 표시 =====
   return (
     <div className="animate-fadeIn max-w-3xl mx-auto">
       <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6">
@@ -179,46 +181,74 @@ export default function TemplateSelect() {
           <Sparkles size={16} />
           AI 경험 정리
         </div>
-        <h1 className="text-2xl font-bold text-bluewood-900 mb-2">경험할 자료를 넣어주세요</h1>
-        <p className="text-bluewood-400">관련 파일, 텍스트, 링크를 추가하면 AI가 자동으로 7가지 섹션으로 정리합니다</p>
+        <h1 className="text-2xl font-bold text-bluewood-900 mb-2">새 경험 추가</h1>
+        <p className="text-bluewood-400">경험 정보와 관련 자료를 입력하면 AI가 자동으로 7가지 섹션으로 정리합니다</p>
       </div>
 
-      {/* 입력 모드 탭 */}
-      <div className="flex bg-surface-100 rounded-xl p-1 mb-6">
-        {[
-          { key: 'file', icon: Upload, label: '파일 업로드' },
-          { key: 'text', icon: ClipboardPaste, label: '직접 입력' },
-          { key: 'notion', icon: Globe, label: 'Notion' },
-          { key: 'github', icon: Github, label: 'GitHub' },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setInputMode(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all
-              ${inputMode === tab.key ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-600'}`}
-          >
-            <tab.icon size={15} /> {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="space-y-5">
+        {/* ── 경험 이름 & 날짜 ── */}
+        <div className="bg-white rounded-2xl border border-surface-200 p-6">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
+            <Tag size={16} className="text-primary-500" />
+            기본 정보
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-bluewood-600 mb-1.5">경험 이름 <span className="text-red-400">*</span></label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="예: OO 서비스 UX 리디자인 프로젝트"
+                className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-bluewood-600 mb-1.5">
+                  <Calendar size={12} className="inline mr-1" />시작일
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-bluewood-600 mb-1.5">
+                  <Calendar size={12} className="inline mr-1" />종료일
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* 파일 업로드 */}
-      {inputMode === 'file' && (
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
+        {/* ── 파일 업로드 ── */}
+        <div className="bg-white rounded-2xl border border-surface-200 p-6">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
+            <Upload size={16} className="text-primary-500" />
+            파일 업로드
+          </h2>
           <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full border-2 border-dashed border-surface-300 rounded-xl p-10 flex flex-col items-center gap-3 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 transition-all"
+            className="w-full border-2 border-dashed border-surface-300 rounded-xl p-8 flex flex-col items-center gap-2 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 transition-all"
           >
-            <Upload size={32} />
-            <p className="font-medium">클릭하여 파일을 선택하세요</p>
+            <Upload size={28} />
+            <p className="font-medium text-sm">클릭하여 파일을 선택하세요</p>
             <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP), HWP · 최대 25MB · 최대 10개</p>
           </button>
-
           {files.length > 0 && (
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-2">
               {files.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3 bg-surface-50 rounded-xl">
+                <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
                   <FileText size={16} className="text-primary-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-bluewood-900 truncate">{f.name}</p>
@@ -232,97 +262,103 @@ export default function TemplateSelect() {
             </div>
           )}
         </div>
-      )}
 
-      {/* 직접 입력 */}
-      {inputMode === 'text' && (
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
-          <label className="block text-sm font-bold text-bluewood-900 mb-2">경험 내용 입력</label>
+        {/* ── 직접 입력 ── */}
+        <div className="bg-white rounded-2xl border border-surface-200 p-6">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
+            <FileText size={16} className="text-indigo-500" />
+            직접 입력
+          </h2>
           <textarea
             value={textInput}
             onChange={e => setTextInput(e.target.value)}
-            placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예시:\n- 어떤 프로젝트/활동이었나요?\n- 왜 시작하게 되었나요?\n- 어떤 문제를 해결했나요?\n- 어떤 기술/역량을 사용했나요?\n- 결과는 어땠나요?`}
-            rows={12}
+            placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예시:\n- 어떤 프로젝트/활동이었나요?\n- 왜 시작하게 되었나요?\n- 어떤 문제를 해결했나요?`}
+            rows={6}
             className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300"
           />
           {textInput && (
             <p className="text-xs text-bluewood-400 text-right mt-1">{textInput.length}자</p>
           )}
         </div>
-      )}
 
-      {/* Notion */}
-      {inputMode === 'notion' && (
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
-          <label className="block text-sm font-bold text-bluewood-900 mb-2">Notion 페이지 URL</label>
-          <input
-            type="url"
-            value={notionUrl}
-            onChange={e => setNotionUrl(e.target.value)}
-            placeholder="https://www.notion.so/..."
-            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200"
-          />
-          <p className="text-xs text-bluewood-300 mt-2">Notion 페이지의 공유 URL을 입력하세요. 페이지가 공개되어 있어야 합니다.</p>
-        </div>
-      )}
-
-      {/* GitHub */}
-      {inputMode === 'github' && (
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
-          <label className="block text-sm font-bold text-bluewood-900 mb-2">GitHub 리포지토리 URL</label>
-          <input
-            type="url"
-            value={githubUrl}
-            onChange={e => setGithubUrl(e.target.value)}
-            placeholder="https://github.com/username/repository"
-            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200"
-          />
-          <p className="text-xs text-bluewood-300 mt-2">리포지토리의 README를 자동으로 분석합니다.</p>
-        </div>
-      )}
-
-      {/* 추가된 자료 요약 */}
-      {(files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim()) && (
-        <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6">
-          <p className="text-sm font-medium text-primary-700 mb-2">추가된 자료</p>
-          <div className="flex flex-wrap gap-2">
-            {files.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                <CheckCircle2 size={12} /> 파일 {files.length}개
-              </span>
-            )}
-            {textInput.trim() && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                <CheckCircle2 size={12} /> 텍스트 입력
-              </span>
-            )}
-            {notionUrl.trim() && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                <CheckCircle2 size={12} /> Notion 링크
-              </span>
-            )}
-            {githubUrl.trim() && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                <CheckCircle2 size={12} /> GitHub 링크
-              </span>
-            )}
+        {/* ── 링크 입력 (Notion & GitHub) ── */}
+        <div className="bg-white rounded-2xl border border-surface-200 p-6">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
+            <Globe size={16} className="text-purple-500" />
+            링크 입력
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-bluewood-600 mb-1.5">
+                <Globe size={13} className="text-bluewood-400" /> Notion 페이지 URL
+              </label>
+              <input
+                type="url"
+                value={notionUrl}
+                onChange={e => setNotionUrl(e.target.value)}
+                placeholder="https://www.notion.so/..."
+                className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-bluewood-600 mb-1.5">
+                <Github size={13} className="text-bluewood-400" /> GitHub 리포지토리 URL
+              </label>
+              <input
+                type="url"
+                value={githubUrl}
+                onChange={e => setGithubUrl(e.target.value)}
+                placeholder="https://github.com/username/repository"
+                className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300"
+              />
+            </div>
           </div>
+          <p className="text-xs text-bluewood-300 mt-3">공개된 페이지/리포지토리만 가져올 수 있습니다.</p>
         </div>
-      )}
 
-      {/* 제출 버튼 */}
-      <button
-        onClick={handleSubmit}
-        disabled={!hasInput}
-        className="w-full flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-lg font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200 hover:shadow-xl hover:-translate-y-0.5"
-      >
-        <Sparkles size={20} />
-        AI로 경험 정리 시작
-      </button>
+        {/* ── 추가된 자료 요약 ── */}
+        {hasInput && (
+          <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
+            <p className="text-sm font-medium text-primary-700 mb-2">추가된 자료</p>
+            <div className="flex flex-wrap gap-2">
+              {files.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                  <CheckCircle2 size={12} /> 파일 {files.length}개
+                </span>
+              )}
+              {textInput.trim() && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                  <CheckCircle2 size={12} /> 텍스트 입력
+                </span>
+              )}
+              {notionUrl.trim() && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                  <CheckCircle2 size={12} /> Notion 링크
+                </span>
+              )}
+              {githubUrl.trim() && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                  <CheckCircle2 size={12} /> GitHub 링크
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
-      <p className="text-center text-xs text-bluewood-300 mt-4">
-        AI는 입력된 자료만으로 정리하며, 새로운 내용을 만들어내지 않습니다.
-      </p>
+        {/* ── 제출 버튼 ── */}
+        <button
+          onClick={handleSubmit}
+          disabled={!title.trim() || !hasInput}
+          className="w-full flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-lg font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200 hover:shadow-xl hover:-translate-y-0.5"
+        >
+          <Sparkles size={20} />
+          AI로 경험 정리 시작
+        </button>
+
+        <p className="text-center text-xs text-bluewood-300 pb-4">
+          AI는 입력된 자료만으로 정리하며, 새로운 내용을 만들어내지 않습니다.
+        </p>
+      </div>
     </div>
   );
 }
