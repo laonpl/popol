@@ -55,6 +55,10 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res, ne
     res.json({ url, storagePath });
   } catch (error) {
     console.error('[Upload] 이미지 업로드 실패:', error.message);
+    // Firebase/GCS 404는 bucket 미존재 → 클라이언트에 500으로 반환
+    if (error.code === 404 || error.status === 404) {
+      return res.status(500).json({ error: 'Firebase Storage 버킷을 찾을 수 없습니다. Firebase 콘솔에서 Storage를 활성화해 주세요.' });
+    }
     next(error);
   }
 });

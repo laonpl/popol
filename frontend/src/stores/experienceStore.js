@@ -6,7 +6,7 @@ import api from '../services/api';
 export const FRAMEWORKS = {
   STRUCTURED: {
     name: '경험 구조화',
-    description: '7가지 섹션으로 경험을 체계적으로 정리합니다',
+    description: '직무 맞춤형 커리어 코치 프레임워크로 경험을 체계적으로 정리합니다',
     fields: [
       { key: 'intro', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄', placeholder: '프로젝트 이름과 한 줄 소개를 입력하세요', color: 'bg-blue-50 border-blue-200' },
       { key: 'overview', label: '프로젝트 개요', subtitle: '배경과 목적', placeholder: '프로젝트의 배경과 목적을 설명해주세요', color: 'bg-indigo-50 border-indigo-200' },

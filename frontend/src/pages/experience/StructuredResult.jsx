@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -67,7 +67,6 @@ export default function StructuredResult() {
       });
       const fields = pickSectionFields(structured);
       setEditedContent(fields);
-      // 빈 섹션은 자동으로 편집 모드
       const autoEdit = {};
       SECTION_KEYS.forEach(k => {
         if (!fields[k]?.trim()) autoEdit[k] = true;
@@ -124,7 +123,6 @@ export default function StructuredResult() {
         updatedAt: new Date(),
       });
       setExperience(prev => ({ ...prev, structuredResult: updatedStructured, content: editedContent }));
-      // 편집중이던 섹션 중 값이 있는건 편집 모드 해제
       const newEditing = {};
       SECTION_KEYS.forEach(k => {
         if (!editedContent[k]?.trim()) newEditing[k] = true;
