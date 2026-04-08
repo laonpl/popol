@@ -400,28 +400,48 @@ export async function structureImportedContent(importedData, targetType) {
   const rawText = importedData.content?.substring(0, 5000) || '';
 
   const prompts = {
-    experience: `당신은 취업 포트폴리오 전문 데이터 분석가이자 경험 정리 컨설턴트입니다.
-사용자가 업로드한 파편화된 원본 데이터(Notion 웹페이지, Github README, 또는 PDF 추출 텍스트)를 분석하여, 취업에 최적화된 구조화된 JSON 형태로 요약 및 재구성하는 것이 당신의 목표입니다.
+    experience: `당신은 실리콘밸리 탑티어 기업의 수석 채용 담당자이자, 취준생의 파편화된 경험을 '합격률 1%의 직무 맞춤형 포트폴리오'로 변환해 주는 최고의 커리어 컨설턴트입니다.
+사용자가 업로드한 원본 데이터를 분석하여 희망 직무를 유추하고, 아래 원칙에 따라 재구성하세요.
 
-[작업 지시사항]
-1. 아래 제공되는 원본 데이터를 꼼꼼히 분석하십시오.
-2. 분석된 내용을 바탕으로 불필요한 서술어는 제거하고, 명확하고 프로페셔널한 비즈니스 용어(명사형 종결 등)로 정제하십시오.
-3. 데이터를 'STAR(Situation, Task, Action, Result) 기법' 기반의 아래 JSON 스키마에 완벽히 맞추어 추출하십시오. 정보가 누락된 항목은 "내용 없음"으로 표기하되, 문맥상 유추 가능한 경우 최대한 채워 넣으십시오.
+[핵심 원칙]
+1. 두괄식 어필: Key Result(핵심 성과)를 가장 먼저 제시 — 수치화된 성과 우선
+2. Why-How 연결: '왜(Why)'와 '어떻게(How)'를 논리적으로 연결, What의 단순 나열 금지
+3. 명확한 기여도: 팀 프로젝트라면 본인 역할과 기여도(%)를 명확히 분리
+4. 문체: 프로페셔널한 비즈니스 톤, 개조식 문장(~함, ~구축, ~달성)
+
+[직무별 Action & Strategy 프레임워크]
+- 개발자: 아키텍처 및 기술 채택 이유 + 트러블슈팅(코드 레벨) + 테스트 방법론
+  section3Label: "Architecture & Troubleshooting / 기술 결정 및 문제 해결"
+- 기획자·PM·PO & 마케터: 가설 수립("A하면 B할 것이다") + A/B테스트·매체믹스·협업 리딩
+  section3Label: "Strategy & Execution / 전략 수립 및 실행"
+- 디자이너: 유저 페인포인트 + 무드보드·유저플로우·컴포넌트화
+  section3Label: "Concept & Design System / 컨셉 및 설계 과정"
+- 데이터 분석가: 데이터 수집·가공 파이프라인 + 시각화 인사이트
+  section3Label: "Pipeline & Insight / 분석 과정 및 인사이트"
 
 [출력 JSON 스키마 - 반드시 이 형식으로만 응답]
 {
-  "title": "프로젝트 공식 명칭",
-  "framework": "STAR",
+  "title": "경험/프로젝트 제목",
+  "framework": "STRUCTURED",
   "content": {
-    "situation": "어떤 배경에서 시작되었으며, 어떤 문제(Problem)가 있었는지. 기간, 역할 포함",
-    "task": "해결하고자 했던 목표와 맡은 과제(Task)",
-    "action": "문제를 해결하기 위해 본인이 구체적으로 취한 행동(Action). 핵심 3가지 이내로 요약",
-    "result": "구체적인 성과 및 데이터(수치) 기반의 결과(Result)와 배운 점"
+    "projectName": "경험/프로젝트의 핵심을 담은 명확한 제목",
+    "period": "활동 기간 (추정 가능하면 작성, 없으면 빈 문자열)",
+    "reason": "Overview & Summary: 역할, 기여도(%), 사용 기술·툴 — 개조식으로 정리",
+    "solution": "Key Result (두괄식): 가장 눈에 띄는 정량적 성과 1~2줄 — 수치 없으면 정성적 임팩트라도 작성",
+    "solutionReason": "Problem Definition (Why): 진행 배경, 해결하고자 했던 핵심 문제, 문제 선정 이유",
+    "skills": "Action & Strategy (How): 직무별 프레임워크를 엄격히 적용한 실행 과정 — 명사형 종결 개조식",
+    "result": "Insight & Learnings: 성과 외 개인 성장 포인트, 인사이트, 다음에 적용할 점"
   },
-  "suggestedKeywords": ["트러블슈팅", "데이터분석", "리더십" 등 경험을 대표하는 핵심 역량 키워드 최대 3개],
+  "inferredRole": "유추된 직무명 (예: 프론트엔드 개발자, PM, 퍼포먼스 마케터, 프로덕트 디자이너, 데이터 분석가)",
+  "section1Label": "Key Result / 핵심 성과",
+  "section2Label": "Problem Definition / 문제 정의 (Why)",
+  "section3Label": "직무별 프레임워크 레이블",
+  "section4Label": "Insight & Learnings / 인사이트 및 성장",
+  "suggestedKeywords": ["핵심역량1", "핵심역량2", "핵심역량3"],
+  "coachQuestions": ["[기여도 검증] 꼬리질문1", "[수치화 요구] 꼬리질문2"],
   "metadata": {
-    "duration": "진행 기간 (예: 2023.01 - 2023.06)",
-    "role": "본인의 역할 (예: 백엔드 개발)",
+    "duration": "진행 기간",
+    "role": "본인의 역할",
     "techStack": ["사용한", "기술", "스택"]
   }
 }

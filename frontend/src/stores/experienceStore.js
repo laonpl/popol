@@ -6,15 +6,15 @@ import api from '../services/api';
 export const FRAMEWORKS = {
   STRUCTURED: {
     name: '경험 구조화',
-    description: '7가지 섹션으로 경험을 체계적으로 정리합니다',
+    description: '직무 맞춤형 커리어 코치 프레임워크로 경험을 체계적으로 정리합니다',
     fields: [
       { key: 'projectName', label: '프로젝트명', placeholder: '프로젝트 또는 활동의 이름을 입력하세요', color: 'bg-blue-50 border-blue-200' },
       { key: 'period', label: '기간', placeholder: '프로젝트 진행 기간을 입력하세요 (예: 2024.01 ~ 2024.06)', color: 'bg-indigo-50 border-indigo-200' },
-      { key: 'reason', label: '선정이유', placeholder: '이 프로젝트를 선정한 이유를 설명해주세요', color: 'bg-purple-50 border-purple-200' },
-      { key: 'solution', label: '솔루션', placeholder: '어떤 솔루션을 제시/구현했는지 설명해주세요', color: 'bg-violet-50 border-violet-200' },
-      { key: 'solutionReason', label: '솔루션 채택 이유', placeholder: '해당 솔루션을 선택한 이유를 설명해주세요', color: 'bg-pink-50 border-pink-200' },
-      { key: 'skills', label: '사용된 역량', placeholder: '이 경험에서 활용한 핵심 역량을 설명해주세요', color: 'bg-amber-50 border-amber-200' },
-      { key: 'result', label: '결과', placeholder: '프로젝트의 결과와 성과를 설명해주세요', color: 'bg-emerald-50 border-emerald-200' },
+      { key: 'reason', label: 'Overview & Summary / 역할 및 기여도', placeholder: '본인의 역할, 기여도(%), 사용 기술/툴을 작성하세요\n예) 프론트엔드 리드 · 기여도 60% · React, TypeScript, Jira 활용', color: 'bg-purple-50 border-purple-200' },
+      { key: 'solution', label: '🏆 Key Result / 핵심 성과 (두괄식)', placeholder: '가장 임팩트 있는 성과를 먼저 작성하세요\n예) 페이지 로딩 속도 40% 단축, MAU 2만 → 3.5만 달성, 사용자 이탈률 15%p 감소', color: 'bg-violet-50 border-violet-200' },
+      { key: 'solutionReason', label: '🎯 Problem Definition / 문제 정의 (Why)', placeholder: '왜 이 문제를 풀려 했는지 배경과 이유를 작성하세요\n예) 기존 시스템의 병목 현상으로 이탈률 급증 → 근본 원인 분석 후 개선 착수', color: 'bg-pink-50 border-pink-200' },
+      { key: 'skills', label: '💡 Action & Strategy / 실행 전략 (How)', placeholder: '직무에 맞는 핵심 실행 과정을 작성하세요\n[개발자] 아키텍처 결정 이유 + 트러블슈팅 과정\n[기획자·마케터] 가설 수립 + A/B테스트·협업 리딩\n[디자이너] 유저리서치 + 무드보드·유저플로우\n[데이터] 파이프라인 + 시각화 인사이트', color: 'bg-amber-50 border-amber-200' },
+      { key: 'result', label: '📊 Insight & Learnings / 인사이트 및 성장', placeholder: '성과 외에 이 경험을 통해 무엇을 배웠는지 작성하세요\n예) 트레이드오프 의사결정 경험, 다음 프로젝트에 적용할 개선점', color: 'bg-emerald-50 border-emerald-200' },
     ],
   },
 };

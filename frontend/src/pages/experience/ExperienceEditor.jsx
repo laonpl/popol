@@ -230,7 +230,7 @@ export default function ExperienceEditor() {
               value={content[field.key] || ''}
               onChange={e => handleFieldChange(field.key, e.target.value)}
               placeholder={field.placeholder}
-              rows={4}
+              rows={field.key === 'period' ? 1 : 5}
               className="w-full bg-white/70 rounded-xl border border-white/50 p-4 text-sm outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-y"
             />
             {content[field.key] && (

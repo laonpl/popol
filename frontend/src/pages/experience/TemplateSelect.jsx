@@ -19,21 +19,25 @@ export default function TemplateSelect() {
   const handleImport = async ({ imported, structured }) => {
     try {
       const data = structured || {};
-      // 원본 내용이 길면 앞부분만 요약 안내와 함께 넣기
-      let situationContent = '';
-      if (data.content?.situation) {
-        situationContent = data.content.situation;
-      } else if (imported?.content) {
-        const raw = imported.content;
-        situationContent = raw.length > 500
-          ? raw.substring(0, 500) + '\n\n... (원본 내용이 길어 일부만 표시됩니다. 위 내용을 바탕으로 직접 정리해주세요.)'
-          : raw;
-      }
+      const content = data.content || { projectName: (imported?.content || '').substring(0, 500) };
 
       const newId = await createExperience(user.uid, {
         title: data.title || imported?.title || '임포트된 경험',
-        framework: data.framework || 'STRUCTURED',
-        content: data.content || { projectName: situationContent },
+        framework: 'STRUCTURED',
+        content,
+        ...(data.inferredRole && {
+          structuredResult: {
+            ...content,
+            inferredRole: data.inferredRole,
+            section1Label: data.section1Label,
+            section2Label: data.section2Label,
+            section3Label: data.section3Label,
+            section4Label: data.section4Label,
+            keywords: data.suggestedKeywords || [],
+            coachQuestions: data.coachQuestions || [],
+          },
+          keywords: data.suggestedKeywords || [],
+        }),
       });
       navigate(`/app/experience/edit/${newId}`);
     } catch (error) {

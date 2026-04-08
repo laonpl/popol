@@ -43,10 +43,24 @@ export default function ExperienceHub() {
   const handleImport = async ({ imported, structured }) => {
     try {
       const data = structured || {};
+      const content = data.content || { projectName: imported?.content || '' };
       const newId = await createExperience(user.uid, {
         title: data.title || imported?.title || '임포트된 경험',
-        framework: data.framework || 'STRUCTURED',
-        content: data.content || { projectName: imported?.content || '' },
+        framework: 'STRUCTURED',
+        content,
+        ...(data.inferredRole && {
+          structuredResult: {
+            ...content,
+            inferredRole: data.inferredRole,
+            section1Label: data.section1Label,
+            section2Label: data.section2Label,
+            section3Label: data.section3Label,
+            section4Label: data.section4Label,
+            keywords: data.suggestedKeywords || [],
+            coachQuestions: data.coachQuestions || [],
+          },
+          keywords: data.suggestedKeywords || [],
+        }),
       });
       navigate(`/app/experience/edit/${newId}`);
     } catch (error) {
