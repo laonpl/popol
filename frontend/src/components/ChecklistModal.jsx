@@ -43,11 +43,11 @@ export default function ChecklistModal({ portfolioId, onClose, onExport }) {
         <div className="px-6 pt-4">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-gray-500">검증 진행률</span>
-            <span className="font-bold text-primary-600">{passedCount}/6</span>
+            <span className="font-bold text-primary-500">{passedCount}/6</span>
           </div>
           <div className="w-full bg-surface-200 rounded-full h-2">
             <div
-              className="bg-primary-500 h-2 rounded-full transition-all duration-500"
+              className="bg-primary-500 h-2 rounded-full transition-all duration-500 shadow-sm"
               style={{ width: `${(passedCount / 6) * 100}%` }}
             />
           </div>
@@ -102,7 +102,7 @@ export default function ChecklistModal({ portfolioId, onClose, onExport }) {
             <button
               onClick={handleRun}
               disabled={running}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {running ? (
                 <>
@@ -116,7 +116,7 @@ export default function ChecklistModal({ portfolioId, onClose, onExport }) {
           ) : (
             <button
               onClick={onExport}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-caribbean-600 text-white rounded-xl font-medium hover:bg-caribbean-700 transition-colors"
             >
               <Download size={18} />
               Export 시작

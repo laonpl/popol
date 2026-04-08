@@ -1,198 +1,328 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, PenTool, CheckSquare, Globe, Github, FileText, Upload } from 'lucide-react';
-import { FRAMEWORKS } from '../../stores/experienceStore';
-import ImportModal from '../../components/ImportModal';
+import { useState, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft, Upload, FileText, Image, Globe, Github,
+  Loader2, X, Plus, ClipboardPaste, Sparkles, CheckCircle2
+} from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
-import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
+
+const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
 
 export default function TemplateSelect() {
-  const frameworkList = Object.entries(FRAMEWORKS);
-  const recommended = 'STRUCTURED';
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const { user } = useAuthStore();
   const { createExperience } = useExperienceStore();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
-  const handleImport = async ({ imported, structured }) => {
+  const [step, setStep] = useState('collect'); // collect | loading | done
+  const [files, setFiles] = useState([]);
+  const [textInput, setTextInput] = useState('');
+  const [notionUrl, setNotionUrl] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [inputMode, setInputMode] = useState('file'); // file | text | notion | github
+  const [loadingMsg, setLoadingMsg] = useState('');
+
+  const handleFileAdd = (e) => {
+    const newFiles = Array.from(e.target.files || []);
+    if (files.length + newFiles.length > 10) {
+      toast.error('파일은 최대 10개까지 업로드할 수 있습니다');
+      return;
+    }
+    for (const f of newFiles) {
+      if (f.size > 25 * 1024 * 1024) {
+        toast.error(`${f.name}의 크기가 25MB를 초과합니다`);
+        return;
+      }
+    }
+    setFiles(prev => [...prev, ...newFiles]);
+    e.target.value = '';
+  };
+
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const hasInput = files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim();
+
+  const handleSubmit = async () => {
+    if (!hasInput) {
+      toast.error('파일이나 텍스트를 입력해주세요');
+      return;
+    }
+
+    setStep('loading');
+    setLoadingMsg('자료를 분석하고 있습니다...');
+
     try {
-      const data = structured || {};
-      // 원본 내용이 길면 앞부분만 요약 안내와 함께 넣기
-      let situationContent = '';
-      if (data.content?.situation) {
-        situationContent = data.content.situation;
-      } else if (imported?.content) {
-        const raw = imported.content;
-        situationContent = raw.length > 500
-          ? raw.substring(0, 500) + '\n\n... (원본 내용이 길어 일부만 표시됩니다. 위 내용을 바탕으로 직접 정리해주세요.)'
-          : raw;
+      let allText = '';
+      let importedTitle = '';
+
+      // 1) 파일 업로드 처리
+      if (files.length > 0) {
+        setLoadingMsg(`${files.length}개 파일을 업로드하고 분석 중...`);
+        for (const file of files) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('targetType', 'experience');
+            const { data } = await api.post('/import/upload', formData, { timeout: 120000 });
+            if (data.imported?.content) {
+              allText += `\n\n--- ${file.name} ---\n${data.imported.content}`;
+            }
+            if (data.imported?.title && !importedTitle) {
+              importedTitle = data.imported.title;
+            }
+          } catch (err) {
+            console.error(`${file.name} 임포트 실패:`, err);
+            toast.error(`${file.name} 처리 실패`);
+          }
+        }
       }
 
-      const newId = await createExperience(user.uid, {
-        title: data.title || imported?.title || '임포트된 경험',
-        framework: data.framework || 'STRUCTURED',
-        content: data.content || { projectName: situationContent },
+      // 2) 텍스트 입력 처리
+      if (textInput.trim()) {
+        allText += `\n\n--- 직접 입력 ---\n${textInput}`;
+      }
+
+      // 3) Notion URL 처리
+      if (notionUrl.trim()) {
+        setLoadingMsg('Notion 페이지를 분석 중...');
+        try {
+          const { data } = await api.post('/import/notion', { url: notionUrl, targetType: 'experience' }, { timeout: 60000 });
+          if (data.imported?.content) {
+            allText += `\n\n--- Notion ---\n${data.imported.content}`;
+          }
+          if (data.imported?.title && !importedTitle) importedTitle = data.imported.title;
+        } catch (err) {
+          toast.error('Notion 페이지 불러오기 실패');
+        }
+      }
+
+      // 4) GitHub URL 처리
+      if (githubUrl.trim()) {
+        setLoadingMsg('GitHub 리포지토리를 분석 중...');
+        try {
+          const { data } = await api.post('/import/github', { url: githubUrl, targetType: 'experience' }, { timeout: 60000 });
+          if (data.imported?.content) {
+            allText += `\n\n--- GitHub ---\n${data.imported.content}`;
+          }
+          if (data.imported?.title && !importedTitle) importedTitle = data.imported.title;
+        } catch (err) {
+          toast.error('GitHub 리포지토리 불러오기 실패');
+        }
+      }
+
+      if (!allText.trim()) {
+        toast.error('분석할 내용이 없습니다');
+        setStep('collect');
+        return;
+      }
+
+      // 5) 경험 생성 (raw 내용으로)
+      setLoadingMsg('AI가 경험을 정리하고 있습니다...');
+      const experienceId = await createExperience(user.uid, {
+        title: importedTitle || '새 경험',
+        framework: 'STRUCTURED',
+        content: { rawInput: allText.trim() },
       });
-      navigate(`/app/experience/edit/${newId}`);
+
+      // 6) AI 분석으로 구조화
+      setLoadingMsg('7가지 섹션으로 구조화하는 중...');
+      const { data: analysis } = await api.post('/experience/analyze', { experienceId }, { timeout: 120000 });
+
+      toast.success('경험 정리가 완료되었습니다!');
+      navigate(`/app/experience/structured/${experienceId}`, {
+        state: { analysis, title: importedTitle || analysis.intro || '새 경험', framework: 'STRUCTURED', content: { rawInput: allText.trim() } },
+      });
     } catch (error) {
-      console.error('임포트 적용 실패:', error);
+      console.error('경험 생성 실패:', error);
+      toast.error('경험 생성에 실패했습니다. 다시 시도해주세요.');
+      setStep('collect');
     }
   };
 
+  // ===== 로딩 화면 =====
+  if (step === 'loading') {
+    return (
+      <div className="animate-fadeIn flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="relative mb-8">
+          <div className="w-20 h-20 rounded-2xl bg-primary-50 flex items-center justify-center">
+            <Sparkles size={36} className="text-primary-500 animate-pulse" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-caribbean-500 rounded-full animate-bounce" />
+        </div>
+        <h2 className="text-xl font-bold text-bluewood-900 mb-2">경험을 정리하고 있습니다</h2>
+        <p className="text-bluewood-400 text-sm mb-6">{loadingMsg}</p>
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+        <p className="text-xs text-bluewood-300 mt-8">AI가 입력된 자료를 분석하여 7가지 섹션으로 구조화합니다.<br/>이 과정은 최대 1분 정도 소요될 수 있습니다.</p>
+      </div>
+    );
+  }
+
+  // ===== 자료 수집 화면 =====
   return (
-    <div className="animate-fadeIn">
-      <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-6">
+    <div className="animate-fadeIn max-w-3xl mx-auto">
+      <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6">
         <ArrowLeft size={16} /> 경험 정리로 돌아가기
       </Link>
 
-      {!showTemplates ? (
-        <>
-          {/* Entry Points */}
-          <div className="grid grid-cols-2 gap-4 mb-10">
-            <div className="bg-white rounded-2xl border border-surface-200 p-8 hover:shadow-lg transition-all cursor-pointer">
-              <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center mb-5">
-                <MessageSquare size={22} className="text-white" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">상담봇과 대화하기</h3>
-              <p className="text-sm text-gray-400 mb-4">
-                친근한 상담봇과 대화하며<br />숨겨진 역량을 발견하세요.
-              </p>
-              <span className="text-sm text-gray-600 font-medium">대화 시작 →</span>
-            </div>
+      {/* 헤더 */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 rounded-full text-sm font-medium mb-4 border border-primary-100">
+          <Sparkles size={16} />
+          AI 경험 정리
+        </div>
+        <h1 className="text-2xl font-bold text-bluewood-900 mb-2">경험할 자료를 넣어주세요</h1>
+        <p className="text-bluewood-400">관련 파일, 텍스트, 링크를 추가하면 AI가 자동으로 7가지 섹션으로 정리합니다</p>
+      </div>
 
-            <button
-              onClick={() => setShowTemplates(true)}
-              className="bg-white rounded-2xl border border-surface-200 p-8 hover:shadow-lg transition-all text-left"
-            >
-              <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center mb-5">
-                <PenTool size={22} className="text-white" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">템플릿 작성</h3>
-              <p className="text-sm text-gray-400 mb-4">
-                이미 정리된 생각이 있다면,<br />빈칸을 채워 빠르게 완성합니다.
-              </p>
-              <span className="text-sm text-gray-600 font-medium">
-                작성하기 →
-              </span>
-            </button>
-          </div>
+      {/* 입력 모드 탭 */}
+      <div className="flex bg-surface-100 rounded-xl p-1 mb-6">
+        {[
+          { key: 'file', icon: Upload, label: '파일 업로드' },
+          { key: 'text', icon: ClipboardPaste, label: '직접 입력' },
+          { key: 'notion', icon: Globe, label: 'Notion' },
+          { key: 'github', icon: Github, label: 'GitHub' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setInputMode(tab.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all
+              ${inputMode === tab.key ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-600'}`}
+          >
+            <tab.icon size={15} /> {tab.label}
+          </button>
+        ))}
+      </div>
 
-          {/* 외부 데이터 불러오기 섹션 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-8">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-semibold">외부 연동</span>
-            </div>
-            <h2 className="text-xl font-bold mb-2">외부 데이터로 경험 정리하기</h2>
-            <p className="text-sm text-gray-400 mb-6">노션, GitHub, PDF 등 기존 자료를 불러와서 AI가 자동으로 경험을 구조화합니다</p>
+      {/* 파일 업로드 */}
+      {inputMode === 'file' && (
+        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
+          <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full border-2 border-dashed border-surface-300 rounded-xl p-10 flex flex-col items-center gap-3 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 transition-all"
+          >
+            <Upload size={32} />
+            <p className="font-medium">클릭하여 파일을 선택하세요</p>
+            <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP), HWP · 최대 25MB · 최대 10개</p>
+          </button>
 
-            <div className="grid grid-cols-3 gap-4">
-              <button
-                onClick={() => setShowImport(true)}
-                className="p-6 rounded-xl border-2 border-surface-200 bg-white hover:border-gray-300 hover:shadow-md transition-all text-left"
-              >
-                <div className="w-10 h-10 bg-gray-900 text-white rounded-lg flex items-center justify-center mb-3">
-                  <Globe size={20} />
-                </div>
-                <h4 className="font-bold mb-1">Notion</h4>
-                <p className="text-xs text-gray-400">노션 페이지 URL을 붙여넣어 경험을 가져옵니다</p>
-              </button>
-
-              <button
-                onClick={() => setShowImport(true)}
-                className="p-6 rounded-xl border-2 border-surface-200 bg-white hover:border-gray-300 hover:shadow-md transition-all text-left"
-              >
-                <div className="w-10 h-10 bg-gray-800 text-white rounded-lg flex items-center justify-center mb-3">
-                  <Github size={20} />
-                </div>
-                <h4 className="font-bold mb-1">GitHub</h4>
-                <p className="text-xs text-gray-400">리포지토리 README를 자동으로 분석합니다</p>
-              </button>
-
-              <button
-                onClick={() => setShowImport(true)}
-                className="p-6 rounded-xl border-2 border-surface-200 bg-white hover:border-gray-300 hover:shadow-md transition-all text-left"
-              >
-                <div className="w-10 h-10 bg-red-500 text-white rounded-lg flex items-center justify-center mb-3">
-                  <FileText size={20} />
-                </div>
-                <h4 className="font-bold mb-1">PDF 파일</h4>
-                <p className="text-xs text-gray-400">PDF 문서에서 텍스트를 추출하여 정리합니다</p>
-              </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* 템플릿 선택 화면 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-8">
-            <button
-              onClick={() => setShowTemplates(false)}
-              className="text-sm text-gray-400 hover:text-gray-600 mb-4 inline-block"
-            >
-              ← 뒤로가기
-            </button>
-
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-semibold">AI 추천 완료</span>
-            </div>
-            <h2 className="text-xl font-bold mb-2">당신에게 추천하는 최고 템플릿</h2>
-            <p className="text-sm text-gray-400 mb-6">설문 결과를 바탕으로 가장 적합한 템플릿을 선별합니다</p>
-
-            {/* Recommended - highlighted */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {frameworkList.slice(0, 3).map(([key, fw], i) => (
-                <Link
-                  key={key}
-                  to={`/app/experience/edit/new/${key}`}
-                  className={`p-5 rounded-xl border-2 transition-all hover:shadow-md ${
-                    i === 0 ? 'border-primary-400 bg-primary-50' : 'border-surface-200 bg-white hover:border-gray-300'
-                  }`}
-                >
-                  {i === 0 && (
-                    <span className="inline-block px-2 py-0.5 bg-primary-500 text-white rounded text-[10px] font-bold mb-2">추천</span>
-                  )}
-                  <h4 className="font-bold mb-1">{fw.name}</h4>
-                  <p className="text-xs text-gray-400 mb-3">{fw.description}</p>
-                  <div className="text-xs text-gray-500">
-                    <p className="font-medium mb-1">질문 미리보기</p>
-                    {fw.fields.slice(0, 2).map(f => (
-                      <p key={f.key} className="text-gray-400">· {f.label}</p>
-                    ))}
-                    <p className="text-gray-300">· {fw.fields.length > 2 ? `+${fw.fields.length - 2}개 더` : ''}</p>
+          {files.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3 bg-surface-50 rounded-xl">
+                  <FileText size={16} className="text-primary-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-bluewood-900 truncate">{f.name}</p>
+                    <p className="text-xs text-bluewood-400">{(f.size / 1024).toFixed(1)} KB</p>
                   </div>
-                </Link>
+                  <button onClick={() => removeFile(i)} className="p-1 text-bluewood-300 hover:text-red-500">
+                    <X size={16} />
+                  </button>
+                </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Other templates */}
-            <div>
-              <h3 className="text-sm font-bold mb-3 text-gray-600">다른 템플릿도 둘러보기</h3>
-              <div className="grid grid-cols-4 gap-3">
-                {frameworkList.map(([key, fw]) => (
-                  <Link
-                    key={key}
-                    to={`/app/experience/edit/new/${key}`}
-                    className="p-4 bg-surface-50 rounded-xl hover:bg-surface-100 transition-colors"
-                  >
-                    <h4 className="text-sm font-bold">{fw.name}</h4>
-                    <p className="text-xs text-gray-400 mt-1">{fw.description}</p>
-                  </Link>
-                ))}
-              </div>
-            </div>
+      {/* 직접 입력 */}
+      {inputMode === 'text' && (
+        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
+          <label className="block text-sm font-bold text-bluewood-900 mb-2">경험 내용 입력</label>
+          <textarea
+            value={textInput}
+            onChange={e => setTextInput(e.target.value)}
+            placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예시:\n- 어떤 프로젝트/활동이었나요?\n- 왜 시작하게 되었나요?\n- 어떤 문제를 해결했나요?\n- 어떤 기술/역량을 사용했나요?\n- 결과는 어땠나요?`}
+            rows={12}
+            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300"
+          />
+          {textInput && (
+            <p className="text-xs text-bluewood-400 text-right mt-1">{textInput.length}자</p>
+          )}
+        </div>
+      )}
+
+      {/* Notion */}
+      {inputMode === 'notion' && (
+        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
+          <label className="block text-sm font-bold text-bluewood-900 mb-2">Notion 페이지 URL</label>
+          <input
+            type="url"
+            value={notionUrl}
+            onChange={e => setNotionUrl(e.target.value)}
+            placeholder="https://www.notion.so/..."
+            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200"
+          />
+          <p className="text-xs text-bluewood-300 mt-2">Notion 페이지의 공유 URL을 입력하세요. 페이지가 공개되어 있어야 합니다.</p>
+        </div>
+      )}
+
+      {/* GitHub */}
+      {inputMode === 'github' && (
+        <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
+          <label className="block text-sm font-bold text-bluewood-900 mb-2">GitHub 리포지토리 URL</label>
+          <input
+            type="url"
+            value={githubUrl}
+            onChange={e => setGithubUrl(e.target.value)}
+            placeholder="https://github.com/username/repository"
+            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200"
+          />
+          <p className="text-xs text-bluewood-300 mt-2">리포지토리의 README를 자동으로 분석합니다.</p>
+        </div>
+      )}
+
+      {/* 추가된 자료 요약 */}
+      {(files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim()) && (
+        <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6">
+          <p className="text-sm font-medium text-primary-700 mb-2">추가된 자료</p>
+          <div className="flex flex-wrap gap-2">
+            {files.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                <CheckCircle2 size={12} /> 파일 {files.length}개
+              </span>
+            )}
+            {textInput.trim() && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                <CheckCircle2 size={12} /> 텍스트 입력
+              </span>
+            )}
+            {notionUrl.trim() && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                <CheckCircle2 size={12} /> Notion 링크
+              </span>
+            )}
+            {githubUrl.trim() && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
+                <CheckCircle2 size={12} /> GitHub 링크
+              </span>
+            )}
           </div>
-        </>
+        </div>
       )}
 
-      {showImport && (
-        <ImportModal
-          targetType="experience"
-          onClose={() => setShowImport(false)}
-          onImport={handleImport}
-        />
-      )}
+      {/* 제출 버튼 */}
+      <button
+        onClick={handleSubmit}
+        disabled={!hasInput}
+        className="w-full flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-lg font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200 hover:shadow-xl hover:-translate-y-0.5"
+      >
+        <Sparkles size={20} />
+        AI로 경험 정리 시작
+      </button>
+
+      <p className="text-center text-xs text-bluewood-300 mt-4">
+        AI는 입력된 자료만으로 정리하며, 새로운 내용을 만들어내지 않습니다.
+      </p>
     </div>
   );
 }

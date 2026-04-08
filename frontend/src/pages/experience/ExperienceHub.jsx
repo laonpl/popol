@@ -46,7 +46,7 @@ export default function ExperienceHub() {
       const newId = await createExperience(user.uid, {
         title: data.title || imported?.title || '임포트된 경험',
         framework: data.framework || 'STRUCTURED',
-        content: data.content || { projectName: imported?.content || '' },
+        content: data.content || { intro: imported?.content || '' },
       });
       navigate(`/app/experience/edit/${newId}`);
     } catch (error) {
@@ -160,7 +160,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
   const date = createdAt?.toDate?.()?.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) || '';
   const gradient = getGradient(id);
   const displayKeywords = keywords || structuredResult?.keywords || [];
-  const summary = structuredResult?.projectName || (content && Object.values(content)[0]?.slice(0, 40)) || '';
+  const summary = structuredResult?.intro || (content && Object.values(content)[0]?.slice(0, 40)) || '';
 
   return (
     <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
