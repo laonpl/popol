@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Sparkles, BookOpen, Save } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
@@ -184,10 +184,10 @@ export default function AnalysisResult() {
               카드로 돌아가기
             </Link>
             <Link
-              to="/app/coverletter"
+              to="/app/experience"
               className="flex-1 py-3 text-center text-sm bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
             >
-              내 회고함에 저장하기
+              경험 목록으로
             </Link>
           </div>
         </div>

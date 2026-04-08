@@ -4,7 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import experienceRoutes from './routes/experience.js';
 import portfolioRoutes from './routes/portfolio.js';
-import coverletterRoutes from './routes/coverletter.js';
 import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
@@ -21,7 +20,6 @@ app.use(express.json({ limit: '25mb' }));
 // Routes
 app.use('/api/experience', experienceRoutes);
 app.use('/api/portfolio', portfolioRoutes);
-app.use('/api/coverletter', coverletterRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/job', jobRoutes);

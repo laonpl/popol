@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, MoreHorizontal, Trash2, Edit, Upload, LayoutTemplate, Download, Eye } from 'lucide-react';
+import { Plus, FileText, Trash2, Edit, Upload, LayoutTemplate, Download, Eye } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';

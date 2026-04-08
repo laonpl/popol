@@ -2,7 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileText, Globe, Github,
-  Loader2, X, Sparkles, CheckCircle2, Calendar, Tag
+  X, Sparkles, CheckCircle2, Calendar, Tag
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -177,10 +177,6 @@ export default function TemplateSelect() {
 
       {/* 헤더 */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 rounded-full text-sm font-medium mb-4 border border-primary-100">
-          <Sparkles size={16} />
-          AI 경험 정리
-        </div>
         <h1 className="text-2xl font-bold text-bluewood-900 mb-2">새 경험 추가</h1>
         <p className="text-bluewood-400">경험 정보와 관련 자료를 입력하면 AI가 자동으로 7가지 섹션으로 정리합니다</p>
       </div>
