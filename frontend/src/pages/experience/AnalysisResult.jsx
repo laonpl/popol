@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Sparkles, BookOpen } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Pencil } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
@@ -13,11 +13,26 @@ const highlightColors = {
   growth: { bg: 'bg-green-100', border: 'border-green-300', label: '성장 관점', dot: 'bg-green-400' },
 };
 
+const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+
+const SECTION_META = {
+  intro:      { label: '프로젝트 소개' },
+  overview:   { label: '프로젝트 개요' },
+  task:       { label: '진행한 일' },
+  process:    { label: '과정' },
+  output:     { label: '결과물' },
+  growth:     { label: '성장한 점' },
+  competency: { label: '나의 역량' },
+};
+
 export default function AnalysisResult() {
   const { id } = useParams();
   const { state: navState } = useLocation();
   const [experience, setExperience] = useState(null);
   const [loading, setLoading] = useState(!navState?.analysis);
+  const [allImages, setAllImages] = useState([]);
+  const [sectionImages, setSectionImages] = useState({});
+  const [imageConfig, setImageConfig] = useState({});
 
   useEffect(() => {
     if (navState?.analysis) {
@@ -27,8 +42,22 @@ export default function AnalysisResult() {
         framework: navState.framework,
         content: navState.content,
         aiAnalysis: navState.analysis,
-        keywords: navState.analysis.competencyKeywords || [],
+        keywords: navState.analysis.keywords || navState.analysis.competencyKeywords || [],
       });
+      // Load images from Firestore
+      (async () => {
+        try {
+          const docSnap = await getDoc(doc(db, 'experiences', id));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setAllImages(data.images || []);
+            setSectionImages(data.sectionImages || {});
+            setImageConfig(data.imageConfig || {});
+          }
+        } catch (err) {
+          console.error('이미지 로딩 실패:', err);
+        }
+      })();
     } else {
       loadExperience();
     }
@@ -38,7 +67,15 @@ export default function AnalysisResult() {
     try {
       const docSnap = await getDoc(doc(db, 'experiences', id));
       if (docSnap.exists()) {
-        setExperience({ id: docSnap.id, ...docSnap.data() });
+        const data = { id: docSnap.id, ...docSnap.data() };
+        setExperience({
+          ...data,
+          aiAnalysis: data.structuredResult || {},
+          keywords: data.keywords || data.structuredResult?.keywords || [],
+        });
+        setAllImages(data.images || []);
+        setSectionImages(data.sectionImages || {});
+        setImageConfig(data.imageConfig || {});
       }
     } catch (error) {
       console.error('경험 로딩 실패:', error);
@@ -58,138 +95,182 @@ export default function AnalysisResult() {
     return <p className="text-gray-500 text-center py-20">경험 데이터를 찾을 수 없습니다.</p>;
   }
 
-  const { title, framework, content, aiAnalysis, keywords } = experience;
-  const fw = FRAMEWORKS[framework];
+  const { title, aiAnalysis, keywords } = experience;
+  const displayContent = aiAnalysis || {};
+  const highlights = aiAnalysis?.highlights || [];
+  const followUpQuestions = aiAnalysis?.followUpQuestions || [];
+
+  // 섹션별 이미지 렌더링 헬퍼
+  const renderSectionImages = (sectionKey, position) => {
+    const imgIndices = sectionImages[sectionKey] || [];
+    if (imgIndices.length === 0) return null;
+    const filtered = imgIndices.filter((imgIdx) => {
+      const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+      const imgPos = cfg.position || 'below';
+      return imgPos === position;
+    });
+    if (filtered.length === 0) return null;
+    return (
+      <div className="flex flex-wrap gap-3 my-3">
+        {filtered.map((imgIdx) => {
+          const img = allImages[imgIdx];
+          if (!img) return null;
+          const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+          const size = cfg.size || 'md';
+          const sizeClass = size === 'sm' ? 'max-w-[200px]' : size === 'lg' ? 'max-w-full' : 'max-w-[400px]';
+          return (
+            <img
+              key={`view-${sectionKey}-${imgIdx}`}
+              src={img.url}
+              alt={img.name || '이미지'}
+              className={`${sizeClass} w-auto rounded-xl border border-surface-200 shadow-sm`}
+            />
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div className="animate-fadeIn">
+    <div className="animate-fadeIn max-w-4xl mx-auto pb-12">
       <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-6">
-        <ArrowLeft size={16} /> 카드로 돌아가기
+        <ArrowLeft size={16} /> 경험 목록으로
       </Link>
 
-      {/* Header - Like reference image 2 */}
+      {/* Header */}
       <div className="text-center mb-10">
-        <h1 className="text-2xl font-bold mb-2">경험 분석이 완료되었습니다!</h1>
-        <p className="text-gray-400">AI가 발견한 지원자님의 숨겨진 역량을 확인해보세요.</p>
+        <h1 className="text-2xl font-bold mb-2">{title}</h1>
+        <p className="text-gray-400 text-sm">AI가 7가지 핵심으로 정리한 결과를 확인하고 수정하세요.</p>
 
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 mt-4">
           {Object.entries(highlightColors).map(([key, color]) => (
             <div key={key} className="flex items-center gap-2 text-sm text-gray-500">
-              <span className={`w-3 h-3 rounded-full ${color.dot}`}></span>
+              <span className={`w-3 h-3 rounded-full ${color.dot}`} />
               {color.label}
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Left: 경험 상세 분석 */}
-        <div className="col-span-2 bg-white rounded-2xl border border-surface-200 p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <BookOpen size={20} className="text-gray-600" />
-            <h2 className="text-lg font-bold">경험 상세 분석</h2>
-          </div>
-
-          {/* Keywords Tags */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {(keywords || []).map(k => (
+        {/* Keywords ribbon */}
+        {keywords.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 mt-4">
+            {keywords.map(k => (
               <KeywordTag key={k} keyword={k} type="core" />
             ))}
           </div>
+        )}
+      </div>
 
-          {/* STAR Content with highlights */}
-          <div className="space-y-6">
-            {fw?.fields.map(field => {
-              const text = content?.[field.key] || '';
-              if (!text) return null;
+      <div className="grid grid-cols-3 gap-6">
+        {/* Left: Article */}
+        <div className="col-span-2 space-y-1">
+          {SECTION_KEYS.map(sectionKey => {
+            const text = displayContent[sectionKey] || '';
+            if (!text.trim()) return null;
+            const meta = SECTION_META[sectionKey];
+            const fieldHighlights = highlights.filter(h => h.field === sectionKey);
 
-              // Find highlights for this field
-              const fieldHighlights = aiAnalysis?.highlights?.filter(h => h.field === field.key) || [];
-
-              return (
-                <div key={field.key}>
-                  <p className="text-xs text-gray-400 mb-2">{field.label}</p>
-                  <div className="text-sm leading-relaxed">
-                    <HighlightedText
-                      text={text}
-                      highlights={fieldHighlights}
-                    />
-                  </div>
+            return (
+              <div key={sectionKey} className="bg-white rounded-2xl border border-surface-200 p-6 mb-3">
+                {/* Section label */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md">{meta.label}</span>
+                  <span className="text-[10px] text-bluewood-300">|</span>
+                  <span className="text-[10px] text-bluewood-300">사진 {(sectionImages[sectionKey] || []).length}장</span>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* HR Insight */}
-          {aiAnalysis?.hrInsight && (
-            <div className="mt-8 p-4 border-l-4 border-green-400 bg-green-50 rounded-r-xl">
-              <p className="text-sm font-bold text-green-700 mb-1">● HR Insight</p>
-              <p className="text-sm text-gray-600">{aiAnalysis.hrInsight}</p>
-            </div>
-          )}
+                {/* Images above text */}
+                {renderSectionImages(sectionKey, 'above')}
+
+                {/* Text with highlights */}
+                <div className="text-sm text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
+                  <HighlightedText text={text} highlights={fieldHighlights} />
+                </div>
+
+                {/* Images below text */}
+                {renderSectionImages(sectionKey, 'below')}
+              </div>
+            );
+          })}
         </div>
 
         {/* Right sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Edit button */}
+          <Link
+            to={`/app/experience/structured/${id}`}
+            className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-card"
+          >
+            <Pencil size={16} />
+            편집으로 돌아가기
+          </Link>
+
           {/* 추출된 역량 키워드 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles size={18} className="text-primary-600" />
-              <h3 className="font-bold">추출된 역량 키워드</h3>
+          {(aiAnalysis?.competencyKeywords || keywords || []).length > 0 && (
+            <div className="bg-white rounded-2xl border border-surface-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={16} className="text-primary-600" />
+                <h3 className="font-bold text-sm text-bluewood-900">추출된 역량 키워드</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(aiAnalysis?.competencyKeywords || keywords || []).map(k => (
+                  <span key={k} className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-xl text-xs font-medium border border-primary-200">
+                    {k}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(aiAnalysis?.competencyKeywords || keywords || []).map(k => (
-                <span key={k} className="px-4 py-2 bg-primary-50 text-primary-700 rounded-xl text-sm font-medium border border-primary-200">
-                  {k}
-                </span>
-              ))}
+          )}
+
+          {/* 내용 보강 질문 */}
+          {followUpQuestions.length > 0 && (
+            <div className="bg-white rounded-2xl border border-surface-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen size={16} className="text-amber-500" />
+                <h3 className="font-bold text-sm text-bluewood-900">내용 보강 질문</h3>
+              </div>
+              <div className="space-y-2">
+                {followUpQuestions.map((q, i) => (
+                  <div key={i} className="p-3 bg-amber-50/60 rounded-xl border border-amber-100">
+                    <p className="text-xs text-bluewood-600 leading-relaxed">{q}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 추천 자소서 문항 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <BookOpen size={18} className="text-gray-600" />
-              <h3 className="font-bold">추천 자소서 문항</h3>
+          {(aiAnalysis?.suggestedQuestions || []).length > 0 && (
+            <div className="bg-white rounded-2xl border border-surface-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen size={16} className="text-gray-600" />
+                <h3 className="font-bold text-sm text-bluewood-900">추천 자소서 문항</h3>
+              </div>
+              <div className="space-y-2">
+                {aiAnalysis.suggestedQuestions.map((q, i) => (
+                  <div key={i} className="p-3 bg-surface-50 rounded-xl">
+                    <p className="text-xs text-bluewood-600">{q}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-3">
-              {(aiAnalysis?.suggestedQuestions || []).map((q, i) => (
-                <div key={i} className="p-3 bg-surface-50 rounded-xl">
-                  <p className="text-sm text-gray-600">{q}</p>
-                </div>
-              ))}
-              {(!aiAnalysis?.suggestedQuestions || aiAnalysis.suggestedQuestions.length === 0) && (
-                <>
-                  <div className="p-3 bg-surface-50 rounded-xl">
-                    <p className="text-sm text-gray-600">본인의 강점과 약점을 구체적인 사례를 들어 설명해주세요.</p>
-                  </div>
-                  <div className="p-3 bg-surface-50 rounded-xl">
-                    <p className="text-sm text-gray-600">실패를 경험하고 이를 극복한 사례에 대해 기술해주세요.</p>
-                  </div>
-                  <div className="p-3 bg-surface-50 rounded-xl">
-                    <p className="text-sm text-gray-600">새로운 환경에 적응하거나 변화를 주도한 경험에 대해 설명해주세요.</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          )}
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Link
-              to={`/app/experience/edit/${id}`}
-              className="flex-1 py-3 text-center text-sm border border-surface-200 rounded-xl hover:bg-surface-50 transition-colors"
-            >
-              카드로 돌아가기
-            </Link>
-            <Link
-              to="/app/experience"
-              className="flex-1 py-3 text-center text-sm bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
-            >
-              경험 목록으로
-            </Link>
-          </div>
+          {/* HR Insight */}
+          {aiAnalysis?.hrInsight && (
+            <div className="bg-green-50 rounded-2xl border border-green-200 p-5">
+              <p className="text-xs font-bold text-green-700 mb-2">● HR Insight</p>
+              <p className="text-xs text-green-800 leading-relaxed">{aiAnalysis.hrInsight}</p>
+            </div>
+          )}
+
+          <Link
+            to="/app/experience"
+            className="block w-full py-3 text-center text-sm border border-surface-200 rounded-xl hover:bg-surface-50 transition-colors text-bluewood-500"
+          >
+            경험 목록으로
+          </Link>
         </div>
       </div>
     </div>

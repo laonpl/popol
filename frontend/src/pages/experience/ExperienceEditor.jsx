@@ -95,12 +95,41 @@ export default function ExperienceEditor() {
       toast.success('AI 분석이 완료되었습니다!');
       navigate(`/app/experience/structured/${experienceId}`, { state: { analysis, title, framework, content } });
     } catch (error) {
-      toast.error('AI 분석에 실패했습니다. 다시 시도해주세요.');
+      const serverMsg = error.response?.data?.error || error.response?.data?.detail;
+      if (serverMsg) {
+        toast.error(serverMsg);
+      } else if (error.code === 'ECONNABORTED') {
+        toast.error('AI 분석 시간이 초과되었습니다. 내용을 줄이고 다시 시도해주세요.');
+      } else {
+        toast.error('AI 분석에 실패했습니다. 다시 시도해주세요.');
+      }
     }
     setAnalyzing(false);
   };
 
-  // 이미지 업로드 핸들러
+  // 이미지 → Base64 변환 (Canvas로 리사이즈 + 압축)
+  const resizeToBase64 = (file, maxPx = 1200, quality = 0.75) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+
+  // 이미지 업로드 핸들러 (Firebase Storage 없이 Base64로 Firestore에 저장)
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -116,8 +145,8 @@ export default function ExperienceEditor() {
         toast.error(`${file.name}은(는) 이미지 파일이 아닙니다`);
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name}의 크기가 5MB를 초과합니다`);
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name}의 크기가 10MB를 초과합니다`);
         continue;
       }
 
@@ -137,19 +166,9 @@ export default function ExperienceEditor() {
           navigate(`/app/experience/edit/${docId}`, { replace: true });
         }
 
-        const timestamp = Date.now();
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const storagePath = `experiences/${user.uid}/${docId}/${timestamp}_${safeName}`;
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('storagePath', storagePath);
-
-        const { data } = await api.post('/upload/image', formData, {
-          timeout: 60000,
-        });
-
-        const newImage = { url: data.url, storagePath: data.storagePath, name: file.name };
+        // Base64로 변환 (리사이즈 + 압축)
+        const base64 = await resizeToBase64(file);
+        const newImage = { url: base64, name: file.name };
         const updatedImages = [...images, newImage];
         setImages(updatedImages);
         await updateExperience(docId, { images: updatedImages });
@@ -165,17 +184,8 @@ export default function ExperienceEditor() {
 
   // 이미지 삭제 핸들러
   const handleImageDelete = async (index) => {
-    const target = images[index];
     const updatedImages = images.filter((_, i) => i !== index);
     setImages(updatedImages);
-
-    // Storage에서 파일 삭제 (실패해도 UI는 반영)
-    try {
-      await api.delete('/upload/image', { data: { storagePath: target.storagePath } });
-    } catch (err) {
-      console.warn('Storage 파일 삭제 실패 (무시됨):', err.message);
-    }
-
     const docId = currentId || id;
     if (docId) {
       try {

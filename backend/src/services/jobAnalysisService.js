@@ -30,6 +30,8 @@ async function generateWithRetry(prompt, retries = 5, delayMs = 3000) {
   throw lastError;
 }
 
+export { generateWithRetry };
+
 // ── 채용공고 스크래핑 ──────────────────────────────────
 export async function scrapeJobPosting(url) {
   // puppeteer로 JS 렌더링 후 텍스트 추출

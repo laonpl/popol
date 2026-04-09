@@ -99,7 +99,14 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res, n
     }
     const { targetType } = req.body;
 
-    const imported = await importFromFile(file.buffer, file.mimetype, file.originalname);
+    // 한글 파일명 인코딩 보정 (multer latin1 → utf8)
+    let originalName = file.originalname;
+    try {
+      const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      if (decoded && !decoded.includes('�')) originalName = decoded;
+    } catch { /* 변환 실패 시 원본 사용 */ }
+
+    const imported = await importFromFile(file.buffer, file.mimetype, originalName);
 
     let structured = null;
     if (targetType) {
@@ -113,7 +120,7 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res, n
     saveImportHistory({
       userId: req.user.uid,
       source: 'file',
-      fileName: file.originalname,
+      fileName: originalName,
       targetType: targetType || null,
       importedData: imported,
       structuredData: structured,

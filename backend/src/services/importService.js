@@ -409,41 +409,20 @@ export async function structureImportedContent(importedData, targetType) {
 3. 명확한 기여도: 팀 프로젝트라면 본인 역할과 기여도(%)를 명확히 분리
 4. 문체: 프로페셔널한 비즈니스 톤, 개조식 문장(~함, ~구축, ~달성)
 
-[직무별 Action & Strategy 프레임워크]
-- 개발자: 아키텍처 및 기술 채택 이유 + 트러블슈팅(코드 레벨) + 테스트 방법론
-  section3Label: "Architecture & Troubleshooting / 기술 결정 및 문제 해결"
-- 기획자·PM·PO & 마케터: 가설 수립("A하면 B할 것이다") + A/B테스트·매체믹스·협업 리딩
-  section3Label: "Strategy & Execution / 전략 수립 및 실행"
-- 디자이너: 유저 페인포인트 + 무드보드·유저플로우·컴포넌트화
-  section3Label: "Concept & Design System / 컨셉 및 설계 과정"
-- 데이터 분석가: 데이터 수집·가공 파이프라인 + 시각화 인사이트
-  section3Label: "Pipeline & Insight / 분석 과정 및 인사이트"
-
 [출력 JSON 스키마 - 반드시 이 형식으로만 응답]
 {
   "title": "경험/프로젝트 제목",
   "framework": "STRUCTURED",
   "content": {
-    "projectName": "경험/프로젝트의 핵심을 담은 명확한 제목",
-    "period": "활동 기간 (추정 가능하면 작성, 없으면 빈 문자열)",
-    "reason": "Overview & Summary: 역할, 기여도(%), 사용 기술·툴 — 개조식으로 정리",
-    "solution": "Key Result (두괄식): 가장 눈에 띄는 정량적 성과 1~2줄 — 수치 없으면 정성적 임팩트라도 작성",
-    "solutionReason": "Problem Definition (Why): 진행 배경, 해결하고자 했던 핵심 문제, 문제 선정 이유",
-    "skills": "Action & Strategy (How): 직무별 프레임워크를 엄격히 적용한 실행 과정 — 명사형 종결 개조식",
-    "result": "Insight & Learnings: 성과 외 개인 성장 포인트, 인사이트, 다음에 적용할 점"
+    "intro": "서비스 이름 또는 프로젝트 특징과 한 줄 소개 — 가장 핵심적인 수치나 성과 포함",
+    "overview": "프로젝트 배경과 목적 — 왜 이 프로젝트를 시작했는지, 해결하려 한 문제는 무엇인지",
+    "task": "배경-문제-해결 흐름 — 어떤 문제를 인식하고 어떤 방식으로 해결했는지 구체적으로",
+    "process": "나의 직접적인 액션과 인사이트 — 본인이 수행한 행동, 역할, 기여도(%), 사용 기술·툴",
+    "output": "최종 결과물과 핵심 포인트 — 정량적 성과(수치) 또는 정성적 임팩트",
+    "growth": "이 경험을 통해 성장한 점이나 배운 점 — 인사이트, 다음에 적용할 점",
+    "competency": "이 경험에서 얻은 역량과 입사 후 기여할 수 있는 부분"
   },
-  "inferredRole": "유추된 직무명 (예: 프론트엔드 개발자, PM, 퍼포먼스 마케터, 프로덕트 디자이너, 데이터 분석가)",
-  "section1Label": "Key Result / 핵심 성과",
-  "section2Label": "Problem Definition / 문제 정의 (Why)",
-  "section3Label": "직무별 프레임워크 레이블",
-  "section4Label": "Insight & Learnings / 인사이트 및 성장",
-  "suggestedKeywords": ["핵심역량1", "핵심역량2", "핵심역량3"],
-  "coachQuestions": ["[기여도 검증] 꼬리질문1", "[수치화 요구] 꼬리질문2"],
-  "metadata": {
-    "duration": "진행 기간",
-    "role": "본인의 역할",
-    "techStack": ["사용한", "기술", "스택"]
-  }
+  "suggestedKeywords": ["핵심역량1", "핵심역량2", "핵심역량3"]
 }
 
 [원본 데이터]
@@ -527,22 +506,20 @@ function structureFallback(importedData, targetType) {
 
   if (targetType === 'experience') {
     const sentences = content.split(/[.!?\n]+/).filter(s => s.trim().length > 5);
-    const quarter = Math.max(1, Math.ceil(sentences.length / 4));
+    const seventh = Math.max(1, Math.ceil(sentences.length / 7));
     return {
       title,
-      framework: 'STAR',
+      framework: 'STRUCTURED',
       content: {
-        situation: sentences.slice(0, quarter).join('. ').trim() || '(원본 내용을 바탕으로 상황을 작성해주세요)',
-        task: sentences.slice(quarter, quarter * 2).join('. ').trim() || '(해결해야 했던 과제를 작성해주세요)',
-        action: sentences.slice(quarter * 2, quarter * 3).join('. ').trim() || '(구체적인 행동을 작성해주세요)',
-        result: sentences.slice(quarter * 3).join('. ').trim() || '(결과와 성과를 작성해주세요)',
+        intro: sentences.slice(0, seventh).join('. ').trim() || '(프로젝트 이름과 한 줄 소개를 작성해주세요)',
+        overview: sentences.slice(seventh, seventh * 2).join('. ').trim() || '(프로젝트 배경과 목적을 작성해주세요)',
+        task: sentences.slice(seventh * 2, seventh * 3).join('. ').trim() || '(진행한 일을 작성해주세요)',
+        process: sentences.slice(seventh * 3, seventh * 4).join('. ').trim() || '(과정을 작성해주세요)',
+        output: sentences.slice(seventh * 4, seventh * 5).join('. ').trim() || '(결과물을 작성해주세요)',
+        growth: sentences.slice(seventh * 5, seventh * 6).join('. ').trim() || '(성장한 점을 작성해주세요)',
+        competency: sentences.slice(seventh * 6).join('. ').trim() || '(나의 역량을 작성해주세요)',
       },
       suggestedKeywords: ['경험', '역량', '성과'],
-      metadata: {
-        duration: '',
-        role: '',
-        techStack: [],
-      },
     };
   }
 

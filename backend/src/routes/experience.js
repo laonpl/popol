@@ -32,13 +32,18 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
       analysis = await analyzeExperience(data.content || {});
     } catch (aiError) {
       console.error('Gemini AI 분석 실패:', aiError.message);
-      return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' });
+      // 내용 비어있음 에러는 400으로
+      if (aiError.message?.includes('비어있습니다')) {
+        return res.status(400).json({ error: aiError.message });
+      }
+      return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: aiError.message });
     }
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
       structuredResult: analysis,
       keywords: analysis.keywords || [],
+      highlights: analysis.highlights || [],
       updatedAt: new Date(),
     });
 

@@ -64,7 +64,8 @@ const usePortfolioStore = create((set, get) => ({
     const extraFields = [
       'templateType', 'templateId', 'headline', 'education', 'awards', 'experiences',
       'contact', 'skills', 'goals', 'values', 'interests', 'curricular',
-      'extracurricular', 'valuesEssay', 'jobAnalysis',
+      'extracurricular', 'valuesEssay', 'jobAnalysis', 'isPublic',
+      'nameEn', 'location', 'birthDate',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
     const docRef = await addDoc(collection(db, 'portfolios'), docData);
