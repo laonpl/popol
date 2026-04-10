@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
   ExternalLink, Mail, Phone, Globe, ChevronUp, X, Key, FileText, Info,
-  Code, Monitor, ChevronRight, Tag
+  Code, Monitor, ChevronRight, Tag, Share2, Copy, Check, Link2
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -19,11 +19,14 @@ export default function NotionPortfolioPreview() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { setCurrentPortfolio } = usePortfolioStore();
+  const { updatePortfolio, setCurrentPortfolio } = usePortfolioStore();
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedExp, setSelectedExp] = useState(null);
+  const [isPublic, setIsPublic] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -34,6 +37,7 @@ export default function NotionPortfolioPreview() {
         const p = { id: snap.id, ...snap.data() };
         setPortfolio(p);
         setCurrentPortfolio(p);
+        setIsPublic(!!p.isPublic);
       }
     } catch (e) { toast.error('불러오기 실패'); }
     setLoading(false);
@@ -64,6 +68,51 @@ export default function NotionPortfolioPreview() {
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl text-sm font-medium hover:from-gray-900 hover:to-black">
             <Download size={14} /> Notion으로 내보내기
           </button>
+        </div>
+      </div>
+
+      {/* 공유 링크 */}
+      <div className="max-w-[1100px] mx-auto mb-4">
+        <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
+          <Share2 size={16} className="text-gray-400 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">공개 링크</span>
+              <button
+                onClick={async () => {
+                  setTogglingPublic(true);
+                  const newVal = !isPublic;
+                  try {
+                    await updatePortfolio(id, { isPublic: newVal });
+                    setIsPublic(newVal);
+                    toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+                  } catch { toast.error('공개 설정 변경 실패'); }
+                  setTogglingPublic(false);
+                }}
+                disabled={togglingPublic}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+            {isPublic && (
+              <p className="text-xs text-gray-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+            )}
+          </div>
+          {isPublic && (
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+                setLinkCopied(true);
+                toast.success('링크가 복사되었습니다!');
+                setTimeout(() => setLinkCopied(false), 2000);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors flex-shrink-0"
+            >
+              {linkCopied ? <Check size={12} /> : <Copy size={12} />}
+              {linkCopied ? '복사됨' : '링크 복사'}
+            </button>
+          )}
         </div>
       </div>
 

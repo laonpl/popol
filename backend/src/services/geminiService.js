@@ -42,8 +42,15 @@ async function generateWithRetry(prompt, retries = 5, delayMs = 3000) {
 }
 
 export async function analyzeExperience(content) {
-  const contentText = Object.entries(content)
-    .map(([key, val]) => `[${key}]: ${val}`)
+  // content가 비었는지 검증
+  const entries = Object.entries(content).filter(([, val]) => val && String(val).trim().length > 0);
+  if (entries.length === 0) {
+    throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
+  }
+
+  // 내용이 너무 길면 Gemini 토큰 한도 초과 방지를 위해 각 필드 3000자 제한
+  const contentText = entries
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 3000)}`)
     .join('\n');
 
   const prompt = `당신은 "스타 커리어 코치"입니다. 아래 경험 내용을 분석하여 7가지 섹션으로 구조화해주세요.
@@ -68,6 +75,11 @@ ${contentText}
 추가 분석:
 - **keywords**: 이 경험에서 드러나는 핵심 역량 키워드 3~5개
 - **followUpQuestions**: 빈 섹션을 채우기 위한 구체적인 후속 질문 3개
+- **highlights**: 원문 텍스트에서 핵심 역량이 드러나는 부분을 찾아 하이라이트 배열로 제공. 각 하이라이트는 다음을 포함:
+  - field: 원문의 어느 필드에 있는지 (입력 키 이름, 예: "intro", "overview" 등)
+  - text: 원문에서 하이라이트할 정확한 텍스트 (원문 그대로 복사)
+  - type: "core" (핵심 역량), "derived" (파생 역량), "growth" (성장 관점) 중 하나
+  - keywords: 해당 텍스트에서 추출된 키워드 배열 (1~3개)
 
 반드시 아래 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이 순수 JSON만):
 {
@@ -79,7 +91,12 @@ ${contentText}
   "growth": "성장한 점 내용",
   "competency": "나의 역량 내용",
   "keywords": ["키워드1", "키워드2", "키워드3"],
-  "followUpQuestions": ["질문1", "질문2", "질문3"]
+  "followUpQuestions": ["질문1", "질문2", "질문3"],
+  "highlights": [
+    { "field": "intro", "text": "원문에서 하이라이트할 정확한 텍스트", "type": "core", "keywords": ["키워드"] },
+    { "field": "process", "text": "원문 텍스트 일부", "type": "derived", "keywords": ["키워드"] },
+    { "field": "growth", "text": "성장 관련 원문 텍스트", "type": "growth", "keywords": ["키워드"] }
+  ]
 }`;
 
   const text = await generateWithRetry(prompt);

@@ -1,51 +1,125 @@
 import { create } from 'zustand';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
 
-// 간단한 게스트 ID 생성
-const guestId = () => 'guest_' + Math.random().toString(36).slice(2, 11);
+const googleProvider = new GoogleAuthProvider();
 
 const useAuthStore = create((set, get) => ({
   user: null,
-  loading: false,
+  profile: null,
+  loading: true,
+  profileLoading: false,
 
   init: () => {
-    // localStorage에서 기존 게스트 세션 복원
-    try {
-      const saved = localStorage.getItem('popol_user');
-      if (saved) {
-        set({ user: JSON.parse(saved), loading: false });
-        return;
+    set({ loading: true });
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const user = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || '',
+          photoURL: firebaseUser.photoURL || '',
+        };
+        set({ user, loading: false });
+        get().loadProfile(firebaseUser.uid);
+      } else {
+        set({ user: null, profile: null, loading: false });
       }
-    } catch (e) { /* ignore */ }
-    // 저장된 세션이 없으면 자동으로 게스트 로그인
-    const user = {
-      uid: guestId(),
-      displayName: '사용자',
-    };
-    localStorage.setItem('popol_user', JSON.stringify(user));
-    set({ user, loading: false });
+    });
+    return unsubscribe;
   },
 
-  // 게스트 로그인 (이름 입력 없이 바로)
-  guestLogin: () => {
+  signUpWithEmail: async (email, password, displayName) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName });
     const user = {
-      uid: guestId(),
-      displayName: '사용자',
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName,
+      photoURL: '',
     };
-    localStorage.setItem('popol_user', JSON.stringify(user));
     set({ user });
+    return user;
   },
 
-  updateDisplayName: (displayName) => {
-    const user = get().user;
-    if (!user) return;
-    const updated = { ...user, displayName };
-    localStorage.setItem('popol_user', JSON.stringify(updated));
-    set({ user: updated });
+  signInWithEmail: async (email, password) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const user = {
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName: cred.user.displayName || '',
+      photoURL: cred.user.photoURL || '',
+    };
+    set({ user });
+    return user;
   },
 
-  signOut: () => {
-    localStorage.removeItem('popol_user');
-    set({ user: null });
+  signInWithGoogle: async () => {
+    const cred = await signInWithPopup(auth, googleProvider);
+    const user = {
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName: cred.user.displayName || '',
+      photoURL: cred.user.photoURL || '',
+    };
+    set({ user });
+    const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid));
+    if (profileSnap.exists()) {
+      set({ profile: profileSnap.data() });
+    }
+    return user;
+  },
+
+  loadProfile: async (uid) => {
+    set({ profileLoading: true });
+    try {
+      const snap = await getDoc(doc(db, 'profiles', uid));
+      if (snap.exists()) {
+        set({ profile: snap.data(), profileLoading: false });
+      } else {
+        set({ profile: null, profileLoading: false });
+      }
+    } catch (e) {
+      console.error('프로필 로드 실패:', e);
+      set({ profileLoading: false });
+    }
+  },
+
+  saveProfile: async (profileData) => {
+    const { user } = get();
+    if (!user) throw new Error('로그인이 필요합니다');
+    const data = {
+      ...profileData,
+      uid: user.uid,
+      updatedAt: new Date().toISOString(),
+    };
+    const ref = doc(db, 'profiles', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      await updateDoc(ref, data);
+    } else {
+      data.createdAt = new Date().toISOString();
+      await setDoc(ref, data);
+    }
+    set({ profile: data });
+    if (profileData.nameKo && auth.currentUser) {
+      await updateProfile(auth.currentUser, { displayName: profileData.nameKo });
+      set({ user: { ...user, displayName: profileData.nameKo } });
+    }
+  },
+
+  signOut: async () => {
+    await firebaseSignOut(auth);
+    set({ user: null, profile: null });
   },
 }));
 

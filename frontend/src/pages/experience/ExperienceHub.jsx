@@ -168,7 +168,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs text-gray-400">{date}</span>
         <Link
-          to={`/app/experience/structured/${id}`}
+          to={`/app/experience/analysis/${id}`}
           className="text-xs text-gray-400 hover:text-primary-600 transition-colors"
         >
           자세히 보기 →
@@ -238,18 +238,11 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
       <div className="flex items-center justify-between px-4 py-3 border-t border-surface-100">
         <div className="flex items-center gap-1">
           <Link
-            to={`/app/experience/edit/${id}`}
+            to={`/app/experience/structured/${id}`}
             className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
           >
             <Pencil size={12} />
             편집
-          </Link>
-          <Link
-            to={`/app/experience/structured/${id}`}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
-          >
-            <Sparkles size={12} />
-            AI 분석
           </Link>
         </div>
         <button

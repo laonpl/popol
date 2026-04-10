@@ -3,14 +3,15 @@ import { ArrowRight, FolderOpen, FileText, PenTool, CheckCircle2, Sparkles, Brie
 import useAuthStore from '../stores/authStore';
 
 export default function Landing() {
-  const { user, guestLogin } = useAuthStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
 
   const handleStart = () => {
-    if (!user) {
-      guestLogin();
+    if (user) {
+      navigate('/app');
+    } else {
+      navigate('/login');
     }
-    navigate('/app');
   };
 
   return (

@@ -48,9 +48,19 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res, ne
       },
     });
 
-    // 영구 공개 접근 URL 생성 (서명 없이)
-    await fileRef.makePublic();
-    const url = `https://storage.googleapis.com/${bucketName}/${storagePath}`;
+    // 토큰 기반 다운로드 URL 생성 (makePublic 대신)
+    const [metadata] = await fileRef.getMetadata();
+    let downloadToken = metadata.metadata?.firebaseStorageDownloadTokens;
+    if (!downloadToken) {
+      // 토큰이 없으면 UUID 생성하여 설정
+      const { randomUUID } = await import('crypto');
+      downloadToken = randomUUID();
+      await fileRef.setMetadata({
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      });
+    }
+    const encodedPath = encodeURIComponent(storagePath);
+    const url = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
 
     res.json({ url, storagePath });
   } catch (error) {
@@ -77,7 +87,8 @@ router.delete('/image', authMiddleware, async (req, res, next) => {
       return res.status(403).json({ error: '권한이 없습니다' });
     }
 
-    const bucket = adminStorage.bucket();
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'popol-cb20b.firebasestorage.app';
+    const bucket = adminStorage.bucket(bucketName);
     await bucket.file(storagePath).delete().catch(() => {});
 
     res.json({ success: true });

@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
+import Login from './pages/Login';
+import ProfileSetup from './pages/ProfileSetup';
 import ExperienceHub from './pages/experience/ExperienceHub';
 import TemplateSelect from './pages/experience/TemplateSelect';
 import ExperienceEditor from './pages/experience/ExperienceEditor';
@@ -13,10 +15,20 @@ import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
 import NotionPortfolioEditor from './pages/portfolio/NotionPortfolioEditor';
 import NotionPortfolioPreview from './pages/portfolio/NotionPortfolioPreview';
+import PublicPortfolioView from './pages/portfolio/PublicPortfolioView';
+import { Loader2 } from 'lucide-react';
 
-
-// 로그인 없이 바로 접근 가능
 function PrivateRoute({ children }) {
+  const { user, loading } = useAuthStore();
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function ProfileGuard({ children }) {
+  const { profile, profileLoading } = useAuthStore();
+  if (profileLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
+  if (!profile) return <Navigate to="/app/profile-setup" replace />;
   return children;
 }
 
@@ -27,7 +39,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/app" element={<PrivateRoute><Layout /></PrivateRoute>}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/p/:id" element={<PublicPortfolioView />} />
+      <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
+      <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
         <Route index element={<Navigate to="/app/experience" replace />} />
         {/* 경험정리 */}
         <Route path="experience" element={<ExperienceHub />} />
@@ -42,7 +57,6 @@ export default function App() {
         <Route path="portfolio/edit/:id" element={<PortfolioEditor />} />
         <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-
       </Route>
     </Routes>
   );

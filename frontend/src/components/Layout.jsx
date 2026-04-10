@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
+import { Settings } from 'lucide-react';
 
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
@@ -7,13 +8,15 @@ const navItems = [
 ];
 
 export default function Layout() {
-  const { user, signOut } = useAuthStore();
+  const { user, profile, signOut } = useAuthStore();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
+
+  const displayName = profile?.nameKo || user?.displayName || '사용자';
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
@@ -49,15 +52,22 @@ export default function Layout() {
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
             <span className="text-sm font-medium text-bluewood-700">
-              {user?.displayName || '사용자'}
+              {displayName}
             </span>
             {user?.photoURL ? (
               <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full ring-2 ring-surface-200" />
             ) : (
               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-sm font-bold ring-2 ring-surface-200">
-                {(user?.displayName || '사')[0]}
+                {displayName[0]}
               </div>
             )}
+            <button
+              onClick={() => navigate('/app/profile-setup')}
+              className="p-1.5 text-bluewood-400 hover:text-primary-600 transition-colors"
+              title="프로필 수정"
+            >
+              <Settings size={16} />
+            </button>
             <button
               onClick={handleSignOut}
               className="text-xs text-bluewood-400 hover:text-red-500 transition-colors ml-1"

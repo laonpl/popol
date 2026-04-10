@@ -77,7 +77,7 @@ const useExperienceStore = create((set, get) => ({
   },
 
   analyzeExperience: async (experienceId) => {
-    const { data } = await api.post('/experience/analyze', { experienceId }, { timeout: 120000 });
+    const { data } = await api.post('/experience/analyze', { experienceId }, { timeout: 300000 });
     set(state => ({
       experiences: state.experiences.map(e =>
         e.id === experienceId ? { ...e, structuredResult: data, keywords: data.keywords || [] } : e
