@@ -33,7 +33,16 @@ const PORTFOLIO_TEMPLATES = [
     tags: ['학생', '취준생', '이력서', '타임라인'],
     sections: [],
     isNotion: true,
-    previewBg: 'bg-[#faf9f7]',
+    previewBg: 'bg-slate-800',
+  },
+  {
+    id: 'timeline',
+    name: '타임라인 대시보드',
+    description: '학기별 수업·프로젝트·스터디를 시간순으로 정리하는 Notion 스타일 대시보드. 캘린더와 활동 기록을 한눈에.',
+    tags: ['타임라인', '학기별', '대시보드', '캘린더'],
+    sections: [],
+    isNotion: true,
+    previewBg: 'bg-gradient-to-br from-[#1a1a2e] to-[#16213e]',
   },
 ];
 
@@ -140,39 +149,86 @@ function AshleyPreview() {
 
 function AcademicPreview() {
   return (
-    <div className="w-full h-full bg-[#faf9f7] rounded-lg overflow-hidden text-[6px] leading-tight">
-      {/* 배너 */}
-      <div className="h-5 bg-gradient-to-r from-blue-100 to-blue-50 w-full"></div>
-      <div className="p-2 pt-1">
-        {/* 아이콘 + 이름 */}
-        <div className="flex gap-2 mb-1.5">
-          <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 -mt-3 border-2 border-white"></div>
-          <div className="flex-1">
-            <div className="h-2 w-16 bg-gray-800 rounded-sm mb-0.5"></div>
-            <div className="text-[4px] text-gray-500">KAIROS · 2025.01.22</div>
+    <div className="w-full h-full bg-white rounded-lg overflow-hidden text-[6px] leading-tight">
+      {/* Dark hero banner */}
+      <div className="h-12 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-2 flex items-end gap-1.5">
+        <div className="w-6 h-6 rounded-md bg-white/20 border border-white/20 flex-shrink-0"></div>
+        <div>
+          <div className="h-1.5 w-12 bg-white rounded-sm mb-0.5"></div>
+          <div className="h-1 w-8 bg-blue-200/50 rounded-sm"></div>
+        </div>
+      </div>
+      <div className="p-2">
+        {/* Nav pills */}
+        <div className="flex gap-0.5 mb-1.5">
+          {['소개','학력','경험','기술'].map(m => (
+            <div key={m} className="px-1 py-0.5 bg-gray-50 rounded text-[4px] text-gray-400">{m}</div>
+          ))}
+        </div>
+        {/* Education timeline */}
+        <div className="flex items-center gap-1 mb-1">
+          <div className="w-0.5 h-6 bg-emerald-200 rounded-full"></div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div><div className="h-1 w-16 bg-gray-100 rounded-sm"></div></div>
+            <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div><div className="h-1 w-12 bg-gray-100 rounded-sm"></div></div>
           </div>
         </div>
-        {/* 2-column layout */}
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <div className="w-full h-16 bg-gray-100 rounded-lg mb-1"></div>
-          </div>
-          <div className="w-[45%] bg-amber-50/50 rounded-lg p-1 border-l-2 border-amber-300">
-            <div className="text-[5px] font-bold text-amber-700 mb-0.5">끊임없이 도전하고 경험하는</div>
-            <div className="space-y-0.5">
-              <div className="text-[4px] text-gray-600">Kim Yabin(김야빈)</div>
-              <div className="text-[4px] text-gray-500">2021. 하나고등학교 9기 졸업</div>
-              <div className="text-[4px] text-gray-500">2024. 성균관대학교 입학</div>
-              <div className="text-[4px] text-gray-500">2025. 국어국문학과 전공진입</div>
-              <div className="text-[4px] text-gray-500">Birth. 2002. 01. 12</div>
-              <div className="text-[4px] text-gray-500">E-mail. yabin@naver.com</div>
-              <div className="text-[4px] text-gray-500">MBTI: INFJ</div>
+        {/* Skills bars */}
+        <div className="space-y-0.5">
+          {[80,60,90].map((w, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <div className="h-1 w-8 bg-gray-200 rounded-sm"></div>
+              <div className="h-1 flex-1 bg-gray-100 rounded-sm"><div className={`h-full bg-teal-400 rounded-sm`} style={{width:`${w}%`}}></div></div>
             </div>
-            <div className="mt-1 p-0.5 border-l-2 border-amber-400 bg-amber-50 rounded-r text-[4px] text-gray-500 italic">
-              "그냥 비탈을 가로질러줘"
-            </div>
-          </div>
+          ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelinePreview() {
+  return (
+    <div className="w-full h-full bg-[#1a1a2e] rounded-lg overflow-hidden text-[6px] leading-tight p-2">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex-shrink-0"></div>
+        <div>
+          <div className="h-1.5 w-14 bg-white/80 rounded-sm mb-0.5"></div>
+          <div className="h-1 w-10 bg-white/30 rounded-sm"></div>
+        </div>
+        <div className="ml-auto flex gap-0.5">
+          <div className="w-2 h-2 rounded bg-white/10"></div>
+          <div className="w-2 h-2 rounded bg-white/10"></div>
+        </div>
+      </div>
+      {/* Calendar mini */}
+      <div className="bg-white/5 rounded p-1 mb-1.5 border border-white/10">
+        <div className="text-[4px] text-white/50 mb-0.5 text-center">2025년 4월</div>
+        <div className="grid grid-cols-7 gap-px">
+          {Array.from({length: 14}, (_, i) => (
+            <div key={i} className={`h-1.5 rounded-sm ${i === 8 ? 'bg-purple-400/60' : i === 3 || i === 11 ? 'bg-blue-400/40' : 'bg-white/5'}`}></div>
+          ))}
+        </div>
+      </div>
+      {/* Semester tabs */}
+      <div className="flex gap-0.5 mb-1">
+        {['1-1','1-2','2-1'].map((s, i) => (
+          <div key={s} className={`px-1 py-0.5 rounded text-[4px] ${i === 2 ? 'bg-purple-500/30 text-purple-200' : 'bg-white/5 text-white/30'}`}>{s}</div>
+        ))}
+      </div>
+      {/* Timeline entries */}
+      <div className="space-y-0.5 relative">
+        <div className="absolute left-[2px] top-0 bottom-0 w-px bg-purple-400/30"></div>
+        {[1,2,3].map(i => (
+          <div key={i} className="flex items-start gap-1 pl-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0 mt-0.5 relative z-10"></div>
+            <div className="flex-1">
+              <div className="h-1 w-12 bg-white/20 rounded-sm mb-0.5"></div>
+              <div className="h-0.5 w-8 bg-white/10 rounded-sm"></div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -283,65 +339,87 @@ function NotionFullPreview() {
 
 function AshleyFullPreview() {
   return (
-    <div className="bg-[#f7f6f3] p-8 text-sm leading-relaxed">
-      <div className="flex gap-6 mb-6">
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">홍길동</h1>
-          <p className="text-gray-500 mb-2">크리에이티브 마케터 · 콘텐츠 크리에이터</p>
-          <p className="text-xs text-gray-400">example@gmail.com</p>
-          <div className="flex gap-3 mt-2 text-xs text-gray-400">
-            <span>Instagram</span><span>Blog</span><span>YouTube</span>
-          </div>
-        </div>
-        <div className="w-20 h-20 bg-gray-200 rounded-xl flex items-center justify-center text-3xl">👤</div>
-      </div>
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1 bg-white rounded-xl p-4 border border-gray-100">
-          <h3 className="font-bold text-sm mb-3">한눈에 보기</h3>
-          <div className="space-y-2 text-xs text-gray-600">
-            <div className="flex justify-between"><span>소속</span><span className="font-medium">OO기업 마케팅팀</span></div>
-            <div className="flex justify-between"><span>경력</span><span className="font-medium">2년</span></div>
-            <div className="flex justify-between"><span>전문 분야</span><span className="font-medium">콘텐츠 마케팅</span></div>
-          </div>
-        </div>
-        <div className="flex-1 bg-white rounded-xl p-4 border border-gray-100">
-          <h3 className="font-bold text-sm mb-3">저는 이런 사람이에요</h3>
-          <ul className="space-y-2 text-xs text-gray-600">
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />데이터 기반 스토리텔링을 좋아합니다</li>
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />새로운 트렌드를 빠르게 캐치합니다</li>
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />팀 협업에서 시너지를 만듭니다</li>
-          </ul>
-        </div>
-      </div>
-      <div className="bg-white rounded-xl p-4 border border-gray-100 mb-6">
-        <h3 className="font-bold text-sm mb-3">인터뷰</h3>
-        <div className="flex gap-4">
-          <div className="flex-1 space-y-3 text-xs text-gray-600">
-            <div>
-              <p className="font-medium text-gray-800 mb-1">Q. 가장 보람찼던 프로젝트는?</p>
-              <p>SNS 마케팅 캠페인으로 팔로워 300% 성장을 달성했던 경험입니다.</p>
-            </div>
-            <div>
-              <p className="font-medium text-gray-800 mb-1">Q. 앞으로의 목표는?</p>
-              <p>브랜드 전략 전문가로 성장하는 것입니다.</p>
+    <div className="bg-[#f7f5f0] rounded-xl border border-[#e8e4dc] text-sm leading-relaxed overflow-hidden">
+      {/* Hero */}
+      <div className="px-8 pt-8 pb-6">
+        <div className="flex items-start gap-6">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-[#2d2a26] mb-1 tracking-tight">홍길동</h1>
+            <p className="text-[#8a8578] text-xs mb-2">Gil-dong Hong</p>
+            <p className="text-[#5a564e] text-sm">크리에이티브 마케터 · 콘텐츠 크리에이터</p>
+            <div className="flex items-center gap-3 mt-3 text-xs text-[#8a8578]">
+              <span>example@gmail.com</span><span>Instagram</span><span>GitHub</span>
             </div>
           </div>
-          <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">📷</div>
+          <div className="w-20 h-20 rounded-2xl bg-[#e8e4dc] flex items-center justify-center text-3xl shadow-md">👤</div>
         </div>
       </div>
-      <div>
-        <h3 className="font-bold text-sm mb-3">프로젝트</h3>
+      {/* 한눈에 보기 + 저는 이런 사람이에요 */}
+      <div className="px-8 pb-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl p-4 border border-[#e8e4dc]">
+            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">📋 한눈에 보기</h3>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between"><span className="text-[#8a8578]">위치</span><span className="font-medium text-[#2d2a26]">서울특별시</span></div>
+              <div className="flex justify-between"><span className="text-[#8a8578]">생년월일</span><span className="font-medium text-[#2d2a26]">2000.01.01</span></div>
+              <div className="flex justify-between"><span className="text-[#8a8578]">학교</span><span className="font-medium text-[#2d2a26]">가천대학교</span></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-[#e8e4dc]">
+            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">✨ 저는 이런 사람이에요</h3>
+            <ul className="space-y-2 text-xs text-[#5a564e]">
+              <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-[#c4a882] rounded-full mt-1 flex-shrink-0" />데이터 기반 스토리텔링을 좋아합니다</li>
+              <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-[#c4a882] rounded-full mt-1 flex-shrink-0" />새로운 트렌드를 빠르게 캐치합니다</li>
+              <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-[#c4a882] rounded-full mt-1 flex-shrink-0" />팀 협업에서 시너지를 만듭니다</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      {/* 인터뷰 */}
+      <div className="px-8 pb-6">
+        <div className="bg-white rounded-xl p-5 border border-[#e8e4dc]">
+          <h3 className="font-bold text-base text-[#2d2a26] mb-4">💬 인터뷰</h3>
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <p className="font-medium text-[#2d2a26] text-xs mb-1">Q. 가장 보람찼던 프로젝트는?</p>
+                <p className="text-xs text-[#8a8578] leading-relaxed">SNS 마케팅 캠페인으로 팔로워 300% 성장을 달성했던 경험입니다.</p>
+              </div>
+              <div className="w-16 h-16 bg-[#f0ece4] rounded-lg flex items-center justify-center text-xl">📷</div>
+            </div>
+            <div>
+              <p className="font-medium text-[#2d2a26] text-xs mb-1">Q. 앞으로의 목표는?</p>
+              <p className="text-xs text-[#8a8578] leading-relaxed">브랜드 전략 전문가로 성장하는 것입니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 프로젝트 갤러리 */}
+      <div className="px-8 pb-6">
+        <h3 className="font-bold text-base text-[#2d2a26] mb-3">🎨 프로젝트</h3>
         <div className="grid grid-cols-3 gap-3">
           {[1,2,3].map(i => (
-            <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="aspect-video bg-gray-100 flex items-center justify-center text-2xl">{['🎯','📈','🎬'][i-1]}</div>
+            <div key={i} className="bg-white rounded-xl border border-[#e8e4dc] overflow-hidden">
+              <div className="aspect-[4/3] bg-[#f0ece4] flex items-center justify-center text-2xl">{['🎯','📈','🎬'][i-1]}</div>
               <div className="p-3">
-                <p className="text-xs font-medium mb-1">캠페인 {i}</p>
-                <p className="text-[10px] text-gray-400">마케팅 프로젝트 설명</p>
+                <p className="text-xs font-bold text-[#2d2a26] mb-0.5">캠페인 {i}</p>
+                <p className="text-[10px] text-[#8a8578]">마케팅 프로젝트 설명</p>
               </div>
             </div>
           ))}
         </div>
+      </div>
+      {/* Skills */}
+      <div className="px-8 pb-6">
+        <h3 className="font-bold text-base text-[#2d2a26] mb-3">💼 이런 일을 할 수 있어요</h3>
+        <div className="flex flex-wrap gap-2">
+          {['React', 'Node.js', 'Figma', 'Python', 'Photoshop'].map(s => (
+            <span key={s} className="px-3 py-1.5 bg-white rounded-full text-xs text-[#5a564e] font-medium border border-[#e8e4dc]">{s}</span>
+          ))}
+        </div>
+      </div>
+      <div className="px-8 py-4 border-t border-[#e8e4dc] flex items-center justify-between text-[10px] text-[#8a8578]">
+        <span>POPOL Portfolio · 홍길동</span><span>맨 위로 ↑</span>
       </div>
     </div>
   );
@@ -349,75 +427,224 @@ function AshleyFullPreview() {
 
 function AcademicFullPreview() {
   return (
-    <div className="bg-[#faf9f7] text-sm leading-relaxed">
-      <div className="h-24 bg-gradient-to-r from-blue-100 to-blue-50 w-full" />
-      <div className="px-8 pb-8 -mt-8">
-        <div className="flex gap-6 mb-6">
-          <div className="w-24 h-24 bg-gray-100 rounded-xl border-4 border-white shadow-sm flex items-center justify-center text-4xl">👤</div>
-          <div className="pt-10">
-            <h1 className="text-2xl font-bold text-gray-800">김야빈</h1>
-            <p className="text-xs text-gray-500">KAIROS · 2025.01.22 작성</p>
+    <div className="text-sm leading-relaxed">
+      {/* Dark gradient hero */}
+      <div className="relative rounded-t-xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
+        <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
+        <div className="relative px-8 pt-10 pb-8 flex items-end gap-5">
+          <div className="w-20 h-20 rounded-xl bg-white/10 border-4 border-white/20 flex items-center justify-center text-4xl">👤</div>
+          <div className="flex-1 pb-1">
+            <h1 className="text-2xl font-bold text-white mb-1">홍길동</h1>
+            <p className="text-blue-200 text-xs">Hong Gil-dong</p>
+            <p className="text-blue-300/70 text-xs mt-1">성장하는 개발자</p>
+          </div>
+          <div className="pb-1 text-right">
+            <p className="text-blue-200/60 text-xs">서울특별시</p>
+            <p className="text-blue-200/60 text-xs mt-0.5">2000.01.01</p>
           </div>
         </div>
-        <div className="flex gap-6">
-          <div className="flex-1 space-y-5">
-            <div className="bg-white rounded-xl p-5 border border-gray-100">
-              <h3 className="font-bold mb-3">프로젝트 소개</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">대학 입학 이후 다양한 학술 활동과 연구 프로젝트에 참여하며 전공 역량을 쌓아왔습니다. 특히 데이터 분석과 수학적 모델링 분야에 관심을 가지고 있습니다.</p>
+        <div className="flex gap-2 px-8 pb-4">
+          {['소개','학력','경험','기술','수상','교과','비교과','목표'].map(m => (
+            <span key={m} className="px-2.5 py-1 bg-white/10 rounded-lg text-xs text-white/80 font-medium">{m}</span>
+          ))}
+        </div>
+      </div>
+      <div className="bg-white rounded-b-xl border border-t-0 border-gray-200">
+        {/* About */}
+        <div className="px-8 py-6 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-blue-500 rounded-full inline-block" /> 자기소개
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+              <p className="text-xs font-bold text-blue-900 mb-1">성장 마인드셋</p>
+              <p className="text-[10px] text-blue-700/70">끊임없이 배우고 성장합니다</p>
             </div>
-            <div className="bg-white rounded-xl p-5 border border-gray-100">
-              <h3 className="font-bold mb-3">주요 활동</h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium">수학 경시대회 참가</p>
-                    <p className="text-[10px] text-gray-400">2025.06 · 제43회 대학생 수학 경시대회 동상</p>
-                  </div>
+            <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+              <p className="text-xs font-bold text-blue-900 mb-1">팀워크</p>
+              <p className="text-[10px] text-blue-700/70">협업으로 더 큰 가치를 만듭니다</p>
+            </div>
+          </div>
+        </div>
+        {/* Education + Awards */}
+        <div className="px-8 py-6 border-b border-gray-100">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-5 bg-emerald-500 rounded-full inline-block" /> 학력
+              </h2>
+              <div className="space-y-3 relative">
+                <div className="absolute left-[5px] top-1 bottom-1 w-0.5 bg-emerald-100" />
+                <div className="flex items-start gap-2.5 relative">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
+                  <div><p className="text-xs font-medium">가천대학교 · 컴퓨터공학과</p><p className="text-[10px] text-gray-400">학사 재학 · 2020.03 - 현재</p></div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-400 mt-1.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium">교내 연구 프로젝트</p>
-                    <p className="text-[10px] text-gray-400">2024.09 ~ 2025.02 · 열거 조합론 연구</p>
-                  </div>
+                <div className="flex items-start gap-2.5 relative">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
+                  <div><p className="text-xs font-medium">OO고등학교</p><p className="text-[10px] text-gray-400">졸업 · 2017.03 - 2020.02</p></div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium">해외 수학 워크숍 참가</p>
-                    <p className="text-[10px] text-gray-400">2025 Summer Session - Session C</p>
-                  </div>
-                </div>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-5 bg-amber-500 rounded-full inline-block" /> 수상
+              </h2>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">해커톤 최우수상</p><p className="text-[10px] text-gray-400">2025.06</p></div></div>
+                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">프로그래밍 경진대회 장려상</p><p className="text-[10px] text-gray-400">2024.12</p></div></div>
               </div>
             </div>
           </div>
-          <div className="w-[40%] space-y-4">
-            <div className="bg-amber-50/50 rounded-xl p-4 border-l-2 border-amber-300">
-              <p className="font-bold text-amber-700 text-xs mb-3">끊임없이 도전하고 경험하는</p>
-              <div className="space-y-1.5 text-xs text-gray-600">
-                <p>Kim Yabin (김야빈)</p>
-                <p className="text-gray-400">2021. 하나고등학교 졸업</p>
-                <p className="text-gray-400">2024. 성균관대학교 입학</p>
-                <p className="text-gray-400">2025. 국어국문학과 전공진입</p>
-                <p className="text-gray-400 mt-2">Birth. 2002. 01. 12</p>
-                <p className="text-gray-400">E-mail. yabin@naver.com</p>
-                <p className="text-gray-400">MBTI: INFJ</p>
-              </div>
-              <div className="mt-3 p-2 border-l-2 border-amber-400 bg-amber-50 rounded-r text-xs text-gray-500 italic">
-                &ldquo;그냥 비탈을 가로질러줘&rdquo;
+        </div>
+        {/* Skills */}
+        <div className="px-8 py-6">
+          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-teal-500 rounded-full inline-block" /> 기술
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase">도구</h4>
+              <div className="space-y-1.5">
+                {[['React', 4], ['Node.js', 3], ['Figma', 5]].map(([name, lvl]) => (
+                  <div key={name} className="flex items-center justify-between">
+                    <span className="text-xs text-gray-700">{name}</span>
+                    <div className="flex gap-0.5">{[1,2,3,4,5].map(l => <div key={l} className={`w-3 h-1 rounded-full ${l <= lvl ? 'bg-teal-500' : 'bg-gray-200'}`} />)}</div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-100">
-              <h3 className="font-bold text-xs mb-2">Skills</h3>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px]">Python</span>
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px]">MATLAB</span>
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px]">LaTeX</span>
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px]">R</span>
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase">언어</h4>
+              <div className="space-y-1.5">
+                {[['Python', 5], ['JavaScript', 4]].map(([name, lvl]) => (
+                  <div key={name} className="flex items-center justify-between">
+                    <span className="text-xs text-gray-700">{name}</span>
+                    <div className="flex gap-0.5">{[1,2,3,4,5].map(l => <div key={l} className={`w-3 h-1 rounded-full ${l <= lvl ? 'bg-teal-500' : 'bg-gray-200'}`} />)}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+        </div>
+        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
+          <span>POPOL Portfolio · 홍길동</span><span>맨 위로 ↑</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineFullPreview() {
+  const semesters = [
+    { id: '1-1', label: '1학년 1학기', period: '2023.03 – 2023.06', courses: ['컴퓨터개론', '미적분학', '프로그래밍기초'] },
+    { id: '1-2', label: '1학년 2학기', period: '2023.09 – 2023.12', courses: ['자료구조', '선형대수', '웹프로그래밍'] },
+    { id: '2-1', label: '2학년 1학기', period: '2024.03 – 2024.06', courses: ['알고리즘', '컴퓨터네트워크', '데이터베이스'] },
+  ];
+  const activities = [
+    { date: '2024.06', title: '해커톤 최우수상', category: 'award', color: 'bg-amber-400' },
+    { date: '2024.03', title: 'Whois 보안 교육', category: 'study', color: 'bg-purple-400' },
+    { date: '2023.09', title: '웹 포트폴리오 프로젝트', category: 'project', color: 'bg-blue-400' },
+  ];
+  const days = ['일','월','화','수','목','금','토'];
+  return (
+    <div className="text-sm leading-relaxed">
+      {/* Dark header */}
+      <div className="rounded-t-xl bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] px-8 pt-8 pb-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl shadow-lg">👤</div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">홍길동's 대시보드</h1>
+            <p className="text-blue-200/70 text-xs mt-0.5">가천대학교 · 컴퓨터공학과</p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <span className="px-3 py-1 bg-white/10 rounded-lg text-xs text-white/70">GitHub</span>
+            <span className="px-3 py-1 bg-white/10 rounded-lg text-xs text-white/70">Instagram</span>
+          </div>
+        </div>
+        {/* Mini calendar */}
+        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+          <p className="text-xs text-white/50 mb-2 text-center font-medium">2025년 4월</p>
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {days.map(d => <div key={d} className="text-[10px] text-white/30 font-medium">{d}</div>)}
+            {Array.from({length: 30}, (_, i) => (
+              <div key={i} className={`text-[10px] py-1 rounded ${i === 14 ? 'bg-purple-500 text-white font-bold' : i === 7 || i === 22 ? 'bg-blue-500/30 text-blue-200' : 'text-white/40'}`}>{i+1}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content body */}
+      <div className="bg-white rounded-b-xl border border-t-0 border-gray-200">
+        {/* Semester tabs */}
+        <div className="px-8 py-4 border-b border-gray-100 flex gap-2 overflow-x-auto">
+          {semesters.map((s, i) => (
+            <span key={s.id} className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap ${i === 2 ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>{s.label}</span>
+          ))}
+        </div>
+
+        {/* Semester courses */}
+        <div className="px-8 py-6 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-purple-500 rounded-full inline-block" /> 학기별 수업
+          </h2>
+          <div className="space-y-4">
+            {semesters.map(s => (
+              <div key={s.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-700">{s.label}</span>
+                  <span className="text-[10px] text-gray-400">{s.period}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {s.courses.map(c => (
+                    <span key={c} className="px-2.5 py-1 bg-white rounded-lg text-xs text-gray-600 border border-gray-200">{c}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Activity timeline */}
+        <div className="px-8 py-6 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-blue-500 rounded-full inline-block" /> 활동 기록
+          </h2>
+          <div className="relative">
+            <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
+            <div className="space-y-4">
+              {activities.map((a, i) => (
+                <div key={i} className="flex items-start gap-3 relative">
+                  <div className={`w-4 h-4 rounded-full ${a.color} border-2 border-white z-10 mt-0.5 flex-shrink-0`} />
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">{a.title}</p>
+                    <p className="text-[10px] text-gray-400">{a.date}</p>
+                  </div>
+                  <span className="ml-auto px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">{a.category}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Study plans */}
+        <div className="px-8 py-6">
+          <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-emerald-500 rounded-full inline-block" /> 스터디 계획
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+              <p className="text-xs font-bold text-emerald-800 mb-1">2025년 3~6월</p>
+              <p className="text-[10px] text-emerald-600">알고리즘 문제풀이, 네트워크 보안 스터디</p>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+              <p className="text-xs font-bold text-emerald-800 mb-1">2025년 7~8월</p>
+              <p className="text-[10px] text-emerald-600">인턴십 준비, 포트폴리오 완성</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
+          <span>POPOL Dashboard · 홍길동</span><span>맨 위로 ↑</span>
         </div>
       </div>
     </div>
@@ -438,6 +665,7 @@ export default function PortfolioTemplateSelect() {
     notion: NotionPreview,
     ashley: AshleyPreview,
     academic: AcademicPreview,
+    timeline: TimelinePreview,
   };
 
   const handleNext = () => {
@@ -457,7 +685,7 @@ export default function PortfolioTemplateSelect() {
         userName: profile?.nameKo || user.displayName || '',
         sections: [],
         templateId: template.id,
-        templateType: 'notion',
+        templateType: template.id,
         headline: '',
         education: [],
         awards: [],
@@ -515,7 +743,7 @@ export default function PortfolioTemplateSelect() {
       }
 
       const id = await createPortfolio(user.uid, data);
-      navigate(`/app/portfolio/edit-notion/${id}`);
+      navigate(`/app/portfolio/edit-notion/${id}?mode=form`);
       toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
@@ -557,10 +785,13 @@ export default function PortfolioTemplateSelect() {
               const isSelected = selected === template.id;
               const Preview = previewComponents[template.id];
               return (
-                <button
+                <div
                   key={template.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelected(template.id)}
-                  className={`text-left rounded-2xl border-2 overflow-hidden transition-all hover:shadow-xl ${
+                  onKeyDown={e => e.key === 'Enter' && setSelected(template.id)}
+                  className={`text-left rounded-2xl border-2 overflow-hidden transition-all hover:shadow-xl cursor-pointer ${
                     isSelected
                       ? 'border-primary-500 shadow-lg ring-2 ring-primary-200'
                       : 'border-surface-200 bg-white hover:border-gray-300'
@@ -596,7 +827,7 @@ export default function PortfolioTemplateSelect() {
                       </button>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -670,6 +901,7 @@ export default function PortfolioTemplateSelect() {
                 {previewTemplate === 'notion' && <NotionFullPreview />}
                 {previewTemplate === 'ashley' && <AshleyFullPreview />}
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
+                {previewTemplate === 'timeline' && <TimelineFullPreview />}
               </div>
             </div>
           </div>

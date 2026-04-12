@@ -10,7 +10,27 @@ export async function exportForNotion(data) {
   const model = genAI.getGenerativeModel({ model: MODEL_NAME });
   const jsonStr = JSON.stringify(data, null, 2);
 
-  const prompt = `당신은 Notion 페이지 전문 포맷터입니다.
+  const isPortfolio = !!(data.templateType || (data.education && data.experiences));
+
+  const prompt = isPortfolio
+    ? `당신은 포트폴리오 Notion 페이지 전문 포맷터입니다.
+아래 JSON 포트폴리오 데이터를 Notion에 붙여넣기 했을 때 완벽하게 렌더링되는 Markdown으로 변환하십시오.
+
+[변환 규칙]
+1. 제목: # 이름/헤드라인
+2. 섹션 구분: ## (프로필, 학력, 경력/프로젝트, 기술, 수상, 목표 등)
+3. 항목 구분: ### (각 개별 항목)
+4. 기술 스택: \`기술명\` 인라인 코드로 표시
+5. 성과/특이사항은 볼드(**) 처리
+6. 섹션 사이 --- 구분선 삽입
+7. 이모지로 섹션 아이콘 추가 (🎓 학력, 💼 경력, 🛠 기술, 🏆 수상 등)
+8. 연락처는 표(Table) 형식으로 정리
+
+[입력 데이터]
+${jsonStr}
+
+위 데이터를 포트폴리오 Notion Markdown으로 변환하여 텍스트만 출력하십시오. 코드블록으로 감싸지 마십시오.`
+    : `당신은 Notion 페이지 전문 포맷터입니다.
 아래 JSON 데이터를 Notion에 붙여넣기 했을 때 완벽하게 렌더링되는 Markdown으로 변환하십시오.
 
 [Notion Markdown 변환 규칙]
@@ -136,7 +156,93 @@ ${jsonStr}
 
 // ── Fallback 함수들 ──
 
+function buildPortfolioMarkdown(data) {
+  const title = data.title || data.userName || '포트폴리오';
+  let md = `# ${data.headline || title}\n\n`;
+  if (data.userName) md += `**${data.userName}**${data.nameEn ? ` (${data.nameEn})` : ''}\n\n`;
+
+  const contact = data.contact || {};
+  const contactItems = [
+    contact.email && `이메일: ${contact.email}`,
+    contact.phone && `연락처: ${contact.phone}`,
+    contact.github && `GitHub: ${contact.github}`,
+    contact.linkedin && `LinkedIn: ${contact.linkedin}`,
+    contact.website && `웹사이트: ${contact.website}`,
+  ].filter(Boolean);
+  if (contactItems.length > 0) md += `${contactItems.join(' | ')}\n\n---\n\n`;
+
+  if ((data.education || []).length > 0) {
+    md += `## 🎓 학력\n\n`;
+    data.education.forEach(e => {
+      md += `### ${e.name || ''}${e.nameEn ? ` (${e.nameEn})` : ''}\n`;
+      if (e.period) md += `*${e.period}*\n`;
+      if (e.degree) md += `${e.degree}\n`;
+      if (e.description) md += `${e.description}\n`;
+      md += '\n';
+    });
+    md += '---\n\n';
+  }
+
+  if ((data.experiences || []).length > 0) {
+    md += `## 💼 경력 & 프로젝트\n\n`;
+    data.experiences.forEach(e => {
+      md += `### ${e.title || ''}\n`;
+      if (e.period) md += `*${e.period}*\n`;
+      if (e.role) md += `역할: ${e.role}\n`;
+      if (e.description) md += `\n${e.description}\n`;
+      if ((e.achievements || []).length > 0) {
+        md += '\n**주요 성과**\n';
+        e.achievements.forEach(a => { md += `- ${a}\n`; });
+      }
+      md += '\n';
+    });
+    md += '---\n\n';
+  }
+
+  const skills = data.skills || {};
+  const allSkills = [
+    ...(skills.languages || []),
+    ...(skills.frameworks || []),
+    ...(skills.tools || []),
+    ...(skills.others || []),
+  ];
+  if (allSkills.length > 0) {
+    md += `## 🛠 기술 스택\n\n`;
+    if ((skills.languages || []).length > 0) md += `**언어**: ${skills.languages.join(', ')}\n`;
+    if ((skills.frameworks || []).length > 0) md += `**프레임워크**: ${skills.frameworks.join(', ')}\n`;
+    if ((skills.tools || []).length > 0) md += `**도구**: ${skills.tools.join(', ')}\n`;
+    if ((skills.others || []).length > 0) md += `**기타**: ${skills.others.join(', ')}\n`;
+    md += '\n---\n\n';
+  }
+
+  if ((data.awards || []).length > 0) {
+    md += `## 🏆 수상 & 장학금\n\n`;
+    data.awards.forEach(a => {
+      md += `- **${a.date || ''}** ${a.title || ''}${a.organization ? ` (${a.organization})` : ''}\n`;
+    });
+    md += '\n---\n\n';
+  }
+
+  if ((data.goals || []).length > 0) {
+    md += `## ✨ 목표 & 계획\n\n`;
+    data.goals.forEach(g => {
+      md += `### ${g.title || ''}\n`;
+      if (g.description) md += `${g.description}\n`;
+      md += '\n';
+    });
+  }
+
+  if (data.valuesEssay) {
+    md += `## 💬 가치관\n\n${data.valuesEssay}\n\n`;
+  }
+
+  return md;
+}
+
 function generateNotionFallback(data) {
+  if (data.templateType || data.education || data.experiences) {
+    return buildPortfolioMarkdown(data);
+  }
   const title = data.title || '프로젝트';
   const sections = data.sections || [];
   const content = data.content || {};
@@ -162,6 +268,9 @@ function generateNotionFallback(data) {
 }
 
 function generateGitHubFallback(data) {
+  if (data.templateType || data.education || data.experiences) {
+    return buildPortfolioMarkdown(data);
+  }
   const title = data.title || '프로젝트';
   const content = data.content || {};
   let md = `# ${title}\n\n`;
@@ -192,6 +301,9 @@ function generateGitHubFallback(data) {
 }
 
 function generatePDFFallback(data) {
+  if (data.templateType || data.education || data.experiences) {
+    return buildPortfolioMarkdown(data);
+  }
   const title = data.title || '프로젝트';
   const content = data.content || {};
   let text = `${title}\n`;

@@ -48,6 +48,33 @@ export default function ExportModal({ type, data, onClose }) {
       };
     }
     if (type === 'portfolio') {
+      const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
+      if (isTemplate) {
+        // 템플릿 포트폴리오: education/experiences/awards/skills 등 별도 필드에 실제 내용 있음
+        return {
+          title: data.title || '',
+          userName: data.userName || '',
+          nameEn: data.nameEn || '',
+          headline: data.headline || '',
+          targetCompany: data.targetCompany || '',
+          targetPosition: data.targetPosition || '',
+          templateType: data.templateType,
+          contact: data.contact || {},
+          education: data.education || [],
+          experiences: data.experiences || [],
+          awards: data.awards || [],
+          skills: data.skills || {},
+          goals: data.goals || [],
+          interests: data.interests || [],
+          values: data.values || [],
+          valuesEssay: data.valuesEssay || '',
+          curricular: data.curricular || {},
+          extracurricular: data.extracurricular || {},
+          interviews: data.interviews || [],
+          books: data.books || [],
+          lectures: data.lectures || [],
+        };
+      }
       return {
         title: data.title || '',
         userName: data.userName || '',
@@ -85,8 +112,15 @@ export default function ExportModal({ type, data, onClose }) {
     setExporting(true);
     try {
       const exportData = buildExportData();
-      const formatMap = { 'PDF': 'pdf', 'Notion': 'notion', 'GitHub': 'github' };
-      const res = await api.post(`/export/${formatMap[format]}`, { data: exportData }, { timeout: 60000 });
+      const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
+      let endpoint;
+      if (isTemplate && format === 'Notion') {
+        endpoint = '/export/notion-portfolio';
+      } else {
+        const formatMap = { 'PDF': 'pdf', 'Notion': 'notion', 'GitHub': 'github' };
+        endpoint = `/export/${formatMap[format]}`;
+      }
+      const res = await api.post(endpoint, { data: exportData }, { timeout: 60000 });
       if (res.data.content) {
         setResult(res.data.content);
       }

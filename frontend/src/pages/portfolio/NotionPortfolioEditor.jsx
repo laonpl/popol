@@ -1,16 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+﻿import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
   GraduationCap, Award, Briefcase, Mail, Phone, Globe,
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, X,
-  BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus
+  BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
+  PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
+  Mic, Users, Zap, Check
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
-import { JobAnalysisBadge } from '../../components/JobLinkInput';
+import { FRAMEWORKS } from '../../stores/experienceStore';
+import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -58,11 +61,21 @@ const EMPTY_PORTFOLIO = {
   goals: [],
   // 가치관
   valuesEssay: '',
+  // 커스텀 블록
+  customBlocks: [],
+  // Ashley 전용
+  interviews: [],
+  books: [],
+  lectures: [],
+  funfacts: [],
+  // 숨겨진 섹션
+  hiddenSections: [],
 };
 
 export default function NotionPortfolioEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const { updatePortfolio, setCurrentPortfolio, exportPortfolio } = usePortfolioStore();
 
@@ -72,19 +85,99 @@ export default function NotionPortfolioEditor() {
   const [activeSection, setActiveSection] = useState('profile');
   const [userExperiences, setUserExperiences] = useState([]);
   const [showExpPicker, setShowExpPicker] = useState(false);
+  const [editMode, setEditMode] = useState(
+    new URLSearchParams(location.search).get('mode') === 'form' ? 'form' : 'visual'
+  );
+
+  // 템플릿별 섹션 레이블
+  const SECTION_LABELS = {
+    ashley: {
+      profile: '프로필',
+      education: '학교',
+      experiences: '경력 & 프로젝트',
+      interviews: '인터뷰',
+      books: '저서 & 글쓰기',
+      lectures: '강연 & 모더레이터',
+      skills: '이런 일을 할 수 있어요',
+      values: '나를 들려주는 이야기',
+      funfacts: '독특한 경험',
+      contact: '연락처',
+    },
+    academic: {
+      profile: '프로필',
+      education: '학력',
+      awards: '수상/장학금',
+      experiences: 'Portfolio & Experience',
+      curricular: '교과 활동',
+      extracurricular: '비교과 & 자격증',
+      skills: 'Skills',
+      goals: 'Personal Statement',
+      values: '소개글',
+      contact: 'Contact',
+    },
+    notion: {
+      profile: '프로필',
+      education: '학력',
+      awards: '수상/장학금',
+      experiences: '경험',
+      curricular: '교과 활동',
+      extracurricular: '비교과 활동',
+      skills: '기술',
+      goals: '목표와 계획',
+      values: '가치관',
+      contact: '연락처',
+    },
+    timeline: {
+      profile: '프로필',
+      education: '학력',
+      curricular: '학기별 수업',
+      experiences: '활동 기록',
+      goals: '스터디 계획',
+      skills: '기술',
+      awards: '수상/장학금',
+      contact: '연락처',
+    },
+  };
+
+  const tid = portfolio?.templateId || 'notion';
+  const labels = SECTION_LABELS[tid] || SECTION_LABELS.notion;
 
   const SECTIONS = [
-    { id: 'profile', label: '프로필', icon: Heart },
-    { id: 'education', label: '학력', icon: GraduationCap },
-    { id: 'awards', label: '수상/장학금', icon: Award },
-    { id: 'experiences', label: '경험', icon: Briefcase },
-    { id: 'curricular', label: '교과 활동', icon: BookOpen },
-    { id: 'extracurricular', label: '비교과 활동', icon: Star },
-    { id: 'skills', label: '기술', icon: Code },
-    { id: 'goals', label: '목표와 계획', icon: Target },
-    { id: 'values', label: '가치관', icon: MessageSquare },
-    { id: 'contact', label: '연락처', icon: Mail },
+    { id: 'profile', label: labels.profile || '프로필', icon: Heart },
+    { id: 'education', label: labels.education || '학력', icon: GraduationCap },
+    { id: 'awards', label: labels.awards || '수상/장학금', icon: Award },
+    { id: 'experiences', label: labels.experiences || '경험', icon: Briefcase },
+    { id: 'interviews', label: labels.interviews || '인터뷰', icon: Mic },
+    { id: 'books', label: labels.books || '저서', icon: BookOpen },
+    { id: 'lectures', label: labels.lectures || '강연', icon: Users },
+    { id: 'curricular', label: labels.curricular || '교과 활동', icon: BookOpen },
+    { id: 'extracurricular', label: labels.extracurricular || '비교과 활동', icon: Star },
+    { id: 'skills', label: labels.skills || '기술', icon: Code },
+    { id: 'goals', label: labels.goals || '목표와 계획', icon: Target },
+    { id: 'values', label: labels.values || '가치관', icon: MessageSquare },
+    { id: 'funfacts', label: labels.funfacts || '독특한 경험', icon: Zap },
+    { id: 'contact', label: labels.contact || '연락처', icon: Mail },
   ];
+
+  // 템플릿별 표시 섹션 정의
+  const TEMPLATE_SECTION_MAP = {
+    ashley: ['profile', 'education', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'values', 'funfacts', 'contact'],
+    academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+    notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+    timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
+  };
+
+  const hiddenSections = portfolio?.hiddenSections || [];
+
+  const visibleSections = SECTIONS.filter(s => {
+    const allowed = TEMPLATE_SECTION_MAP[portfolio?.templateId] || TEMPLATE_SECTION_MAP.notion;
+    return allowed.includes(s.id) && !hiddenSections.includes(s.id);
+  });
+
+  const removableHiddenSections = SECTIONS.filter(s => {
+    const allowed = TEMPLATE_SECTION_MAP[portfolio?.templateId] || TEMPLATE_SECTION_MAP.notion;
+    return allowed.includes(s.id) && hiddenSections.includes(s.id);
+  });
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -108,6 +201,11 @@ export default function NotionPortfolioEditor() {
         if (!merged.interests) merged.interests = [];
         if (!merged.curricular) merged.curricular = { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
         if (!merged.extracurricular) merged.extracurricular = { summary: '', badges: [], languages: [], details: [] };
+        if (!merged.interviews) merged.interviews = [];
+        if (!merged.books) merged.books = [];
+        if (!merged.lectures) merged.lectures = [];
+        if (!merged.funfacts) merged.funfacts = [];
+        if (!merged.hiddenSections) merged.hiddenSections = [];
         setPortfolio(merged);
         setCurrentPortfolio(merged);
       }
@@ -144,12 +242,83 @@ export default function NotionPortfolioEditor() {
     });
   };
 
+  // 포트폴리오 요건 체크리스트
+  const [reqChecklist, setReqChecklist] = useState(null);
+  useEffect(() => {
+    if (!reqChecklist) return;
+    const t = setTimeout(() => setReqChecklist(null), 10000);
+    return () => clearTimeout(t);
+  }, [reqChecklist]);
+
+  const checkPortfolioRequirements = (p) => {
+    const ja = p.jobAnalysis;
+    if (!ja) { setReqChecklist(null); return; }
+
+    // 실제 뱃지에 표시되는 것과 동일한 요건(보강 포함)으로 체크
+    const pr = buildDisplayPortfolioRequirements(ja);
+    const checks = [];
+
+    // 필수 서류
+    (pr.required || []).forEach(req => {
+      const lower = req.toLowerCase();
+      let passed = false;
+      if (/pdf|포트폴리오|portfolio/i.test(lower)) passed = (p.experiences?.length > 0);
+      if (/github/i.test(lower)) passed = !!(p.contact?.github);
+      if (/이력서|자기소개서/i.test(lower)) passed = true; // 앱 자체가 포트폴리오
+      if (/링크|url|notion/i.test(lower)) passed = !!(p.contact?.website || p.contact?.github);
+      // 아무 조건도 안 걸렸으면 경험이 있으면 통과
+      if (!passed && p.experiences?.length > 0) passed = true;
+      checks.push({ label: req, passed, category: 'required' });
+    });
+
+    // 포맷/형식
+    (pr.format || []).forEach(fmt => {
+      let passed = true; // 앱에서 PDF export 가능하므로 기본 통과
+      if (/페이지|장/i.test(fmt)) {
+        passed = (p.experiences?.length || 0) <= 10;
+      }
+      checks.push({ label: fmt, passed, category: 'format' });
+    });
+
+    // 담아야 할 내용
+    (pr.content || []).forEach(item => {
+      let passed = false;
+      const lower = item.toLowerCase();
+      const expCount = p.experiences?.length || 0;
+      if (/프로젝트|경험/i.test(lower)) {
+        const numMatch = lower.match(/(\d+)/);
+        const minCount = numMatch ? parseInt(numMatch[1]) : 1;
+        passed = expCount >= minCount;
+      } else if (/기여|역할/i.test(lower)) {
+        passed = (p.experiences || []).some(e => e.role || e.description);
+      } else if (/기술|스택|skill/i.test(lower)) {
+        const sk = p.skills || {};
+        const total = [...(sk.languages||[]), ...(sk.frameworks||[]), ...(sk.tools||[]), ...(sk.others||[])];
+        passed = total.length > 0;
+      } else if (/성과|결과|수치/i.test(lower)) {
+        passed = (p.experiences || []).some(e => /\d/.test(e.description || ''));
+      } else {
+        // 기타 항목: 경험이 1개 이상 있으면 통과
+        passed = expCount > 0;
+      }
+      checks.push({ label: item, passed, category: 'content' });
+    });
+
+    // 제출 방법 (항상 통과)
+    if (pr.submission) {
+      checks.push({ label: pr.submission, passed: true, category: 'submission' });
+    }
+
+    setReqChecklist(checks.length > 0 ? checks : null);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const { id: _id, ...data } = portfolio;
       await updatePortfolio(id, data);
       setCurrentPortfolio(portfolio);
+      checkPortfolioRequirements(portfolio);
       toast.success('저장되었습니다');
     } catch (error) {
       toast.error('저장에 실패했습니다');
@@ -158,29 +327,49 @@ export default function NotionPortfolioEditor() {
   };
 
   const importExperience = (exp) => {
+    // FRAMEWORKS.STRUCTURED 필드 정의에서 라벨 가져오기
+    const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
+    const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
+
+    // content 객체를 sections 배열로 변환 (비어있지 않은 것만)
+    const sections = fields
+      .filter(field => exp.content?.[field.key]?.trim?.())
+      .map(field => ({
+        title: field.label,
+        content: exp.content[field.key],
+      }));
+
+    // description: AI 요약 > intro > overview > 첫 번째 섹션 내용 순
+    const description =
+      exp.aiAnalysis?.overallSummary ||
+      exp.content?.intro ||
+      exp.content?.overview ||
+      (sections[0]?.content ?? '');
+
+    // 키워드에서 skills 추출
+    const autoSkills = exp.aiAnalysis?.competencyKeywords || exp.keywords || [];
+
     const newExp = {
-      date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
+      date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || exp.updatedAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
       title: exp.title || '',
-      description: exp.content
-        ? Object.entries(exp.content).map(([k, v]) => `${v}`).join('\n')
-        : '',
+      description,
       // 상세 데이터 보존
-      framework: exp.framework || '',
+      framework: exp.framework || 'STRUCTURED',
       frameworkContent: exp.content || {},
-      keywords: exp.aiAnalysis?.competencyKeywords || exp.keywords || [],
+      keywords: autoSkills,
       aiSummary: exp.aiAnalysis?.overallSummary || '',
       // Notion 스타일 필드
-      thumbnailUrl: '',
+      thumbnailUrl: exp.images?.[0] || '',
       status: 'finished',
       classify: [],
-      skills: [],
+      skills: autoSkills.slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
       role: '',
       link: '',
-      sections: [],
+      sections,
     };
     addToArray('experiences', newExp);
     setShowExpPicker(false);
-    toast.success(`"${exp.title}" 경험이 추가되었습니다`);
+    toast.success(`"${exp.title}" 경험이 추가되었습니다 (${sections.length}개 섹션)`);
   };
 
   if (loading) {
@@ -197,13 +386,30 @@ export default function NotionPortfolioEditor() {
         <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
           <ArrowLeft size={16} /> 목록으로
         </Link>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate(`/app/portfolio/preview/${id}`)}
-            className="flex items-center gap-2 px-4 py-2.5 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
-          >
-            <Eye size={16} /> 미리보기
-          </button>
+        <div className="flex items-center gap-3">
+          {/* 모드 전환 토글 */}
+          <div className="flex bg-surface-100 rounded-xl p-1 gap-0.5">
+            <button
+              onClick={() => setEditMode('visual')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                editMode === 'visual'
+                  ? 'bg-white text-primary-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Eye size={13} /> 대시보드 편집
+            </button>
+            <button
+              onClick={() => setEditMode('form')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                editMode === 'form'
+                  ? 'bg-white text-primary-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <PanelLeft size={13} /> 폼 편집
+            </button>
+          </div>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -215,15 +421,101 @@ export default function NotionPortfolioEditor() {
         </div>
       </div>
 
+      {/* 포트폴리오 요건 체크리스트 — floating toast */}
+      {reqChecklist && (
+        <div className="fixed bottom-6 right-6 z-[9999] w-80 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] border border-gray-200 overflow-hidden">
+          {/* 상단 컬러 헤더 */}
+          <div className="bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Target size={15} className="text-white/90" />
+              기업 포트폴리오 요건 체크
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/80">
+                <span className="font-bold text-white">{reqChecklist.filter(c => c.passed).length}</span> / {reqChecklist.length} 충족
+              </span>
+              <button onClick={() => setReqChecklist(null)} className="text-white/70 hover:text-white transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          {/* 프로그레스 바 */}
+          <div className="w-full bg-gray-100 h-1.5">
+            <div className="bg-green-500 h-1.5 transition-all" style={{ width: `${(reqChecklist.filter(c => c.passed).length / reqChecklist.length) * 100}%` }} />
+          </div>
+          <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+            {['required', 'format', 'content', 'submission'].map(cat => {
+              const items = reqChecklist.filter(c => c.category === cat);
+              if (items.length === 0) return null;
+              const catLabel = { required: '필수 서류', format: '포맷/형식', content: '담아야 할 내용', submission: '제출 방법' }[cat];
+              return (
+                <div key={cat}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{catLabel}</p>
+                  {items.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 py-1">
+                      <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center mt-0.5 ${
+                        item.passed ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300'
+                      }`}>
+                        {item.passed && <Check size={10} className="text-white" />}
+                      </div>
+                      <span className={`text-xs leading-relaxed ${item.passed ? 'text-gray-700' : 'text-red-500 font-medium'}`}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          {reqChecklist.some(c => !c.passed) && (
+            <div className="px-4 pb-3">
+              <p className="text-[11px] text-orange-600 bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
+                미충족 항목을 보완하면 지원 경쟁력이 높아집니다
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Visual Mode: 대시보드 편집 (자세히보기와 동일 레이아웃) ── */}
+      {editMode === 'visual' ? (
+        <VisualEditor
+          portfolio={portfolio}
+          update={update}
+          updateNested={updateNested}
+          addToArray={addToArray}
+          removeFromArray={removeFromArray}
+          updateArrayItem={updateArrayItem}
+          userId={user.uid}
+          portfolioId={id}
+          templateId={tid}
+          userExperiences={userExperiences}
+          importExperience={importExperience}
+        />
+      ) : (
+      <>
       {/* Headline */}
       <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          {tid === 'ashley' && <span className="px-2.5 py-1 bg-[#f0ece4] text-[#8a6c4a] text-xs font-bold rounded-full">크리에이티브</span>}
+          {tid === 'academic' && <span className="px-2.5 py-1 bg-blue-900 text-white text-xs font-bold rounded-full">학생 이력서</span>}
+          {tid === 'notion' && <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">Notion 포트폴리오</span>}
+        </div>
         <input
           value={portfolio.headline || ''}
           onChange={e => update('headline', e.target.value)}
-          placeholder="나를 표현하는 한 줄 제목 (예: 세상과 소통하는 Mathematician, 한채영)"
+          placeholder={
+            tid === 'ashley' ? '나를 한 줄로 소개해요 (예: 마케터이자 작가, 여행가인 홍길동입니다)' :
+            tid === 'academic' ? '나의 학문적 정체성 (예: 수학을 사랑하는 개발자, 홍길동)' :
+            '나를 표현하는 한 줄 제목 (예: 세상과 소통하는 Mathematician, 한채영)'
+          }
           className="w-full text-2xl font-bold outline-none placeholder:text-gray-300"
         />
-        <p className="text-xs text-gray-400 mt-2">💡 Notion 포트폴리오 상단에 표시되는 대표 타이틀입니다</p>
+        <p className="text-xs text-gray-400 mt-2">
+          {tid === 'ashley' ? '포트폴리오 상단 히어로 영역에 표시됩니다' :
+           tid === 'academic' ? '다크 히어로 배너 하단에 표시되는 핵심 키워드입니다' :
+           'Notion 포트폴리오 상단에 표시되는 대표 타이틀입니다'}
+        </p>
         {/* 연결된 기업 공고 */}
         {portfolio.jobAnalysis && (
           <div className="mt-3">
@@ -236,23 +528,64 @@ export default function NotionPortfolioEditor() {
       </div>
 
       {/* Section Navigation */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {SECTIONS.map(sec => {
+      <div className="flex flex-wrap gap-2 mb-6">
+        {visibleSections.map(sec => {
           const Icon = sec.icon;
+          const isDeletable = sec.id !== 'profile' && sec.id !== 'contact';
           return (
-            <button
-              key={sec.id}
-              onClick={() => setActiveSection(sec.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                activeSection === sec.id
-                  ? 'bg-primary-600 text-white shadow-md'
-                  : 'bg-white border border-surface-200 text-gray-600 hover:bg-surface-50'
-              }`}
-            >
-              <Icon size={14} /> {sec.label}
-            </button>
+            <div key={sec.id} className="relative group">
+              <button
+                onClick={() => setActiveSection(sec.id)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                  activeSection === sec.id
+                    ? 'bg-primary-600 text-white shadow-md pr-7'
+                    : 'bg-white border border-surface-200 text-gray-600 hover:bg-surface-50 group-hover:pr-7'
+                }`}
+              >
+                <Icon size={14} /> {sec.label}
+              </button>
+              {isDeletable && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    update('hiddenSections', [...hiddenSections, sec.id]);
+                    if (activeSection === sec.id) setActiveSection('profile');
+                  }}
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                    activeSection === sec.id
+                      ? 'text-white/70 hover:text-white opacity-100'
+                      : 'text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100'
+                  }`}
+                  title="섹션 숨기기"
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </div>
           );
         })}
+        {/* 숨겨진 섹션 복원 */}
+        {removableHiddenSections.length > 0 && (
+          <div className="relative group/restore">
+            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap border border-dashed border-gray-300 text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-all">
+              <Plus size={14} /> 섹션 추가
+            </button>
+            <div className="absolute top-full left-0 mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-20 min-w-[140px] py-1 hidden group-hover/restore:block">
+              {removableHiddenSections.map(sec => {
+                const Icon = sec.icon;
+                return (
+                  <button
+                    key={sec.id}
+                    onClick={() => update('hiddenSections', hiddenSections.filter(h => h !== sec.id))}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-700 transition-colors"
+                  >
+                    <Icon size={13} /> {sec.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Section Content */}
@@ -260,41 +593,1297 @@ export default function NotionPortfolioEditor() {
         {activeSection === 'profile' && (
           <ProfileSection portfolio={portfolio} update={update} addToArray={addToArray}
             removeFromArray={removeFromArray} updateArrayItem={updateArrayItem}
-            userId={user.uid} portfolioId={id} />
+            userId={user.uid} portfolioId={id} templateId={tid} />
         )}
         {activeSection === 'education' && (
           <EducationSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} />
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
         )}
         {activeSection === 'awards' && (
           <AwardsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} />
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
         )}
         {activeSection === 'experiences' && (
           <ExperiencesSection portfolio={portfolio} addToArray={addToArray}
             removeFromArray={removeFromArray} updateArrayItem={updateArrayItem}
             userExperiences={userExperiences} importExperience={importExperience}
-            showExpPicker={showExpPicker} setShowExpPicker={setShowExpPicker} />
+            showExpPicker={showExpPicker} setShowExpPicker={setShowExpPicker} templateId={tid} />
         )}
         {activeSection === 'curricular' && (
-          <CurricularSection portfolio={portfolio} update={update} updateNested={updateNested} />
+          <CurricularSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
         )}
         {activeSection === 'extracurricular' && (
-          <ExtracurricularSection portfolio={portfolio} update={update} updateNested={updateNested} />
+          <ExtracurricularSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
         )}
         {activeSection === 'skills' && (
-          <SkillsSection portfolio={portfolio} update={update} updateNested={updateNested} />
+          <SkillsSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
         )}
         {activeSection === 'goals' && (
           <GoalsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} />
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
         )}
         {activeSection === 'values' && (
-          <ValuesSection portfolio={portfolio} update={update} />
+          <ValuesSection portfolio={portfolio} update={update} templateId={tid} />
         )}
         {activeSection === 'contact' && (
-          <ContactSection portfolio={portfolio} updateNested={updateNested} />
+          <ContactSection portfolio={portfolio} updateNested={updateNested} templateId={tid} />
         )}
+        {activeSection === 'interviews' && (
+          <InterviewsSection portfolio={portfolio} addToArray={addToArray}
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
+        )}
+        {activeSection === 'books' && (
+          <BooksSection portfolio={portfolio} addToArray={addToArray}
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
+        )}
+        {activeSection === 'lectures' && (
+          <LecturesSection portfolio={portfolio} addToArray={addToArray}
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
+        )}
+        {activeSection === 'funfacts' && (
+          <FunFactsSection portfolio={portfolio} addToArray={addToArray}
+            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
+        )}
+      </div>
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ── Inline Editable helpers ── */
+function InlineText({ value, onChange, placeholder, className = '', tag: Tag = 'span' }) {
+  return (
+    <Tag
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={e => {
+        const text = e.currentTarget.textContent;
+        if (text !== value) onChange(text);
+      }}
+      className={`outline-none focus:bg-primary-50/40 focus:ring-1 focus:ring-primary-200 rounded px-0.5 transition-colors ${className}`}
+      dangerouslySetInnerHTML={{ __html: value || '' }}
+      data-placeholder={placeholder}
+      style={!value ? { color: '#c0c0c0' } : undefined}
+      onFocus={e => { if (!value) e.currentTarget.textContent = ''; }}
+    />
+  );
+}
+
+function InlineTextarea({ value, onChange, placeholder, className = '' }) {
+  return (
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={e => {
+        const text = e.currentTarget.innerText;
+        if (text !== value) onChange(text);
+      }}
+      className={`outline-none focus:bg-primary-50/40 focus:ring-1 focus:ring-primary-200 rounded px-1 py-0.5 transition-colors whitespace-pre-wrap ${className}`}
+      dangerouslySetInnerHTML={{ __html: value || placeholder || '' }}
+      style={!value ? { color: '#c0c0c0' } : undefined}
+      onFocus={e => { if (!value) e.currentTarget.textContent = ''; }}
+    />
+  );
+}
+
+/* ── Visual Editor (Notion-like inline editing) ── */
+function VisualEditor(props) {
+  const { templateId } = props;
+  if (templateId === 'ashley') return <AshleyVisualEditor {...props} />;
+  if (templateId === 'academic') return <AcademicVisualEditor {...props} />;
+  if (templateId === 'timeline') return <TimelineVisualEditor {...props} />;
+  return <NotionVisualEditor {...props} />;
+}
+
+/* ── Ashley Visual Editor ── */
+function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
+  const p = portfolio;
+  const contact = p.contact || {};
+  const skills = p.skills || {};
+  const profileImageInputRef = useRef(null);
+  const [showExpPicker, setShowExpPicker] = useState(false);
+
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale; canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject; img.src = ev.target.result;
+      };
+      reader.onerror = reject; reader.readAsDataURL(file);
+    });
+
+  return (
+    <div className="max-w-[860px] mx-auto">
+      <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
+        {/* Hero */}
+        <div className="px-10 pt-10 pb-8">
+          <div className="flex items-start gap-6">
+            <div className="flex-1">
+              <input value={p.userName || ''} onChange={e => update('userName', e.target.value)}
+                placeholder="이름" className="w-full text-4xl font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a] mb-2 tracking-tight" />
+              <input value={p.nameEn || ''} onChange={e => update('nameEn', e.target.value)}
+                placeholder="English Name" className="w-full text-[#8a8578] text-sm outline-none bg-transparent placeholder:text-[#c4b89a] mb-3" />
+              <input value={p.headline || ''} onChange={e => update('headline', e.target.value)}
+                placeholder="한 줄 소개" className="w-full text-[#5a564e] text-sm outline-none bg-transparent placeholder:text-[#c4b89a] leading-relaxed" />
+              <div className="flex items-center gap-4 mt-4 text-xs text-[#8a8578]">
+                <input value={contact.email || ''} onChange={e => updateNested('contact', 'email', e.target.value)}
+                  placeholder="이메일" className="text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] w-40" />
+                <input value={contact.instagram || ''} onChange={e => updateNested('contact', 'instagram', e.target.value)}
+                  placeholder="Instagram" className="text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] w-32" />
+              </div>
+            </div>
+            {/* Profile Image */}
+            <input type="file" ref={profileImageInputRef} accept="image/*" className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                try { const b = await resizeToBase64(file, 400, 0.7); update('profileImageUrl', b); } catch { toast.error('이미지 처리 실패'); }
+              }} />
+            <button onClick={() => profileImageInputRef.current?.click()}
+              className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-dashed border-[#c4b89a] hover:border-[#8a6c4a] transition-colors relative group flex-shrink-0">
+              {p.profileImageUrl
+                ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-[#e8e4dc] flex items-center justify-center text-4xl">👤</div>}
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Upload size={16} className="text-white" />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* 한눈에 보기 + 저는 이런 사람이에요 */}
+        <div className="px-10 pb-8">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl p-5 border border-[#e8e4dc]">
+              <h3 className="font-bold text-sm text-[#2d2a26] mb-4">한눈에 보기</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#8a8578] text-xs">위치</span>
+                  <input value={p.location || ''} onChange={e => update('location', e.target.value)} placeholder="위치"
+                    className="text-xs font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a] text-right w-36" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#8a8578] text-xs">생년월일</span>
+                  <input value={p.birthDate || ''} onChange={e => update('birthDate', e.target.value)} placeholder="YYYY.MM.DD"
+                    className="text-xs font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a] text-right w-36" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#8a8578] text-xs">연락처</span>
+                  <input value={contact.phone || ''} onChange={e => updateNested('contact', 'phone', e.target.value)} placeholder="전화번호"
+                    className="text-xs font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a] text-right w-36" />
+                </div>
+                {(p.education || []).length > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#8a8578] text-xs">학교</span>
+                    <span className="text-xs font-medium text-[#2d2a26] text-right">{p.education[0].name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-5 border border-[#e8e4dc]">
+              <h3 className="font-bold text-sm text-[#2d2a26] mb-4">저는 이런 사람이에요</h3>
+              <div className="space-y-2">
+                {(p.values || []).map((v, i) => (
+                  <div key={i} className="flex items-start gap-2.5 group/v">
+                    <span className="w-2 h-2 bg-[#c4a882] rounded-full mt-2 flex-shrink-0" />
+                    <input value={v.keyword || ''} onChange={e => updateArrayItem('values', i, { keyword: e.target.value })}
+                      placeholder="가치 키워드" className="flex-1 text-sm font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                    <button onClick={() => removeFromArray('values', i)} className="text-[#c4b89a] hover:text-red-400 mt-1"><X size={11} /></button>
+                  </div>
+                ))}
+                <button onClick={() => addToArray('values', { keyword: '' })}
+                  className="flex items-center gap-1 text-xs text-[#8a8578] hover:text-[#5a564e] transition-colors mt-1">
+                  <Plus size={11} /> 가치 추가
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 인터뷰 (경험 기반) */}
+        <div className="px-10 pb-8">
+          <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-lg text-[#2d2a26]">인터뷰</h3>
+              <div className="flex gap-2">
+                {userExperiences.length > 0 && (
+                  <div className="relative">
+                    <button onClick={() => setShowExpPicker(p => !p)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#f7f5f0] text-[#5a564e] rounded-lg hover:bg-[#e8e4dc]">
+                      <Download size={11} /> 경험 DB에서 불러오기
+                    </button>
+                    {showExpPicker && (
+                      <div className="absolute right-0 top-full mt-1 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
+                        {userExperiences.map(exp => (
+                          <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                            className="w-full text-left px-3 py-2 hover:bg-[#f7f5f0] text-sm text-[#5a564e] truncate">{exp.title}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-5">
+              {(p.experiences || []).slice(0, 3).map((e, i) => (
+                <div key={i} className="flex gap-5 group/e relative">
+                  <div className="flex-1">
+                    <p className="font-medium text-[#2d2a26] text-sm mb-1">Q. {e.title || '(제목 없음)'}에 대해 이야기해주세요.</p>
+                    <p className="text-sm text-[#8a8578] leading-relaxed line-clamp-2">{e.description || '설명을 입력하세요.'}</p>
+                  </div>
+                  {e.thumbnailUrl && <img src={e.thumbnailUrl} alt="" className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />}
+                  <button onClick={() => removeFromArray('experiences', i)}
+                    className="absolute -top-1 -right-1 text-[#c4b89a] hover:text-red-400"><X size={13} /></button>
+                </div>
+              ))}
+              {(p.experiences || []).length === 0 && (
+                <p className="text-sm text-[#8a8578]">아래 갤러리에서 경험을 추가하면 인터뷰 항목이 표시됩니다.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 프로젝트 갤러리 */}
+        <div className="px-10 pb-8">
+          <h3 className="font-bold text-lg text-[#2d2a26] mb-4">프로젝트</h3>
+          <div className="grid grid-cols-3 gap-4">
+            {(p.experiences || []).map((e, i) => (
+              <div key={i} className="group/exp text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden relative hover:shadow-lg transition-all">
+                <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
+                  {e.thumbnailUrl
+                    ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨','💡','📊','🚀'][i % 6]}</div>}
+                </div>
+                <div className="p-3">
+                  <input value={e.title || ''} onChange={ev => updateArrayItem('experiences', i, { title: ev.target.value })}
+                    placeholder="제목" className="w-full text-sm font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                  <input value={e.date || ''} onChange={ev => updateArrayItem('experiences', i, { date: ev.target.value })}
+                    placeholder="날짜" className="w-full text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] mt-1" />
+                </div>
+                <button onClick={() => removeFromArray('experiences', i)}
+                  className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-[#c4b89a] hover:text-red-400 shadow-sm transition-opacity">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
+              className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e4dc] text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
+              <Plus size={22} /><span className="text-xs">경험 추가</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 기술 */}
+        <div className="px-10 pb-8">
+          <h3 className="font-bold text-lg text-[#2d2a26] mb-4">이런 일을 할 수 있어요</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
+              <div key={category} className="bg-white rounded-xl p-5 border border-[#e8e4dc]">
+                <h4 className="text-xs font-bold text-[#8a8578] mb-3 uppercase tracking-wider">
+                  {category === 'tools' ? '도구' : category === 'languages' ? '프로그래밍' : category === 'frameworks' ? '프레임워크' : '기타'}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {items.map((skill, si) => {
+                    const sName = typeof skill === 'string' ? skill : (skill?.name || '');
+                    return (
+                      <span key={si} className="group/sk inline-flex items-center gap-1 px-3 py-1.5 bg-[#f7f5f0] text-[#5a564e] rounded-full text-xs font-medium">
+                        {sName}
+                        <button onClick={() => { const u = [...items]; u.splice(si,1); update('skills', {...skills,[category]:u}); }}
+                          className="text-[#c4b89a] hover:text-red-400"><X size={9} /></button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 가치관 에세이 */}
+        <div className="px-10 pb-8">
+          <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
+            <h3 className="font-bold text-lg text-[#2d2a26] mb-4">나를 들려주는 이야기</h3>
+            <textarea value={p.valuesEssay || ''} onChange={e => update('valuesEssay', e.target.value)}
+              placeholder="가치관 에세이를 작성하세요..." rows={6}
+              className="w-full text-sm text-[#5a564e] leading-[1.9] outline-none bg-transparent placeholder:text-[#c4b89a] resize-y" />
+          </div>
+        </div>
+
+        {/* 관심사 */}
+        <div className="px-10 pb-8">
+          <h3 className="font-bold text-lg text-[#2d2a26] mb-4">관심사</h3>
+          <div className="flex flex-wrap gap-2">
+            {(p.interests || []).map((interest, i) => (
+              <div key={i} className="group/int flex items-center gap-1 px-4 py-2 bg-white rounded-full border border-[#e8e4dc]">
+                <input value={interest || ''} onChange={e => updateArrayItem('interests', i, e.target.value)}
+                  className="text-sm text-[#5a564e] outline-none bg-transparent w-20" />
+                <button onClick={() => removeFromArray('interests', i)} className="text-[#c4b89a] hover:text-red-400"><X size={10} /></button>
+              </div>
+            ))}
+            <button onClick={() => addToArray('interests', '')}
+              className="flex items-center gap-1 px-4 py-2 bg-white rounded-full border-2 border-dashed border-[#e8e4dc] text-xs text-[#8a8578] hover:border-[#c4a882] hover:text-[#5a564e] transition-colors">
+              <Plus size={11} /> 추가
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-10 py-5 border-t border-[#e8e4dc] flex items-center justify-between text-xs text-[#8a8578]">
+          <span>POPOL Portfolio · {p.userName || ''}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Academic Visual Editor ── */
+function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
+  const p = portfolio;
+  const contact = p.contact || {};
+  const skills = p.skills || {};
+  const profileImageInputRef = useRef(null);
+  const [showExpPicker, setShowExpPicker] = useState(false);
+
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale; canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject; img.src = ev.target.result;
+      };
+      reader.onerror = reject; reader.readAsDataURL(file);
+    });
+
+  return (
+    <div className="max-w-[900px] mx-auto">
+      <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
+        <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
+        <div className="relative px-10 pt-12 pb-10 flex items-end gap-6">
+          <input type="file" ref={profileImageInputRef} accept="image/*" className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]; if (!file) return;
+              try { const b = await resizeToBase64(file, 400, 0.7); update('profileImageUrl', b); } catch { toast.error('이미지 처리 실패'); }
+            }} />
+          <button onClick={() => profileImageInputRef.current?.click()}
+            className="w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 relative group flex-shrink-0">
+            {p.profileImageUrl
+              ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+              : <div className="w-full h-full bg-white/10 flex items-center justify-center text-5xl">👤</div>}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Upload size={18} className="text-white" />
+            </div>
+          </button>
+          <div className="flex-1 pb-1">
+            <input value={p.userName || ''} onChange={e => update('userName', e.target.value)}
+              placeholder="이름" className="w-full text-3xl font-bold text-white outline-none bg-transparent placeholder:text-blue-300/50 mb-1" />
+            <input value={p.nameEn || ''} onChange={e => update('nameEn', e.target.value)}
+              placeholder="English Name" className="w-full text-blue-200 text-sm outline-none bg-transparent placeholder:text-blue-300/50" />
+            <input value={p.headline || ''} onChange={e => update('headline', e.target.value)}
+              placeholder="한 줄 소개" className="w-full text-blue-300/70 text-xs outline-none bg-transparent placeholder:text-blue-300/40 mt-2" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-b-2xl border border-t-0 border-surface-200 shadow-sm">
+        {/* 자기소개 */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-blue-500 rounded-full inline-block" /> 자기소개
+          </h2>
+          <textarea value={p.valuesEssay || ''} onChange={e => update('valuesEssay', e.target.value)}
+            placeholder="자기소개를 작성하세요..." rows={5}
+            className="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 resize-y" />
+        </div>
+
+        {/* 연락처 바 */}
+        <div className="px-10 py-4 border-b border-surface-100 flex flex-wrap gap-4 bg-surface-50/50">
+          {[['email','이메일',Mail],['phone','연락처',Phone],['github','GitHub',Globe],['linkedin','LinkedIn',Globe]].map(([key, label, Icon]) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <Icon size={12} className="text-gray-400" />
+              <input value={contact[key] || ''} onChange={e => updateNested('contact', key, e.target.value)}
+                placeholder={label} className="text-xs text-gray-500 outline-none bg-transparent placeholder:text-gray-300 w-32" />
+            </div>
+          ))}
+        </div>
+
+        {/* 학력 + 수상 */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-6 bg-emerald-500 rounded-full inline-block" /> 학력
+              </h2>
+              <div className="space-y-3 relative">
+                <div className="absolute left-[7px] top-2 bottom-8 w-0.5 bg-emerald-100" />
+                {(p.education || []).map((edu, i) => (
+                  <div key={i} className="flex items-start gap-3 group/edu relative">
+                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <input value={edu.name || ''} onChange={e => updateArrayItem('education', i, { name: e.target.value })}
+                        placeholder="학교명" className="text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 w-full" />
+                      <input value={edu.degree || ''} onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
+                        placeholder="학위 · 전공" className="text-xs text-gray-500 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
+                      <input value={edu.period || ''} onChange={e => updateArrayItem('education', i, { period: e.target.value })}
+                        placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
+                    </div>
+                    <button onClick={() => removeFromArray('education', i)} className="text-gray-300 hover:text-red-400"><X size={11} /></button>
+                  </div>
+                ))}
+                <button onClick={() => addToArray('education', { name: '', period: '', degree: '', detail: '' })}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 ml-6"><Plus size={11} /> 학력 추가</button>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-6 bg-amber-500 rounded-full inline-block" /> 수상 / 장학금
+              </h2>
+              <div className="space-y-3">
+                {(p.awards || []).map((a, i) => (
+                  <div key={i} className="flex items-start gap-3 group/aw">
+                    <span className="text-lg mt-0.5">🏆</span>
+                    <div className="flex-1">
+                      <input value={a.title || ''} onChange={e => updateArrayItem('awards', i, { title: e.target.value })}
+                        placeholder="수상명" className="text-sm font-medium text-gray-800 outline-none bg-transparent placeholder:text-gray-300 w-full" />
+                      <input value={a.date || ''} onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
+                        placeholder="날짜" className="text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
+                    </div>
+                    <button onClick={() => removeFromArray('awards', i)} className="text-gray-300 hover:text-red-400"><X size={11} /></button>
+                  </div>
+                ))}
+                <button onClick={() => addToArray('awards', { date: '', title: '' })}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600"><Plus size={11} /> 수상 추가</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 경험 */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-violet-500 rounded-full inline-block" /> 프로젝트 / 경험
+            </h2>
+            {userExperiences.length > 0 && (
+              <div className="relative">
+                <button onClick={() => setShowExpPicker(pr => !pr)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100">
+                  <Download size={11} /> 경험 DB에서 불러오기
+                </button>
+                {showExpPicker && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
+                    {userExperiences.map(exp => (
+                      <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">{exp.title}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {(p.experiences || []).map((e, i) => (
+              <div key={i} className="group/exp relative border border-surface-200 rounded-xl overflow-hidden hover:shadow-md transition-all">
+                <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden">
+                  {e.thumbnailUrl
+                    ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-3xl opacity-40">📋</div>}
+                </div>
+                <div className="p-3">
+                  <input value={e.title || ''} onChange={ev => updateArrayItem('experiences', i, { title: ev.target.value })}
+                    placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300" />
+                  <input value={e.date || ''} onChange={ev => updateArrayItem('experiences', i, { date: ev.target.value })}
+                    placeholder="날짜" className="w-full text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 mt-0.5" />
+                </div>
+                <button onClick={() => removeFromArray('experiences', i)}
+                  className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 shadow-sm">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
+              className="aspect-[16/10] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-300 hover:border-blue-300 hover:text-blue-500 transition-colors">
+              <Plus size={22} /><span className="text-xs">경험 추가</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 기술 */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-teal-500 rounded-full inline-block" /> 기술
+          </h2>
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
+              <div key={category} className="p-4 bg-surface-50 rounded-xl">
+                <h4 className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                  {category === 'tools' ? '도구' : category === 'languages' ? '언어' : category === 'frameworks' ? '프레임워크' : '기타'}
+                </h4>
+                <div className="space-y-2">
+                  {items.map((skill, si) => {
+                    const sName = typeof skill === 'string' ? skill : (skill?.name || '');
+                    return (
+                      <div key={si} className="flex items-center justify-between group/sk">
+                        <span className="text-sm text-gray-700">{sName}</span>
+                        <button onClick={() => { const u=[...items]; u.splice(si,1); update('skills',{...skills,[category]:u}); }}
+                          className="text-gray-300 hover:text-red-400"><X size={10} /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
+          <span>POPOL Portfolio · {p.userName || ''}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Timeline Visual Editor (시간순 대시보드) ── */
+function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
+  const p = portfolio;
+  const contact = p.contact || {};
+  const skills = p.skills || {};
+  const curr = p.curricular || { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
+  const profileImageInputRef = useRef(null);
+  const [showExpPicker, setShowExpPicker] = useState(false);
+  const [activeSemester, setActiveSemester] = useState(null);
+
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  // 학기별로 courses 그룹핑
+  const coursesBySemester = (curr.courses || []).reduce((acc, c) => {
+    const sem = c.semester || '기타';
+    if (!acc[sem]) acc[sem] = [];
+    acc[sem].push(c);
+    return acc;
+  }, {});
+  const semesterKeys = Object.keys(coursesBySemester).sort();
+
+  // 오늘 날짜 기반 캘린더
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const today = now.getDate();
+  const dayNames = ['일','월','화','수','목','금','토'];
+
+  return (
+    <div className="min-h-screen">
+      {/* ── Dark Header with Calendar ── */}
+      <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] rounded-t-2xl px-10 pt-10 pb-8">
+        <div className="flex items-center gap-5 mb-8">
+          {/* Profile image */}
+          <div className="relative group cursor-pointer" onClick={() => profileImageInputRef.current?.click()}>
+            {p.profileImageUrl ? (
+              <img src={p.profileImageUrl} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-white/20 shadow-lg" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl ring-4 ring-white/20 shadow-lg">
+                <ImagePlus size={24} className="text-white/60" />
+              </div>
+            )}
+            <input
+              ref={profileImageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const base64 = await resizeToBase64(file);
+                update('profileImageUrl', base64);
+              }}
+            />
+          </div>
+          <div className="flex-1">
+            <input
+              value={p.headline || ''}
+              onChange={e => update('headline', e.target.value)}
+              placeholder="나의 대시보드 제목"
+              className="w-full bg-transparent text-2xl font-bold text-white placeholder-white/30 outline-none"
+            />
+            <input
+              value={p.userName || ''}
+              onChange={e => update('userName', e.target.value)}
+              placeholder="이름"
+              className="w-full bg-transparent text-sm text-blue-200/70 placeholder-blue-200/30 outline-none mt-1"
+            />
+          </div>
+          {/* Social links */}
+          <div className="flex gap-2 flex-shrink-0">
+            {contact.github && <span className="px-3 py-1 bg-white/10 rounded-lg text-xs text-white/70">GitHub</span>}
+            {contact.website && <span className="px-3 py-1 bg-white/10 rounded-lg text-xs text-white/70">Web</span>}
+          </div>
+        </div>
+
+        {/* Mini calendar */}
+        <div className="bg-white/5 rounded-xl p-5 border border-white/10">
+          <p className="text-sm text-white/50 mb-3 text-center font-medium">
+            {year}년 {month + 1}월
+          </p>
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {dayNames.map(d => <div key={d} className="text-xs text-white/30 font-medium pb-1">{d}</div>)}
+            {Array.from({ length: firstDay }, (_, i) => <div key={'e'+i} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => (
+              <div key={i} className={`text-xs py-1.5 rounded-lg ${i + 1 === today ? 'bg-purple-500 text-white font-bold' : 'text-white/40 hover:bg-white/5'}`}>
+                {i + 1}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Content Body ── */}
+      <div className="bg-white rounded-b-2xl border border-t-0 border-surface-200">
+        {/* 학기별 수업 */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-purple-500 rounded-full" /> 학기별 수업
+          </h2>
+          {/* Semester tabs */}
+          {semesterKeys.length > 0 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto">
+              {semesterKeys.map(s => (
+                <button key={s} onClick={() => setActiveSemester(activeSemester === s ? null : s)}
+                  className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeSemester === s ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Courses list */}
+          {(curr.courses || []).length > 0 ? (
+            <div className="space-y-2">
+              {(activeSemester ? (coursesBySemester[activeSemester] || []) : curr.courses).map((c, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group">
+                  <div className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-800">{c.name || '과목명'}</span>
+                    {c.semester && <span className="ml-2 text-xs text-gray-400">{c.semester}</span>}
+                    {c.grade && <span className="ml-2 text-xs text-purple-600 font-medium">{c.grade}</span>}
+                  </div>
+                  <button onClick={() => {
+                    const updated = [...curr.courses];
+                    updated.splice(i, 1);
+                    updateNested('curricular', 'courses', updated);
+                  }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">좌측 메뉴의 '학기별 수업' 섹션에서 과목을 추가하세요</p>
+          )}
+        </div>
+
+        {/* 활동 기록 (경험) — Timeline style */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
+            </h2>
+            <button onClick={() => setShowExpPicker(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
+              <Plus size={14} /> 경험 DB에서 가져오기
+            </button>
+          </div>
+
+          {(p.experiences || []).length > 0 ? (
+            <div className="relative">
+              <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
+              <div className="space-y-4">
+                {[...p.experiences].sort((a, b) => (b.period || '').localeCompare(a.period || '')).map((exp, i) => (
+                  <div key={i} className="flex items-start gap-3 relative group">
+                    <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-0.5 z-10 border-2 border-white ${
+                      exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'
+                    }`} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800">{exp.title || '활동명'}</p>
+                      <p className="text-xs text-gray-400">{exp.period || ''} {exp.role ? `· ${exp.role}` : ''}</p>
+                      {exp.description && <p className="text-xs text-gray-500 mt-1">{exp.description}</p>}
+                    </div>
+                    <button onClick={() => removeFromArray('experiences', i)}
+                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">경험 DB에서 활동을 가져오거나 직접 추가하세요</p>
+          )}
+
+          {/* 경험 DB 피커 */}
+          {showExpPicker && (
+            <div className="mt-4 p-4 bg-surface-50 rounded-xl border border-surface-200">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-bold text-gray-700">경험 DB에서 선택</span>
+                <button onClick={() => setShowExpPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {userExperiences.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                ) : userExperiences.map(exp => (
+                  <button
+                    key={exp.id}
+                    onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                    className="w-full text-left p-3 bg-white rounded-lg border border-surface-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
+                  >
+                    <p className="text-sm font-medium">{exp.title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{exp.framework || ''} · {exp.period || ''}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 스터디 계획 (goals) */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {(p.goals || []).map((g, i) => (
+              <div key={i} className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 group relative">
+                <input
+                  value={g.title || ''}
+                  onChange={e => updateArrayItem('goals', i, { ...g, title: e.target.value })}
+                  placeholder="계획 제목 (예: 2025년 3~6월)"
+                  className="w-full bg-transparent text-sm font-bold text-emerald-800 placeholder-emerald-400 outline-none mb-1"
+                />
+                <textarea
+                  value={g.description || ''}
+                  onChange={e => updateArrayItem('goals', i, { ...g, description: e.target.value })}
+                  placeholder="계획 내용"
+                  rows={2}
+                  className="w-full bg-transparent text-xs text-emerald-600 placeholder-emerald-300 outline-none resize-none"
+                />
+                <button onClick={() => removeFromArray('goals', i)}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => addToArray('goals', { title: '', description: '' })}
+              className="p-4 border-2 border-dashed border-emerald-200 rounded-xl text-emerald-400 hover:border-emerald-400 hover:text-emerald-600 flex items-center justify-center gap-2 text-sm transition-colors">
+              <Plus size={16} /> 계획 추가
+            </button>
+          </div>
+        </div>
+
+        {/* Skills */}
+        <div className="px-10 py-8 border-b border-surface-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {[...(skills.tools || []), ...(skills.languages || []), ...(skills.frameworks || []), ...(skills.others || [])].map((s, i) => (
+              <span key={i} className="px-3 py-1.5 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-200">{typeof s === 'string' ? s : s.name || s}</span>
+            ))}
+            {[...(skills.tools || []), ...(skills.languages || []), ...(skills.frameworks || []), ...(skills.others || [])].length === 0 && (
+              <p className="text-sm text-gray-400">좌측 메뉴의 '기술' 섹션에서 기술을 추가하세요</p>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
+          <span>POPOL Dashboard · {p.userName || ''}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Notion Visual Editor (기존 3컬럼) ── */
+function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience }) {
+  const p = portfolio;
+  const contact = p.contact || {};
+  const skills = p.skills || {};
+  const curr = p.curricular || {};
+  const extra = p.extracurricular || {};
+  const [hoveredSection, setHoveredSection] = useState(null);
+  const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
+  const profileImageInputRef = useRef(null);
+
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeToBase64(file, 400, 0.7);
+      update('profileImageUrl', base64);
+      toast.success('프로필 이미지가 업데이트되었습니다');
+    } catch { toast.error('이미지 처리 실패'); }
+  };
+
+  const updateSkillCategory = (category, value) => {
+    update('skills', { ...skills, [category]: value });
+  };
+
+  const SECTION_MAP = {
+    ashley: ['profile', 'education', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'values', 'funfacts', 'contact'],
+    academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+    notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  };
+  const sections = SECTION_MAP[templateId] || SECTION_MAP.notion;
+
+  return (
+    <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden max-w-[1100px] mx-auto">
+      {/* Editable Header */}
+      <div className="px-10 pt-10 pb-6 border-b border-surface-100 group relative">
+        <input
+          value={p.headline || ''}
+          onChange={e => update('headline', e.target.value)}
+          placeholder="포트폴리오 타이틀을 입력하세요"
+          className="w-full text-3xl font-bold text-gray-900 outline-none placeholder:text-gray-300 bg-transparent"
+        />
+        <p className="text-xs text-gray-400 mt-1">클릭하여 제목을 편집하세요</p>
+      </div>
+
+      {/* Three-column layout (Notion style) */}
+      <div className="grid grid-cols-[260px_1fr_300px] min-h-[600px]">
+
+        {/* ── Left: Profile ── */}
+        <div className="p-6 border-r border-surface-100 bg-[#fafaf8]">
+          <div className="text-xs font-bold text-gray-400 tracking-wider mb-4 border-l-2 border-primary-600 pl-2">PROFILE</div>
+
+          {/* Profile Image - clickable */}
+          <input type="file" ref={profileImageInputRef} accept="image/*" className="hidden" onChange={handleProfileImageUpload} />
+          <button onClick={() => profileImageInputRef.current?.click()}
+            className="w-full aspect-square rounded-xl mb-4 overflow-hidden border-2 border-dashed border-transparent hover:border-primary-300 transition-colors relative group">
+            {p.profileImageUrl ? (
+              <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex flex-col items-center justify-center gap-2">
+                <ImageIcon size={28} className="text-gray-300" />
+                <span className="text-xs text-gray-400">클릭하여 사진 추가</span>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Upload size={20} className="text-white" />
+            </div>
+          </button>
+
+          {/* Name - inline editable */}
+          <input value={p.userName || ''} onChange={e => update('userName', e.target.value)}
+            placeholder="이름" className="w-full text-lg font-bold outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 transition-colors" />
+          <input value={p.nameEn || ''} onChange={e => update('nameEn', e.target.value)}
+            placeholder="English Name" className="w-full text-sm text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1 transition-colors" />
+          <div className="flex items-center gap-1 mt-2">
+            <MapPin size={12} className="text-gray-400 flex-shrink-0" />
+            <input value={p.location || ''} onChange={e => update('location', e.target.value)}
+              placeholder="위치" className="flex-1 text-sm text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 transition-colors" />
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+            <input value={p.birthDate || ''} onChange={e => update('birthDate', e.target.value)}
+              placeholder="생년월일" className="flex-1 text-sm text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 transition-colors" />
+          </div>
+
+          {/* Values */}
+          <div className="mt-6">
+            <h3 className="text-sm font-bold italic mb-3">My Own Values</h3>
+            <div className="space-y-2">
+              {(p.values || []).map((v, i) => (
+                <div key={i} className="p-2 bg-white rounded-lg border border-surface-100 group/val flex items-center gap-2">
+                  <span>{['➕', '➖', '✖️', '➗', '🎓'][i % 5]}</span>
+                  <input value={v.keyword || ''} onChange={e => updateArrayItem('values', i, { keyword: e.target.value })}
+                    className="flex-1 text-sm font-medium text-gray-700 outline-none bg-transparent" placeholder="가치 키워드" />
+                  <button onClick={() => removeFromArray('values', i)} className="text-gray-300 hover:text-red-400 transition-opacity">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => addToArray('values', { keyword: '' })}
+                className="w-full text-center py-1.5 text-xs text-gray-400 hover:text-primary-600 hover:bg-primary-50/30 rounded-lg border border-dashed border-surface-200 transition-colors">
+                <Plus size={12} className="inline mr-1" />가치 추가
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Center ── */}
+        <div className="p-6">
+          {/* Education */}
+          {sections.includes('education') && (
+            <div className="mb-8 group/sec" onMouseEnter={() => setHoveredSection('edu')} onMouseLeave={() => setHoveredSection(null)}>
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">Education</h3>
+              <div className="space-y-4">
+                {(p.education || []).map((edu, i) => (
+                  <div key={i} className="pb-4 border-b border-surface-100 last:border-0 group/item relative">
+                    <button onClick={() => removeFromArray('education', i)}
+                      className="absolute -right-2 -top-1 p-1 text-gray-300 hover:text-red-400 transition-opacity"><Trash2 size={12} /></button>
+                    <input value={edu.name || ''} onChange={e => updateArrayItem('education', i, { name: e.target.value })}
+                      placeholder="학교명" className="w-full text-base font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+                    <input value={edu.period || ''} onChange={e => updateArrayItem('education', i, { period: e.target.value })}
+                      placeholder="기간" className="w-full text-sm text-gray-400 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1" />
+                    <input value={edu.degree || ''} onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
+                      placeholder="학위 · 전공" className="w-full text-sm text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1" />
+                    <input value={edu.detail || ''} onChange={e => updateArrayItem('education', i, { detail: e.target.value })}
+                      placeholder="상세 내용" className="w-full text-sm text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1" />
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => addToArray('education', { name: '', period: '', degree: '', detail: '' })}
+                className="mt-2 flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600 transition-colors">
+                <Plus size={12} /> 학력 추가
+              </button>
+            </div>
+          )}
+
+          {/* Interests */}
+          <div className="mb-8">
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Interest</h3>
+            <div className="space-y-1.5">
+              {(p.interests || []).map((interest, i) => (
+                <div key={i} className="flex items-start gap-2 group/int">
+                  <span className="text-gray-400 mt-0.5">•</span>
+                  <input value={interest || ''} onChange={e => updateArrayItem('interests', i, e.target.value)}
+                    placeholder="관심사" className="flex-1 text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+                  <button onClick={() => removeFromArray('interests', i)} className="text-gray-300 hover:text-red-400"><X size={12} /></button>
+                </div>
+              ))}
+              <button onClick={() => addToArray('interests', '')}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600 transition-colors">
+                <Plus size={12} /> 관심사 추가
+              </button>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="mb-8">
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">📞 Contact</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400" />
+                <input value={contact.phone || ''} onChange={e => updateNested('contact', 'phone', e.target.value)}
+                  placeholder="전화번호" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+              <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400" />
+                <input value={contact.email || ''} onChange={e => updateNested('contact', 'email', e.target.value)}
+                  placeholder="이메일" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+                <input value={contact.linkedin || ''} onChange={e => updateNested('contact', 'linkedin', e.target.value)}
+                  placeholder="LinkedIn" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+                <input value={contact.github || ''} onChange={e => updateNested('contact', 'github', e.target.value)}
+                  placeholder="GitHub" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+                <input value={contact.website || ''} onChange={e => updateNested('contact', 'website', e.target.value)}
+                  placeholder="웹사이트" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right: Awards & Experience Summary ── */}
+        <div className="p-6 border-l border-surface-100 bg-[#fafaf8]">
+          {/* Awards */}
+          {sections.includes('awards') && (
+            <div className="mb-8">
+              <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Awards</h3>
+              <div className="space-y-2">
+                {(p.awards || []).map((a, i) => (
+                  <div key={i} className="text-sm group/aw flex items-start gap-1">
+                    <input value={a.date || ''} onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
+                      placeholder="날짜" className="w-20 font-semibold text-gray-600 underline outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-0.5" />
+                    <input value={a.title || ''} onChange={e => updateArrayItem('awards', i, { title: e.target.value })}
+                      placeholder="수상명" className="flex-1 text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-0.5" />
+                    <button onClick={() => removeFromArray('awards', i)} className="text-gray-300 hover:text-red-400"><X size={10} /></button>
+                  </div>
+                ))}
+                <button onClick={() => addToArray('awards', { date: '', title: '', detail: '' })}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 수상 추가</button>
+              </div>
+            </div>
+          )}
+
+          {/* Experiences Summary */}
+          <div>
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Experiences</h3>
+            <div className="space-y-1.5">
+              {(p.experiences || []).slice(0, 5).map((e, i) => (
+                <div key={i} className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-600 underline">{e.date}</span>{' '}{e.title}
+                </div>
+              ))}
+              {(p.experiences || []).length === 0 && <p className="text-xs text-gray-400">아래 갤러리에서 경험을 추가하세요</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Experience Gallery (editable) ── */}
+      {sections.includes('experiences') && (
+      <div className="px-10 py-8 border-t border-surface-100">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">프로젝트 / 경험</h2>
+          <div className="flex items-center gap-2">
+            {userExperiences.length > 0 && (
+              <div className="relative">
+                <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100">
+                  <Download size={12} /> 경험 DB에서 불러오기
+                </button>
+                {showCustomBlockMenu && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1 w-64 max-h-48 overflow-y-auto">
+                    {userExperiences.map(exp => (
+                      <button key={exp.id} onClick={() => { importExperience(exp); setShowCustomBlockMenu(false); }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">
+                        {exp.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {(p.experiences || []).map((exp, i) => (
+            <div key={i} className="group/exp bg-white rounded-xl border border-surface-200 overflow-hidden relative hover:shadow-md transition-all">
+              {/* Thumbnail */}
+              <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative">
+                {exp.thumbnailUrl ? (
+                  <img src={exp.thumbnailUrl} alt={exp.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-100 to-surface-50">
+                    <span className="text-4xl opacity-50">📋</span>
+                  </div>
+                )}
+              </div>
+              {/* Card body inline edit */}
+              <div className="p-3">
+                <input value={exp.title || ''} onChange={e => updateArrayItem('experiences', i, { title: e.target.value })}
+                  placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded" />
+                <input value={exp.date || ''} onChange={e => updateArrayItem('experiences', i, { date: e.target.value })}
+                  placeholder="날짜" className="w-full text-[11px] text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded mt-1" />
+              </div>
+              {/* Delete button */}
+              <button onClick={() => removeFromArray('experiences', i)}
+                className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 transition-opacity shadow-sm">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+          {/* Add new experience card */}
+          <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
+            className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
+            <Plus size={24} />
+            <span className="text-xs">경험 추가</span>
+          </button>
+        </div>
+      </div>
+      )}
+
+      {/* ── Full-width sections (inline editable) ── */}
+      <div className="px-10 py-8 border-t border-surface-100 space-y-10">
+
+        {/* Skills */}
+        {sections.includes('skills') && (
+        <section>
+          <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">🛠 기술 | Skills</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
+              <div key={category}>
+                <h4 className="text-sm font-bold text-gray-600 mb-2 capitalize">
+                  {category === 'tools' ? '도구' : category === 'languages' ? '언어' : category === 'frameworks' ? '프레임워크' : '기타'}
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {items.map((skill, si) => {
+                    const sName = typeof skill === 'string' ? skill : (skill?.name || '');
+                    return (
+                      <span key={si} className="group/sk inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-800 rounded-md text-xs font-medium border border-green-100">
+                        {sName}
+                        <button onClick={() => {
+                          const updated = [...items]; updated.splice(si, 1);
+                          updateSkillCategory(category, updated);
+                        }} className="text-green-400 hover:text-red-400"><X size={10} /></button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        )}
+
+        {/* Goals */}
+        {sections.includes('goals') && (
+        <section>
+          <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">목표와 계획</h2>
+          <div className="space-y-3">
+            {(p.goals || []).map((g, i) => (
+              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 group/goal relative">
+                <button onClick={() => removeFromArray('goals', i)}
+                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
+                <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
+                  placeholder="목표명" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+                <textarea value={g.description || ''} onChange={e => updateArrayItem('goals', i, { description: e.target.value })}
+                  placeholder="상세 계획..." rows={2}
+                  className="w-full text-sm text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1 resize-none" />
+              </div>
+            ))}
+            <button onClick={() => addToArray('goals', { title: '', description: '', type: 'short', status: 'planned' })}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 목표 추가</button>
+          </div>
+        </section>
+        )}
+
+        {/* Values Essay */}
+        {sections.includes('values') && (
+        <section>
+          <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">가치관 | Values</h2>
+          <textarea value={p.valuesEssay || ''} onChange={e => update('valuesEssay', e.target.value)}
+            placeholder="가치관 에세이를 작성하세요..."
+            rows={8}
+            className="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-2 py-1 resize-y" />
+        </section>
+        )}
+
+        {/* Custom Blocks */}
+        {(p.customBlocks || []).map((block, i) => (
+          <section key={i} className="group/cb relative">
+            <button onClick={() => {
+              const blocks = [...(p.customBlocks || [])]; blocks.splice(i, 1);
+              update('customBlocks', blocks);
+            }} className="absolute -top-1 right-0 text-gray-300 hover:text-red-400 transition-opacity">
+              <Trash2 size={14} />
+            </button>
+            {block.type === 'heading' && (
+              <input value={block.content || ''} onChange={e => {
+                const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: e.target.value };
+                update('customBlocks', blocks);
+              }} placeholder="제목을 입력하세요"
+                className="w-full text-xl font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mb-4" />
+            )}
+            {block.type === 'text' && (
+              <textarea value={block.content || ''} onChange={e => {
+                const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: e.target.value };
+                update('customBlocks', blocks);
+              }} placeholder="텍스트를 입력하세요" rows={4}
+                className="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-2 py-1 resize-y leading-relaxed" />
+            )}
+            {block.type === 'image' && (
+              <div className="mb-4">
+                {block.content ? (
+                  <img src={block.content} alt="custom" className="w-full rounded-xl" />
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
+                    <ImageIcon size={24} className="text-gray-300" />
+                    <span className="text-xs text-gray-400">클릭하여 이미지 업로드</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const base64 = await resizeToBase64(file, 1200, 0.8);
+                        const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: base64 };
+                        update('customBlocks', blocks);
+                      } catch { toast.error('이미지 처리 실패'); }
+                    }} />
+                  </label>
+                )}
+              </div>
+            )}
+            {block.type === 'divider' && <hr className="border-surface-200 my-6" />}
+          </section>
+        ))}
+
+        {/* Add Block Button (Notion-like) */}
+        <div className="relative">
+          <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
+            <Plus size={16} /> 블록 추가
+          </button>
+          {showCustomBlockMenu && (
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-2 w-56">
+              <p className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
+              {[
+                { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
+                { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
+                { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
+                { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
+              ].map(item => (
+                <button key={item.type} onClick={() => {
+                  addToArray('customBlocks', { type: item.type, content: '' });
+                  setShowCustomBlockMenu(false);
+                }}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
+                  <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500">{item.icon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">{item.label}</p>
+                    <p className="text-[10px] text-gray-400">{item.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -347,7 +1936,7 @@ function TextareaField({ label, value, onChange, placeholder, rows = 4 }) {
 }
 
 // ── Profile Section ──
-function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem, userId, portfolioId }) {
+function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId }) {
   const profileImageInputRef = useRef(null);
   const [uploadingProfile, setUploadingProfile] = useState(false);
 
@@ -406,7 +1995,17 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
 
   return (
     <>
-      <SectionCard title="기본 정보" icon={Heart} description="프로필 좌측에 표시되는 기본 인적 사항입니다">
+      <SectionCard
+        title={templateId === 'ashley' ? '기본 정보 & 인적 사항' : templateId === 'academic' ? '기본 정보' : '기본 정보'}
+        icon={Heart}
+        description={
+          templateId === 'ashley'
+            ? '이름, 사진, 연락처 채널 등 방문자에게 보여줄 핵심 정보를 입력하세요'
+            : templateId === 'academic'
+            ? '학적 정보와 함께 표시될 기본 인적 사항입니다'
+            : '프로필 좌측에 표시되는 기본 인적 사항입니다'
+        }
+      >
         <div className="grid grid-cols-2 gap-4">
           <InputField label="이름 (한글)" value={portfolio.userName} onChange={v => update('userName', v)} placeholder="한채영" />
           <InputField label="이름 (영문)" value={portfolio.nameEn} onChange={v => update('nameEn', v)} placeholder="Chae Young Han" />
@@ -488,17 +2087,26 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
         </div>
       </SectionCard>
 
-      <SectionCard title="My Own Values" icon={Star} description="나를 나타내는 핵심 가치관 키워드를 추가하세요">
+      <SectionCard
+        title={templateId === 'ashley' ? '저는 이런 사람이에요' : templateId === 'academic' ? 'Personal Values' : 'My Own Values'}
+        icon={Star}
+        description={
+          templateId === 'ashley'
+            ? '나를 나타내는 개성과 특징을 bullet point로 적어보세요 (alohayoon.oopy.io 스타일)'
+            : '나를 나타내는 핵심 가치관 키워드를 추가하세요'
+        }
+      >
         <div className="space-y-3">
           {(portfolio.values || []).map((val, i) => (
             <div key={i} className="flex items-start gap-3 p-3 bg-surface-50 rounded-xl">
               <div className="flex-1">
-                <InputField label={`가치 ${i + 1} - 키워드`} value={val.keyword}
-                  onChange={v => updateArrayItem('values', i, { keyword: v })} placeholder="경험을 더하다" />
+                <InputField label={`${templateId === 'ashley' ? '특징' : '가치'} ${i + 1} - 키워드`} value={val.keyword}
+                  onChange={v => updateArrayItem('values', i, { keyword: v })}
+                  placeholder={templateId === 'ashley' ? '미국 45개주, 28개국을 여행했어요' : '경험을 더하다'} />
                 <div className="mt-2">
                   <TextareaField label="설명" value={val.description}
                     onChange={v => updateArrayItem('values', i, { description: v })}
-                    placeholder="이 가치관에 대한 간단한 설명..." rows={2} />
+                    placeholder={templateId === 'ashley' ? '(선택) 부연 설명...' : '이 가치관에 대한 간단한 설명...'} rows={2} />
                 </div>
               </div>
               <button onClick={() => removeFromArray('values', i)} className="mt-5 p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
@@ -506,25 +2114,33 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
           ))}
           <button onClick={() => addToArray('values', { keyword: '', description: '' })}
             className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
-            <Plus size={14} /> 가치관 추가
+            <Plus size={14} /> {templateId === 'ashley' ? '특징 추가' : '가치관 추가'}
           </button>
         </div>
       </SectionCard>
 
-      <SectionCard title="관심 분야" icon={Target} description="Interest 영역에 표시됩니다">
+      <SectionCard
+        title={templateId === 'ashley' ? '관심사 & 취미' : '관심 분야'}
+        icon={Target}
+        description={
+          templateId === 'ashley'
+            ? '음악, 여행, 책 등 나를 표현하는 관심사를 자유롭게 적어보세요 (포트폴리오 하단에 태그로 표시)'
+            : 'Interest 영역에 표시됩니다'
+        }
+      >
         <div className="space-y-2">
           {(portfolio.interests || []).map((interest, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="text-sm text-gray-400">•</span>
               <input value={interest} onChange={e => updateArrayItem('interests', i, e.target.value)}
                 className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
-                placeholder="Enumerative Combinatorics (열거 조합론)" />
+                placeholder={templateId === 'ashley' ? '음악, 우주, 여행, 오래된 것' : 'Enumerative Combinatorics (열거 조합론)'} />
               <button onClick={() => removeFromArray('interests', i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
             </div>
           ))}
           <button onClick={() => addToArray('interests', '')}
             className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
-            <Plus size={14} /> 관심 분야 추가
+            <Plus size={14} /> {templateId === 'ashley' ? '관심사 추가' : '관심 분야 추가'}
           </button>
         </div>
       </SectionCard>
@@ -540,48 +2156,91 @@ const DEGREE_OPTIONS = [
   '전문학사', '수료', '재학 중', '졸업 예정', '기타',
 ];
 
-function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="학력 (Education)" icon={GraduationCap} description="학교 정보를 등록하세요">
-      <div className="space-y-4">
-        {(portfolio.education || []).map((edu, i) => (
-          <div key={i} className="p-4 bg-surface-50 rounded-xl border border-surface-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-gray-700">학력 #{i + 1}</span>
-              <button onClick={() => removeFromArray('education', i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <InputField label="학교명 (한글)" value={edu.name} onChange={v => updateArrayItem('education', i, { name: v })} placeholder="성균관대학교" />
-              <InputField label="학교명 (영문)" value={edu.nameEn} onChange={v => updateArrayItem('education', i, { nameEn: v })} placeholder="Sungkyunkwan University" />
-              <InputField label="기간" value={edu.period} onChange={v => updateArrayItem('education', i, { period: v })} placeholder="2024.02. - ing" />
-              {/* 학위 드롭다운 */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">학위/전공</label>
-                <div className="flex gap-2">
-                  <select
-                    value={DEGREE_OPTIONS.includes(edu.degreeType) ? edu.degreeType : '기타'}
-                    onChange={e => updateArrayItem('education', i, { degreeType: e.target.value })}
-                    className="px-2 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 bg-white"
-                  >
-                    {DEGREE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <input
-                    value={edu.degree || ''}
-                    onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
-                    placeholder="전공명 (예: 컴퓨터공학과)"
-                    className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
-                  />
+    <SectionCard
+      title={templateId === 'ashley' ? '학교 (School)' : '학력 (Education)'}
+      icon={GraduationCap}
+      description={
+        templateId === 'ashley'
+          ? '출신 학교를 입력하세요. 클릭하면 세부 정보를 편집할 수 있습니다'
+          : '학교 정보를 등록하세요. 클릭하면 세부 정보를 편집할 수 있습니다'
+      }
+    >
+      <div className="space-y-3">
+        {(portfolio.education || []).map((edu, i) => {
+          const isExpanded = expandedIdx === i;
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              {/* 접힌 헤더 */}
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <GraduationCap size={16} className="text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-700 truncate">{edu.name || '(학교명 없음)'}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {edu.period || '기간 미입력'}{edu.degree && ` · ${edu.degree}`}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="col-span-2">
-                <InputField label="추가 정보" value={edu.detail} onChange={v => updateArrayItem('education', i, { detail: v })} placeholder="2025 Summer Session - Session C (8W)" />
-              </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('education', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {/* 펼침: 전체 편집 */}
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <InputField label="학교명 (한글)" value={edu.name} onChange={v => updateArrayItem('education', i, { name: v })}
+                      placeholder={templateId === 'ashley' ? 'NYU Stern School of Business' : '성균관대학교'} />
+                    <InputField label="학교명 (영문)" value={edu.nameEn} onChange={v => updateArrayItem('education', i, { nameEn: v })}
+                      placeholder={templateId === 'ashley' ? 'New York University' : 'Sungkyunkwan University'} />
+                    <InputField label="기간" value={edu.period} onChange={v => updateArrayItem('education', i, { period: v })}
+                      placeholder={templateId === 'ashley' ? '2006-2010 · 뉴욕' : '2024.02. - ing'} />
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-medium">학위/전공</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={DEGREE_OPTIONS.includes(edu.degreeType) ? edu.degreeType : '기타'}
+                          onChange={e => updateArrayItem('education', i, { degreeType: e.target.value })}
+                          className="px-2 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 bg-white"
+                        >
+                          {DEGREE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        <input
+                          value={edu.degree || ''}
+                          onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
+                          placeholder="전공명 (예: 컴퓨터공학과)"
+                          className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <InputField label={templateId === 'ashley' ? '전공 및 특이사항' : '추가 정보 (GPA, 특이사항 등)'} value={edu.detail}
+                        onChange={v => updateArrayItem('education', i, { detail: v })}
+                        placeholder={templateId === 'ashley' ? '전공: 마케팅 | 부전공: 미술, 심리학 · 장학생 프로그램' : '4.0/4.5 · 2025 Summer Session'} />
+                    </div>
+                    <div className="col-span-2">
+                      <TextareaField label="활동 / 설명 (선택)" value={edu.description}
+                        onChange={v => updateArrayItem('education', i, { description: v })}
+                        placeholder="학교에서의 주요 활동, 동아리, 연구 등..." rows={3} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-        <button onClick={() => addToArray('education', { name: '', nameEn: '', period: '', degreeType: '학사 (B.S.)', degree: '', detail: '' })}
+          );
+        })}
+        <button onClick={() => addToArray('education', { name: '', nameEn: '', period: '', degreeType: '학사 (B.S.)', degree: '', detail: '', description: '' })}
           className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
-          <Plus size={14} /> 학력 추가
+          <Plus size={14} /> {templateId === 'ashley' ? '학교 추가' : '학력 추가'}
         </button>
       </div>
     </SectionCard>
@@ -590,27 +2249,56 @@ function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayI
 
 // ── Awards Section ──
 function AwardsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="수상 / 장학금 (Scholarship and Awards)" icon={Award} description="수상 및 장학 내역을 날짜 순으로 입력하세요">
+    <SectionCard title="수상 / 장학금 (Scholarship and Awards)" icon={Award} description="수상 및 장학 내역을 입력하세요. 클릭하면 세부 정보를 편집할 수 있습니다">
       <div className="space-y-3">
-        {(portfolio.awards || []).map((award, i) => (
-          <div key={i} className="flex items-center gap-3 p-3 bg-surface-50 rounded-xl">
-            <div className="grid grid-cols-[150px_1fr] gap-3 flex-1">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">날짜</label>
-                <input
-                  type="date"
-                  value={award.date || ''}
-                  onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
-                  className="w-full px-2 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
-                />
-              </div>
-              <InputField label="내용" value={award.title} onChange={v => updateArrayItem('awards', i, { title: v })} placeholder="제 43회 대학생 수학 경시대회 제 1분야 동상" />
+        {(portfolio.awards || []).map((award, i) => {
+          const isExpanded = expandedIdx === i;
+          const displayDate = award.date ? new Date(award.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short' }) : '날짜 미입력';
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <Award size={16} className="text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-700 truncate">{award.title || '(수상명 없음)'}</p>
+                    <p className="text-xs text-gray-400">{displayDate}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('awards', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="grid grid-cols-[160px_1fr] gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-medium">날짜</label>
+                      <input
+                        type="date"
+                        value={award.date || ''}
+                        onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
+                        className="w-full px-2 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+                      />
+                    </div>
+                    <InputField label="수상명 / 장학금명" value={award.title} onChange={v => updateArrayItem('awards', i, { title: v })} placeholder="제 43회 대학생 수학 경시대회 제 1분야 동상" />
+                  </div>
+                  <InputField label="주최 기관" value={award.organization} onChange={v => updateArrayItem('awards', i, { organization: v })} placeholder="한국수학올림피아드위원회" />
+                  <TextareaField label="설명 (선택)" value={award.description} onChange={v => updateArrayItem('awards', i, { description: v })}
+                    placeholder="수상 경위, 내용, 의미 등..." rows={2} />
+                </div>
+              )}
             </div>
-            <button onClick={() => removeFromArray('awards', i)} className="p-1.5 text-gray-300 hover:text-red-400 mt-5"><Trash2 size={14} /></button>
-          </div>
-        ))}
-        <button onClick={() => addToArray('awards', { date: '', title: '' })}
+          );
+        })}
+        <button onClick={() => addToArray('awards', { date: '', title: '', organization: '', description: '' })}
           className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
           <Plus size={14} /> 수상/장학 추가
         </button>
@@ -627,7 +2315,7 @@ const STATUS_OPTIONS = [
 ];
 const CLASSIFY_OPTIONS = ['교내 활동', '교외 활동', '동아리', '공모전', '학교 협력 활동', '기술', '발표', '대회', '해외 경험'];
 
-function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, showExpPicker, setShowExpPicker }) {
+function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, showExpPicker, setShowExpPicker, templateId }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [tailoringIdx, setTailoringIdx] = useState(null);
   const [tailorResult, setTailorResult] = useState(null);
@@ -709,7 +2397,45 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
   };
 
   return (
-    <SectionCard title="프로젝트 / 경험 (Experience)" icon={Briefcase} description="갤러리 카드로 표시되는 프로젝트 경험입니다. 클릭하면 상세 편집할 수 있습니다.">
+    <SectionCard
+      title={
+        templateId === 'ashley' ? '경력 & 프로젝트 (Career & Projects)' :
+        templateId === 'academic' ? 'Portfolio & Experience' :
+        '프로젝트 / 경험 (Experience)'
+      }
+      icon={Briefcase}
+      description={
+        templateId === 'ashley'
+          ? '현재/과거 경력, 프리랜서 프로젝트, 독립 프로젝트 등을 입력하세요. 인터뷰 & 프로젝트 갤러리에 카드로 표시됩니다'
+          : templateId === 'academic'
+          ? 'About me (소개), Portfolio (대표 프로젝트), Experience (활동 이력)에 사용됩니다. 대표 프로젝트 먼저 입력하세요'
+          : '갤러리 카드로 표시되는 프로젝트 경험입니다. 클릭하면 상세 편집할 수 있습니다.'
+      }
+    >
+      {/* Ashley: 경력 타임라인 안내 */}
+      {templateId === 'ashley' && (
+        <div className="mb-4 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-xs text-[#5a564e] leading-relaxed">
+          <p className="font-bold text-[#2d2a26] mb-2">✍️ 작성 가이드 (alohayoon.oopy.io 참고)</p>
+          <ul className="space-y-1">
+            <li>• <strong>현재 경력</strong>: 현재 하고 있는 프로젝트, 커뮤니티, 클래스 활동 등</li>
+            <li>• <strong>지난 경력(프리워커)</strong>: 독립 후 진행한 프로젝트들</li>
+            <li>• <strong>지난 경력(마케터/작가 등)</strong>: 회사 경력, 프리랜서 활동</li>
+            <li>• 상위 3개는 <strong>인터뷰 섹션</strong>에, 전체는 <strong>프로젝트 갤러리</strong>에 표시됩니다</li>
+          </ul>
+        </div>
+      )}
+      {/* Academic: About me 소개 입력 */}
+      {templateId === 'academic' && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+          <p className="text-xs font-bold text-blue-700 mb-2">Academic 템플릿 구성</p>
+          <p className="text-xs text-blue-600 mb-3">경험을 추가하면 <strong>Portfolio(갤러리)</strong>와 <strong>Experience(타임라인)</strong>에 자동으로 표시됩니다. 아래 Classify 태그로 구분하세요:</p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">🖼 Portfolio → 대표 프로젝트</span>
+            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg font-medium">경험 → 활동 이력</span>
+            <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-medium">대회 → 수상 연결</span>
+          </div>
+        </div>
+      )}
       {/* 기업 키워드 기반 경험 추천 */}
       {portfolio.jobAnalysis && (
         <div className="mb-6 border border-indigo-100 rounded-xl bg-indigo-50/50 p-4">
@@ -750,7 +2476,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
               {/* 추천 경험 */}
               {(recommendations.recommendations || []).length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-indigo-600 mb-2">💡 추천 경험</p>
+                  <p className="text-xs font-bold text-indigo-600 mb-2">추천 경험</p>
                   <div className="space-y-2">
                     {recommendations.recommendations.map((rec, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-indigo-100">
@@ -914,7 +2640,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                   {portfolio.jobAnalysis && (
                     <div className="border-t border-surface-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">🎯 기업 맞춤 변환</span>
+                        <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">기업 맞춤 변환</span>
                         <button
                           onClick={() => handleTailorExperience(i)}
                           disabled={tailoringIdx === i}
@@ -959,7 +2685,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                             onClick={() => applyTailoredResult(i)}
                             className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors"
                           >
-                            ✨ 이 내용으로 적용하기
+                            이 내용으로 적용하기
                           </button>
                         </div>
                       )}
@@ -1006,8 +2732,10 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
 }
 
 // ── Curricular Section ──
-function CurricularSection({ portfolio, update, updateNested }) {
+function CurricularSection({ portfolio, update, updateNested, templateId }) {
   const curr = portfolio.curricular || { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
+  const [showEveryTimeImport, setShowEveryTimeImport] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   const updateCurrField = (field, value) => {
     update('curricular', { ...curr, [field]: value });
@@ -1025,6 +2753,106 @@ function CurricularSection({ portfolio, update, updateNested }) {
     updateCurrField('courses', courses);
   };
 
+  // 에브리타임 텍스트 파싱
+  const parseEveryTimeText = (text) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const courses = [];
+    const creditStatus = [];
+
+    for (const line of lines) {
+      // 탭 또는 여러 공백으로 분리
+      const cells = line.split(/\t+|  +/).map(c => c.trim()).filter(Boolean);
+
+      // 헤더 행 건너뛰기
+      if (cells.some(c => /^(구분|영역|과목명|학점|등급|기준학점|취득학점|잔여학점|달성률|과목|성적|semester|grade)$/i.test(c))) continue;
+
+      // 이수 현황 행 (구분, 영역, 기준학점, 취득학점, 잔여학점, 달성률 형태)
+      if (cells.length >= 4 && /^\d+/.test(cells[2]) && /^\d+/.test(cells[3])) {
+        const isCredit = cells.length >= 5 && /\d+/.test(cells[4]);
+        if (isCredit) {
+          creditStatus.push({
+            category: cells[0],
+            area: cells[1],
+            required: cells[2],
+            earned: cells[3],
+            remaining: cells[4] || '',
+            rate: cells[5] || '',
+          });
+          continue;
+        }
+      }
+
+      // 수강 내역 행 파싱
+      if (cells.length >= 2) {
+        // 다양한 포맷 처리
+        // 포맷1: 학기, 과목명, 학점, 성적
+        // 포맷2: 구분, 과목명, 학점, 성적
+        // 포맷3: 과목명, 성적
+        const gradePattern = /^(A\+?|B\+?|C\+?|D\+?|F|P|NP|S|U)$/i;
+
+        let semester = '';
+        let name = '';
+        let grade = '';
+
+        if (cells.length >= 4 && gradePattern.test(cells[cells.length - 1])) {
+          grade = cells[cells.length - 1].toUpperCase();
+          name = cells.length >= 5 ? cells[1] : cells[1];
+          // 학기 패턴: 2024-1, 1학기, 1-1 등
+          if (/\d{4}[-./]\d|[1-8]학기|[1-4]-[12]/.test(cells[0])) {
+            semester = cells[0];
+            name = cells[1];
+          } else {
+            semester = cells[0]; // 구분 필드를 학기로 사용
+            name = cells[1];
+          }
+        } else if (cells.length >= 2 && gradePattern.test(cells[cells.length - 1])) {
+          name = cells[0];
+          grade = cells[cells.length - 1].toUpperCase();
+        } else if (cells.length >= 2) {
+          name = cells[0];
+          grade = cells[1];
+        }
+
+        if (name) {
+          courses.push({ semester, name, grade });
+        }
+      }
+    }
+    return { courses, creditStatus };
+  };
+
+  const handleEveryTimeImport = () => {
+    if (!pasteText.trim()) return;
+    const parsed = parseEveryTimeText(pasteText);
+    if (parsed.courses.length > 0) {
+      updateCurrField('courses', [...(curr.courses || []), ...parsed.courses]);
+    }
+    if (parsed.creditStatus.length > 0) {
+      updateCurrField('creditStatus', [...(curr.creditStatus || []), ...parsed.creditStatus]);
+    }
+    const total = parsed.courses.length + parsed.creditStatus.length;
+    if (total > 0) {
+      toast.success(`${parsed.courses.length}개 과목, ${parsed.creditStatus.length}개 이수현황을 가져왔습니다`);
+    } else {
+      toast.error('파싱할 수 있는 데이터가 없습니다. 형식을 확인해주세요.');
+    }
+    setShowEveryTimeImport(false);
+    setPasteText('');
+  };
+
+  // 이수현황 관리
+  const addCreditStatus = () => {
+    updateCurrField('creditStatus', [...(curr.creditStatus || []), { category: '', area: '', required: '', earned: '', remaining: '', rate: '' }]);
+  };
+  const removeCreditStatus = (idx) => {
+    updateCurrField('creditStatus', (curr.creditStatus || []).filter((_, i) => i !== idx));
+  };
+  const updateCreditStatus = (idx, changes) => {
+    const list = [...(curr.creditStatus || [])];
+    list[idx] = { ...list[idx], ...changes };
+    updateCurrField('creditStatus', list);
+  };
+
   return (
     <>
       <SectionCard title="교과 활동 | Curricular Activities" icon={BookOpen} description="이수 학점, 평점, 수강 내역 등을 입력하세요">
@@ -1034,7 +2862,58 @@ function CurricularSection({ portfolio, update, updateNested }) {
           <InputField label="평점 평균 (GPA)" value={curr.summary?.gpa}
             onChange={v => updateCurrField('summary', { ...curr.summary, gpa: v })} placeholder="4.0 / 4.5" />
         </div>
+
+        {/* 에브리타임 가져오기 버튼 */}
+        <button
+          onClick={() => setShowEveryTimeImport(true)}
+          className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700 transition-all shadow-sm"
+        >
+          <Upload size={14} /> 에브리타임에서 가져오기
+        </button>
       </SectionCard>
+
+      {/* 에브리타임 가져오기 모달 */}
+      {showEveryTimeImport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowEveryTimeImport(false)}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">에브리타임 수강 내역 가져오기</h3>
+              <button onClick={() => setShowEveryTimeImport(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <p className="text-sm font-medium text-red-800 mb-2">가져오기 방법</p>
+              <ol className="text-xs text-red-700 space-y-1 list-decimal list-inside">
+                <li>에브리타임 앱 또는 웹에서 <strong>내 학점</strong> 페이지로 이동</li>
+                <li>수강 내역 표를 <strong>전체 선택(Ctrl+A)</strong> 후 복사(Ctrl+C)</li>
+                <li>아래 입력란에 <strong>붙여넣기(Ctrl+V)</strong></li>
+              </ol>
+              <p className="text-xs text-red-600 mt-2">지원 형식: 탭/공백으로 구분된 표 (학기, 과목명, 성적 등)</p>
+            </div>
+
+            <textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              placeholder={`예시:\n전공선택\t컴퓨터네트워크\t3\tA+\n전공필수\t자료구조\t3\tA\n교양필수\t미적분학\t3\tB+\n\n또는:\n2024-1\t컴퓨터네트워크\t3\tA+\n2024-1\t자료구조\t3\tA`}
+              rows={10}
+              className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-200 resize-none font-mono"
+            />
+
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-xs text-gray-400">
+                {pasteText.trim() ? `${pasteText.split('\n').filter(l => l.trim()).length}줄 감지됨` : '데이터를 붙여넣으세요'}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowEveryTimeImport(false)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-surface-200 rounded-xl hover:bg-surface-50">취소</button>
+                <button onClick={handleEveryTimeImport}
+                  disabled={!pasteText.trim()}
+                  className="px-4 py-2 text-sm text-white bg-red-500 rounded-xl hover:bg-red-600 disabled:opacity-50 font-medium">가져오기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SectionCard title="교과목 수강 내역 | Course History" icon={BookOpen}>
         <div className="space-y-2">
@@ -1054,12 +2933,45 @@ function CurricularSection({ portfolio, update, updateNested }) {
           </button>
         </div>
       </SectionCard>
+
+      {/* 이수 현황 */}
+      <SectionCard title="이수 현황 | Credit Status" icon={GraduationCap} description="구분별 기준학점, 취득학점, 잔여학점, 달성률을 관리합니다">
+        <div className="space-y-2">
+          {(curr.creditStatus || []).length > 0 && (
+            <div className="grid grid-cols-6 gap-2 px-3 mb-1">
+              <span className="text-xs text-gray-400 font-medium">구분</span>
+              <span className="text-xs text-gray-400 font-medium">영역</span>
+              <span className="text-xs text-gray-400 font-medium">기준학점</span>
+              <span className="text-xs text-gray-400 font-medium">취득학점</span>
+              <span className="text-xs text-gray-400 font-medium">잔여학점</span>
+              <span className="text-xs text-gray-400 font-medium">달성률</span>
+            </div>
+          )}
+          {(curr.creditStatus || []).map((cs, i) => (
+            <div key={i} className="flex items-center gap-2 p-3 bg-surface-50 rounded-xl">
+              <div className="grid grid-cols-6 gap-2 flex-1">
+                <input value={cs.category || ''} onChange={e => updateCreditStatus(i, { category: e.target.value })} placeholder="전공" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <input value={cs.area || ''} onChange={e => updateCreditStatus(i, { area: e.target.value })} placeholder="전공선택" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <input value={cs.required || ''} onChange={e => updateCreditStatus(i, { required: e.target.value })} placeholder="60" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <input value={cs.earned || ''} onChange={e => updateCreditStatus(i, { earned: e.target.value })} placeholder="45" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <input value={cs.remaining || ''} onChange={e => updateCreditStatus(i, { remaining: e.target.value })} placeholder="15" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <input value={cs.rate || ''} onChange={e => updateCreditStatus(i, { rate: e.target.value })} placeholder="75%" className="px-2 py-1.5 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+              </div>
+              <button onClick={() => removeCreditStatus(i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+            </div>
+          ))}
+          <button onClick={addCreditStatus}
+            className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+            <Plus size={14} /> 이수 현황 행 추가
+          </button>
+        </div>
+      </SectionCard>
     </>
   );
 }
 
 // ── Extracurricular Section ──
-function ExtracurricularSection({ portfolio, update, updateNested }) {
+function ExtracurricularSection({ portfolio, update, updateNested, templateId }) {
   const extra = portfolio.extracurricular || { summary: '', badges: [], languages: [], details: [] };
 
   const updateExtraField = (field, value) => {
@@ -1104,9 +3016,9 @@ function ExtracurricularSection({ portfolio, update, updateNested }) {
 
   return (
     <>
-      <SectionCard title="비교과 활동 | Extracurricular Activities" icon={Star} description="비교과 프로그램, 디지털 배지, 어학 성적 등을 입력하세요">
-        <TextareaField label="비교과 요약" value={extra.summary} onChange={v => updateExtraField('summary', v)}
-          placeholder="비교과 프로그램 이수 내역, 졸업 요건 충족 현황 등을 자유롭게 적어주세요" rows={3} />
+      <SectionCard title={templateId === 'academic' ? '비교과 활동 & 자격증 | Extracurricular' : '비교과 활동 | Extracurricular Activities'} icon={Star} description={templateId === 'academic' ? '뽑낙활동, 디지털 배지, 어학 성적, 자격증 등을 입력하세요' : '비교과 프로그램, 디지털 배지, 어학 성적 등을 입력하세요'}>
+        <TextareaField label={templateId === 'academic' ? '비교과 활동 요약' : '비교과 요약'} value={extra.summary} onChange={v => updateExtraField('summary', v)}
+          placeholder={templateId === 'academic' ? '동아리, 학생회, 보조교사, 학교 활동 등 비교과 이력을 요약하세요' : '비교과 프로그램 이수 내역, 졸업 요건 충족 현황 등을 자유롭게 적어주세요'} rows={3} />
       </SectionCard>
 
       <SectionCard title="디지털 배지 | Digital Badge" icon={Award}>
@@ -1187,20 +3099,20 @@ function ExtracurricularSection({ portfolio, update, updateNested }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="세부 사항 | Details" icon={Star}>
+      <SectionCard title={templateId === 'academic' ? '자격증 & 세부 활동 | Certifications' : '세부 사항 | Details'} icon={Star}>
         <div className="space-y-3">
           {(extra.details || []).map((d, i) => (
             <div key={i} className="p-4 bg-surface-50 rounded-xl border border-surface-100">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-gray-700">활동 #{i + 1}</span>
+                <span className="text-sm font-bold text-gray-700">{templateId === 'academic' ? `자격증/활동 #${i + 1}` : `활동 #${i + 1}`}</span>
                 <button onClick={() => removeDetail(i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
               </div>
               <div className="grid grid-cols-[140px_1fr] gap-3 mb-2">
                 <InputField label="기간" value={d.period} onChange={v => updateDetail(i, { period: v })} placeholder="2025.01 - 2025.06" />
-                <InputField label="활동명" value={d.title} onChange={v => updateDetail(i, { title: v })} placeholder="학술동아리 MIMIC" />
+                <InputField label={templateId === 'academic' ? '자격증/활동명' : '활동명'} value={d.title} onChange={v => updateDetail(i, { title: v })} placeholder={templateId === 'academic' ? '정보처리기사, SQLD, AWS Solutions Architect...' : '학술동아리 MIMIC'} />
               </div>
               <TextareaField label="설명" value={d.description} onChange={v => updateDetail(i, { description: v })}
-                placeholder="활동 소개, 참여 동기, 활동 내용 등" rows={3} />
+                placeholder={templateId === 'academic' ? '취득 기관, 점수/등급, 취득 계기 또는 활동 내용...' : '활동 소개, 참여 동기, 활동 내용 등'} rows={3} />
             </div>
           ))}
           <button onClick={addDetail}
@@ -1214,7 +3126,7 @@ function ExtracurricularSection({ portfolio, update, updateNested }) {
 }
 
 // ── Skills Section ──
-function SkillsSection({ portfolio, update }) {
+function SkillsSection({ portfolio, update, templateId }) {
   const skills = portfolio.skills || { tools: [], languages: [], frameworks: [], others: [] };
 
   const updateSkillCategory = (category, value) => {
@@ -1222,10 +3134,22 @@ function SkillsSection({ portfolio, update }) {
   };
 
   const PRESETS = {
-    tools: ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'Canva', 'Slack', 'Jira', 'Excel', 'PowerPoint', 'Premiere Pro', 'VS Code', 'GitHub'],
-    languages: ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Go', 'Swift', 'Kotlin', 'Ruby', 'SQL', 'R', 'MATLAB'],
-    frameworks: ['React', 'Vue.js', 'Angular', 'Next.js', 'Spring', 'Django', 'Express.js', 'Node.js', 'TensorFlow', 'PyTorch', 'Flutter', 'Tailwind CSS'],
-    others: ['데이터 분석', '수학적 모델링', 'UI/UX 디자인', '프로젝트 관리', '기획', '마케팅', '글쓰기', '발표', '리더십'],
+    tools: templateId === 'ashley'
+      ? ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'InDesign', 'Canva', 'Lightroom', 'Mailchimp', 'Squarespace', 'WordPress', 'Slack', 'Trello']
+      : templateId === 'academic'
+      ? ['VS Code', 'IntelliJ', 'PyCharm', 'MATLAB', 'Jupyter', 'LaTeX', 'GitHub', 'Excel', 'PowerPoint', 'Notion', 'Figma', 'Slack']
+      : ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'Canva', 'Slack', 'Jira', 'Excel', 'PowerPoint', 'Premiere Pro', 'VS Code', 'GitHub'],
+    languages: templateId === 'ashley'
+      ? ['한국어(원어민)', '영어(유창)', '영어(비즈니스)', '일본어(기초)', '스페인어(기초)', '중국어(기초)', '프랑스어(기초)']
+      : ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Go', 'Swift', 'Kotlin', 'Ruby', 'SQL', 'R', 'MATLAB'],
+    frameworks: templateId === 'ashley'
+      ? ['Google Analytics', 'Facebook Ads', 'Instagram Insights', 'Brunch', 'YouTube', 'WordPress', 'Squarespace', 'Airtable', 'Notion']
+      : ['React', 'Vue.js', 'Angular', 'Next.js', 'Spring', 'Django', 'Express.js', 'Node.js', 'TensorFlow', 'PyTorch', 'Flutter', 'Tailwind CSS'],
+    others: templateId === 'ashley'
+      ? ['브랜딩', '스토리텔링', '콘텐츠 기획·제작', '온오프라인 마케팅', 'PR', '굿즈 제작', '강연·모더레이터', '에디팅', '카피라이팅', '커뮤니티 운영']
+      : templateId === 'academic'
+      ? ['데이터 분석', '수학적 모델링', '논문 작성', '실험 설계', '프로젝트 관리', '발표', '팀 리더십', '연구']
+      : ['데이터 분석', '수학적 모델링', 'UI/UX 디자인', '프로젝트 관리', '기획', '마케팅', '글쓰기', '발표', '리더십'],
   };
 
   const PROFICIENCY_LEVELS = [
@@ -1370,62 +3294,123 @@ function SkillsSection({ portfolio, update }) {
   };
 
   return (
-    <SectionCard title="기술 | Skills" icon={Code} description="도구, 프로그래밍 언어, 프레임워크 등을 선택하고 수준을 설정하세요. 클릭하여 선택, 다시 클릭하면 수준 설정이 가능합니다.">
-      <SkillCategoryInput category="tools" label="도구 (Tools)" placeholder="기타 도구 직접 입력..." />
-      <SkillCategoryInput category="languages" label="프로그래밍 언어" placeholder="기타 언어 직접 입력..." />
-      <SkillCategoryInput category="frameworks" label="프레임워크/라이브러리" placeholder="기타 프레임워크 입력..." />
-      <SkillCategoryInput category="others" label="기타 역량" placeholder="기타 역량 직접 입력..." />
+    <SectionCard
+      title={
+        templateId === 'ashley' ? '이런 일을 할 수 있어요 (Skills & Capabilities)' :
+        templateId === 'academic' ? 'Skills & Certifications' :
+        '기술 | Skills'
+      }
+      icon={Code}
+      description={
+        templateId === 'ashley'
+          ? 'Marketing, Creative Cloud, Tools, Entrepreneurial Mind 등 카테고리별로 할 수 있는 일을 입력하세요'
+          : templateId === 'academic'
+          ? '개발 도구, 프로그래밍 언어, 프레임워크, 기타 역량을 선택하고 수준을 설정하세요'
+          : '도구, 프로그래밍 언어, 프레임워크 등을 선택하고 수준을 설정하세요. 클릭하여 선택, 다시 클릭하면 수준 설정이 가능합니다.'
+      }
+    >
+      <SkillCategoryInput category="tools"
+        label={templateId === 'ashley' ? 'Tools & Software' : '도구 (Tools)'}
+        placeholder={templateId === 'ashley' ? '기타 도구 입력... (예: 먼데이, G Suite)' : '기타 도구 직접 입력...'} />
+      <SkillCategoryInput category="languages"
+        label={templateId === 'ashley' ? '언어 능력' : '프로그래밍 언어'}
+        placeholder={templateId === 'ashley' ? '기타 언어 입력...' : '기타 언어 직접 입력...'} />
+      <SkillCategoryInput category="frameworks"
+        label={templateId === 'ashley' ? '플랫폼 & 채널' : '프레임워크/라이브러리'}
+        placeholder={templateId === 'ashley' ? '기타 플랫폼 입력...' : '기타 프레임워크 입력...'} />
+      <SkillCategoryInput category="others"
+        label={templateId === 'ashley' ? '전문 역량 (할 수 있는 일)' : templateId === 'academic' ? '기타 역량 & 연구 스킬' : '기타 역량'}
+        placeholder={templateId === 'ashley' ? '예: 브랜딩, 콘텐츠 기획, PR...' : '기타 역량 직접 입력...'} />
     </SectionCard>
   );
 }
 
 // ── Goals Section ──
-function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
+  const typeLabel = { short: '단기', mid: '중기', long: '장기' };
+  const typeColor = { short: 'bg-blue-100 text-blue-700', mid: 'bg-violet-100 text-violet-700', long: 'bg-teal-100 text-teal-700' };
+  const statusColor = { done: 'bg-green-100 text-green-700', ing: 'bg-amber-100 text-amber-700', planned: 'bg-gray-100 text-gray-600' };
+  const statusLabel = { done: '완료', ing: '진행 중', planned: '예정' };
   return (
-    <SectionCard title="목표와 계획 | Future Plans" icon={Target} description="단기/장기 목표를 적어보세요">
+    <SectionCard
+      title={templateId === 'academic' ? 'Personal Statement & 목표' : '목표와 계획 | Future Plans'}
+      icon={Target}
+      description={
+        templateId === 'academic'
+          ? '포트폴리오 하단 Personal Statement 영역에 표시됩니다. 클릭하면 세부 편집'
+          : '단기/장기 목표를 적어보세요. 클릭하면 세부 편집'
+      }
+    >
       <div className="space-y-3">
-        {(portfolio.goals || []).map((goal, i) => (
-          <div key={i} className="p-4 bg-surface-50 rounded-xl border border-surface-100">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <select
-                  value={goal.type || 'short'}
-                  onChange={e => updateArrayItem('goals', i, { type: e.target.value })}
-                  className="px-2 py-1 border border-surface-200 rounded-lg text-xs outline-none"
-                >
-                  <option value="short">단기 목표</option>
-                  <option value="mid">중기 목표</option>
-                  <option value="long">장기 목표</option>
-                </select>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  goal.status === 'done' ? 'bg-green-100 text-green-700'
-                    : goal.status === 'ing' ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {goal.status === 'done' ? '완료' : goal.status === 'ing' ? '진행 중' : '예정'}
-                </span>
-              </div>
-              <button onClick={() => removeFromArray('goals', i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
-            </div>
-            <InputField label="목표" value={goal.title} onChange={v => updateArrayItem('goals', i, { title: v })} placeholder="목표명" className="mb-2" />
-            <TextareaField label="상세 계획" value={goal.description} onChange={v => updateArrayItem('goals', i, { description: v })}
-              placeholder="구체적인 계획과 기한..." rows={2} />
-            <div className="mt-2">
-              <select
-                value={goal.status || 'planned'}
-                onChange={e => updateArrayItem('goals', i, { status: e.target.value })}
-                className="px-2 py-1 border border-surface-200 rounded-lg text-xs outline-none"
+        {(portfolio.goals || []).map((goal, i) => {
+          const isExpanded = expandedIdx === i;
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
               >
-                <option value="planned">예정</option>
-                <option value="ing">진행 중</option>
-                <option value="done">완료</option>
-              </select>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                    <Target size={16} className="text-teal-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-700 truncate">{goal.title || '(목표 없음)'}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColor[goal.type] || typeColor.short}`}>
+                        {typeLabel[goal.type] || '단기'}
+                      </span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor[goal.status] || statusColor.planned}`}>
+                        {statusLabel[goal.status] || '예정'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('goals', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1.5 font-medium">유형</label>
+                      <div className="flex gap-2">
+                        {Object.entries(typeLabel).map(([val, lbl]) => (
+                          <button key={val} onClick={() => updateArrayItem('goals', i, { type: val })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${goal.type === val ? `${typeColor[val]} border-transparent ring-1 ring-offset-1 ring-gray-300` : 'bg-white border-surface-200 text-gray-400 hover:bg-surface-50'}`}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1.5 font-medium">상태</label>
+                      <div className="flex gap-2">
+                        {Object.entries(statusLabel).map(([val, lbl]) => (
+                          <button key={val} onClick={() => updateArrayItem('goals', i, { status: val })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${goal.status === val ? `${statusColor[val]} border-transparent ring-1 ring-offset-1 ring-gray-300` : 'bg-white border-surface-200 text-gray-400 hover:bg-surface-50'}`}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <InputField label="목표" value={goal.title} onChange={v => updateArrayItem('goals', i, { title: v })}
+                    placeholder={templateId === 'academic' ? '예: 열거 조합론 분야 국제 저널 논문 제출' : '목표명'} />
+                  <TextareaField label={templateId === 'academic' ? '상세 내용 / 계획' : '상세 계획'} value={goal.description}
+                    onChange={v => updateArrayItem('goals', i, { description: v })}
+                    placeholder={templateId === 'academic' ? '구체적인 연구 방향, 기대 성과, 준비 과정...' : '구체적인 계획과 기한...'} rows={3} />
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <button onClick={() => addToArray('goals', { title: '', description: '', type: 'short', status: 'planned' })}
           className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
-          <Plus size={14} /> 목표 추가
+          <Plus size={14} /> {templateId === 'academic' ? 'Personal Statement / 목표 추가' : '목표 추가'}
         </button>
       </div>
     </SectionCard>
@@ -1433,28 +3418,260 @@ function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem 
 }
 
 // ── Values Section ──
-function ValuesSection({ portfolio, update }) {
+function ValuesSection({ portfolio, update, templateId }) {
+  const sectionTitle = templateId === 'ashley'
+    ? '나를 들려주는 이야기'
+    : templateId === 'academic'
+      ? '자기소개 에세이 | About Me'
+      : '가치관 | Values';
+  const sectionDesc = templateId === 'ashley'
+    ? '나의 이야기, 독립적인 삶의 방식, 가치관 등을 자유롭게 풀어내는 메인 스토리 섹션'
+    : templateId === 'academic'
+      ? '포트폴리오 About Me 섹션에 표시됩니다. 학문적 여정, 연구 관심사, 미래 비전을 담아보세요'
+      : '포트폴리오 하단에 표시되는 자기소개 에세이를 작성하세요';
+  const placeholder = templateId === 'ashley'
+    ? '저는 미국 45개주와 28개국을 여행한 적 있어요. 낯선 곳에 뛰어들고, 새로운 사람을 만나고, 그 경험을 글과 콘텐츠로 기록하는 것이 제 삶의 방식이에요...'
+    : templateId === 'academic'
+      ? '저는 수학의 아름다움에 매료되어 이 길을 선택했습니다. 특히 조합론과 그래프 이론의 교차점에서 연구를 이어가고 있으며, 이론과 응용 사이의 다리를 놓는 연구자가 되는 것이 목표입니다...'
+      : '제가 추구하는 가치와 신념에 대해 자유롭게 작성해주세요...';
+  const rows = templateId === 'ashley' ? 14 : 10;
   return (
-    <SectionCard title="가치관 | Values" icon={MessageSquare} description="포트폴리오 하단에 표시되는 자기소개 에세이를 작성하세요">
-      <TextareaField label="가치관 에세이" value={portfolio.valuesEssay}
+    <SectionCard title={sectionTitle} icon={MessageSquare} description={sectionDesc}>
+      <TextareaField label={templateId === 'ashley' ? '나의 이야기' : templateId === 'academic' ? '자기소개 에세이' : '가치관 에세이'}
+        value={portfolio.valuesEssay}
         onChange={v => update('valuesEssay', v)}
-        placeholder="제가 추구하는 가치와 신념에 대해 자유롭게 작성해주세요. 이 내용은 포트폴리오의 '가치관' 섹션에 표시됩니다..." rows={10} />
+        placeholder={placeholder} rows={rows} />
     </SectionCard>
   );
 }
 
 // ── Contact Section ──
-function ContactSection({ portfolio, updateNested }) {
-  const contact = portfolio.contact || {};
+// ── Ashley 전용: 인터뷰 섹션 ──
+function InterviewsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="연락처 | Contact Information" icon={Mail} description="SNS, 이메일 등 연락 수단을 입력하세요">
+    <SectionCard title="인터뷰" icon={Mic} description="매체 인터뷰, 팟캐스트 출연 등을 기록하세요. 클릭하면 세부 편집">
+      <div className="space-y-3">
+        {(portfolio.interviews || []).map((item, i) => {
+          const isExpanded = expandedIdx === i;
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
+                    <Mic size={16} className="text-rose-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-700 truncate">{item.title || '(제목 없음)'}</p>
+                    <p className="text-xs text-gray-400">{item.media && `${item.media}`}{item.year && ` · ${item.year}`}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('interviews', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <InputField label="매체" value={item.media} onChange={v => updateArrayItem('interviews', i, { media: v })} placeholder="요즘사, 톱클래스, 디렉토리 등" />
+                    <InputField label="연도" value={item.year} onChange={v => updateArrayItem('interviews', i, { year: v })} placeholder="2022" />
+                    <div className="col-span-2">
+                      <InputField label="제목 / 주제" value={item.title} onChange={v => updateArrayItem('interviews', i, { title: v })} placeholder="6번의 퇴사 후 깨달은 것, 다능인으로 사는 법" />
+                    </div>
+                    <div className="col-span-2">
+                      <InputField label="링크 (선택)" value={item.link} onChange={v => updateArrayItem('interviews', i, { link: v })} placeholder="https://" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={() => addToArray('interviews', { media: '', title: '', link: '', year: '' })}
+          className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+          <Plus size={14} /> 인터뷰 추가
+        </button>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ── Ashley 전용: 저서 & 글쓰기 섹션 ──
+const BOOK_TYPES = ['단독 저서', '공저', '독립출판', '기고/연재', '기타'];
+function BooksSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
+  return (
+    <SectionCard title="저서 & 글쓰기" icon={BookOpen} description="출간한 책, 독립출판, 브런치 연재, 기고 등을 기록하세요. 클릭하면 세부 편집">
+      <div className="space-y-3">
+        {(portfolio.books || []).map((item, i) => {
+          const isExpanded = expandedIdx === i;
+          const typeColorMap = { '단독 저서': 'bg-blue-100 text-blue-700', '공저': 'bg-purple-100 text-purple-700', '독립출판': 'bg-orange-100 text-orange-700', '기고/연재': 'bg-green-100 text-green-700', '기타': 'bg-gray-100 text-gray-600' };
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <BookOpen size={16} className="text-orange-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-700 truncate">{item.title || '(제목 없음)'}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {item.type && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColorMap[item.type] || typeColorMap['기타']}`}>{item.type}</span>}
+                      {item.year && <span className="text-xs text-gray-400">{item.year}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('books', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <InputField label="제목" value={item.title} onChange={v => updateArrayItem('books', i, { title: v })} placeholder="퇴사는 여행 / 오늘도 리추얼" />
+                    </div>
+                    <InputField label="연도" value={item.year} onChange={v => updateArrayItem('books', i, { year: v })} placeholder="2021" />
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1 font-medium">유형</label>
+                      <select value={item.type || '단독 저서'} onChange={e => updateArrayItem('books', i, { type: e.target.value })}
+                        className="w-full px-2 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 bg-white">
+                        {BOOK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <InputField label="출판사 / 플랫폼" value={item.publisher} onChange={v => updateArrayItem('books', i, { publisher: v })} placeholder="북노마드, 브런치, 텀블벅 등" />
+                    <InputField label="링크 (선택)" value={item.link} onChange={v => updateArrayItem('books', i, { link: v })} placeholder="https://yes24.com/..." />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={() => addToArray('books', { title: '', year: '', publisher: '', type: '단독 저서', link: '' })}
+          className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+          <Plus size={14} /> 저서 추가
+        </button>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ── Ashley 전용: 강연 & 모더레이터 섹션 ──
+function LecturesSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
+  return (
+    <SectionCard title="강연 & 모더레이터" icon={Users} description="강연, 토크, 북토크, 모더레이터 경험을 기록하세요. 클릭하면 세부 편집">
+      <div className="space-y-3">
+        {(portfolio.lectures || []).map((item, i) => {
+          const isExpanded = expandedIdx === i;
+          return (
+            <div key={i} className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden">
+              <button
+                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <Users size={16} className="text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-700 truncate">{item.title || '(강연 제목 없음)'}</p>
+                    <p className="text-xs text-gray-400">{item.org && `${item.org}`}{item.year && ` · ${item.year}`}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={e => { e.stopPropagation(); removeFromArray('lectures', i); }} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-3 border-t border-surface-100 pt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <InputField label="연도" value={item.year} onChange={v => updateArrayItem('lectures', i, { year: v })} placeholder="2021" />
+                    <InputField label="주최 / 기관" value={item.org} onChange={v => updateArrayItem('lectures', i, { org: v })} placeholder="헤이조이스, 퍼블리, 커리어리 등" />
+                    <div className="col-span-2">
+                      <InputField label="강연 제목 / 주제" value={item.title} onChange={v => updateArrayItem('lectures', i, { title: v })} placeholder="브랜딩 마인드셋: 브랜드와 나의 자기다움 찾기" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={() => addToArray('lectures', { year: '', org: '', title: '' })}
+          className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+          <Plus size={14} /> 강연 추가
+        </button>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ── Ashley 전용: 독특한 경험 / Fun Facts 섹션 ──
+function FunFactsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+  return (
+    <SectionCard title="그 외 독특한 경험 / Fun Facts" icon={Zap} description="특별하거나 재미있는 경험을 자유롭게 기록하세요 (에어비앤비 호스트, 밴드 활동 등)">
+      <div className="space-y-2">
+        {(portfolio.funfacts || []).map((item, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">•</span>
+            <input value={item} onChange={e => updateArrayItem('funfacts', i, e.target.value)}
+              className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+              placeholder="에어비앤비 체험 호스트, 밴드 활동 일렉 기타, 미국 45개주 여행 등" />
+            <button onClick={() => removeFromArray('funfacts', i)} className="p-1.5 text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+          </div>
+        ))}
+        <button onClick={() => addToArray('funfacts', '')}
+          className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-sm text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+          <Plus size={14} /> 독특한 경험 추가
+        </button>
+      </div>
+    </SectionCard>
+  );
+}
+
+function ContactSection({ portfolio, updateNested, templateId }) {
+  const contact = portfolio.contact || {};
+  const sectionDesc = templateId === 'ashley'
+    ? 'SNS, 이메일, 브런치, 유튜브 등 크리에이티브 채널을 입력하세요'
+    : templateId === 'academic'
+      ? '이메일, LinkedIn, GitHub 등 학술·개발 연락처를 입력하세요'
+      : 'SNS, 이메일 등 연락 수단을 입력하세요';
+  return (
+    <SectionCard title={templateId === 'academic' ? 'Contact Information' : '연락처 | Contact'} icon={Mail} description={sectionDesc}>
       <div className="grid grid-cols-2 gap-4">
-        <InputField label="전화번호" value={contact.phone} onChange={v => updateNested('contact', 'phone', v)} placeholder="+82 10-0000-0000" />
         <InputField label="이메일" value={contact.email} onChange={v => updateNested('contact', 'email', v)} placeholder="email@example.com" />
-        <InputField label="LinkedIn" value={contact.linkedin} onChange={v => updateNested('contact', 'linkedin', v)} placeholder="www.linkedin.com/in/..." />
-        <InputField label="Instagram" value={contact.instagram} onChange={v => updateNested('contact', 'instagram', v)} placeholder="@username" />
-        <InputField label="GitHub" value={contact.github} onChange={v => updateNested('contact', 'github', v)} placeholder="github.com/username" />
-        <InputField label="웹사이트" value={contact.website} onChange={v => updateNested('contact', 'website', v)} placeholder="https://..." />
+        <InputField label="전화번호" value={contact.phone} onChange={v => updateNested('contact', 'phone', v)} placeholder="+82 10-0000-0000" />
+        {templateId === 'ashley' ? (
+          <>
+            <InputField label="Instagram" value={contact.instagram} onChange={v => updateNested('contact', 'instagram', v)} placeholder="@username" />
+            <InputField label="Brunch" value={contact.brunch} onChange={v => updateNested('contact', 'brunch', v)} placeholder="brunch.co.kr/@username" />
+            <InputField label="YouTube" value={contact.youtube} onChange={v => updateNested('contact', 'youtube', v)} placeholder="youtube.com/@channel" />
+            <InputField label="웹사이트" value={contact.website} onChange={v => updateNested('contact', 'website', v)} placeholder="https://..." />
+          </>
+        ) : templateId === 'academic' ? (
+          <>
+            <InputField label="LinkedIn" value={contact.linkedin} onChange={v => updateNested('contact', 'linkedin', v)} placeholder="www.linkedin.com/in/..." />
+            <InputField label="GitHub" value={contact.github} onChange={v => updateNested('contact', 'github', v)} placeholder="github.com/username" />
+            <InputField label="Google Scholar" value={contact.scholar} onChange={v => updateNested('contact', 'scholar', v)} placeholder="scholar.google.com/..." />
+            <InputField label="웹사이트" value={contact.website} onChange={v => updateNested('contact', 'website', v)} placeholder="https://..." />
+          </>
+        ) : (
+          <>
+            <InputField label="LinkedIn" value={contact.linkedin} onChange={v => updateNested('contact', 'linkedin', v)} placeholder="www.linkedin.com/in/..." />
+            <InputField label="Instagram" value={contact.instagram} onChange={v => updateNested('contact', 'instagram', v)} placeholder="@username" />
+            <InputField label="GitHub" value={contact.github} onChange={v => updateNested('contact', 'github', v)} placeholder="github.com/username" />
+            <InputField label="웹사이트" value={contact.website} onChange={v => updateNested('contact', 'website', v)} placeholder="https://..." />
+          </>
+        )}
       </div>
     </SectionCard>
   );

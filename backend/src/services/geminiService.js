@@ -3,10 +3,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 모델 우선순위 (에러 발생 시 순서대로 폴백)
-const MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+const MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
 
 // 지수 백오프 재시도 함수
-async function generateWithRetry(prompt, retries = 5, delayMs = 3000) {
+async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
   let lastError;
   for (let modelIdx = 0; modelIdx < MODEL_FALLBACKS.length; modelIdx++) {
     const modelName = MODEL_FALLBACKS[modelIdx];
@@ -18,9 +18,13 @@ async function generateWithRetry(prompt, retries = 5, delayMs = 3000) {
       } catch (err) {
         lastError = err;
         const status = err?.status ?? err?.response?.status;
-        const retryableStatuses = [429, 503, 500];
+        const retryableStatuses = [503, 500];
         const fallbackStatuses = [404, 400];
-        if (retryableStatuses.includes(status)) {
+        if (status === 429) {
+          // Rate limit / quota 소진 → 다음 모델로 즉시 전환
+          console.warn(`[Gemini] ${modelName} 429 - 다음 모델로 폴백`);
+          break;
+        } else if (retryableStatuses.includes(status)) {
           if (attempt < retries - 1) {
             const wait = delayMs * Math.pow(2, attempt);
             console.warn(`[Gemini] ${modelName} ${status} - ${attempt + 1}번째 재시도 (${wait}ms 대기)`);
