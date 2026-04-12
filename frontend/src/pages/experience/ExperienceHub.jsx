@@ -9,6 +9,9 @@ import ExportModal from '../../components/ExportModal';
 
 const PAGE_SIZE = 9;
 
+/* ── 마크다운 ** 제거 유틸 ── */
+function stripMd(s) { return s ? String(s).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '') : ''; }
+
 // 카드 배경 그라디언트 팔레트
 const CARD_GRADIENTS = [
   'from-indigo-900 via-purple-800 to-pink-700',
@@ -208,7 +211,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
                     {['Background & Problem', 'Analysis & Action', 'Result & Impact'][idx % 3]}
                   </span>
                   <h4 className="text-[13px] font-bold text-gray-800 leading-snug line-clamp-2 mb-2" style={{ wordBreak: 'keep-all' }}>
-                    {exp.title}
+                    {stripMd(exp.title)}
                   </h4>
 
                   {/* 미니 메트릭 카드 */}
@@ -216,8 +219,8 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
                     <div className="mt-auto">
                       <div className="bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200/60 p-2.5">
                         <div className="flex items-baseline justify-between mb-1.5">
-                          <span className="text-[10px] text-gray-500 font-medium">{exp.metricLabel || '핵심 지표'}</span>
-                          <span className="text-[14px] font-black" style={{ color: theme.accent }}>{exp.metric}</span>
+                          <span className="text-[10px] text-gray-500 font-medium">{stripMd(exp.metricLabel) || '핵심 지표'}</span>
+                          <span className="text-[14px] font-black" style={{ color: theme.accent }}>{stripMd(exp.metric)}</span>
                         </div>
                         {/* 미니 비교 바 */}
                         <MiniCompareBar exp={exp} accent={theme.accent} />
@@ -288,7 +291,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
       <div className="px-4 pt-4 pb-2 flex-1 flex flex-col">
         {/* 제목 + Top rated 뱃지 */}
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-bold text-[15px] leading-snug line-clamp-1 text-gray-900">{title}</h3>
+          <h3 className="font-bold text-[15px] leading-snug line-clamp-1 text-gray-900">{stripMd(title)}</h3>
           {keyExperiences.length >= 3 && (
             <span className="flex-shrink-0 px-2.5 py-0.5 border border-gray-300 rounded-full text-[10px] font-medium text-gray-500 whitespace-nowrap">
               Top rated
@@ -303,7 +306,7 @@ function ExperienceCard({ experience, onDelete, onDetail, onExport }) {
 
         {/* 프로젝트 요약 */}
         {projectOverview.summary && (
-          <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mb-3">{projectOverview.summary}</p>
+          <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mb-3">{stripMd(projectOverview.summary)}</p>
         )}
 
         {/* 기술스택 */}

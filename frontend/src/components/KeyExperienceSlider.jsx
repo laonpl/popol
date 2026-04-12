@@ -8,6 +8,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
    - 아이콘 없음, 깨지는 글씨 없음
    ================================================================ */
 
+/* ── 마크다운 **bold** 제거 유틸 ── */
+function stripMd(s) { return s ? String(s).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '') : ''; }
+
 const THEMES = [
   { label: 'Background & Problem', color: '#ef4444', accent: '#3b82f6' },
   { label: 'Analysis & Action',    color: '#2563eb', accent: '#2563eb' },
@@ -215,17 +218,17 @@ function ChartHorizontalBar({ beforeLabel, afterLabel, beforePct, afterPct, acce
 function ChartVerticalBar({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
   const { normBefore, normAfter } = normalizeValues(beforePct, afterPct);
   return (
-    <div className="flex items-end justify-center gap-8 h-[140px]">
+    <div className="flex items-end justify-center gap-8 h-[170px]">
       <div className="flex flex-col items-center gap-2">
-        <span className="text-[11px] font-bold text-gray-500">{beforeLabel}</span>
-        <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '110px' }}>
+        <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">{beforeLabel}</span>
+        <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '120px' }}>
           <div className="w-full bg-[#bcc5d1] rounded-t-lg transition-all duration-[1200ms]" style={{ height: `${normBefore}%` }} />
         </div>
         <span className="text-[10px] text-gray-400 font-semibold">개선 전</span>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <span className="text-[11px] font-black" style={{ color: accent }}>{afterLabel}</span>
-        <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '110px' }}>
+        <span className="text-[11px] font-black whitespace-nowrap" style={{ color: accent }}>{afterLabel}</span>
+        <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '120px' }}>
           <div className="w-full rounded-t-lg transition-all duration-[1200ms]" style={{ height: `${normAfter}%`, backgroundColor: accent }} />
         </div>
         <span className="text-[10px] font-bold" style={{ color: accent }}>개선 후</span>
@@ -237,11 +240,12 @@ function ChartVerticalBar({ beforeLabel, afterLabel, beforePct, afterPct, accent
 /* 3. lineChart — 꺾은선 */
 function ChartLine({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
   const { normBefore, normAfter } = normalizeValues(beforePct, afterPct);
-  const y1 = 100 - normBefore;
-  const y2 = 100 - normAfter;
+  /* 원(r=5+stroke=2=7)이 잘리지 않도록 y를 10~88 범위로 클램프 */
+  const y1 = Math.max(10, Math.min(88, 100 - normBefore));
+  const y2 = Math.max(10, Math.min(88, 100 - normAfter));
   return (
-    <div className="relative h-[130px]">
-      <svg viewBox="0 0 200 100" className="w-full h-full" preserveAspectRatio="none">
+    <div className="relative h-[150px]">
+      <svg viewBox="-5 -10 210 120" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={`lineGrad-${accent.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={accent} stopOpacity="0.15" />
@@ -254,8 +258,8 @@ function ChartLine({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
         <circle cx="40" cy={y1} r="5" fill="#bcc5d1" stroke="white" strokeWidth="2" />
         <circle cx="160" cy={y2} r="5" fill={accent} stroke="white" strokeWidth="2" />
       </svg>
-      <div className="absolute bottom-0 left-4 text-[10px] text-gray-500 font-semibold">개선 전<br/><span className="text-[11px] font-bold">{beforeLabel}</span></div>
-      <div className="absolute bottom-0 right-4 text-right text-[10px] font-bold" style={{ color: accent }}>개선 후<br/><span className="text-[11px] font-black">{afterLabel}</span></div>
+      <div className="absolute bottom-1 left-4 text-[10px] text-gray-500 font-semibold">개선 전<br/><span className="text-[11px] font-bold">{beforeLabel}</span></div>
+      <div className="absolute bottom-1 right-4 text-right text-[10px] font-bold" style={{ color: accent }}>개선 후<br/><span className="text-[11px] font-black">{afterLabel}</span></div>
     </div>
   );
 }
@@ -295,8 +299,8 @@ function ChartGauge({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
   const stroke = halfCirc * (1 - normAfter / 100);
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-[140px] h-[75px] overflow-hidden">
-        <svg viewBox="0 0 100 55" className="w-full h-full">
+      <div className="relative w-[140px] h-[80px]">
+        <svg viewBox="-2 -6 104 66" className="w-full h-full">
           <path d="M 5 50 A 45 45 0 0 1 95 50" fill="none" stroke="#e5e7eb" strokeWidth="8" strokeLinecap="round" />
           <path d="M 5 50 A 45 45 0 0 1 95 50" fill="none" stroke={accent} strokeWidth="8" strokeLinecap="round"
             strokeDasharray={halfCirc} strokeDashoffset={stroke} className="transition-all duration-[1200ms]" />
@@ -305,7 +309,7 @@ function ChartGauge({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
           <span className="text-[20px] font-black" style={{ color: accent }}>{Math.round(normAfter)}%</span>
         </div>
       </div>
-      <div className="flex items-center gap-6 mt-3 text-[11px]">
+      <div className="flex items-center gap-6 mt-2 text-[11px]">
         <span className="text-gray-500 font-semibold">개선 전: <span className="font-bold">{beforeLabel}</span></span>
         <span className="font-bold" style={{ color: accent }}>개선 후: <span className="font-black">{afterLabel}</span></span>
       </div>
@@ -344,12 +348,13 @@ function ChartRadialBar({ beforeLabel, afterLabel, beforePct, afterPct, accent }
 /* 7. areaChart — 영역 차트 */
 function ChartArea({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
   const { normBefore, normAfter } = normalizeValues(beforePct, afterPct);
-  const y1 = 90 - normBefore * 0.8;
-  const y2 = 90 - normAfter * 0.8;
-  const mid = 90 - ((normBefore + normAfter) / 2) * 0.8 + 5;
+  /* 원(r=4+stroke=2=6)이 잘리지 않도록 y를 8~86 범위로 클램프 */
+  const y1 = Math.max(8, Math.min(86, 90 - normBefore * 0.8));
+  const y2 = Math.max(8, Math.min(86, 90 - normAfter * 0.8));
+  const mid = Math.max(10, ((y1 + y2) / 2) + 5);
   return (
-    <div className="relative h-[130px]">
-      <svg viewBox="0 0 200 100" className="w-full h-full" preserveAspectRatio="none">
+    <div className="relative h-[150px]">
+      <svg viewBox="-5 -8 210 118" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={`areaGrad-${accent.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={accent} stopOpacity="0.25" />
@@ -362,8 +367,8 @@ function ChartArea({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
         <circle cx="180" cy={y2} r="4" fill={accent} stroke="white" strokeWidth="2" />
         <line x1="20" y1="95" x2="180" y2="95" stroke="#e5e7eb" strokeWidth="0.5" />
       </svg>
-      <div className="absolute bottom-0 left-2 text-[10px] text-gray-500 font-semibold">{beforeLabel}</div>
-      <div className="absolute bottom-0 right-2 text-[11px] font-black text-right" style={{ color: accent }}>{afterLabel}</div>
+      <div className="absolute bottom-1 left-2 text-[10px] text-gray-500 font-semibold">{beforeLabel}</div>
+      <div className="absolute bottom-1 right-2 text-[11px] font-black text-right" style={{ color: accent }}>{afterLabel}</div>
     </div>
   );
 }
@@ -491,7 +496,7 @@ function SlideContent({ exp, theme }) {
         {theme.label}
       </span>
       <h2 className="text-[22px] sm:text-[26px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-7">
-        {exp.title}
+        {stripMd(exp.title)}
       </h2>
 
       {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
@@ -500,15 +505,15 @@ function SlideContent({ exp, theme }) {
         {/* ===== 좌측 대형 카드: 메트릭 + 비교 그래프 ===== */}
         <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6 flex flex-col">
           <p className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug mb-1">
-            {exp.metricLabel || '핵심 지표'}
+            {stripMd(exp.metricLabel) || '핵심 지표'}
           </p>
           <p className="mb-1">
             <span className="text-[22px] sm:text-[26px] font-black" style={{ color: theme.accent }}>
-              {exp.metric}
+              {stripMd(exp.metric)}
             </span>
           </p>
           <p className="text-[13px] text-gray-500 leading-[1.7] mb-5">
-            {exp.result}
+            {stripMd(exp.result)}
           </p>
 
           {/* 비교 바 차트 */}
@@ -523,7 +528,7 @@ function SlideContent({ exp, theme }) {
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
             <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
             <p className="text-[13px] text-gray-500 leading-[1.7]">
-              {exp.situation}
+              {stripMd(exp.situation)}
             </p>
           </div>
 
@@ -531,7 +536,7 @@ function SlideContent({ exp, theme }) {
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
             <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
             <p className="text-[13px] text-gray-500 leading-[1.7]">
-              {exp.action}
+              {stripMd(exp.action)}
             </p>
           </div>
         </div>
@@ -650,9 +655,9 @@ export default function KeyExperienceSlider({ keyExperiences = [] }) {
                 <span className={`text-[11px] font-semibold line-clamp-1 ${
                   active ? 'text-bluewood-800' : 'text-bluewood-500'
                 }`} style={{ wordBreak: 'keep-all' }}>
-                  {e.title?.slice(0, 30)}{(e.title?.length || 0) > 30 ? '...' : ''}
+                  {stripMd(e.title)?.slice(0, 30)}{(stripMd(e.title)?.length || 0) > 30 ? '...' : ''}
                 </span>
-                <span className="text-[10px] text-bluewood-400 font-medium">{e.metric || ''}</span>
+                <span className="text-[10px] text-bluewood-400 font-medium">{stripMd(e.metric) || ''}</span>
               </button>
             );
           })}

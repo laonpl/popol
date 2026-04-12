@@ -5,6 +5,12 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 
+/* ── 마크다운 **bold** 제거 유틸 ── */
+function stripMarkdown(text) {
+  if (!text) return '';
+  return String(text).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '');
+}
+
 // 하이라이트 색상 매핑 (밑줄 스타일)
 const highlightColors = {
   core: { underline: '#ef4444', label: '핵심 역량', dot: 'bg-red-400' },
@@ -401,14 +407,15 @@ function HighlightSpan({ text, type, keywords }) {
 // 텍스트 하이라이팅 + 키워드 밑줄 컴포넌트
 function HighlightedText({ text, highlights, keywords = [] }) {
   if (!text) return <p></p>;
+  const cleanText = stripMarkdown(text);
 
   /* 1단계: 구조화 하이라이트 */
   const positioned = (highlights || [])
     .map(h => {
-      const needle = h.text?.trim() ?? '';
+      const needle = stripMarkdown(h.text?.trim() ?? '');
       if (!needle) return null;
       if (h.start != null) return { ...h, pos: h.start, len: needle.length };
-      const match = fuzzyIndexOf(text, needle);
+      const match = fuzzyIndexOf(cleanText, needle);
       if (!match) return null;
       return { ...h, pos: match.pos, len: match.len };
     })
@@ -428,13 +435,13 @@ function HighlightedText({ text, highlights, keywords = [] }) {
     let lastIndex = 0;
     for (const h of positioned) {
       if (h.pos < lastIndex) continue;
-      if (h.pos > lastIndex) parts.push({ text: text.slice(lastIndex, h.pos), type: null, keywords: [] });
-      parts.push({ text: text.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
+      if (h.pos > lastIndex) parts.push({ text: cleanText.slice(lastIndex, h.pos), type: null, keywords: [] });
+      parts.push({ text: cleanText.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
       lastIndex = h.pos + h.len;
     }
-    if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex), type: null, keywords: [] });
+    if (lastIndex < cleanText.length) parts.push({ text: cleanText.slice(lastIndex), type: null, keywords: [] });
   } else {
-    parts = [{ text, type: null, keywords: [] }];
+    parts = [{ text: cleanText, type: null, keywords: [] }];
   }
 
   const applyKeywordUnderlines = (str) => {

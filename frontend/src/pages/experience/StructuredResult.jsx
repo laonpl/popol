@@ -9,6 +9,22 @@ import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import { CHART_TYPES } from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 
+/* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
+function renderMarkdown(text) {
+  if (!text) return '';
+  const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+  if (parts.length <= 1) return text.replace(/\*\*/g, '');
+  return parts.map((seg, i) => {
+    const m = seg.match(/^\*\*(.+)\*\*$/);
+    if (m) return <strong key={i} className="font-bold">{m[1]}</strong>;
+    return seg.replace(/\*\*/g, '');
+  });
+}
+function stripMarkdown(text) {
+  if (!text) return '';
+  return String(text).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '');
+}
+
 // 하이라이트 색상 매핑 (밑줄 스타일)
 const highlightColors = {
   core: { underline: '#ef4444', bg: 'bg-red-50', label: '핵심 역량', dot: 'bg-red-400', text: 'text-red-700' },
@@ -879,14 +895,16 @@ const KEYWORD_COLORS = [
 
 function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline = false }) {
   if (!text) return <p></p>;
+  // 마크다운 볼드 마커 제거 (하이라이트 위치 계산 전에)
+  const cleanText = stripMarkdown(text);
 
   /* 1단계: 구조화 하이라이트 (AI가 표시한 핵심/파생/성장 역량) */
   const positioned = (highlights || [])
     .map(h => {
-      const needle = h.text?.trim() ?? '';
+      const needle = stripMarkdown(h.text?.trim() ?? '');
       if (!needle) return null;
       if (h.start != null) return { ...h, pos: h.start, len: needle.length };
-      const match = fuzzyIndexOf(text, needle);
+      const match = fuzzyIndexOf(cleanText, needle);
       if (!match) return null;
       return { ...h, pos: match.pos, len: match.len };
     })
@@ -907,13 +925,13 @@ function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline
     let lastIndex = 0;
     for (const h of positioned) {
       if (h.pos < lastIndex) continue;
-      if (h.pos > lastIndex) parts.push({ text: text.slice(lastIndex, h.pos), type: null, keywords: [] });
-      parts.push({ text: text.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
+      if (h.pos > lastIndex) parts.push({ text: cleanText.slice(lastIndex, h.pos), type: null, keywords: [] });
+      parts.push({ text: cleanText.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
       lastIndex = h.pos + h.len;
     }
-    if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex), type: null, keywords: [] });
+    if (lastIndex < cleanText.length) parts.push({ text: cleanText.slice(lastIndex), type: null, keywords: [] });
   } else {
-    parts = [{ text, type: null, keywords: [] }];
+    parts = [{ text: cleanText, type: null, keywords: [] }];
   }
 
   /* 키워드 밑줄 적용 함수: 텍스트 안에서 키워드를 찾아 밑줄 span 생성 */
