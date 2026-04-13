@@ -44,10 +44,11 @@ app.get('/api/health', (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Server Error:', err);
   res.status(err.status || 500).json({
-    error: err.message || '서버 오류가 발생했습니다',
+    error: err.message || '?�버 ?�류가 발생?�습?�다',
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 POPOL Backend 서버 실행 중: http://localhost:${PORT}`);
+  console.log(`?? POPOL Backend ?�버 ?�행 �? http://localhost:${PORT}`);
 });
+

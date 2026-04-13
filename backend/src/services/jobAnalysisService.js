@@ -1,9 +1,24 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const MODEL_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const MODEL_FALLBACKS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-flash-lite',
+];
 
-async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
+// SDK 에러에서 HTTP 상태코드 추출
+function extractStatus(err) {
+  if (typeof err?.status === 'number') return err.status;
+  if (typeof err?.response?.status === 'number') return err.response.status;
+  const m = String(err?.message || '').match(/\[(\d{3})\s/);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
+async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
   let lastError;
   for (let modelIdx = 0; modelIdx < MODEL_FALLBACKS.length; modelIdx++) {
     const modelName = MODEL_FALLBACKS[modelIdx];
@@ -14,20 +29,21 @@ async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
         return result.response.text();
       } catch (err) {
         lastError = err;
-        const status = err?.status ?? err?.response?.status;
+        const status = extractStatus(err);
+        console.warn(`[Job] ${modelName} 실패 (시도 ${attempt + 1}, status=${status}): ${err.message?.slice(0, 120)}`);
+
         if (status === 429) {
-          // Rate limit / quota 소진 → 다음 모델로 즉시 전환
-          console.warn(`[Job] ${modelName} 429 - 다음 모델로 폴백`);
-          break;
-        } else if ([503, 500].includes(status)) {
+          break; // 다음 모델로
+        } else if (status === 503 || status === 500) {
           if (attempt < retries - 1) {
-            const wait = delayMs * Math.pow(2, attempt);
-            console.warn(`[Job] ${modelName} ${status} - 재시도 ${attempt + 1} (${wait}ms)`);
-            await new Promise(r => setTimeout(r, wait));
-          } else break;
-        } else if ([404, 400].includes(status)) {
-          break; // 해당 모델 미지원 → 다음 모델
-        } else throw err;
+            await new Promise(r => setTimeout(r, delayMs * Math.pow(2, attempt)));
+          } else {
+            break;
+          }
+        } else {
+          // 404, 400, 기타 알 수 없는 에러 → 다음 모델로
+          break;
+        }
       }
     }
   }

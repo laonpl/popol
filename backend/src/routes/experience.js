@@ -31,16 +31,27 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
     try {
       analysis = await analyzeExperience(data.content || {});
     } catch (aiError) {
-      console.error('Gemini AI 분석 실패:', aiError.message);
+      const errMsg = aiError.message || '';
+      console.error('Gemini AI 분석 실패 (최종):', errMsg);
       // 내용 비어있음 에러는 400으로
-      if (aiError.message?.includes('비어있습니다')) {
+      if (errMsg.includes('비어있습니다')) {
         return res.status(400).json({ error: aiError.message });
       }
       // API 키 에러 구분
-      if (aiError.message?.includes('API key') || aiError.message?.includes('API Key')) {
-        return res.status(502).json({ error: 'Gemini API 키가 유효하지 않습니다. 서버 .env 파일의 GEMINI_API_KEY를 확인해주세요.', detail: aiError.message });
+      if (errMsg.includes('API key') || errMsg.includes('API Key')) {
+        return res.status(502).json({ error: 'Gemini API 키가 유효하지 않습니다. 서버 .env 파일의 GEMINI_API_KEY를 확인해주세요.', detail: errMsg });
       }
-      return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: aiError.message });
+      // Gemini 모델 미지원 에러
+      const isModelError = errMsg.includes('no longer available') || errMsg.includes('404') || errMsg.includes('deprecated');
+      if (isModelError) {
+        return res.status(502).json({ error: 'AI 모델을 사용할 수 없습니다. API 키 또는 모델 설정을 확인해주세요.', detail: errMsg });
+      }
+      // 쿼터 초과 에러
+      const isQuotaError = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isQuotaError) {
+        return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
+      }
+      return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
     }
 
     // 분석 결과를 Firestore에 저장
