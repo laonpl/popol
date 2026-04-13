@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 모델 우선순위 (에러 발생 시 순서대로 폴백)
-const MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
+const MODEL_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
 // 지수 백오프 재시도 함수
 async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
@@ -268,4 +268,47 @@ ${sectionsText}
     throw new Error('AI 검수 응답 파싱 실패');
   }
   return JSON.parse(jsonMatch[0]);
+}
+
+/**
+ * 포트폴리오 섹션별 기업/직무 요건 매칭 분석
+ */
+export async function matchSectionsToRequirements(sections, targetCompany, targetPosition) {
+  const sectionsText = sections.map((s, i) => {
+    const content = s.content
+      ? s.content.substring(0, 500)
+      : (s.projectTechStack ? `기술스택: ${s.projectTechStack.join(', ')}` : '(내용 없음)');
+    return `[섹션 ${i}: "${s.title}" (타입: ${s.type})]\n${content}`;
+  }).join('\n\n');
+
+  const prompt = `당신은 취업 포트폴리오 전문 컨설턴트입니다.
+아래 포트폴리오 섹션들이 "${targetCompany}" 기업의 "${targetPosition}" 직무 요건에 얼마나 부합하는지 분석해주세요.
+
+[평가 기준]
+- matched=true: 해당 직무에 필요하거나 강점을 명확히 보여주는 섹션
+- matched=false: 해당 직무와 관련성이 낮거나 내용이 부족한 섹션
+
+[포트폴리오 섹션]
+${sectionsText}
+
+반드시 아래 JSON 배열 형식으로만 응답하세요 (마크다운 없이 순수 JSON):
+[
+  { "index": 0, "matched": true, "relevance": "high", "reason": "이유 한 문장" },
+  { "index": 1, "matched": false, "relevance": "low", "reason": "이유 한 문장" }
+]`;
+
+  try {
+    const text = await generateWithRetry(prompt);
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('파싱 실패');
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    // 폴백: 모든 섹션을 기본 매칭으로 처리
+    return sections.map((s, i) => ({
+      index: i,
+      matched: s.type !== 'custom' && !!(s.content || s.projectTechStack),
+      relevance: 'medium',
+      reason: '자동 분석 실패 - 수동 검토 권장',
+    }));
+  }
 }

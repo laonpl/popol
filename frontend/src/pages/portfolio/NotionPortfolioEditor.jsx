@@ -331,33 +331,43 @@ export default function NotionPortfolioEditor() {
     const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
     const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
 
+    // AI 분석 결과(structuredResult)를 우선 사용하고, 없으면 원본 content 사용
+    const aiResult = exp.structuredResult || {};
+    const contentSource = {};
+    fields.forEach(field => {
+      contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
+    });
+
     // content 객체를 sections 배열로 변환 (비어있지 않은 것만)
     const sections = fields
-      .filter(field => exp.content?.[field.key]?.trim?.())
+      .filter(field => contentSource[field.key]?.trim?.())
       .map(field => ({
         title: field.label,
-        content: exp.content[field.key],
+        content: contentSource[field.key],
       }));
 
-    // description: AI 요약 > intro > overview > 첫 번째 섹션 내용 순
+    // description: AI 프로젝트 개요 요약 > AI 요약 > intro > overview > 첫 번째 섹션 내용 순
     const description =
-      exp.aiAnalysis?.overallSummary ||
+      aiResult.projectOverview?.summary ||
+      aiResult.intro ||
       exp.content?.intro ||
       exp.content?.overview ||
       (sections[0]?.content ?? '');
 
     // 키워드에서 skills 추출
-    const autoSkills = exp.aiAnalysis?.competencyKeywords || exp.keywords || [];
+    const autoSkills = aiResult.keywords || exp.keywords || [];
 
     const newExp = {
       date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || exp.updatedAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
       title: exp.title || '',
       description,
-      // 상세 데이터 보존
+      // 상세 데이터 보존 (AI 분석 결과 우선)
       framework: exp.framework || 'STRUCTURED',
-      frameworkContent: exp.content || {},
+      frameworkContent: contentSource,
       keywords: autoSkills,
-      aiSummary: exp.aiAnalysis?.overallSummary || '',
+      aiSummary: aiResult.projectOverview?.summary || aiResult.intro || '',
+      // AI 분석 전체 데이터 보존 (keyExperiences, projectOverview 등)
+      structuredResult: aiResult,
       // Notion 스타일 필드
       thumbnailUrl: exp.images?.[0] || '',
       status: 'finished',

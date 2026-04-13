@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminDb } from '../config/firebase.js';
-import { validatePortfolioWithAI } from '../services/geminiService.js';
+import { validatePortfolioWithAI, matchSectionsToRequirements } from '../services/geminiService.js';
 
 const router = Router();
 
@@ -210,5 +210,22 @@ function generateNotionBlocks(portfolio) {
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// POST /api/portfolio/match-sections - 섹션별 기업 요건 매칭 분석
+router.post('/match-sections', authMiddleware, async (req, res, next) => {
+  try {
+    const { sections, targetCompany, targetPosition } = req.body;
+    if (!sections || !Array.isArray(sections) || sections.length === 0) {
+      return res.status(400).json({ error: '섹션 데이터가 필요합니다' });
+    }
+    if (!targetCompany || !targetPosition) {
+      return res.status(400).json({ error: '지원 기업과 직무가 필요합니다' });
+    }
+    const results = await matchSectionsToRequirements(sections, targetCompany, targetPosition);
+    res.json({ success: true, results });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

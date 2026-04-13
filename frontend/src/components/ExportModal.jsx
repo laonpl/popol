@@ -1,37 +1,46 @@
-import { useState, useRef } from 'react';
-import { X, Loader2, Copy, Download, FileText, Globe, Github } from 'lucide-react';
+import { useState } from 'react';
+import { X, Loader2, Copy, Download, FileText, Globe } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 const FORMATS = [
   { key: 'Notion', label: 'Notion 페이지', icon: Globe, desc: 'Notion에 복사하여 붙여넣기', color: 'bg-gray-900 text-white' },
-  { key: 'GitHub', label: 'GitHub README', icon: Github, desc: 'README.md 다운로드', color: 'bg-gray-800 text-white' },
-  { key: 'PDF', label: 'PDF 파일', icon: FileText, desc: '실제 PDF 파일 다운로드', color: 'bg-red-500 text-white' },
+  { key: 'PDF', label: 'PDF 파일', icon: FileText, desc: 'A4 PDF로 저장 (브라우저 인쇄)', color: 'bg-red-500 text-white' },
 ];
 
 function markdownToHtml(md) {
+  if (!md) return '';
+  const inline = (t) =>
+    t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+     .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+     .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:10.5px">$1</code>');
   return md
     .split('\n')
     .map(line => {
       const t = line.trim();
-      if (!t) return '<br/>';
-      if (t.startsWith('# ')) return `<h1 style="font-size:22px;font-weight:bold;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:6px">${t.slice(2)}</h1>`;
-      if (t.startsWith('## ')) return `<h2 style="font-size:17px;font-weight:bold;margin:14px 0 6px;color:#1a1a1a">${t.slice(3)}</h2>`;
-      if (t.startsWith('### ')) return `<h3 style="font-size:14px;font-weight:bold;margin:10px 0 4px;color:#333">${t.slice(4)}</h3>`;
-      if (t.startsWith('---')) return '<hr style="border:none;border-top:1px solid #ddd;margin:12px 0"/>';
-      if (t.startsWith('- ') || t.startsWith('• ')) return `<p style="font-size:12px;margin:3px 0;padding-left:16px;line-height:1.6">• ${t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>`;
-      return `<p style="font-size:12px;margin:4px 0;line-height:1.7">${t.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>`;
+      if (!t) return '<div style="height:5px"></div>';
+      if (t.startsWith('# ')) return `<h1 style="font-size:20px;font-weight:700;margin:14px 0 6px;border-bottom:2px solid #333;padding-bottom:6px">${inline(t.slice(2))}</h1>`;
+      if (t.startsWith('## ')) return `<h2 style="font-size:16px;font-weight:700;margin:12px 0 5px;color:#111">${inline(t.slice(3))}</h2>`;
+      if (t.startsWith('### ')) return `<h3 style="font-size:13px;font-weight:600;margin:8px 0 3px;color:#333">${inline(t.slice(4))}</h3>`;
+      if (t.startsWith('---') || t.startsWith('___')) return '<hr style="border:none;border-top:1px solid #ddd;margin:8px 0"/>';
+      if (t.startsWith('- ') || t.startsWith('• ') || t.startsWith('* '))
+        return `<p style="font-size:11.5px;margin:2px 0;padding-left:14px;line-height:1.65">• ${inline(t.slice(2))}</p>`;
+      if (/^\d+\.\s/.test(t)) {
+        const m = t.match(/^(\d+)\.\s(.+)/);
+        return `<p style="font-size:11.5px;margin:2px 0;padding-left:14px;line-height:1.65">${m?.[1]}. ${inline(m?.[2] || '')}</p>`;
+      }
+      const lm = t.match(/^\[([^\]]+)\](.*)/);
+      if (lm)
+        return `<div style="margin:8px 0 2px"><span style="font-size:11px;font-weight:700;background:#eef2ff;color:#3730a3;padding:2px 7px;border-radius:4px">${lm[1]}</span>${lm[2].trim() ? `<span style="font-size:11.5px;margin-left:6px">${inline(lm[2].trim())}</span>` : ''}</div>`;
+      return `<p style="font-size:11.5px;margin:2px 0;line-height:1.7">${inline(t)}</p>`;
     })
-    .join('');
+    .join('\n');
 }
 
 export default function ExportModal({ type, data, onClose }) {
   const [format, setFormat] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
-  const pdfRef = useRef(null);
 
   const buildExportData = () => {
     if (type === 'experience') {
@@ -151,39 +160,34 @@ export default function ExportModal({ type, data, onClose }) {
     toast.success('파일이 다운로드되었습니다');
   };
 
-  const handleDownloadPDF = async () => {
-    if (!result || !pdfRef.current) return;
-    toast.loading('PDF 생성 중...', { id: 'pdf' });
-    try {
-      const el = pdfRef.current;
-      el.style.display = 'block';
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      el.style.display = 'none';
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * contentWidth) / canvas.width;
-
-      let y = 0;
-      let remaining = imgHeight;
-      const usableHeight = pageHeight - margin * 2;
-
-      while (remaining > 0) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, margin - y, contentWidth, imgHeight);
-        y += usableHeight;
-        remaining -= usableHeight;
-      }
-
-      pdf.save(`${data.title || 'export'}.pdf`);
-      toast.success('PDF 파일이 다운로드되었습니다', { id: 'pdf' });
-    } catch (e) {
-      toast.error('PDF 생성에 실패했습니다', { id: 'pdf' });
-    }
+  const handleDownloadPDF = () => {
+    if (!result) return;
+    const htmlContent = markdownToHtml(result);
+    const printHtml = `<!DOCTYPE html><html lang="ko"><head>
+  <meta charset="UTF-8">
+  <title>${data.title || '포트폴리오'}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Noto Sans KR','Malgun Gothic','맑은 고딕',sans-serif;max-width:794px;margin:0 auto;padding:25px 40px;color:#1a1a1a;font-size:12px;line-height:1.6}
+    h1{font-size:20px;font-weight:700;margin-bottom:10px;border-bottom:2px solid #333;padding-bottom:6px}
+    h2{font-size:15px;font-weight:700;margin-top:14px;margin-bottom:5px}
+    h3{font-size:13px;font-weight:600;margin-top:9px;margin-bottom:3px;color:#333}
+    hr{border:none;border-top:1px solid #ddd;margin:8px 0}
+    p{font-size:11.5px;line-height:1.7;margin:2px 0}
+    strong,b{font-weight:700}em{font-style:italic}
+    code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:10.5px}
+    @page{margin:12mm;size:A4}
+    @media print{body{max-width:100%;padding:0}}
+  </style>
+</head><body>
+${htmlContent}
+<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},600)})</script>
+</body></html>`;
+    const pw = window.open('', '_blank');
+    if (!pw) { toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.'); return; }
+    pw.document.write(printHtml);
+    pw.document.close();
   };
 
   return (
@@ -203,7 +207,7 @@ export default function ExportModal({ type, data, onClose }) {
           {!result ? (
             <div className="space-y-4">
               <p className="text-sm font-medium text-gray-700 mb-3">내보내기 형식 선택</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {FORMATS.map(({ key, label, icon: Icon, desc, color }) => (
                   <button
                     key={key}
@@ -225,8 +229,7 @@ export default function ExportModal({ type, data, onClose }) {
                 <div className="p-4 bg-surface-50 rounded-xl">
                   <p className="text-xs text-gray-500">
                     {format === 'Notion' && '💡 Notion에 최적화된 Markdown으로 변환합니다. 복사 후 Notion에 붙여넣기하세요.'}
-                    {format === 'GitHub' && '💡 GitHub README.md에 최적화된 형식으로 변환합니다. 파일을 다운로드하여 리포지토리에 추가하세요.'}
-                    {format === 'PDF' && '💡 A4 사이즈에 최적화된 PDF 파일을 생성합니다. 인쇄/제출용으로 활용하세요.'}
+                    {format === 'PDF' && '💡 브라우저 인쇄 창에서 “PDF로 저장”을 선택하세요. 한글 폰트가 코를라 으로 마크다운이 맞게 렌더링됩니다.'}
                   </p>
                 </div>
               )}
@@ -250,29 +253,21 @@ export default function ExportModal({ type, data, onClose }) {
               </div>
 
               <div className="flex gap-2">
-                {(format === 'Notion' || format === 'GitHub') && (
-                  <button
-                    onClick={handleCopy}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
-                  >
-                    <Copy size={16} /> 클립보드 복사
-                  </button>
-                )}
-                {format === 'GitHub' && (
-                  <button
-                    onClick={handleDownloadMD}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-900 transition-colors"
-                  >
-                    <Download size={16} /> README.md 다운로드
-                  </button>
-                )}
                 {format === 'Notion' && (
-                  <button
-                    onClick={handleDownloadMD}
-                    className="flex items-center justify-center gap-2 px-5 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
-                  >
-                    <Download size={16} /> .md 다운로드
-                  </button>
+                  <>
+                    <button
+                      onClick={handleCopy}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                    >
+                      <Copy size={16} /> 클립보드 복사
+                    </button>
+                    <button
+                      onClick={handleDownloadMD}
+                      className="flex items-center justify-center gap-2 px-5 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
+                    >
+                      <Download size={16} /> .md 다운로드
+                    </button>
+                  </>
                 )}
                 {format === 'PDF' && (
                   <button
@@ -310,15 +305,6 @@ export default function ExportModal({ type, data, onClose }) {
           </button>
         </div>
       </div>
-
-      {/* Hidden div for PDF rendering via html2canvas */}
-      {result && (
-        <div
-          ref={pdfRef}
-          style={{ display: 'none', position: 'absolute', left: '-9999px', width: '794px', padding: '40px 50px', fontFamily: 'sans-serif', background: '#fff', color: '#222' }}
-          dangerouslySetInnerHTML={{ __html: markdownToHtml(result) }}
-        />
-      )}
     </div>
   );
 }

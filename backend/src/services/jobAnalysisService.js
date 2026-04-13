@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
+const MODEL_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
 async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
   let lastError;
@@ -568,3 +568,49 @@ JSON으로만 응답:
   if (!jsonMatch) throw new Error('경험 맞춤화 실패');
   return JSON.parse(jsonMatch[0]);
 }
+
+// ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 ───────
+export async function tailorPortfolioSections(jobAnalysis, sections) {
+  const sectionsText = sections
+    .map((s, i) => `섹션 ${i} [${s.type}] "${s.title}":\n${s.content || '(내용 없음)'}`)
+    .join('\n\n---\n\n');
+
+  const prompt = `당신은 취업 전문 컨설턴트입니다. 아래 포트폴리오의 모든 섹션 내용을 지원 기업/직무에 최적화되도록 재작성하세요.
+사실을 유지하되, 해당 기업이 원하는 역량·가치관·스킬을 강조하는 방향으로 표현을 조정하세요.
+내용이 없거나 짧은 섹션은 그대로 두세요.
+
+## 지원 기업 정보:
+- 기업: ${jobAnalysis.company || ''}
+- 직무: ${jobAnalysis.position || ''}
+- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
+- 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
+- 주요 업무: ${(jobAnalysis.tasks || []).join(', ')}
+- 필수 요건: ${(jobAnalysis.requirements?.essential || []).join(', ')}
+
+## 포트폴리오 섹션들:
+${sectionsText}
+
+## 재작성 규칙:
+1. 각 섹션을 기업 맞춤으로 재작성 (내용이 없으면 originalContent 그대로)
+2. 변경된 부분의 핵심 이유 1줄로 설명
+3. 수치/성과는 최대한 유지하되 기업 관점에서 강조
+
+반드시 아래 JSON으로만 응답:
+{
+  "sections": [
+    {
+      "index": 0,
+      "tailoredContent": "재작성된 섹션 내용",
+      "changeReason": "변경 이유 한 줄",
+      "changed": true
+    }
+  ],
+  "overallNote": "전체 포트폴리오 맞춤화 방향 설명"
+}`;
+
+  const raw = await generateWithRetry(prompt);
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('포트폴리오 섹션 맞춤화 실패');
+  return JSON.parse(jsonMatch[0]);
+}
+

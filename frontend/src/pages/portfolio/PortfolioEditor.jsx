@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Save, Download, Plus, Trash2, GripVertical,
-  Loader2, FolderOpen, ChevronDown, Upload
+  Loader2, FolderOpen, ChevronDown, Upload, X, Tag, CheckCircle2, XCircle,
+  Sparkles, RotateCcw
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -10,10 +11,12 @@ import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
 import ChecklistModal from '../../components/ChecklistModal';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const SECTION_TYPES = [
   { type: 'intro', label: '자기소개' },
+  { type: 'project', label: '프로젝트 블록' },
   { type: 'experience', label: '프로젝트/경험' },
   { type: 'skills', label: '기술/역량' },
   { type: 'education', label: '학력' },
@@ -35,6 +38,15 @@ export default function PortfolioEditor() {
   const [exportResult2, setExportResult2] = useState(null);
   const [showExpPicker, setShowExpPicker] = useState(null);
   const [showImport, setShowImport] = useState(false);
+  const [skillInputs, setSkillInputs] = useState({});   // { [sectionIdx]: string }
+  const [techInputs, setTechInputs] = useState({});     // { [sectionIdx]: string }
+  const [sectionMatches, setSectionMatches] = useState({}); // { [sectionIdx]: { matched, reason } }
+  const [matching, setMatching] = useState(false);
+  // 기업 맞춤형 자동 수정
+  const [tailoring, setTailoring] = useState(false);
+  const [tailoredSections, setTailoredSections] = useState(null); // AI 재작성 결과
+  const [tailorNote, setTailorNote] = useState('');
+  const [confirmingTailor, setConfirmingTailor] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -102,9 +114,45 @@ export default function PortfolioEditor() {
 
   const formatExperienceContent = (exp) => {
     if (!exp.content) return '';
+    const labels = { situation: '상황', task: '과제', action: '행동', result: '결과' };
     return Object.entries(exp.content)
-      .map(([key, val]) => `[${key}]\n${val}`)
+      .filter(([, val]) => val)
+      .map(([key, val]) => `[${labels[key] || key}]\n${val}`)
       .join('\n\n');
+  };
+
+  // ── 스킬 태그 헬퍼 ──
+  const parseSkills = (content) => {
+    if (!content) return [];
+    return content.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  };
+  const addSkillToSection = (idx, val) => {
+    const trimmed = val.trim().replace(/,$/, '');
+    if (!trimmed) return;
+    const existing = parseSkills(portfolio.sections[idx]?.content);
+    if (existing.includes(trimmed)) return;
+    handleSectionChange(idx, 'content', [...existing, trimmed].join(', '));
+    setSkillInputs(prev => ({ ...prev, [idx]: '' }));
+  };
+  const removeSkillFromSection = (idx, skillIdx) => {
+    const existing = parseSkills(portfolio.sections[idx]?.content);
+    existing.splice(skillIdx, 1);
+    handleSectionChange(idx, 'content', existing.join(', '));
+  };
+
+  // ── 프로젝트 기술 스택 헬퍼 ──
+  const addProjectTech = (idx, val) => {
+    const trimmed = val.trim().replace(/,$/, '');
+    if (!trimmed) return;
+    const existing = portfolio.sections[idx]?.projectTechStack || [];
+    if (existing.includes(trimmed)) return;
+    handleSectionChange(idx, 'projectTechStack', [...existing, trimmed]);
+    setTechInputs(prev => ({ ...prev, [idx]: '' }));
+  };
+  const removeProjectTech = (idx, techIdx) => {
+    const existing = [...(portfolio.sections[idx]?.projectTechStack || [])];
+    existing.splice(techIdx, 1);
+    handleSectionChange(idx, 'projectTechStack', existing);
   };
 
   const handleSave = async () => {
@@ -114,10 +162,96 @@ export default function PortfolioEditor() {
       await updatePortfolio(id, data);
       setCurrentPortfolio(portfolio);
       toast.success('저장되었습니다');
+
+      // 기업/직무가 설정된 경우 섹션 요건 매칭
+      const sections = portfolio.sections || [];
+      if (portfolio.targetCompany && portfolio.targetPosition && sections.length > 0) {
+        setMatching(true);
+        try {
+          const res = await api.post('/portfolio/match-sections', {
+            sections,
+            targetCompany: portfolio.targetCompany,
+            targetPosition: portfolio.targetPosition,
+          }, { timeout: 30000 });
+          if (res.data.results) {
+            const map = {};
+            res.data.results.forEach(r => { map[r.index] = r; });
+            setSectionMatches(map);
+            const matched = res.data.results.filter(r => r.matched).length;
+            toast.success(`${matched}/${sections.length}개 섹션이 ${portfolio.targetCompany} 요건에 부합합니다`);
+          }
+        } catch {
+          // 매칭 실패는 저장 성공에 영향 없음
+        }
+        setMatching(false);
+      }
     } catch (error) {
       toast.error('저장에 실패했습니다');
     }
     setSaving(false);
+  };
+
+  // 기업 맞춤형으로 포트폴리오 전체 재작성
+  const handleTailorWithJob = async () => {
+    if (!portfolio.targetCompany && !portfolio.targetPosition) {
+      toast.error('지원 기업/직무를 먼저 설정해주세요');
+      return;
+    }
+    const sections = (portfolio.sections || []).filter(s => s.content?.trim());
+    if (sections.length === 0) {
+      toast.error('내용이 있는 섹션이 없습니다');
+      return;
+    }
+    setTailoring(true);
+    setTailoredSections(null);
+    try {
+      const jobAnalysis = {
+        company: portfolio.targetCompany || '',
+        position: portfolio.targetPosition || '',
+        skills: [],
+        coreValues: [],
+        tasks: [],
+        requirements: { essential: [] },
+      };
+      const res = await api.post('/job/tailor-portfolio', {
+        jobAnalysis,
+        sections: portfolio.sections || [],
+      }, { timeout: 120000 });
+      if (res.data.sections) {
+        setTailoredSections(res.data.sections);
+        setTailorNote(res.data.overallNote || '');
+        toast.success('기업 맞춤형 재작성이 완료되었습니다. 변경 내용을 확인하세요.');
+      }
+    } catch {
+      toast.error('기업 맞춤형 수정에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+    setTailoring(false);
+  };
+
+  // 기업 맞춤형 수정본 확정 저장
+  const handleConfirmTailor = async () => {
+    if (!tailoredSections) return;
+    setConfirmingTailor(true);
+    const newSections = (portfolio.sections || []).map((section, idx) => {
+      const tailored = tailoredSections.find(t => t.index === idx);
+      if (tailored?.changed && tailored.tailoredContent) {
+        return { ...section, content: tailored.tailoredContent };
+      }
+      return section;
+    });
+    const updatedPortfolio = { ...portfolio, sections: newSections };
+    setPortfolio(updatedPortfolio);
+    try {
+      const { id: _id, ...data } = updatedPortfolio;
+      await updatePortfolio(id, data);
+      setCurrentPortfolio(updatedPortfolio);
+      setTailoredSections(null);
+      setTailorNote('');
+      toast.success('기업 맞춤형 포트폴리오가 저장되었습니다!');
+    } catch {
+      toast.error('저장에 실패했습니다');
+    }
+    setConfirmingTailor(false);
   };
 
   const handleExport = async () => {
@@ -245,7 +379,6 @@ export default function PortfolioEditor() {
             >
               <option value="PDF">PDF</option>
               <option value="Notion">Notion</option>
-              <option value="GitHub">GitHub (Markdown)</option>
             </select>
           </div>
         </div>
@@ -263,8 +396,21 @@ export default function PortfolioEditor() {
                 className="flex-1 text-lg font-bold outline-none"
                 placeholder="섹션 제목"
               />
+              {/* 기업 요건 매칭 배지 */}
+              {sectionMatches[idx] && (
+                sectionMatches[idx].matched
+                  ? <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                      <CheckCircle2 size={11}/> 요건 부합
+                    </span>
+                  : <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-medium" title={sectionMatches[idx].reason || ''}>
+                      <XCircle size={11}/> 요건 미달
+                    </span>
+              )}
+              {matching && !sectionMatches[idx] && (
+                <Loader2 size={14} className="animate-spin text-gray-300" />
+              )}
               {/* Link experience button */}
-              {section.type === 'experience' && (
+              {(section.type === 'experience' || section.type === 'project') && (
                 <div className="relative">
                   <button
                     onClick={() => setShowExpPicker(showExpPicker === idx ? null : idx)}
@@ -298,7 +444,89 @@ export default function PortfolioEditor() {
               </button>
             </div>
 
-            {/* Contribution field for experience sections */}
+            {/* === 프로젝트 블록 섹션 === */}
+            {section.type === 'project' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-400">기간</label>
+                    <input
+                      value={section.period || ''}
+                      onChange={e => handleSectionChange(idx, 'period', e.target.value)}
+                      placeholder="예: 2024.01 - 2024.03"
+                      className="w-full mt-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">역할</label>
+                    <input
+                      value={section.role || ''}
+                      onChange={e => handleSectionChange(idx, 'role', e.target.value)}
+                      placeholder="예: 팀장, 백엔드 개발"
+                      className="w-full mt-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none"
+                    />
+                  </div>
+                </div>
+                {/* 기술 스택 태그 */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">기술 스택</label>
+                  <div className="flex flex-wrap gap-1.5 p-3 border border-surface-200 rounded-xl min-h-[40px] mb-2">
+                    {(section.projectTechStack || []).map((tech, ti) => (
+                      <span key={ti} className="flex items-center gap-1 px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs border border-violet-200">
+                        {tech}
+                        <button onClick={() => removeProjectTech(idx, ti)} className="text-violet-400 hover:text-red-500 ml-0.5">
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                    {(section.projectTechStack || []).length === 0 && (
+                      <span className="text-xs text-gray-300">기술 스택 없음</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={techInputs[idx] || ''}
+                      onChange={e => setTechInputs(prev => ({ ...prev, [idx]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); addProjectTech(idx, techInputs[idx] || ''); }
+                      }}
+                      placeholder="기술 입력 후 Enter (예: React)"
+                      className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                    <button
+                      onClick={() => addProjectTech(idx, techInputs[idx] || '')}
+                      className="px-3 py-2 bg-violet-50 text-violet-600 rounded-lg text-sm hover:bg-violet-100"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+                {/* 프로젝트 설명 */}
+                <textarea
+                  value={section.content || ''}
+                  onChange={e => handleSectionChange(idx, 'content', e.target.value)}
+                  placeholder="프로젝트 설명을 입력하세요..."
+                  rows={4}
+                  className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-y"
+                />
+                {section.experienceId && (
+                  <div className="flex items-center gap-2 p-2 bg-primary-50 rounded-lg">
+                    <FolderOpen size={14} className="text-primary-500" />
+                    <span className="text-xs text-primary-700">
+                      연결된 경험: {experiences.find(e => e.id === section.experienceId)?.title || section.experienceId}
+                    </span>
+                    <button
+                      onClick={() => { handleSectionChange(idx, 'experienceId', null); handleSectionChange(idx, 'content', section.content); }}
+                      className="ml-auto text-gray-400 hover:text-red-400"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* === Contribution field for experience sections === */}
             {section.type === 'experience' && (
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
@@ -325,13 +553,52 @@ export default function PortfolioEditor() {
               </div>
             )}
 
-            <textarea
-              value={section.content || ''}
-              onChange={e => handleSectionChange(idx, 'content', e.target.value)}
-              placeholder="내용을 입력하세요..."
-              rows={6}
-              className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-y"
-            />
+            {/* === 기술/역량 섹션 - 태그 형태 === */}
+            {section.type === 'skills' && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-1.5 p-3 border border-surface-200 rounded-xl min-h-[48px]">
+                  {parseSkills(section.content).map((skill, si) => (
+                    <span key={si} className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm border border-primary-200">
+                      {skill}
+                      <button onClick={() => removeSkillFromSection(idx, si)} className="text-primary-400 hover:text-red-500 ml-0.5">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  {parseSkills(section.content).length === 0 && (
+                    <span className="text-xs text-gray-300">기술을 추가하세요</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={skillInputs[idx] || ''}
+                    onChange={e => setSkillInputs(prev => ({ ...prev, [idx]: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSkillToSection(idx, skillInputs[idx] || ''); }
+                    }}
+                    placeholder="기술 입력 후 Enter 또는 쉼표 (예: Figma, Photoshop)"
+                    className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                  <button
+                    onClick={() => addSkillToSection(idx, skillInputs[idx] || '')}
+                    className="px-3 py-2 bg-primary-50 text-primary-600 rounded-lg text-sm hover:bg-primary-100"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* === 일반 텍스트 섹션 (experience, intro, education, awards, custom) === */}
+            {section.type !== 'skills' && section.type !== 'project' && (
+              <textarea
+                value={section.content || ''}
+                onChange={e => handleSectionChange(idx, 'content', e.target.value)}
+                placeholder="내용을 입력하세요..."
+                rows={6}
+                className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-y"
+              />
+            )}
           </div>
         ))}
 
@@ -359,11 +626,21 @@ export default function PortfolioEditor() {
       <div className="flex items-center gap-3 sticky bottom-6">
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || matching}
           className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
         >
-          {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          {saving ? '저장 중...' : '저장하기'}
+          {saving ? <Loader2 size={18} className="animate-spin" /> : matching ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+          {saving ? '저장 중...' : matching ? '요건 분석 중...' : '저장하기'}
+        </button>
+        {/* 기업 맞춤형 자동 수정 버튼 */}
+        <button
+          onClick={handleTailorWithJob}
+          disabled={tailoring || !portfolio.targetCompany}
+          title={!portfolio.targetCompany ? '지원 기업을 먼저 입력하세요' : `${portfolio.targetCompany} 맞춤형으로 전체 수정`}
+          className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl font-medium hover:from-violet-600 hover:to-purple-700 disabled:opacity-50 transition-all"
+        >
+          {tailoring ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+          {tailoring ? 'AI 수정 중...' : '기업 맞춤 수정'}
         </button>
         <button
           onClick={handleExport}
@@ -383,6 +660,85 @@ export default function PortfolioEditor() {
           체크리스트
         </button>
       </div>
+
+      {/* 기업 맞춤형 AI 수정 결과 패널 */}
+      {tailoredSections && (
+        <div className="mt-6 bg-white rounded-2xl border-2 border-violet-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-violet-600" />
+              <h3 className="text-sm font-bold text-violet-800">
+                {portfolio.targetCompany} 맞춤형 수정 결과
+              </h3>
+              <span className="text-xs px-2 py-0.5 bg-violet-100 text-violet-600 rounded-full">
+                {tailoredSections.filter(t => t.changed).length}개 섹션 수정됨
+              </span>
+            </div>
+            <button
+              onClick={() => { setTailoredSections(null); setTailorNote(''); }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {tailorNote && (
+            <div className="bg-violet-50 rounded-xl p-4 mb-4">
+              <p className="text-xs font-bold text-violet-700 mb-1">📌 AI 맞춤화 방향</p>
+              <p className="text-sm text-violet-800">{tailorNote}</p>
+            </div>
+          )}
+
+          <div className="space-y-4 mb-6">
+            {tailoredSections.map((t) => {
+              const origSection = (portfolio.sections || [])[t.index];
+              if (!origSection) return null;
+              return (
+                <div key={t.index} className="border border-surface-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-50 border-b border-surface-200">
+                    <span className="text-xs font-bold text-gray-700">{origSection.title || `섹션 ${t.index + 1}`}</span>
+                    {t.changed ? (
+                      <span className="text-xs px-2 py-0.5 bg-violet-100 text-violet-600 rounded-full">수정됨</span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">변경 없음</span>
+                    )}
+                    {t.changeReason && <span className="text-xs text-gray-400 ml-auto">{t.changeReason}</span>}
+                  </div>
+                  {t.changed && (
+                    <div className="grid grid-cols-2 divide-x divide-surface-200">
+                      <div className="p-4">
+                        <p className="text-xs font-bold text-gray-400 mb-2">원본</p>
+                        <p className="text-sm text-gray-500 whitespace-pre-wrap leading-relaxed">{origSection.content || '(내용 없음)'}</p>
+                      </div>
+                      <div className="p-4 bg-violet-50/50">
+                        <p className="text-xs font-bold text-violet-600 mb-2">AI 수정본</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{t.tailoredContent}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleConfirmTailor}
+              disabled={confirmingTailor}
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              {confirmingTailor ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {confirmingTailor ? '저장 중...' : '확정 저장하기'}
+            </button>
+            <button
+              onClick={() => { setTailoredSections(null); setTailorNote(''); }}
+              className="flex items-center gap-2 px-5 py-3 border border-surface-200 text-gray-600 rounded-xl font-medium hover:bg-surface-50 transition-colors"
+            >
+              <RotateCcw size={16} /> 취소
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Export Result */}
       {exportResult2 && (

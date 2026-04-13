@@ -1256,7 +1256,10 @@ const FIELD_ACCENTS = [
 
 function ExperienceDetailModal({ exp, onClose }) {
   const fw = exp.framework && FRAMEWORKS[exp.framework];
-  const hasFramework = fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
+  // sections가 있으면 이미 풍부한 내용이 있으므로 frameworkContent 중복 표시 안 함
+  const hasSections = (exp.sections || []).some(s => s.title && s.content);
+  const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
+  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(k => k.title);
   const st = STATUS_DISPLAY[exp.status] || STATUS_DISPLAY.finished;
   const [showAllProps, setShowAllProps] = useState(false);
 
@@ -1326,6 +1329,30 @@ function ExperienceDetailModal({ exp, onClose }) {
             </div>
           )}
 
+          {/* 핵심 경험 (keyExperiences from AI analysis) */}
+          {keyExperiences.length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
+                <span className="text-yellow-500">🔥</span> 핵심 성과
+              </h2>
+              <div className="space-y-3">
+                {keyExperiences.map((ke, i) => (
+                  <div key={i} className="border border-surface-200 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold text-gray-800">{ke.title}</p>
+                      {ke.metric && (
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shrink-0">{ke.metric}</span>
+                      )}
+                    </div>
+                    {ke.situation && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">상황:</span> {ke.situation}</p>}
+                    {ke.action && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">행동:</span> {ke.action}</p>}
+                    {ke.result && <p className="text-xs text-gray-600"><span className="font-medium">결과:</span> {ke.result}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 소개 (description) */}
           {exp.description && (
             <div>
@@ -1336,7 +1363,7 @@ function ExperienceDetailModal({ exp, onClose }) {
             </div>
           )}
 
-          {/* 사용자 정의 섹션들 (소개, 참여 동기, 활동 내용, 느낀 점 등) */}
+          {/* 경험 구조화 섹션 (sections 우선 표시) */}
           {(exp.sections || []).map((sec, i) => (
             sec.title && sec.content ? (
               <div key={i}>
@@ -1348,7 +1375,7 @@ function ExperienceDetailModal({ exp, onClose }) {
             ) : null
           ))}
 
-          {/* 프레임워크 기반 상세 (경험 DB 불러오기 시) */}
+          {/* 프레임워크 기반 상세 (sections 없을 때만 표시) */}
           {hasFramework && (
             <div>
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
@@ -1370,7 +1397,7 @@ function ExperienceDetailModal({ exp, onClose }) {
           )}
 
           {/* 아무 내용도 없을 때 */}
-          {!exp.description && !(exp.sections || []).some(s => s.title && s.content) && !hasFramework && !exp.aiSummary && (
+          {!exp.description && !hasSections && !hasFramework && !exp.aiSummary && keyExperiences.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
           )}
         </div>

@@ -7,6 +7,7 @@ import {
   generateTailoredCoverLetter,
   generateTailoredPortfolio,
   tailorExperienceContent,
+  tailorPortfolioSections,
   generateWithRetry,
 } from '../services/jobAnalysisService.js';
 
@@ -142,6 +143,21 @@ router.post('/tailor-experience', async (req, res) => {
     res.json({ tailored });
   } catch (err) {
     console.error('[Job] 경험 맞춤화 실패:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 ──────
+router.post('/tailor-portfolio', async (req, res) => {
+  try {
+    const { jobAnalysis, sections } = req.body;
+    if (!jobAnalysis || !sections || sections.length === 0) {
+      return res.status(400).json({ error: '기업 분석 결과와 섹션 데이터가 필요합니다' });
+    }
+    const result = await tailorPortfolioSections(jobAnalysis, sections);
+    res.json(result);
+  } catch (err) {
+    console.error('[Job] 포트폴리오 맞춤화 실패:', err);
     res.status(500).json({ error: err.message });
   }
 });

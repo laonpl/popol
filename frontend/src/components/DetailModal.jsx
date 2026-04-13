@@ -1,4 +1,7 @@
-import { X } from 'lucide-react';
+import { X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 const STAR_LABELS = {
   situation: '🎯 상황 (Situation)',
@@ -7,7 +10,38 @@ const STAR_LABELS = {
   result: '📊 결과 (Result)',
 };
 
+// [key]\nvalue 형식의 텍스트를 파싱 (영문/한글 레이블 모두 지원)
+function parseStarText(content) {
+  if (!content) return null;
+  const parts = content.split('\n\n');
+  const result = {};
+  for (const part of parts) {
+    const match = part.match(/^\[([^\]]+)\]\n?([\s\S]*)/);
+    if (match) result[match[1]] = match[2].trim();
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 export default function DetailModal({ type, data, onClose }) {
+  const [experienceMap, setExperienceMap] = useState({});
+  const [expandedSections, setExpandedSections] = useState({});
+
+  useEffect(() => {
+    if (type === 'portfolio' && data) {
+      const sections = data.sections || [];
+      const ids = [...new Set(sections.filter(s => s.experienceId).map(s => s.experienceId))];
+      if (ids.length > 0) {
+        Promise.all(ids.map(id => getDoc(doc(db, 'experiences', id))))
+          .then(docs => {
+            const map = {};
+            docs.forEach(d => { if (d.exists()) map[d.id] = { id: d.id, ...d.data() }; });
+            setExperienceMap(map);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [type, data]);
+
   if (!data) return null;
 
   return (
@@ -59,17 +93,100 @@ export default function DetailModal({ type, data, onClose }) {
               {data.targetCompany && (
                 <p className="text-sm text-gray-500">{data.targetCompany} · {data.targetPosition}</p>
               )}
-              {(data.sections || []).map((section, idx) => (
-                <div key={idx} className="rounded-xl border border-surface-200 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="px-2 py-0.5 bg-surface-100 text-gray-500 rounded text-xs">{section.type}</span>
-                    <p className="text-sm font-bold text-gray-700">{section.title}</p>
-                    {section.role && <span className="text-xs text-gray-400">({section.role})</span>}
-                    {section.contribution && <span className="text-xs text-primary-600">기여도 {section.contribution}%</span>}
+              {(data.sections || []).map((section, idx) => {
+                const linkedExp = section.experienceId ? experienceMap[section.experienceId] : null;
+                const isProject = section.type === 'project';
+                const isExpanded = expandedSections[idx];
+                const parsedStar = parseStarText(section.content);
+
+                return (
+                  <div key={idx} className="rounded-xl border border-surface-200 p-4">
+                    <div
+                      className={`flex items-center gap-2 mb-2 ${(linkedExp || isProject) ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (linkedExp || isProject) {
+                          setExpandedSections(prev => ({ ...prev, [idx]: !prev[idx] }));
+                        }
+                      }}
+                    >
+                      <span className="px-2 py-0.5 bg-surface-100 text-gray-500 rounded text-xs">{section.type}</span>
+                      <p className="text-sm font-bold text-gray-700 flex-1">{section.title}</p>
+                      {section.role && <span className="text-xs text-gray-400">({section.role})</span>}
+                      {section.contribution && <span className="text-xs text-primary-600">기여도 {section.contribution}%</span>}
+                      {section.period && <span className="text-xs text-gray-400">{section.period}</span>}
+                      {linkedExp && (
+                        isExpanded
+                          ? <ChevronUp size={14} className="text-gray-400" />
+                          : <ChevronDown size={14} className="text-gray-400" />
+                      )}
+                    </div>
+
+                    {/* 기술 스택 (project 타입) */}
+                    {isProject && (section.projectTechStack || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {section.projectTechStack.map((t, ti) => (
+                          <span key={ti} className="px-2 py-0.5 bg-violet-50 text-violet-600 rounded text-xs">{t}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 섹션 내용 - STAR 형식이면 구조화해서 표시 */}
+                    {!isExpanded && (
+                      parsedStar ? (
+                        <div className="space-y-2">
+                          {Object.entries(parsedStar).map(([key, val]) => (
+                            <div key={key} className="bg-surface-50 rounded-lg p-3">
+                              <p className="text-xs font-bold text-violet-700 mb-1">{STAR_LABELS[key] || key}</p>
+                              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{val}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                          {section.content || (linkedExp ? '아래 화살표를 눌러 연결된 경험을 확인하세요.' : '(내용 없음)')}
+                        </p>
+                      )
+                    )}
+
+                    {/* 연결된 경험 펼치기 - 실제 Firestore 데이터 */}
+                    {isExpanded && linkedExp && (
+                      <div className="mt-2 space-y-2 border-t border-surface-100 pt-3">
+                        <p className="text-xs font-bold text-primary-600 mb-2">📎 연결된 경험: {linkedExp.title}</p>
+                        {linkedExp.content && Object.entries(linkedExp.content).map(([key, val]) => (
+                          <div key={key} className="bg-surface-50 rounded-lg p-3">
+                            <p className="text-xs font-bold text-violet-700 mb-1">{STAR_LABELS[key] || key}</p>
+                            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{val || '(내용 없음)'}</p>
+                          </div>
+                        ))}
+                        {linkedExp.aiAnalysis?.projectOverview && (
+                          <div className="bg-primary-50 rounded-lg p-3 mt-2">
+                            <p className="text-xs font-bold text-primary-700 mb-1">📌 프로젝트 개요</p>
+                            <p className="text-sm text-gray-600">{linkedExp.aiAnalysis.projectOverview.summary}</p>
+                            {linkedExp.aiAnalysis.projectOverview.techStack?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {linkedExp.aiAnalysis.projectOverview.techStack.map((t, ti) => (
+                                  <span key={ti} className="px-2 py-0.5 bg-white text-primary-600 rounded text-xs border border-primary-200">{t}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {linkedExp.aiAnalysis?.keyExperiences?.length > 0 && (
+                          <div className="space-y-1 mt-1">
+                            <p className="text-xs font-bold text-gray-500">핵심 경험</p>
+                            {linkedExp.aiAnalysis.keyExperiences.slice(0, 3).map((ke, ki) => (
+                              <div key={ki} className="bg-white border border-surface-200 rounded-lg p-2">
+                                <p className="text-xs font-semibold text-gray-700">{ke.title}</p>
+                                {ke.metric && <span className="text-xs text-green-600 font-bold">{ke.metric}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{section.content || '(내용 없음)'}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
