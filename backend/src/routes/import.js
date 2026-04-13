@@ -91,7 +91,17 @@ router.post('/github', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/import/upload - 파일 업로드 임포트 (서버 사이드 파싱 + AI 분석)
-router.post('/upload', authMiddleware, upload.single('file'), async (req, res, next) => {
+router.post('/upload', authMiddleware, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: '파일 크기가 25MB를 초과합니다' });
+      }
+      return res.status(400).json({ error: err.message || '파일 업로드 실패' });
+    }
+    next();
+  });
+}, async (req, res, next) => {
   try {
     const file = req.file;
     if (!file) {

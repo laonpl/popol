@@ -35,7 +35,14 @@ async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
       } catch (err) {
         lastError = err;
         const status = extractStatus(err);
-        console.warn(`[Gemini] ${modelName} 실패 (시도 ${attempt + 1}, status=${status}): ${err.message?.slice(0, 120)}`);
+        const msg = err?.message || '';
+        console.warn(`[Gemini] ${modelName} 실패 (시도 ${attempt + 1}, status=${status}): ${msg.slice(0, 120)}`);
+
+        // API Key 에러 → 즉시 중단 (어떤 모델이든 동일)
+        if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
+          console.error(`[Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요`);
+          throw err;
+        }
 
         if (status === 429) {
           // Rate limit → 다음 모델로 즉시 전환

@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Gemini 모델 폴백 + 재시도
-const MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+const MODEL_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
 async function geminiGenerate(parts, retries = 3, delayMs = 3000) {
   let lastError;
@@ -15,7 +15,13 @@ async function geminiGenerate(parts, retries = 3, delayMs = 3000) {
         return result.response.text();
       } catch (err) {
         lastError = err;
-        const status = err?.status ?? err?.response?.status;
+        const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
+        const msg = err?.message || '';
+        // API Key 에러 → 즉시 중단
+        if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
+          console.error(`[Import Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요`);
+          throw err;
+        }
         if ([429, 503, 500].includes(status)) {
           if (attempt < retries - 1) {
             const wait = delayMs * Math.pow(2, attempt);
@@ -322,15 +328,17 @@ export async function importFromFile(buffer, mimeType, fileName) {
   let extractedText = '';
 
   if (mimeType === 'application/pdf') {
-    // 1단계: pdf-parse v2로 텍스트 추출 ({ data: buffer } 생성자 전달, getText()로 추출)
+    // 1단계: pdf-parse v2로 텍스트 추출
+    let parser;
     try {
       const { PDFParse } = await import('pdf-parse');
-      const parser = new PDFParse({ data: buffer });
+      parser = new PDFParse({ data: buffer });
       const result = await parser.getText();
-      await parser.destroy();
       extractedText = result?.text || '';
     } catch (e) {
-      console.warn('pdf-parse 실패, Gemini Vision으로 전환:', e.message);
+      console.warn('pdf-parse 실패:', e.message);
+    } finally {
+      try { if (parser) await parser.destroy(); } catch { /* ignore */ }
     }
     // 2단계: 텍스트가 부족하면 스캔본일 가능성 → Gemini Vision OCR
     if (extractedText.trim().length < 50) {
@@ -339,8 +347,9 @@ export async function importFromFile(buffer, mimeType, fileName) {
         extractedText = await extractWithGeminiVision(buffer, mimeType);
       } catch (e) {
         console.error('Gemini Vision OCR 실패:', e.message);
+        // pdf-parse에서 추출한 부분 텍스트라도 있으면 사용
         if (!extractedText.trim()) {
-          throw new Error('PDF에서 텍스트를 추출할 수 없습니다.');
+          throw new Error('PDF에서 텍스트를 추출할 수 없습니다. Gemini API 키를 확인해주세요.');
         }
       }
     }
