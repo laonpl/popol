@@ -13,10 +13,19 @@ import uploadRoutes from './routes/upload.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// 프로세스 크래시 방지
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Unhandled Rejection:', reason);
+});
+
 // Middleware
 app.use(helmet());
 app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'], credentials: true }));
 app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Routes
 app.use('/api/experience', experienceRoutes);

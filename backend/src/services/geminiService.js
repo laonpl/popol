@@ -17,14 +17,18 @@ async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
         return result.response.text();
       } catch (err) {
         lastError = err;
-        const status = err?.status ?? err?.response?.status;
-        const retryableStatuses = [503, 500];
-        const fallbackStatuses = [404, 400];
+        const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
+        const msg = err?.message || '';
+        // API Key 에러 → 즉시 중단 (어떤 모델이든 동일)
+        if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
+          console.error(`[Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요`);
+          throw err;
+        }
         if (status === 429) {
           // Rate limit / quota 소진 → 다음 모델로 즉시 전환
           console.warn(`[Gemini] ${modelName} 429 - 다음 모델로 폴백`);
           break;
-        } else if (retryableStatuses.includes(status)) {
+        } else if ([503, 500].includes(status)) {
           if (attempt < retries - 1) {
             const wait = delayMs * Math.pow(2, attempt);
             console.warn(`[Gemini] ${modelName} ${status} - ${attempt + 1}번째 재시도 (${wait}ms 대기)`);
@@ -33,7 +37,7 @@ async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
             console.warn(`[Gemini] ${modelName} 재시도 소진 - 다음 모델로 전환`);
             break; // 다음 모델로
           }
-        } else if (fallbackStatuses.includes(status)) {
+        } else if ([404, 400].includes(status)) {
           console.warn(`[Gemini] ${modelName} ${status} - 다음 모델로 전환`);
           break; // 다음 모델로
         } else {

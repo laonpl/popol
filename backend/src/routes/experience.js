@@ -36,6 +36,10 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
       if (aiError.message?.includes('비어있습니다')) {
         return res.status(400).json({ error: aiError.message });
       }
+      // API 키 에러 구분
+      if (aiError.message?.includes('API key') || aiError.message?.includes('API Key')) {
+        return res.status(502).json({ error: 'Gemini API 키가 유효하지 않습니다. 서버 .env 파일의 GEMINI_API_KEY를 확인해주세요.', detail: aiError.message });
+      }
       return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: aiError.message });
     }
 
