@@ -80,7 +80,7 @@ export default function Layout() {
 
       {/* 메인 콘텐츠 */}
       <main className="flex-1 overflow-auto">
-        <div className="max-w-[1240px] mx-auto p-8">
+        <div className="w-full p-8">
           <Outlet />
         </div>
       </main>

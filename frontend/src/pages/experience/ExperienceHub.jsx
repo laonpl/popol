@@ -61,7 +61,7 @@ export default function ExperienceHub() {
   const paged = experiences.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
-    <div className="animate-fadeIn">
+    <div className="animate-fadeIn max-w-[1240px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">경험 정리</h1>

@@ -49,7 +49,7 @@ export default function PortfolioHub() {
   };
 
   return (
-    <div className="animate-fadeIn">
+    <div className="animate-fadeIn max-w-[1240px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">포트폴리오</h1>

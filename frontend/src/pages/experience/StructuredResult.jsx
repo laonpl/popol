@@ -1,12 +1,14 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, TrendingUp, Target, Users, Clock, Zap } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, TrendingUp, Target, Users, Clock, Zap, Globe, Building2, X } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import { CHART_TYPES } from '../../components/KeyExperienceSlider';
+import { JobAnalysisBadge } from '../../components/JobLinkInput';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -93,6 +95,13 @@ export default function StructuredResult() {
   const [imageConfig, setImageConfig] = useState({});
   const imageInputRef = useRef(null);
 
+  // 기업 분석 관련 state
+  const [jobAnalysis, setJobAnalysis] = useState(null);
+  const [jobUrl, setJobUrl] = useState('');
+  const [analyzingJob, setAnalyzingJob] = useState(false);
+  const [jobError, setJobError] = useState(null);
+  const [showJobInput, setShowJobInput] = useState(false);
+
   useEffect(() => {
     if (navState?.analysis) {
       const structured = navState.analysis;
@@ -123,7 +132,7 @@ export default function StructuredResult() {
         if (!fields[k]?.trim()) autoEdit[k] = true;
       });
       setEditingSections(autoEdit);
-      // Load images from Firestore (navState doesn't include images)
+      // Load images & jobAnalysis from Firestore (navState doesn't include them)
       (async () => {
         try {
           const docSnap = await getDoc(doc(db, 'experiences', id));
@@ -133,6 +142,7 @@ export default function StructuredResult() {
             setAllImages(imgs);
             setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
             setImageConfig(data.imageConfig || {});
+            setJobAnalysis(data.jobAnalysis || null);
           }
         } catch (err) {
           console.error('이미지 로딩 실패:', err);
@@ -149,6 +159,7 @@ export default function StructuredResult() {
       if (docSnap.exists()) {
         const data = { id: docSnap.id, ...docSnap.data() };
         setExperience(data);
+        setJobAnalysis(data.jobAnalysis || null);
         const imgs = data.images || [];
         setAllImages(imgs);
         setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
@@ -295,6 +306,32 @@ export default function StructuredResult() {
     e.target.value = '';
   };
 
+  // 기업 분석 핸들러
+  const handleJobAnalyze = async () => {
+    if (!jobUrl.trim()) return;
+    setAnalyzingJob(true);
+    setJobError(null);
+    try {
+      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const analysis = respData.analysis;
+      setJobAnalysis(analysis);
+      setShowJobInput(false);
+      setJobUrl('');
+      await updateDoc(doc(db, 'experiences', id), { jobAnalysis: analysis, updatedAt: new Date() });
+      toast.success('기업 분석이 완료되었습니다');
+    } catch (err) {
+      setJobError(err.response?.data?.error || '분석에 실패했습니다');
+    }
+    setAnalyzingJob(false);
+  };
+
+  const handleRemoveJobAnalysis = async () => {
+    setJobAnalysis(null);
+    try {
+      await updateDoc(doc(db, 'experiences', id), { jobAnalysis: null, updatedAt: new Date() });
+    } catch {}
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -350,7 +387,7 @@ export default function StructuredResult() {
   const completionPct = Math.round((filledCount / 7) * 100);
 
   return (
-    <div className="animate-fadeIn max-w-[1200px] mx-auto pb-12">
+    <div className="animate-fadeIn max-w-[1560px] mx-auto pb-12">
       {/* 상단 네비 + 저장 */}
       <div className="flex items-center justify-between mb-5">
         <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 transition-colors">
@@ -365,6 +402,11 @@ export default function StructuredResult() {
           {saving ? '저장 중...' : '저장하기'}
         </button>
       </div>
+
+      {/* ── 메인 + 우측 기업분석 사이드바 ── */}
+      <div className="flex gap-5 items-start">
+        {/* 메인 콘텐츠 */}
+        <div className="flex-1 min-w-0">
 
       {/* ╔══════════════════════════════════════════════╗
          ║  상단 대시보드: 좌 Overview + 우 핵심경험    ║
@@ -802,6 +844,129 @@ export default function StructuredResult() {
           })}
         </div>
       </div>
+
+        </div>{/* end 메인 콘텐츠 */}
+
+        {/* ── 우측: 기업 분석 사이드바 ── */}
+        <div className="w-[300px] flex-shrink-0 hidden xl:block">
+          <div className="sticky top-5 space-y-3">
+            {jobAnalysis ? (
+              <JobAnalysisBadge
+                analysis={jobAnalysis}
+                onRemove={handleRemoveJobAnalysis}
+              />
+            ) : (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <Building2 size={18} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-900">기업 분석</p>
+                      <p className="text-[11px] text-blue-400">채용공고 URL을 입력하세요</p>
+                    </div>
+                  </div>
+
+                  {showJobInput ? (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Globe size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="url"
+                          value={jobUrl}
+                          onChange={e => setJobUrl(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
+                          placeholder="https:// 채용공고 링크"
+                          className="w-full pl-8 pr-3 py-2.5 text-xs border border-blue-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        />
+                      </div>
+                      {jobError && (
+                        <p className="text-[11px] text-red-500 flex items-center gap-1">
+                          <X size={11} /> {jobError}
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleJobAnalyze}
+                          disabled={analyzingJob || !jobUrl.trim()}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {analyzingJob ? (
+                            <><Loader2 size={12} className="animate-spin" /> 분석 중...</>
+                          ) : (
+                            <><Sparkles size={12} /> 분석하기</>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+                          className="px-3 py-2 text-gray-400 hover:text-gray-600 text-xs transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowJobInput(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      <Sparkles size={13} /> 채용공고 분석하기
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 분석 후 URL 변경 버튼 */}
+            {jobAnalysis && !showJobInput && (
+              <button
+                onClick={() => setShowJobInput(true)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] text-blue-500 hover:text-blue-700 border border-blue-200 rounded-xl bg-white hover:bg-blue-50 transition-colors"
+              >
+                <Globe size={11} /> 다른 공고로 변경
+              </button>
+            )}
+            {jobAnalysis && showJobInput && (
+              <div className="bg-white border border-blue-200 rounded-2xl p-4 space-y-2">
+                <p className="text-[11px] font-semibold text-blue-700">새 채용공고로 변경</p>
+                <div className="relative">
+                  <Globe size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="url"
+                    value={jobUrl}
+                    onChange={e => setJobUrl(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
+                    placeholder="https:// 채용공고 링크"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+                {jobError && (
+                  <p className="text-[11px] text-red-500 flex items-center gap-1">
+                    <X size={11} /> {jobError}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleJobAnalyze}
+                    disabled={analyzingJob || !jobUrl.trim()}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {analyzingJob ? <><Loader2 size={11} className="animate-spin" /> 분석 중...</> : <><Sparkles size={11} /> 분석</>}
+                  </button>
+                  <button
+                    onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+                    className="px-2.5 py-1.5 text-gray-400 hover:text-gray-600 text-xs border border-gray-200 rounded-lg transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>{/* end 기업분석 사이드바 */}
+
+      </div>{/* end flex gap-5 */}
     </div>
   );
 }
