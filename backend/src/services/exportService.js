@@ -200,6 +200,7 @@ function buildPortfolioMarkdown(data) {
   }
 
   const skills = data.skills || {};
+  const getSkillName = (s) => typeof s === 'string' ? s : (s?.name || '');
   const allSkills = [
     ...(skills.languages || []),
     ...(skills.frameworks || []),
@@ -208,10 +209,10 @@ function buildPortfolioMarkdown(data) {
   ];
   if (allSkills.length > 0) {
     md += `## 🛠 기술 스택\n\n`;
-    if ((skills.languages || []).length > 0) md += `**언어**: ${skills.languages.join(', ')}\n`;
-    if ((skills.frameworks || []).length > 0) md += `**프레임워크**: ${skills.frameworks.join(', ')}\n`;
-    if ((skills.tools || []).length > 0) md += `**도구**: ${skills.tools.join(', ')}\n`;
-    if ((skills.others || []).length > 0) md += `**기타**: ${skills.others.join(', ')}\n`;
+    if ((skills.languages || []).length > 0) md += `**언어**: ${skills.languages.map(getSkillName).join(', ')}\n`;
+    if ((skills.frameworks || []).length > 0) md += `**프레임워크**: ${skills.frameworks.map(getSkillName).join(', ')}\n`;
+    if ((skills.tools || []).length > 0) md += `**도구**: ${skills.tools.map(getSkillName).join(', ')}\n`;
+    if ((skills.others || []).length > 0) md += `**기타**: ${skills.others.map(getSkillName).join(', ')}\n`;
     md += '\n---\n\n';
   }
 
@@ -483,9 +484,10 @@ function generateNotionPortfolioMarkdown(p) {
   // ── 기술
   md += `## 🛠 기술 | Skills\n\n`;
   const categoryNames = { tools: '도구', languages: '프로그래밍 언어', frameworks: '프레임워크', others: '기타' };
+  const getSkillStr = (s) => typeof s === 'string' ? s : (s?.name || '');
   for (const [cat, items] of Object.entries(skills)) {
     if (items && items.length > 0) {
-      md += `**${categoryNames[cat] || cat}**: ${items.map(s => '`' + s + '`').join(' ')}\n\n`;
+      md += `**${categoryNames[cat] || cat}**: ${items.map(s => '`' + getSkillStr(s) + '`').join(' ')}\n\n`;
     }
   }
   md += `---\n\n`;

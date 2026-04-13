@@ -19,12 +19,18 @@ router.post('/notion-page', authMiddleware, async (req, res, next) => {
     const result = await createNotionPortfolioPage(notionToken, parsedId, data);
     res.json({ success: true, pageId: result.pageId, url: result.url });
   } catch (error) {
-    console.error('Notion page creation error:', error.message);
+    console.error('Notion page creation error:', error.message, error.body || '');
     if (error.code === 'unauthorized' || error.status === 401) {
       return res.status(401).json({ success: false, message: 'Notion 토큰이 유효하지 않습니다. 토큰을 확인해주세요.' });
     }
     if (error.code === 'object_not_found' || error.status === 404) {
       return res.status(404).json({ success: false, message: '부모 페이지를 찾을 수 없습니다. 페이지가 Integration에 공유되었는지 확인해주세요.' });
+    }
+    if (error.code === 'validation_error' || error.status === 400) {
+      return res.status(400).json({ success: false, message: `Notion API 유효성 오류: ${error.message || '블록 데이터 형식이 올바르지 않습니다'}` });
+    }
+    if (error.code === 'rate_limited' || error.status === 429) {
+      return res.status(429).json({ success: false, message: 'Notion API 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' });
     }
     next(error);
   }

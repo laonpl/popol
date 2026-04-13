@@ -847,8 +847,8 @@ export default function StructuredResult() {
 
         </div>{/* end 메인 콘텐츠 */}
 
-        {/* ── 우측: 기업 분석 사이드바 ── */}
-        <div className="w-[300px] flex-shrink-0 hidden xl:block">
+        {/* ── 우측: 기업 분석 사이드바 (숨김) ── */}
+        <div className="w-[300px] flex-shrink-0 hidden">
           <div className="sticky top-5 space-y-3">
             {jobAnalysis ? (
               <JobAnalysisBadge
