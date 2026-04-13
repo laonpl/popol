@@ -3,10 +3,27 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 모델 우선순위 (에러 발생 시 순서대로 폴백)
-const MODEL_FALLBACKS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const MODEL_FALLBACKS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-flash-lite',
+];
 
-// 지수 백오프 재시도 함수
-async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
+// SDK 에러에서 HTTP 상태코드 추출 (메시지 파싱 포함)
+function extractStatus(err) {
+  // SDK v0.21+ : err.status 에 직접 숫자가 있을 수 있음
+  if (typeof err?.status === 'number') return err.status;
+  if (typeof err?.response?.status === 'number') return err.response.status;
+  // 메시지에서 [404 Not Found] 형식 파싱
+  const m = String(err?.message || '').match(/\[(\d{3})\s/);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
+// 지수 백오프 재시도 함수 (모델간 폴백 포함)
+async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
   let lastError;
   for (let modelIdx = 0; modelIdx < MODEL_FALLBACKS.length; modelIdx++) {
     const modelName = MODEL_FALLBACKS[modelIdx];
@@ -17,27 +34,22 @@ async function generateWithRetry(prompt, retries = 3, delayMs = 2000) {
         return result.response.text();
       } catch (err) {
         lastError = err;
-        const status = err?.status ?? err?.response?.status;
-        const retryableStatuses = [503, 500];
-        const fallbackStatuses = [404, 400];
+        const status = extractStatus(err);
+        console.warn(`[Gemini] ${modelName} 실패 (시도 ${attempt + 1}, status=${status}): ${err.message?.slice(0, 120)}`);
+
         if (status === 429) {
-          // Rate limit / quota 소진 → 다음 모델로 즉시 전환
-          console.warn(`[Gemini] ${modelName} 429 - 다음 모델로 폴백`);
+          // Rate limit → 다음 모델로 즉시 전환
           break;
-        } else if (retryableStatuses.includes(status)) {
+        } else if (status === 503 || status === 500) {
+          // 일시적 서버 오류 → 잠시 대기 후 재시도
           if (attempt < retries - 1) {
-            const wait = delayMs * Math.pow(2, attempt);
-            console.warn(`[Gemini] ${modelName} ${status} - ${attempt + 1}번째 재시도 (${wait}ms 대기)`);
-            await new Promise(r => setTimeout(r, wait));
+            await new Promise(r => setTimeout(r, delayMs * Math.pow(2, attempt)));
           } else {
-            console.warn(`[Gemini] ${modelName} 재시도 소진 - 다음 모델로 전환`);
-            break; // 다음 모델로
+            break; // 재시도 소진 → 다음 모델
           }
-        } else if (fallbackStatuses.includes(status)) {
-          console.warn(`[Gemini] ${modelName} ${status} - 다음 모델로 전환`);
-          break; // 다음 모델로
         } else {
-          throw err;
+          // 404(모델 미지원), 400(잘못된 요청), 기타 모든 에러 → 다음 모델로
+          break;
         }
       }
     }
