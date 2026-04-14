@@ -1,12 +1,26 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import multer from 'multer';
-import { adminStorage } from '../config/firebase.js';
+import path from 'path';
+import fs from 'fs';
+import { randomUUID } from 'crypto';
 
 const router = Router();
 
+// 업로드 디렉토리 설정
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}_${randomUUID()}${ext}`);
+  },
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -18,82 +32,37 @@ const upload = multer({
 });
 
 // POST /api/upload/image
-// 이미지를 Firebase Storage에 업로드하고 다운로드 URL 반환
-router.post('/image', authMiddleware, upload.single('file'), async (req, res, next) => {
+router.post('/image', authMiddleware, upload.single('file'), (req, res) => {
   try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: '파일이 없습니다' });
-    }
+    if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 
-    const { storagePath } = req.body;
-    if (!storagePath) {
-      return res.status(400).json({ error: 'storagePath가 필요합니다' });
-    }
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const url = `${baseUrl}/uploads/${req.file.filename}`;
 
-    // storagePath가 해당 유저 경로인지 검증 (path traversal 방지)
-    const userId = req.user.uid;
-    if (!storagePath.includes(userId)) {
-      return res.status(403).json({ error: '권한이 없습니다' });
-    }
-
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'popol-cb20b.firebasestorage.app';
-    const bucket = adminStorage.bucket(bucketName);
-    const fileRef = bucket.file(storagePath);
-
-    await fileRef.save(file.buffer, {
-      metadata: {
-        contentType: file.mimetype,
-        cacheControl: 'public, max-age=31536000',
-      },
-    });
-
-    // 토큰 기반 다운로드 URL 생성 (makePublic 대신)
-    const [metadata] = await fileRef.getMetadata();
-    let downloadToken = metadata.metadata?.firebaseStorageDownloadTokens;
-    if (!downloadToken) {
-      // 토큰이 없으면 UUID 생성하여 설정
-      const { randomUUID } = await import('crypto');
-      downloadToken = randomUUID();
-      await fileRef.setMetadata({
-        metadata: { firebaseStorageDownloadTokens: downloadToken },
-      });
-    }
-    const encodedPath = encodeURIComponent(storagePath);
-    const url = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
-
-    res.json({ url, storagePath });
+    res.json({ url, filename: req.file.filename });
   } catch (error) {
-    console.error('[Upload] 이미지 업로드 실패:', error.message);
-    // Firebase/GCS 404는 bucket 미존재 → 클라이언트에 500으로 반환
-    if (error.code === 404 || error.status === 404) {
-      return res.status(500).json({ error: 'Firebase Storage 버킷을 찾을 수 없습니다. Firebase 콘솔에서 Storage를 활성화해 주세요.' });
-    }
-    next(error);
+    console.error('[Upload] 업로드 실패:', error.message);
+    res.status(500).json({ error: '업로드에 실패했습니다' });
   }
 });
 
 // DELETE /api/upload/image
-// Firebase Storage에서 이미지 삭제
-router.delete('/image', authMiddleware, async (req, res, next) => {
+router.delete('/image', authMiddleware, (req, res) => {
   try {
-    const { storagePath } = req.body;
-    if (!storagePath) {
-      return res.status(400).json({ error: 'storagePath가 필요합니다' });
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ error: 'filename이 필요합니다' });
+
+    // path traversal 방지: 파일명에 디렉토리 구분자 불허
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+      return res.status(400).json({ error: '잘못된 파일명입니다' });
     }
 
-    const userId = req.user.uid;
-    if (!storagePath.includes(userId)) {
-      return res.status(403).json({ error: '권한이 없습니다' });
-    }
-
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'popol-cb20b.firebasestorage.app';
-    const bucket = adminStorage.bucket(bucketName);
-    await bucket.file(storagePath).delete().catch(() => {});
+    const filePath = path.join(UPLOADS_DIR, filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
     res.json({ success: true });
   } catch (error) {
-    next(error);
+    res.status(500).json({ error: '삭제에 실패했습니다' });
   }
 });
 
