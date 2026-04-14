@@ -586,6 +586,36 @@ function NotionExportModal({ portfolio, userId, onClose }) {
     const el = document.getElementById('notion-portfolio');
     if (!el) { toast.error('포트폴리오 요소를 찾을 수 없습니다'); return; }
 
+    // DOM 복제 후 정리: 버튼→div 변환, onClick 제거, 앱 전용 요소 제거
+    const clone = el.cloneNode(true);
+
+    // button → div 변환 (인터랙티브 요소를 정적으로)
+    clone.querySelectorAll('button').forEach(btn => {
+      const div = document.createElement('div');
+      div.className = btn.className;
+      div.innerHTML = btn.innerHTML;
+      if (btn.style.cssText) div.style.cssText = btn.style.cssText;
+      btn.parentNode.replaceChild(div, btn);
+    });
+
+    // a 태그의 내부 링크(#) → span 변환
+    clone.querySelectorAll('a[href^="#"]').forEach(a => {
+      const span = document.createElement('span');
+      span.className = a.className;
+      span.innerHTML = a.innerHTML;
+      a.parentNode.replaceChild(span, a);
+    });
+
+    // "맨 위로" 네비게이션 제거
+    clone.querySelectorAll('a').forEach(a => {
+      if (a.textContent.includes('맨 위로')) a.remove();
+    });
+
+    // onclick/data-* 속성 정리
+    clone.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+
+    const cleanedHTML = clone.outerHTML;
+
     const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -612,11 +642,15 @@ tailwind.config = {
 body { font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; background:#f5f5f7; color:#1a1a1a; }
 ::-webkit-scrollbar { width:6px; }
 ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:3px; }
+@media print {
+  body { background: white; }
+  @page { margin: 10mm; size: A4 landscape; }
+}
 </style>
 </head>
 <body>
 <div style="max-width:1100px;margin:40px auto;padding:0 16px;">
-${el.outerHTML}
+${cleanedHTML}
 </div>
 </body>
 </html>`;
@@ -648,8 +682,8 @@ ${el.outerHTML}
       });
       const data = await res.json();
       if (data.success) { setResult(data); toast.success('Notion 페이지가 생성되었습니다!'); }
-      else toast.error(data.message || 'Notion 내보내기에 실패했습니다');
-    } catch (e) { toast.error('내보내기 중 오류가 발생했습니다'); }
+      else toast.error(data.message || data.error || 'Notion 내보내기에 실패했습니다');
+    } catch (e) { toast.error('내보내기 중 오류가 발생했습니다: ' + (e.message || '')); }
     setExporting(false);
   };
 

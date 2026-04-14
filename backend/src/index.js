@@ -13,12 +13,12 @@ import uploadRoutes from './routes/upload.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 프로세스 크래시 방지
+// 예상치 못한 예외로 서버가 종료되지 않도록 핸들러 등록
 process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err.message);
+  console.error('[UNCAUGHT EXCEPTION] 서버가 종료되지 않도록 오류를 기록합니다:', err);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled Rejection:', reason);
+  console.error('[UNHANDLED REJECTION] 처리되지 않은 Promise 거부:', reason);
 });
 
 // Middleware

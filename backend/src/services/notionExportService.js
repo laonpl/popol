@@ -4,9 +4,10 @@ import { Client } from '@notionhq/client';
 
 function rt(content, opts = {}) {
   if (!content) return [];
+  const text = typeof content === 'string' ? content : String(content);
   return [{
     type: 'text',
-    text: { content, link: opts.link ? { url: opts.link } : null },
+    text: { content: text, link: opts.link ? { url: opts.link } : null },
     annotations: {
       bold: opts.bold || false,
       italic: opts.italic || false,
@@ -19,18 +20,21 @@ function rt(content, opts = {}) {
 }
 
 function multiRt(segments) {
-  return segments.map(seg => ({
-    type: 'text',
-    text: { content: seg.text, link: seg.link ? { url: seg.link } : null },
-    annotations: {
-      bold: seg.bold || false,
-      italic: seg.italic || false,
-      underline: seg.underline || false,
-      strikethrough: false,
-      code: seg.code || false,
-      color: seg.color || 'default',
-    }
-  }));
+  return segments.map(seg => {
+    const text = typeof seg.text === 'string' ? seg.text : String(seg.text || '');
+    return {
+      type: 'text',
+      text: { content: text, link: seg.link ? { url: seg.link } : null },
+      annotations: {
+        bold: seg.bold || false,
+        italic: seg.italic || false,
+        underline: seg.underline || false,
+        strikethrough: false,
+        code: seg.code || false,
+        color: seg.color || 'default',
+      }
+    };
+  });
 }
 
 // ── Block Helpers ──
@@ -282,6 +286,27 @@ export async function createNotionPortfolioPage(notionToken, parentPageId, portf
   // ── Phase 2: Append full-width sections below columns ──
   const appendBlocks = [];
 
+  // 프로젝트 / 경험 갤러리
+  if ((p.experiences || []).length > 0) {
+    appendBlocks.push(heading2('🔥 프로젝트 / 경험 | Projects & Experiences'));
+    const statusLabel = { expected: 'Expected', doing: 'Doing', finished: 'Finished' };
+    p.experiences.forEach(e => {
+      const segments = [
+        { text: e.title || '(제목 없음)', bold: true },
+      ];
+      if (e.date) segments.push({ text: ` · ${e.date}`, color: 'gray' });
+      if (e.status) segments.push({ text: ` [${statusLabel[e.status] || e.status}]`, italic: true, color: e.status === 'doing' ? 'green' : e.status === 'expected' ? 'blue' : 'red' });
+      appendBlocks.push(paragraphMulti(segments));
+      if ((e.classify || []).length > 0) {
+        appendBlocks.push(paragraph(e.classify.join(', '), { italic: true, color: 'gray' }));
+      }
+      if (e.thumbnailUrl) {
+        appendBlocks.push(image(e.thumbnailUrl));
+      }
+    });
+    appendBlocks.push(divider());
+  }
+
   // 교과 활동
   appendBlocks.push(heading2('📝 교과 활동 | Curricular Activities'));
   if (curr.summary?.credits || curr.summary?.gpa) {
@@ -296,6 +321,14 @@ export async function createNotionPortfolioPage(notionToken, parentPageId, portf
     const courseRows = [['학기', '과목명', '성적']];
     curr.courses.forEach(c => courseRows.push([c.semester || '', c.name || '', c.grade || '']));
     appendBlocks.push(table(3, true, courseRows));
+  }
+  if ((curr.creditStatus || []).length > 0) {
+    appendBlocks.push(heading3('이수 현황 | Credit Status'));
+    const creditRows = [['구분', '영역', '기준학점', '취득학점', '잔여학점', '달성률']];
+    curr.creditStatus.forEach(cs => creditRows.push([
+      cs.category || '', cs.area || '', cs.required || '', cs.earned || '', cs.remaining || '', cs.rate || ''
+    ]));
+    appendBlocks.push(table(6, true, creditRows));
   }
   appendBlocks.push(divider());
 
@@ -335,7 +368,14 @@ export async function createNotionPortfolioPage(notionToken, parentPageId, portf
       const segments = [{ text: `${categoryNames[cat] || cat}: `, bold: true }];
       items.forEach((s, i) => {
         if (i > 0) segments.push({ text: ', ' });
-        segments.push({ text: s, code: true });
+        const skillName = typeof s === 'string' ? s : (s?.name || '');
+        const proficiency = typeof s === 'string' ? 0 : (s?.proficiency || 0);
+        if (proficiency > 0) {
+          const bars = '█'.repeat(proficiency) + '░'.repeat(5 - proficiency);
+          segments.push({ text: `${skillName} [${bars}]`, code: true });
+        } else {
+          segments.push({ text: skillName, code: true });
+        }
       });
       appendBlocks.push(paragraphMulti(segments));
     }

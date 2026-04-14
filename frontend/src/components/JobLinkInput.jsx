@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check, FileEdit } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
@@ -229,9 +229,13 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
 }
 
 /* ── 상세 기업 분석 패널 (에디터에서 표시용) ── */
-export function JobAnalysisBadge({ analysis, onRemove }) {
+export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorApply }) {
   const [expanded, setExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('company');
+  const [tailoring, setTailoring] = useState(false);
+  const [tailoredResults, setTailoredResults] = useState({}); // { [expIndex]: tailoredData }
+  const [tailorError, setTailorError] = useState(null);
+  const [tailoringIdx, setTailoringIdx] = useState(null); // 개별 첨삭 중인 인덱스
 
   if (!analysis) return null;
 
@@ -245,11 +249,11 @@ export function JobAnalysisBadge({ analysis, onRemove }) {
   const portfolioReq = buildDisplayPortfolioRequirements(analysis);
 
   const tabs = [
-    { key: 'overview', label: '종합' },
     { key: 'company', label: '기업 분석' },
     { key: 'position', label: '직무 분석' },
     { key: 'strategy', label: '지원 전략' },
     { key: 'trends', label: '산업 트렌드' },
+    { key: 'tailor', label: '첨삭 내용' },
   ];
 
   return (
@@ -303,68 +307,6 @@ export function JobAnalysisBadge({ analysis, onRemove }) {
           </div>
 
           <div className="px-5 py-4 max-h-[520px] overflow-y-auto text-xs space-y-3">
-
-            {activeTab === 'overview' && (
-              <>
-                {skillImp.length > 0 && (
-                  <AnalysisCard title="스킬 중요도 분석">
-                    <div className="space-y-2">
-                      {skillImp.slice(0, 8).map((s, i) => (
-                        <div key={i}>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-gray-700 font-medium">{s.skill}</span>
-                            <span className="text-[10px] text-gray-400">{s.weight}/10</span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div className={`h-2 rounded-full ${s.weight >= 8 ? 'bg-red-400' : s.weight >= 5 ? 'bg-blue-400' : 'bg-gray-300'}`}
-                              style={{ width: `${s.weight * 10}%` }} />
-                          </div>
-                          {s.reason && <p className="text-[10px] text-gray-400 mt-0.5">{s.reason}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </AnalysisCard>
-                )}
-                {fitFactors.length > 0 && (
-                  <AnalysisCard title="적합도 평가 기준">
-                    <div className="space-y-2">
-                      {fitFactors.map((f, i) => (
-                        <div key={i}>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-gray-700 font-medium">{f.factor}</span>
-                            <span className="text-[10px] font-bold text-primary-600">{f.maxScore}점</span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full bg-gradient-to-r from-primary-400 to-primary-600" style={{ width: `${f.maxScore}%` }} />
-                          </div>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{f.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </AnalysisCard>
-                )}
-                {salaryRange && (
-                  <AnalysisCard title="예상 연봉 범위">
-                    <div className="flex items-end gap-2 mb-1">
-                      <span className="text-2xl font-bold text-gray-800">{salaryRange.min?.toLocaleString()} ~ {salaryRange.max?.toLocaleString()}</span>
-                      <span className="text-gray-500 text-[11px] mb-1">{salaryRange.unit}</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-3 relative">
-                      <div className="absolute h-3 rounded-full bg-gradient-to-r from-green-300 to-green-500"
-                        style={{ left: `${(salaryRange.min / 10000) * 100}%`, width: `${Math.min(((salaryRange.max - salaryRange.min) / 10000) * 100, 80)}%` }} />
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1">{salaryRange.basis}</p>
-                  </AnalysisCard>
-                )}
-                {ca.companySize && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {ca.companySize.founded && <div className="bg-white rounded-xl border border-gray-100 p-2.5 text-center"><p className="text-[10px] text-gray-400 mb-0.5">설립</p><p className="text-sm font-bold text-gray-800">{ca.companySize.founded}</p></div>}
-                    {ca.companySize.employees && <div className="bg-white rounded-xl border border-gray-100 p-2.5 text-center"><p className="text-[10px] text-gray-400 mb-0.5">직원</p><p className="text-sm font-bold text-gray-800">{ca.companySize.employees}</p></div>}
-                    {ca.companySize.revenue && <div className="bg-white rounded-xl border border-gray-100 p-2.5 text-center"><p className="text-[10px] text-gray-400 mb-0.5">매출</p><p className="text-sm font-bold text-gray-800">{ca.companySize.revenue}</p></div>}
-                  </div>
-                )}
-              </>
-            )}
 
             {activeTab === 'company' && (
               <>
@@ -596,6 +538,142 @@ export function JobAnalysisBadge({ analysis, onRemove }) {
                   </div>
                 ) : (
                   <p className="text-gray-400 text-center py-8">산업 트렌드 정보가 없습니다</p>
+                )}
+              </>
+            )}
+
+            {activeTab === 'tailor' && (
+              <>
+                {(!experiences || experiences.length === 0) ? (
+                  <div className="text-center py-8">
+                    <FileEdit size={28} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-gray-400 text-sm">포트폴리오에 경험이 없습니다</p>
+                    <p className="text-gray-300 text-xs mt-1">경험 DB에서 불러온 뒤 첨삭을 진행하세요</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500">기업 분석을 기반으로 경험을 맞춤 수정합니다</p>
+                      <button
+                        onClick={async () => {
+                          setTailoring(true);
+                          setTailorError(null);
+                          try {
+                            const results = {};
+                            for (let i = 0; i < experiences.length; i++) {
+                              const exp = experiences[i];
+                              const { data } = await api.post('/job/tailor-experience', { jobAnalysis: analysis, experience: exp });
+                              results[i] = data.tailored;
+                            }
+                            setTailoredResults(results);
+                          } catch (err) {
+                            setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
+                          }
+                          setTailoring(false);
+                        }}
+                        disabled={tailoring}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        {tailoring ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <><Sparkles size={12} />전체 첨삭</>}
+                      </button>
+                    </div>
+                    {tailorError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{tailorError}</p>}
+                    {experiences.map((exp, i) => {
+                      const t = tailoredResults[i];
+                      const isTailoringThis = tailoringIdx === i;
+                      return (
+                        <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                          <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-bold text-gray-800 flex-1 truncate">{exp.title || `경험 ${i + 1}`}</p>
+                              {!t && (
+                                <button
+                                  onClick={async () => {
+                                    setTailoringIdx(i);
+                                    setTailorError(null);
+                                    try {
+                                      const { data } = await api.post('/job/tailor-experience', { jobAnalysis: analysis, experience: exp });
+                                      setTailoredResults(prev => ({ ...prev, [i]: data.tailored }));
+                                    } catch (err) {
+                                      setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
+                                    }
+                                    setTailoringIdx(null);
+                                  }}
+                                  disabled={tailoring || isTailoringThis}
+                                  className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-[10px] font-medium hover:bg-indigo-100 disabled:opacity-50 transition-colors flex-shrink-0"
+                                >
+                                  {isTailoringThis ? <><Loader2 size={10} className="animate-spin" />첨삭 중</> : <><Sparkles size={10} />이것만 첨삭</>}
+                                </button>
+                              )}
+                            </div>
+                            {exp.skills?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {exp.skills.slice(0, 5).map((s, si) => (
+                                  <span key={si} className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded-full">{s}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {t ? (
+                            <div className="p-3 space-y-2.5">
+                              {t.subtitle && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-indigo-600 mb-0.5">기업 맞춤 한줄 소개</p>
+                                  <p className="text-xs text-gray-700 bg-indigo-50 rounded-lg px-2.5 py-1.5">{t.subtitle}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-[10px] font-bold text-emerald-600 mb-0.5">맞춤 수정 설명</p>
+                                <p className="text-xs text-gray-700 leading-relaxed bg-emerald-50 rounded-lg px-2.5 py-1.5">{t.tailoredDescription}</p>
+                              </div>
+                              {t.keyAchievements?.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-amber-600 mb-0.5">강조 성과</p>
+                                  <ul className="space-y-0.5">
+                                    {t.keyAchievements.map((a, ai) => (
+                                      <li key={ai} className="text-xs text-gray-700 flex items-start gap-1"><span className="text-amber-500">•</span>{a}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {t.highlightedSkills?.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {t.highlightedSkills.map((s, si) => (
+                                    <span key={si} className="text-[9px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{s}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {t.relevanceNote && (
+                                <p className="text-[10px] text-gray-500 italic bg-gray-50 rounded-lg px-2.5 py-1.5">{t.relevanceNote}</p>
+                              )}
+                              <button
+                                onClick={() => {
+                                  if (onTailorApply) {
+                                    onTailorApply(i, t);
+                                    const next = { ...tailoredResults };
+                                    next[i] = { ...t, _applied: true };
+                                    setTailoredResults(next);
+                                  }
+                                }}
+                                disabled={t._applied}
+                                className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                                  t._applied
+                                    ? 'bg-green-100 text-green-700 cursor-default'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                }`}
+                              >
+                                {t._applied ? <><Check size={13} />적용 완료</> : <><FileEdit size={13} />이 경험에 적용</>}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="px-3 py-4 text-center text-[10px] text-gray-400">
+                              {(tailoring || tailoringIdx === i) ? <Loader2 size={14} className="animate-spin mx-auto text-indigo-400" /> : '"이것만 첨삭" 또는 "전체 첨삭" 버튼을 누르세요'}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </>
             )}

@@ -191,9 +191,9 @@ export default function ExperienceHub() {
   }, []);
 
   return (
-    <div className="animate-fadeIn">
+    <div className="animate-fadeIn max-w-[1240px] mx-auto">
       {/* ═══ 헤더 ═══ */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">경험 정리</h1>
           <p className="text-gray-400 text-sm mt-1">

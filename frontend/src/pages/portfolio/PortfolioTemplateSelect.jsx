@@ -752,7 +752,7 @@ export default function PortfolioTemplateSelect() {
   };
 
   return (
-    <div className="animate-fadeIn">
+    <div className="animate-fadeIn max-w-[1240px] mx-auto">
       <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-6">
         <ArrowLeft size={16} /> 포트폴리오 목록으로
       </Link>
