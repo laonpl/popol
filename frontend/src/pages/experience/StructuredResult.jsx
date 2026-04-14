@@ -401,7 +401,9 @@ export default function StructuredResult() {
   const completionPct = Math.round((filledCount / 7) * 100);
 
   return (
-    <div className="animate-fadeIn max-w-[1560px] mx-auto pb-12">
+    <>
+    <div style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%' }}>
+    <div className="animate-fadeIn max-w-[1400px] mx-auto px-6 pb-12">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between mb-5">
         <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 transition-colors">
@@ -1005,11 +1007,14 @@ export default function StructuredResult() {
 
       </div>{/* end flex gap-5 */}
 
-      {/* 오른쪽: 프로젝트 타임라인 네비게이터 (고정, 접기/펼치기) */}
+    </div>
+    </div>
+
+      {/* 오른쪽: 프로젝트 타임라인 네비게이터 (고정, 접기/펼치기) — scale 래퍼 바깥 */}
       <div className="hidden lg:block fixed right-0 top-20 z-30">
         <ProjectTimeline experiences={experiences} currentId={id} />
       </div>
-    </div>
+    </>
   );
 }
 

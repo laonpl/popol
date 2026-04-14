@@ -65,6 +65,7 @@ export default function ExperienceHub() {
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const timelineRef = useRef(null);
   const yearDropdownRef = useRef(null);
+  const [hoveredBar, setHoveredBar] = useState(null);
 
   /* ── 드래그 앤 드롭 ── */
   const [dragIdx, setDragIdx] = useState(null);
@@ -313,13 +314,18 @@ export default function ExperienceHub() {
 
                         return (
                           <div key={exp.id}
-                            className="absolute group/bar"
+                            className="absolute"
                             style={{
                               top: `${idx * 56 + 16}px`,
                               left: `${startOffset}%`,
                               width: `${barWidth}%`,
                               minWidth: '100px',
-                            }}>
+                            }}
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredBar({ exp, rect });
+                            }}
+                            onMouseLeave={() => setHoveredBar(null)}>
                             {/* 바 */}
                             <div
                               className={`${theme.bar} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
@@ -332,22 +338,7 @@ export default function ExperienceHub() {
                                 {stripMd(exp.title)}
                               </span>
                             </div>
-                            {/* 호버 말풍선 */}
-                            <div className="absolute left-0 top-full mt-2 w-[280px] bg-gray-900 text-white rounded-xl px-4 py-3 shadow-xl opacity-0 invisible group-hover/bar:opacity-100 group-hover/bar:visible transition-all duration-200 z-50 pointer-events-none">
-                              <p className="text-[12px] font-bold mb-1 truncate">{stripMd(exp.title)}</p>
-                              {tooltipSummary && (
-                                <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-2 mb-1.5">{stripMd(tooltipSummary)}</p>
-                              )}
-                              {tooltipLines.length > 0 && (
-                                <div className="border-t border-gray-700 pt-1.5 space-y-0.5">
-                                  {tooltipLines.map((line, i) => (
-                                    <p key={i} className="text-[10px] text-gray-400 truncate">• {line}</p>
-                                  ))}
-                                </div>
-                              )}
-                              {/* 화살표 */}
-                              <div className="absolute -top-1.5 left-6 w-3 h-3 bg-gray-900 rotate-45" />
-                            </div>
+
                           </div>
                         );
                       })}
@@ -364,7 +355,7 @@ export default function ExperienceHub() {
             {/* 테이블 헤더 */}
             <div className="grid grid-cols-[24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
               <span></span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">#</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">순서</span>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">프로젝트</span>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">키워드</span>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">기간</span>
@@ -410,7 +401,7 @@ export default function ExperienceHub() {
 
                     {/* # */}
                     <div className={`w-7 h-7 rounded-lg ${theme.bar} flex items-center justify-center`}>
-                      <span className={`text-[11px] font-bold ${theme.barText}`}>{String.fromCharCode(65 + idx)}</span>
+                      <span className={`text-[11px] font-bold ${theme.barText}`}>{idx + 1}</span>
                     </div>
 
                     {/* 프로젝트 */}
@@ -519,6 +510,36 @@ export default function ExperienceHub() {
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />
       )}
+
+      {/* ── 간트 호버 툴팁 (fixed, overflow 탈출) ── */}
+      {hoveredBar && (() => {
+        const { exp, rect } = hoveredBar;
+        const keyExps = exp.structuredResult?.keyExperiences || [];
+        const tooltipLines = keyExps.slice(0, 3).map(ke => stripMd(ke.title)).filter(Boolean);
+        const overview = exp.structuredResult?.projectOverview;
+        const tooltipSummary = overview?.summary || overview?.background || '';
+        const showAbove = rect.bottom + 180 > window.innerHeight;
+        const top = showAbove ? rect.top - 8 : rect.bottom + 8;
+        return (
+          <div
+            style={{ position: 'fixed', left: rect.left, top, width: 280, zIndex: 9999 }}
+            className="bg-gray-900 text-white rounded-xl px-4 py-3 shadow-xl pointer-events-none"
+          >
+            <p className="text-[12px] font-bold mb-1 truncate">{stripMd(exp.title)}</p>
+            {tooltipSummary && (
+              <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-2 mb-1.5">{stripMd(tooltipSummary)}</p>
+            )}
+            {tooltipLines.length > 0 && (
+              <div className="border-t border-gray-700 pt-1.5 space-y-0.5">
+                {tooltipLines.map((line, i) => (
+                  <p key={i} className="text-[10px] text-gray-400 truncate">• {line}</p>
+                ))}
+              </div>
+            )}
+            <div className={`absolute ${showAbove ? 'bottom-[-6px]' : 'top-[-6px]'} left-6 w-3 h-3 bg-gray-900 rotate-45`} />
+          </div>
+        );
+      })()}
     </div>
   );
 }
