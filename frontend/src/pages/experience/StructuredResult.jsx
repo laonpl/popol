@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, TrendingUp, Target, Users, Clock, Zap } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
+import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import { CHART_TYPES } from '../../components/KeyExperienceSlider';
@@ -67,6 +68,8 @@ export default function StructuredResult() {
   const { id } = useParams();
   const { state: navState } = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const viewOnly = searchParams.get('view') === 'true';
   const { user } = useAuthStore();
   const [experience, setExperience] = useState(null);
   const [loading, setLoading] = useState(!navState?.analysis);
@@ -93,6 +96,12 @@ export default function StructuredResult() {
   const [imageConfig, setImageConfig] = useState({});
   const imageInputRef = useRef(null);
 
+  /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
+  const { experiences, fetchExperiences } = useExperienceStore();
+  useEffect(() => {
+    if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
+  }, [user?.uid]);
+
   useEffect(() => {
     if (navState?.analysis) {
       const structured = navState.analysis;
@@ -118,11 +127,13 @@ export default function StructuredResult() {
       });
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
-      const autoEdit = {};
-      SECTION_KEYS.forEach(k => {
-        if (!fields[k]?.trim()) autoEdit[k] = true;
-      });
-      setEditingSections(autoEdit);
+      if (!viewOnly) {
+        const autoEdit = {};
+        SECTION_KEYS.forEach(k => {
+          if (!fields[k]?.trim()) autoEdit[k] = true;
+        });
+        setEditingSections(autoEdit);
+      }
       // Load images from Firestore (navState doesn't include images)
       (async () => {
         try {
@@ -168,11 +179,13 @@ export default function StructuredResult() {
         });
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
-        const autoEdit = {};
-        SECTION_KEYS.forEach(k => {
-          if (!fields[k]?.trim()) autoEdit[k] = true;
-        });
-        setEditingSections(autoEdit);
+        if (!viewOnly) {
+          const autoEdit = {};
+          SECTION_KEYS.forEach(k => {
+            if (!fields[k]?.trim()) autoEdit[k] = true;
+          });
+          setEditingSections(autoEdit);
+        }
       }
     } catch (error) {
       console.error('경험 로딩 실패:', error);
@@ -322,6 +335,7 @@ export default function StructuredResult() {
       });
       setEditingSections(newEditing);
       toast.success('저장되었습니다');
+      navigate(`/app/experience/structured/${id}?view=true`, { replace: true });
     } catch (error) {
       toast.error('저장에 실패했습니다');
     }
@@ -350,21 +364,34 @@ export default function StructuredResult() {
   const completionPct = Math.round((filledCount / 7) * 100);
 
   return (
-    <div className="animate-fadeIn max-w-[1200px] mx-auto pb-12">
-      {/* 상단 네비 + 저장 */}
+    <div className="animate-fadeIn max-w-[1440px] mx-auto pb-12">
+      {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between mb-5">
         <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 transition-colors">
           <ArrowLeft size={16} /> 경험 목록으로
         </Link>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {saving ? '저장 중...' : '저장하기'}
-        </button>
+        {viewOnly ? (
+          <button
+            onClick={() => navigate(`/app/experience/structured/${id}`)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors shadow-sm"
+          >
+            <PenLine size={14} />
+            수정하기
+          </button>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? '저장 중...' : '저장하기'}
+          </button>
+        )}
       </div>
+
+      {/* 메인 콘텐츠 */}
+      <div>
 
       {/* ╔══════════════════════════════════════════════╗
          ║  상단 대시보드: 좌 Overview + 우 핵심경험    ║
@@ -381,7 +408,8 @@ export default function StructuredResult() {
           <input
             value={editedTitle}
             onChange={e => setEditedTitle(e.target.value)}
-            className="text-lg font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent hover:border-surface-200 focus:border-primary-400 focus:outline-none transition-colors px-0 py-0.5 w-full"
+            readOnly={viewOnly}
+            className={`text-lg font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
             placeholder="프로젝트 제목"
           />
 
@@ -389,8 +417,9 @@ export default function StructuredResult() {
           <textarea
             value={editedOverview.background || editedOverview.summary || ''}
             onChange={e => setEditedOverview(prev => ({ ...prev, background: e.target.value }))}
+            readOnly={viewOnly}
             rows={3}
-            className="text-[12.5px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent hover:border-surface-200 focus:border-primary-300 focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full"
+            className={`text-[12.5px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full`}
             placeholder="프로젝트 배경 설명"
           />
 
@@ -409,7 +438,8 @@ export default function StructuredResult() {
                   <input
                     value={editedOverview[item.key] || ''}
                     onChange={e => setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value }))}
-                    className="w-full text-[12px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent hover:border-surface-200 focus:border-primary-300 focus:outline-none transition-colors py-0.5"
+                    readOnly={viewOnly}
+                    className={`w-full text-[12px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none transition-colors py-0.5`}
                     placeholder={item.placeholder}
                   />
                 </div>
@@ -423,11 +453,14 @@ export default function StructuredResult() {
               {(editedOverview.techStack || []).map((tech, i) => (
                 <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium group/tech">
                   {tech}
-                  <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
-                    className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
+                  {!viewOnly && (
+                    <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
+                      className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
+                  )}
                 </span>
               ))}
             </div>
+            {!viewOnly && (
             <div className="flex gap-1.5">
               <input
                 value={newTechInput}
@@ -443,6 +476,7 @@ export default function StructuredResult() {
                 placeholder="기술 추가 후 Enter"
               />
             </div>
+            )}
           </div>
 
           {/* 역량 키워드 (편집) */}
@@ -451,11 +485,14 @@ export default function StructuredResult() {
               {editedKeywords.map((k, i) => (
                 <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[11px] font-medium border border-primary-100">
                   {k}
-                  <button onClick={() => setEditedKeywords(prev => prev.filter((_, j) => j !== i))}
-                    className="text-primary-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
+                  {!viewOnly && (
+                    <button onClick={() => setEditedKeywords(prev => prev.filter((_, j) => j !== i))}
+                      className="text-primary-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
+                  )}
                 </span>
               ))}
             </div>
+            {!viewOnly && (
             <div className="flex gap-1.5">
               <input
                 value={newKeywordInput}
@@ -471,6 +508,7 @@ export default function StructuredResult() {
                 placeholder="키워드 추가 후 Enter"
               />
             </div>
+            )}
           </div>
         </div>
 
@@ -478,6 +516,7 @@ export default function StructuredResult() {
         <div className="min-w-0">
           <KeyExperienceSlider keyExperiences={editedKeyExperiences} />
           {/* 핵심 경험 편집 패널 */}
+          {!viewOnly && (
           <div className="mt-4 space-y-3">
             {editedKeyExperiences.map((exp, idx) => (
               <details key={idx} className="bg-white rounded-xl border border-surface-200 overflow-hidden group/detail">
@@ -551,6 +590,7 @@ export default function StructuredResult() {
               + 핵심 경험 추가
             </button>
           </div>
+          )}
         </div>
       </div>
 
@@ -728,7 +768,7 @@ export default function StructuredResult() {
                     ) : (
                       <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
                     )}
-                    {!isEditing && !isEmpty && (
+                    {!isEditing && !isEmpty && !viewOnly && (
                       <button onClick={() => toggleEditing(key)}
                         className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-bluewood-400 hover:text-primary-600 bg-white rounded-md border border-surface-200 transition-all">
                         <PenLine size={11} /> 수정
@@ -800,6 +840,108 @@ export default function StructuredResult() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      </div>{/* 메인 콘텐츠 끝 */}
+
+      {/* 오른쪽: 프로젝트 타임라인 네비게이터 (고정, 접기/펼치기) */}
+      <div className="hidden lg:block fixed right-0 top-20 z-30">
+        <ProjectTimeline experiences={experiences} currentId={id} />
+      </div>
+    </div>
+  );
+}
+
+/* ── 프로젝트 타임라인 네비게이터 ── */
+function parsePeriodStr(exp) {
+  const period = exp.period || exp.structuredResult?.projectOverview?.duration || '';
+  const dateRegex = /(\d{4})[.\-/](\d{1,2})(?:[.\-/](\d{1,2}))?/g;
+  const matches = [...period.matchAll(dateRegex)];
+  if (matches.length >= 1) {
+    const y = matches[0][1];
+    const m = String(matches[0][2]).padStart(2, '0');
+    if (matches.length >= 2) {
+      const y2 = matches[1][1];
+      const m2 = String(matches[1][2]).padStart(2, '0');
+      return `${y}.${m} – ${y2}.${m2}`;
+    }
+    return `${y}.${m}`;
+  }
+  return '';
+}
+
+function ProjectTimeline({ experiences, currentId }) {
+  const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(false);
+  if (!experiences || experiences.length === 0) return null;
+
+  return (
+    <div className={`transition-all duration-300 ease-in-out ${expanded ? 'w-[220px]' : 'w-[52px]'}`}>
+      <div className={`bg-white/90 backdrop-blur-sm border-l border-surface-200 shadow-sm h-[calc(100vh-80px)] overflow-y-auto py-4 ${expanded ? 'px-3' : 'px-1.5'}`}>
+        {/* 토글 버튼 */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`w-full flex items-center justify-center mb-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+            expanded ? 'text-primary-600 hover:bg-primary-50' : 'text-bluewood-400 hover:bg-surface-100'
+          }`}
+        >
+          {expanded ? '▶' : '◀'}
+        </button>
+
+        <div className="relative">
+          {/* 세로 연결선 */}
+          <div className={`absolute ${expanded ? 'left-[18px]' : 'left-[17px]'} top-4 bottom-4 w-[2px] bg-surface-100`} />
+          <div className="space-y-1">
+            {experiences.map((exp, idx) => {
+              const isCurrent = exp.id === currentId;
+              const title = exp.title ? String(exp.title).replace(/\*\*/g, '') : `P${idx + 1}`;
+              const periodLabel = parsePeriodStr(exp);
+
+              return (
+                <button
+                  key={exp.id}
+                  onClick={() => { if (!isCurrent) navigate(`/app/experience/structured/${exp.id}?view=true`); }}
+                  title={expanded ? undefined : title}
+                  className={`relative w-full flex items-center gap-2.5 rounded-xl text-left transition-all duration-200 ${
+                    expanded ? 'px-2 py-3' : 'px-0 py-2 justify-center'
+                  } ${
+                    isCurrent
+                      ? expanded ? 'bg-primary-50/80' : ''
+                      : 'hover:bg-surface-50 cursor-pointer'
+                  }`}
+                >
+                  {/* 활성 바 */}
+                  {isCurrent && expanded && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary-500 rounded-r-full" />
+                  )}
+                  {/* 번호 원 */}
+                  <span className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-200 ${
+                    isCurrent
+                      ? 'bg-primary-500 text-white shadow-md shadow-primary-200/50'
+                      : 'bg-surface-100 border-2 border-surface-200 text-bluewood-400'
+                  }`}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  {/* 텍스트 (펼쳐진 상태에만) */}
+                  {expanded && (
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[12px] leading-tight truncate transition-colors duration-200 ${
+                        isCurrent ? 'text-primary-700 font-bold' : 'text-bluewood-600 font-medium'
+                      }`}>
+                        {title}
+                      </p>
+                      {periodLabel && (
+                        <p className={`text-[9px] mt-0.5 ${isCurrent ? 'text-primary-400' : 'text-bluewood-300'}`}>
+                          {periodLabel}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

@@ -34,6 +34,10 @@ const useExperienceStore = create((set, get) => ({
       const experiences = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => {
+          // sortOrder가 있으면 우선, 없으면 createdAt 역순
+          if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+          if (a.sortOrder != null) return -1;
+          if (b.sortOrder != null) return 1;
           const aTime = a.createdAt?.toMillis?.() ?? a.createdAt?.getTime?.() ?? 0;
           const bTime = b.createdAt?.toMillis?.() ?? b.createdAt?.getTime?.() ?? 0;
           return bTime - aTime;
@@ -74,6 +78,26 @@ const useExperienceStore = create((set, get) => ({
     set(state => ({
       experiences: state.experiences.filter(e => e.id !== id),
     }));
+  },
+
+  reorderExperiences: async (orderedIds) => {
+    // Update local state immediately
+    set(state => {
+      const map = new Map(state.experiences.map(e => [e.id, e]));
+      const reordered = orderedIds.map(id => map.get(id)).filter(Boolean);
+      // Include any not in orderedIds at the end
+      const remaining = state.experiences.filter(e => !orderedIds.includes(e.id));
+      return { experiences: [...reordered, ...remaining] };
+    });
+    // Persist order to Firestore
+    try {
+      await Promise.all(orderedIds.map((id, idx) => {
+        const ref = doc(db, 'experiences', id);
+        return updateDoc(ref, { sortOrder: idx });
+      }));
+    } catch (err) {
+      console.error('순서 저장 실패:', err);
+    }
   },
 
   analyzeExperience: async (experienceId) => {
