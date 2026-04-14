@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 const PORTFOLIO_TEMPLATES = [
   {
     id: 'notion',
-    name: 'Notion 이력서/포트폴리오',
+    name: '템플릿 1',
     description: '프로필, 학력, 경험, 수상, 기술을 한 눈에 정리하는 3단 레이아웃 포트폴리오. Notion 내보내기 지원.',
     tags: ['이력서', '포트폴리오', 'Notion 내보내기', 'All-in-One'],
     sections: [],
@@ -19,7 +19,7 @@ const PORTFOLIO_TEMPLATES = [
   },
   {
     id: 'ashley',
-    name: '크리에이티브 포트폴리오',
+    name: '템플릿 2',
     description: '마케터/작가/크리에이터를 위한 스크롤형 포트폴리오. 소개, 경력, 프로젝트, 인터뷰, 스킬 등을 한 페이지에 구성.',
     tags: ['크리에이티브', '마케터', '프리랜서', '스크롤형'],
     sections: [],
@@ -28,7 +28,7 @@ const PORTFOLIO_TEMPLATES = [
   },
   {
     id: 'academic',
-    name: '학생 이력서 포트폴리오',
+    name: '템플릿 3',
     description: '대학생/취준생을 위한 학술 중심 포트폴리오. 학력, 연구, 활동 이력을 타임라인으로 깔끔하게 정리.',
     tags: ['학생', '취준생', '이력서', '타임라인'],
     sections: [],
@@ -37,7 +37,7 @@ const PORTFOLIO_TEMPLATES = [
   },
   {
     id: 'timeline',
-    name: '타임라인 대시보드',
+    name: '템플릿 4',
     description: '학기별 수업·프로젝트·스터디를 시간순으로 정리하는 Notion 스타일 대시보드. 캘린더와 활동 기록을 한눈에.',
     tags: ['타임라인', '학기별', '대시보드', '캘린더'],
     sections: [],

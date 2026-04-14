@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, Trash2, Edit, Upload, LayoutTemplate, Download, Eye } from 'lucide-react';
+import { Plus, FileText, Trash2, Edit, Upload, LayoutTemplate, Download, Eye, Camera, Search, Star, Clock } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
+import api from '../../services/api';
 
 export default function PortfolioHub() {
   const { user } = useAuthStore();
@@ -15,6 +16,8 @@ export default function PortfolioHub() {
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'favorites'
 
   useEffect(() => {
     if (user?.uid) fetchPortfolios(user.uid);
@@ -48,9 +51,29 @@ export default function PortfolioHub() {
     }
   };
 
+  // 검색 필터
+  const filtered = portfolios.filter(p => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      p.title?.toLowerCase().includes(q) ||
+      p.targetCompany?.toLowerCase().includes(q) ||
+      p.targetPosition?.toLowerCase().includes(q)
+    );
+  });
+
+  // 정렬
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortMode === 'favorites') {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+    }
+    return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+  });
+
   return (
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">포트폴리오</h1>
           <p className="text-gray-500 mt-1">경험 DB 기반으로 맞춤형 포트폴리오를 작성하세요</p>
@@ -81,6 +104,36 @@ export default function PortfolioHub() {
         </div>
       </div>
 
+      {/* 검색 & 정렬 바 */}
+      {portfolios.length > 0 && (
+        <div className="flex items-center gap-3 mb-6">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="포트폴리오 검색..."
+              className="w-full pl-9 pr-4 py-2 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+            />
+          </div>
+          <div className="flex items-center gap-1 bg-surface-100 rounded-xl p-1">
+            <button
+              onClick={() => setSortMode('recent')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${sortMode === 'recent' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Clock size={14} /> 최신순
+            </button>
+            <button
+              onClick={() => setSortMode('favorites')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${sortMode === 'favorites' ? 'bg-white text-amber-500 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Star size={14} /> 즐겨찾기순
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -97,9 +150,14 @@ export default function PortfolioHub() {
             <Plus size={18} /> 첫 포트폴리오 만들기
           </button>
         </div>
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-20">
+          <Search size={36} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">'{searchQuery}'에 대한 검색 결과가 없습니다</p>
+        </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {portfolios.map(p => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sorted.map(p => (
             <PortfolioCard
               key={p.id}
               portfolio={p}
@@ -133,10 +191,14 @@ export default function PortfolioHub() {
 }
 
 function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
-  const { id, title, targetCompany, targetPosition, status, exportFormat, createdAt, templateType } = portfolio;
+  const { id, title, targetCompany, targetPosition, status, createdAt, templateType, thumbnailUrl, isFavorite, headline } = portfolio;
+  const { user } = useAuthStore();
+  const { updatePortfolio } = usePortfolioStore();
   const date = createdAt?.toDate?.()?.toLocaleDateString('ko-KR') || '';
   const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType);
-  const TEMPLATE_LABELS = { notion: 'Notion', ashley: 'Creative', academic: 'Academic', timeline: 'Timeline' };
+  // 표시 제목: 템플릿은 headline 우선, 일반은 title
+  const displayTitle = (isTemplate ? (headline || title) : title) || '제목 없음';
+  const TEMPLATE_LABELS = { notion: '템플릿 1', ashley: '템플릿 2', academic: '템플릿 3', timeline: '템플릿 4' };
   const statusMap = {
     draft: { label: '작성 중', color: 'bg-yellow-50 text-yellow-700' },
     review: { label: '검토 중', color: 'bg-blue-50 text-blue-700' },
@@ -144,56 +206,147 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
   };
   const s = statusMap[status] || statusMap.draft;
 
+  const thumbColors = {
+    notion: 'bg-slate-100',
+    ashley: 'bg-rose-100',
+    academic: 'bg-blue-100',
+    timeline: 'bg-amber-100',
+  };
+  const thumbColor = thumbColors[templateType] || 'bg-primary-50';
+
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [localThumb, setLocalThumb] = useState(thumbnailUrl || null);
+  const [favorited, setFavorited] = useState(isFavorite || false);
+
+  const handleThumbnailClick = () => fileInputRef.current?.click();
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/upload/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = res.data.url;
+      await updatePortfolio(id, { thumbnailUrl: url });
+      setLocalThumb(url);
+    } catch (err) {
+      console.error('썸네일 업로드 실패:', err);
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const handleToggleFavorite = async (e) => {
+    e.stopPropagation();
+    const next = !favorited;
+    setFavorited(next);
+    await updatePortfolio(id, { isFavorite: next });
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-surface-200 p-6 hover:shadow-lg transition-all">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${s.color}`}>{s.label}</span>
-          {isTemplate && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">{TEMPLATE_LABELS[templateType]}</span>}
+    <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
+      {/* 썸네일 영역 */}
+      <div
+        className={`relative ${localThumb ? 'bg-gray-100' : thumbColor} cursor-pointer group overflow-hidden`}
+        style={{ paddingTop: '56.25%' /* 16:9 비율 */ }}
+        onClick={handleThumbnailClick}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          {localThumb ? (
+            <img src={localThumb} alt="썸네일" className="w-full h-full object-cover" />
+          ) : (
+            <FileText size={40} className="text-gray-300" />
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-400">{date}</span>
+        {/* 즐겨찾기 버튼 */}
+        <button
+          onClick={handleToggleFavorite}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white transition-colors shadow-sm"
+        >
+          <Star
+            size={16}
+            className={favorited ? 'fill-amber-400 text-amber-400' : 'text-gray-400'}
+          />
+        </button>
+        {/* 호버 오버레이 */}
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+          {uploading ? (
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" />
+          ) : (
+            <>
+              <Camera size={22} className="text-white" />
+              <span className="text-white text-xs font-medium">{localThumb ? '사진 변경' : '사진 업로드'}</span>
+            </>
+          )}
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </div>
-      <h3 className="text-lg font-bold mb-1">{title}</h3>
-      {targetCompany && (
-        <p className="text-sm text-gray-500">{targetCompany} · {targetPosition}</p>
-      )}
-      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-surface-100">
-        {isTemplate && (
-          <Link
-            to={`/app/portfolio/preview/${id}`}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
-          >
-            <Eye size={14} /> 자세히 보기
-          </Link>
-        )}
-        {!isTemplate && (
-          <button
-            onClick={onDetail}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
-          >
-            <Eye size={14} /> 자세히 보기
-          </button>
-        )}
-        <Link
-          to={isTemplate ? `/app/portfolio/edit-notion/${id}` : `/app/portfolio/edit/${id}`}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-        >
-          <Edit size={14} /> 편집
-        </Link>
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
-        >
-          <Download size={14} /> 내보내기
-        </button>
-        <button
-          onClick={onDelete}
-          className="ml-auto flex items-center gap-1 px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          <Trash2 size={14} /> 삭제
-        </button>
+
+      <div className="p-5 flex flex-col flex-1">
+        {/* 날짜 */}
+        <div className="flex items-center mb-3">
+          <span className="ml-auto text-xs text-gray-400">{date}</span>
+        </div>
+
+        {/* 제목 */}
+        <h3 className="text-lg font-bold mb-1 line-clamp-1">{displayTitle}</h3>
+
+        {/* 설명 */}
+        <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+          {targetCompany ? `${targetCompany}${targetPosition ? ` · ${targetPosition}` : ''}` : '지원 회사 미설정'}
+        </p>
+
+        {/* 액션 버튼 */}
+        <div className="mt-auto space-y-2">
+          {/* 주 버튼: 자세히보기(비템플릿) / 미리보기(템플릿) */}
+          {isTemplate ? (
+            <Link
+              to={`/app/portfolio/preview/${id}`}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+            >
+              <Eye size={14} /> 자세히 보기
+            </Link>
+          ) : (
+            <button
+              onClick={onDetail}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+            >
+              <Eye size={14} /> 자세히 보기
+            </button>
+          )}
+          <div className="flex items-center gap-1">
+            <Link
+              to={isTemplate ? `/app/portfolio/edit-notion/${id}` : `/app/portfolio/edit/${id}`}
+              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
+            >
+              <Edit size={14} /> 편집하기
+            </Link>
+            <button
+              onClick={onExport}
+              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
+            >
+              <Download size={14} /> 내보내기
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

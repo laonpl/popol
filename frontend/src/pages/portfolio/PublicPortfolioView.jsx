@@ -2,10 +2,21 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
-  Loader2, Code, Tag
+  Loader2, Code, Tag, X
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+
+const EXP_SECTION_META = {
+  intro:      { num: '01', label: '프로젝트 소개' },
+  overview:   { num: '02', label: '프로젝트 개요' },
+  task:       { num: '03', label: '진행한 일' },
+  process:    { num: '04', label: '과정' },
+  output:     { num: '05', label: '결과물' },
+  growth:     { num: '06', label: '성장한 점' },
+  competency: { num: '07', label: '나의 역량' },
+};
+const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
 
 export default function PublicPortfolioView() {
   const { id } = useParams();
@@ -657,35 +668,122 @@ export default function PublicPortfolioView() {
       {/* Experience Detail Modal */}
       {selectedExp && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedExp(null)}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">{selectedExp.title}</h3>
-              <button onClick={() => setSelectedExp(null)} className="p-1 text-gray-400 hover:text-gray-600">✕</button>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{selectedExp.title}</h3>
+              <button onClick={() => setSelectedExp(null)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 flex-shrink-0">
+                <X size={18} />
+              </button>
             </div>
-            <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
-              {selectedExp.date && <span>{selectedExp.date}</span>}
-              {selectedExp.role && <span>· {selectedExp.role}</span>}
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* 썸네일 */}
+              {selectedExp.thumbnailUrl && (
+                <div className="w-full h-44 rounded-xl overflow-hidden bg-gray-50">
+                  <img src={selectedExp.thumbnailUrl} alt={selectedExp.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {/* 기본 정보 */}
+              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                {selectedExp.date && <span>📅 {selectedExp.date}</span>}
+                {selectedExp.role && <span>👤 {selectedExp.role}</span>}
+                {selectedExp.structuredResult?.projectOverview?.team && (
+                  <span>👥 {selectedExp.structuredResult.projectOverview.team}</span>
+                )}
+                {selectedExp.structuredResult?.projectOverview?.duration && (
+                  <span>⏱ {selectedExp.structuredResult.projectOverview.duration}</span>
+                )}
+              </div>
+
+              {/* 스킬 태그 */}
+              {((selectedExp.skills?.length ? selectedExp.skills : (selectedExp.structuredResult?.projectOverview?.techStack || [])).length > 0) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {(selectedExp.skills?.length ? selectedExp.skills : selectedExp.structuredResult.projectOverview.techStack).map((s, i) => (
+                    <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
+                      {typeof s === 'string' ? s : s?.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* 설명 */}
+              {(selectedExp.description || selectedExp.structuredResult?.projectOverview?.summary) && (
+                <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-4 whitespace-pre-line">
+                  {selectedExp.description || selectedExp.structuredResult.projectOverview.summary}
+                </p>
+              )}
+
+              {/* structuredResult 상세 섹션 */}
+              {(() => {
+                const structured = selectedExp.structuredResult || {};
+                const hasSections = EXP_SECTION_KEYS.some(k => (typeof structured[k] === 'string' ? structured[k] : '')?.trim());
+                if (!hasSections) return null;
+                return (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      {EXP_SECTION_KEYS.map(key => {
+                        const meta = EXP_SECTION_META[key];
+                        const val = typeof structured[key] === 'string' ? structured[key] : '';
+                        if (!val?.trim()) return null;
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center gap-3 px-5 py-2.5 bg-gray-50">
+                              <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-500 text-white flex items-center justify-center text-[11px] font-bold">
+                                {meta.num}
+                              </span>
+                              <span className="text-[13px] font-bold text-blue-700">{meta.label}</span>
+                            </div>
+                            <div className="px-5 py-3 pl-[60px]">
+                              <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* keyExperiences */}
+              {(selectedExp.structuredResult?.keyExperiences || []).length > 0 && (
+                <div>
+                  <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 &amp; 성과</h4>
+                  <div className="space-y-2">
+                    {selectedExp.structuredResult.keyExperiences.map((ke, ki) => (
+                      <div key={ki} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <p className="text-sm font-semibold text-gray-800">{ke.title}</p>
+                        {ke.metric && <p className="text-xs text-green-600 font-bold mt-0.5">{ke.metric}</p>}
+                        {ke.description && <p className="text-xs text-gray-500 mt-1">{ke.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 커스텀 섹션 (exp.sections) */}
+              {(selectedExp.sections || []).length > 0 && (
+                <div className="space-y-3">
+                  {selectedExp.sections.map((sec, i) => (
+                    sec.content?.trim() ? (
+                      <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        {sec.title && <h4 className="text-sm font-bold text-gray-800 mb-2">{sec.title}</h4>}
+                        <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">{sec.content}</p>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              )}
+
+              {/* 링크 */}
+              {selectedExp.link && (
+                <a href={selectedExp.link} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+                  <ExternalLink size={14} /> 링크 보기
+                </a>
+              )}
             </div>
-            {selectedExp.description && <p className="text-sm text-gray-700 mb-4 whitespace-pre-line">{selectedExp.description}</p>}
-            {(selectedExp.skills || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {selectedExp.skills.map((s, i) => (
-                  <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">{s}</span>
-                ))}
-              </div>
-            )}
-            {(selectedExp.sections || []).map((sec, i) => (
-              <div key={i} className="mt-4">
-                <h4 className="text-sm font-bold text-gray-800 mb-2">{sec.title}</h4>
-                <p className="text-sm text-gray-600 whitespace-pre-line">{sec.content}</p>
-              </div>
-            ))}
-            {selectedExp.link && (
-              <a href={selectedExp.link} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-4 text-sm text-blue-600 hover:underline">
-                <ExternalLink size={14} /> 링크 보기
-              </a>
-            )}
           </div>
         </div>
       )}

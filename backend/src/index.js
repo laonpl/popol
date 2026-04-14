@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import experienceRoutes from './routes/experience.js';
 
 import portfolioRoutes from './routes/portfolio.js';
@@ -34,6 +35,12 @@ app.use('/api/export', exportRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/job', jobRoutes);
 app.use('/api/upload', uploadRoutes);
+
+// 업로드된 이미지 정적 서빙 (cross-origin 허용)
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(process.cwd(), 'uploads')));
 
 // Health check
 app.get('/api/health', (req, res) => {
