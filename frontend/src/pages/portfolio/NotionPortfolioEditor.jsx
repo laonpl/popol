@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
@@ -89,6 +90,7 @@ export default function NotionPortfolioEditor() {
   const [editMode, setEditMode] = useState(
     new URLSearchParams(location.search).get('mode') === 'form' ? 'form' : 'visual'
   );
+  const [analysisMode, setAnalysisMode] = useState(true);
 
   // 템플릿별 섹션 레이블
   const SECTION_LABELS = {
@@ -406,11 +408,9 @@ export default function NotionPortfolioEditor() {
           <div className="flex bg-surface-100 rounded-xl p-1 gap-0.5">
             <Link
               to={`/app/portfolio/preview/${id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700 transition-all"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white text-primary-700 shadow-sm transition-all"
             >
-              <ExternalLink size={13} /> 자세히보기
+              자세히보기
             </Link>
             <button
               onClick={() => setEditMode('visual')}
@@ -420,17 +420,17 @@ export default function NotionPortfolioEditor() {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <Eye size={13} /> 대시보드 편집
+              대시보드 편집
             </button>
             <button
-              onClick={() => setEditMode('form')}
+              onClick={() => setAnalysisMode(prev => !prev)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                editMode === 'form'
+                analysisMode
                   ? 'bg-white text-primary-700 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <PanelLeft size={13} /> 폼 편집
+              기업 분석 {analysisMode ? 'ON' : 'OFF'}
             </button>
           </div>
           <button
@@ -501,178 +501,20 @@ export default function NotionPortfolioEditor() {
       )}
 
       {/* ── Visual Mode: 대시보드 편집 (자세히보기와 동일 레이아웃) ── */}
-      {editMode === 'visual' ? (
-        <VisualEditor
-          portfolio={portfolio}
-          update={update}
-          updateNested={updateNested}
-          addToArray={addToArray}
-          removeFromArray={removeFromArray}
-          updateArrayItem={updateArrayItem}
-          userId={user.uid}
-          portfolioId={id}
-          templateId={tid}
-          userExperiences={userExperiences}
-          importExperience={importExperience}
-        />
-      ) : (
-      <>
-      {/* Headline */}
-      <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
-        <div className="flex items-center gap-3 mb-3">
-          {tid === 'ashley' && <span className="px-2.5 py-1 bg-[#f0ece4] text-[#8a6c4a] text-xs font-bold rounded-full">크리에이티브</span>}
-          {tid === 'academic' && <span className="px-2.5 py-1 bg-blue-900 text-white text-xs font-bold rounded-full">학생 이력서</span>}
-          {tid === 'notion' && <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">Notion 포트폴리오</span>}
-        </div>
-        <input
-          value={portfolio.headline || ''}
-          onChange={e => update('headline', e.target.value)}
-          placeholder={
-            tid === 'ashley' ? '나를 한 줄로 소개해요 (예: 마케터이자 작가, 여행가인 홍길동입니다)' :
-            tid === 'academic' ? '나의 학문적 정체성 (예: 수학을 사랑하는 개발자, 홍길동)' :
-            '나를 표현하는 한 줄 제목 (예: 세상과 소통하는 Mathematician, 한채영)'
-          }
-          className="w-full text-2xl font-bold outline-none placeholder:text-gray-300"
-        />
-        <p className="text-xs text-gray-400 mt-2">
-          {tid === 'ashley' ? '포트폴리오 상단 히어로 영역에 표시됩니다' :
-           tid === 'academic' ? '다크 히어로 배너 하단에 표시되는 핵심 키워드입니다' :
-           'Notion 포트폴리오 상단에 표시되는 대표 타이틀입니다'}
-        </p>
-        {/* 연결된 기업 공고 */}
-        {portfolio.jobAnalysis && (
-          <div className="mt-3">
-            <JobAnalysisBadge
-              analysis={portfolio.jobAnalysis}
-              onRemove={() => update('jobAnalysis', null)}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Section Navigation */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {visibleSections.map(sec => {
-          const Icon = sec.icon;
-          const isDeletable = true;
-          return (
-            <div key={sec.id} className="relative group">
-              <button
-                onClick={() => setActiveSection(sec.id)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                  activeSection === sec.id
-                    ? 'bg-primary-600 text-white shadow-md pr-7'
-                    : 'bg-white border border-surface-200 text-gray-600 hover:bg-surface-50 group-hover:pr-7'
-                }`}
-              >
-                <Icon size={14} /> {sec.label}
-              </button>
-              {isDeletable && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    update('hiddenSections', [...hiddenSections, sec.id]);
-                    if (activeSection === sec.id) {
-                      const remaining = visibleSections.filter(s => s.id !== sec.id);
-                      setActiveSection(remaining[0]?.id || 'education');
-                    }
-                  }}
-                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
-                    activeSection === sec.id
-                      ? 'text-white/70 hover:text-white opacity-100'
-                      : 'text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100'
-                  }`}
-                  title="섹션 숨기기"
-                >
-                  <X size={10} />
-                </button>
-              )}
-            </div>
-          );
-        })}
-        {/* 숨겨진 섹션 복원 */}
-        {removableHiddenSections.length > 0 && (
-          <div className="relative group/restore">
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap border border-dashed border-gray-300 text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-all">
-              <Plus size={14} /> 섹션 추가
-            </button>
-            <div className="absolute top-full left-0 mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-20 min-w-[140px] py-1 hidden group-hover/restore:block">
-              {removableHiddenSections.map(sec => {
-                const Icon = sec.icon;
-                return (
-                  <button
-                    key={sec.id}
-                    onClick={() => update('hiddenSections', hiddenSections.filter(h => h !== sec.id))}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-700 transition-colors"
-                  >
-                    <Icon size={13} /> {sec.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Section Content */}
-      <div className="min-h-[500px]">
-        {activeSection === 'profile' && (
-          <ProfileSection portfolio={portfolio} update={update} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem}
-            userId={user.uid} portfolioId={id} templateId={tid} />
-        )}
-        {activeSection === 'education' && (
-          <EducationSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'awards' && (
-          <AwardsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'experiences' && (
-          <ExperiencesSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem}
-            userExperiences={userExperiences} importExperience={importExperience}
-            showExpPicker={showExpPicker} setShowExpPicker={setShowExpPicker} templateId={tid} />
-        )}
-        {activeSection === 'curricular' && (
-          <CurricularSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
-        )}
-        {activeSection === 'extracurricular' && (
-          <ExtracurricularSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
-        )}
-        {activeSection === 'skills' && (
-          <SkillsSection portfolio={portfolio} update={update} updateNested={updateNested} templateId={tid} />
-        )}
-        {activeSection === 'goals' && (
-          <GoalsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'values' && (
-          <ValuesSection portfolio={portfolio} update={update} templateId={tid} />
-        )}
-        {activeSection === 'contact' && (
-          <ContactSection portfolio={portfolio} updateNested={updateNested} templateId={tid} />
-        )}
-        {activeSection === 'interviews' && (
-          <InterviewsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'books' && (
-          <BooksSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'lectures' && (
-          <LecturesSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-        {activeSection === 'funfacts' && (
-          <FunFactsSection portfolio={portfolio} addToArray={addToArray}
-            removeFromArray={removeFromArray} updateArrayItem={updateArrayItem} templateId={tid} />
-        )}
-      </div>
-      </>
-      )}
+      <VisualEditor
+        portfolio={portfolio}
+        update={update}
+        updateNested={updateNested}
+        addToArray={addToArray}
+        removeFromArray={removeFromArray}
+        updateArrayItem={updateArrayItem}
+        userId={user.uid}
+        portfolioId={id}
+        templateId={tid}
+        userExperiences={userExperiences}
+        importExperience={importExperience}
+        analysisMode={analysisMode}
+      />
     </div>
   );
 }
@@ -735,6 +577,85 @@ function SkillAddInput({ category, onAdd }) {
         <Plus size={11} />
       </button>
     </div>
+  );
+}
+
+/* ── Visual Editor 섹션별 AI 내용 추천 버튼 ── */
+function VisualSectionRecommend({ sectionType, jobAnalysis }) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [show, setShow] = useState(false);
+  const [panelTop, setPanelTop] = useState(120);
+  const btnRef = useRef(null);
+
+  const SECTION_LABELS = {
+    education: '교육', awards: '수상', skills: '기술',
+    goals: '목표와 계획', values: '가치관'
+  };
+
+  if (!jobAnalysis || !sectionType) return null;
+
+  const handleClick = async () => {
+    if (show && data) { setShow(false); return; }
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPanelTop(Math.max(80, rect.top));
+    }
+    setLoading(true);
+    setShow(true);
+    try {
+      const { data: resp } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
+      setData(resp);
+    } catch { toast.error('내용 추천에 실패했습니다'); setShow(false); }
+    setLoading(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleClick}
+        disabled={loading}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+        } disabled:opacity-50`}
+      >
+        {loading && <Loader2 size={12} className="animate-spin" />}
+        내용 추천
+      </button>
+      {show && createPortal(
+        <div
+          style={{ position: 'fixed', right: 24, top: panelTop, width: 280, zIndex: 1000 }}
+          className="bg-white rounded-2xl border border-indigo-200 shadow-xl p-4"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
+              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
+            </div>
+            <button onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+          </div>
+          {loading ? (
+            <div className="flex flex-col items-center py-6">
+              <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
+              <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
+            </div>
+          ) : data?.recommendations ? (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {data.recommendations.map((rec, i) => (
+                <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                  <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -844,11 +765,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">{exp.title}</h2>
                 <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
-                  {exp.date && <span>📅 {exp.date}</span>}
-                  {exp.role && <span>👤 {exp.role}</span>}
-                  {structured.projectOverview?.team && <span>👥 {structured.projectOverview.team}</span>}
-                  {structured.projectOverview?.duration && <span>⏱ {structured.projectOverview.duration}</span>}
-                  {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">🔗 링크</a>}
+                  {exp.date && <span>{exp.date}</span>}
+                  {exp.role && <span>{exp.role}</span>}
+                  {structured.projectOverview?.team && <span>{structured.projectOverview.team}</span>}
+                  {structured.projectOverview?.duration && <span>{structured.projectOverview.duration}</span>}
+                  {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">링크</a>}
                 </div>
                 {(exp.skills || (structured.projectOverview?.techStack || [])).length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -908,7 +829,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
               <div className="relative w-full h-36 bg-surface-50 rounded-xl overflow-hidden">
                 {exp.thumbnailUrl
                   ? <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-4xl opacity-30">📋</div>}
+                  : <div className="w-full h-full flex items-center justify-center text-4xl opacity-30"><Briefcase size={28} className="text-gray-300" /></div>}
                 <label className="absolute inset-0 cursor-pointer hover:bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                   <span className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full">썸네일 변경</span>
                   <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
@@ -1023,7 +944,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-dashed border-[#c4b89a] hover:border-[#8a6c4a] transition-colors relative group flex-shrink-0">
               {p.profileImageUrl
                 ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
-                : <div className="w-full h-full bg-[#e8e4dc] flex items-center justify-center text-4xl">👤</div>}
+                : <div className="w-full h-full bg-[#e8e4dc] flex items-center justify-center"><Upload size={28} className="text-[#c4b89a]" /></div>}
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Upload size={16} className="text-white" />
               </div>
@@ -1090,7 +1011,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <div className="relative">
                     <button onClick={() => setShowExpPicker(p => !p)}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#f7f5f0] text-[#5a564e] rounded-lg hover:bg-[#e8e4dc]">
-                      <Download size={11} /> 경험 DB에서 불러오기
+                      경험 DB에서 불러오기
                     </button>
                     {showExpPicker && (
                       <div className="absolute right-0 top-full mt-1 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
@@ -1132,7 +1053,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
                   {e.thumbnailUrl
                     ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨','💡','📊','🚀'][i % 6]}</div>}
+                    : <div className="w-full h-full flex items-center justify-center opacity-30"><Briefcase size={24} className="text-gray-400" /></div>}
                 </div>
                 <div className="p-3">
                   <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
@@ -1275,7 +1196,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             className="w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 relative group flex-shrink-0">
             {p.profileImageUrl
               ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
-              : <div className="w-full h-full bg-white/10 flex items-center justify-center text-5xl">👤</div>}
+              : <div className="w-full h-full bg-white/10 flex items-center justify-center"><Upload size={28} className="text-white/40" /></div>}
             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Upload size={18} className="text-white" />
             </div>
@@ -1347,7 +1268,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               <div className="space-y-3">
                 {(p.awards || []).map((a, i) => (
                   <div key={i} className="flex items-start gap-3 group/aw">
-                    <span className="text-lg mt-0.5">🏆</span>
+                    <Award size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                       <input value={a.title || ''} onChange={e => updateArrayItem('awards', i, { title: e.target.value })}
                         placeholder="수상명" className="text-sm font-medium text-gray-800 outline-none bg-transparent placeholder:text-gray-300 w-full" />
@@ -1374,7 +1295,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               <div className="relative">
                 <button onClick={() => setShowExpPicker(pr => !pr)}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100">
-                  <Download size={11} /> 경험 DB에서 불러오기
+                  경험 DB에서 불러오기
                 </button>
                 {showExpPicker && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
@@ -1393,7 +1314,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden">
                   {e.thumbnailUrl
                     ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-3xl opacity-40">📋</div>}
+                    : <div className="w-full h-full flex items-center justify-center opacity-40"><Briefcase size={24} className="text-gray-300" /></div>}
                 </div>
                 <div className="p-3">
                   <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
@@ -1747,7 +1668,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 }
 
 /* ── Notion Visual Editor (기존 3컬럼) ── */
-function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience }) {
+function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -1768,6 +1689,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [analyzingJob, setAnalyzingJob] = useState(false);
   const [jobError, setJobError] = useState(null);
   const [showJobInput, setShowJobInput] = useState(false);
+
+  // 기업 맞춤 경험 추천 (visual mode)
+  const [recLoading, setRecLoading] = useState(false);
+  const [recResults, setRecResults] = useState(null);
+
+  const fetchVisualRecommendations = async () => {
+    if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
+    setRecLoading(true);
+    try {
+      const { data } = await api.post('/job/recommend-experiences', { jobAnalysis: portfolio.jobAnalysis });
+      setRecResults(data);
+    } catch { toast.error('경험 추천 분석에 실패했습니다'); }
+    setRecLoading(false);
+  };
 
   const handleJobAnalyze = async () => {
     if (!jobUrl.trim()) return;
@@ -1828,9 +1763,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hiddenSections = p.hiddenSections || [];
 
   return (
-    <div className="flex gap-5 items-start">
+    <div className={analysisMode ? "flex gap-5 items-start" : "max-w-[1100px] mx-auto"}>
       {/* ── 포트폴리오 카드 ── */}
-      <div className="flex-1 min-w-0 bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden">
+      <div className={`${analysisMode ? 'flex-1 min-w-0' : 'w-full'} bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden`}>
       {/* Editable Header */}
       <div className="px-10 pt-10 pb-6 border-b border-surface-100 group relative">
         <input
@@ -1888,7 +1823,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             <div className="space-y-2">
               {(p.values || []).map((v, i) => (
                 <div key={i} className="p-2 bg-white rounded-lg border border-surface-100 group/val flex items-center gap-2">
-                  <span>{['➕', '➖', '✖️', '➗', '🎓'][i % 5]}</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400 mt-2"></span>
                   <input value={v.keyword || ''} onChange={e => updateArrayItem('values', i, { keyword: e.target.value })}
                     className="flex-1 text-sm font-medium text-gray-700 outline-none bg-transparent" placeholder="가치 키워드" />
                   <button onClick={() => removeFromArray('values', i)} className="text-gray-300 hover:text-red-400 transition-opacity">
@@ -1909,7 +1844,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           {/* Education */}
           {sections.includes('education') && (
             <div className="mb-8 group/sec" onMouseEnter={() => setHoveredSection('edu')} onMouseLeave={() => setHoveredSection(null)}>
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">Education</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2">Education</h3>
+                <VisualSectionRecommend sectionType="education" jobAnalysis={portfolio.jobAnalysis} />
+              </div>
               <div className="space-y-4">
                 {(p.education || []).map((edu, i) => (
                   <div key={i} className="pb-4 border-b border-surface-100 last:border-0 group/item relative">
@@ -1954,7 +1892,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
           {/* Contact */}
           <div className="mb-8">
-            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">📞 Contact</h3>
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Contact</h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400" />
                 <input value={contact.phone || ''} onChange={e => updateNested('contact', 'phone', e.target.value)}
@@ -1985,7 +1923,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           {/* Awards */}
           {sections.includes('awards') && (
             <div className="mb-8">
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Awards</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold flex items-center gap-2">Awards</h3>
+                <VisualSectionRecommend sectionType="awards" jobAnalysis={portfolio.jobAnalysis} />
+              </div>
               <div className="space-y-2">
                 {(p.awards || []).map((a, i) => (
                   <div key={i} className="text-sm group/aw flex items-start gap-1">
@@ -2023,11 +1964,18 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">프로젝트 / 경험</h2>
           <div className="flex items-center gap-2">
+            {/* 기업 맞춤 경험 추천 */}
+            {portfolio.jobAnalysis && (
+              <button onClick={fetchVisualRecommendations} disabled={recLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors font-medium">
+                {recLoading ? <><Loader2 size={12} className="animate-spin" /> 분석 중...</> : <>기업 맞춤 경험 추천</>}
+              </button>
+            )}
             {userExperiences.length > 0 && (
               <div className="relative">
                 <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100">
-                  <Download size={12} /> 경험 DB에서 불러오기
+                  경험 DB에서 불러오기
                 </button>
                 {showCustomBlockMenu && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1 w-64 max-h-48 overflow-y-auto">
@@ -2043,6 +1991,52 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             )}
           </div>
         </div>
+
+        {/* 기업 맞춤 경험 추천 결과 */}
+        {recResults && (
+          <div className="mb-4 border border-indigo-100 rounded-xl bg-indigo-50/50 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-700">{portfolio.jobAnalysis?.company} 맞춤 추천 경험</span>
+              </div>
+              <button onClick={() => setRecResults(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+            </div>
+            {(recResults.keywords || []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {recResults.keywords.map((kw, i) => (
+                  <span key={i} className="px-2 py-1 bg-white rounded-lg border border-indigo-200 text-xs">
+                    <span className="font-bold text-indigo-700">{kw.keyword}</span>
+                    <span className="text-gray-500 ml-1">{kw.description}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="space-y-2">
+              {(recResults.recommendations || []).map((rec, i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-indigo-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">{rec.experience?.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
+                    <div className="flex gap-1 mt-1">
+                      {(rec.matchedKeywords || []).map((k, ki) => (
+                        <span key={ki} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    const exp = userExperiences.find(e => e.id === rec.experience?.id);
+                    if (exp) importExperience(exp);
+                    else toast.error('경험 데이터를 찾을 수 없습니다');
+                  }}
+                    className="flex-shrink-0 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors">
+                    추가
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {(p.experiences || []).map((exp, i) => (
             <div key={i} onClick={() => setExpDetailIdx(i)} className="group/exp bg-white rounded-xl border border-surface-200 overflow-hidden relative hover:shadow-md transition-all cursor-pointer">
@@ -2052,7 +2046,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <img src={exp.thumbnailUrl} alt={exp.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-100 to-surface-50">
-                    <span className="text-4xl opacity-50">📋</span>
+                    <span className="text-4xl opacity-50"><Briefcase size={28} className="text-gray-300" /></span>
                   </div>
                 )}
               </div>
@@ -2116,9 +2110,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {!hiddenSections.includes('skills') && sections.includes('skills') && (
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">🛠 기술 | Skills</h2>
-            <button onClick={() => update('hiddenSections', [...hiddenSections, 'skills'])}
-              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">기술 | Skills</h2>
+            <div className="flex items-center gap-2">
+              <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
+              <button onClick={() => update('hiddenSections', [...hiddenSections, 'skills'])}
+                className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-5">
             {[
@@ -2146,8 +2143,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">목표와 계획</h2>
-            <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
-              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <div className="flex items-center gap-2">
+              <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
+              <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
+                className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <div className="space-y-3">
             {(p.goals || []).map((g, i) => (
@@ -2172,8 +2172,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">가치관 | Values</h2>
-            <button onClick={() => update('hiddenSections', [...hiddenSections, 'values'])}
-              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <div className="flex items-center gap-2">
+              <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
+              <button onClick={() => update('hiddenSections', [...hiddenSections, 'values'])}
+                className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <textarea value={p.valuesEssay || ''} onChange={e => update('valuesEssay', e.target.value)}
             placeholder="가치관 에세이를 작성하세요..."
@@ -2251,7 +2254,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           onClick={() => setProjectBlockPickerIdx(projectBlockPickerIdx === i ? null : i)}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
                         >
-                          <Download size={11} /> 경험 DB에서 불러오기
+                          경험 DB에서 불러오기
                         </button>
                         {projectBlockPickerIdx === i && (
                           <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-64 max-h-52 overflow-y-auto">
@@ -2274,7 +2277,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                               }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
                                 {exp.images?.[0] || exp.thumbnailUrl
                                   ? <img src={exp.images?.[0] || exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" />
-                                  : <div className="w-8 h-8 rounded bg-surface-100 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm">📋</div>}
+                                  : <div className="w-8 h-8 rounded bg-surface-100 flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-gray-400" /></div>}
                                 <div className="min-w-0">
                                   <p className="text-sm text-gray-700 font-medium truncate">{exp.title}</p>
                                   {exp.date && <p className="text-[10px] text-gray-400">{exp.date}</p>}
@@ -2295,7 +2298,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           {card.thumbnailUrl
                             ? <img src={card.thumbnailUrl} alt={card.title} className="w-full h-full object-cover" />
                             : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-100 to-surface-50">
-                                <span className="text-4xl opacity-40">📋</span>
+                                <span className="text-4xl opacity-40"><Briefcase size={28} className="text-gray-300" /></span>
                               </div>}
                         </div>
                         <div className="p-3">
@@ -2375,11 +2378,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       </div>{/* end 포트폴리오 카드 */}
 
       {/* ── 우측 기업 분석 사이드바 (sticky) ── */}
+      {analysisMode && (
       <div className="w-[560px] flex-shrink-0">
         <div className="sticky top-5">
           {/* 헤더 */}
           <div className="flex items-center gap-2 mb-3 px-1">
-            <Building2 size={16} className="text-blue-600" />
             <h3 className="text-sm font-bold text-gray-800">기업 분석</h3>
           </div>
 
@@ -2428,7 +2431,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <div className="flex gap-2">
                     <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                      {analyzingJob ? <><Loader2 size={14} className="animate-spin" />분석 중...</> : <><Sparkles size={14} />분석하기</>}
+                      {analyzingJob ? <><Loader2 size={14} className="animate-spin" />분석 중...</> : <>분석하기</>}
                     </button>
                     <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
                       className="px-4 py-2.5 text-gray-500 hover:text-gray-700 text-sm border border-gray-200 rounded-xl transition-colors">취소</button>
@@ -2454,7 +2457,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 onClick={() => setShowJobInput(true)}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
               >
-                <Sparkles size={15} /> 채용공고 분석하기
+                채용공고 분석하기
               </button>
             </div>
           ) : (
@@ -2478,7 +2481,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <div className="flex gap-2">
                 <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {analyzingJob ? <><Loader2 size={15} className="animate-spin" />분석 중...</> : <><Sparkles size={15} />분석하기</>}
+                  {analyzingJob ? <><Loader2 size={15} className="animate-spin" />분석 중...</> : <>분석하기</>}
                 </button>
                 <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
                   className="px-4 py-3 text-gray-500 hover:text-gray-700 text-sm border border-gray-200 rounded-xl transition-colors">취소</button>
@@ -2486,7 +2489,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             </div>
           )}
         </div>
-      </div>{/* end 기업 분석 사이드바 */}
+      </div>
+      )}{/* end 기업 분석 사이드바 */}
 
     </div>
   );
@@ -2494,16 +2498,88 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
 /* ── Section Components ── */
 
-function SectionCard({ title, icon: Icon, children, description }) {
+function SectionCard({ title, icon: Icon, children, description, sectionType, jobAnalysis }) {
+  const [recLoading, setRecLoading] = useState(false);
+  const [recData, setRecData] = useState(null);
+  const [showBubble, setShowBubble] = useState(false);
+
+  const handleRecommend = async () => {
+    if (!jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
+    if (showBubble && recData) { setShowBubble(false); return; }
+    setRecLoading(true);
+    setShowBubble(true);
+    try {
+      const { data } = await api.post('/job/recommend-section', {
+        jobAnalysis,
+        sectionType,
+      });
+      setRecData(data);
+    } catch { toast.error('내용 추천에 실패했습니다'); setShowBubble(false); }
+    setRecLoading(false);
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-4">
-      <div className="flex items-center gap-2 mb-1">
-        {Icon && <Icon size={18} className="text-primary-600" />}
-        <h2 className="text-lg font-bold">{title}</h2>
+    <div className="relative flex gap-4 mb-4">
+      <div className="flex-1 bg-white rounded-2xl border border-surface-200 p-6">
+        <div className="flex items-center gap-2 mb-1">
+          {Icon && <Icon size={18} className="text-primary-600" />}
+          <h2 className="text-lg font-bold flex-1">{title}</h2>
+          {sectionType && jobAnalysis && (
+            <button
+              onClick={handleRecommend}
+              disabled={recLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                showBubble
+                  ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
+                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+              } disabled:opacity-50`}
+            >
+              {recLoading && <Loader2 size={12} className="animate-spin" />}
+              내용 추천
+            </button>
+          )}
+        </div>
+        {description && <p className="text-xs text-gray-400 mb-4">{description}</p>}
+        {!description && <div className="mb-4" />}
+        {children}
       </div>
-      {description && <p className="text-xs text-gray-400 mb-4">{description}</p>}
-      {!description && <div className="mb-4" />}
-      {children}
+
+      {/* 말풍선 추천 패널 */}
+      {showBubble && (
+        <div className="w-72 flex-shrink-0 self-start sticky top-4">
+          <div className="relative bg-white rounded-2xl border border-indigo-200 shadow-lg p-4">
+            {/* 말풍선 꼬리 */}
+            <div className="absolute -left-2 top-6 w-4 h-4 bg-white border-l border-b border-indigo-200 transform rotate-45" />
+
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
+              </div>
+              <button onClick={() => setShowBubble(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            </div>
+
+            {recLoading ? (
+              <div className="flex flex-col items-center py-6">
+                <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
+                <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
+              </div>
+            ) : recData?.recommendations ? (
+              <div className="space-y-3">
+                {recData.recommendations.map((rec, i) => (
+                  <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2539,7 +2615,7 @@ function TextareaField({ label, value, onChange, placeholder, rows = 4 }) {
 }
 
 // ── Profile Section ──
-function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId }) {
+function ProfileSection({ portfolio, update, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, jobAnalysis }) {
   const profileImageInputRef = useRef(null);
   const [uploadingProfile, setUploadingProfile] = useState(false);
 
@@ -2759,12 +2835,14 @@ const DEGREE_OPTIONS = [
   '전문학사', '수료', '재학 중', '졸업 예정', '기타',
 ];
 
-function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId }) {
+function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   return (
     <SectionCard
       title={templateId === 'ashley' ? '학교 (School)' : '학력 (Education)'}
       icon={GraduationCap}
+      sectionType="education"
+      jobAnalysis={jobAnalysis}
       description={
         templateId === 'ashley'
           ? '출신 학교를 입력하세요. 클릭하면 세부 정보를 편집할 수 있습니다'
@@ -2851,10 +2929,10 @@ function EducationSection({ portfolio, addToArray, removeFromArray, updateArrayI
 }
 
 // ── Awards Section ──
-function AwardsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function AwardsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="수상 / 장학금 (Scholarship and Awards)" icon={Award} description="수상 및 장학 내역을 입력하세요. 클릭하면 세부 정보를 편집할 수 있습니다">
+    <SectionCard title="수상 / 장학금 (Scholarship and Awards)" icon={Award} description="수상 및 장학 내역을 입력하세요. 클릭하면 세부 정보를 편집할 수 있습니다" sectionType="awards" jobAnalysis={jobAnalysis}>
       <div className="space-y-3">
         {(portfolio.awards || []).map((award, i) => {
           const isExpanded = expandedIdx === i;
@@ -2918,7 +2996,7 @@ const STATUS_OPTIONS = [
 ];
 const CLASSIFY_OPTIONS = ['교내 활동', '교외 활동', '동아리', '공모전', '학교 협력 활동', '기술', '발표', '대회', '해외 경험'];
 
-function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, showExpPicker, setShowExpPicker, templateId }) {
+function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, showExpPicker, setShowExpPicker, templateId, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [tailoringIdx, setTailoringIdx] = useState(null);
   const [tailorResult, setTailorResult] = useState(null);
@@ -3007,6 +3085,8 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
         '프로젝트 / 경험 (Experience)'
       }
       icon={Briefcase}
+      sectionType="experiences"
+      jobAnalysis={jobAnalysis}
       description={
         templateId === 'ashley'
           ? '현재/과거 경력, 프리랜서 프로젝트, 독립 프로젝트 등을 입력하세요. 인터뷰 & 프로젝트 갤러리에 카드로 표시됩니다'
@@ -3018,7 +3098,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
       {/* Ashley: 경력 타임라인 안내 */}
       {templateId === 'ashley' && (
         <div className="mb-4 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-xs text-[#5a564e] leading-relaxed">
-          <p className="font-bold text-[#2d2a26] mb-2">✍️ 작성 가이드 (alohayoon.oopy.io 참고)</p>
+          <p className="font-bold text-[#2d2a26] mb-2">작성 가이드 (alohayoon.oopy.io 참고)</p>
           <ul className="space-y-1">
             <li>• <strong>현재 경력</strong>: 현재 하고 있는 프로젝트, 커뮤니티, 클래스 활동 등</li>
             <li>• <strong>지난 경력(프리워커)</strong>: 독립 후 진행한 프로젝트들</li>
@@ -3033,7 +3113,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
           <p className="text-xs font-bold text-blue-700 mb-2">Academic 템플릿 구성</p>
           <p className="text-xs text-blue-600 mb-3">경험을 추가하면 <strong>Portfolio(갤러리)</strong>와 <strong>Experience(타임라인)</strong>에 자동으로 표시됩니다. 아래 Classify 태그로 구분하세요:</p>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">🖼 Portfolio → 대표 프로젝트</span>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">Portfolio → 대표 프로젝트</span>
             <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg font-medium">경험 → 활동 이력</span>
             <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-medium">대회 → 수상 연결</span>
           </div>
@@ -3066,7 +3146,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
             <div className="space-y-3">
               {/* 핵심 키워드 3개 */}
               <div>
-                <p className="text-xs font-bold text-indigo-600 mb-2">🔑 핵심 키워드</p>
+                <p className="text-xs font-bold text-indigo-600 mb-2">핵심 키워드</p>
                 <div className="flex flex-wrap gap-2">
                   {(recommendations.keywords || []).map((kw, i) => (
                     <div key={i} className="px-3 py-1.5 bg-white rounded-lg border border-indigo-200 text-sm">
@@ -3126,7 +3206,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                   {exp.thumbnailUrl ? (
                     <img src={exp.thumbnailUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-surface-200 flex items-center justify-center shrink-0 text-lg">📋</div>
+                    <div className="w-12 h-12 rounded-lg bg-surface-200 flex items-center justify-center shrink-0"><Briefcase size={20} className="text-gray-400" /></div>
                   )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -3335,7 +3415,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
 }
 
 // ── Curricular Section ──
-function CurricularSection({ portfolio, update, updateNested, templateId }) {
+function CurricularSection({ portfolio, update, updateNested, templateId, jobAnalysis }) {
   const curr = portfolio.curricular || { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
   const [showEveryTimeImport, setShowEveryTimeImport] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -3458,7 +3538,7 @@ function CurricularSection({ portfolio, update, updateNested, templateId }) {
 
   return (
     <>
-      <SectionCard title="교과 활동 | Curricular Activities" icon={BookOpen} description="이수 학점, 평점, 수강 내역 등을 입력하세요">
+      <SectionCard title="교과 활동 | Curricular Activities" icon={BookOpen} description="이수 학점, 평점, 수강 내역 등을 입력하세요" sectionType="curricular" jobAnalysis={jobAnalysis}>
         <div className="grid grid-cols-2 gap-4 mb-6">
           <InputField label="이수 학점 요약" value={curr.summary?.credits}
             onChange={v => updateCurrField('summary', { ...curr.summary, credits: v })} placeholder="총 00학점 이수" />
@@ -3574,7 +3654,7 @@ function CurricularSection({ portfolio, update, updateNested, templateId }) {
 }
 
 // ── Extracurricular Section ──
-function ExtracurricularSection({ portfolio, update, updateNested, templateId }) {
+function ExtracurricularSection({ portfolio, update, updateNested, templateId, jobAnalysis }) {
   const extra = portfolio.extracurricular || { summary: '', badges: [], languages: [], details: [] };
 
   const updateExtraField = (field, value) => {
@@ -3619,7 +3699,7 @@ function ExtracurricularSection({ portfolio, update, updateNested, templateId })
 
   return (
     <>
-      <SectionCard title={templateId === 'academic' ? '비교과 활동 & 자격증 | Extracurricular' : '비교과 활동 | Extracurricular Activities'} icon={Star} description={templateId === 'academic' ? '뽑낙활동, 디지털 배지, 어학 성적, 자격증 등을 입력하세요' : '비교과 프로그램, 디지털 배지, 어학 성적 등을 입력하세요'}>
+      <SectionCard title={templateId === 'academic' ? '비교과 활동 & 자격증 | Extracurricular' : '비교과 활동 | Extracurricular Activities'} icon={Star} description={templateId === 'academic' ? '뽑낙활동, 디지털 배지, 어학 성적, 자격증 등을 입력하세요' : '비교과 프로그램, 디지털 배지, 어학 성적 등을 입력하세요'} sectionType="extracurricular" jobAnalysis={jobAnalysis}>
         <TextareaField label={templateId === 'academic' ? '비교과 활동 요약' : '비교과 요약'} value={extra.summary} onChange={v => updateExtraField('summary', v)}
           placeholder={templateId === 'academic' ? '동아리, 학생회, 보조교사, 학교 활동 등 비교과 이력을 요약하세요' : '비교과 프로그램 이수 내역, 졸업 요건 충족 현황 등을 자유롭게 적어주세요'} rows={3} />
       </SectionCard>
@@ -3869,7 +3949,7 @@ function SkillCategoryInput({ category, label, placeholder, items, presets, onUp
   );
 }
 
-function SkillsSection({ portfolio, update, templateId }) {
+function SkillsSection({ portfolio, update, templateId, jobAnalysis }) {
   const skills = portfolio.skills || { tools: [], languages: [], frameworks: [], others: [] };
 
   const updateSkillCategory = (category, value) => {
@@ -3903,6 +3983,8 @@ function SkillsSection({ portfolio, update, templateId }) {
         '기술 | Skills'
       }
       icon={Code}
+      sectionType="skills"
+      jobAnalysis={jobAnalysis}
       description={
         templateId === 'ashley'
           ? 'Marketing, Creative Cloud, Tools, Entrepreneurial Mind 등 카테고리별로 할 수 있는 일을 입력하세요'
@@ -3940,7 +4022,7 @@ function SkillsSection({ portfolio, update, templateId }) {
 }
 
 // ── Goals Section ──
-function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId }) {
+function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, templateId, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   const typeLabel = { short: '단기', mid: '중기', long: '장기' };
   const typeColor = { short: 'bg-blue-100 text-blue-700', mid: 'bg-violet-100 text-violet-700', long: 'bg-teal-100 text-teal-700' };
@@ -3950,6 +4032,8 @@ function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem,
     <SectionCard
       title={templateId === 'academic' ? 'Personal Statement & 목표' : '목표와 계획 | Future Plans'}
       icon={Target}
+      sectionType="goals"
+      jobAnalysis={jobAnalysis}
       description={
         templateId === 'academic'
           ? '포트폴리오 하단 Personal Statement 영역에 표시됩니다. 클릭하면 세부 편집'
@@ -4032,7 +4116,7 @@ function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem,
 }
 
 // ── Values Section ──
-function ValuesSection({ portfolio, update, templateId }) {
+function ValuesSection({ portfolio, update, templateId, jobAnalysis }) {
   const sectionTitle = templateId === 'ashley'
     ? '나를 들려주는 이야기'
     : templateId === 'academic'
@@ -4050,7 +4134,7 @@ function ValuesSection({ portfolio, update, templateId }) {
       : '제가 추구하는 가치와 신념에 대해 자유롭게 작성해주세요...';
   const rows = templateId === 'ashley' ? 14 : 10;
   return (
-    <SectionCard title={sectionTitle} icon={MessageSquare} description={sectionDesc}>
+    <SectionCard title={sectionTitle} icon={MessageSquare} description={sectionDesc} sectionType="values" jobAnalysis={jobAnalysis}>
       <TextareaField label={templateId === 'ashley' ? '나의 이야기' : templateId === 'academic' ? '자기소개 에세이' : '가치관 에세이'}
         value={portfolio.valuesEssay}
         onChange={v => update('valuesEssay', v)}
@@ -4061,7 +4145,7 @@ function ValuesSection({ portfolio, update, templateId }) {
 
 // ── Contact Section ──
 // ── Ashley 전용: 인터뷰 섹션 ──
-function InterviewsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function InterviewsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   return (
     <SectionCard title="인터뷰" icon={Mic} description="매체 인터뷰, 팟캐스트 출연 등을 기록하세요. 클릭하면 세부 편집">
@@ -4116,10 +4200,10 @@ function InterviewsSection({ portfolio, addToArray, removeFromArray, updateArray
 
 // ── Ashley 전용: 저서 & 글쓰기 섹션 ──
 const BOOK_TYPES = ['단독 저서', '공저', '독립출판', '기고/연재', '기타'];
-function BooksSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function BooksSection({ portfolio, addToArray, removeFromArray, updateArrayItem, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="저서 & 글쓰기" icon={BookOpen} description="출간한 책, 독립출판, 브런치 연재, 기고 등을 기록하세요. 클릭하면 세부 편집">
+    <SectionCard title="저서 & 글쓰기" icon={BookOpen} description="출간한 책, 독립출판, 브런치 연재, 기고 등을 기록하세요. 클릭하면 세부 편집" sectionType="books" jobAnalysis={jobAnalysis}>
       <div className="space-y-3">
         {(portfolio.books || []).map((item, i) => {
           const isExpanded = expandedIdx === i;
@@ -4179,10 +4263,10 @@ function BooksSection({ portfolio, addToArray, removeFromArray, updateArrayItem 
 }
 
 // ── Ashley 전용: 강연 & 모더레이터 섹션 ──
-function LecturesSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function LecturesSection({ portfolio, addToArray, removeFromArray, updateArrayItem, jobAnalysis }) {
   const [expandedIdx, setExpandedIdx] = useState(null);
   return (
-    <SectionCard title="강연 & 모더레이터" icon={Users} description="강연, 토크, 북토크, 모더레이터 경험을 기록하세요. 클릭하면 세부 편집">
+    <SectionCard title="강연 & 모더레이터" icon={Users} description="강연, 토크, 북토크, 모더레이터 경험을 기록하세요. 클릭하면 세부 편집" sectionType="lectures" jobAnalysis={jobAnalysis}>
       <div className="space-y-3">
         {(portfolio.lectures || []).map((item, i) => {
           const isExpanded = expandedIdx === i;
@@ -4230,7 +4314,7 @@ function LecturesSection({ portfolio, addToArray, removeFromArray, updateArrayIt
 }
 
 // ── Ashley 전용: 독특한 경험 / Fun Facts 섹션 ──
-function FunFactsSection({ portfolio, addToArray, removeFromArray, updateArrayItem }) {
+function FunFactsSection({ portfolio, addToArray, removeFromArray, updateArrayItem, jobAnalysis }) {
   return (
     <SectionCard title="그 외 독특한 경험 / Fun Facts" icon={Zap} description="특별하거나 재미있는 경험을 자유롭게 기록하세요 (에어비앤비 호스트, 밴드 활동 등)">
       <div className="space-y-2">
@@ -4252,7 +4336,7 @@ function FunFactsSection({ portfolio, addToArray, removeFromArray, updateArrayIt
   );
 }
 
-function ContactSection({ portfolio, updateNested, templateId }) {
+function ContactSection({ portfolio, updateNested, templateId, jobAnalysis }) {
   const contact = portfolio.contact || {};
   const sectionDesc = templateId === 'ashley'
     ? 'SNS, 이메일, 브런치, 유튜브 등 크리에이티브 채널을 입력하세요'
@@ -4260,7 +4344,7 @@ function ContactSection({ portfolio, updateNested, templateId }) {
       ? '이메일, LinkedIn, GitHub 등 학술·개발 연락처를 입력하세요'
       : 'SNS, 이메일 등 연락 수단을 입력하세요';
   return (
-    <SectionCard title={templateId === 'academic' ? 'Contact Information' : '연락처 | Contact'} icon={Mail} description={sectionDesc}>
+    <SectionCard title={templateId === 'academic' ? 'Contact Information' : '연락처 | Contact'} icon={Mail} description={sectionDesc} sectionType="contact" jobAnalysis={jobAnalysis}>
       <div className="grid grid-cols-2 gap-4">
         <InputField label="이메일" value={contact.email} onChange={v => updateNested('contact', 'email', v)} placeholder="email@example.com" />
         <InputField label="전화번호" value={contact.phone} onChange={v => updateNested('contact', 'phone', v)} placeholder="+82 10-0000-0000" />

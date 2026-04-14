@@ -10,6 +10,7 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import { FRAMEWORKS } from '../../stores/experienceStore';
+import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 
 const NOTION_TOKEN_KEY = 'popol_notion_token';
@@ -1288,18 +1289,85 @@ const FIELD_ACCENTS = [
   'border-l-blue-400', 'border-l-purple-400',
 ];
 
+const EXP_SECTION_META_PREVIEW = {
+  intro:      { num: '01', label: '프로젝트 소개' },
+  overview:   { num: '02', label: '프로젝트 개요' },
+  task:       { num: '03', label: '진행한 일' },
+  process:    { num: '04', label: '과정' },
+  output:     { num: '05', label: '결과물' },
+  growth:     { num: '06', label: '성장한 점' },
+  competency: { num: '07', label: '나의 역량' },
+};
+const EXP_SECTION_KEYS_PREVIEW = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+
 function ExperienceDetailModal({ exp, onClose }) {
   const fw = exp.framework && FRAMEWORKS[exp.framework];
-  // sections가 있으면 이미 풍부한 내용이 있으므로 frameworkContent 중복 표시 안 함
   const hasSections = (exp.sections || []).some(s => s.title && s.content);
   const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
   const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(k => k.title);
   const st = STATUS_DISPLAY[exp.status] || STATUS_DISPLAY.finished;
   const [showAllProps, setShowAllProps] = useState(false);
 
+  // structuredResult 섹션 데이터
+  const structured = exp?.structuredResult || {};
+  const sectionContents = EXP_SECTION_KEYS_PREVIEW.reduce((acc, k) => {
+    acc[k] = (typeof structured[k] === 'string' ? structured[k] : '') || '';
+    return acc;
+  }, {});
+  const hasStructuredSections = EXP_SECTION_KEYS_PREVIEW.some(k => sectionContents[k]?.trim());
+
+  // Firestore에서 이미지 로드 (experienceId가 있을 때)
+  const [allImages, setAllImages] = useState([]);
+  const [sectionImages, setSectionImages] = useState({});
+  const [imageConfig, setImageConfig] = useState({});
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  useEffect(() => {
+    const expId = exp?.experienceId;
+    if (!expId) { setImagesLoaded(true); return; }
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'experiences', expId));
+        if (snap.exists()) {
+          const data = snap.data();
+          setAllImages(data.images || []);
+          setSectionImages(data.sectionImages || {});
+          setImageConfig(data.imageConfig || {});
+        }
+      } catch {}
+      setImagesLoaded(true);
+    })();
+  }, [exp?.experienceId]);
+
+  // 섹션 내 이미지 렌더링 (읽기 전용)
+  const renderSectionImages = (sectionKey, position) => {
+    const imgIndices = sectionImages[sectionKey] || [];
+    const sizeMap = { sm: 'max-w-[140px]', md: 'max-w-[280px]', lg: 'max-w-full' };
+    const filtered = imgIndices.map((imgIdx, pos) => ({ imgIdx, pos })).filter(({ imgIdx }) => {
+      const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+      return (cfg.position || 'below') === position;
+    });
+    if (filtered.length === 0) return null;
+    return (
+      <div className={`flex flex-wrap gap-3 ${position === 'above' ? 'mb-3' : 'mt-3'}`}>
+        {filtered.map(({ imgIdx }) => {
+          const img = allImages[imgIdx];
+          if (!img) return null;
+          const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+          const size = cfg.size || 'md';
+          return (
+            <div key={`${sectionKey}-${imgIdx}`} className={sizeMap[size] || sizeMap.md}>
+              <img src={img.url} alt={img.name || '이미지'} className="w-full rounded-lg border border-surface-200 shadow-sm" />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // 속성 목록
   const props = [];
-  if (exp.status) props.push({ label: 'Status', node: <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${st.cls}`}>● {st.label}</span> });
+  if (exp.status) props.push({ label: 'Status', node: <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${st.cls}`}>{st.label}</span> });
   if ((exp.classify || []).length > 0) props.push({ label: 'Classify', node: <div className="flex flex-wrap gap-1">{exp.classify.map((c, i) => <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">{c}</span>)}</div> });
   if ((exp.skills || []).length > 0) props.push({ label: 'Skills', node: <div className="flex flex-wrap gap-1">{exp.skills.map((s, i) => <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">{s}</span>)}</div> });
   if (exp.role) props.push({ label: '역할', node: <span className="text-sm text-gray-700">{exp.role}</span> });
@@ -1313,7 +1381,7 @@ function ExperienceDetailModal({ exp, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[5vh] p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-[700px] shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl w-full max-w-[900px] shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Close button */}
         <div className="flex justify-start p-3 pb-0">
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50">
@@ -1321,9 +1389,8 @@ function ExperienceDetailModal({ exp, onClose }) {
           </button>
         </div>
 
-        {/* Icon + Title */}
+        {/* Title */}
         <div className="px-16 pt-4 pb-2">
-          <div className="text-5xl mb-4">💡</div>
           <h1 className="text-[28px] font-bold text-gray-900 leading-tight mb-4">{exp.title || '(제목 없음)'}</h1>
 
           {/* Properties table (Notion style) */}
@@ -1331,11 +1398,7 @@ function ExperienceDetailModal({ exp, onClose }) {
             {visibleProps.map((pr, i) => (
               <div key={i} className="flex items-start gap-4 min-h-[32px] py-1">
                 <span className="w-24 text-sm text-gray-400 shrink-0 flex items-center gap-1.5 pt-0.5">
-                  {pr.label === 'Status' && '◎'}
-                  {pr.label === 'Classify' && '☰'}
-                  {pr.label === 'Skills' && '☰'}
-                  {!['Status', 'Classify', 'Skills'].includes(pr.label) && '⊞'}
-                  {' '}{pr.label}
+                  {pr.label}
                 </span>
                 <div className="flex-1">{pr.node}</div>
               </div>
@@ -1354,67 +1417,95 @@ function ExperienceDetailModal({ exp, onClose }) {
         <div className="mx-16 my-2 border-t border-surface-100" />
 
         {/* Content */}
-        <div className="px-16 pb-10 space-y-8">
-          {/* AI 요약 */}
-          {exp.aiSummary && (
-            <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-4">
-              <p className="text-xs font-bold text-amber-700 mb-1">✨ AI 역량 요약</p>
-              <p className="text-sm text-amber-900 leading-relaxed">{exp.aiSummary}</p>
+        <div className="px-16 pb-10 space-y-6">
+          {/* 썸네일 */}
+          {exp.thumbnailUrl && (
+            <div className="w-full h-44 rounded-xl overflow-hidden bg-surface-50">
+              <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
             </div>
           )}
 
-          {/* 핵심 경험 (keyExperiences from AI analysis) */}
+          {/* 기본 정보 */}
+          <div>
+            <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
+              {exp.date && <span>{exp.date}</span>}
+              {exp.role && <span>{exp.role}</span>}
+              {structured.projectOverview?.team && <span>{structured.projectOverview.team}</span>}
+              {structured.projectOverview?.duration && <span>{structured.projectOverview.duration}</span>}
+              {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">링크</a>}
+            </div>
+            {(exp.skills || (structured.projectOverview?.techStack || [])).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {(exp.skills?.length ? exp.skills : (structured.projectOverview?.techStack || [])).map((sk, si) => (
+                  <span key={si} className="px-2.5 py-1 bg-primary-50 text-primary-700 rounded-md text-xs font-medium border border-primary-100">{typeof sk === 'string' ? sk : sk?.name}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* AI 요약 */}
+          {exp.aiSummary && (
+            <div className="bg-surface-50 border border-surface-200 rounded-lg p-4">
+              <p className="text-xs font-bold text-gray-700 mb-1">AI 역량 요약</p>
+              <p className="text-sm text-gray-600 leading-relaxed">{exp.aiSummary}</p>
+            </div>
+          )}
+
+          {/* 설명 또는 배경 */}
+          {(exp.description || structured.projectOverview?.background || structured.projectOverview?.summary) && (
+            <p className="text-sm text-gray-600 leading-relaxed bg-surface-50 rounded-xl p-4">
+              {exp.description || structured.projectOverview?.background || structured.projectOverview?.summary}
+            </p>
+          )}
+
+          {/* 핵심 경험 슬라이더 */}
           {keyExperiences.length > 0 && (
             <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
-                <span className="text-yellow-500">🔥</span> 핵심 성과
-              </h2>
-              <div className="space-y-3">
-                {keyExperiences.map((ke, i) => (
-                  <div key={i} className="border border-surface-200 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="text-sm font-semibold text-gray-800">{ke.title}</p>
-                      {ke.metric && (
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shrink-0">{ke.metric}</span>
-                      )}
+              <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 & 성과</h4>
+              <KeyExperienceSlider keyExperiences={keyExperiences} />
+            </div>
+          )}
+
+          {/* 상세 섹션 (StructuredResult - 경험정리 내용) */}
+          {hasStructuredSections && (
+            <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+              <div className="divide-y divide-surface-100">
+                {EXP_SECTION_KEYS_PREVIEW.map(key => {
+                  const meta = EXP_SECTION_META_PREVIEW[key];
+                  const val = sectionContents[key];
+                  if (!val?.trim()) return null;
+                  return (
+                    <div key={key}>
+                      <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-50/40">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
+                        <span className="text-[13px] font-bold text-primary-700">{meta.label}</span>
+                      </div>
+                      <div className="px-5 py-3 pl-[60px]">
+                        {imagesLoaded && renderSectionImages(key, 'above')}
+                        <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                        {imagesLoaded && renderSectionImages(key, 'below')}
+                      </div>
                     </div>
-                    {ke.situation && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">상황:</span> {ke.situation}</p>}
-                    {ke.action && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">행동:</span> {ke.action}</p>}
-                    {ke.result && <p className="text-xs text-gray-600"><span className="font-medium">결과:</span> {ke.result}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* 소개 (description) */}
-          {exp.description && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
-                <span className="text-yellow-500">⭐</span> 소개
-              </h2>
-              <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{exp.description}</p>
-            </div>
-          )}
-
-          {/* 경험 구조화 섹션 (sections 우선 표시) */}
-          {(exp.sections || []).map((sec, i) => (
+          {/* 경험 구조화 섹션 (sections - structuredResult이 없을 때) */}
+          {!hasStructuredSections && (exp.sections || []).map((sec, i) => (
             sec.title && sec.content ? (
               <div key={i}>
-                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
-                  <span className="text-yellow-500">⭐</span> {sec.title}
-                </h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-3">{sec.title}</h2>
                 <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{sec.content}</p>
               </div>
             ) : null
           ))}
 
           {/* 프레임워크 기반 상세 (sections 없을 때만 표시) */}
-          {hasFramework && (
+          {!hasStructuredSections && hasFramework && (
             <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-3">
-                <span className="text-yellow-500">⭐</span> {fw.name} 상세
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">{fw.name} 상세</h2>
               <div className="space-y-4">
                 {fw.fields.map((field, idx) => {
                   const val = exp.frameworkContent[field.key];
@@ -1431,7 +1522,7 @@ function ExperienceDetailModal({ exp, onClose }) {
           )}
 
           {/* 아무 내용도 없을 때 */}
-          {!exp.description && !hasSections && !hasFramework && !exp.aiSummary && keyExperiences.length === 0 && (
+          {!exp.description && !hasSections && !hasFramework && !exp.aiSummary && keyExperiences.length === 0 && !hasStructuredSections && (
             <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
           )}
         </div>
