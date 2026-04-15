@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check, FileEdit } from 'lucide-react';
 import api from '../services/api';
 
@@ -11,6 +11,10 @@ const JOB_SITES = [
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
   return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+}
+
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -98,8 +102,32 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showSites, setShowSites] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressStage, setProgressStage] = useState('');
 
   const detectedSite = JOB_SITES.find(s => url.includes(s.domain));
+
+  const STAGES = [
+    { at: 0, label: '기업 분석 중...' },
+    { at: 25, label: '직무 분석 중...' },
+    { at: 50, label: '지원 전략 분석 중...' },
+    { at: 75, label: '산업 트렌드 분석 중...' },
+    { at: 95, label: '결과 정리 중...' },
+  ];
+
+  useEffect(() => {
+    if (!loading) { setProgress(0); setProgressStage(''); return; }
+    let current = 0;
+    setProgressStage(STAGES[0].label);
+    const interval = setInterval(() => {
+      current += Math.random() * 3 + 0.5;
+      if (current > 95) current = 95;
+      setProgress(Math.round(current));
+      const stage = [...STAGES].reverse().find(s => current >= s.at);
+      if (stage) setProgressStage(stage.label);
+    }, 200);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleAnalyze = async () => {
     if (mode === 'url' && !url.trim()) return;
@@ -121,35 +149,6 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
 
   return (
     <div className="space-y-4">
-      {/* 사이트 바로가기 */}
-      <div className="relative">
-        <button
-          onClick={() => setShowSites(!showSites)}
-          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-        >
-          <Search size={14} />
-          지원할 공고 찾기
-          {showSites ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-        {showSites && (
-          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1">
-            {JOB_SITES.map(site => (
-              <a
-                key={site.name}
-                href={site.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700"
-              >
-                <span className={`w-2 h-2 rounded-full ${site.color}`} />
-                {site.name} 공채달력
-                <ExternalLink size={12} className="text-gray-400 ml-auto" />
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* 모드 탭 */}
       <div className="flex bg-gray-100 rounded-xl p-1">
         <button
@@ -166,6 +165,35 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
         >
           <ClipboardPaste size={13} /> 직접 입력
         </button>
+      </div>
+
+      {/* 사이트 바로가기 - 중앙 정렬 */}
+      <div className="relative flex justify-center">
+        <button
+          onClick={() => setShowSites(!showSites)}
+          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+        >
+          <Search size={14} />
+          지원할 공고 찾기
+          {showSites ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+        {showSites && (
+          <div className="absolute top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1">
+            {JOB_SITES.map(site => (
+              <a
+                key={site.name}
+                href={site.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <span className={`w-2 h-2 rounded-full ${site.color}`} />
+                {site.name} 공채달력
+                <ExternalLink size={12} className="text-gray-400 ml-auto" />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 입력 */}
@@ -195,6 +223,32 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
         />
       )}
 
+      {/* 로딩 프로그레스 */}
+      {loading && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 space-y-4">
+          <div className="text-center">
+            <div className="text-4xl font-black text-blue-600 mb-1">{progress}%</div>
+            <p className="text-sm font-medium text-blue-700">{progressStage}</p>
+          </div>
+          <div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {STAGES.slice(0, 4).map((s, i) => (
+              <div key={i} className={`text-[11px] font-medium transition-colors ${progress >= s.at ? 'text-blue-600' : 'text-gray-300'}`}>
+                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[10px] ${progress >= s.at ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                  {progress >= (STAGES[i + 1]?.at || 100) ? '✓' : i + 1}
+                </div>
+                {s.label.replace(' 중...', '')}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-red-500 flex items-center gap-1">
           <X size={14} /> {error}
@@ -202,28 +256,25 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
       )}
 
       {/* 버튼 */}
-      <div className="flex gap-2">
-        <button
-          onClick={handleAnalyze}
-          disabled={loading || (mode === 'url' ? !url.trim() : !text.trim())}
-          className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-        >
-          {loading ? (
-            <><Loader2 size={14} className="animate-spin" /> 분석 중...</>
-          ) : (
-            <><Building2 size={14} /> 공고 분석하기</>
-          )}
-        </button>
-        {onSkip && (
+      {!loading && (
+        <div className="flex gap-2">
           <button
-            onClick={onSkip}
-            disabled={loading}
-            className="px-6 py-3 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors"
+            onClick={handleAnalyze}
+            disabled={mode === 'url' ? !url.trim() : !text.trim()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
-            건너뛰기
+            <Building2 size={14} /> 공고 분석하기
           </button>
-        )}
-      </div>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="px-6 py-3 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              건너뛰기
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -232,10 +283,12 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
 export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorApply }) {
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('company');
+  const [prevTab, setPrevTab] = useState('company');
+  const [animating, setAnimating] = useState(false);
   const [tailoring, setTailoring] = useState(false);
-  const [tailoredResults, setTailoredResults] = useState({}); // { [expIndex]: tailoredData }
+  const [tailoredResults, setTailoredResults] = useState({});
   const [tailorError, setTailorError] = useState(null);
-  const [tailoringIdx, setTailoringIdx] = useState(null); // 개별 첨삭 중인 인덱스
+  const [tailoringIdx, setTailoringIdx] = useState(null);
 
   if (!analysis) return null;
 
@@ -256,61 +309,103 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
     { key: 'tailor', label: '첨삭 내용' },
   ];
 
+  const currentTabIdx = tabs.findIndex(t => t.key === activeTab);
+
+  const handleTabChange = (key) => {
+    if (key === activeTab || animating) return;
+    setPrevTab(activeTab);
+    setAnimating(true);
+    setActiveTab(key);
+    setTimeout(() => setAnimating(false), 400);
+  };
+
+  const flipDir = tabs.findIndex(t => t.key === activeTab) > tabs.findIndex(t => t.key === prevTab) ? 'right' : 'left';
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl overflow-hidden shadow-sm">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-100/40 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-            <Building2 size={18} className="text-white" />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-bold text-blue-900">
-              {analysis.company || '기업'} · {analysis.position || '직무'}
-            </p>
-            <p className="text-[11px] text-blue-500">
-              AI 기업 분석 완료 {analysis.deadline && `· 마감 ${analysis.deadline}`}
-            </p>
+    <div className="relative" style={{ perspective: '1200px' }}>
+      {/* 헤더 */}
+      <div className="bg-white border border-gray-200 rounded-t-2xl px-5 py-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 text-left">
+            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
+              <Building2 size={20} className="text-gray-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800 tracking-wide">
+                {analysis.company || '기업'} ({analysis.position || '직무'})
+              </p>
+              <p className="text-[11px] text-gray-400">
+                AI 기업 분석 보고서 {analysis.deadline && `· 마감 ${analysis.deadline}`}
+              </p>
+            </div>
+          </button>
+          <div className="flex items-center gap-2">
+            {onRemove && (
+              <span onClick={e => { e.stopPropagation(); onRemove(); }} className="text-gray-300 hover:text-red-400 cursor-pointer p-1 transition-colors">
+                <X size={14} />
+              </span>
+            )}
+            <button onClick={() => setExpanded(!expanded)}>
+              {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {onRemove && (
-            <span onClick={e => { e.stopPropagation(); onRemove(); }} className="text-gray-400 hover:text-red-500 cursor-pointer p-1">
-              <X size={14} />
-            </span>
-          )}
-          {expanded ? <ChevronUp size={16} className="text-blue-400" /> : <ChevronDown size={16} className="text-blue-400" />}
-        </div>
-      </button>
+      </div>
 
       {expanded && (
-        <div className="border-t border-blue-200">
-          <div className="px-5 py-3 bg-white/60 flex flex-wrap gap-2">
+        <div className="relative bg-white rounded-b-2xl border border-t-0 border-gray-200 shadow-sm overflow-hidden">
+          {/* 스킬 태그 */}
+          <div className="px-6 py-3 bg-gray-50/80 flex flex-wrap gap-2 border-b border-gray-100">
             {analysis.skills?.slice(0, 6).map((s, i) => (
-              <span key={i} className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{s}</span>
+              <span key={i} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full font-medium">{s}</span>
             ))}
             {analysis.coreValues?.slice(0, 3).map((v, i) => (
-              <span key={`v${i}`} className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">{v}</span>
+              <span key={`v${i}`} className="text-[10px] px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full font-medium">{v}</span>
             ))}
           </div>
 
-          <div className="flex border-b border-blue-200 px-3 bg-white/40 overflow-x-auto">
-            {tabs.map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap
-                  ${activeTab === tab.key ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          {/* 탭 */}
+          <div className="flex border-b border-gray-200 px-4 bg-white overflow-x-auto">
+            {tabs.map((tab, idx) => (
+              <button key={tab.key} onClick={() => handleTabChange(tab.key)}
+                className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap
+                  ${activeTab === tab.key
+                    ? 'border-gray-800 text-gray-800'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="px-5 py-4 max-h-[520px] overflow-y-auto text-xs space-y-3">
+          {/* 페이지 번호 */}
+          <div className="flex items-center justify-between px-6 pt-3 pb-1">
+            <p className="text-[10px] text-gray-400 font-medium">Chapter {currentTabIdx + 1}</p>
+            <p className="text-[10px] text-gray-400 font-medium">p.{currentTabIdx + 1} / {tabs.length}</p>
+          </div>
+
+          {/* 페이지 내용 (넘김 애니메이션) */}
+          <div className="relative px-6 py-4 max-h-[520px] overflow-y-auto text-xs space-y-3 bg-white">
+            <div
+              className={animating ? (flipDir === 'right' ? 'animate-page-flip-right' : 'animate-page-flip-left') : ''}
+              style={{ transformOrigin: flipDir === 'right' ? 'left center' : 'right center' }}
+            >
+
+              <style>{`
+                @keyframes pageFlipRight {
+                  0% { opacity:0; transform: rotateY(-12deg) translateX(30px); }
+                  100% { opacity:1; transform: rotateY(0) translateX(0); }
+                }
+                @keyframes pageFlipLeft {
+                  0% { opacity:0; transform: rotateY(12deg) translateX(-30px); }
+                  100% { opacity:1; transform: rotateY(0) translateX(0); }
+                }
+                .animate-page-flip-right { animation: pageFlipRight 0.4s ease-out; }
+                .animate-page-flip-left { animation: pageFlipLeft 0.4s ease-out; }
+              `}</style>
 
             {activeTab === 'company' && (
               <>
-                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{ca.overview}</p></AnalysisCard>}
+                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
                 <div className="grid grid-cols-2 gap-3">
                   {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
                   {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
@@ -324,23 +419,23 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                   <div className="grid grid-cols-2 gap-3">
                     {ca.strengths?.length > 0 && (
                       <AnalysisCard title="강점 (S)">
-                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{s}</li>)}</ul>
+                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
                       </AnalysisCard>
                     )}
                     {ca.weaknesses?.length > 0 && (
                       <AnalysisCard title="약점/리스크 (W)">
-                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{w}</li>)}</ul>
+                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
                       </AnalysisCard>
                     )}
                   </div>
                 )}
                 {ca.competitors?.length > 0 && (
                   <AnalysisCard title="경쟁사 비교">
-                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{c.comparison}</p></div>)}</div>
+                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
                   </AnalysisCard>
                 )}
-                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{ca.culture}</p></AnalysisCard>}
-                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{ca.recentTrends}</p></AnalysisCard>}
+                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
+                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
 
                 {/* 포트폴리오 요건 */}
                 <AnalysisCard title="기업 포트폴리오 요건">
@@ -403,8 +498,8 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
 
             {activeTab === 'position' && (
               <>
-                {pa.roleDescription && <AnalysisCard title="직무 설명"><p className="text-gray-700 leading-relaxed">{pa.roleDescription}</p></AnalysisCard>}
-                {pa.dailyTasks && <AnalysisCard title="주요 업무"><p className="text-gray-700 leading-relaxed">{typeof pa.dailyTasks === 'string' ? pa.dailyTasks : ''}</p></AnalysisCard>}
+                {pa.roleDescription && <AnalysisCard title="직무 설명"><p className="text-gray-700 leading-relaxed">{stripMd(pa.roleDescription)}</p></AnalysisCard>}
+                {pa.dailyTasks && <AnalysisCard title="주요 업무"><p className="text-gray-700 leading-relaxed">{typeof pa.dailyTasks === 'string' ? stripMd(pa.dailyTasks) : ''}</p></AnalysisCard>}
                 {pa.keyCompetencies?.length > 0 && (
                   <AnalysisCard title="핵심 역량">
                     <div className="space-y-2">
@@ -415,31 +510,31 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                         return (
                           <div key={i}>
                             <div className="flex items-center justify-between mb-0.5">
-                              <span className="font-medium text-amber-700">{name}</span>
+                              <span className="font-medium text-gray-700">{name}</span>
                               <span className="text-[10px] text-gray-400">{weight}/10</span>
                             </div>
-                            <div className="w-full bg-amber-50 rounded-full h-1.5">
-                              <div className="h-1.5 rounded-full bg-amber-400" style={{ width: `${weight * 10}%` }} />
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div className="h-1.5 rounded-full bg-gray-500" style={{ width: `${weight * 10}%` }} />
                             </div>
-                            {desc && <p className="text-[10px] text-gray-400 mt-0.5">{desc}</p>}
+                            {desc && <p className="text-[10px] text-gray-400 mt-0.5">{stripMd(desc)}</p>}
                           </div>
                         );
                       })}
                     </div>
                   </AnalysisCard>
                 )}
-                {pa.teamStructure && <AnalysisCard title="예상 팀 구조"><p className="text-gray-700">{pa.teamStructure}</p></AnalysisCard>}
+                {pa.teamStructure && <AnalysisCard title="예상 팀 구조"><p className="text-gray-700">{stripMd(pa.teamStructure)}</p></AnalysisCard>}
                 {pa.challengeLevel && (
                   <AnalysisCard title="직무 난이도">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
                         <span className="text-lg font-black text-indigo-700">{pa.challengeLevel.score}</span>
                       </div>
-                      <p className="text-gray-700 flex-1">{pa.challengeLevel.description}</p>
+                      <p className="text-gray-700 flex-1">{stripMd(pa.challengeLevel.description)}</p>
                     </div>
                   </AnalysisCard>
                 )}
-                {pa.growthPath && <AnalysisCard title="성장 경로"><p className="text-gray-700 leading-relaxed">{pa.growthPath}</p></AnalysisCard>}
+                {pa.growthPath && <AnalysisCard title="성장 경로"><p className="text-gray-700 leading-relaxed">{stripMd(pa.growthPath)}</p></AnalysisCard>}
                 {analysis.requirements?.essential?.length > 0 && (
                   <AnalysisCard title="필수 요건">
                     <ul className="space-y-1">{analysis.requirements.essential.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-red-400 flex-shrink-0">•</span>{r}</li>)}</ul>
@@ -465,7 +560,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                           <li key={i} className="text-gray-700">
                             <div className="flex items-start gap-2">
                               <span className="w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
-                              <div><p className="font-medium">{point}</p>{how && <p className="text-[10px] text-gray-400 mt-0.5">활용 방법: {how}</p>}</div>
+                              <div><p className="font-medium">{stripMd(point)}</p>{how && <p className="text-[10px] text-gray-400 mt-0.5">활용 방법: {stripMd(how)}</p>}</div>
                             </div>
                           </li>
                         );
@@ -483,8 +578,8 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                         return (
                           <div key={i} className="p-2.5 bg-gray-50 rounded-lg">
                             <p className="font-medium text-gray-800"><span className="text-indigo-500">Q{i + 1}.</span> {question}</p>
-                            {intent && <p className="text-[10px] text-blue-500 mt-1">면접관 의도: {intent}</p>}
-                            {tip && <p className="text-[10px] text-green-600 mt-0.5">답변 전략: {tip}</p>}
+                            {intent && <p className="text-[10px] text-blue-500 mt-1">면접관 의도: {stripMd(intent)}</p>}
+                            {tip && <p className="text-[10px] text-green-600 mt-0.5">답변 전략: {stripMd(tip)}</p>}
                           </div>
                         );
                       })}
@@ -528,8 +623,8 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                             <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0">{i + 1}</span>
                             <div>
                               <p className="font-medium text-gray-800">{trend}</p>
-                              {desc && <p className="text-gray-600 mt-1 leading-relaxed">{desc}</p>}
-                              {impact && <p className="text-[10px] text-blue-500 mt-1">직무 영향: {impact}</p>}
+                              {desc && <p className="text-gray-600 mt-1 leading-relaxed">{stripMd(desc)}</p>}
+                              {impact && <p className="text-[10px] text-blue-500 mt-1">직무 영향: {stripMd(impact)}</p>}
                             </div>
                           </div>
                         </div>
@@ -553,7 +648,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-500">기업 분석을 기반으로 경험을 맞춤 수정합니다</p>
+                      <p className="text-xs text-gray-500">기업 분석 기반 7개 섹션별 첨삭</p>
                       <button
                         onClick={async () => {
                           setTailoring(true);
@@ -574,13 +669,18 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                         disabled={tailoring}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                       >
-                        {tailoring ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <><Sparkles size={12} />전체 첨삭</>}
+                        {tailoring ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>전체 첨삭</>}
                       </button>
                     </div>
                     {tailorError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{tailorError}</p>}
                     {experiences.map((exp, i) => {
                       const t = tailoredResults[i];
                       const isTailoringThis = tailoringIdx === i;
+                      const SECTION_LABELS = {
+                        intro: '프로젝트 소개', overview: '프로젝트 개요', task: '진행한 일',
+                        process: '과정', output: '결과물', growth: '성장한 점', competency: '나의 역량'
+                      };
+                      const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
                       return (
                         <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                           <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100">
@@ -602,7 +702,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                                   disabled={tailoring || isTailoringThis}
                                   className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-[10px] font-medium hover:bg-indigo-100 disabled:opacity-50 transition-colors flex-shrink-0"
                                 >
-                                  {isTailoringThis ? <><Loader2 size={10} className="animate-spin" />첨삭 중</> : <><Sparkles size={10} />이것만 첨삭</>}
+                                  {isTailoringThis ? <><Loader2 size={10} className="animate-spin" />첨삭 중</> : <>이것만 첨삭</>}
                                 </button>
                               )}
                             </div>
@@ -615,55 +715,51 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                             )}
                           </div>
                           {t ? (
-                            <div className="p-3 space-y-2.5">
-                              {t.subtitle && (
-                                <div>
-                                  <p className="text-[10px] font-bold text-indigo-600 mb-0.5">기업 맞춤 한줄 소개</p>
-                                  <p className="text-xs text-gray-700 bg-indigo-50 rounded-lg px-2.5 py-1.5">{t.subtitle}</p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-[10px] font-bold text-emerald-600 mb-0.5">맞춤 수정 설명</p>
-                                <p className="text-xs text-gray-700 leading-relaxed bg-emerald-50 rounded-lg px-2.5 py-1.5">{t.tailoredDescription}</p>
-                              </div>
-                              {t.keyAchievements?.length > 0 && (
-                                <div>
-                                  <p className="text-[10px] font-bold text-amber-600 mb-0.5">강조 성과</p>
-                                  <ul className="space-y-0.5">
-                                    {t.keyAchievements.map((a, ai) => (
-                                      <li key={ai} className="text-xs text-gray-700 flex items-start gap-1"><span className="text-amber-500">•</span>{a}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                            <div className="p-3 space-y-2">
+                              {/* 섹션별 첨삭 결과 */}
+                              {t.sections && SECTION_KEYS.map(key => {
+                                const sec = t.sections[key];
+                                if (!sec?.content?.trim()) return null;
+                                return (
+                                  <div key={key} className="rounded-lg border border-gray-100 overflow-hidden">
+                                    <div className="flex items-center justify-between px-2 py-1.5 bg-gray-50 border-b border-gray-50">
+                                      <span className="text-[10px] font-bold text-indigo-700">{SECTION_LABELS[key]}</span>
+                                      <button
+                                        onClick={() => {
+                                          if (onTailorApply) {
+                                            onTailorApply(i, key, sec.content);
+                                            const next = { ...tailoredResults };
+                                            if (!next[i]._appliedSections) next[i] = { ...next[i], _appliedSections: {} };
+                                            next[i]._appliedSections[key] = true;
+                                            setTailoredResults(next);
+                                          }
+                                        }}
+                                        disabled={t._appliedSections?.[key]}
+                                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+                                          t._appliedSections?.[key]
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                                        }`}
+                                      >
+                                        {t._appliedSections?.[key] ? '적용됨' : '적용'}
+                                      </button>
+                                    </div>
+                                    <p className="text-[10px] text-gray-700 leading-relaxed px-2 py-1.5 whitespace-pre-wrap">{stripMd(sec.content)}</p>
+                                    {sec.reason && <p className="text-[9px] text-indigo-400 italic px-2 pb-1.5">{stripMd(sec.reason)}</p>}
+                                  </div>
+                                );
+                              })}
+                              {/* 강조 스킬 */}
                               {t.highlightedSkills?.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1 pt-1">
                                   {t.highlightedSkills.map((s, si) => (
                                     <span key={si} className="text-[9px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{s}</span>
                                   ))}
                                 </div>
                               )}
                               {t.relevanceNote && (
-                                <p className="text-[10px] text-gray-500 italic bg-gray-50 rounded-lg px-2.5 py-1.5">{t.relevanceNote}</p>
+                                <p className="text-[9px] text-gray-500 italic bg-gray-50 rounded-lg px-2.5 py-1.5">{t.relevanceNote}</p>
                               )}
-                              <button
-                                onClick={() => {
-                                  if (onTailorApply) {
-                                    onTailorApply(i, t);
-                                    const next = { ...tailoredResults };
-                                    next[i] = { ...t, _applied: true };
-                                    setTailoredResults(next);
-                                  }
-                                }}
-                                disabled={t._applied}
-                                className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                                  t._applied
-                                    ? 'bg-green-100 text-green-700 cursor-default'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                }`}
-                              >
-                                {t._applied ? <><Check size={13} />적용 완료</> : <><FileEdit size={13} />이 경험에 적용</>}
-                              </button>
                             </div>
                           ) : (
                             <div className="px-3 py-4 text-center text-[10px] text-gray-400">
@@ -677,6 +773,18 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                 )}
               </>
             )}
+
+            </div>{/* end animation wrapper */}
+          </div>
+
+          {/* 하단 페이지 장식 */}
+          <div className="flex items-center justify-center py-2 border-t border-gray-100 bg-white">
+            <div className="flex items-center gap-1.5">
+              {tabs.map((tab, idx) => (
+                <button key={tab.key} onClick={() => handleTabChange(tab.key)}
+                  className={`w-2 h-2 rounded-full transition-all ${activeTab === tab.key ? 'bg-gray-700 scale-125' : 'bg-gray-300 hover:bg-gray-400'}`} />
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -686,7 +794,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
 
 function AnalysisCard({ title, compact, children }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-100 ${compact ? 'p-2.5' : 'p-3'}`}>
+    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm ${compact ? 'p-2.5' : 'p-3'}`}>
       <p className={`font-semibold text-gray-800 ${compact ? 'text-[11px] mb-1' : 'text-xs mb-2'}`}>{title}</p>
       {children}
     </div>

@@ -163,6 +163,69 @@ router.post('/tailor-portfolio', async (req, res) => {
 });
 
 // ── 분석 결과 저장 ────────────────────────────────────
+
+// ── 섹션별 내용 추천 ──────────────────────────────────
+router.post('/recommend-section', async (req, res) => {
+  try {
+    const { jobAnalysis, sectionType, currentContent } = req.body;
+    if (!jobAnalysis || !sectionType) {
+      return res.status(400).json({ error: '기업 분석 결과와 섹션 타입이 필요합니다' });
+    }
+
+    const sectionLabels = {
+      education: '학력/교육',
+      awards: '수상 경력',
+      experiences: '프로젝트/경험',
+      curricular: '교내 활동',
+      extracurricular: '교외 활동',
+      skills: '기술 스택',
+      goals: '목표와 계획',
+      values: '가치관/자기소개',
+      contact: '연락처',
+      interviews: '인터뷰',
+      books: '저서/글쓰기',
+      lectures: '강연/교육',
+      funfacts: '재미있는 사실',
+      profile: '프로필/소개',
+    };
+
+    const label = sectionLabels[sectionType] || sectionType;
+
+    const prompt = `당신은 포트폴리오 작성 전문 컨설턴트입니다.
+아래 기업 분석을 참고하여, "${label}" 섹션에 들어갈 내용을 추천해주세요.
+
+## 기업 분석:
+- 기업: ${jobAnalysis.company || '미상'}
+- 직무: ${jobAnalysis.position || '미상'}
+- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
+- 핵심 가치: ${(jobAnalysis.coreValues || []).join(', ')}
+- 필수 요건: ${(jobAnalysis.requirements?.essential || []).join(', ')}
+
+${currentContent ? `## 현재 작성된 내용:\n${currentContent}\n` : ''}
+
+## 요청:
+"${label}" 섹션에 대해 이 기업에 맞는 구체적인 내용 추천 3가지를 제시해주세요.
+각 추천은 짧고 실용적이어야 합니다.
+
+반드시 아래 JSON으로만 응답:
+{
+  "recommendations": [
+    {"title": "추천 제목", "content": "구체적인 추천 내용 1-2문장"},
+    {"title": "추천 제목", "content": "구체적인 추천 내용 1-2문장"},
+    {"title": "추천 제목", "content": "구체적인 추천 내용 1-2문장"}
+  ]
+}`;
+
+    const raw = await generateWithRetry(prompt);
+    const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const result = JSON.parse(cleaned);
+    res.json(result);
+  } catch (err) {
+    console.error('[Job] 섹션 추천 실패:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/save', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'];

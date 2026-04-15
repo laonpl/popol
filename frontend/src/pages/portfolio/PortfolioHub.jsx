@@ -79,28 +79,13 @@ export default function PortfolioHub() {
           <p className="text-gray-500 mt-1">경험 DB 기반으로 맞춤형 포트폴리오를 작성하세요</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImport(true)}
-            className="flex items-center gap-2 px-4 py-2.5 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
-          >
-            <Upload size={16} />
-            불러오기
-          </button>
           <Link
             to="/app/portfolio/new"
-            className="flex items-center gap-2 px-4 py-2.5 border border-primary-200 text-primary-600 rounded-xl text-sm font-medium hover:bg-primary-50 transition-colors"
-          >
-            <LayoutTemplate size={16} />
-            템플릿으로 생성
-          </Link>
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
           >
             <Plus size={18} />
             새 포트폴리오
-          </button>
+          </Link>
         </div>
       </div>
 

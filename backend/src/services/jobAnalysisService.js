@@ -260,7 +260,7 @@ ${text.substring(0, 14000)}
    - **submission**: 제출 방법/경로/플랫폼 (예: "지원서 파일 첨부", "이메일 별도 첨부", "지원 플랫폼 내 링크 입력란" 등)
    채용공고에 명시되지 않은 경우라도 해당 직무/기업 관행을 기반으로 일반적으로 요구되는 최선의 가이드를 작성하세요.
 
-반드시 아래 JSON 형식으로만 응답 (마크다운 없이):
+반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 문자열 값 안에도 **, ##, * 등 마크다운 기호 금지):
 {
   "company": "기업명",
   "position": "직무/포지션",
@@ -547,8 +547,21 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
     : '';
   const sections = (experience.sections || []).map(s => `${s.title}: ${s.content}`).join('\n');
 
-  const prompt = `당신은 취업 컨설턴트입니다. 사용자의 프로젝트/경험을 지원 기업과 직무에 최적화되도록 재작성해주세요.
+  // structuredResult에서 7개 섹션 내용 추출
+  const sr = experience.structuredResult || {};
+  const sectionKeys = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+  const sectionLabels = {
+    intro: '프로젝트 소개', overview: '프로젝트 개요', task: '진행한 일',
+    process: '과정', output: '결과물', growth: '성장한 점', competency: '나의 역량'
+  };
+  const sectionTexts = sectionKeys
+    .filter(k => sr[k]?.trim())
+    .map(k => `[${sectionLabels[k]}]\n${sr[k]}`)
+    .join('\n\n');
+
+  const prompt = `당신은 취업 컨설턴트입니다. 사용자의 프로젝트/경험을 지원 기업과 직무에 최적화되도록 7가지 개요 섹션별로 재작성해주세요.
 원래 내용의 사실을 유지하되, 기업이 원하는 역량과 가치를 강조하도록 표현을 조정하세요.
+원본에 해당 섹션 내용이 없으면 해당 섹션은 빈 문자열로 두세요.
 
 ## 지원 기업 정보:
 - 기업: ${jobAnalysis.company || ''}
@@ -565,17 +578,26 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
 ${content}
 ${sections}
 
+## 7가지 개요 섹션 원본:
+${sectionTexts || '(구조화된 섹션 없음)'}
+
 ## 재작성 요청:
-1. 경험 설명을 기업이 원하는 역량을 부각하도록 재작성
-2. 프로젝트 제목은 유지하되, 기업에 어필하는 부제/한줄소개 추가
-3. 이 경험에서 기업이 관심 가질 성과/수치를 강조
+각 섹션을 기업이 원하는 역량을 부각하도록 재작성하되, 원본 내용이 있는 섹션만 재작성하세요.
+각 섹션별로 변경 이유를 1줄로 설명해주세요.
+문자열 값 안에 **, ##, -, * 등 마크다운 기호를 절대 사용하지 말고 일반 텍스트로만 작성하세요.
 
 JSON으로만 응답:
 {
-  "tailoredDescription": "기업 맞춤 재작성된 경험 설명",
-  "subtitle": "기업 어필용 한줄 소개",
+  "sections": {
+    "intro": { "content": "재작성된 프로젝트 소개 (원본 없으면 빈 문자열)", "reason": "변경 이유" },
+    "overview": { "content": "재작성된 프로젝트 개요", "reason": "변경 이유" },
+    "task": { "content": "재작성된 진행한 일", "reason": "변경 이유" },
+    "process": { "content": "재작성된 과정", "reason": "변경 이유" },
+    "output": { "content": "재작성된 결과물", "reason": "변경 이유" },
+    "growth": { "content": "재작성된 성장한 점", "reason": "변경 이유" },
+    "competency": { "content": "재작성된 나의 역량", "reason": "변경 이유" }
+  },
   "highlightedSkills": ["이 경험에서 기업에 어필할 스킬"],
-  "keyAchievements": ["강조할 성과1", "성과2"],
   "relevanceNote": "이 경험이 해당 기업/직무에 왜 적합한지 설명"
 }`;
 
