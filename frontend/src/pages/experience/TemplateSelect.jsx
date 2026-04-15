@@ -13,6 +13,133 @@ import toast from 'react-hot-toast';
 
 const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
 
+/* description 텍스트에서 STAR 섹션 파싱 */
+function parseStarDescription(desc) {
+  if (!desc) return null;
+  const regex = /Situation\s*[:：]\s*([\s\S]*?)(?=Action\s*[:：]|Result\s*[:：]|보완\s*[:：]|\(미확인|$)|Action\s*[:：]\s*([\s\S]*?)(?=Result\s*[:：]|보완\s*[:：]|\(미확인|$)|Result\s*[:：]\s*([\s\S]*?)(?=보완\s*[:：]|\(미확인|$)|보완\s*[:：]\s*([\s\S]*?)(?=\(미확인|$)|\(미확인\s*[:：]\s*([\s\S]*?)\)?(?=$)/g;
+  const sections = [];
+  let match;
+  while ((match = regex.exec(desc)) !== null) {
+    if      (match[1] !== undefined) sections.push({ key: 'situation',  text: match[1].trim() });
+    else if (match[2] !== undefined) sections.push({ key: 'action',     text: match[2].trim() });
+    else if (match[3] !== undefined) sections.push({ key: 'result',     text: match[3].trim() });
+    else if (match[4] !== undefined) sections.push({ key: 'supplement', text: match[4].trim() });
+    else if (match[5] !== undefined) sections.push({ key: 'missing',    text: match[5].trim() });
+  }
+  return sections.length === 0 ? null : sections;
+}
+
+/* 미확인 질문 → 작성 추천 힌트 */
+function getMissingSuggestions(q) {
+  if (/수치|성과|%|배|개선/.test(q))
+    return ['API 응답 속도 40% 향상', '에러율 0.3% → 0.01%로 감소', '처리 시간 3일 → 반나절로 단축'];
+  if (/한계|문제|원인/.test(q))
+    return ['메모리 한계로 배치 처리 불가', '기존 방식의 확장 불가 구조', '응답 지연으로 UX 심각하게 저하'];
+  if (/왜|동기|배경|계기/.test(q))
+    return ['팀 내 반복 업무 자동화 필요성', '기존 솔루션 비용 대비 효율이 낮아서', '사용자 이탈률 지속 증가로 인한 대응'];
+  if (/기간|일정|시간|기한/.test(q))
+    return ['2주 스프린트 내 완료', '운영 3개월 후 성과 측정', '출시 후 1개월 내 목표 달성'];
+  if (/역할|담당|기여/.test(q))
+    return ['백엔드 API 설계 및 구현 전담', '팀 내 유일한 프론트엔드 담당자', '데이터 파이프라인 70% 기여'];
+  return ['구체적인 수치와 함께 설명해주세요', '본인의 기여 범위를 명확히 적어주세요', '상황의 맥락과 결과를 함께 서술해주세요'];
+}
+
+const STAR_LABELS = { situation: 'Situation', action: 'Action', result: 'Result', supplement: '보완 답변' };
+
+/* STAR 구조화 렌더러 */
+function StarDescription({ description, onUpdateMissing }) {
+  const [draft, setDraft] = useState('');
+
+  const sections = parseStarDescription(description);
+  if (!sections) {
+    return <p className="text-[12.5px] text-bluewood-600 leading-relaxed">{description}</p>;
+  }
+
+  const mainSections = sections.filter(s => s.key !== 'missing');
+  const missingSections = sections.filter(s => s.key === 'missing');
+
+  const handleApply = () => {
+    if (!draft.trim()) return;
+    const cleaned = description.replace(/\s*\(미확인\s*[:：][\s\S]*?\)\s*/g, '').trim();
+    onUpdateMissing?.(`${cleaned} 보완: ${draft.trim()}`);
+    setDraft('');
+  };
+
+  return (
+    <div className="mt-1 space-y-1">
+      {/* Situation / Action / Result / 보완 — 라벨+텍스트, 흰 배경 */}
+      {mainSections.map((s, i) => (
+        <div key={i} className="flex gap-2.5 py-0.5">
+          <span className="flex-shrink-0 w-[68px] text-[10px] font-bold text-bluewood-300 tracking-wider pt-[3px] text-right">
+            {STAR_LABELS[s.key] || s.key}
+          </span>
+          <div className="flex-1 border-l border-surface-200 pl-2.5">
+            <p className="text-[12.5px] text-bluewood-700 leading-relaxed">{s.text}</p>
+          </div>
+        </div>
+      ))}
+
+      {/* 미확인 — 인터랙티브 입력 섹션 */}
+      {missingSections.map((s, i) => {
+        const suggestions = getMissingSuggestions(s.text);
+        return (
+          <div key={i} className="mt-2 rounded-xl border border-blue-100 bg-white px-3 py-2.5 space-y-2">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-blue-500 tracking-wider">보완 질문</span>
+                <span className="text-[10px] text-bluewood-300">· 선택사항</span>
+              </div>
+              <span className="text-[10px] text-blue-400">입력하면 경험이 더 구체적으로 만들어져요</span>
+            </div>
+            {/* 질문 */}
+            <p className="text-[11.5px] text-bluewood-600 leading-relaxed">{s.text}</p>
+            {/* 추천 예시 칩 */}
+            <div className="flex flex-wrap gap-1">
+              {suggestions.map((sg, si) => (
+                <button key={si} type="button"
+                  onClick={() => setDraft(sg)}
+                  className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-[10.5px] text-blue-600 hover:bg-blue-100 transition-colors">
+                  예: {sg}
+                </button>
+              ))}
+            </div>
+            {/* 직접 입력 */}
+            <div className="flex gap-2">
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={2}
+                placeholder="알고 있다면 입력해주세요 (선택)"
+                className="flex-1 text-[12px] text-bluewood-700 bg-white border border-blue-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-blue-300 leading-relaxed"
+              />
+              <button type="button"
+                onClick={handleApply}
+                disabled={!draft.trim()}
+                className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                적용
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const MOMENT_TYPE_DESC = {
+  '유형1': '성공형 — 가설 수립 → 실행/검증 → 정량적 성과. 논리로 성공을 증명하는 경험.',
+  '유형2': '실패/트러블슈팅형 — 실패 원인 분석 → 수습 → 교훈 도출. 문제를 직면하고 해결한 경험.',
+  '유형3': '의사결정/중단형 — 비효율을 데이터로 판단 → 조기 드랍/피벗 → 리소스 절감. 출시 못 해도 가치 있음.',
+  '유형4': '개선/자동화형 — 반복·비효율 발견 → 프로세스 개선·자동화 → 시간/비용 절감.',
+  '유형5': '협업/기여분리형 — 팀 전체 목표에서 나의 구체적 기여 지분을 명확히 드러내는 경험.',
+  '심화1': '무에서 유 창조형 — 사수 없음, 체계 없음 상황에서 기준/표준을 직접 수립하고 프로세스를 자산화한 경험.',
+  '심화2': '극한 자원 부족형 — 예산·시간·인력 부족 속에서 우선순위를 도출해 ROI를 극대화한 경험.',
+  '심화3': '사일로 타파형 — 부서 간 KPI 충돌을 데이터로 설득해 협업을 성사시키고 딜레이를 방어한 경험.',
+  '심화4': '외부 요인 피벗형 — 요구사항 급변에 기존 산출물을 재활용하며 애자일하게 대응해 데드라인을 지킨 경험.',
+  '심화5': '트래픽 제로형 — 출시 없는 사이드/토이 프로젝트에서 기술적 깊이나 가설 검증의 치밀함으로 인사이트를 얻은 경험.',
+};
+
 const FIELD_OPTIONS = [
   { value: '개발', label: '개발', icon: Code2 },
   { value: '디자인', label: '디자인', icon: Palette },
@@ -25,7 +152,7 @@ export default function TemplateSelect() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩
+  const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩(추출), 4: 검토, 5: 로딩(최종)
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -40,6 +167,10 @@ export default function TemplateSelect() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [loadingSteps, setLoadingSteps] = useState([]);
   const [currentLoadingStep, setCurrentLoadingStep] = useState(0);
+  // 핵심 경험 검토 단계용
+  const [collectedText, setCollectedText] = useState('');
+  const [moments, setMoments] = useState([]); // { id, title, description, keywords }
+  const [editingMomentId, setEditingMomentId] = useState(null);
 
   const handleFileAdd = (e) => {
     const newFiles = Array.from(e.target.files || []);
@@ -108,15 +239,14 @@ export default function TemplateSelect() {
 
     setStep(3);
 
-    // 로딩 단계 초기화
+    // 로딩 단계 초기화 (자료 수집 단계)
     const steps = [];
     if (files.length > 0) steps.push({ label: `${files.length}개 파일 분석`, status: 'pending' });
     if (textInput.trim()) steps.push({ label: '텍스트 데이터 처리', status: 'pending' });
     if (notionUrl.trim()) steps.push({ label: 'Notion 페이지 가져오기', status: 'pending' });
     if (githubUrl.trim()) steps.push({ label: 'GitHub 리포지토리 분석', status: 'pending' });
     if (blogUrl.trim() || linkInputs.some(l => l.trim())) steps.push({ label: '링크 콘텐츠 수집', status: 'pending' });
-    steps.push({ label: '경험 데이터 생성', status: 'pending' });
-    steps.push({ label: 'AI 구조화 분석', status: 'pending' });
+    steps.push({ label: '핵심 경험 추출 중', status: 'pending' });
     setLoadingSteps(steps);
 
     try {
@@ -199,32 +329,81 @@ export default function TemplateSelect() {
         return;
       }
 
-      // 6) 경험 생성
+      // 6) 핵심 경험 추출
       updateLoadingStep(stepIdx, 'loading');
+      const { data: extractResult } = await api.post('/experience/extract-moments', {
+        rawText: allText.trim(),
+        title: title.trim(),
+      }, { timeout: 120000 });
+      updateLoadingStep(stepIdx, 'done');
+
+      setCollectedText(allText.trim());
+      setMoments(extractResult.moments || []);
+      setStep(4); // 검토 단계로 이동
+
+    } catch (error) {
+      console.error('자료 수집 실패:', error);
+      toast.error('자료 수집에 실패했습니다. 다시 시도해주세요.');
+      setStep(2);
+    }
+  };
+
+  // 검토 단계 편집
+  const updateMoment = (id, field, value) => {
+    setMoments(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+  const deleteMoment = (id) => {
+    setMoments(prev => prev.filter(m => m.id !== id));
+  };
+
+  // 검토 완료 후 최종 경험 생성
+  const handleFinalSubmit = async () => {
+    if (moments.length === 0) {
+      toast.error('최소 1개 이상의 경험을 선택해주세요');
+      return;
+    }
+
+    setStep(5);
+
+    const finalSteps = [
+      { label: '경험 데이터 생성', status: 'pending' },
+      { label: 'AI 구조화 분석', status: 'pending' },
+    ];
+    setLoadingSteps(finalSteps);
+
+    try {
+      // 선택된 경험을 rawInput에 포함
+      const momentsText = moments.map((m, i) =>
+        `[경험 ${i + 1}] ${m.title}\n${m.description}\n키워드: ${(m.keywords || []).join(', ')}`
+      ).join('\n\n');
+      const finalText = `${collectedText}\n\n=== AI 추출 핵심 경험 ===\n${momentsText}`;
+
+      // 경험 생성
+      updateLoadingStep(0, 'loading');
       const period = startDate ? `${startDate}${endDate ? ` ~ ${endDate}` : ''}` : '';
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
         period,
         field: field || undefined,
-        content: { rawInput: allText.trim() },
+        content: { rawInput: finalText },
+        momentsCount: moments.length,
       });
-      updateLoadingStep(stepIdx, 'done');
-      stepIdx++;
+      updateLoadingStep(0, 'done');
 
-      // 7) AI 분석
-      updateLoadingStep(stepIdx, 'loading');
-      const { data: analysis } = await api.post('/experience/analyze', { experienceId }, { timeout: 120000 });
-      updateLoadingStep(stepIdx, 'done');
+      // AI 분석
+      updateLoadingStep(1, 'loading');
+      const { data: analysis } = await api.post('/experience/analyze', { experienceId, momentsCount: moments.length }, { timeout: 120000 });
+      updateLoadingStep(1, 'done');
 
       toast.success('경험 정리가 완료되었습니다!');
       navigate(`/app/experience/structured/${experienceId}`, {
-        state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: allText.trim() } },
+        state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
       });
     } catch (error) {
       console.error('경험 생성 실패:', error);
       toast.error('경험 생성에 실패했습니다. 다시 시도해주세요.');
-      setStep(2);
+      setStep(4);
     }
   };
 
@@ -241,7 +420,7 @@ export default function TemplateSelect() {
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-50 flex items-center justify-center">
               <Loader2 size={28} className="text-primary-500 animate-spin" />
             </div>
-            <h2 className="text-lg font-bold text-bluewood-900 mb-1">경험을 정리하고 있습니다</h2>
+            <h2 className="text-lg font-bold text-bluewood-900 mb-1">핵심 경험을 추출하고 있습니다</h2>
             <p className="text-sm text-bluewood-400">{progress}% 완료</p>
           </div>
 
@@ -274,14 +453,218 @@ export default function TemplateSelect() {
           </div>
 
           <p className="text-xs text-bluewood-300 text-center mt-8">
-            AI가 입력된 자료를 분석하여 7가지 섹션으로 구조화합니다.<br/>최대 1분 정도 소요될 수 있습니다.
+            AI가 자료를 분석하여 핵심 경험을 추출합니다.<br/>최대 1분 정도 소요될 수 있습니다.
           </p>
         </div>
       </div>
     );
   }
 
-  // ===== Step 1 & 2 UI =====
+  // ===== Step 5: 최종 로딩 화면 =====
+  if (step === 5) {
+    const doneCount = loadingSteps.filter(s => s.status === 'done').length;
+    const progress = loadingSteps.length > 0 ? Math.round((doneCount / loadingSteps.length) * 100) : 0;
+
+    return (
+      <div className="animate-fadeIn max-w-lg mx-auto pt-16">
+        <div className="bg-white rounded-2xl border border-surface-200 p-8 shadow-sm">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-50 flex items-center justify-center">
+              <Loader2 size={28} className="text-primary-500 animate-spin" />
+            </div>
+            <h2 className="text-lg font-bold text-bluewood-900 mb-1">경험을 구조화하고 있습니다</h2>
+            <p className="text-sm text-bluewood-400">{progress}% 완료</p>
+          </div>
+          <div className="w-full h-2 bg-surface-100 rounded-full mb-8 overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="space-y-3">
+            {loadingSteps.map((s, i) => (
+              <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+                s.status === 'loading' ? 'bg-primary-50 border border-primary-100' :
+                s.status === 'done' ? 'bg-surface-50' : ''
+              }`}>
+                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                  {s.status === 'done' && <Check size={16} className="text-green-500" />}
+                  {s.status === 'loading' && <Loader2 size={16} className="text-primary-500 animate-spin" />}
+                  {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300" />}
+                </div>
+                <span className={`text-sm ${
+                  s.status === 'loading' ? 'text-primary-700 font-medium' :
+                  s.status === 'done' ? 'text-bluewood-500' : 'text-bluewood-300'
+                }`}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-bluewood-300 text-center mt-8">
+            선택한 경험을 바탕으로 7가지 섹션으로 구조화합니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Step 4: 핵심 경험 검토 =====
+  if (step === 4) {
+    return (
+      <div className="animate-fadeIn max-w-2xl mx-auto">
+        <button
+          onClick={() => setStep(2)}
+          className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6"
+        >
+          <ArrowLeft size={16} /> 자료 수집으로 돌아가기
+        </button>
+
+        {/* 스텝 인디케이터 */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
+            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+              <Check size={12} />
+            </span>
+            기본 정보
+          </div>
+          <div className="w-8 h-px bg-surface-300" />
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
+            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+              <Check size={12} />
+            </span>
+            자료 수집
+          </div>
+          <div className="w-8 h-px bg-surface-300" />
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-primary-500 text-white shadow-sm">
+            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">3</span>
+            경험 검토
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm mb-5">
+          <div className="mb-5">
+            <h2 className="text-base font-bold text-bluewood-900 mb-1">AI가 추출한 핵심 경험</h2>
+            <p className="text-sm text-bluewood-400">
+              아래 {moments.length}개의 경험을 검토하세요. 필요 없는 항목은 삭제하고, 내용을 수정할 수 있습니다.
+            </p>
+          </div>
+
+          {moments.length === 0 ? (
+            <div className="text-center py-10 text-bluewood-300 text-sm">
+              추출된 경험이 없습니다. 자료 수집 단계로 돌아가 내용을 추가해주세요.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {moments.map((m, idx) => (
+                <div key={m.id} className="border border-surface-200 rounded-xl overflow-visible">
+                  {editingMomentId === m.id ? (
+                    /* 편집 모드 */
+                    <div className="p-4 bg-primary-50/30 space-y-3">
+                      <input
+                        value={m.title}
+                        onChange={e => updateMoment(m.id, 'title', e.target.value)}
+                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm font-semibold text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-200"
+                        placeholder="경험 제목"
+                      />
+                      <textarea
+                        value={m.description}
+                        onChange={e => updateMoment(m.id, 'description', e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200 resize-none"
+                        placeholder="경험 내용"
+                      />
+                      <input
+                        value={(m.keywords || []).join(', ')}
+                        onChange={e => updateMoment(m.id, 'keywords', e.target.value.split(',').map(k => k.trim()).filter(Boolean))}
+                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-xs text-bluewood-500 outline-none focus:ring-2 focus:ring-primary-200"
+                        placeholder="키워드 (쉼표로 구분)"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditingMomentId(null)}
+                          className="px-4 py-1.5 text-xs bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                        >
+                          완료
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 보기 모드 */
+                    <div className="p-4 flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface-100 text-bluewood-400 text-xs font-bold flex items-center justify-center mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {m.type && m.type.split(',').map(t => t.trim()).filter(Boolean).map((typeKey, ti) => (
+                            <span key={ti} className="relative group flex-shrink-0">
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary-50 text-primary-600 border border-primary-100 cursor-default">
+                                {typeKey}
+                              </span>
+                              {MOMENT_TYPE_DESC[typeKey] && (
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-56 rounded-lg bg-bluewood-900 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
+                                  {MOMENT_TYPE_DESC[typeKey]}
+                                  <span className="absolute top-full left-3 border-4 border-transparent border-t-bluewood-900" />
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                          <p className="text-sm font-semibold text-bluewood-900 truncate">{m.title}</p>
+                        </div>
+                        <StarDescription
+                          description={m.description}
+                          onUpdateMissing={(newDesc) => updateMoment(m.id, 'description', newDesc)}
+                        />
+                        {m.keywords?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {m.keywords.map((kw, ki) => (
+                              <span key={ki} className="px-2 py-0.5 bg-surface-100 text-bluewood-500 text-xs rounded-md">
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 flex flex-col gap-1.5 ml-2">
+                        <button
+                          onClick={() => setEditingMomentId(m.id)}
+                          className="px-3 py-1.5 text-xs border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-50 transition-colors"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => deleteMoment(m.id)}
+                          className="px-3 py-1.5 text-xs border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 pb-8">
+          <button
+            onClick={() => setStep(2)}
+            className="flex items-center justify-center gap-2 px-6 py-4 bg-white border border-surface-200 text-bluewood-600 rounded-2xl text-sm font-semibold hover:bg-surface-50 transition-all"
+          >
+            <ChevronLeft size={16} />
+            이전
+          </button>
+          <button
+            onClick={handleFinalSubmit}
+            disabled={moments.length === 0}
+            className="flex-1 flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-base font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200/50"
+          >
+            선택한 {moments.length}개 경험으로 정리 시작
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="animate-fadeIn max-w-2xl mx-auto">
       <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6">
@@ -302,8 +685,15 @@ export default function TemplateSelect() {
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
           step === 2 ? 'bg-primary-500 text-white shadow-sm' : 'bg-surface-100 text-bluewood-400'
         }`}>
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">2</span>
+          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+            {step > 2 ? <Check size={12} /> : '2'}
+          </span>
           자료 수집
+        </div>
+        <div className="w-8 h-px bg-surface-300" />
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
+          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">3</span>
+          경험 검토
         </div>
       </div>
 

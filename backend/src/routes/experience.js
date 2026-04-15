@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminDb } from '../config/firebase.js';
-import { analyzeExperience } from '../services/geminiService.js';
+import { analyzeExperience, extractMoments } from '../services/geminiService.js';
 
 const router = Router();
 
 // POST /api/experience/analyze - AI 경험 구조화
 router.post('/analyze', authMiddleware, async (req, res, next) => {
   try {
-    const { experienceId } = req.body;
+    const { experienceId, momentsCount } = req.body;
     if (!experienceId) {
       return res.status(400).json({ error: 'experienceId가 필요합니다' });
     }
@@ -27,9 +27,14 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
       return res.status(403).json({ error: '접근 권한이 없습니다' });
     }
 
+    // momentsCount: 요청 바디 → Firestore 저장값 순으로 fallback
+    const count = (momentsCount && Number.isInteger(Number(momentsCount)))
+      ? Number(momentsCount)
+      : (data.momentsCount || 3);
+
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {});
+      analysis = await analyzeExperience(data.content || {}, count);
     } catch (aiError) {
       const errMsg = aiError.message || '';
       console.error('Gemini AI 분석 실패 (최종):', errMsg);
@@ -63,6 +68,20 @@ router.post('/analyze', authMiddleware, async (req, res, next) => {
     });
 
     res.json(analysis);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/extract-moments - 핵심 경험 순간 추출 (검토 단계용)
+router.post('/extract-moments', authMiddleware, async (req, res, next) => {
+  try {
+    const { rawText, title } = req.body;
+    if (!rawText || rawText.trim().length === 0) {
+      return res.status(400).json({ error: '분석할 텍스트가 필요합니다' });
+    }
+    const moments = await extractMoments(rawText, title);
+    res.json({ moments });
   } catch (error) {
     next(error);
   }

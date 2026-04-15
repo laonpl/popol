@@ -505,11 +505,13 @@ export default function StructuredResult() {
                 <span className="flex-shrink-0 w-5 text-[12px] font-bold text-bluewood-300 mt-2">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <span className="text-[12px] font-semibold text-bluewood-700">{item.label}</span>
-                  <input
+                  <textarea
+                    ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
                     value={editedOverview[item.key] || ''}
-                    onChange={e => setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value }))}
+                    onChange={e => { setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                     readOnly={viewOnly}
-                    className={`w-full text-[12px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none transition-colors py-0.5`}
+                    rows={1}
+                    className={`w-full text-[12px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none transition-colors py-0.5 resize-none overflow-hidden`}
                     placeholder={item.placeholder}
                   />
                 </div>
