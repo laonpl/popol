@@ -19,6 +19,10 @@ import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
 const EMPTY_PORTFOLIO = {
   templateType: 'notion',
   // Profile
@@ -413,16 +417,6 @@ export default function NotionPortfolioEditor() {
               자세히보기
             </Link>
             <button
-              onClick={() => setEditMode('visual')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                editMode === 'visual'
-                  ? 'bg-white text-primary-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              대시보드 편집
-            </button>
-            <button
               onClick={() => setAnalysisMode(prev => !prev)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 analysisMode
@@ -586,6 +580,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [data, setData] = useState(null);
   const [show, setShow] = useState(false);
   const [panelTop, setPanelTop] = useState(120);
+  const [panelMaxH, setPanelMaxH] = useState('60vh');
   const btnRef = useRef(null);
 
   const SECTION_LABELS = {
@@ -599,7 +594,16 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     if (show && data) { setShow(false); return; }
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPanelTop(Math.max(80, rect.top));
+      const PANEL_H = 340; // 예상 패널 높이
+      const viewH = window.innerHeight;
+      const available = viewH - rect.top - 24;
+      if (available < PANEL_H) {
+        setPanelTop(Math.max(80, viewH - PANEL_H - 24));
+        setPanelMaxH(`${Math.min(PANEL_H, viewH - 104)}px`);
+      } else {
+        setPanelTop(Math.max(80, rect.top));
+        setPanelMaxH(`${available - 24}px`);
+      }
     }
     setLoading(true);
     setShow(true);
@@ -625,8 +629,8 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
       </button>
       {show && createPortal(
         <div
-          style={{ position: 'fixed', right: 24, top: panelTop, width: 280, zIndex: 1000 }}
-          className="bg-white rounded-2xl border border-indigo-200 shadow-xl p-4"
+          style={{ position: 'fixed', right: 24, top: panelTop, width: 280, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
+          className="bg-white rounded-2xl border border-indigo-200 shadow-xl p-4 overflow-hidden"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
@@ -641,7 +645,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
               <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
             </div>
           ) : data?.recommendations ? (
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
               {data.recommendations.map((rec, i) => (
                 <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
                   <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
@@ -671,7 +675,7 @@ const EXP_SECTION_META = {
 };
 const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
 
-function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
+function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply }) {
   const keyExps = exp?.structuredResult?.keyExperiences || [];
   const structured = exp?.structuredResult || {};
   const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
@@ -681,6 +685,51 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
   const hasSections = EXP_SECTION_KEYS.some(k => sectionContents[k]?.trim());
   const hasRichData = keyExps.length > 0 || hasSections;
   const [tab, setTab] = useState(hasRichData ? 'view' : 'edit');
+
+  // 첨삭 관련 state
+  const [showTailor, setShowTailor] = useState(false);
+  const [tailorResult, setTailorResult] = useState(null);
+  const [tailoring, setTailoring] = useState(false);
+  const [tailorError, setTailorError] = useState(null);
+  const [appliedSections, setAppliedSections] = useState({});
+
+  const handleTailor = async () => {
+    if (!jobAnalysis) return;
+    setTailoring(true);
+    setTailorError(null);
+    setAppliedSections({});
+    try {
+      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: exp });
+      setTailorResult(data.tailored);
+    } catch (err) {
+      setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
+    }
+    setTailoring(false);
+  };
+
+  const toggleTailor = () => {
+    const next = !showTailor;
+    setShowTailor(next);
+    if (next && !tailorResult && !tailoring) handleTailor();
+  };
+
+  const applySingleSection = (sectionKey) => {
+    if (!tailorResult?.sections?.[sectionKey]?.content || !onTailorApply) return;
+    onTailorApply(sectionKey, tailorResult.sections[sectionKey].content);
+    setAppliedSections(prev => ({ ...prev, [sectionKey]: true }));
+  };
+
+  const applyAllSections = () => {
+    if (!tailorResult?.sections || !onTailorApply) return;
+    EXP_SECTION_KEYS.forEach(k => {
+      if (tailorResult.sections[k]?.content?.trim()) {
+        onTailorApply(k, tailorResult.sections[k].content);
+      }
+    });
+    const allApplied = {};
+    EXP_SECTION_KEYS.forEach(k => { if (tailorResult.sections[k]?.content?.trim()) allApplied[k] = true; });
+    setAppliedSections(allApplied);
+  };
 
   // Firestore에서 이미지 로드 (experienceId가 있을 때)
   const [allImages, setAllImages] = useState([]);
@@ -735,7 +784,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${showTailor ? 'max-w-6xl' : 'max-w-3xl'} max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300`} onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -747,9 +796,24 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
+          <div className="flex items-center gap-2">
+            {jobAnalysis && (
+              <button
+                onClick={toggleTailor}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  showTailor
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                }`}
+              >
+                첨삭
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
+          </div>
         </div>
 
+        <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto">
           {/* ── 상세보기 탭 ── */}
           {(tab === 'view' || !hasRichData) && (
@@ -874,6 +938,126 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64 }) {
             </div>
           )}
         </div>
+
+        {/* ── 우측 첨삭 패널 ── */}
+        {showTailor && (
+          <div className="w-[400px] flex-shrink-0 border-l border-gray-100 overflow-y-auto bg-gradient-to-b from-indigo-50/30 to-white">
+            <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-indigo-800">기업 맞춤 첨삭</h4>
+                <div className="flex items-center gap-2">
+                  {tailorResult && !tailoring && (
+                    <button onClick={handleTailor} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                      다시 첨삭
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 기업 정보 */}
+              {jobAnalysis?.company && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                  <Building2 size={14} className="text-blue-600" />
+                  <span className="text-xs font-medium text-blue-800">{jobAnalysis.company}</span>
+                  {jobAnalysis.position && <span className="text-xs text-blue-500">· {jobAnalysis.position}</span>}
+                </div>
+              )}
+
+              {/* 로딩 */}
+              {tailoring && (
+                <div className="flex flex-col items-center py-10">
+                  <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
+                  <p className="text-sm text-gray-500">AI가 첨삭 중입니다...</p>
+                  <p className="text-xs text-gray-400 mt-1">7개 섹션을 기업에 맞게 재구성합니다</p>
+                </div>
+              )}
+
+              {/* 에러 */}
+              {tailorError && !tailoring && (
+                <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                  <p className="text-xs text-red-600">{tailorError}</p>
+                  <button onClick={handleTailor} className="text-xs text-red-500 hover:text-red-700 mt-1 underline">다시 시도</button>
+                </div>
+              )}
+
+              {/* 섹션별 첨삭 결과 */}
+              {tailorResult && !tailoring && (
+                <div className="space-y-3">
+                  {/* 전체 적용 버튼 */}
+                  {(() => {
+                    const availableCount = EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).length;
+                    const appliedCount = Object.keys(appliedSections).length;
+                    const allApplied = availableCount > 0 && appliedCount >= availableCount;
+                    return availableCount > 0 && (
+                      <button
+                        onClick={applyAllSections}
+                        disabled={allApplied}
+                        className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                          allApplied
+                            ? 'bg-green-100 text-green-700 cursor-default'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
+                      >
+                        {allApplied ? <><Check size={13} />전체 적용 완료</> : <>전체 적용 ({availableCount}개 섹션)</>}
+                      </button>
+                    );
+                  })()}
+
+                  {/* 각 섹션 */}
+                  {EXP_SECTION_KEYS.map(key => {
+                    const meta = EXP_SECTION_META[key];
+                    const section = tailorResult.sections?.[key];
+                    if (!section?.content?.trim()) return null;
+                    const isApplied = appliedSections[key];
+                    return (
+                      <div key={key} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold">{meta.num}</span>
+                          <span className="text-xs font-bold text-gray-700 flex-1">{meta.label}</span>
+                          <button
+                            onClick={() => applySingleSection(key)}
+                            disabled={isApplied}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                              isApplied
+                                ? 'bg-green-100 text-green-700 cursor-default'
+                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                            }`}
+                          >
+                            {isApplied ? <><Check size={10} />적용됨</> : <>적용</>}
+                          </button>
+                        </div>
+                        <div className="p-3">
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(section.content)}</p>
+                          {section.reason && (
+                            <p className="text-[10px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason)}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* 강조 스킬 */}
+                  {tailorResult.highlightedSkills?.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-[10px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">기업 어필 스킬</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tailorResult.highlightedSkills.map((s, si) => (
+                          <span key={si} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[10px] font-medium">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 적합도 메모 */}
+                  {tailorResult.relevanceNote && (
+                    <p className="text-[10px] text-gray-500 italic bg-gray-50 rounded-xl px-3 py-2">{stripMd(tailorResult.relevanceNote)}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        </div>{/* end flex row */}
       </div>
     </div>
   );
@@ -1150,6 +1334,12 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
           onUpdate={(changes) => updateArrayItem('experiences', expDetailIdx, changes)}
           onClose={() => setExpDetailIdx(null)}
           resizeToBase64={resizeToBase64}
+          jobAnalysis={portfolio.jobAnalysis}
+          onTailorApply={(sectionKey, content) => {
+            const updated = { ...p.experiences[expDetailIdx] };
+            updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
+            updateArrayItem('experiences', expDetailIdx, updated);
+          }}
         />
       )}
     </div>
@@ -1385,6 +1575,12 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           onUpdate={(changes) => updateArrayItem('experiences', expDetailIdx, changes)}
           onClose={() => setExpDetailIdx(null)}
           resizeToBase64={resizeToBase64}
+          jobAnalysis={portfolio.jobAnalysis}
+          onTailorApply={(sectionKey, content) => {
+            const updated = { ...p.experiences[expDetailIdx] };
+            updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
+            updateArrayItem('experiences', expDetailIdx, updated);
+          }}
         />
       )}
     </div>
@@ -2099,6 +2295,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onUpdate={onUpdate}
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
+            jobAnalysis={portfolio.jobAnalysis}
+            onTailorApply={(sectionKey, content) => {
+              const updated = { ...exp };
+              updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
+              onUpdate(updated);
+            }}
           />
         ) : null;
       })()}
@@ -2392,17 +2594,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 analysis={p.jobAnalysis}
                 onRemove={() => update('jobAnalysis', null)}
                 experiences={p.experiences || []}
-                onTailorApply={(expIdx, tailored) => {
+                onTailorApply={(expIdx, sectionKey, content) => {
                   const updated = { ...p.experiences[expIdx] };
-                  updated.description = tailored.tailoredDescription || updated.description;
-                  if (tailored.highlightedSkills?.length) updated.skills = tailored.highlightedSkills;
-                  if (tailored.subtitle) {
-                    const subtitleSection = { title: '기업 맞춤 소개', content: tailored.subtitle };
-                    const achieveSection = tailored.keyAchievements?.length
-                      ? { title: '핵심 성과', content: tailored.keyAchievements.join('\n') }
-                      : null;
-                    updated.sections = [subtitleSection, ...(achieveSection ? [achieveSection] : []), ...(updated.sections || [])];
-                  }
+                  updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
                   updateArrayItem('experiences', expIdx, updated);
                 }}
               />
