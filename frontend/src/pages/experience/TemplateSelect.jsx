@@ -1,10 +1,10 @@
-﻿import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileText, Globe, Github,
-  X, Sparkles, CheckCircle2, Calendar, Tag,
+  X, CheckCircle2, Calendar, Tag,
   ChevronRight, ChevronLeft, Link2, Plus, Code2,
-  Loader2, Check, FolderOpen, Palette, Monitor
+  Loader2, Check, FolderOpen, Palette, Monitor, UploadCloud
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -31,6 +31,7 @@ export default function TemplateSelect() {
   const [endDate, setEndDate] = useState('');
   const [field, setField] = useState('');
   const [files, setFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [notionUrl, setNotionUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
@@ -42,6 +43,11 @@ export default function TemplateSelect() {
 
   const handleFileAdd = (e) => {
     const newFiles = Array.from(e.target.files || []);
+    addValidFiles(newFiles);
+    e.target.value = '';
+  };
+
+  const addValidFiles = useCallback((newFiles) => {
     if (files.length + newFiles.length > 10) {
       toast.error('파일은 최대 10개까지 업로드할 수 있습니다');
       return;
@@ -53,7 +59,21 @@ export default function TemplateSelect() {
       }
     }
     setFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
+  }, [files.length]);
+
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    addValidFiles(Array.from(e.dataTransfer.files));
+  };
+
+  const getFileTypeInfo = (name) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return { label: 'PDF', color: 'bg-red-500' };
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return { label: 'IMG', color: 'bg-blue-500' };
+    return { label: 'HWP', color: 'bg-emerald-600' };
   };
 
   const removeFile = (index) => {
@@ -219,7 +239,7 @@ export default function TemplateSelect() {
           {/* 진행률 헤더 */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-50 flex items-center justify-center">
-              <Sparkles size={28} className="text-primary-500 animate-pulse" />
+              <Loader2 size={28} className="text-primary-500 animate-spin" />
             </div>
             <h2 className="text-lg font-bold text-bluewood-900 mb-1">경험을 정리하고 있습니다</h2>
             <p className="text-sm text-bluewood-400">{progress}% 완료</p>
@@ -371,49 +391,65 @@ export default function TemplateSelect() {
 
           {/* 파일 업로드 */}
           <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center">
-                <Upload size={14} className="text-primary-500" />
-              </div>
-              관련 파일
-            </h2>
+            <h2 className="text-sm font-bold text-bluewood-900 mb-4">관련 파일</h2>
             <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
-            <button
+
+            {/* Drop Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-surface-300 rounded-xl p-6 flex flex-col items-center gap-2 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 transition-all"
+              className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-2 cursor-pointer transition-all select-none ${
+                isDragging
+                  ? 'border-primary-400 bg-primary-50 text-primary-500'
+                  : 'border-surface-300 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30'
+              }`}
             >
-              <div className="w-12 h-12 rounded-xl bg-surface-100 flex items-center justify-center mb-1">
-                <FolderOpen size={22} className="text-bluewood-300" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-1 transition-colors ${isDragging ? 'bg-primary-100' : 'bg-surface-100'}`}>
+                <FolderOpen size={22} className={isDragging ? 'text-primary-400' : 'text-bluewood-300'} />
               </div>
               <p className="font-medium text-sm">클릭하여 파일을 선택하세요</p>
               <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP), HWP · 최대 25MB · 최대 10개</p>
-            </button>
+            </div>
+
+            {/* File List */}
             {files.length > 0 && (
               <div className="mt-3 space-y-2">
-                {files.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-xl">
-                    <FileText size={16} className="text-primary-500 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-bluewood-900 truncate">{f.name}</p>
-                      <p className="text-xs text-bluewood-400">{(f.size / 1024).toFixed(1)} KB</p>
+                {files.map((f, i) => {
+                  const typeInfo = getFileTypeInfo(f.name);
+                  return (
+                    <div key={i} className="flex items-center gap-3 px-4 py-3 border border-gray-100 rounded-xl bg-white shadow-sm">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${typeInfo.color}`}>
+                        <span className="text-white text-[9px] font-bold tracking-wide">{typeInfo.label}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-bluewood-900 truncate">{f.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs text-bluewood-400">{(f.size / 1024).toFixed(1)} KB</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium">
+                            <CheckCircle2 size={11} />
+                            준비 완료
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-400 rounded-full w-full" />
+                        </div>
+                      </div>
+                      <button onClick={() => removeFile(i)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                        <X size={14} className="text-bluewood-300 hover:text-red-400" />
+                      </button>
                     </div>
-                    <button onClick={() => removeFile(i)} className="p-1 text-bluewood-300 hover:text-red-500">
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* 직접 입력 */}
           <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
-                <FileText size={14} className="text-indigo-500" />
-              </div>
-              직접 입력
-            </h2>
+            <h2 className="text-sm font-bold text-bluewood-900 mb-4">직접 입력</h2>
             <textarea
               value={textInput}
               onChange={e => setTextInput(e.target.value)}
@@ -428,12 +464,7 @@ export default function TemplateSelect() {
 
           {/* 링크 입력 */}
           <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-bluewood-900 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center">
-                <Link2 size={14} className="text-purple-500" />
-              </div>
-              링크
-            </h2>
+            <h2 className="text-sm font-bold text-bluewood-900 mb-4">링크</h2>
             <div className="space-y-3">
               {/* Notion */}
               <div className="relative">
@@ -547,7 +578,6 @@ export default function TemplateSelect() {
               disabled={!hasInput}
               className="flex-1 flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-base font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200/50"
             >
-              <Sparkles size={18} />
               AI로 경험 정리 시작
             </button>
           </div>

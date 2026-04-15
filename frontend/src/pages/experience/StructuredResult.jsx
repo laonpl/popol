@@ -2,7 +2,8 @@
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, TrendingUp, Target, Users, Clock, Zap, Globe, Building2, X } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
@@ -298,25 +299,52 @@ export default function StructuredResult() {
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 크기 초과 (10MB)`); continue; }
+        // base64로 리사이즈 후 Blob으로 변환해 Storage에 업로드
         const base64 = await resizeToBase64(file);
-        newImgs.push({ url: base64, name: file.name });
+        const blob = await fetch(base64).then(r => r.blob());
+        const path = `experiences/${id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const sRef = storageRef(storage, path);
+        await uploadBytes(sRef, blob, { contentType: 'image/jpeg' });
+        const url = await getDownloadURL(sRef);
+        newImgs.push({ url, name: file.name, storagePath: path });
       }
       if (newImgs.length > 0) {
         const startIdx = allImages.length;
         const updatedAll = [...allImages, ...newImgs];
         setAllImages(updatedAll);
         const unassigned = [...(sectionImages._unassigned || []), ...newImgs.map((_, i) => startIdx + i)];
-        setSectionImages(prev => ({ ...prev, _unassigned: unassigned }));
-        // Firestore에 이미지 즉시 저장
-        const ref = doc(db, 'experiences', id);
-        await updateDoc(ref, { images: updatedAll, updatedAt: new Date() });
+        const updatedSection = { ...sectionImages, _unassigned: unassigned };
+        setSectionImages(updatedSection);
+        const docRef = doc(db, 'experiences', id);
+        await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, updatedAt: new Date() });
         toast.success(`${newImgs.length}장 업로드 완료`);
       }
     } catch (err) {
+      console.error('이미지 업로드 실패:', err);
       toast.error('이미지 업로드 실패');
     }
     setUploadingImage(false);
     e.target.value = '';
+  };
+
+  const handleImageDelete = async (imgIdx) => {
+    const target = allImages[imgIdx];
+    const updatedAll = allImages.filter((_, i) => i !== imgIdx);
+    const remap = (arr) => arr
+      .filter(i => i !== imgIdx)
+      .map(i => i > imgIdx ? i - 1 : i);
+    const updatedSection = {};
+    Object.entries(sectionImages).forEach(([k, v]) => { updatedSection[k] = remap(v); });
+    setAllImages(updatedAll);
+    setSectionImages(updatedSection);
+    try {
+      // Firebase Storage에서도 삭제
+      if (target?.storagePath) {
+        await deleteObject(storageRef(storage, target.storagePath)).catch(() => {});
+      }
+      const docRef = doc(db, 'experiences', id);
+      await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, updatedAt: new Date() });
+    } catch {}
   };
 
   // 기업 분석 핸들러
@@ -456,11 +484,12 @@ export default function StructuredResult() {
 
           {/* 배경/요약 (편집) */}
           <textarea
+            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
             value={editedOverview.background || editedOverview.summary || ''}
-            onChange={e => setEditedOverview(prev => ({ ...prev, background: e.target.value }))}
+            onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
             readOnly={viewOnly}
-            rows={3}
-            className={`text-[12.5px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full`}
+            className={`text-[12.5px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full overflow-hidden`}
+            style={{ minHeight: '4.5rem' }}
             placeholder="프로젝트 배경 설명"
           />
 
@@ -555,83 +584,11 @@ export default function StructuredResult() {
 
         {/* ── 우: 핵심 경험 슬라이더 (편집 가능) ── */}
         <div className="min-w-0">
-          <KeyExperienceSlider keyExperiences={editedKeyExperiences} />
-          {/* 핵심 경험 편집 패널 */}
-          {!viewOnly && (
-          <div className="mt-4 space-y-3">
-            {editedKeyExperiences.map((exp, idx) => (
-              <details key={idx} className="bg-white rounded-xl border border-surface-200 overflow-hidden group/detail">
-                <summary className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-50 transition-colors select-none">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-md bg-primary-100 text-primary-700 flex items-center justify-center text-[11px] font-bold">{idx + 1}</span>
-                  <span className="text-[13px] font-semibold text-bluewood-800 flex-1 min-w-0 truncate">{exp.title || `핵심 경험 ${idx + 1}`}</span>
-                  <span className="text-[11px] text-primary-500 font-medium">{exp.metric || ''}</span>
-                </summary>
-                <div className="px-4 pb-4 pt-2 space-y-2.5 border-t border-surface-100">
-                  {[
-                    { key: 'title',        label: '제목',    placeholder: '핵심 경험 제목' },
-                    { key: 'metric',       label: '성과 지표', placeholder: '예: 40% 단축' },
-                    { key: 'metricLabel',  label: '지표 설명', placeholder: '예: API 응답 시간' },
-                    { key: 'beforeMetric', label: '개선 전',  placeholder: '예: 평균 800ms' },
-                    { key: 'afterMetric',  label: '개선 후',  placeholder: '예: 평균 480ms' },
-                    { key: 'situation',    label: '문제 상황', placeholder: '어떤 문제가 있었나요?' },
-                    { key: 'action',       label: '핵심 행동', placeholder: '어떤 행동을 했나요?' },
-                    { key: 'result',       label: '결과',    placeholder: '어떤 결과를 얻었나요?' },
-                  ].map(field => (
-                    <div key={field.key}>
-                      <label className="text-[11px] font-semibold text-bluewood-500 mb-0.5 block">{field.label}</label>
-                      {['situation', 'action', 'result'].includes(field.key) ? (
-                        <textarea
-                          value={exp[field.key] || ''}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setEditedKeyExperiences(prev => prev.map((item, i) => i === idx ? { ...item, [field.key]: val } : item));
-                          }}
-                          rows={2}
-                          className="w-full text-[12px] text-bluewood-700 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 focus:outline-none focus:border-primary-300 resize-none transition-colors"
-                          placeholder={field.placeholder}
-                        />
-                      ) : (
-                        <input
-                          value={exp[field.key] || ''}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setEditedKeyExperiences(prev => prev.map((item, i) => i === idx ? { ...item, [field.key]: val } : item));
-                          }}
-                          className="w-full text-[12px] text-bluewood-700 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 focus:outline-none focus:border-primary-300 transition-colors"
-                          placeholder={field.placeholder}
-                        />
-                      )}
-                    </div>
-                  ))}
-                  {/* 차트 타입 선택 */}
-                  <div>
-                    <label className="text-[11px] font-semibold text-bluewood-500 mb-1.5 block">그래프 스타일</label>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {CHART_TYPES.map(ct => (
-                        <button key={ct.id}
-                          onClick={() => setEditedKeyExperiences(prev => prev.map((item, i) => i === idx ? { ...item, chartType: ct.id } : item))}
-                          className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg border text-center transition-all ${
-                            (exp.chartType || 'horizontalBar') === ct.id
-                              ? 'border-primary-400 bg-primary-50 text-primary-700 shadow-sm'
-                              : 'border-surface-200 bg-white text-bluewood-400 hover:border-surface-300 hover:bg-surface-50'
-                          }`}>
-                          <span className="text-[14px] leading-none">{ct.icon}</span>
-                          <span className="text-[9px] font-medium leading-tight">{ct.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <button onClick={() => setEditedKeyExperiences(prev => prev.filter((_, i) => i !== idx))}
-                    className="text-[11px] text-red-400 hover:text-red-600 transition-colors mt-1">삭제</button>
-                </div>
-              </details>
-            ))}
-            <button onClick={() => setEditedKeyExperiences(prev => [...prev, { title: '', metric: '', metricLabel: '', beforeMetric: '', afterMetric: '', situation: '', action: '', result: '', keywords: [] }])}
-              className="w-full py-2.5 border-2 border-dashed border-surface-200 rounded-xl text-[12px] font-medium text-bluewood-400 hover:border-primary-300 hover:text-primary-500 transition-colors">
-              + 핵심 경험 추가
-            </button>
-          </div>
-          )}
+          <KeyExperienceSlider
+            keyExperiences={editedKeyExperiences}
+            onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
+            viewOnly={viewOnly}
+          />
         </div>
       </div>
 
@@ -639,29 +596,41 @@ export default function StructuredResult() {
          ║  하단 좌: 작성 완성도 + 사진 / 우: 힌트     ║
          ╚══════════════════════════════════════════════╝ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* 작성 완성도 (Passing rate 스타일) */}
+        {/* 작성 완성도 — 체크리스트 */}
         <div className="bg-white rounded-2xl border border-surface-200 p-6">
-          <h3 className="text-[14px] font-extrabold text-bluewood-900 mb-4">작성 완성도</h3>
-          <div className="flex items-end gap-6">
-            <div>
-              <p className="text-[11px] text-caribbean-600 font-semibold mb-0.5">Complete</p>
-              <p className="text-[28px] font-black text-bluewood-900 leading-none">{completionPct}%</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-red-400 font-semibold mb-0.5">빈칸</p>
-              <p className="text-[28px] font-black text-bluewood-900 leading-none">{emptyCount}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-bluewood-300 font-semibold mb-0.5">전체</p>
-              <p className="text-[28px] font-black text-bluewood-900 leading-none">7</p>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[14px] font-extrabold text-bluewood-900">작성 완성도</h3>
+            <span className="text-[12px] font-bold text-caribbean-600">{filledCount}/7</span>
           </div>
-          {/* 미니 바 */}
-          <div className="flex gap-1 mt-4">
-            {SECTION_KEYS.map(k => (
-              <div key={k} className={`h-2 flex-1 rounded-full ${editedContent[k]?.trim() ? 'bg-caribbean-400' : 'bg-surface-200'}`} />
-            ))}
+          {/* 프로그레스 바 */}
+          <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
+            <div
+              className="h-full bg-caribbean-400 rounded-full transition-all duration-500"
+              style={{ width: `${completionPct}%` }}
+            />
           </div>
+          {/* 체크리스트 */}
+          <ul className="space-y-2">
+            {SECTION_KEYS.map(k => {
+              const filled = !!editedContent[k]?.trim();
+              const meta = SECTION_META[k];
+              return (
+                <li key={k} className="flex items-center gap-2.5">
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${filled ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
+                    {filled && (
+                      <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                        <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`text-[12px] font-medium leading-none ${filled ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
+                    <span className="text-[10px] font-semibold text-bluewood-300 mr-1">{meta.num}</span>
+                    {meta.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
 
         {/* 사진 */}
@@ -698,6 +667,12 @@ export default function StructuredResult() {
                       <div className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 bg-black/50 rounded p-0.5 transition-opacity">
                         <GripVertical size={10} className="text-white" />
                       </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleImageDelete(imgIdx); }}
+                        className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center transition-opacity hover:bg-red-600"
+                      >
+                        <X size={9} />
+                      </button>
                     </div>
                   );
                 })}
@@ -752,26 +727,11 @@ export default function StructuredResult() {
             <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
           </div>
           <div className="flex items-center gap-2">
-            {(structured.highlights || []).length > 0 && (
-              <button
-                onClick={() => setShowHighlights(prev => !prev)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                  showHighlights
-                    ? 'bg-primary-50 text-primary-600 border-primary-200'
-                    : 'bg-surface-50 text-bluewood-400 border-surface-200 hover:bg-surface-100'
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Sparkles size={12} />
-                  {showHighlights ? '하이라이트 끄기' : '역량 하이라이트'}
-                </span>
-              </button>
-            )}
           </div>
         </div>
 
-        {/* 하이라이트 범례 */}
-        {showHighlights && (structured.highlights || []).length > 0 && (
+        {/* 하이라이트 범례 — 하이라이트 있으면 항상 표시 */}
+        {(structured.highlights || []).length > 0 && (
           <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
             {Object.entries(highlightColors).map(([key, color]) => (
               <div key={key} className="flex items-center gap-2 text-[11px] text-bluewood-500">
@@ -829,11 +789,12 @@ export default function StructuredResult() {
                   {isEditing ? (
                     <div>
                       <textarea
+                        ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
                         value={value}
-                        onChange={e => handleFieldChange(key, e.target.value)}
+                        onChange={e => { handleFieldChange(key, e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                         placeholder={field?.placeholder || '내용을 입력하세요'}
-                        rows={key === 'intro' ? 2 : 5}
-                        className={`w-full bg-white rounded-xl border border-surface-200 p-4 text-[13px] outline-none ${style.ring} focus:ring-2 transition-shadow resize-y text-bluewood-800 placeholder-bluewood-300`}
+                        className={`w-full bg-white rounded-xl border border-surface-200 p-4 text-[13px] outline-none ${style.ring} focus:ring-2 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300`}
+                        style={{ minHeight: key === 'intro' ? '3rem' : '7rem' }}
                       />
                       {!isEmpty && (
                         <div className="flex justify-end mt-2">
@@ -853,9 +814,9 @@ export default function StructuredResult() {
                     <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
                       <HighlightedText
                         text={value}
-                        highlights={showHighlights ? (structured.highlights || []).filter(h => h.field === key) : []}
+                        highlights={(structured.highlights || []).filter(h => h.field === key)}
                         keywords={editedKeywords}
-                        showKeywordUnderline={showHighlights}
+                        showKeywordUnderline={true}
                       />
                     </div>
                   )}
