@@ -302,7 +302,7 @@ function NotionFullPreview() {
         </div>
       </div>
       <div className="mt-6 pt-4 border-t border-gray-100">
-        <h3 className="font-bold text-base mb-3">📋 프로젝트 갤러리</h3>
+        <h3 className="font-bold text-base mb-3">프로젝트 갤러리</h3>
         <div className="grid grid-cols-4 gap-3">
           {[1,2,3,4].map(i => (
             <div key={i} className="bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
@@ -340,7 +340,7 @@ function AshleyFullPreview() {
       <div className="px-8 pb-6">
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-xl p-4 border border-[#e8e4dc]">
-            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">📋 한눈에 보기</h3>
+            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">한눈에 보기</h3>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-[#8a8578]">위치</span><span className="font-medium text-[#2d2a26]">서울특별시</span></div>
               <div className="flex justify-between"><span className="text-[#8a8578]">생년월일</span><span className="font-medium text-[#2d2a26]">2000.01.01</span></div>
@@ -348,7 +348,7 @@ function AshleyFullPreview() {
             </div>
           </div>
           <div className="bg-white rounded-xl p-4 border border-[#e8e4dc]">
-            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">✨ 저는 이런 사람이에요</h3>
+            <h3 className="font-bold text-sm text-[#2d2a26] mb-3 flex items-center gap-2">저는 이런 사람이에요</h3>
             <ul className="space-y-2 text-xs text-[#5a564e]">
               <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-[#c4a882] rounded-full mt-1 flex-shrink-0" />데이터 기반 스토리텔링을 좋아합니다</li>
               <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-[#c4a882] rounded-full mt-1 flex-shrink-0" />새로운 트렌드를 빠르게 캐치합니다</li>
@@ -382,7 +382,7 @@ function AshleyFullPreview() {
         <div className="grid grid-cols-3 gap-3">
           {[1,2,3].map(i => (
             <div key={i} className="bg-white rounded-xl border border-[#e8e4dc] overflow-hidden">
-              <div className="aspect-[4/3] bg-[#f0ece4] flex items-center justify-center text-2xl">{['🎯','📈','🎬'][i-1]}</div>
+              <div className="aspect-[4/3] bg-[#f0ece4] flex items-center justify-center text-xs text-[#8a8578]">콜렉션 {i}</div>
               <div className="p-3">
                 <p className="text-xs font-bold text-[#2d2a26] mb-0.5">캠페인 {i}</p>
                 <p className="text-[10px] text-[#8a8578]">마케팅 프로젝트 설명</p>

@@ -236,11 +236,17 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
 
   return (
     <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
-      {/* 썸네일 영역 */}
+      {/* 썸네일 영역 — 클릭 시 자세히 보기 */}
       <div
         className={`relative ${localThumb ? 'bg-gray-100' : thumbColor} cursor-pointer group overflow-hidden`}
         style={{ paddingTop: '56.25%' /* 16:9 비율 */ }}
-        onClick={handleThumbnailClick}
+        onClick={() => {
+          if (isTemplate) {
+            window.location.href = `/app/portfolio/preview/${id}`;
+          } else {
+            onDetail();
+          }
+        }}
       >
         <div className="absolute inset-0 flex items-center justify-center">
           {localThumb ? (
@@ -249,7 +255,19 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
             <FileText size={40} className="text-gray-300" />
           )}
         </div>
-        {/* 즐겨찾기 버튼 */}
+        {/* 좌측: 사진 업로드 버튼 */}
+        <button
+          onClick={e => { e.stopPropagation(); handleThumbnailClick(); }}
+          className="absolute top-2 left-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white transition-colors shadow-sm"
+          title={localThumb ? '사진 변경' : '사진 업로드'}
+        >
+          {uploading ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent" />
+          ) : (
+            <Camera size={16} className="text-gray-500" />
+          )}
+        </button>
+        {/* 우측: 즐겨찾기 버튼 */}
         <button
           onClick={handleToggleFavorite}
           className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white transition-colors shadow-sm"
@@ -259,25 +277,14 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
             className={favorited ? 'fill-amber-400 text-amber-400' : 'text-gray-400'}
           />
         </button>
-        {/* 호버 오버레이 */}
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-          {uploading ? (
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" />
-          ) : (
-            <>
-              <Camera size={22} className="text-white" />
-              <span className="text-white text-xs font-medium">{localThumb ? '사진 변경' : '사진 업로드'}</span>
-            </>
-          )}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
       <div className="p-5 flex flex-col flex-1">
         {/* 날짜 */}
@@ -301,14 +308,14 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
               to={`/app/portfolio/preview/${id}`}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
             >
-              <Eye size={14} /> 자세히 보기
+              자세히 보기
             </Link>
           ) : (
             <button
               onClick={onDetail}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
             >
-              <Eye size={14} /> 자세히 보기
+              자세히 보기
             </button>
           )}
           <div className="flex items-center gap-1">
