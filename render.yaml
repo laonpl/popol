@@ -21,5 +21,5 @@ services:
         sync: false   # serviceAccountKey.json 내용을 한 줄 JSON으로 붙여넣기
       - key: NOTION_INTEGRATION_TOKEN
         sync: false
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: false  # Render에서 Chromium 자동 설치
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer

@@ -18,6 +18,7 @@ import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../compo
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import YooptaMiniEditor from '../../components/YooptaMiniEditor';
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
@@ -2737,9 +2738,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <input value={d.period || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], period: e.target.value }; update('extracurricular', { ...extra, details }); }}
                     placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
                 </div>
-                <textarea value={d.description || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], description: e.target.value }; update('extracurricular', { ...extra, details }); }}
-                  placeholder="상세 설명" rows={2}
-                  className="w-full text-sm text-gray-600 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
+                <YooptaMiniEditor
+                  value={d.descriptionBlocks || d.description || ''}
+                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v }; update('extracurricular', { ...extra, details }); }}
+                  placeholder="상세 설명"
+                  minHeight={60}
+                />
               </div>
             ))}
           </div>
@@ -2814,9 +2818,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <option value="done">✅ 완료</option>
                   </select>
                 </div>
-                <textarea value={g.description || ''} onChange={e => updateArrayItem('goals', i, { description: e.target.value })}
-                  placeholder="상세 계획을 작성하세요..." rows={2}
-                  className="w-full text-sm text-gray-600 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 mt-1 resize-none placeholder:text-gray-300" />
+                <YooptaMiniEditor
+                  value={g.descriptionBlocks || g.description || ''}
+                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v })}
+                  placeholder="상세 계획을 작성하세요..."
+                  minHeight={80}
+                  className="mt-1"
+                />
               </div>
             ))}
             <button onClick={() => addToArray('goals', { title: '', description: '', type: 'short', status: 'planned' })}
@@ -2836,12 +2844,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <textarea
-            value={p.valuesEssay || ''}
-            onChange={e => update('valuesEssay', e.target.value)}
+          <YooptaMiniEditor
+            value={p.valuesEssayBlocks || p.valuesEssay || ''}
+            onChange={v => { update('valuesEssayBlocks', v); }}
             placeholder="가치관, 자기소개 에세이를 작성하세요..."
-            rows={6}
-            className="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 resize-y placeholder:text-gray-300"
+            minHeight={180}
+            className="bg-transparent hover:bg-primary-50/10 rounded px-1"
           />
         </section>
         )}

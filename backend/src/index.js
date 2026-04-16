@@ -23,6 +23,9 @@ process.on('unhandledRejection', (reason) => {
   console.error('[UNHANDLED REJECTION] 처리되지 않은 Promise 거부:', reason);
 });
 
+// Render 등 리버스 프록시 뒤에서 올바른 protocol/IP 감지
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 const allowedOrigins = [
@@ -31,9 +34,20 @@ const allowedOrigins = [
   'http://localhost:5173'
 ];
 if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
+  // 여러 URL을 콤마로 구분해서 설정 가능: https://a.vercel.app,https://b.vercel.app
+  process.env.FRONTEND_URL.split(',').forEach(u => allowedOrigins.push(u.trim()));
 }
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    // 서버 간 요청(origin=undefined) 또는 허용 목록 또는 *.vercel.app 허용
+    if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 

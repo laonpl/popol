@@ -19,6 +19,14 @@ export default defineConfig({
           'vendor-zustand': ['zustand'],
           // UI 라이브러리
           'vendor-ui': ['lucide-react', 'react-hot-toast'],
+          // Yoopta 에디터
+          'vendor-yoopta': [
+            '@yoopta/editor', '@yoopta/paragraph', '@yoopta/headings',
+            '@yoopta/lists', '@yoopta/blockquote', '@yoopta/link',
+            '@yoopta/marks', '@yoopta/ui',
+          ],
+          // Slate (Yoopta 의존)
+          'vendor-slate': ['slate', 'slate-react', 'slate-dom'],
         },
       },
     },

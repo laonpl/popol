@@ -36,7 +36,9 @@ router.post('/image', authMiddleware, upload.single('file'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // trust proxy 설정으로 req.protocol이 https를 반환하지만 안전장치 추가
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${proto}://${req.get('host')}`;
     const url = `${baseUrl}/uploads/${req.file.filename}`;
 
     res.json({ url, filename: req.file.filename });
