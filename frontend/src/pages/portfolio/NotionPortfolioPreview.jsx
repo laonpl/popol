@@ -65,6 +65,10 @@ export default function NotionPortfolioPreview() {
             className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
             <Edit size={14} /> 편집
           </button>
+          <button onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
+            <FileText size={14} /> PDF 내보내기
+          </button>
           <button onClick={() => setShowExportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl text-sm font-medium hover:from-gray-900 hover:to-black">
             <Download size={14} /> Notion으로 내보내기
@@ -934,6 +938,36 @@ function AcademicLayout({ p, setSelectedExp }) {
             </div>
           </div>
         </div>
+
+        {/* 활동 기록 (타임라인) */}
+        {(p.activityRecords || []).length > 0 && (
+          <div className="px-10 py-8 border-b border-surface-100" id="acad-활동기록">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-blue-500 rounded-full inline-block" /> 활동 기록
+            </h2>
+            <div className="relative">
+              <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-blue-100" />
+              <div className="space-y-4">
+                {p.activityRecords.map((act, i) => {
+                  const catColors = {
+                    award: 'bg-amber-400', study: 'bg-purple-400', project: 'bg-blue-400',
+                    intern: 'bg-green-400', certificate: 'bg-red-400', volunteer: 'bg-pink-400', other: 'bg-gray-400',
+                  };
+                  return (
+                    <div key={i} className="flex items-start gap-3 relative">
+                      <div className={`w-3.5 h-3.5 rounded-full ${catColors[act.category] || 'bg-gray-400'} border-2 border-white z-10 mt-0.5 flex-shrink-0`} />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-800">{act.title || '(제목 없음)'}</h4>
+                        <p className="text-xs text-gray-400 mt-0.5">{act.date || ''}</p>
+                      </div>
+                      <span className="text-xs text-gray-500 bg-gray-100 rounded-md px-2 py-0.5">{act.category || 'other'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Experiences */}
         {(p.experiences || []).length > 0 && (

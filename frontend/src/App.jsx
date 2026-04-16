@@ -15,6 +15,7 @@ import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
 import NotionPortfolioEditor from './pages/portfolio/NotionPortfolioEditor';
 import NotionPortfolioPreview from './pages/portfolio/NotionPortfolioPreview';
+import PdfPortfolioExport from './pages/portfolio/PdfPortfolioExport';
 import PublicPortfolioView from './pages/portfolio/PublicPortfolioView';
 import { Loader2 } from 'lucide-react';
 
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="portfolio/edit/:id" element={<PortfolioEditor />} />
         <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
+        <Route path="portfolio/pdf/:id" element={<PdfPortfolioExport />} />
       </Route>
     </Routes>
   );

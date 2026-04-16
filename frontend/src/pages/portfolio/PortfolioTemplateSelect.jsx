@@ -18,31 +18,13 @@ const PORTFOLIO_TEMPLATES = [
     previewBg: 'bg-white',
   },
   {
-    id: 'ashley',
-    name: '템플릿 2',
-    description: '마케터/작가/크리에이터를 위한 스크롤형 포트폴리오. 소개, 경력, 프로젝트, 인터뷰, 스킬 등을 한 페이지에 구성.',
-    tags: ['크리에이티브', '마케터', '프리랜서', '스크롤형'],
-    sections: [],
-    isNotion: true,
-    previewBg: 'bg-[#f7f6f3]',
-  },
-  {
     id: 'academic',
-    name: '템플릿 3',
+    name: '템플릿 2',
     description: '대학생/취준생을 위한 학술 중심 포트폴리오. 학력, 연구, 활동 이력을 타임라인으로 깔끔하게 정리.',
     tags: ['학생', '취준생', '이력서', '타임라인'],
     sections: [],
     isNotion: true,
     previewBg: 'bg-slate-800',
-  },
-  {
-    id: 'timeline',
-    name: '템플릿 4',
-    description: '학기별 수업·프로젝트·스터디를 시간순으로 정리하는 Notion 스타일 대시보드. 캘린더와 활동 기록을 한눈에.',
-    tags: ['타임라인', '학기별', '대시보드', '캘린더'],
-    sections: [],
-    isNotion: true,
-    previewBg: 'bg-gradient-to-br from-[#1a1a2e] to-[#16213e]',
   },
 ];
 
@@ -663,9 +645,7 @@ export default function PortfolioTemplateSelect() {
 
   const previewComponents = {
     notion: NotionPreview,
-    ashley: AshleyPreview,
     academic: AcademicPreview,
-    timeline: TimelinePreview,
   };
 
   const handleNext = () => {
@@ -899,9 +879,7 @@ export default function PortfolioTemplateSelect() {
             <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
               <div className="border border-surface-200 rounded-xl overflow-hidden" style={{ minHeight: '500px' }}>
                 {previewTemplate === 'notion' && <NotionFullPreview />}
-                {previewTemplate === 'ashley' && <AshleyFullPreview />}
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
-                {previewTemplate === 'timeline' && <TimelineFullPreview />}
               </div>
             </div>
           </div>

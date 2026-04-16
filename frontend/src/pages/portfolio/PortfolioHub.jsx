@@ -183,7 +183,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
   const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType);
   // 표시 제목: 템플릿은 headline 우선, 일반은 title
   const displayTitle = (isTemplate ? (headline || title) : title) || '제목 없음';
-  const TEMPLATE_LABELS = { notion: '템플릿 1', ashley: '템플릿 2', academic: '템플릿 3', timeline: '템플릿 4' };
+  const TEMPLATE_LABELS = { notion: '템플릿 1', ashley: '템플릿 2', academic: '템플릿 2', timeline: '템플릿 4' };
   const statusMap = {
     draft: { label: '작성 중', color: 'bg-yellow-50 text-yellow-700' },
     review: { label: '검토 중', color: 'bg-blue-50 text-blue-700' },

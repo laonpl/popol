@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { X, Loader2, Copy, Download, FileText, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const FORMATS = [
   { key: 'Notion', label: 'Notion 페이지', icon: Globe, desc: 'Notion에 복사하여 붙여넣기', color: 'bg-gray-900 text-white' },
-  { key: 'PDF', label: 'PDF 파일', icon: FileText, desc: 'A4 PDF로 저장 (브라우저 인쇄)', color: 'bg-red-500 text-white' },
+  { key: 'PDF', label: 'PDF 파일', icon: FileText, desc: '고퀄리티 기업 제출용 PDF', color: 'bg-red-500 text-white' },
 ];
 
 function markdownToHtml(md) {
@@ -118,10 +119,18 @@ export default function ExportModal({ type, data, onClose }) {
 
   const handleExport = async () => {
     if (!format) return;
+
+    // 템플릿 포트폴리오의 PDF 내보내기 → 전용 PDF 페이지로 이동
+    const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
+    if (isTemplate && format === 'PDF' && data.id) {
+      onClose();
+      window.location.href = `/app/portfolio/pdf/${data.id}`;
+      return;
+    }
+
     setExporting(true);
     try {
       const exportData = buildExportData();
-      const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
       let endpoint;
       if (isTemplate && format === 'Notion') {
         endpoint = '/export/notion-portfolio';
@@ -229,7 +238,7 @@ ${htmlContent}
                 <div className="p-4 bg-surface-50 rounded-xl">
                   <p className="text-xs text-gray-500">
                     {format === 'Notion' && '💡 Notion에 최적화된 Markdown으로 변환합니다. 복사 후 Notion에 붙여넣기하세요.'}
-                    {format === 'PDF' && '💡 브라우저 인쇄 창에서 “PDF로 저장”을 선택하세요. 한글 폰트가 코를라 으로 마크다운이 맞게 렌더링됩니다.'}
+                    {format === 'PDF' && '💡 원티드 합격 포트폴리오 기반의 고퀄리티 A4 PDF를 생성합니다. 직무별 최적화 레이아웃을 지원합니다.'}
                   </p>
                 </div>
               )}
