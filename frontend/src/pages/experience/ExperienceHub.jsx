@@ -39,12 +39,26 @@ function parsePeriod(exp) {
   return { start: created, end };
 }
 
-/* 3색 팔레트 — 다크 / 블루 / 라이트 */
-const BAR_THEMES = [
-  { bar: 'bg-slate-700', barText: 'text-white', text: 'text-slate-700', light: 'bg-slate-50', dot: 'bg-slate-700', label: 'text-slate-700' },
-  { bar: 'bg-blue-500', barText: 'text-white', text: 'text-blue-600', light: 'bg-blue-50', dot: 'bg-blue-500', label: 'text-blue-600' },
-  { bar: 'bg-gray-200', barText: 'text-gray-700', text: 'text-gray-500', light: 'bg-gray-50', dot: 'bg-gray-300', label: 'text-gray-600' },
-];
+/* 컬러 팔레트 3종 — 각각 진색/흰색/회색 조합 */
+const COLOR_PALETTES = {
+  blue: [
+    { bar: 'bg-blue-500',  barText: 'text-white',     light: 'bg-blue-50' },
+    { bar: 'bg-white',     barText: 'text-blue-600',  light: 'bg-gray-50', border: 'border border-blue-200' },
+    { bar: 'bg-gray-200',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+  ],
+  green: [
+    { bar: 'bg-emerald-500', barText: 'text-white',       light: 'bg-emerald-50' },
+    { bar: 'bg-white',       barText: 'text-emerald-600', light: 'bg-gray-50', border: 'border border-emerald-200' },
+    { bar: 'bg-gray-200',    barText: 'text-gray-700',    light: 'bg-gray-50' },
+  ],
+  dark: [
+    { bar: 'bg-gray-900',  barText: 'text-white',     light: 'bg-gray-100' },
+    { bar: 'bg-white',     barText: 'text-gray-800',  light: 'bg-gray-50', border: 'border border-gray-300' },
+    { bar: 'bg-gray-300',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+  ],
+};
+// 하위 호환
+const BAR_THEMES = COLOR_PALETTES.blue;
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
@@ -66,6 +80,7 @@ export default function ExperienceHub() {
   const timelineRef = useRef(null);
   const yearDropdownRef = useRef(null);
   const [hoveredBar, setHoveredBar] = useState(null);
+  const [colorPalette, setColorPalette] = useState('blue');
 
   /* ── 드래그 앤 드롭 ── */
   const [dragIdx, setDragIdx] = useState(null);
@@ -149,7 +164,7 @@ export default function ExperienceHub() {
 
     const items = experiences.map((exp, idx) => {
       const { start, end } = parsePeriod(exp);
-      return { exp, start, end, theme: BAR_THEMES[idx % BAR_THEMES.length] };
+      return { exp, start, end };
     });
 
     // 선택 년도 1월 1일 ~ 12월 31일 고정
@@ -273,6 +288,27 @@ export default function ExperienceHub() {
                   </div>
                   <span className="text-sm font-bold text-gray-700">Product roadmap</span>
                 </div>
+                {/* 팔레트 선택 */}
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { key: 'blue',  colors: ['bg-blue-500', 'bg-blue-400', 'bg-blue-600'] },
+                    { key: 'green', colors: ['bg-emerald-500', 'bg-teal-500', 'bg-green-600'] },
+                    { key: 'dark',  colors: ['bg-gray-800', 'bg-gray-600', 'bg-gray-900'] },
+                  ].map(p => (
+                    <button
+                      key={p.key}
+                      onClick={() => setColorPalette(p.key)}
+                      title={p.key === 'blue' ? '파란색' : p.key === 'green' ? '초록색' : '검은색'}
+                      className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
+                        colorPalette === p.key ? 'border-white shadow-md scale-110' : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      {p.colors.map((c, i) => (
+                        <span key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+                      ))}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* 간트 본체 — 90% 스케일, 스크롤 없음 */}
@@ -300,7 +336,8 @@ export default function ExperienceHub() {
                       </div>
 
                       {/* 간트 바 */}
-                      {ganttData.items.map(({ exp, start, end, theme }, idx) => {
+                      {ganttData.items.map(({ exp, start, end }, idx) => {
+                        const theme = COLOR_PALETTES[colorPalette][idx % 3];
                         // 클램프: 선택 년도 범위 내로 제한
                         const clampedStart = new Date(Math.max(start.getTime(), ganttData.globalStart.getTime()));
                         const clampedEnd = new Date(Math.min(end.getTime(), ganttData.globalEnd.getTime()));
@@ -328,7 +365,7 @@ export default function ExperienceHub() {
                             onMouseLeave={() => setHoveredBar(null)}>
                             {/* 바 */}
                             <div
-                              className={`${theme.bar} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
+                              className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
                                 isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
                               }`}
                               onClick={() => setSelectedId(isSelected ? null : exp.id)}
@@ -366,7 +403,7 @@ export default function ExperienceHub() {
             {/* 테이블 바디 */}
             <div className="divide-y divide-gray-50">
               {experiences.map((exp, idx) => {
-                const theme = BAR_THEMES[idx % BAR_THEMES.length];
+                const theme = COLOR_PALETTES[colorPalette][idx % 3];
                 const overview = exp.structuredResult?.projectOverview || {};
                 const displayKeywords = exp.keywords || exp.structuredResult?.keywords || [];
                 const keyExps = exp.structuredResult?.keyExperiences || [];
@@ -400,7 +437,7 @@ export default function ExperienceHub() {
                     </div>
 
                     {/* # */}
-                    <div className={`w-7 h-7 rounded-lg ${theme.bar} flex items-center justify-center`}>
+                    <div className={`w-7 h-7 rounded-lg ${theme.bar} ${theme.border || ''} flex items-center justify-center`}>
                       <span className={`text-[11px] font-bold ${theme.barText}`}>{idx + 1}</span>
                     </div>
 
