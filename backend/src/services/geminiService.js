@@ -4,11 +4,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 모델 우선순위 (에러 발생 시 순서대로 폴백)
 const MODEL_FALLBACKS = [
+  'gemini-2.5-flash-preview-04-17',
   'gemini-2.5-flash',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
   'gemini-2.0-flash-001',
-  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
 ];
 
 // SDK 에러에서 HTTP 상태코드 추출 (메시지 파싱 포함)
