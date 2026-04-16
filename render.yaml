@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: popol-backend
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        sync: false   # Vercel 배포 후 대시보드에서 직접 입력
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false   # serviceAccountKey.json 내용을 한 줄 JSON으로 붙여넣기
+      - key: NOTION_INTEGRATION_TOKEN
+        sync: false
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: false  # Render에서 Chromium 자동 설치

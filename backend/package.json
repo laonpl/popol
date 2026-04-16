@@ -2,6 +2,9 @@
   "name": "popol-backend",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "nodemon --delay 500ms src/index.js",
     "start": "node src/index.js"

@@ -140,6 +140,7 @@ export async function scrapeJobPosting(url) {
     const puppeteer = await import('puppeteer');
     browser = await puppeteer.default.launch({
       headless: 'new',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
