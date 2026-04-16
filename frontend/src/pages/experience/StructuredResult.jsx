@@ -127,6 +127,7 @@ export default function StructuredResult() {
       const fields = pickSectionFields(structured);
       setEditedContent(fields);
       setEditedTitle(navState.title || '');
+      const normStack1 = structured.projectOverview?.techStack;
       setEditedOverview({
         background: structured.projectOverview?.background || '',
         goal: structured.projectOverview?.goal || '',
@@ -134,7 +135,7 @@ export default function StructuredResult() {
         team: structured.projectOverview?.team || '',
         duration: structured.projectOverview?.duration || '',
         summary: structured.projectOverview?.summary || '',
-        techStack: structured.projectOverview?.techStack || [],
+        techStack: Array.isArray(normStack1) ? normStack1 : (normStack1 ? String(normStack1).split(',').map(s => s.trim()).filter(Boolean) : []),
       });
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
@@ -181,6 +182,7 @@ export default function StructuredResult() {
         setEditedContent(fields);
         const sr = data.structuredResult || {};
         setEditedTitle(data.title || '');
+        const normStack2 = sr.projectOverview?.techStack;
         setEditedOverview({
           background: sr.projectOverview?.background || '',
           goal: sr.projectOverview?.goal || '',
@@ -188,7 +190,7 @@ export default function StructuredResult() {
           team: sr.projectOverview?.team || '',
           duration: sr.projectOverview?.duration || '',
           summary: sr.projectOverview?.summary || '',
-          techStack: sr.projectOverview?.techStack || [],
+          techStack: Array.isArray(normStack2) ? normStack2 : (normStack2 ? String(normStack2).split(',').map(s => s.trim()).filter(Boolean) : []),
         });
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
@@ -481,7 +483,7 @@ export default function StructuredResult() {
     setSaving(false);
   };
 
-  const filledCount = SECTION_KEYS.filter(k => editedContent[k]?.trim()).length;
+  const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
 
   if (loading) {
@@ -614,7 +616,7 @@ export default function StructuredResult() {
           {/* 기술 스택 (편집) */}
           <div className="mb-4">
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {(editedOverview.techStack || []).map((tech, i) => (
+              {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
                 <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium group/tech">
                   {tech}
                   {!viewOnly && (
@@ -842,7 +844,7 @@ export default function StructuredResult() {
             const meta = SECTION_META[key];
             const style = ACCENT_STYLES[meta.accent];
             const value = editedContent[key] || '';
-            const isEmpty = !value.trim();
+            const isEmpty = !value.trim() || value.trim().startsWith('[작성 필요]');
             const isEditing = editingSections[key];
             const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
 

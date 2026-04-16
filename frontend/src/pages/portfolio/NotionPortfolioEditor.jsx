@@ -925,8 +925,12 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {/* 핵심 경험 슬라이더 */}
               {keyExps.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 &amp; 성과</h4>
-                  <KeyExperienceSlider keyExperiences={keyExps} />
+                  <KeyExperienceSlider
+                    keyExperiences={keyExps}
+                    onUpdate={(next) => onUpdate({
+                      structuredResult: { ...(exp.structuredResult || {}), keyExperiences: next }
+                    })}
+                  />
                 </div>
               )}
 
@@ -961,6 +965,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
           {/* ── 편집 탭 ── */}
           {tab === 'edit' && (
             <div className="p-6 space-y-4">
+              {/* 썸네일 */}
               <div className="relative w-full h-36 bg-surface-50 rounded-xl overflow-hidden">
                 {exp.thumbnailUrl
                   ? <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -974,6 +979,8 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   }} />
                 </label>
               </div>
+
+              {/* 기본 정보 */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">제목</label>
                 <input value={exp.title || ''} onChange={e => onUpdate({ title: e.target.value })}
@@ -991,27 +998,49 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">설명</label>
-                <div className="border border-gray-200 rounded-xl px-1 py-1 focus-within:ring-2 focus-within:ring-primary-200 transition-shadow">
-                  <RichContentEditor
-                    value={exp.descriptionBlocks || exp.description || ''}
-                    onChange={v => onUpdate({ descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s => s.type==='text').map(s=>s.content).join('\n') : v })}
-                    placeholder="프로젝트 설명..."
-                    textRows={3}
-                    textClassName="w-full px-2 py-1 text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-none leading-relaxed"
-                  />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">스킬 (쉼표로 구분)</label>
+                  <input value={(exp.skills || []).join(', ')} onChange={e => onUpdate({ skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">링크</label>
+                  <input value={exp.link || ''} onChange={e => onUpdate({ link: e.target.value })}
+                    placeholder="https://" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">스킬 (쉼표로 구분)</label>
-                <input value={(exp.skills || []).join(', ')} onChange={e => onUpdate({ skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">링크</label>
-                <input value={exp.link || ''} onChange={e => onUpdate({ link: e.target.value })}
-                  placeholder="https://" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+
+              {/* 구분선 */}
+              <div className="border-t border-surface-200 pt-4">
+                <p className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-primary-500" /> AI 분석 섹션 직접 편집
+                </p>
+                <div className="space-y-3">
+                  {[
+                    { key: 'intro',      num: '01', label: '프로젝트 소개',  color: 'bg-blue-50 border-blue-100',    placeholder: '프로젝트를 간략히 소개해주세요...' },
+                    { key: 'overview',   num: '02', label: '프로젝트 개요',  color: 'bg-violet-50 border-violet-100', placeholder: '프로젝트 배경, 목표, 기간 등을 적어주세요...' },
+                    { key: 'task',       num: '03', label: '진행한 일',      color: 'bg-amber-50 border-amber-100',   placeholder: '내가 직접 맡아서 진행한 일을 적어주세요...' },
+                    { key: 'process',    num: '04', label: '과정',           color: 'bg-emerald-50 border-emerald-100', placeholder: '어떻게 문제를 해결했는지 과정을 적어주세요...' },
+                    { key: 'output',     num: '05', label: '결과물',         color: 'bg-teal-50 border-teal-100',     placeholder: '프로젝트의 결과물이나 성과를 적어주세요...' },
+                    { key: 'growth',     num: '06', label: '성장한 점',      color: 'bg-rose-50 border-rose-100',     placeholder: '이 경험을 통해 어떻게 성장했는지 적어주세요...' },
+                    { key: 'competency', num: '07', label: '나의 역량',      color: 'bg-indigo-50 border-indigo-100', placeholder: '이 경험에서 발휘된 나만의 역량을 적어주세요...' },
+                  ].map(({ key, num, label, color, placeholder }) => (
+                    <div key={key} className={`rounded-xl border p-4 ${color}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-5 h-5 rounded-md bg-primary-500 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{num}</span>
+                        <label className="text-xs font-bold text-gray-700">{label}</label>
+                      </div>
+                      <textarea
+                        value={(exp.structuredResult || {})[key] || ''}
+                        onChange={e => onUpdate({ structuredResult: { ...(exp.structuredResult || {}), [key]: e.target.value } })}
+                        placeholder={placeholder}
+                        rows={4}
+                        className="w-full bg-white/70 rounded-lg border border-white/50 p-3 text-sm outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-y leading-relaxed"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -1169,6 +1198,53 @@ function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
   });
 }
 
+/* ── StandaloneImageBlock: 단독 이미지 블록 (리사이즈·교체·삭제 지원) ── */
+function StandaloneImageBlock({ content, width, caption, onUpdate, uploadPlaceholderClass = '' }) {
+  const containerRef = useRef(null);
+  const startResize = (e, dir) => {
+    e.preventDefault(); e.stopPropagation();
+    const imgDiv = e.currentTarget.closest('[data-rimgb]');
+    const container = containerRef.current;
+    if (!imgDiv || !container) return;
+    const startX = e.clientX, startW = imgDiv.offsetWidth, maxW = container.offsetWidth;
+    const d = dir.includes('r') ? 1 : -1;
+    const onMove = ev => { const nw = Math.max(60, Math.min(maxW, startW + d * (ev.clientX - startX))); imgDiv.style.width = nw + 'px'; };
+    const onUp = () => { const pct = Math.round((imgDiv.offsetWidth / maxW) * 100); onUpdate({ width: pct + '%' }); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+  };
+  if (!content) return (
+    <label className={`flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadPlaceholderClass || 'border-surface-200 hover:border-primary-300 hover:bg-primary-50/30'}`}>
+      <ImageIcon size={24} className="text-gray-300" />
+      <span className="text-xs text-gray-400">클릭하여 이미지 업로드</span>
+      <input type="file" accept="image/*" className="hidden" onChange={async e => {
+        const file = e.target.files?.[0]; if (!file) return;
+        try { const b = await resizeToBase64Global(file, 1200, 0.8); onUpdate({ content: b }); } catch { toast.error('이미지 처리 실패'); }
+      }} />
+    </label>
+  );
+  return (
+    <div ref={containerRef} className="w-full">
+      <div data-rimgb="1" className="relative group/sib inline-block" style={{ width: width || '100%', maxWidth: '100%', verticalAlign: 'top' }}>
+        <img src={content} alt="" draggable="false" className="w-full rounded-xl block select-none" onDragStart={e => e.preventDefault()} />
+        <div className="absolute top-2 left-2 right-2 flex items-center justify-between opacity-0 group-hover/sib:opacity-100 transition-opacity">
+          <label className="bg-black/60 text-white text-[10px] px-2 py-0.5 rounded cursor-pointer hover:bg-black/80">교체
+            <input type="file" accept="image/*" className="hidden" onChange={async e => {
+              const file = e.target.files?.[0]; if (!file) return;
+              try { const b = await resizeToBase64Global(file, 1200, 0.8); onUpdate({ content: b }); } catch { toast.error('이미지 처리 실패'); }
+            }} />
+          </label>
+          <button type="button" onClick={() => onUpdate({ content: '' })} className="bg-black/60 text-white p-1 rounded hover:bg-red-500/80 transition-colors"><Trash2 size={10} /></button>
+        </div>
+        <div onMouseDown={e => startResize(e, 'tl')} className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 0% 0%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
+        <div onMouseDown={e => startResize(e, 'tr')} className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 100% 0%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
+        <div onMouseDown={e => startResize(e, 'bl')} className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 0% 100%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
+        <div onMouseDown={e => startResize(e, 'br')} className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 100% 100%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
+      </div>
+      <input value={caption || ''} onChange={e => onUpdate({ caption: e.target.value })} placeholder="캡션 입력 (선택)" className="block w-full mt-1.5 text-center text-[11px] text-gray-400 bg-transparent outline-none placeholder:text-gray-200 hover:bg-gray-50 rounded px-2 py-0.5" />
+    </div>
+  );
+}
+
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
 // segments 형식: [{type:'text'|'image', content:string, width?:string}]
 function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName }) {
@@ -1262,15 +1338,17 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
             // 텍스트 선택 중이면 드래그 취소
             const sel = window.getSelection();
             if (sel && sel.toString().length > 0) { e.preventDefault(); return; }
+            e.stopPropagation(); // 상위 블록 드래그와 충돌 방지
             e.dataTransfer.setData('rce-idx', String(i));
             e.dataTransfer.effectAllowed = 'move';
             e.currentTarget.style.opacity = '0.4';
           }}
           onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
-          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(i); }}
+          onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOver(i); }}
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
           onDrop={e => {
             e.preventDefault();
+            e.stopPropagation(); // 상위 블록 onDrop 방지
             const from = parseInt(e.dataTransfer.getData('rce-idx'), 10);
             if (!isNaN(from) && from !== i) moveSeg(from, i);
             setDragOver(null);
@@ -1911,25 +1989,13 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 />
               )}
               {block.type === 'image' && (
-                <div>
-                  {block.content ? (
-                    <RichContentEditor
-                      value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
-                      onChange={v => { const b=[...(p.customBlocks||[])]; const imgSeg=Array.isArray(v)?v.find(s=>s.type==='image'):null; b[i]={...b[i],segments:v,content:imgSeg?.content??block.content,width:imgSeg?.width}; update('customBlocks',b); }}
-                      textRows={2}
-                    />
-                  ) : (
-                    <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-[#e8e4dc] rounded-xl cursor-pointer hover:border-[#c4a882] transition-colors">
-                      <ImageIcon size={24} className="text-[#c4b89a]" />
-                      <span className="text-xs text-[#8a8578]">클릭하여 이미지 업로드</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                        const file = e.target.files?.[0]; if (!file) return;
-                        try { const base64 = await resizeToBase64Global(file, 1200, 0.8); const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:base64}; update('customBlocks',b); }
-                        catch { toast.error('이미지 처리 실패'); }
-                      }} />
-                    </label>
-                  )}
-                </div>
+                <StandaloneImageBlock
+                  content={block.content}
+                  width={block.width}
+                  caption={block.caption}
+                  uploadPlaceholderClass="border-[#e8e4dc] hover:border-[#c4a882]"
+                  onUpdate={changes => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],...changes}; update('customBlocks',b); }}
+                />
               )}
               {block.type === 'divider' && <hr className="border-[#e8e4dc] my-2" />}
               {block.type === 'project' && (() => {
@@ -2282,7 +2348,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   };
 
   return (
-    <div className={analysisMode ? "flex gap-5 items-start" : "max-w-[900px] mx-auto"}>
+    <div className={analysisMode ? "flex gap-5 items-start justify-center" : "max-w-[900px] mx-auto"}>
 
       {/* ── 사이드바 왼쪽 [비활성화] ── */}
       {false && (
@@ -2750,10 +2816,16 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="px-10 pb-8"
             draggable="true"
-            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
+            onDragStart={e => {
+              if (e.target.closest('[data-rce-row]')) return;
+              e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4';
+            }}
             onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
+            onDragOver={e => { if (e.dataTransfer.types.includes('rce-idx')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDrop={e => {
+              if (e.dataTransfer.types.includes('rce-idx')) return;
+              e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); }
+            }}
           >
             <div className="bg-white rounded-xl p-6 border border-surface-200 relative">
               <div className="flex items-center justify-between mb-3">
@@ -2775,23 +2847,12 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   placeholder="텍스트 입력..." textRows={4} textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-y" />
               )}
               {block.type === 'image' && (
-                <div className="space-y-2">
-                  {block.content ? (
-                    <div className="relative group/img">
-                      <img src={block.content} alt="block" className="max-w-full rounded-lg" />
-                      <button onClick={() => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:''}; update('customBlocks',b); }}
-                        className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover/img:opacity-100"><X size={12}/></button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50/30">
-                      <ImageIcon size={20} className="text-gray-300 mb-1" /><span className="text-xs text-gray-400">이미지 업로드</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={async ev => {
-                        const f=ev.target.files?.[0]; if(!f) return;
-                        try { const b64=await resizeToBase64(f); const nb=[...(p.customBlocks||[])]; nb[i]={...nb[i],content:b64}; update('customBlocks',nb); } catch{}
-                      }} />
-                    </label>
-                  )}
-                </div>
+                <StandaloneImageBlock
+                  content={block.content}
+                  width={block.width}
+                  caption={block.caption}
+                  onUpdate={changes => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],...changes}; update('customBlocks',b); }}
+                />
               )}
               {block.type === 'divider' && <hr className="border-t-2 border-gray-100 my-2" />}
               {block.type === 'project' && (
@@ -3236,12 +3297,12 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   placeholder="계획 제목 (예: 2025년 3~6월)"
                   className="w-full bg-transparent text-sm font-bold text-emerald-800 placeholder-emerald-400 outline-none mb-1"
                 />
-                <textarea
-                  value={g.description || ''}
-                  onChange={e => updateArrayItem('goals', i, { ...g, description: e.target.value })}
+                <RichContentEditor
+                  value={g.blocks || g.description || ''}
+                  onChange={v => updateArrayItem('goals', i, { ...g, blocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
                   placeholder="계획 내용"
-                  rows={2}
-                  className="w-full bg-transparent text-xs text-emerald-600 placeholder-emerald-300 outline-none resize-none"
+                  textRows={2}
+                  textClassName="w-full bg-transparent text-xs text-emerald-600 placeholder-emerald-300 outline-none resize-none"
                 />
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
@@ -3385,7 +3446,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hiddenSections = p.hiddenSections || [];
 
   return (
-    <div className={analysisMode ? "flex gap-5 items-start" : "max-w-[1100px] mx-auto"}>
+    <div className={analysisMode ? "flex gap-5 items-start justify-center" : "max-w-[1100px] mx-auto"}>
       {/* ── 사이드바 왼쪽 (Notion) [비활성화] ── */}
       {false && (
       <div className="w-[360px] flex-shrink-0">
@@ -3921,9 +3982,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
             <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
-            <textarea value={extra.summary || ''} onChange={e => update('extracurricular', { ...extra, summary: e.target.value })}
-              placeholder="비교과 활동 요약을 입력하세요..." rows={2}
-              className="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
+            <RichContentEditor
+              value={extra.summaryBlocks || extra.summary || ''}
+              onChange={v => update('extracurricular', { ...extra, summaryBlocks: v, summary: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
+              placeholder="비교과 활동 요약을 입력하세요..."
+              textRows={2}
+              textClassName="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300"
+            />
           </div>
           <h4 className="text-sm font-bold mb-2 text-gray-600">어학 성적 | Language Certification</h4>
           <table className="w-full text-sm border-collapse mb-3">
@@ -3972,11 +4037,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <input value={d.period || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], period: e.target.value }; update('extracurricular', { ...extra, details }); }}
                     placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
                 </div>
-                <YooptaMiniEditor
+                <RichContentEditor
                   value={d.descriptionBlocks || d.description || ''}
-                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v }; update('extracurricular', { ...extra, details }); }}
+                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v }; update('extracurricular', { ...extra, details }); }}
                   placeholder="상세 설명"
-                  minHeight={60}
+                  textRows={2}
+                  textClassName="w-full text-sm text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-none"
                 />
               </div>
             ))}
@@ -4052,12 +4118,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <option value="done">✅ 완료</option>
                   </select>
                 </div>
-                <YooptaMiniEditor
+                <RichContentEditor
                   value={g.descriptionBlocks || g.description || ''}
-                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v })}
+                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
                   placeholder="상세 계획을 작성하세요..."
-                  minHeight={80}
-                  className="mt-1"
+                  textRows={3}
+                  textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-none leading-relaxed"
                 />
               </div>
             ))}
@@ -4078,12 +4144,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <YooptaMiniEditor
+          <RichContentEditor
             value={p.valuesEssayBlocks || p.valuesEssay || ''}
-            onChange={v => { update('valuesEssayBlocks', v); }}
+            onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v); }}
             placeholder="가치관, 자기소개 에세이를 작성하세요..."
-            minHeight={180}
-            className="bg-transparent hover:bg-primary-50/10 rounded px-1"
+            textRows={6}
+            textClassName="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-y"
           />
         </section>
         )}
@@ -4092,9 +4158,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="group/cb relative"
             draggable
-            onDragStart={e => { e.dataTransfer.setData('blockIdx', String(i)); e.dataTransfer.effectAllowed = 'move'; }}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDragStart={e => {
+              if (e.target.closest('[data-rce-row]')) return;
+              e.dataTransfer.setData('blockIdx', String(i)); e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={e => { if (e.dataTransfer.types.includes('rce-idx')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={e => {
+              if (e.dataTransfer.types.includes('rce-idx')) return;
               e.preventDefault();
               const from = parseInt(e.dataTransfer.getData('blockIdx'), 10);
               if (isNaN(from) || from === i) return;

@@ -1,8 +1,8 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import YooptaEditor, { createYooptaEditor, Blocks, Marks as MarksAPI, useYooptaEditor } from '@yoopta/editor';
 import Paragraph from '@yoopta/paragraph';
-import Headings from '@yoopta/headings';
-import Lists from '@yoopta/lists';
+import { HeadingOne, HeadingTwo, HeadingThree } from '@yoopta/headings';
+import { BulletedList, NumberedList, TodoList } from '@yoopta/lists';
 import Blockquote from '@yoopta/blockquote';
 import { Code } from '@yoopta/code';
 import Image from '@yoopta/image';
@@ -24,12 +24,12 @@ import {
 // ─── 플러그인 설정 ───────────────────────────────────────
 const RAW_PLUGINS = [
   Paragraph,
-  Headings.HeadingOne,
-  Headings.HeadingTwo,
-  Headings.HeadingThree,
-  Lists.BulletedList,
-  Lists.NumberedList,
-  Lists.TodoList,
+  HeadingOne,
+  HeadingTwo,
+  HeadingThree,
+  BulletedList,
+  NumberedList,
+  TodoList,
   Blockquote,
   Code,
   Image.extend({

@@ -9,11 +9,11 @@
  *  - minHeight: number (px, 기본 120)
  *  - className: wrapper 추가 클래스
  */
-import { useMemo, useEffect, useRef, useCallback } from 'react';
+import { useMemo } from 'react';
 import YooptaEditor, { createYooptaEditor } from '@yoopta/editor';
 import Paragraph from '@yoopta/paragraph';
-import Headings from '@yoopta/headings';
-import Lists from '@yoopta/lists';
+import { HeadingTwo, HeadingThree } from '@yoopta/headings';
+import { BulletedList, NumberedList } from '@yoopta/lists';
 import Blockquote from '@yoopta/blockquote';
 import Link from '@yoopta/link';
 import { Bold, Italic, Underline, Strike, Highlight } from '@yoopta/marks';
@@ -21,10 +21,10 @@ import { FloatingToolbar } from '@yoopta/ui';
 
 const PLUGINS = [
   Paragraph,
-  Headings.HeadingTwo,
-  Headings.HeadingThree,
-  Lists.BulletedList,
-  Lists.NumberedList,
+  HeadingTwo,
+  HeadingThree,
+  BulletedList,
+  NumberedList,
   Blockquote,
   Link,
 ];
@@ -33,12 +33,24 @@ const MARKS = [Bold, Italic, Underline, Strike, Highlight];
 
 /** 일반 문자열 → Yoopta 초기값 변환 */
 function textToYooptaValue(text) {
-  if (!text) return undefined;
+  // 빈 값이면 빈 단락 블록 하나 반환
+  const makeEmpty = () => {
+    const id = `block-init`;
+    return {
+      [id]: {
+        id,
+        type: 'Paragraph',
+        value: [{ id: `el-init`, type: 'paragraph', children: [{ text: '' }] }],
+        meta: { order: 0, depth: 0 },
+      },
+    };
+  };
+  if (!text) return makeEmpty();
   if (typeof text === 'object') return text;   // 이미 Yoopta JSON
   // 줄 단위로 Paragraph 블록 생성
   const blocks = {};
   const lines = String(text).split('\n').filter(Boolean);
-  if (lines.length === 0) return undefined;
+  if (lines.length === 0) return makeEmpty();
   lines.forEach((line, i) => {
     const id = `block-${i}`;
     blocks[id] = {
@@ -58,19 +70,13 @@ export default function YooptaMiniEditor({
   minHeight = 120,
   className = '',
 }) {
-  const editor = useMemo(() => createYooptaEditor(), []);
   const initialValue = useMemo(() => textToYooptaValue(value), []);
-  const isInternalChange = useRef(false);
-
-  // 에디터 변경 → 부모에 전달
-  useEffect(() => {
-    const handler = (val) => {
-      isInternalChange.current = true;
-      onChange?.(val);
-    };
-    editor.on('change', handler);
-    return () => editor.off('change', handler);
-  }, [editor, onChange]);
+  const editor = useMemo(() => createYooptaEditor({
+    plugins: PLUGINS,
+    marks: MARKS,
+    value: initialValue,
+  }), []);
+  const isInternalChange = useMemo(() => ({ current: false }), []);
 
   return (
     <div
@@ -79,9 +85,7 @@ export default function YooptaMiniEditor({
     >
       <YooptaEditor
         editor={editor}
-        plugins={PLUGINS}
-        marks={MARKS}
-        value={initialValue}
+        onChange={(val) => onChange?.(val)}
         autoFocus={false}
         placeholder={placeholder}
         style={{ minHeight, fontSize: 14, lineHeight: 1.7 }}
