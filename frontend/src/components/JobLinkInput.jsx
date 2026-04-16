@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check, FileEdit } from 'lucide-react';
+import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
@@ -280,15 +280,11 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
 }
 
 /* ── 상세 기업 분석 패널 (에디터에서 표시용) ── */
-export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorApply }) {
+export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('company');
   const [prevTab, setPrevTab] = useState('company');
   const [animating, setAnimating] = useState(false);
-  const [tailoring, setTailoring] = useState(false);
-  const [tailoredResults, setTailoredResults] = useState({});
-  const [tailorError, setTailorError] = useState(null);
-  const [tailoringIdx, setTailoringIdx] = useState(null);
 
   if (!analysis) return null;
 
@@ -306,7 +302,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
     { key: 'position', label: '직무 분석' },
     { key: 'strategy', label: '지원 전략' },
     { key: 'trends', label: '산업 트렌드' },
-    { key: 'tailor', label: '첨삭 내용' },
   ];
 
   const currentTabIdx = tabs.findIndex(t => t.key === activeTab);
@@ -340,11 +335,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
             </div>
           </button>
           <div className="flex items-center gap-2">
-            {onRemove && (
-              <span onClick={e => { e.stopPropagation(); onRemove(); }} className="text-gray-300 hover:text-red-400 cursor-pointer p-1 transition-colors">
-                <X size={14} />
-              </span>
-            )}
             <button onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
             </button>
@@ -633,143 +623,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences, onTailorAppl
                   </div>
                 ) : (
                   <p className="text-gray-400 text-center py-8">산업 트렌드 정보가 없습니다</p>
-                )}
-              </>
-            )}
-
-            {activeTab === 'tailor' && (
-              <>
-                {(!experiences || experiences.length === 0) ? (
-                  <div className="text-center py-8">
-                    <FileEdit size={28} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-gray-400 text-sm">포트폴리오에 경험이 없습니다</p>
-                    <p className="text-gray-300 text-xs mt-1">경험 DB에서 불러온 뒤 첨삭을 진행하세요</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-500">기업 분석 기반 7개 섹션별 첨삭</p>
-                      <button
-                        onClick={async () => {
-                          setTailoring(true);
-                          setTailorError(null);
-                          try {
-                            const results = {};
-                            for (let i = 0; i < experiences.length; i++) {
-                              const exp = experiences[i];
-                              const { data } = await api.post('/job/tailor-experience', { jobAnalysis: analysis, experience: exp });
-                              results[i] = data.tailored;
-                            }
-                            setTailoredResults(results);
-                          } catch (err) {
-                            setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
-                          }
-                          setTailoring(false);
-                        }}
-                        disabled={tailoring}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                      >
-                        {tailoring ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>전체 첨삭</>}
-                      </button>
-                    </div>
-                    {tailorError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{tailorError}</p>}
-                    {experiences.map((exp, i) => {
-                      const t = tailoredResults[i];
-                      const isTailoringThis = tailoringIdx === i;
-                      const SECTION_LABELS = {
-                        intro: '프로젝트 소개', overview: '프로젝트 개요', task: '진행한 일',
-                        process: '과정', output: '결과물', growth: '성장한 점', competency: '나의 역량'
-                      };
-                      const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
-                      return (
-                        <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                          <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-bold text-gray-800 flex-1 truncate">{exp.title || `경험 ${i + 1}`}</p>
-                              {!t && (
-                                <button
-                                  onClick={async () => {
-                                    setTailoringIdx(i);
-                                    setTailorError(null);
-                                    try {
-                                      const { data } = await api.post('/job/tailor-experience', { jobAnalysis: analysis, experience: exp });
-                                      setTailoredResults(prev => ({ ...prev, [i]: data.tailored }));
-                                    } catch (err) {
-                                      setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
-                                    }
-                                    setTailoringIdx(null);
-                                  }}
-                                  disabled={tailoring || isTailoringThis}
-                                  className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-[10px] font-medium hover:bg-indigo-100 disabled:opacity-50 transition-colors flex-shrink-0"
-                                >
-                                  {isTailoringThis ? <><Loader2 size={10} className="animate-spin" />첨삭 중</> : <>이것만 첨삭</>}
-                                </button>
-                              )}
-                            </div>
-                            {exp.skills?.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {exp.skills.slice(0, 5).map((s, si) => (
-                                  <span key={si} className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded-full">{s}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {t ? (
-                            <div className="p-3 space-y-2">
-                              {/* 섹션별 첨삭 결과 */}
-                              {t.sections && SECTION_KEYS.map(key => {
-                                const sec = t.sections[key];
-                                if (!sec?.content?.trim()) return null;
-                                return (
-                                  <div key={key} className="rounded-lg border border-gray-100 overflow-hidden">
-                                    <div className="flex items-center justify-between px-2 py-1.5 bg-gray-50 border-b border-gray-50">
-                                      <span className="text-[10px] font-bold text-indigo-700">{SECTION_LABELS[key]}</span>
-                                      <button
-                                        onClick={() => {
-                                          if (onTailorApply) {
-                                            onTailorApply(i, key, sec.content);
-                                            const next = { ...tailoredResults };
-                                            if (!next[i]._appliedSections) next[i] = { ...next[i], _appliedSections: {} };
-                                            next[i]._appliedSections[key] = true;
-                                            setTailoredResults(next);
-                                          }
-                                        }}
-                                        disabled={t._appliedSections?.[key]}
-                                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition-colors ${
-                                          t._appliedSections?.[key]
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                                        }`}
-                                      >
-                                        {t._appliedSections?.[key] ? '적용됨' : '적용'}
-                                      </button>
-                                    </div>
-                                    <p className="text-[10px] text-gray-700 leading-relaxed px-2 py-1.5 whitespace-pre-wrap">{stripMd(sec.content)}</p>
-                                    {sec.reason && <p className="text-[9px] text-indigo-400 italic px-2 pb-1.5">{stripMd(sec.reason)}</p>}
-                                  </div>
-                                );
-                              })}
-                              {/* 강조 스킬 */}
-                              {t.highlightedSkills?.length > 0 && (
-                                <div className="flex flex-wrap gap-1 pt-1">
-                                  {t.highlightedSkills.map((s, si) => (
-                                    <span key={si} className="text-[9px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{s}</span>
-                                  ))}
-                                </div>
-                              )}
-                              {t.relevanceNote && (
-                                <p className="text-[9px] text-gray-500 italic bg-gray-50 rounded-lg px-2.5 py-1.5">{t.relevanceNote}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="px-3 py-4 text-center text-[10px] text-gray-400">
-                              {(tailoring || tailoringIdx === i) ? <Loader2 size={14} className="animate-spin mx-auto text-indigo-400" /> : '"이것만 첨삭" 또는 "전체 첨삭" 버튼을 누르세요'}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
                 )}
               </>
             )}
