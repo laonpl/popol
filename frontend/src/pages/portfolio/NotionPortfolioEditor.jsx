@@ -2266,7 +2266,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           placeholder="포트폴리오 타이틀을 입력하세요"
           className="w-full text-3xl font-bold text-gray-900 outline-none placeholder:text-gray-300 bg-transparent"
         />
-        <p className="text-xs text-gray-400 mt-1">클릭하여 제목을 편집하세요</p>
+        <p className="text-xs text-gray-400 mt-1">본 포트폴리오는 PC 환경에 최적화되어 있습니다.</p>
+      </div>
+
+      {/* Quick Menu */}
+      <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto">
+        {['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관'].filter(menu => {
+          const sectionMap = { '교과 활동': 'curricular', '비교과 활동': 'extracurricular', '기술': 'skills', '목표와 계획': 'goals', '가치관': 'values' };
+          return sections.includes(sectionMap[menu]) && !hiddenSections.includes(sectionMap[menu]);
+        }).map(menu => (
+          <a key={menu} href={`#editor-section-${menu}`}
+            className="px-4 py-2 bg-surface-50 hover:bg-surface-100 rounded-lg text-sm text-gray-600 font-medium whitespace-nowrap transition-colors">
+            {menu}
+          </a>
+        ))}
       </div>
 
       {/* Three-column layout (Notion style) */}
@@ -2601,14 +2614,145 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         ) : null;
       })()}
 
-      {/* ── Full-width sections (inline editable) ── */}
+      {/* ── Full-width sections (Preview 디자인 + 인라인 편집) ── */}
       <div className="px-10 py-8 border-t border-surface-100 space-y-10">
+
+        {/* 교과 활동 */}
+        {!hiddenSections.includes('curricular') && sections.includes('curricular') && (
+        <section id="editor-section-교과 활동">
+          <div className="flex items-center justify-between mb-4">
+            <EditableTitle sectionKey="curricular" defaultLabel="📝 교과 활동 | Curricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
+            <button onClick={() => update('hiddenSections', [...hiddenSections, 'curricular'])}
+              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+          </div>
+          <div className="bg-surface-50 rounded-xl p-4 mb-4">
+            <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
+            <div className="flex items-center gap-1 text-sm text-gray-700">
+              <span>📚 이수 학점:</span>
+              <input value={curr.summary?.credits || ''} onChange={e => update('curricular', { ...curr, summary: { ...curr.summary, credits: e.target.value } })}
+                placeholder="학점" className="w-20 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+            </div>
+            <div className="flex items-center gap-1 text-sm text-gray-700 mt-1">
+              <span>📊 평점 평균:</span>
+              <input value={curr.summary?.gpa || ''} onChange={e => update('curricular', { ...curr, summary: { ...curr.summary, gpa: e.target.value } })}
+                placeholder="GPA" className="w-20 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+            </div>
+          </div>
+          <h4 className="text-sm font-bold mb-2 text-gray-600">교과목 수강 내역 | Course History</h4>
+          <table className="w-full text-sm border-collapse mb-3">
+            <thead>
+              <tr className="bg-surface-50">
+                <th className="text-left px-3 py-2 border border-surface-200">학기</th>
+                <th className="text-left px-3 py-2 border border-surface-200">과목명</th>
+                <th className="text-left px-3 py-2 border border-surface-200">성적</th>
+                <th className="w-8 border border-surface-200"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(curr.courses || []).map((c, i) => (
+                <tr key={i}>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={c.semester || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], semester: e.target.value }; update('curricular', { ...curr, courses }); }}
+                      placeholder="예: 2024-1" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={c.name || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], name: e.target.value }; update('curricular', { ...curr, courses }); }}
+                      placeholder="과목명" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={c.grade || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], grade: e.target.value }; update('curricular', { ...curr, courses }); }}
+                      placeholder="성적" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200 text-center">
+                    <button onClick={() => { const courses = (curr.courses||[]).filter((_,j) => j !== i); update('curricular', { ...curr, courses }); }}
+                      className="text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button onClick={() => update('curricular', { ...curr, courses: [...(curr.courses||[]), { semester: '', name: '', grade: '' }] })}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 과목 추가</button>
+        </section>
+        )}
+
+        {/* 비교과 활동 */}
+        {!hiddenSections.includes('extracurricular') && sections.includes('extracurricular') && (
+        <section id="editor-section-비교과 활동">
+          <div className="flex items-center justify-between mb-4">
+            <EditableTitle sectionKey="extracurricular" defaultLabel="💡 비교과 활동 | Extracurricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
+            <button onClick={() => update('hiddenSections', [...hiddenSections, 'extracurricular'])}
+              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+          </div>
+          <div className="bg-surface-50 rounded-xl p-4 mb-4">
+            <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
+            <textarea value={extra.summary || ''} onChange={e => update('extracurricular', { ...extra, summary: e.target.value })}
+              placeholder="비교과 활동 요약을 입력하세요..." rows={2}
+              className="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
+          </div>
+          <h4 className="text-sm font-bold mb-2 text-gray-600">어학 성적 | Language Certification</h4>
+          <table className="w-full text-sm border-collapse mb-3">
+            <thead>
+              <tr className="bg-surface-50">
+                <th className="text-left px-3 py-2 border border-surface-200">시험명</th>
+                <th className="text-left px-3 py-2 border border-surface-200">점수/등급</th>
+                <th className="text-left px-3 py-2 border border-surface-200">취득일</th>
+                <th className="w-8 border border-surface-200"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(extra.languages || []).map((l, i) => (
+                <tr key={i}>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={l.name || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], name: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
+                      placeholder="시험명" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={l.score || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], score: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
+                      placeholder="점수" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200">
+                    <input value={l.date || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], date: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
+                      placeholder="취득일" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
+                  </td>
+                  <td className="px-1 py-1 border border-surface-200 text-center">
+                    <button onClick={() => { const langs = (extra.languages||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, languages: langs }); }}
+                      className="text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button onClick={() => update('extracurricular', { ...extra, languages: [...(extra.languages||[]), { name: '', score: '', date: '' }] })}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600 mb-4"><Plus size={12} /> 어학 추가</button>
+          <h4 className="text-sm font-bold mb-2 text-gray-600">세부 사항 | Details</h4>
+          <div className="space-y-3 mb-3">
+            {(extra.details || []).map((d, i) => (
+              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 relative group/det">
+                <button onClick={() => { const details = (extra.details||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, details }); }}
+                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/det:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                <div className="flex items-center gap-2 mb-1">
+                  <input value={d.title || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], title: e.target.value }; update('extracurricular', { ...extra, details }); }}
+                    placeholder="활동명" className="text-sm font-bold text-gray-800 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+                  <input value={d.period || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], period: e.target.value }; update('extracurricular', { ...extra, details }); }}
+                    placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+                </div>
+                <textarea value={d.description || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], description: e.target.value }; update('extracurricular', { ...extra, details }); }}
+                  placeholder="상세 설명" rows={2}
+                  className="w-full text-sm text-gray-600 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
+              </div>
+            ))}
+          </div>
+          <button onClick={() => update('extracurricular', { ...extra, details: [...(extra.details||[]), { title: '', period: '', description: '' }] })}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 활동 추가</button>
+        </section>
+        )}
 
         {/* Skills */}
         {!hiddenSections.includes('skills') && sections.includes('skills') && (
-        <section>
+        <section id="editor-section-기술">
           <div className="flex items-center justify-between mb-4">
-            <EditableTitle sectionKey="skills" defaultLabel="기술 | Skills" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
+            <EditableTitle sectionKey="skills" defaultLabel="🛠 기술 | Skills" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'skills'])}
@@ -2618,7 +2762,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <div className="grid grid-cols-2 gap-5">
             {[
               { category: 'tools',      label: '도구 (Tools)',         placeholder: '기타 도구 입력...',         presets: ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'Canva', 'Slack', 'Jira', 'Excel', 'VS Code', 'GitHub', 'Premiere Pro'] },
-              { category: 'languages',  label: '언어',                  placeholder: '기타 언어 입력...',         presets: ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'Go', 'Swift', 'Kotlin', 'SQL', 'R'] },
+              { category: 'languages',  label: '프로그래밍 언어',       placeholder: '기타 언어 입력...',         presets: ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'Go', 'Swift', 'Kotlin', 'SQL', 'R'] },
               { category: 'frameworks', label: '프레임워크/라이브러리', placeholder: '기타 프레임워크 입력...', presets: ['React', 'Vue.js', 'Next.js', 'Spring', 'Django', 'Node.js', 'Express.js', 'TensorFlow', 'Flutter', 'Tailwind CSS'] },
               { category: 'others',     label: '기타 역량',             placeholder: '기타 역량 입력...',        presets: ['데이터 분석', 'UI/UX 디자인', '프로젝트 관리', '기획', '마케팅', '글쓰기', '발표', '리더십'] },
             ].map(({ category, label, placeholder, presets }) => (
@@ -2636,11 +2780,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         </section>
         )}
 
-        {/* Goals */}
+        {/* Goals - Preview 디자인 */}
         {!hiddenSections.includes('goals') && sections.includes('goals') && (
-        <section>
+        <section id="editor-section-목표와 계획">
           <div className="flex items-center justify-between mb-4">
-            <EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
+            <EditableTitle sectionKey="goals" defaultLabel="✨ 목표와 계획 | Future Plans" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
@@ -2649,20 +2793,30 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="space-y-3">
             {(p.goals || []).map((g, i) => (
-              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 group/goal relative">
+              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 relative group/goal">
                 <button onClick={() => removeFromArray('goals', i)}
-                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
-                <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
-                  placeholder="목표명" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
-                <div className="mt-1">
-                  <RichContentEditor
-                    value={g.blocks || g.description || ''}
-                    onChange={v => updateArrayItem('goals', i, { blocks: v, description: Array.isArray(v) ? v.filter(s => s.type==='text').map(s=>s.content).join('\n') : v })}
-                    placeholder="상세 계획..."
-                    textRows={2}
-                    textClassName="w-full text-sm text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1 resize-none"
-                  />
+                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/goal:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                <div className="flex items-center gap-2 mb-1">
+                  <select value={g.type || 'short'} onChange={e => updateArrayItem('goals', i, { type: e.target.value })}
+                    className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 outline-none border-none cursor-pointer">
+                    <option value="short">단기</option>
+                    <option value="mid">중기</option>
+                    <option value="long">장기</option>
+                  </select>
+                  <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
+                    placeholder="목표를 입력하세요" className="flex-1 text-sm font-bold text-gray-800 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+                  <select value={g.status || 'planned'} onChange={e => updateArrayItem('goals', i, { status: e.target.value })}
+                    className={`px-2 py-0.5 rounded text-xs outline-none border-none cursor-pointer ${
+                      g.status === 'done' ? 'text-green-600' : g.status === 'ing' ? 'text-blue-600' : 'text-gray-400'
+                    }`}>
+                    <option value="planned">📋 예정</option>
+                    <option value="ing">🔄 진행 중</option>
+                    <option value="done">✅ 완료</option>
+                  </select>
                 </div>
+                <textarea value={g.description || ''} onChange={e => updateArrayItem('goals', i, { description: e.target.value })}
+                  placeholder="상세 계획을 작성하세요..." rows={2}
+                  className="w-full text-sm text-gray-600 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 mt-1 resize-none placeholder:text-gray-300" />
               </div>
             ))}
             <button onClick={() => addToArray('goals', { title: '', description: '', type: 'short', status: 'planned' })}
@@ -2671,23 +2825,23 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         </section>
         )}
 
-        {/* Values Essay */}
+        {/* Values - Preview 디자인 */}
         {!hiddenSections.includes('values') && sections.includes('values') && (
-        <section>
+        <section id="editor-section-가치관">
           <div className="flex items-center justify-between mb-4">
-            <EditableTitle sectionKey="values" defaultLabel="가치관 | Values" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
+            <EditableTitle sectionKey="values" defaultLabel="💬 가치관 | Values" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'values'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <RichContentEditor
-            value={p.valuesEssayBlocks || p.valuesEssay || ''}
-            onChange={v => update('valuesEssayBlocks', v)}
-            placeholder="가치관 에세이를 작성하세요..."
-            textRows={8}
-            textClassName="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-2 py-1 resize-y"
+          <textarea
+            value={p.valuesEssay || ''}
+            onChange={e => update('valuesEssay', e.target.value)}
+            placeholder="가치관, 자기소개 에세이를 작성하세요..."
+            rows={6}
+            className="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 resize-y placeholder:text-gray-300"
           />
         </section>
         )}

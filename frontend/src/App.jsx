@@ -11,7 +11,6 @@ import ExperienceEditor from './pages/experience/ExperienceEditor';
 import AnalysisResult from './pages/experience/AnalysisResult';
 import StructuredResult from './pages/experience/StructuredResult';
 import PortfolioHub from './pages/portfolio/PortfolioHub';
-import PortfolioEditor from './pages/portfolio/PortfolioEditor';
 import PortfolioTemplateSelect from './pages/portfolio/PortfolioTemplateSelect';
 import NotionPortfolioEditor from './pages/portfolio/NotionPortfolioEditor';
 import NotionPortfolioPreview from './pages/portfolio/NotionPortfolioPreview';
@@ -55,7 +54,7 @@ export default function App() {
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
         <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
-        <Route path="portfolio/edit/:id" element={<PortfolioEditor />} />
+        <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
         <Route path="portfolio/pdf/:id" element={<PdfPortfolioExport />} />

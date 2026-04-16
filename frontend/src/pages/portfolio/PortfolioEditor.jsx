@@ -326,9 +326,11 @@ export default function PortfolioEditor() {
 
   return (
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-6">
-        <ArrowLeft size={16} /> 목록으로
-      </Link>
+      <div className="flex items-center mb-6">
+        <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
+          <ArrowLeft size={16} /> 목록으로
+        </Link>
+      </div>
 
       {/* Meta Info */}
       <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">

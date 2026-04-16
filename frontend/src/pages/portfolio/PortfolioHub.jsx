@@ -30,7 +30,7 @@ export default function PortfolioHub() {
         title: '새 포트폴리오',
         userName: user.displayName || '',
       });
-      navigate(`/app/portfolio/edit/${id}`);
+      navigate(`/app/portfolio/edit-notion/${id}`);
     } catch (error) {
       console.error(error);
     }
@@ -45,7 +45,7 @@ export default function PortfolioHub() {
         userName: user.displayName || '',
         sections: data.sections || [],
       });
-      navigate(`/app/portfolio/edit/${id}`);
+      navigate(`/app/portfolio/edit-notion/${id}`);
     } catch (error) {
       console.error('임포트 적용 실패:', error);
     }
@@ -313,16 +313,16 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
           )}
           <div className="flex items-center gap-1">
             <Link
-              to={isTemplate ? `/app/portfolio/edit-notion/${id}` : `/app/portfolio/edit/${id}`}
+              to={`/app/portfolio/edit-notion/${id}`}
               className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
             >
               <Edit size={14} /> 편집하기
             </Link>
             <button
               onClick={onExport}
-              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-surface-100 rounded-lg transition-colors"
             >
-              <Download size={14} /> 내보내기
+              <Download size={14} />
             </button>
             <button
               onClick={onDelete}

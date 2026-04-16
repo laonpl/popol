@@ -12,7 +12,12 @@ if (!admin.apps.length) {
     || join(__dirname, '../../serviceAccountKey.json');
 
   try {
-    const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
+    let serviceAccount;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    } else {
+      serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
+    }
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'popol-cb20b.firebasestorage.app',

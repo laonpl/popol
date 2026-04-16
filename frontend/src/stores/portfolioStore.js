@@ -66,6 +66,7 @@ const usePortfolioStore = create((set, get) => ({
       'contact', 'skills', 'goals', 'values', 'interests', 'curricular',
       'extracurricular', 'valuesEssay', 'jobAnalysis', 'isPublic',
       'nameEn', 'location', 'birthDate', 'activityRecords', 'customSectionLabels', 'valuesEssayBlocks',
+      'yooptaContent',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
     const docRef = await addDoc(collection(db, 'portfolios'), docData);

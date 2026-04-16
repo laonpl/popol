@@ -723,7 +723,7 @@ export default function PortfolioTemplateSelect() {
       }
 
       const id = await createPortfolio(user.uid, data);
-      navigate(`/app/portfolio/edit-notion/${id}?mode=form`);
+      navigate(`/app/portfolio/edit-notion/${id}`);
       toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');

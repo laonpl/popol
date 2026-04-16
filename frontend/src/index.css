@@ -91,3 +91,68 @@ textarea {
 .transition-smooth {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ─── Yoopta Portfolio Editor ─── */
+.yoopta-portfolio-wrapper {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+.yoopta-portfolio-wrapper .yoopta-editor {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #314157;
+}
+/* 블록 간격 */
+.yoopta-portfolio-wrapper [data-yoopta-block] {
+  margin-bottom: 2px;
+}
+/* 제목 스타일 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="HeadingOne"] {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+}
+.yoopta-portfolio-wrapper [data-yoopta-block-type="HeadingTwo"] {
+  margin-top: 1.5rem;
+  margin-bottom: 0.375rem;
+}
+.yoopta-portfolio-wrapper [data-yoopta-block-type="HeadingThree"] {
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+}
+/* 콜아웃 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Callout"] {
+  border-radius: 8px;
+  margin: 0.75rem 0;
+}
+/* 코드 블록 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Code"] {
+  border-radius: 8px;
+  margin: 0.75rem 0;
+  font-size: 13px;
+}
+/* 구분선 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Divider"] {
+  margin: 1.5rem 0;
+}
+/* 이미지 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Image"] {
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+/* 테이블 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] {
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+/* 인용구 */
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Blockquote"] {
+  border-left: 3px solid #3778f9;
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: #5b6b80;
+}
+/* 플레이스홀더 */
+.yoopta-portfolio-wrapper .yoopta-editor [data-placeholder]::before {
+  color: #b8c4d0;
+  font-style: normal;
+}
