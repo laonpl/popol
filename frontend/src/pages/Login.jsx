@@ -72,10 +72,8 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center">
-              <Briefcase size={20} className="text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-bluewood-900">POPOL</h1>
+            <img src="/logo.png" alt="FitPoly" className="h-10 w-auto" />
+            <h1 className="text-2xl font-bold text-bluewood-900">FitPoly</h1>
           </div>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 rounded-full text-sm font-medium border border-primary-100">
             <Sparkles size={14} />

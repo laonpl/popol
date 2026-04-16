@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
@@ -26,7 +26,7 @@ export default function Landing() {
   /* ───── Stories data ───── */
   const stories = [
     { major: '컴퓨터공학 전공', name: '김○○ 님', quote: '파편화된 프로젝트 경험을 STAR 프레임워크로 정리하니 면접에서 자신있게 답변할 수 있었습니다. AI 분석이 핵심 역량을 정확히 뽑아줘서 놀랐어요.' },
-    { major: '경영학 전공', name: '이○○ 님', quote: '비전공자라 기술 포트폴리오 만들기가 어려웠는데, POPOL 덕분에 업무 경험을 깔끔하게 구조화할 수 있었습니다. 합격까지 도움 받았어요.' },
+    { major: '경영학 전공', name: '이○○ 님', quote: '비전공자라 기술 포트폴리오 만들기가 어려웠는데, FitPoly 덕분에 업무 경험을 깔끔하게 구조화할 수 있었습니다. 합격까지 도움 받았어요.' },
     { major: '디자인 전공', name: '박○○ 님', quote: '경험 정리부터 포트폴리오 구성까지 한 번에 해결되어 시간을 크게 절약했어요. 체크리스트 기능 덕분에 완성도도 높일 수 있었습니다.' },
   ];
 
@@ -40,10 +40,8 @@ export default function Landing() {
         <div className="max-w-[1140px] mx-auto flex items-center justify-between px-8 h-16">
           <div className="flex items-center gap-10">
             <button onClick={() => navigate('/')} className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-primary-500 flex items-center justify-center">
-                <Briefcase size={14} className="text-white" />
-              </div>
-              <span className="text-lg font-extrabold tracking-tight text-bluewood-900">POPOL</span>
+              <img src="/logo.png" alt="FitPoly" className="h-7 w-auto" />
+              <span className="text-lg font-extrabold tracking-tight text-bluewood-900">FitPoly</span>
             </button>
             <nav className="hidden md:flex items-center gap-7 text-[13px] font-medium text-bluewood-500">
               <a href="#feature-experience" className="hover:text-bluewood-900 transition-colors">경험정리</a>
@@ -332,7 +330,7 @@ export default function Landing() {
                     {/* Bars */}
                     {[
                       { title: 'RunWith 러닝앱', start: 0, span: 3, theme: 0 },
-                      { title: 'POPOL 포트폴리오', start: 2, span: 4, theme: 1 },
+                      { title: 'FitPoly 포트폴리오', start: 2, span: 4, theme: 1 },
                       { title: '디자인 시스템 구축', start: 5, span: 3, theme: 2 },
                       { title: 'UX 리서치 프로젝트', start: 7, span: 3, theme: 0 },
                       { title: '스타트업 인턴십', start: 3, span: 5, theme: 1 },
@@ -573,7 +571,7 @@ export default function Landing() {
                         </p>
                         {[
                           { title: 'RunWith 러닝앱 UX 개선', period: '2025.01 – 2025.03', tag: 'UX/UI', match: true },
-                          { title: 'POPOL 서비스 기획', period: '2025.03 – 2025.06', tag: '서비스 기획', match: true },
+                          { title: 'FitPoly 서비스 기획', period: '2025.03 – 2025.06', tag: '서비스 기획', match: true },
                         ].map((exp, i) => (
                           <div key={i} className="flex items-center gap-3 p-2.5 bg-surface-50 rounded-xl mb-2">
                             <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center shrink-0">
@@ -606,7 +604,7 @@ export default function Landing() {
         <div className="max-w-[1140px] mx-auto px-8 py-24 relative z-10">
           <p className="text-[11px] tracking-[0.15em] text-primary-300 uppercase font-bold mb-4">SERVICE PROCESS</p>
           <h2 className="text-[34px] md:text-[40px] font-extrabold text-white leading-[1.25] mb-3" style={{ wordBreak: 'keep-all' }}>
-            단 몇 분 만에 POPOL을<br />시작해보세요.
+            단 몇 분 만에 FitPoly을<br />시작해보세요.
           </h2>
           <p className="text-[13px] text-[#7b8faa] mb-6 max-w-md leading-relaxed">
             경험 파일을 업로드하면 AI가 자동으로 분석하고,<br />포트폴리오까지 한 번에 완성해 드립니다.
@@ -645,7 +643,7 @@ export default function Landing() {
           <p className="text-[11px] tracking-[0.15em] text-primary-500 uppercase font-bold mb-4">SUCCESS STORY</p>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-[30px] md:text-[36px] font-extrabold text-bluewood-900 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
-              POPOL 서비스를 도입한<br />
+              FitPoly 서비스를 도입한<br />
               취준생의 새로운 변화를 만나보세요.
             </h2>
             <div className="hidden md:flex gap-2">
@@ -658,7 +656,7 @@ export default function Landing() {
             </div>
           </div>
           <p className="text-[13px] text-bluewood-400 mb-10 max-w-lg leading-relaxed">
-            다양한 전공의 취업 준비생이 POPOL을 활용하여 경험을 체계적으로<br />정리하고 성공적인 취업 준비를 완성했습니다.
+            다양한 전공의 취업 준비생이 FitPoly을 활용하여 경험을 체계적으로<br />정리하고 성공적인 취업 준비를 완성했습니다.
           </p>
 
           {/* Story cards */}
@@ -740,7 +738,7 @@ export default function Landing() {
             <div>
               <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-4">연락처</h4>
               <ul className="space-y-2.5 text-[13px] text-bluewood-500">
-                <li>이메일: contact@popol.kr</li>
+                <li>이메일: contact@fitpoly.kr</li>
                 <li>운영시간: 평일 09:00 – 18:00</li>
               </ul>
             </div>
@@ -749,12 +747,10 @@ export default function Landing() {
           {/* Bottom bar */}
           <div className="border-t border-surface-200 pt-6 flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-primary-500 flex items-center justify-center">
-                <Briefcase size={10} className="text-white" />
-              </div>
-              <span className="text-[13px] font-bold text-bluewood-300">POPOL</span>
+              <img src="/logo.png" alt="FitPoly" className="h-5 w-auto opacity-40" />
+              <span className="text-[13px] font-bold text-bluewood-300">FitPoly</span>
             </div>
-            <p className="text-[11px] text-bluewood-300">COPYRIGHT © 2024 POPOL. ALL RIGHTS RESERVED.</p>
+            <p className="text-[11px] text-bluewood-300">COPYRIGHT © 2025 FitPoly. ALL RIGHTS RESERVED.</p>
           </div>
         </div>
       </footer>

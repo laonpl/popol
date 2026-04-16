@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
@@ -13,8 +13,8 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 
-const NOTION_TOKEN_KEY = 'popol_notion_token';
-const NOTION_PAGE_KEY = 'popol_notion_page';
+const NOTION_TOKEN_KEY = 'fitpoly_notion_token';
+const NOTION_PAGE_KEY = 'fitpoly_notion_page';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -545,7 +545,7 @@ export default function NotionPortfolioPreview() {
 
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 border-t border-surface-100 flex items-center justify-between text-xs text-gray-400">
-          <span>POPOL Portfolio · {p.userName || ''}</span>
+          <span>FitPoly Portfolio · {p.userName || ''}</span>
           <a href="#notion-portfolio" className="flex items-center gap-1 hover:text-gray-600">맨 위로 <ChevronUp size={12} /></a>
         </div>
       </div>
@@ -626,7 +626,7 @@ function NotionExportModal({ portfolio, userId, onClose }) {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${portfolio.headline || portfolio.title || '포트폴리오'} - POPOL Portfolio</title>
+<title>${portfolio.headline || portfolio.title || '포트폴리오'} - FitPoly Portfolio</title>
 <script src="https://cdn.tailwindcss.com"><\/script>
 <script>
 tailwind.config = {
@@ -1124,7 +1124,7 @@ function AcademicLayout({ p, setSelectedExp }) {
 
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
-          <span>POPOL Portfolio · {p.userName || ''}</span>
+          <span>FitPoly Portfolio · {p.userName || ''}</span>
           <a href="#notion-portfolio" className="hover:text-gray-600">맨 위로 ↑</a>
         </div>
       </div>
@@ -1303,7 +1303,7 @@ function AshleyLayout({ p, setSelectedExp }) {
 
         {/* Footer */}
         <div className="px-10 py-5 border-t border-[#e8e4dc] flex items-center justify-between text-xs text-[#8a8578]">
-          <span>POPOL Portfolio · {p.userName || ''}</span>
+          <span>FitPoly Portfolio · {p.userName || ''}</span>
           <a href="#notion-portfolio" className="hover:text-[#5a564e]">맨 위로 ↑</a>
         </div>
       </div>
@@ -1737,7 +1737,7 @@ function TimelineLayout({ p, setSelectedExp }) {
 
         {/* Footer */}
         <div className="px-8 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
-          <span>POPOL Dashboard · {p.userName || ''}</span>
+          <span>FitPoly Dashboard · {p.userName || ''}</span>
           <a href="#notion-portfolio" className="flex items-center gap-1 hover:text-gray-600">맨 위로 <ChevronUp size={12} /></a>
         </div>
       </div>

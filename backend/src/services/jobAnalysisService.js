@@ -131,11 +131,51 @@ function enrichPortfolioRequirements(analysis, postingText = '') {
   };
 }
 
+// ── HTTP 기반 스크래핑 (빠름, Chrome 불필요) ─────────
+async function fetchJobWithHttp(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&#[0-9]+;/g, ' ').replace(/&[a-z]+;/g, ' ')
+      .replace(/\s+/g, ' ').trim()
+      .substring(0, 15000);
+    if (text.length < 300) throw new Error('CONTENT_TOO_SHORT');
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── 채용공고 스크래핑 ──────────────────────────────────
 export async function scrapeJobPosting(url) {
+  // 1단계: HTTP fetch (빠름 - 대부분의 SSR/정적 사이트에서 동작)
+  try {
+    const text = await fetchJobWithHttp(url);
+    console.log('[Job] HTTP 스크래핑 성공, 길이:', text.length);
+    return text;
+  } catch (httpErr) {
+    console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', httpErr.message);
+  }
+
+  // 2단계: Puppeteer 폴백 (JS 렌더링 필요한 SPA 사이트)
   const SCRAPE_TIMEOUT_MS = 45000;
   let browser;
-
   try {
     const puppeteer = await import('puppeteer');
     browser = await puppeteer.default.launch({
@@ -147,6 +187,8 @@ export async function scrapeJobPosting(url) {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-first-run',
+        '--single-process',
+        '--disable-extensions',
       ],
     });
 
@@ -156,11 +198,9 @@ export async function scrapeJobPosting(url) {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    // 전체 스크래핑에 타임아웃 래퍼
     const scrapeWithTimeout = Promise.race([
       (async () => {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        // 추가 렌더링 대기 (짧게)
         await new Promise(r => setTimeout(r, 2000));
         const text = await page.evaluate(() => {
           ['script', 'style', 'nav', 'footer', 'header', 'iframe', 'noscript'].forEach(tag => {
@@ -177,7 +217,7 @@ export async function scrapeJobPosting(url) {
 
     return await scrapeWithTimeout;
   } catch (err) {
-    console.error('[Job] 스크래핑 실패:', err.message);
+    console.error('[Job] Puppeteer 스크래핑 실패:', err.message);
     if (err.message === 'SCRAPE_TIMEOUT') {
       throw new Error('채용공고 페이지 로딩 시간이 초과됐습니다. 직접 텍스트를 붙여넣어주세요.');
     }

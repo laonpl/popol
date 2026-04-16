@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -401,7 +401,7 @@ function AshleyFullPreview() {
         </div>
       </div>
       <div className="px-8 py-4 border-t border-[#e8e4dc] flex items-center justify-between text-[10px] text-[#8a8578]">
-        <span>POPOL Portfolio · 홍길동</span><span>맨 위로 ↑</span>
+        <span>FitPoly Portfolio · 홍길동</span><span>맨 위로 ↑</span>
       </div>
     </div>
   );
@@ -509,7 +509,7 @@ function AcademicFullPreview() {
           </div>
         </div>
         <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
-          <span>POPOL Portfolio · 홍길동</span><span>맨 위로 ↑</span>
+          <span>FitPoly Portfolio · 홍길동</span><span>맨 위로 ↑</span>
         </div>
       </div>
     </div>
@@ -626,7 +626,7 @@ function TimelineFullPreview() {
         </div>
 
         <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
-          <span>POPOL Dashboard · 홍길동</span><span>맨 위로 ↑</span>
+          <span>FitPoly Dashboard · 홍길동</span><span>맨 위로 ↑</span>
         </div>
       </div>
     </div>

@@ -25,9 +25,7 @@ export default function Layout() {
         <div className="relative px-6 flex items-center h-16">
           {/* 로고 */}
           <button onClick={() => navigate('/app')} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">P</span>
-            </div>
+            <img src="/logo.png" alt="FitPoly" className="h-8 w-auto" />
           </button>
 
           {/* 메뉴 탭 - 절대 가운데 */}

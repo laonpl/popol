@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
@@ -87,7 +87,7 @@ export default function PublicPortfolioView() {
         {/* Header */}
         <div className="px-10 pt-10 pb-6 border-b border-gray-100">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{p.headline || p.title || '포트폴리오'}</h1>
-          <p className="text-xs text-gray-400">POPOL Portfolio</p>
+          <p className="text-xs text-gray-400">FitPoly Portfolio</p>
         </div>
 
         {/* Quick Menu */}
@@ -333,7 +333,7 @@ export default function PublicPortfolioView() {
         </div>
 
         <div className="px-10 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-          <span>POPOL Portfolio · {p.userName || ''}</span>
+          <span>FitPoly Portfolio · {p.userName || ''}</span>
           <a href="#public-portfolio" className="flex items-center gap-1 hover:text-gray-600">맨 위로 <ChevronUp size={12} /></a>
         </div>
       </div>
@@ -458,7 +458,7 @@ export default function PublicPortfolioView() {
             </div>
           )}
           <div className="px-10 py-4 bg-gray-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
-            <span>POPOL Portfolio · {p.userName || ''}</span>
+            <span>FitPoly Portfolio · {p.userName || ''}</span>
             <a href="#public-portfolio" className="hover:text-gray-600">맨 위로 ↑</a>
           </div>
         </div>
@@ -567,7 +567,7 @@ export default function PublicPortfolioView() {
             </div>
           )}
           <div className="px-10 py-5 border-t border-[#e8e4dc] flex items-center justify-between text-xs text-[#8a8578]">
-            <span>POPOL Portfolio · {p.userName || ''}</span>
+            <span>FitPoly Portfolio · {p.userName || ''}</span>
             <a href="#public-portfolio" className="hover:text-[#5a564e]">맨 위로 ↑</a>
           </div>
         </div>
@@ -658,7 +658,7 @@ export default function PublicPortfolioView() {
             </div>
           )}
           <div className="px-8 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
-            <span>POPOL Dashboard · {p.userName || ''}</span>
+            <span>FitPoly Dashboard · {p.userName || ''}</span>
             <a href="#public-portfolio" className="hover:text-gray-600">맨 위로 ↑</a>
           </div>
         </div>
