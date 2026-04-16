@@ -156,14 +156,14 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors
             ${mode === 'url' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
         >
-          <Globe size={13} /> URL 입력
+          URL 입력
         </button>
         <button
           onClick={() => setMode('text')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors
             ${mode === 'text' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
         >
-          <ClipboardPaste size={13} /> 직접 입력
+          직접 입력
         </button>
       </div>
 
@@ -263,7 +263,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
             disabled={mode === 'url' ? !url.trim() : !text.trim()}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
-            <Building2 size={14} /> 공고 분석하기
+            공고 분석하기
           </button>
           {onSkip && (
             <button
