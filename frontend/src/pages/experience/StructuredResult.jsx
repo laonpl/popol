@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, HelpCircle, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, TrendingUp, Target, Users, Clock, Zap, Globe, Building2, X } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
@@ -8,7 +8,6 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
-import { CHART_TYPES } from '../../components/KeyExperienceSlider';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import api from '../../services/api';
 import toast from 'react-hot-toast';

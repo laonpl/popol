@@ -1,10 +1,10 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, FileText, Globe, Github,
-  X, CheckCircle2, Calendar, Tag,
+  ArrowLeft, Globe, Github,
+  X, CheckCircle2, Calendar,
   ChevronRight, ChevronLeft, Link2, Plus, Code2,
-  Loader2, Check, FolderOpen, Palette, Monitor, UploadCloud
+  Loader2, Check, FolderOpen, Palette, Monitor
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';

@@ -1,13 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const MODEL_NAME = 'gemini-2.0-flash';
+import { generateWithRetry } from './geminiService.js';
 
 /**
  * Notion 최적화 Markdown 형태로 내보내기
  */
 export async function exportForNotion(data) {
-  const model = genAI.getGenerativeModel({ model: MODEL_NAME });
   const jsonStr = JSON.stringify(data, null, 2);
 
   const isPortfolio = !!(data.templateType || (data.education && data.experiences));
@@ -56,8 +52,7 @@ ${jsonStr}
 위 데이터를 Notion 최적화 Markdown으로 변환하여 텍스트만 출력하십시오. 코드블록으로 감싸지 마십시오.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await generateWithRetry(prompt);
   } catch (error) {
     console.error('Notion export AI error:', error.message);
     return generateNotionFallback(data);
@@ -68,7 +63,6 @@ ${jsonStr}
  * GitHub README 최적화 Markdown 형태로 내보내기
  */
 export async function exportForGitHub(data) {
-  const model = genAI.getGenerativeModel({ model: MODEL_NAME });
   const jsonStr = JSON.stringify(data, null, 2);
 
   const prompt = `당신은 GitHub README.md 전문 작성자입니다.
@@ -102,8 +96,7 @@ ${jsonStr}
 위 데이터를 GitHub README.md 형식으로 변환하여 텍스트만 출력하십시오. 코드블록으로 감싸지 마십시오.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await generateWithRetry(prompt);
   } catch (error) {
     console.error('GitHub export AI error:', error.message);
     return generateGitHubFallback(data);
@@ -114,7 +107,6 @@ ${jsonStr}
  * PDF 최적화 압축 텍스트로 내보내기
  */
 export async function exportForPDF(data) {
-  const model = genAI.getGenerativeModel({ model: MODEL_NAME });
   const jsonStr = JSON.stringify(data, null, 2);
 
   const prompt = `당신은 A4 이력서/포트폴리오 PDF 전문 편집자입니다.
@@ -146,8 +138,7 @@ ${jsonStr}
 위 데이터를 PDF 최적화 형식으로 변환하여 텍스트만 출력하십시오. 코드블록으로 감싸지 마십시오.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    return await generateWithRetry(prompt);
   } catch (error) {
     console.error('PDF export AI error:', error.message);
     return generatePDFFallback(data);

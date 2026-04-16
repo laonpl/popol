@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Pencil, Target, Users, Clock } from 'lucide-react';
+import { ArrowLeft, Sparkles, Pencil, Target } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';

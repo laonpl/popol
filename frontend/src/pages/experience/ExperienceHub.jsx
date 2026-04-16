@@ -57,8 +57,6 @@ const COLOR_PALETTES = {
     { bar: 'bg-gray-300',  barText: 'text-gray-700',  light: 'bg-gray-50' },
   ],
 };
-// 하위 호환
-const BAR_THEMES = COLOR_PALETTES.blue;
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 

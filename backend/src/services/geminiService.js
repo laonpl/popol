@@ -22,16 +22,26 @@ function extractStatus(err) {
   return null;
 }
 
+// 모델 호출 + 30초 타임아웃 (응답 없는 모델에서 무한 대기 방지)
+function callModelWithTimeout(model, prompt, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
+    model.generateContent(prompt).then(
+      r => { clearTimeout(timer); resolve(r.response.text()); },
+      e => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 // 지수 백오프 재시도 함수 (모델간 폴백 포함)
-async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
+export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
   let lastError;
   for (let modelIdx = 0; modelIdx < MODEL_FALLBACKS.length; modelIdx++) {
     const modelName = MODEL_FALLBACKS[modelIdx];
     const model = genAI.getGenerativeModel({ model: modelName });
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
-        const result = await model.generateContent(prompt);
-        return result.response.text();
+        return await callModelWithTimeout(model, prompt);
       } catch (err) {
         lastError = err;
         const status = extractStatus(err);
@@ -44,8 +54,8 @@ async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
           throw err;
         }
 
-        if (status === 429) {
-          // Rate limit → 다음 모델로 즉시 전환
+        if (msg === 'GEMINI_TIMEOUT' || status === 429) {
+          // 타임아웃 또는 Rate limit → 다음 모델로 즉시 전환
           break;
         } else if (status === 503 || status === 500) {
           // 일시적 서버 오류 → 잠시 대기 후 재시도
