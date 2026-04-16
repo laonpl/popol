@@ -27,6 +27,18 @@ api.interceptors.response.use(
       console.error('API 에러: 백엔드 서버 미실행 (ERR_CONNECTION_REFUSED)');
       return Promise.reject(serverError);
     }
+    // Rate limit 초과 (429) — retryAfter 정보를 에러에 첨부
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.data?.retryAfter;
+      const msg = retryAfter
+        ? `요청이 너무 많습니다. ${retryAfter}초 후 다시 시도해주세요.`
+        : (error.response.data?.error || 'AI 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
+      const rateLimitError = new Error(msg);
+      rateLimitError.isRateLimit = true;
+      rateLimitError.retryAfter = retryAfter || 60;
+      rateLimitError.response = error.response;
+      return Promise.reject(rateLimitError);
+    }
     const msg = error.response?.data?.error || error.response?.data?.detail || error.message || '알 수 없는 오류';
     console.error('API 에러:', msg);
     return Promise.reject(error);

@@ -3,6 +3,26 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['pptxgenjs'],
+  },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React 코어
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Firebase
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          // 상태관리
+          'vendor-zustand': ['zustand'],
+          // UI 라이브러리
+          'vendor-ui': ['lucide-react', 'react-hot-toast'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

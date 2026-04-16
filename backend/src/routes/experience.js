@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
+import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import { analyzeExperience, extractMoments } from '../services/geminiService.js';
 
 const router = Router();
 
 // POST /api/experience/analyze - AI 경험 구조화
-router.post('/analyze', authMiddleware, async (req, res, next) => {
+router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
     const { experienceId, momentsCount } = req.body;
     if (!experienceId) {

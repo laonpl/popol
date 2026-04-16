@@ -85,18 +85,22 @@ export default function ExperienceEditor() {
     setAnalyzing(true);
     try {
       let experienceId = currentId || id;
+      // 1단계: 최신 내용을 Firestore에 저장 (백엔드가 최신 데이터를 읽도록 보장)
       if (!experienceId) {
         experienceId = await createExperience(user.uid, { title, framework, content, images });
         setCurrentId(experienceId);
       } else {
         await updateExperience(experienceId, { title, framework, content, images });
       }
+      // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
       navigate(`/app/experience/structured/${experienceId}`, { state: { analysis, title, framework, content } });
     } catch (error) {
       const serverMsg = error.response?.data?.error || error.response?.data?.detail;
-      if (serverMsg) {
+      if (error.isRateLimit) {
+        toast.error(error.message);
+      } else if (serverMsg) {
         toast.error(serverMsg);
       } else if (error.code === 'ECONNABORTED') {
         toast.error('AI 분석 시간이 초과되었습니다. 내용을 줄이고 다시 시도해주세요.');

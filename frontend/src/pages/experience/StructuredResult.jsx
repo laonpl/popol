@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
@@ -97,9 +97,11 @@ export default function StructuredResult() {
   const [showHighlights, setShowHighlights] = useState(true);
   const [imageConfig, setImageConfig] = useState({});
   const imageInputRef = useRef(null);
+  // 섹션별 textarea ref — 편집 시작 시 자동 포커스, 인라인 ref 콜백 재생성 방지
+  const sectionTextareaRefs = useRef({});
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
-  const { experiences, fetchExperiences } = useExperienceStore();
+  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -372,8 +374,81 @@ export default function StructuredResult() {
     } catch {}
   };
 
+  // 수동 편집 시 히스토리에 스냅샷 저장 (섹션 편집 모드 진입 전)
+  const handleStartEditing = (key) => {
+    if (!editingSections[key]) {
+      pushEditSnapshot(id, {
+        content: { ...editedContent },
+        title: editedTitle,
+        structuredResult: experience?.structuredResult,
+      });
+    }
+    setEditingSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      // 편집 모드 진입 시 다음 틱에 포커스
+      if (!prev[key]) {
+        requestAnimationFrame(() => {
+          const el = sectionTextareaRefs.current[key];
+          if (el) {
+            el.focus();
+            el.setSelectionRange(el.value.length, el.value.length);
+          }
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleUndo = () => {
+    const snapshot = undoEdit(id);
+    if (!snapshot) return;
+    if (snapshot.content) setEditedContent(snapshot.content);
+    if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+    toast('이전 내용으로 되돌렸습니다', { icon: '↩️' });
+  };
+
+  const handleRedo = () => {
+    const snapshot = redoEdit(id);
+    if (!snapshot) return;
+    if (snapshot.content) setEditedContent(snapshot.content);
+    if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+    toast('다시 실행했습니다', { icon: '↪️' });
+  };
+
+  // Ctrl+Z / Ctrl+Y 단축키 — handleUndo/handleRedo 정의 이후에 등록
+  useEffect(() => {
+    if (viewOnly) return;
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const snapshot = undoEdit(id);
+        if (snapshot) {
+          if (snapshot.content) setEditedContent(snapshot.content);
+          if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+          toast('이전 내용으로 되돌렸습니다', { icon: '↩️' });
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const snapshot = redoEdit(id);
+        if (snapshot) {
+          if (snapshot.content) setEditedContent(snapshot.content);
+          if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+          toast('다시 실행했습니다', { icon: '↪️' });
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewOnly, id]);
+
   const handleSave = async () => {
     setSaving(true);
+    // 저장 전 현재 상태를 히스토리에 스냅샷 저장 → 저장 후에도 되돌리기 가능
+    pushEditSnapshot(id, {
+      content: { ...editedContent },
+      title: editedTitle,
+      structuredResult: experience?.structuredResult,
+    });
     try {
       const ref = doc(db, 'experiences', id);
       const updatedStructured = {
@@ -445,14 +520,32 @@ export default function StructuredResult() {
             수정하기
           </button>
         ) : (
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {saving ? '저장 중...' : '저장하기'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo(id)}
+              title="이전으로 되돌리기 (Ctrl+Z)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedo(id)}
+              title="다시 실행 (Ctrl+Y)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <RotateCw size={14} />
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? '저장 중...' : '저장하기'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -771,7 +864,7 @@ export default function StructuredResult() {
                       <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
                     )}
                     {!isEditing && !isEmpty && !viewOnly && (
-                      <button onClick={() => toggleEditing(key)}
+                      <button onClick={() => handleStartEditing(key)}
                         className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-bluewood-400 hover:text-primary-600 bg-white rounded-md border border-surface-200 transition-all">
                         <PenLine size={11} /> 수정
                       </button>
@@ -790,16 +883,16 @@ export default function StructuredResult() {
                   {isEditing ? (
                     <div>
                       <textarea
-                        ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                        value={value}
-                        onChange={e => { handleFieldChange(key, e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                        ref={el => { sectionTextareaRefs.current[key] = el; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+                        value={editedContent[key] || ''}
+                        onChange={e => { handleFieldChange(key, e.target.value); const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
                         placeholder={field?.placeholder || '내용을 입력하세요'}
                         className={`w-full bg-white rounded-xl border border-surface-200 p-4 text-[13px] outline-none ${style.ring} focus:ring-2 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300`}
                         style={{ minHeight: key === 'intro' ? '3rem' : '7rem' }}
                       />
-                      {!isEmpty && (
+                      {!(!editedContent[key]?.trim()) && (
                         <div className="flex justify-end mt-2">
-                          <button onClick={() => toggleEditing(key)}
+                          <button onClick={() => handleStartEditing(key)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg ${style.label} hover:bg-white/80 transition-colors`}>
                             <Check size={13} /> 완료
                           </button>
@@ -807,7 +900,7 @@ export default function StructuredResult() {
                       )}
                     </div>
                   ) : isEmpty ? (
-                    <button onClick={() => toggleEditing(key)}
+                    <button onClick={() => handleStartEditing(key)}
                       className={`w-full py-3 border-2 border-dashed ${style.border} rounded-xl text-[13px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
                       <PenLine size={14} /> 빈칸 채우기
                     </button>

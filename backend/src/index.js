@@ -10,6 +10,7 @@ import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
 import uploadRoutes from './routes/upload.js';
+import { aiRateLimiter, generalRateLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,12 +29,15 @@ app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http:
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+// 전체 API 일반 제한
+app.use('/api', generalRateLimiter);
+
 // Routes
 app.use('/api/experience', experienceRoutes);
 app.use('/api/portfolio', portfolioRoutes);
-app.use('/api/export', exportRoutes);
+app.use('/api/export', aiRateLimiter, exportRoutes);
 app.use('/api/import', importRoutes);
-app.use('/api/job', jobRoutes);
+app.use('/api/job', aiRateLimiter, jobRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // 업로드된 이미지 정적 서빙 (cross-origin 허용)

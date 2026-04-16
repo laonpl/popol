@@ -509,48 +509,49 @@ function ChartByType({ chartType, beforeLabel, afterLabel, beforePct, afterPct, 
   return <Renderer beforeLabel={beforeLabel} afterLabel={afterLabel} beforePct={beforePct} afterPct={afterPct} accent={accent} direction={direction} />;
 }
 
+/* ── 인라인 편집 공통 스타일 ── */
+const inlineBase = "bg-transparent border border-transparent rounded-lg focus:outline-none focus:bg-white focus:border-gray-200 focus:shadow-sm transition-all w-full";
+
+/* ── 편집 가능한 텍스트 필드 (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
+function EditableText({ value, field, placeholder, className, style, tag: Tag = 'p', editing, onChange }) {
+  if (editing) {
+    return (
+      <input
+        value={value || ''}
+        onChange={e => onChange(field, e.target.value)}
+        placeholder={placeholder}
+        className={`${className} ${inlineBase}`}
+        style={style}
+      />
+    );
+  }
+  if (isHint(value)) {
+    return <HintText value={value} onEdit={() => onChange && onChange('_editHint', field)} />;
+  }
+  return <Tag className={className} style={style}>{stripMd(value)}</Tag>;
+}
+
+/* ── 편집 가능한 textarea (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
+function EditableArea({ value, field, placeholder, rows = 3, editing, onChange }) {
+  if (editing) {
+    return (
+      <textarea
+        value={value || ''}
+        onChange={e => onChange(field, e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className={`text-[13px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
+      />
+    );
+  }
+  return <ViewText value={value} onEdit={() => onChange && onChange('_editHint', field)} />;
+}
+
 /* ── 슬라이드 본문 (읽기 + 인라인 편집) ── */
 function SlideContent({ exp, theme, editing = false, onChange }) {
   if (!exp) return null;
 
-  /* 인라인 편집 스타일: 뷰 모드와 동일한 폰트/색상, 테두리 없음, focus 시 미묘한 하이라이트 */
-  const inlineBase = "bg-transparent border border-transparent rounded-lg focus:outline-none focus:bg-white focus:border-gray-200 focus:shadow-sm transition-all w-full";
   const [chartOpen, setChartOpen] = useState(false);
-
-  /* 편집 가능한 텍스트 필드: 힌트면 HintText, 편집 중이면 인라인 input, 아니면 일반 텍스트 */
-  const EditableText = ({ value, field, placeholder, className, style, tag: Tag = 'p' }) => {
-    if (editing) {
-      return (
-        <input
-          value={value || ''}
-          onChange={e => onChange(field, e.target.value)}
-          placeholder={placeholder}
-          className={`${className} ${inlineBase}`}
-          style={style}
-        />
-      );
-    }
-    if (isHint(value)) {
-      return <HintText value={value} onEdit={() => onChange && onChange('_editHint', field)} />;
-    }
-    return <Tag className={className} style={style}>{stripMd(value)}</Tag>;
-  };
-
-  /* 편집 가능한 textarea: 힌트면 HintText, 편집 중이면 인라인 textarea, 아니면 ViewText */
-  const EditableArea = ({ value, field, placeholder, rows = 3 }) => {
-    if (editing) {
-      return (
-        <textarea
-          value={value || ''}
-          onChange={e => onChange(field, e.target.value)}
-          placeholder={placeholder}
-          rows={rows}
-          className={`text-[13px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
-        />
-      );
-    }
-    return <ViewText value={value} onEdit={() => onChange && onChange('_editHint', field)} />;
-  };
 
   return (
     <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
@@ -561,6 +562,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
       <EditableText
         value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
         className="text-[22px] sm:text-[26px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-7"
+        editing={editing} onChange={onChange}
       />
 
       {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
@@ -571,15 +573,17 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           <EditableText
             value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
             className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug"
+            editing={editing} onChange={onChange}
           />
 
           <EditableText
             value={exp.metric} field="metric" placeholder="성과 지표 (예: 40% 단축)"
             className="text-[22px] sm:text-[26px] font-black"
             style={{ color: theme.accent }}
+            editing={editing} onChange={onChange}
           />
 
-          <EditableArea value={exp.result} field="result" placeholder="결과 설명" rows={3} />
+          <EditableArea value={exp.result} field="result" placeholder="결과 설명" rows={3} editing={editing} onChange={onChange} />
 
           {/* 비교 바 차트 */}
           <div className="mt-auto pt-2">
@@ -643,13 +647,13 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           {/* 문제 상황 */}
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
             <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
-            <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} />
+            <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 핵심 행동 */}
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
             <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
-            <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} />
+            <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
         </div>
       </div>

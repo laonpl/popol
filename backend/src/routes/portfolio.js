@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
+import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import { validatePortfolioWithAI, matchSectionsToRequirements } from '../services/geminiService.js';
 
 const router = Router();
 
 // POST /api/portfolio/validate - 체크리스트 6개 항목 검증
-router.post('/validate', authMiddleware, async (req, res, next) => {
+router.post('/validate', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
     const { portfolioId } = req.body;
     if (!portfolioId) {

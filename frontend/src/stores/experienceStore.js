@@ -22,6 +22,9 @@ export const FRAMEWORKS = {
 const useExperienceStore = create((set, get) => ({
   experiences: [],
   loading: false,
+  // 경험별 편집 히스토리: { [experienceId]: { past: [], future: [] } }
+  // 각 스냅샷: { content, title, structuredResult }
+  _editHistory: {},
 
   fetchExperiences: async (userId) => {
     set({ loading: true });
@@ -101,6 +104,15 @@ const useExperienceStore = create((set, get) => ({
   },
 
   analyzeExperience: async (experienceId) => {
+    // AI 분석 전, 현재 structuredResult를 히스토리에 스냅샷 저장
+    const current = get().experiences.find(e => e.id === experienceId);
+    if (current) {
+      get().pushEditSnapshot(experienceId, {
+        content: current.content,
+        title: current.title,
+        structuredResult: current.structuredResult,
+      });
+    }
     const { data } = await api.post('/experience/analyze', { experienceId }, { timeout: 300000 });
     set(state => ({
       experiences: state.experiences.map(e =>
@@ -108,6 +120,77 @@ const useExperienceStore = create((set, get) => ({
       ),
     }));
     return data;
+  },
+
+  // ── 히스토리 관련 ──────────────────────────────────
+  // 스냅샷을 히스토리에 push (최대 20개 유지)
+  pushEditSnapshot: (experienceId, snapshot) => {
+    set(state => {
+      const history = state._editHistory[experienceId] || { past: [], future: [] };
+      const past = [...history.past, snapshot].slice(-20);
+      return {
+        _editHistory: {
+          ...state._editHistory,
+          [experienceId]: { past, future: [] },
+        },
+      };
+    });
+  },
+
+  // Undo: 직전 스냅샷으로 복원하고 현재 상태를 future에 저장
+  undoEdit: (experienceId) => {
+    const state = get();
+    const history = state._editHistory[experienceId];
+    if (!history || history.past.length === 0) return null;
+
+    const current = state.experiences.find(e => e.id === experienceId);
+    const past = [...history.past];
+    const snapshot = past.pop();
+    const future = [
+      { content: current?.content, title: current?.title, structuredResult: current?.structuredResult },
+      ...(history.future || []),
+    ].slice(0, 20);
+
+    set(s => ({
+      _editHistory: {
+        ...s._editHistory,
+        [experienceId]: { past, future },
+      },
+    }));
+    return snapshot;
+  },
+
+  // Redo: future 스택에서 복원
+  redoEdit: (experienceId) => {
+    const state = get();
+    const history = state._editHistory[experienceId];
+    if (!history || history.future.length === 0) return null;
+
+    const current = state.experiences.find(e => e.id === experienceId);
+    const future = [...history.future];
+    const snapshot = future.shift();
+    const past = [
+      ...(history.past || []),
+      { content: current?.content, title: current?.title, structuredResult: current?.structuredResult },
+    ].slice(-20);
+
+    set(s => ({
+      _editHistory: {
+        ...s._editHistory,
+        [experienceId]: { past, future },
+      },
+    }));
+    return snapshot;
+  },
+
+  canUndo: (experienceId) => {
+    const h = get()._editHistory[experienceId];
+    return (h?.past?.length ?? 0) > 0;
+  },
+
+  canRedo: (experienceId) => {
+    const h = get()._editHistory[experienceId];
+    return (h?.future?.length ?? 0) > 0;
   },
 }));
 

@@ -3,8 +3,6 @@
  * Wanted Portfolio Style PPTX Generator (pptxgenjs)
  * 구조: Cover → Profile → Skills → [SectionDivider + Situation + Result] × N → Outro
  */
-import PptxGenJS from 'pptxgenjs';
-
 const SW = 10;
 const SH = 5.625;
 
@@ -663,6 +661,7 @@ function buildStrengths(prs,p,t){
 
 /* ─── MAIN EXPORT ─── */
 export async function generatePptx(portfolio,theme,themeObj){
+  const { default: PptxGenJS } = await import('pptxgenjs');
   const prs=new PptxGenJS();
   prs.layout='LAYOUT_WIDE';
   prs.title=(portfolio.userName||'Portfolio')+' PPT';
