@@ -1,54 +1,34 @@
 /**
- * YooptaMiniEditor — Preview 디자인 레이아웃 안에서 텍스트 영역을
- * Yoopta 블록 에디터로 대체하는 경량 래퍼 컴포넌트.
+ * YooptaMiniEditor — 자동 리사이징 텍스트 에디터
  *
  * Props:
  *  - value: Yoopta JSON (object) 또는 plain text (string)
- *  - onChange(yooptaValue): Yoopta JSON 저장
+ *  - onChange(text): 텍스트 문자열 전달
  *  - placeholder: string
  *  - minHeight: number (px, 기본 120)
  *  - className: wrapper 추가 클래스
  */
-import { useMemo, useEffect, useRef, useCallback } from 'react';
-import YooptaEditor, { createYooptaEditor } from '@yoopta/editor';
-import Paragraph from '@yoopta/paragraph';
-import Headings from '@yoopta/headings';
-import Lists from '@yoopta/lists';
-import Blockquote from '@yoopta/blockquote';
-import Link from '@yoopta/link';
-import { Bold, Italic, Underline, Strike, Highlight } from '@yoopta/marks';
-import { FloatingToolbar } from '@yoopta/ui';
+import { useRef, useEffect } from 'react';
 
-const PLUGINS = [
-  Paragraph,
-  Headings.HeadingTwo,
-  Headings.HeadingThree,
-  Lists.BulletedList,
-  Lists.NumberedList,
-  Blockquote,
-  Link,
-];
-
-const MARKS = [Bold, Italic, Underline, Strike, Highlight];
-
-/** 일반 문자열 → Yoopta 초기값 변환 */
-function textToYooptaValue(text) {
-  if (!text) return undefined;
-  if (typeof text === 'object') return text;   // 이미 Yoopta JSON
-  // 줄 단위로 Paragraph 블록 생성
-  const blocks = {};
-  const lines = String(text).split('\n').filter(Boolean);
-  if (lines.length === 0) return undefined;
-  lines.forEach((line, i) => {
-    const id = `block-${i}`;
-    blocks[id] = {
-      id,
-      type: 'Paragraph',
-      value: [{ id: `el-${i}`, type: 'paragraph', children: [{ text: line }] }],
-      meta: { order: i, depth: 0 },
-    };
-  });
-  return blocks;
+/** Yoopta 블록 객체 → 평문 텍스트 변환 */
+function blocksToText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object' || Array.isArray(value)) return '';
+  try {
+    return Object.values(value)
+      .sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0))
+      .map(block => {
+        if (!block?.value || !Array.isArray(block.value)) return '';
+        return block.value
+          .map(el => (el?.children ?? []).map(c => c?.text ?? '').join(''))
+          .join('');
+      })
+      .filter(Boolean)
+      .join('\n');
+  } catch {
+    return '';
+  }
 }
 
 export default function YooptaMiniEditor({
@@ -58,36 +38,29 @@ export default function YooptaMiniEditor({
   minHeight = 120,
   className = '',
 }) {
-  const editor = useMemo(() => createYooptaEditor(), []);
-  const initialValue = useMemo(() => textToYooptaValue(value), []);
-  const isInternalChange = useRef(false);
+  const textareaRef = useRef(null);
+  const textValue = blocksToText(value);
 
-  // 에디터 변경 → 부모에 전달
+  // 내용에 따라 높이 자동 조절
   useEffect(() => {
-    const handler = (val) => {
-      isInternalChange.current = true;
-      onChange?.(val);
-    };
-    editor.on('change', handler);
-    return () => editor.off('change', handler);
-  }, [editor, onChange]);
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(minHeight, el.scrollHeight) + 'px';
+  }, [textValue, minHeight]);
+
+  function handleChange(e) {
+    onChange?.(e.target.value);
+  }
 
   return (
-    <div
-      className={`yoopta-mini-editor relative ${className}`}
-      style={{ minHeight }}
-    >
-      <YooptaEditor
-        editor={editor}
-        plugins={PLUGINS}
-        marks={MARKS}
-        value={initialValue}
-        autoFocus={false}
-        placeholder={placeholder}
-        style={{ minHeight, fontSize: 14, lineHeight: 1.7 }}
-      >
-        <FloatingToolbar />
-      </YooptaEditor>
-    </div>
+    <textarea
+      ref={textareaRef}
+      value={textValue}
+      onChange={handleChange}
+      placeholder={placeholder}
+      className={`w-full resize-none bg-transparent outline-none text-sm leading-relaxed text-gray-700 placeholder:text-gray-300 hover:bg-primary-50/10 rounded px-1 py-1 ${className}`}
+      style={{ minHeight, fontSize: 14, lineHeight: 1.7 }}
+    />
   );
 }
