@@ -423,134 +423,317 @@ function buildSectionDivider(prs,exp,idx,t){
   }
 }
 
-/* 5. SITUATION */
-function buildSituation(prs,exp,idx,t,f){
-  const slide=prs.addSlide();
-  addBg(slide,t.bg);
-  const num=String(idx+1).padStart(2,'0');
-  projectLabel(slide,num,'CAREER',t,0.5,0.30,SW-1.0);
-  txt(slide,sh(exp.title||'프로젝트',40),0.5,0.52,7.5,0.52,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
-  const CY=1.14;
-  const CH=SH-CY-0.36;
+/* ─── Layout Routing ─── */
+function getLayout(theme){
+  if(!theme) return 'default';
+  if(['developer','data_dashboard'].includes(theme)) return 'tech';
+  if(['marketer_dark','marketer_light'].includes(theme)) return 'story';
+  if(['problem_solver','star_classic'].includes(theme)) return 'consult';
+  if(theme==='designer') return 'design';
+  return 'default';
+}
+function slideHeader(slide,num,category,title,t){
+  projectLabel(slide,num,category,t,0.5,0.28,SW-1.0);
+  txt(slide,sh(title,42),0.5,0.50,7.8,0.50,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+}
+
+/* 5a. SITUATION — Default (깔끔 2컬럼) */
+function buildSituationDefault(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  slideHeader(slide,String(idx+1).padStart(2,'0'),'CAREER',exp.title||'프로젝트',t);
+  const CY=1.12, CH=SH-CY-0.3;
   roundRect(slide,0.5,CY,SW-1.0,CH,t.card,t.div,0.1);
-  // 스마트 분리: 긴 텍스트를 논리적 단락으로 나눔
-  const spRaw=f.task||f.overview||f.description||'';
-  const solRaw=f.process||f.intro||'';
-  const spItems=smartBullets(spRaw,4,78);
-  const solItems=smartBullets(solRaw,4,78);
   const midX=0.5+(SW-1.0)*0.5;
-  // S&P section
+  const spItems=smartBullets(f.task||f.overview||f.description||'',3,68).slice(0,3);
+  const solItems=smartBullets(f.process||f.intro||'',3,68).slice(0,3);
   if(spItems.length>0){
-    sectionBold(slide,'Situation & Problem',t,0.76,CY+0.18,midX-0.76-0.1);
-    const spFS=spItems.length<=2?11:9.5;
-    const spW=midX-0.85-0.1;
-    let spY=CY+0.5;
-    spItems.forEach((item,i)=>{
-      const cpl=Math.max(15,Math.floor((spW-0.17)*13));
-      const lines=Math.max(1,Math.ceil(item.length/cpl));
-      const ih=Math.max(0.24,lines*(spFS*0.016)+0.06);
-      roundRect(slide,0.76,spY+0.06,0.11,0.11,t.card,t.div,0.02);
-      txt(slide,item,0.76+0.17,spY,spW-0.17,ih,{fontSize:spFS,color:hexClean(t.text),isTextBox:true,valign:'top'});
-      spY+=ih+0.12;
+    sectionBold(slide,'Situation & Problem',t,0.76,CY+0.18,midX-0.9);
+    let sy=CY+0.5;
+    spItems.forEach(item=>{
+      const ih=Math.max(0.28,Math.ceil(item.length/54)*0.22+0.06);
+      roundRect(slide,0.76,sy+0.07,0.12,0.12,t.card,t.div,0.02);
+      txt(slide,item,0.96,sy,midX-0.9,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      sy+=ih+0.14;
     });
-    // 남은 공간이 충분하면 역할/맥락 카드 삽입
-    const spEnd=spY;
-    const spRem=(CY+CH-0.18)-spEnd;
-    if(spRem>0.6&&(exp.role||exp.date||f.aiSummary)){
-      const ctxY=spEnd+0.08;
-      const ctxH=Math.min(spRem-0.1,0.88);
-      roundRect(slide,0.76,ctxY,spW,ctxH,t.step||t.badge||t.card,t.div+'66',0.06);
-      rect(slide,0.76,ctxY,0.035,ctxH,t.accent);
-      const ctxTxt=exp.role?(exp.role+(exp.date?' · '+exp.date:'')):(sh(f.aiSummary,140)||'');
-      txt(slide,ctxTxt,0.82,ctxY+0.1,spW-0.14,ctxH-0.2,{fontSize:9.5,color:hexClean(t.sub),isTextBox:true,valign:'middle'});
+    const rem=(CY+CH-0.22)-sy;
+    if(rem>0.5&&(exp.role||f.aiSummary)){
+      const ch=Math.min(rem-0.1,0.72);
+      roundRect(slide,0.76,sy+0.08,midX-0.96,ch,t.step,t.div+'55',0.06);
+      rect(slide,0.76,sy+0.08,0.036,ch,t.accent);
+      txt(slide,sh(exp.role?exp.role+(exp.date?' · '+exp.date:''):f.aiSummary,120),0.82,sy+0.16,midX-1.06,ch-0.2,{fontSize:9.5,color:hexClean(t.sub),isTextBox:true,valign:'top'});
     }
   }
-  // vertical divider in card
   rect(slide,midX,CY+0.18,0.012,CH-0.36,t.div);
-  // Solution section
   if(solItems.length>0){
-    const RX=midX+0.26;
-    const solW=SW-RX-0.76;
+    const RX=midX+0.26, solW=SW-RX-0.76;
     sectionBold(slide,'Solution',t,RX,CY+0.18,solW);
-    const solFS=solItems.length<=2?11:9.5;
-    let solY=CY+0.5;
+    let ry=CY+0.5;
     solItems.forEach((item,i)=>{
-      const cpl=Math.max(15,Math.floor((solW-0.52)*13));
-      const lines=Math.max(1,Math.ceil(item.length/cpl));
-      const ih=Math.max(0.24,lines*(solFS*0.016)+0.06);
-      txt(slide,'Step'+(i+1)+'.',RX,solY,0.54,0.2,{fontSize:8.5,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'top',fontFace:'Courier New'});
-      txt(slide,item,RX+0.54,solY,solW-0.54,ih,{fontSize:solFS-0.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
-      solY+=ih+0.12;
+      const ih=Math.max(0.28,Math.ceil(item.length/54)*0.22+0.06);
+      txt(slide,'Step'+(i+1)+'.',RX,ry,0.52,0.2,{fontSize:8.5,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',valign:'top'});
+      txt(slide,item,RX+0.54,ry,solW-0.54,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      ry+=ih+0.14;
     });
-    // 남은 공간에 AI 요약 삽입
-    const solEnd=solY;
-    const solRem=(CY+CH-0.18)-solEnd;
-    if(solRem>0.6&&f.aiSummary){
-      const ctxY=solEnd+0.08;
-      const ctxH=Math.min(solRem-0.1,0.88);
-      const RX2=midX+0.26;
-      roundRect(slide,RX2,ctxY,SW-RX2-0.76,ctxH,t.step||t.badge||t.card,t.div+'66',0.06);
-      rect(slide,RX2,ctxY,0.035,ctxH,t.accent);
-      txt(slide,sh(f.aiSummary,140),RX2+0.1,ctxY+0.1,SW-RX2-1.0,ctxH-0.2,{fontSize:9.5,color:hexClean(t.sub),isTextBox:true,valign:'middle'});
+  }
+}
+
+/* 5b. SITUATION — Tech (Problem | Approach + context bar) */
+function buildSituationTech(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  slideHeader(slide,String(idx+1).padStart(2,'0'),'TECHNICAL',exp.title||'프로젝트',t);
+  const CY=1.12, barH=0.44, CH=SH-CY-barH-0.44;
+  const LW=4.2, RX=0.5+LW+0.26, RW=SW-RX-0.5;
+  const spItems=smartBullets(f.task||f.overview||f.description||'',3,60).slice(0,3);
+  const solItems=smartBullets(f.process||f.intro||'',4,60).slice(0,4);
+  // Left card: Problem
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.1);
+  txt(slide,'PROBLEM',0.72,CY+0.18,1.1,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,0.72+0.82,CY+0.25,LW-1.04,t.div);
+  let ly=CY+0.5;
+  spItems.forEach(item=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/46)*0.22+0.04);
+    roundRect(slide,0.72,ly+0.05,0.1,0.1,t.accent+'50',null,0.02);
+    txt(slide,item,0.90,ly,LW-0.58,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ly+=ih+0.14;
+  });
+  // Right card: Approach
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.1);
+  txt(slide,'APPROACH',RX+0.22,CY+0.18,1.2,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,RX+1.1,CY+0.25,RW-1.28,t.div);
+  let ry=CY+0.5;
+  solItems.forEach((item,i)=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/46)*0.22+0.04);
+    roundRect(slide,RX+0.2,ry+0.02,0.26,0.22,t.accent+'28',null,0.04);
+    txt(slide,String(i+1),RX+0.2,ry+0.02,0.26,0.22,{fontSize:9,bold:true,color:hexClean(t.accent),align:'center',isTextBox:true});
+    txt(slide,item,RX+0.56,ry,RW-0.76,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ry+=ih+0.14;
+  });
+  // Bottom context bar (full width)
+  const barY=SH-barH-0.26;
+  roundRect(slide,0.5,barY,SW-1.0,barH,t.step,t.div+'55',0.06);
+  txt(slide,'CONTEXT',0.72,barY+0.12,0.72,0.14,{fontSize:6.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+  txt(slide,sh(f.aiSummary||exp.description||exp.role||'프로젝트 배경',180),1.52,barY+0.06,SW-2.2,barH-0.08,{fontSize:9,color:hexClean(t.sub),isTextBox:true,valign:'middle'});
+}
+
+/* 5c. SITUATION — Story (마케터: Hero hook + Context | Challenge&Action) */
+function buildSituationStory(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'CAMPAIGN',t,0.5,0.28,SW-1.0);
+  // Hero 한 줄 인사이트
+  const hook=sh(f.aiSummary||f.task||f.description||exp.title||'',110);
+  roundRect(slide,0.5,0.52,SW-1.0,0.72,t.card,t.div,0.1);
+  rect(slide,0.5,0.52,0.045,0.72,t.accent);
+  txt(slide,hook,0.72,0.58,SW-1.4,0.60,{fontSize:13,bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+  const CY=1.38, CH=SH-CY-0.3;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  // Left: Background
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.1);
+  txt(slide,'BACKGROUND',0.72,CY+0.18,1.5,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,0.72+1.14,CY+0.25,LW-1.34,t.div);
+  const bgItems=smartBullets(f.overview||f.description||f.task||'',3,62).slice(0,3);
+  let ly=CY+0.5;
+  bgItems.forEach(item=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/50)*0.22+0.06);
+    txt(slide,'·',0.72,ly,0.18,ih,{fontSize:13,color:hexClean(t.accent),bold:true,isTextBox:true});
+    txt(slide,item,0.90,ly,LW-0.56,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ly+=ih+0.14;
+  });
+  // Right: Challenge & Action
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.1);
+  txt(slide,'CHALLENGE & ACTION',RX+0.22,CY+0.18,2.2,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,RX+2.1,CY+0.25,RW-2.28,t.div);
+  const tags=['CHALLENGE','ACTION','APPROACH'];
+  const actItems=smartBullets(f.process||f.intro||f.task||'',3,62).slice(0,3);
+  let ry=CY+0.5;
+  actItems.forEach((item,i)=>{
+    const ih=Math.max(0.28,Math.ceil(item.length/50)*0.22+0.08);
+    const tw=0.76;
+    roundRect(slide,RX+0.18,ry+0.03,tw,0.22,t.accent+(i===0?'DD':i===1?'88':'44'),null,0.06);
+    txt(slide,tags[i],RX+0.18,ry+0.03,tw,0.22,{fontSize:6.5,bold:true,color:'ffffff',align:'center',valign:'middle',isTextBox:true});
+    txt(slide,item,RX+1.04,ry,RW-1.22,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ry+=ih+0.14;
+  });
+}
+
+/* 5d. SITUATION — Consult / STAR (4-quadrant) */
+function buildSituationConsult(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'S·T·A·R',t,0.5,0.24,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.46,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.0, CH=SH-CY-0.28;
+  const qW=(SW-1.24)/2, qH=(CH-0.14)/2;
+  const quads=[
+    {k:'S',name:'Situation',src:f.overview||f.description||f.task||''},
+    {k:'T',name:'Task',src:f.task||f.process||''},
+    {k:'A',name:'Action',src:f.process||f.intro||''},
+    {k:'R',name:'Result',src:f.output||f.growth||f.aiSummary||''},
+  ];
+  quads.forEach(({k,name,src},i)=>{
+    const col=i%2, row=Math.floor(i/2);
+    const qx=0.5+col*(qW+0.24);
+    const qy=CY+row*(qH+0.14);
+    roundRect(slide,qx,qy,qW,qH,t.card,t.div,0.08);
+    // ghost letter background
+    txt(slide,k,qx+qW-0.62,qy+0.08,0.58,0.56,{fontSize:54,bold:true,color:hexClean(t.accent),isTextBox:true,transparency:84});
+    // badge + label
+    roundRect(slide,qx+0.18,qy+0.15,0.24,0.24,t.accent,null,0.04);
+    txt(slide,k,qx+0.18,qy+0.15,0.24,0.24,{fontSize:10,bold:true,color:'ffffff',align:'center',valign:'middle',isTextBox:true});
+    txt(slide,name.toUpperCase(),qx+0.50,qy+0.19,qW-0.68,0.18,{fontSize:8.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    hrLine(slide,qx+0.18,qy+0.46,qW-0.36,t.div);
+    // content (max 2 bullets)
+    const items=smartBullets(src,2,58).slice(0,2);
+    let iy=qy+0.58;
+    items.forEach(item=>{
+      const ih=Math.max(0.22,Math.ceil(item.length/46)*0.19+0.04);
+      txt(slide,item,qx+0.18,iy,qW-0.36,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      iy+=ih+0.1;
+    });
+    if(!items.length&&src) txt(slide,sh(src,75),qx+0.18,qy+0.58,qW-0.36,qH-0.64,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  });
+}
+
+/* 5e. SITUATION — Design (Process bar + User Problem | Design Solution) */
+function buildSituationDesign(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  slideHeader(slide,String(idx+1).padStart(2,'0'),'DESIGN',exp.title||'프로젝트',t);
+  // Process bar
+  const steps=['Research','Define','Design','Deliver'];
+  const stepW=(SW-1.0)/4;
+  steps.forEach((s,i)=>{
+    const sx=0.5+i*stepW;
+    const active=i===1||i===2;
+    roundRect(slide,sx+0.05,1.04,stepW-0.1,0.3,active?t.accent+'35':t.card,active?t.accent+'70':t.div,0.06);
+    txt(slide,s,sx+0.05,1.04,stepW-0.1,0.3,{fontSize:9.5,bold:active,color:hexClean(active?t.accent:t.sub),align:'center',valign:'middle',isTextBox:true});
+    if(i<3) txt(slide,'›',sx+stepW-0.08,1.08,0.14,0.22,{fontSize:11,color:hexClean(t.accent),bold:true,isTextBox:true,valign:'middle'});
+  });
+  const CY=1.46, CH=SH-CY-0.3;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.1);
+  txt(slide,'USER PROBLEM',0.72,CY+0.16,1.8,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,0.72+1.44,CY+0.23,LW-1.64,t.div);
+  const probItems=smartBullets(f.task||f.overview||f.description||'',3,60).slice(0,3);
+  let ly=CY+0.46;
+  probItems.forEach(item=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/48)*0.22+0.06);
+    circle(slide,0.74,ly+0.07,0.14,t.accent+'40');
+    txt(slide,item,0.94,ly,LW-0.62,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ly+=ih+0.14;
+  });
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.1);
+  txt(slide,'DESIGN SOLUTION',RX+0.22,CY+0.16,2.0,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  hrLine(slide,RX+1.82,CY+0.23,RW-2.02,t.div);
+  const solItems=smartBullets(f.process||f.intro||'',3,60).slice(0,3);
+  let ry=CY+0.46;
+  solItems.forEach((item,i)=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/48)*0.22+0.06);
+    roundRect(slide,RX+0.2,ry+0.02,0.24,0.22,t.accent+'28',null,0.04);
+    txt(slide,String(i+1),RX+0.2,ry+0.02,0.24,0.22,{fontSize:9,bold:true,color:hexClean(t.accent),align:'center',isTextBox:true});
+    txt(slide,item,RX+0.54,ry,RW-0.74,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ry+=ih+0.14;
+  });
+}
+
+/* 5. SITUATION — dispatcher */
+function buildSituation(prs,exp,idx,t,f,theme){
+  const layout=getLayout(theme);
+  if(layout==='tech') return buildSituationTech(prs,exp,idx,t,f);
+  if(layout==='story') return buildSituationStory(prs,exp,idx,t,f);
+  if(layout==='consult') return buildSituationConsult(prs,exp,idx,t,f);
+  if(layout==='design') return buildSituationDesign(prs,exp,idx,t,f);
+  return buildSituationDefault(prs,exp,idx,t,f);
+}
+
+/* 6. RESULT — Story variant (campaign metrics focus) */
+function buildResultStory(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'CAMPAIGN RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.5,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.12, CH=SH-CY-0.3;
+  const kx=f.keyExperiences.slice(0,3);
+  // Full-width 주요 숫자 metric bar
+  if(kx.length>0){
+    const mW=(SW-1.0)/Math.min(kx.length,3);
+    kx.slice(0,3).forEach((ke,i)=>{
+      const mx=0.5+i*mW;
+      roundRect(slide,mx+0.05,CY,mW-0.1,0.9,t.resBg||t.card,t.resBd||t.div,0.08);
+      txt(slide,sh(ke.title||'성과',20),mx+0.18,CY+0.1,mW-0.36,0.18,{fontSize:7,bold:true,color:hexClean(t.sub),charSpacing:1.5,isTextBox:true,align:'center'});
+      txt(slide,sh(String(ke.metric)||'-',14),mx+0.18,CY+0.32,mW-0.36,0.5,{fontSize:26,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+    });
+  }
+  const bodyY=CY+(kx.length>0?1.04:0);
+  const bodyH=SH-bodyY-0.3;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  // Left: Results bullets
+  roundRect(slide,0.5,bodyY,LW,bodyH,t.card,t.div,0.1);
+  sectionBold(slide,'Campaign Result',t,0.72,bodyY+0.18,LW-0.44);
+  const outB=toBullets(f.output,3);
+  let by=bodyY+0.5;
+  outB.forEach(b=>{ const ih=Math.max(0.26,Math.ceil(b.length/50)*0.22+0.06); txt(slide,'>',0.72,by,0.18,ih,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true}); txt(slide,b,0.90,by,LW-0.6,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'}); by+=ih+0.12; });
+  // Right: Growth + Insight
+  roundRect(slide,RX,bodyY,RW,bodyH,t.card,t.div,0.1);
+  sectionBold(slide,'Growth & Learning',t,RX+0.22,bodyY+0.18,RW-0.44);
+  const growB=toBullets(f.growth||f.competency,3);
+  let gy=bodyY+0.5;
+  growB.forEach(b=>{ const ih=Math.max(0.26,Math.ceil(b.length/44)*0.22+0.06); txt(slide,'>',RX+0.22,gy,0.18,ih,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true}); txt(slide,b,RX+0.40,gy,RW-0.6,ih,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top'}); gy+=ih+0.12; });
+  if(kx[0]?.beforeMetric&&kx[0]?.afterMetric&&gy<bodyY+bodyH-0.7){
+    const bpY=gy+0.1;
+    roundRect(slide,RX+0.18,bpY,RW-0.36,0.72,t.resBg||t.card,t.resBd||t.div,0.06);
+    barPair(slide,RX+0.34,bpY+0.08,RW-0.68,kx[0].beforeMetric,kx[0].afterMetric,t);
+  }
+}
+
+/* 6. RESULT — Default + Tech (공통: key result + metrics) */
+function buildResultDefault(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'프로젝트',42),0.5,0.50,7.8,0.50,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.12, CH=SH-CY-0.3;
+  const kx=f.keyExperiences.slice(0,3);
+  const showRight=kx.length>0;
+  const LW=showRight?(SW-1.0)*0.56:(SW-1.0), cardX=0.5;
+  roundRect(slide,cardX,CY,LW,CH,t.card,t.div,0.1);
+  sectionBold(slide,'Key Result',t,cardX+0.24,CY+0.18,LW-0.48);
+  const outB=toBullets(f.output,4), growB=toBullets(f.growth,3);
+  let by=CY+0.5;
+  if(outB.length>0){ by=addBulletRows(slide,outB,cardX+0.24,by,LW-0.48,t,62,'arrow'); by+=0.08; }
+  if(growB.length>0){
+    hrLine(slide,cardX+0.24,by,LW-0.48,t.div+'55'); by+=0.14;
+    txt(slide,'GROWTH',cardX+0.24,by,1.5,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true}); by+=0.2;
+    by=addBulletRows(slide,growB,cardX+0.24,by,LW-0.48,t,62,'arrow'); by+=0.08;
+  }
+  if(f.competency&&by<CY+CH-0.62){
+    roundRect(slide,cardX+0.24,by,LW-0.48,Math.min(0.62,CY+CH-by-0.06),t.step,t.div+'44',0.06);
+    rect(slide,cardX+0.24,by,0.04,Math.min(0.62,CY+CH-by-0.06),t.accent);
+    txt(slide,'COMPETENCY',cardX+0.28,by+0.06,1.5,0.14,{fontSize:6.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    txt(slide,sh(f.competency,90),cardX+0.28,by+0.22,LW-0.56,0.34,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+  if(showRight){
+    const RX=cardX+LW+0.22, RW=SW-RX-0.5;
+    kx.slice(0,2).forEach((ke,i)=>{
+      metricBox(slide,RX+i*(RW/2+0.06)/2*2,CY,RW/2-0.06,0.82,sh(ke.title||('성과 '+(i+1)),20),sh(String(ke.metric)||'-',12),t);
+    });
+    if(kx[0]?.beforeMetric&&kx[0]?.afterMetric){
+      roundRect(slide,RX,CY+0.9,RW,0.84,t.card,t.div,0.08);
+      barPair(slide,RX+0.16,CY+1.0,RW-0.32,kx[0].beforeMetric,kx[0].afterMetric,t);
+    }
+    if(kx[2]){
+      const y3=CY+(kx[0]?.beforeMetric?1.84:0.9);
+      roundRect(slide,RX,y3,RW,CH-(y3-CY),t.resBg||t.card,t.resBd||t.div,0.08);
+      txt(slide,sh(kx[2].title||'추가 성과',25),RX+0.16,y3+0.12,RW-0.32,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true});
+      txt(slide,sh(String(kx[2].metric)||'-',15),RX+0.16,y3+0.30,RW-0.32,0.42,{fontSize:22,bold:true,color:hexClean(t.accent),isTextBox:true});
     }
   }
 }
 
-/* 6. RESULT */
-function buildResult(prs,exp,idx,t,f){
-  const slide=prs.addSlide();
-  addBg(slide,t.bg);
-  const num=String(idx+1).padStart(2,'0');
-  projectLabel(slide,num,'RESULT',t,0.5,0.30,SW-1.0);
-  txt(slide,sh(exp.title||'프로젝트',40),0.5,0.52,7.5,0.52,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
-  const CY=1.14;
-  const CH=SH-CY-0.36;
-  const kx=f.keyExperiences.slice(0,3);
-  const showRight=kx.length>0;
-  const LW=showRight?(SW-1.0)*0.58:(SW-1.0);
-  const cardX=0.5;
-  // Left card
-  roundRect(slide,cardX,CY,LW,CH,t.card,t.div,0.1);
-  sectionBold(slide,'결과 Key Result',t,cardX+0.24,CY+0.18,LW-0.48);
-  const outB=toBullets(f.output,4);
-  const growB=toBullets(f.growth,3);
-  let bulletY=CY+0.5;
-  if(outB.length>0){
-    bulletY=addBulletRows(slide,outB,cardX+0.24,bulletY,LW-0.48,t,65,'arrow');
-    bulletY+=0.08;
-  }
-  if(growB.length>0){
-    hrLine(slide,cardX+0.24,bulletY,LW-0.48,t.div+'55');
-    bulletY+=0.14;
-    txt(slide,'GROWTH',cardX+0.24,bulletY,1.5,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true});
-    bulletY+=0.2;
-    bulletY=addBulletRows(slide,growB,cardX+0.24,bulletY,LW-0.48,t,65,'arrow');
-    bulletY+=0.08;
-  }
-  if(f.competency){
-    roundRect(slide,cardX+0.24,bulletY,LW-0.48,0.56,t.step,t.div+'44',0.06);
-    rect(slide,cardX+0.24,bulletY,0.04,0.56,t.accent);
-    txt(slide,'COMPETENCY',cardX+0.28,bulletY+0.06,1.5,0.14,{fontSize:6.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
-    txt(slide,sh(f.competency,90),cardX+0.28,bulletY+0.22,LW-0.56,0.28,{fontSize:9,color:hexClean(t.text),isTextBox:true,valign:'top'});
-  }
-  // Right: metrics
-  if(showRight){
-    const RX=cardX+LW+0.22;
-    const RW=SW-RX-0.5;
-    kx.slice(0,2).forEach((ke,i)=>{
-      metricBox(slide,RX+i*(RW/2+0.06)/2*2,CY,RW/2-0.06,0.8,sh(ke.title||('성과 '+(i+1)),20),sh(String(ke.metric)||'-',12),t);
-    });
-    if(kx[0]?.beforeMetric&&kx[0]?.afterMetric){
-      roundRect(slide,RX,CY+0.88,RW,0.85,t.card,t.div,0.08);
-      barPair(slide,RX+0.16,CY+0.98,RW-0.32,kx[0].beforeMetric,kx[0].afterMetric,t);
-    }
-    if(kx[2]){
-      const y3=CY+(kx[0]?.beforeMetric?1.82:0.88);
-      roundRect(slide,RX,y3,RW,CH-(y3-CY),t.resBg||t.card,t.resBd||t.div,0.08);
-      txt(slide,sh(kx[2].title||'추가 성과',25),RX+0.16,y3+0.12,RW-0.32,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true});
-      txt(slide,sh(String(kx[2].metric)||'-',15),RX+0.16,y3+0.3,RW-0.32,0.4,{fontSize:20,bold:true,color:hexClean(t.accent),isTextBox:true});
-    }
-  }
+/* 6. RESULT — dispatcher */
+function buildResult(prs,exp,idx,t,f,theme){
+  const layout=getLayout(theme);
+  if(layout==='story') return buildResultStory(prs,exp,idx,t,f);
+  return buildResultDefault(prs,exp,idx,t,f);
 }
 
 /* 7. OUTRO */
@@ -755,8 +938,8 @@ export async function generatePptx(portfolio,theme,themeObj){
     const hasSit=!!(f.task||f.process||f.overview||f.description||f.intro);
     const hasRes=!!(f.output||f.growth||f.competency||f.keyExperiences?.length);
     buildSectionDivider(prs,exp,idx,t);
-    if(hasSit) buildSituation(prs,exp,idx,t,f);
-    if(hasRes) buildResult(prs,exp,idx,t,f);
+    if(hasSit) buildSituation(prs,exp,idx,t,f,theme);
+    if(hasRes) buildResult(prs,exp,idx,t,f,theme);
   });
 
   buildOutro(prs,p,t);

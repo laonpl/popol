@@ -97,6 +97,16 @@ const THEMES = {
   },
 };
 
+/* ─── Layout Routing ─── */
+function getLayout(theme){
+  if(!theme) return 'default';
+  if(['developer','data_dashboard'].includes(theme)) return 'tech';
+  if(['marketer_dark','marketer_light'].includes(theme)) return 'story';
+  if(['problem_solver','star_classic'].includes(theme)) return 'consult';
+  if(theme==='designer') return 'design';
+  return 'default';
+}
+
 /* ─── Utils ─── */
 function strip(txt) {
   if (txt == null) return '';
@@ -515,53 +525,296 @@ function SectionDivider({exp,idx,t}){
   );
 }
 
-/* ─── 5. SITUATION SLIDE (ref: image 9 — S&P + Solution in card) ─── */
-function SituationSlide({exp,idx,t,f}){
+/* ─── 5. SITUATION SLIDES — 레이아웃별 구현 ─── */
+
+/* 5a. Default: 2컬럼 카드 */
+function SituationDefaultSlide({exp,idx,t,f}){
   const num=String(idx+1).padStart(2,'0');
-  const problemBullets=toBullets(f.task||f.overview||f.description,4);
-  const solBullets=toBullets(f.process||f.intro,5);
-  const hasProblem=problemBullets.length>0||(f.task||f.overview||f.description);
-  const hasSol=solBullets.length>0||(f.process);
+  const spBullets=toBullets(f.task||f.overview||f.description,3).slice(0,3);
+  const solBullets=toBullets(f.process||f.intro,3).slice(0,3);
   return (
     <Slide t={t}>
       <div style={{padding:'36px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-        <ProjectLabel num={num} category={'CAREER'} t={t}/>
+        <ProjectLabel num={num} category="CAREER" t={t}/>
         <SlideTitle t={t} size={26}>{shorten(exp.title||'프로젝트',40)}</SlideTitle>
-        <div style={{flex:1,padding:'24px 28px',background:t.card,borderRadius:14,
-          border:`1px solid ${t.div}`,display:'flex',gap:24}}>
-          {/* Left: Situation & Problem */}
-          {hasProblem&&(
-            <div style={{flex:1}}>
-              <SectionBold t={t} size={14}>Situation &amp; Problem</SectionBold>
-              {problemBullets.length>0?problemBullets.map((b,i)=><CheckBullet key={i} t={t}>{b}</CheckBullet>):(
-                <p style={{fontSize:12,color:t.text,lineHeight:1.7,margin:0,
-                  display:'-webkit-box',WebkitLineClamp:8,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                  {f.task||f.overview||f.description}
-                </p>
-              )}
-            </div>
-          )}
-          {hasProblem&&hasSol&&<div style={{width:1,background:t.div,flexShrink:0}}/>}
-          {/* Right: Solution */}
-          {hasSol&&(
-            <div style={{flex:1}}>
-              <SectionBold t={t} size={14}>Solution</SectionBold>
-              {solBullets.length>0?solBullets.map((b,i)=><StepBullet key={i} step={i+1} t={t}>{b}</StepBullet>):(
-                <p style={{fontSize:12,color:t.text,lineHeight:1.7,margin:0,
-                  display:'-webkit-box',WebkitLineClamp:8,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                  {f.process}
-                </p>
-              )}
-            </div>
-          )}
+        <div style={{flex:1,padding:'22px 26px',background:t.card,borderRadius:14,border:`1px solid ${t.div}`,display:'flex',gap:24,overflow:'hidden'}}>
+          {spBullets.length>0&&<div style={{flex:1,overflow:'hidden'}}>
+            <SectionBold t={t} size={14}>Situation &amp; Problem</SectionBold>
+            {spBullets.map((b,i)=><CheckBullet key={i} t={t}>{b}</CheckBullet>)}
+            {(exp.role||f.aiSummary)&&<div style={{marginTop:12,padding:'10px 14px',background:t.step,borderRadius:8,borderLeft:`3px solid ${t.accent}`}}>
+              <p style={{fontSize:11,color:t.sub,margin:0,lineHeight:1.6}}>{shorten(exp.role?exp.role+(exp.date?' · '+exp.date:''):f.aiSummary,130)}</p>
+            </div>}
+          </div>}
+          {spBullets.length>0&&solBullets.length>0&&<div style={{width:1,background:t.div,flexShrink:0}}/>}
+          {solBullets.length>0&&<div style={{flex:1,overflow:'hidden'}}>
+            <SectionBold t={t} size={14}>Solution</SectionBold>
+            {solBullets.map((b,i)=><StepBullet key={i} step={i+1} t={t}>{b}</StepBullet>)}
+          </div>}
         </div>
       </div>
     </Slide>
   );
 }
 
-/* ─── 6. RESULT SLIDE (ref: image 5,10 — Key Result + Metric cards) ─── */
-function ResultSlide({exp,idx,t,f}){
+/* 5b. Tech: Problem | Approach + context bar */
+function SituationTechSlide({exp,idx,t,f}){
+  const num=String(idx+1).padStart(2,'0');
+  const spBullets=toBullets(f.task||f.overview||f.description,3).slice(0,3);
+  const solBullets=toBullets(f.process||f.intro,4).slice(0,4);
+  return (
+    <Slide t={t}>
+      <div style={{padding:'36px 56px 20px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:12}}>
+        <ProjectLabel num={num} category="TECHNICAL" t={t}/>
+        <SlideTitle t={t} size={24}>{shorten(exp.title||'프로젝트',40)}</SlideTitle>
+        <div style={{flex:1,display:'flex',gap:16,minHeight:0}}>
+          {/* Problem card */}
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>PROBLEM</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {spBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:10,marginBottom:12,alignItems:'flex-start'}}>
+                <div style={{width:8,height:8,borderRadius:'50%',background:t.accent+'80',flexShrink:0,marginTop:6}}/>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+          {/* Approach card */}
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>APPROACH</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {solBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
+                <span style={{flexShrink:0,width:24,height:24,borderRadius:6,background:t.accent+'28',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:10,fontWeight:800,color:t.accent}}>{i+1}</span>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Context bar */}
+        <div style={{padding:'10px 18px',background:t.step,borderRadius:8,border:`1px solid ${t.div}55`,display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:8.5,fontWeight:800,letterSpacing:2,color:t.accent,textTransform:'uppercase',flexShrink:0}}>CONTEXT</span>
+          <span style={{fontSize:11,color:t.sub,lineHeight:1.5}}>{shorten(f.aiSummary||exp.description||exp.role||'',160)}</span>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+/* 5c. Story (마케터): Hero hook + Background | Challenge&Action */
+function SituationStorySlide({exp,idx,t,f}){
+  const num=String(idx+1).padStart(2,'0');
+  const bgBullets=toBullets(f.overview||f.description||f.task,3).slice(0,3);
+  const actBullets=toBullets(f.process||f.intro||f.task,3).slice(0,3);
+  const hook=shorten(f.aiSummary||f.task||f.description||exp.title||'',110);
+  const tags=['CHALLENGE','ACTION','APPROACH'];
+  return (
+    <Slide t={t}>
+      <div style={{padding:'36px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:14}}>
+        <ProjectLabel num={num} category="CAMPAIGN" t={t}/>
+        {/* Hero hook */}
+        <div style={{padding:'14px 20px',background:t.card,borderRadius:10,border:`1px solid ${t.div}`,borderLeft:`4px solid ${t.accent}`}}>
+          <p style={{margin:0,fontSize:14,fontWeight:700,color:t.text,lineHeight:1.6}}>{hook}</p>
+        </div>
+        <div style={{flex:1,display:'flex',gap:16,minHeight:0}}>
+          {/* Background */}
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>BACKGROUND</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {bgBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:10,marginBottom:12,alignItems:'flex-start'}}>
+                <span style={{fontSize:14,color:t.accent,fontWeight:800,flexShrink:0,marginTop:1}}>·</span>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+          {/* Challenge & Action */}
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>CHALLENGE &amp; ACTION</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {actBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:10,marginBottom:12,alignItems:'flex-start'}}>
+                <span style={{flexShrink:0,padding:'2px 8px',borderRadius:6,fontSize:8,fontWeight:800,color:'#fff',
+                  background:t.accent+(i===0?'EE':i===1?'99':'55'),whiteSpace:'nowrap'}}>{tags[i]}</span>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+/* 5d. Consult / STAR: 4-quadrant */
+function SituationConsultSlide({exp,idx,t,f}){
+  const num=String(idx+1).padStart(2,'0');
+  const quads=[
+    {k:'S',name:'Situation',src:f.overview||f.description||f.task||''},
+    {k:'T',name:'Task',src:f.task||f.process||''},
+    {k:'A',name:'Action',src:f.process||f.intro||''},
+    {k:'R',name:'Result',src:f.output||f.growth||f.aiSummary||''},
+  ];
+  return (
+    <Slide t={t}>
+      <div style={{padding:'32px 52px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:12}}>
+        <ProjectLabel num={num} category="S·T·A·R" t={t}/>
+        <SlideTitle t={t} size={22}>{shorten(exp.title||'프로젝트',40)}</SlideTitle>
+        <div style={{flex:1,display:'grid',gridTemplateColumns:'1fr 1fr',gridTemplateRows:'1fr 1fr',gap:12,minHeight:0}}>
+          {quads.map(({k,name,src},i)=>{
+            const bullets=toBullets(src,2).slice(0,2);
+            return (
+              <div key={i} style={{padding:'16px 20px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden',position:'relative'}}>
+                {/* Ghost letter */}
+                <span style={{position:'absolute',right:16,bottom:8,fontSize:64,fontWeight:900,color:t.accent,opacity:0.08,lineHeight:1,userSelect:'none'}}>{k}</span>
+                {/* Badge + label */}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                  <span style={{width:28,height:28,borderRadius:7,background:t.accent,color:'#fff',
+                    fontSize:12,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{k}</span>
+                  <span style={{fontSize:10,fontWeight:800,color:t.accent,letterSpacing:2,textTransform:'uppercase'}}>{name}</span>
+                </div>
+                <div style={{height:1,background:t.div,marginBottom:12}}/>
+                {bullets.length>0?bullets.map((b,j)=>(
+                  <div key={j} style={{fontSize:13,color:t.text,lineHeight:1.6,marginBottom:6,
+                    display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{b}</div>
+                )):(
+                  <div style={{fontSize:12.5,color:t.text,lineHeight:1.6,
+                    display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{shorten(src,100)}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+/* 5e. Design: Process bar + User Problem | Design Solution */
+function SituationDesignSlide({exp,idx,t,f}){
+  const num=String(idx+1).padStart(2,'0');
+  const probBullets=toBullets(f.task||f.overview||f.description,3).slice(0,3);
+  const solBullets=toBullets(f.process||f.intro,3).slice(0,3);
+  const steps=['Research','Define','Design','Deliver'];
+  return (
+    <Slide t={t}>
+      <div style={{padding:'36px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:14}}>
+        <ProjectLabel num={num} category="DESIGN" t={t}/>
+        <SlideTitle t={t} size={22}>{shorten(exp.title||'프로젝트',40)}</SlideTitle>
+        {/* Process bar */}
+        <div style={{display:'flex',gap:4}}>
+          {steps.map((s,i)=>{
+            const active=i===1||i===2;
+            return (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:4,flex:1}}>
+                <div style={{flex:1,padding:'6px 10px',background:active?t.accent+'30':t.card,
+                  border:`1px solid ${active?t.accent+'80':t.div}`,borderRadius:6,textAlign:'center'}}>
+                  <span style={{fontSize:10,fontWeight:active?800:500,color:active?t.accent:t.sub}}>{s}</span>
+                </div>
+                {i<3&&<span style={{fontSize:12,color:t.accent,fontWeight:700}}>›</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{flex:1,display:'flex',gap:16,minHeight:0}}>
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>USER PROBLEM</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {probBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:10,marginBottom:12,alignItems:'flex-start'}}>
+                <div style={{width:18,height:18,borderRadius:'50%',background:t.accent+'30',flexShrink:0,marginTop:2,
+                  display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:t.accent}}/>
+                </div>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:9,fontWeight:800,letterSpacing:3,color:t.accent,textTransform:'uppercase'}}>DESIGN SOLUTION</span>
+              <div style={{flex:1,height:1,background:t.div}}/>
+            </div>
+            {solBullets.map((b,i)=>(
+              <div key={i} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
+                <span style={{flexShrink:0,width:24,height:24,borderRadius:'50%',background:t.accent+'28',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:t.accent}}>{i+1}</span>
+                <span style={{fontSize:13,color:t.text,lineHeight:1.65}}>{b}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+/* 5. SITUATION — Dispatcher */
+function SituationSlide({exp,idx,t,f,theme}){
+  const layout=getLayout(theme);
+  if(layout==='tech') return <SituationTechSlide exp={exp} idx={idx} t={t} f={f}/>;
+  if(layout==='story') return <SituationStorySlide exp={exp} idx={idx} t={t} f={f}/>;
+  if(layout==='consult') return <SituationConsultSlide exp={exp} idx={idx} t={t} f={f}/>;
+  if(layout==='design') return <SituationDesignSlide exp={exp} idx={idx} t={t} f={f}/>;
+  return <SituationDefaultSlide exp={exp} idx={idx} t={t} f={f}/>;
+}
+
+/* ─── 6. RESULT SLIDES ─── */
+
+/* 6a. Story Result: Big metric bar + 2-col bullets */
+function ResultStorySlide({exp,idx,t,f}){
+  const num=String(idx+1).padStart(2,'0');
+  const kx=f.keyExperiences.slice(0,3);
+  const outBullets=toBullets(f.output,3);
+  const growBullets=toBullets(f.growth,3);
+  return (
+    <Slide t={t}>
+      <div style={{padding:'36px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:14}}>
+        <ProjectLabel num={num} category="CAMPAIGN RESULT" t={t}/>
+        <SlideTitle t={t} size={24}>{shorten(exp.title||'',40)}</SlideTitle>
+        {kx.length>0&&(
+          <div style={{display:'flex',gap:12}}>
+            {kx.slice(0,3).map((ke,i)=>(
+              <div key={i} style={{flex:1,padding:'14px 20px',background:t.resBg||t.card,borderRadius:10,border:`1px solid ${t.resBd||t.div}`,textAlign:'center'}}>
+                <div style={{fontSize:8,fontWeight:700,letterSpacing:2,color:t.sub,textTransform:'uppercase',marginBottom:6}}>{shorten(ke.title||'성과',22)}</div>
+                <div style={{fontSize:30,fontWeight:900,color:t.accent,lineHeight:1.1}}>{shorten(String(ke.metric)||'-',14)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{flex:1,display:'flex',gap:16,minHeight:0}}>
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <SectionBold t={t} size={13}>Campaign Result</SectionBold>
+            {outBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
+          </div>
+          <div style={{flex:1,padding:'18px 22px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`,overflow:'hidden'}}>
+            <SectionBold t={t} size={13}>Growth &amp; Learning</SectionBold>
+            {growBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
+            {kx[0]?.beforeMetric&&kx[0]?.afterMetric&&(
+              <div style={{marginTop:12}}>
+                <BarCompare before={kx[0].beforeMetric} after={kx[0].afterMetric} t={t}/>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+/* 6b. Default Result */
+function ResultDefaultSlide({exp,idx,t,f}){
   const num=String(idx+1).padStart(2,'0');
   const kx=f.keyExperiences.slice(0,3);
   const outBullets=toBullets(f.output,4);
@@ -570,38 +823,30 @@ function ResultSlide({exp,idx,t,f}){
   return (
     <Slide t={t}>
       <div style={{padding:'36px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-        <ProjectLabel num={num} category={'RESULT'} t={t}/>
+        <ProjectLabel num={num} category="RESULT" t={t}/>
         <SlideTitle t={t} size={26}>{shorten(exp.title||'프로젝트',40)}</SlideTitle>
         <div style={{flex:1,display:'flex',gap:24}}>
-          {/* Left card: Key Result bullets */}
           <div style={{flex:showRight?'0 0 55%':'1',padding:'20px 24px',background:t.card,
-            borderRadius:14,border:`1px solid ${t.div}`,display:'flex',flexDirection:'column',gap:4}}>
-            <SectionBold t={t} size={14}>결과 Key Result</SectionBold>
-            {outBullets.length>0&&outBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
-            {growBullets.length>0&&(
-              <>
-                <div style={{height:1,background:t.div+'55',margin:'6px 0'}}/>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:t.sub,textTransform:'uppercase',marginBottom:4}}>GROWTH</div>
-                {growBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
-              </>
-            )}
+            borderRadius:14,border:`1px solid ${t.div}`,display:'flex',flexDirection:'column',gap:4,overflow:'hidden'}}>
+            <SectionBold t={t} size={14}>Key Result</SectionBold>
+            {outBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
+            {growBullets.length>0&&<>
+              <div style={{height:1,background:t.div+'55',margin:'6px 0'}}/>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:t.sub,textTransform:'uppercase',marginBottom:4}}>GROWTH</div>
+              {growBullets.map((b,i)=><ArrowBullet key={i} t={t}>{b}</ArrowBullet>)}
+            </>}
             {f.competency&&(
-              <div style={{marginTop:8,padding:'10px 14px',background:t.step,borderRadius:8,
-                borderLeft:`2px solid ${t.accent}`}}>
+              <div style={{marginTop:8,padding:'10px 14px',background:t.step,borderRadius:8,borderLeft:`2px solid ${t.accent}`}}>
                 <div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:t.accent,marginBottom:4}}>COMPETENCY</div>
-                <p style={{fontSize:11,color:t.text,margin:0,lineHeight:1.6,
-                  display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                  {f.competency}
-                </p>
+                <p style={{fontSize:11.5,color:t.text,margin:0,lineHeight:1.6,
+                  display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{f.competency}</p>
               </div>
             )}
           </div>
-          {/* Right: Metric cards + bar */}
           {showRight&&(
             <div style={{flex:1,display:'flex',flexDirection:'column',gap:12}}>
               <div style={{display:'flex',gap:10}}>
-                {kx.slice(0,2).map((ke,i)=><MetricCard key={i} t={t}
-                  label={ke.title||('성과 '+(i+1))} value={strip(ke.metric)||'-'}/>)}
+                {kx.slice(0,2).map((ke,i)=><MetricCard key={i} t={t} label={ke.title||('성과 '+(i+1))} value={strip(ke.metric)||'-'}/>)}
               </div>
               {kx[0]?.beforeMetric&&kx[0]?.afterMetric&&(
                 <div style={{padding:'16px 20px',background:t.card,borderRadius:12,border:`1px solid ${t.div}`}}>
@@ -611,7 +856,7 @@ function ResultSlide({exp,idx,t,f}){
               {kx[2]&&(
                 <div style={{padding:'14px 18px',background:t.resBg,borderRadius:12,border:`1px solid ${t.resBd}`}}>
                   <div style={{fontSize:8,fontWeight:700,letterSpacing:2,color:t.sub,textTransform:'uppercase',marginBottom:6}}>{kx[2].title||'추가 성과'}</div>
-                  <div style={{fontSize:22,fontWeight:900,color:t.accent}}>{strip(kx[2].metric)||'-'}</div>
+                  <div style={{fontSize:24,fontWeight:900,color:t.accent}}>{strip(kx[2].metric)||'-'}</div>
                 </div>
               )}
             </div>
@@ -620,6 +865,13 @@ function ResultSlide({exp,idx,t,f}){
       </div>
     </Slide>
   );
+}
+
+/* 6. RESULT — Dispatcher */
+function ResultSlide({exp,idx,t,f,theme}){
+  const layout=getLayout(theme);
+  if(layout==='story') return <ResultStorySlide exp={exp} idx={idx} t={t} f={f}/>;
+  return <ResultDefaultSlide exp={exp} idx={idx} t={t} f={f}/>;
 }
 
 /* ─── 7. OUTRO ─── */
@@ -773,8 +1025,8 @@ export default function PdfPortfolioExport(){
         {expSlides.map(({exp,f,hasSit,hasRes},idx)=>(
           <div key={idx} style={{display:'contents'}}>
             <SectionDivider exp={exp} idx={idx} t={t}/>
-            {hasSit&&<SituationSlide exp={exp} idx={idx} t={t} f={f}/>}
-            {hasRes&&<ResultSlide exp={exp} idx={idx} t={t} f={f}/>}
+            {hasSit&&<SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme}/>}
+            {hasRes&&<ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme}/>}
           </div>
         ))}
         <OutroSlide p={p} t={t}/>
