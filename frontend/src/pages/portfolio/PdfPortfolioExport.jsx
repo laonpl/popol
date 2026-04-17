@@ -181,33 +181,33 @@ function SectionBold({children,t,size=15}){
 }
 function CheckBullet({children,t}){
   return (
-    <div style={{display:'flex',gap:10,marginBottom:10,alignItems:'flex-start'}}>
-      <div style={{flexShrink:0,width:13,height:13,border:`1.5px solid ${t.div}`,
-        borderRadius:2,marginTop:3}}/>
-      <span style={{fontSize:12.5,color:t.text,lineHeight:1.65}}>{children}</span>
+    <div style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
+      <div style={{flexShrink:0,width:15,height:15,border:`1.5px solid ${t.div}`,
+        borderRadius:3,marginTop:3,background:t.accent+'10'}}/>
+      <span style={{fontSize:14,color:t.text,lineHeight:1.7,fontWeight:500}}>{children}</span>
     </div>
   );
 }
 function StepBullet({step,children,t}){
   return (
-    <div style={{display:'flex',gap:8,marginBottom:12,alignItems:'flex-start'}}>
-      <span style={{fontSize:11,fontWeight:800,color:t.accent,flexShrink:0,
-        marginTop:1,fontFamily:t.mono?'monospace':'inherit'}}>Step{step}.</span>
-      <span style={{fontSize:12,color:t.text,lineHeight:1.65}}>{children}</span>
+    <div style={{display:'flex',gap:10,marginBottom:14,alignItems:'flex-start'}}>
+      <span style={{fontSize:12.5,fontWeight:800,color:t.accent,flexShrink:0,
+        marginTop:1,fontFamily:t.mono?'monospace':'inherit',letterSpacing:-0.3}}>Step{step}.</span>
+      <span style={{fontSize:14,color:t.text,lineHeight:1.7}}>{children}</span>
     </div>
   );
 }
 function ArrowBullet({children,t}){
   return (
-    <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-start'}}>
-      <span style={{fontSize:11,color:t.accent,flexShrink:0,marginTop:2,fontWeight:700}}>{'>'}</span>
-      <span style={{fontSize:12,color:t.text,lineHeight:1.6}}>{children}</span>
+    <div style={{display:'flex',gap:10,marginBottom:11,alignItems:'flex-start'}}>
+      <span style={{fontSize:13,color:t.accent,flexShrink:0,marginTop:1,fontWeight:800}}>{'▸'}</span>
+      <span style={{fontSize:13.5,color:t.text,lineHeight:1.65}}>{children}</span>
     </div>
   );
 }
 function Pill({children,t}){
-  return <span style={{fontSize:10,padding:'3px 11px',background:t.badge,border:`1px solid ${t.div}`,
-    borderRadius:14,color:t.text,fontWeight:600,whiteSpace:'nowrap'}}>{children}</span>;
+  return <span style={{fontSize:11.5,padding:'5px 13px',background:t.badge,border:`1px solid ${t.div}`,
+    borderRadius:16,color:t.text,fontWeight:600,whiteSpace:'nowrap'}}>{children}</span>;
 }
 function MetricCard({label,value,t}){
   return <div style={{flex:1,padding:'16px 20px',background:t.resBg,borderRadius:10,
@@ -302,94 +302,131 @@ function CoverSlide({p,t,theme}){
   );
 }
 
-/* ─── 2. PROFILE (ref: image 1,7 — Work history + Skills grid) ─── */
+/* ─── 2. PROFILE — 데이터 밀도 적응형 레이아웃 ─── */
 function ProfileSlide({p,t}){
-  const edu=(p.education||[]).slice(0,3);
+  const edu=(p.education||[]).slice(0,4);
   const sk=p.skills||{};
-  const langs=[...(sk.languages||[]),...(sk.frameworks||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,12);
-  const tools=(sk.tools||[]).map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,8);
-  const exps=(p.experiences||[]).slice(0,3);
+  const langs=[...(sk.languages||[]),...(sk.frameworks||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,14);
+  const tools=(sk.tools||[]).map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,10);
+  const exps=(p.experiences||[]).slice(0,4);
+  const awards=(p.awards||[]).slice(0,4);
+  // 컨텐츠 양에 따라 폰트·여백 스케일 결정 (적을수록 시원하게)
+  const density=edu.length+exps.length+awards.length;
+  const scale=density<=2?1.25:density<=4?1.1:1;
+  const s=(n)=>Math.round(n*scale);
+  const eduCardPad=scale>1.15?'18px 22px':'14px 18px';
+  const expCardPad=scale>1.15?'16px 20px':'14px 16px';
   return (
     <Slide t={t}>
-      <div style={{padding:'40px 56px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-        <SectionLabel t={t}>PROFILE</SectionLabel>
-        <div style={{flex:1,display:'flex',gap:28}}>
-          {/* Left 40%: Education + Values */}
-          <div style={{flex:'0 0 38%',display:'flex',flexDirection:'column',gap:20}}>
+      <div style={{padding:'44px 60px',height:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:14,marginBottom:24}}>
+          <span style={{fontSize:10,fontWeight:800,letterSpacing:4,color:t.sub,textTransform:'uppercase',flexShrink:0}}>PROFILE</span>
+          <div style={{flex:1,height:1,background:t.div}}/>
+          <span style={{fontSize:11,color:t.sub,fontWeight:500,whiteSpace:'nowrap'}}>{p.userName||''}{p.targetPosition?' · '+p.targetPosition:''}</span>
+        </div>
+        {p.headline&&(
+          <div style={{padding:'14px 18px',background:t.card,borderLeft:`4px solid ${t.accent}`,borderRadius:'0 10px 10px 0',marginBottom:22,border:`1px solid ${t.div}`,borderLeftColor:t.accent}}>
+            <div style={{fontSize:s(14),color:t.text,lineHeight:1.6,fontWeight:500}}>{shorten(p.headline,140)}</div>
+          </div>
+        )}
+        <div style={{flex:1,display:'flex',gap:36,minHeight:0}}>
+          {/* Left 40% */}
+          <div style={{flex:'0 0 38%',display:'flex',flexDirection:'column',gap:20,minHeight:0}}>
             {edu.length>0&&(
-              <div>
-                <SectionBold t={t} size={13}>Education</SectionBold>
-                {edu.map((e,i)=>(
-                  <div key={i} style={{padding:'10px 14px',background:t.card,borderRadius:8,
-                    border:`1px solid ${t.div}`,marginBottom:8}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-                      <span style={{fontSize:13,fontWeight:700,color:t.text,lineHeight:1.3}}>{e.name}</span>
-                      {e.period&&<span style={{fontSize:9,color:t.sub,flexShrink:0}}>{e.period}</span>}
+              <div style={{display:'flex',flexDirection:'column'}}>
+                <SectionBold t={t} size={s(14)}>Education</SectionBold>
+                <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  {edu.map((e,i)=>(
+                    <div key={i} style={{padding:eduCardPad,background:t.card,borderRadius:10,border:`1px solid ${t.div}`}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+                        <span style={{fontSize:s(15),fontWeight:800,color:t.text,lineHeight:1.3}}>{e.name}</span>
+                        {e.period&&<span style={{fontSize:s(10),color:t.sub,flexShrink:0,fontWeight:500}}>{e.period}</span>}
+                      </div>
+                      {e.degree&&<div style={{fontSize:s(12),color:t.sub,marginTop:6,lineHeight:1.4}}>{e.degree}</div>}
                     </div>
-                    {e.degree&&<div style={{fontSize:11,color:t.sub,marginTop:3}}>{e.degree}</div>}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
             {langs.length>0&&(
               <div>
-                <SectionBold t={t} size={13}>Tech Stack</SectionBold>
-                <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                  {langs.map((s,i)=><Pill key={i} t={t}>{s}</Pill>)}
+                <SectionBold t={t} size={s(14)}>Tech Stack</SectionBold>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {langs.map((sv,i)=><Pill key={i} t={t}>{sv}</Pill>)}
+                </div>
+              </div>
+            )}
+            {langs.length===0&&tools.length>0&&(
+              <div>
+                <SectionBold t={t} size={s(14)}>Tools</SectionBold>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {tools.map((sv,i)=><Pill key={i} t={t}>{sv}</Pill>)}
+                </div>
+              </div>
+            )}
+            {/* 빈 공간 흡수용 Bio/Values */}
+            {(edu.length<=1||!langs.length)&&(p.values||[]).length>0&&(
+              <div style={{marginTop:'auto'}}>
+                <SectionBold t={t} size={s(13)}>Core Values</SectionBold>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {(p.values||[]).slice(0,6).map((v,i)=><Pill key={i} t={t}>{v.keyword||String(v)}</Pill>)}
                 </div>
               </div>
             )}
           </div>
           <div style={{width:1,background:t.div,flexShrink:0}}/>
-          {/* Right 60%: Work history OR Skills */}
-          <div style={{flex:1,display:'flex',flexDirection:'column',gap:16}}>
-            {exps.length>0?(
-              <div>
-                <SectionBold t={t} size={13}>Work Experience</SectionBold>
-                {exps.map((e,i)=>(
-                  <div key={i} style={{display:'flex',gap:12,padding:'10px 0',
-                    borderBottom:`1px solid ${t.div}33`}}>
-                    <div style={{width:36,height:36,borderRadius:8,flexShrink:0,
-                      background:`linear-gradient(135deg,${t.accent}30,${t.div}60)`,
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      <span style={{fontSize:14,fontWeight:900,color:t.accent,opacity:0.8}}>
-                        {(e.organization||e.title||'?').trim()[0]}
-                      </span>
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
-                        <span style={{fontSize:13,fontWeight:700,color:t.text}}>{e.organization||shorten(e.title,20)}</span>
-                        {e.date&&<span style={{fontSize:9,color:t.sub,flexShrink:0}}>{e.date}</span>}
+          {/* Right 60% */}
+          <div style={{flex:1,display:'flex',flexDirection:'column',gap:18,minHeight:0}}>
+            {exps.length>0&&(
+              <div style={{display:'flex',flexDirection:'column',flex:exps.length<=2?1:'none',minHeight:0}}>
+                <SectionBold t={t} size={s(14)}>Work Experience</SectionBold>
+                <div style={{display:'flex',flexDirection:'column',gap:exps.length<=2?14:8,flex:exps.length<=2?1:'none'}}>
+                  {exps.map((e,i)=>(
+                    <div key={i} style={{display:'flex',gap:16,padding:expCardPad,background:t.card,borderRadius:10,
+                      border:`1px solid ${t.div}`,flex:exps.length<=2?1:'none'}}>
+                      <div style={{width:s(44),height:s(44),borderRadius:10,flexShrink:0,
+                        background:`linear-gradient(135deg,${t.accent}35,${t.div}80)`,
+                        display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <span style={{fontSize:s(18),fontWeight:900,color:t.accent}}>
+                          {(e.organization||e.title||'?').trim()[0]}
+                        </span>
                       </div>
-                      {e.role&&<div style={{fontSize:11,color:t.accent,fontWeight:600,marginTop:2}}>{e.role}</div>}
-                      {e.description&&<div style={{fontSize:10,color:t.sub,marginTop:3,
-                        display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                        {strip(e.description)}
-                      </div>}
+                      <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',justifyContent:'center'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:10}}>
+                          <span style={{fontSize:s(15),fontWeight:800,color:t.text,lineHeight:1.3}}>{e.organization||shorten(e.title,24)}</span>
+                          {e.date&&<span style={{fontSize:s(10),color:t.sub,flexShrink:0,fontWeight:500}}>{e.date}</span>}
+                        </div>
+                        {e.role&&<div style={{fontSize:s(12),color:t.accent,fontWeight:700,marginTop:4}}>{e.role}</div>}
+                        {e.description&&<div style={{fontSize:s(11),color:t.sub,marginTop:6,lineHeight:1.5,
+                          display:'-webkit-box',WebkitLineClamp:exps.length<=2?3:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
+                          {strip(e.description)}
+                        </div>}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ):(
-              tools.length>0&&(
-                <div>
-                  <SectionBold t={t} size={13}>Tools</SectionBold>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                    {tools.map((s,i)=><Pill key={i} t={t}>{s}</Pill>)}
-                  </div>
+                  ))}
                 </div>
-              )
+              </div>
             )}
-            {(p.awards||[]).length>0&&(
-              <div style={{marginTop:'auto'}}>
-                <SectionBold t={t} size={13}>Awards & Certifications</SectionBold>
-                {(p.awards||[]).slice(0,4).map((a,i)=>(
-                  <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',
-                    borderBottom:`1px solid ${t.div}33`}}>
-                    <span style={{fontSize:12,fontWeight:600,color:t.text}}>{a.title}</span>
-                    {a.date&&<span style={{fontSize:10,color:t.sub}}>{a.date}</span>}
-                  </div>
-                ))}
+            {awards.length>0&&(
+              <div style={{marginTop:exps.length>2?'auto':0}}>
+                <SectionBold t={t} size={s(14)}>Awards &amp; Certifications</SectionBold>
+                <div style={{display:'flex',flexDirection:'column'}}>
+                  {awards.map((a,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+                      padding:'10px 0',borderBottom:`1px solid ${t.div}55`}}>
+                      <span style={{fontSize:s(13),fontWeight:700,color:t.text}}>{a.title}</span>
+                      {a.date&&<span style={{fontSize:s(11),color:t.sub}}>{a.date}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {exps.length===0&&awards.length===0&&tools.length>0&&(
+              <div>
+                <SectionBold t={t} size={s(14)}>Tools &amp; Platforms</SectionBold>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {tools.map((sv,i)=><Pill key={i} t={t}>{sv}</Pill>)}
+                </div>
               </div>
             )}
           </div>

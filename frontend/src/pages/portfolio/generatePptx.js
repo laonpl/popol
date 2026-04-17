@@ -229,69 +229,135 @@ function buildCover(prs,p,t){
   });
 }
 
-/* 2. PROFILE */
+/* 2. PROFILE — 데이터 밀도 적응형 */
 function buildProfile(prs,p,t){
   const slide=prs.addSlide();
   addBg(slide,t.bg);
-  const PX=0.5,PY=0.38;
-  sectionLabel(slide,'PROFILE',t,PX,PY,SW-1.0);
-  const y0=PY+0.32;
-  // Left: Education
-  const edu=(p.education||[]).slice(0,3);
+  const PX=0.5,PY=0.35;
+  const LW=3.4; // 왼쪽 컬럼 폭
+  const midX=PX+LW+0.26;
+  const RX=midX+0.26;
+  const RW=SW-RX-0.5;
+  const edu=(p.education||[]).slice(0,4);
   const sk=p.skills||{};
-  const langs=[...(sk.languages||[]),...(sk.frameworks||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,10);
-  if(edu.length>0){
-    sectionBold(slide,'Education',t,PX,y0,3.5);
-    edu.forEach((e,i)=>{
-      const ey=y0+0.32+i*0.72;
-      roundRect(slide,PX,ey,3.5,0.62,t.card,t.div,0.06);
-      txt(slide,sh(e.name,30),PX+0.16,ey+0.1,2.8,0.24,{fontSize:11,bold:true,color:hexClean(t.text),isTextBox:true});
-      if(e.degree) txt(slide,e.degree,PX+0.16,ey+0.35,2.2,0.18,{fontSize:9,color:hexClean(t.sub),isTextBox:true});
-      if(e.period) txt(slide,e.period,PX+0.16+2.2,ey+0.1,0.94,0.24,{fontSize:9,color:hexClean(t.sub),isTextBox:true,align:'right'});
-    });
-  }
-  if(langs.length>0){
-    const baseY=y0+0.32+edu.length*0.72+0.1;
-    sectionBold(slide,'Tech Stack',t,PX,baseY,3.5);
-    let px2=PX,py2=baseY+0.28;
-    langs.forEach(s=>{
-      const sw2=s.length*0.075+0.22;
-      if(px2+sw2>PX+3.5){px2=PX;py2+=0.26;}
-      roundRect(slide,px2,py2,sw2,0.21,t.badge,t.div,0.08);
-      txt(slide,s,px2+0.08,py2+0.02,sw2-0.08,0.17,{fontSize:8.5,bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
-      px2+=sw2+0.07;
-    });
-  }
-  // Divider
-  const midX=4.2;
-  rect(slide,midX,y0,0.012,SH-y0-0.3,t.div);
-  // Right: Work experience
+  const langs=[...(sk.languages||[]),...(sk.frameworks||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,14);
+  const tools=(sk.tools||[]).map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,10);
   const exps=(p.experiences||[]).slice(0,4);
-  const RX=midX+0.28;
-  if(exps.length>0){
-    sectionBold(slide,'Work Experience',t,RX,y0,SW-RX-0.4);
-    let ey=y0+0.32;
-    exps.forEach((e,i)=>{
-      const iconS=0.32;
-      roundRect(slide,RX,ey+0.02,iconS,iconS,t.accent+'28',null,0.05);
-      txt(slide,(e.organization||e.title||'?').trim()[0],RX,ey+0.02,iconS,iconS,{fontSize:13,bold:true,color:hexClean(t.accent),align:'center',valign:'middle',isTextBox:true});
-      txt(slide,sh(e.organization||e.title,30),RX+0.4,ey,SW-RX-1.2,0.22,{fontSize:11,bold:true,color:hexClean(t.text),isTextBox:true});
-      if(e.role) txt(slide,e.role,RX+0.4,ey+0.23,2.5,0.18,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true});
-      if(e.date) txt(slide,e.date,RX+2.95,ey,SW-RX-3.2,0.2,{fontSize:8,color:hexClean(t.sub),isTextBox:true,align:'right'});
-      if(e.description){
-        const desc=sh(strip(e.description),80);
-        txt(slide,desc,RX+0.4,ey+0.42,SW-RX-0.9,0.22,{fontSize:8.5,color:hexClean(t.sub),isTextBox:true});
-      }
-      hrLine(slide,RX,ey+0.64,(SW-RX-0.5),t.div+'44');
-      ey+=0.74;
+  const awards=(p.awards||[]).slice(0,4);
+  const density=edu.length+exps.length+awards.length;
+  const scale=density<=2?1.2:density<=4?1.08:1;
+  const fs=(n)=>Math.round(n*scale*10)/10;
+
+  // 상단 섹션 라벨 + 이름/포지션
+  txt(slide,'PROFILE',PX,PY,1.3,0.2,{fontSize:8,bold:true,color:hexClean(t.sub),charSpacing:3.5,isTextBox:true});
+  hrLine(slide,PX+1.0,PY+0.08,SW-PX*2-2.2,t.div);
+  const nameLine=(p.userName||'')+(p.targetPosition?' · '+p.targetPosition:'');
+  if(nameLine.trim()){
+    txt(slide,nameLine,SW-PX-2.0,PY,2.0,0.2,{fontSize:8.5,color:hexClean(t.sub),isTextBox:true,align:'right'});
+  }
+
+  let cursorY=PY+0.38;
+  // 헤드라인 카드
+  if(p.headline){
+    const hlH=0.62;
+    roundRect(slide,PX,cursorY,SW-PX*2,hlH,t.card,t.div,0.08);
+    rect(slide,PX,cursorY,0.045,hlH,t.accent);
+    txt(slide,sh(p.headline,140),PX+0.18,cursorY+0.06,SW-PX*2-0.3,hlH-0.12,{fontSize:fs(12),color:hexClean(t.text),isTextBox:true,valign:'middle'});
+    cursorY+=hlH+0.18;
+  }
+  const contentY=cursorY;
+  const contentH=SH-contentY-0.3;
+
+  // 중앙 세로 구분선
+  rect(slide,midX,contentY,0.012,contentH,t.div);
+
+  /* ── 왼쪽 컬럼 ── */
+  let ly=contentY;
+  if(edu.length>0){
+    sectionBold(slide,'Education',t,PX,ly,LW);
+    ly+=0.32;
+    // Education 카드 높이: 공간을 고루 분배 (최대 1.0, 최소 0.7)
+    const eduBudget=Math.min(contentH*0.55, edu.length*1.05);
+    const eduH=Math.max(0.7, Math.min(1.0, eduBudget/edu.length));
+    edu.forEach((e,i)=>{
+      const ey=ly+i*(eduH+0.1);
+      roundRect(slide,PX,ey,LW,eduH,t.card,t.div,0.08);
+      txt(slide,sh(e.name,28),PX+0.18,ey+0.14,LW-1.2,0.28,{fontSize:fs(13),bold:true,color:hexClean(t.text),isTextBox:true});
+      if(e.period) txt(slide,e.period,PX+LW-1.1,ey+0.14,0.95,0.22,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,align:'right'});
+      if(e.degree) txt(slide,sh(e.degree,32),PX+0.18,ey+0.44,LW-0.36,0.26,{fontSize:fs(10.5),color:hexClean(t.sub),isTextBox:true});
     });
-  }else{
-    // fallback: awards
-    const awards=(p.awards||[]).slice(0,5);
-    sectionBold(slide,'Awards',t,RX,y0,SW-RX-0.4);
+    ly+=edu.length*(eduH+0.1)+0.14;
+  }
+  // Tech Stack
+  const stackItems=langs.length>0?langs:tools;
+  const stackLabel=langs.length>0?'Tech Stack':'Tools';
+  if(stackItems.length>0&&ly<contentY+contentH-0.4){
+    sectionBold(slide,stackLabel,t,PX,ly,LW);
+    ly+=0.3;
+    let px2=PX,py2=ly;
+    stackItems.forEach(s=>{
+      const sw2=Math.min(s.length*0.085+0.24,LW);
+      if(px2+sw2>PX+LW){px2=PX;py2+=0.3;}
+      if(py2+0.22>contentY+contentH-0.05) return;
+      roundRect(slide,px2,py2,sw2,0.24,t.badge,t.div,0.09);
+      txt(slide,s,px2+0.1,py2+0.03,sw2-0.1,0.2,{fontSize:fs(9),bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+      px2+=sw2+0.08;
+    });
+  }
+
+  /* ── 오른쪽 컬럼 ── */
+  let ry=contentY;
+  if(exps.length>0){
+    sectionBold(slide,'Work Experience',t,RX,ry,RW);
+    ry+=0.32;
+    // 컨텐츠가 적을 때: 사용 가능한 높이를 고루 분배
+    const expBudget=awards.length>0?Math.min(contentH*0.58,exps.length*1.05):(contentH-0.32);
+    const expH=Math.max(0.8, Math.min(1.3, expBudget/Math.max(1,exps.length)));
+    exps.forEach((e,i)=>{
+      const ey=ry+i*(expH+0.12);
+      roundRect(slide,RX,ey,RW,expH,t.card,t.div,0.08);
+      const iconS=Math.min(0.5, expH*0.55);
+      const iconY=ey+(expH-iconS)/2;
+      roundRect(slide,RX+0.16,iconY,iconS,iconS,t.accent+'30',null,0.06);
+      txt(slide,(e.organization||e.title||'?').trim()[0],RX+0.16,iconY,iconS,iconS,{fontSize:fs(15),bold:true,color:hexClean(t.accent),align:'center',valign:'middle',isTextBox:true});
+      const tx=RX+0.16+iconS+0.18;
+      const tw=RW-(0.16+iconS+0.18)-0.16;
+      txt(slide,sh(e.organization||e.title,28),tx,ey+0.14,tw-1.1,0.28,{fontSize:fs(13),bold:true,color:hexClean(t.text),isTextBox:true});
+      if(e.date) txt(slide,e.date,RX+RW-1.2,ey+0.14,1.04,0.24,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,align:'right'});
+      if(e.role) txt(slide,sh(e.role,30),tx,ey+0.42,tw,0.22,{fontSize:fs(10),bold:true,color:hexClean(t.accent),isTextBox:true});
+      if(e.description&&expH>0.9){
+        const descLines=expH>1.1?2:1;
+        const descH=descLines*0.22;
+        txt(slide,sh(strip(e.description),descLines===2?130:80),tx,ey+0.68,tw,descH,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,valign:'top'});
+      }
+    });
+    ry+=exps.length*(expH+0.12)+0.12;
+  }
+  // Awards
+  if(awards.length>0&&ry<contentY+contentH-0.4){
+    sectionBold(slide,'Awards & Certifications',t,RX,ry,RW);
+    ry+=0.3;
+    const awH=Math.min(0.34,(contentY+contentH-ry)/awards.length);
     awards.forEach((a,i)=>{
-      txt(slide,sh(a.title,50),RX,y0+0.32+i*0.34,SW-RX-1.5,0.24,{fontSize:10.5,bold:true,color:hexClean(t.text),isTextBox:true});
-      if(a.date) txt(slide,a.date,SW-1.5,y0+0.32+i*0.34,1.2,0.24,{fontSize:9,color:hexClean(t.sub),isTextBox:true,align:'right'});
+      const ay=ry+i*awH;
+      if(ay+awH>contentY+contentH-0.05) return;
+      txt(slide,sh(a.title,48),RX,ay,RW-1.2,awH,{fontSize:fs(11),bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+      if(a.date) txt(slide,a.date,RX+RW-1.1,ay,1.0,awH,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,align:'right',valign:'middle'});
+      hrLine(slide,RX,ay+awH-0.01,RW,t.div+'55');
+    });
+  }
+  // fallback: exps/awards 모두 없을 때 tools 노출
+  if(exps.length===0&&awards.length===0&&tools.length>0){
+    sectionBold(slide,'Tools & Platforms',t,RX,ry,RW);
+    ry+=0.3;
+    let px3=RX,py3=ry;
+    tools.forEach(s=>{
+      const sw2=Math.min(s.length*0.085+0.24,RW);
+      if(px3+sw2>RX+RW){px3=RX;py3+=0.3;}
+      if(py3+0.22>contentY+contentH-0.05) return;
+      roundRect(slide,px3,py3,sw2,0.24,t.badge,t.div,0.09);
+      txt(slide,s,px3+0.1,py3+0.03,sw2-0.1,0.2,{fontSize:fs(9),bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+      px3+=sw2+0.08;
     });
   }
 }

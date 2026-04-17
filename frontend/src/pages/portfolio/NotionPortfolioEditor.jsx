@@ -2291,6 +2291,16 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const [analyzingJob, setAnalyzingJob] = useState(false);
   const [jobError, setJobError] = useState(null);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
+  const newImageBlockInputRef = useRef(null);
+  const onNewImageBlockFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const b64 = await resizeToBase64Global(file);
+      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
+    } catch { toast.error('이미지 처리 실패'); }
+  };
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
@@ -2847,11 +2857,20 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   placeholder="텍스트 입력..." textRows={4} textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-y" />
               )}
               {block.type === 'image' && (
-                <StandaloneImageBlock
-                  content={block.content}
-                  width={block.width}
-                  caption={block.caption}
-                  onUpdate={changes => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],...changes}; update('customBlocks',b); }}
+                <RichContentEditor
+                  value={(() => {
+                    const c = block.content;
+                    if (Array.isArray(c)) return c;
+                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
+                      const segs = [{ type: 'image', content: c, width: block.width }];
+                      if (block.caption) segs.push({ type: 'text', content: block.caption });
+                      return segs;
+                    }
+                    return typeof c === 'string' ? c : '';
+                  })()}
+                  onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i], content:v, width:undefined, caption:undefined}; update('customBlocks',b); }}
+                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
+                  textRows={2}
                 />
               )}
               {block.type === 'divider' && <hr className="border-t-2 border-gray-100 my-2" />}
@@ -2885,6 +2904,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 블록 추가 */}
         <div className="px-10 pb-8">
+          <input ref={newImageBlockInputRef} type="file" accept="image/*" className="hidden" onChange={onNewImageBlockFile} />
           <div className="relative">
             <button onClick={() => setShowBlockMenu(m => !m)}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
@@ -2896,10 +2916,13 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
-                  { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 쳊부' },
+                  { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false); }}
+                  <button key={item.type} onClick={() => {
+                    if (item.type === 'image') { setShowBlockMenu(false); newImageBlockInputRef.current?.click(); return; }
+                    addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false);
+                  }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
                     <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500">{item.icon}</span>
                     <div><p className="text-sm font-medium text-gray-700">{item.label}</p><p className="text-[10px] text-gray-400">{item.desc}</p></div>
