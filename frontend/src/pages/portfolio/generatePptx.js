@@ -426,10 +426,25 @@ function buildSectionDivider(prs,exp,idx,t){
 /* ─── Layout Routing ─── */
 function getLayout(theme){
   if(!theme) return 'default';
-  if(['developer','data_dashboard'].includes(theme)) return 'tech';
-  if(['marketer_dark','marketer_light'].includes(theme)) return 'story';
-  if(['problem_solver','star_classic'].includes(theme)) return 'consult';
+  if(theme==='developer') return 'tech';
+  if(theme==='data_dashboard') return 'dashboard';
+  if(theme==='marketer_dark') return 'story';
+  if(theme==='marketer_light') return 'funnel';
+  if(theme==='problem_solver') return 'consult';
+  if(theme==='star_classic') return 'framework';
   if(theme==='designer') return 'design';
+  if(theme==='t_shaped') return 'tshape';
+  if(theme==='rookie') return 'growth';
+  if(theme==='neon_cyber') return 'cyber';
+  if(theme==='forest') return 'forest';
+  if(theme==='aurora') return 'aurora';
+  if(theme==='sunset') return 'sunset';
+  if(theme==='navy_gold') return 'navygold';
+  if(theme==='coral_white') return 'coral';
+  if(theme==='slate_clean') return 'slate';
+  if(theme==='cherry_blossom') return 'cherry';
+  if(theme==='charcoal_mint') return 'charcoalmint';
+  if(theme==='pastel_portfolio') return 'pastel';
   return 'default';
 }
 function slideHeader(slide,num,category,title,t){
@@ -635,6 +650,483 @@ function buildSituationDesign(prs,exp,idx,t,f){
   });
 }
 
+/* 5f. SITUATION — Dashboard (KPI strip + Hypothesis | Analysis) */
+function buildSituationDashboard(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'DATA OVERVIEW',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  // KPI strip
+  const kx=f.keyExperiences.slice(0,3);
+  const metrics=kx.length>0?kx:[{title:'목표',metric:'-'},{title:'과제',metric:'-'},{title:'범위',metric:'-'}];
+  const mW=(SW-1.2)/Math.min(metrics.length,3);
+  metrics.slice(0,3).forEach((m,i)=>{
+    const mx=0.5+i*(mW+0.1);
+    roundRect(slide,mx,1.04,mW-0.1,0.72,t.resBg||t.card,t.resBd||t.div,0.08);
+    txt(slide,sh(m.title||'KPI',18),mx+0.14,1.1,mW-0.38,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true,align:'center'});
+    txt(slide,sh(String(m.metric)||'-',12),mx+0.14,1.3,mW-0.38,0.4,{fontSize:20,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+  });
+  const CY=1.88, CH=SH-CY-0.3;
+  const midX=0.5+(SW-1.0)*0.5;
+  // Full-width analysis card
+  roundRect(slide,0.5,CY,SW-1.0,CH,t.card,t.div,0.1);
+  rect(slide,midX,CY+0.14,0.012,CH-0.28,t.div);
+  // Left: Hypothesis
+  const spItems=smartBullets(f.task||f.overview||f.description||'',3,62).slice(0,3);
+  circle(slide,0.72,CY+0.2,0.08,t.accent);
+  txt(slide,'HYPOTHESIS',0.86,CY+0.16,1.4,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  let ly=CY+0.46;
+  spItems.forEach(item=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/50)*0.22+0.06);
+    txt(slide,'{',0.72,ly-0.06,0.2,ih,{fontSize:16,color:hexClean(t.accent),isTextBox:true,transparency:50});
+    txt(slide,item,0.92,ly,midX-1.14,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ly+=ih+0.12;
+  });
+  // Right: Analysis
+  const RX=midX+0.26, RW=SW-RX-0.72;
+  circle(slide,RX,CY+0.2,0.08,t.accent);
+  txt(slide,'ANALYSIS',RX+0.14,CY+0.16,1.2,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  const solItems=smartBullets(f.process||f.intro||'',3,62).slice(0,3);
+  let ry=CY+0.46;
+  solItems.forEach((item,i)=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/50)*0.22+0.06);
+    txt(slide,'0'+(i+1),RX,ry,0.3,0.2,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',transparency:40});
+    txt(slide,item,RX+0.34,ry,RW-0.34,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ry+=ih+0.12;
+  });
+}
+
+/* 5g. SITUATION — Funnel (Funnel visual + detail cards) */
+function buildSituationFunnel(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'STRATEGY',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.08;
+  // Funnel visual (left)
+  const stages=['인지','분석','실행','최적화'];
+  const FW=2.2;
+  stages.forEach((s,i)=>{
+    const w=FW-i*0.35;
+    const fx=0.5+(FW-w)/2;
+    const fy=CY+i*0.58;
+    const opc=i===0?'18':i===1?'30':i===2?'50':'80';
+    roundRect(slide,fx,fy,w,0.46,t.accent+opc,t.accent+(i===3?'AA':'44'),0.04);
+    txt(slide,s,fx,fy,w,0.46,{fontSize:9,bold:i===3,color:hexClean(i>=2?t.accent:t.sub),align:'center',valign:'middle',isTextBox:true,charSpacing:1});
+  });
+  // Detail cards (right)
+  const allItems=[
+    ...smartBullets(f.task||f.overview||f.description||'',2,58).slice(0,2),
+    ...smartBullets(f.process||f.intro||'',2,58).slice(0,2),
+  ].slice(0,4);
+  const RX=0.5+FW+0.3, RW=SW-RX-0.5;
+  const cardH=(SH-CY-0.4)/Math.max(allItems.length,1);
+  allItems.forEach((item,i)=>{
+    const cy=CY+i*cardH;
+    const ch=Math.min(cardH-0.1,0.72);
+    roundRect(slide,RX,cy,RW,ch,t.card,t.div,0.08);
+    rect(slide,RX,cy,0.04,ch,t.accent);
+    txt(slide,String(i+1).padStart(2,'0'),RX+0.14,cy+0.08,0.5,0.26,{fontSize:20,bold:true,color:hexClean(t.accent),isTextBox:true,transparency:60});
+    txt(slide,item,RX+0.14,cy+0.28,RW-0.28,ch-0.36,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  });
+  // Context bar
+  if(exp.role||f.aiSummary){
+    const barY=SH-0.52;
+    roundRect(slide,RX,barY,RW,0.36,t.step,t.div+'55',0.06);
+    txt(slide,sh(exp.role?exp.role+(exp.date?' · '+exp.date:''):f.aiSummary,140),RX+0.14,barY+0.06,RW-0.28,0.24,{fontSize:8.5,color:hexClean(t.sub),isTextBox:true,valign:'middle'});
+  }
+}
+
+/* 5h. SITUATION — T-Shape (Breadth bar + 2-col depth) */
+function buildSituationTshape(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'MULTI-SKILL',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  // Breadth bar
+  roundRect(slide,0.5,1.04,SW-1.0,0.42,t.card,t.div,0.06);
+  txt(slide,'BREADTH',0.72,1.1,0.8,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  rect(slide,1.52,1.14,0.012,0.22,t.div);
+  const tags=(exp.tags||exp.skills||[]).slice(0,5).map(s=>typeof s==='string'?s:s?.name).filter(Boolean);
+  let px=1.66;
+  if(tags.length>0){
+    tags.forEach(tg=>{
+      const tw=Math.min(tg.length*0.08+0.22,1.4);
+      if(px+tw>SW-0.6)return;
+      roundRect(slide,px,1.12,tw,0.24,t.badge,t.div,0.08);
+      txt(slide,tg,px+0.08,1.13,tw-0.08,0.22,{fontSize:8.5,bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+      px+=tw+0.08;
+    });
+  }else{
+    txt(slide,'다양한 영역에 걸친 경험',1.66,1.14,3,0.2,{fontSize:9,color:hexClean(t.sub),isTextBox:true});
+  }
+  // 2-col depth
+  const CY=1.58, CH=SH-CY-0.3;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  // Left: Challenge
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.08);
+  rect(slide,0.5,CY,LW,0.04,t.accent);
+  txt(slide,'DEPTH: CHALLENGE',0.72,CY+0.16,2.0,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  const spItems=smartBullets(f.task||f.overview||f.description||'',3,58).slice(0,3);
+  let ly=CY+0.44;
+  spItems.forEach(item=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/48)*0.22+0.06);
+    rect(slide,0.72,ly+0.08,0.04,ih-0.08,t.accent,{rectRadius:0.02});
+    txt(slide,item,0.86,ly,LW-0.56,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ly+=ih+0.12;
+  });
+  // Right: Solution
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.08);
+  rect(slide,RX,CY,RW,0.04,t.accent);
+  txt(slide,'DEPTH: SOLUTION',RX+0.22,CY+0.16,2.0,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:3,isTextBox:true});
+  const solItems=smartBullets(f.process||f.intro||'',3,58).slice(0,3);
+  let ry=CY+0.44;
+  solItems.forEach((item,i)=>{
+    const ih=Math.max(0.26,Math.ceil(item.length/48)*0.22+0.06);
+    circle(slide,RX+0.22,ry+0.03,0.2,t.accent+'28');
+    txt(slide,String(i+1),RX+0.22,ry+0.03,0.2,0.2,{fontSize:8.5,bold:true,color:hexClean(t.accent),align:'center',valign:'middle',isTextBox:true});
+    txt(slide,item,RX+0.5,ry,RW-0.7,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    ry+=ih+0.12;
+  });
+}
+
+/* 5i. SITUATION — Growth (3-column journey: Challenge → Learning → Application) */
+function buildSituationGrowth(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'GROWTH JOURNEY',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  // Progress bar
+  const barY=1.02;
+  const phases=[{l:'CHALLENGE',emoji:'⚡'},{l:'LEARNING',emoji:'📚'},{l:'APPLICATION',emoji:'🚀'}];
+  const barW=(SW-1.0)/3;
+  phases.forEach((ph,i)=>{
+    const bx=0.5+i*barW;
+    roundRect(slide,bx,barY,barW-0.06,0.06,i===0?t.accent:t.accent+'60',null,0.03);
+    if(i<2) txt(slide,'→',bx+barW-0.12,barY-0.06,0.2,0.18,{fontSize:12,bold:true,color:hexClean(t.accent),isTextBox:true});
+  });
+  // 3 cards
+  const CY=1.22, CH=SH-CY-0.3;
+  const colW=(SW-1.0-0.24)/3;
+  const challengeB=smartBullets(f.task||f.overview||f.description||'',2,52).slice(0,2);
+  const learningB=smartBullets(f.process||f.intro||'',2,52).slice(0,2);
+  const applyB=smartBullets(f.output||f.growth||f.competency||'',2,52).slice(0,2);
+  const cols=[
+    {label:'CHALLENGE',emoji:'⚡',items:challengeB},
+    {label:'LEARNING',emoji:'📚',items:learningB},
+    {label:'APPLICATION',emoji:'🚀',items:applyB},
+  ];
+  cols.forEach((col,i)=>{
+    const cx=0.5+i*(colW+0.12);
+    roundRect(slide,cx,CY,colW,CH,t.card,t.div,0.1);
+    txt(slide,col.emoji,cx+0.16,CY+0.14,0.3,0.3,{fontSize:15,isTextBox:true});
+    txt(slide,col.label,cx+0.48,CY+0.18,colW-0.64,0.2,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:2.5,isTextBox:true});
+    hrLine(slide,cx+0.16,CY+0.46,colW-0.32,t.div);
+    let iy=CY+0.58;
+    col.items.forEach(item=>{
+      const ih=Math.max(0.28,Math.ceil(item.length/40)*0.22+0.08);
+      txt(slide,item,cx+0.16,iy,colW-0.32,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      iy+=ih+0.1;
+    });
+    if(col.items.length===0) txt(slide,'내용 없음',cx+0.16,CY+0.58,colW-0.32,0.3,{fontSize:9.5,color:hexClean(t.sub),isTextBox:true,italic:true});
+  });
+}
+
+/* 5j. SITUATION — Framework (Horizontal 4-step STAR flow) */
+function buildSituationFramework(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'STAR FRAMEWORK',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.06, CH=SH-CY-0.28;
+  const steps=[
+    {k:'S',label:'Situation',text:sh(f.overview||f.description||f.task||'',90)},
+    {k:'T',label:'Task',text:sh(f.task||f.process||'',90)},
+    {k:'A',label:'Action',text:sh(f.process||f.intro||'',90)},
+    {k:'R',label:'Result',text:sh(f.output||f.growth||f.aiSummary||'',90)},
+  ];
+  const colW=(SW-1.0-0.36)/4;
+  steps.forEach((s,i)=>{
+    const cx=0.5+i*(colW+0.12);
+    roundRect(slide,cx,CY,colW,CH,t.card,t.div,0.1);
+    // top accent strip
+    rect(slide,cx,CY,colW,0.04,t.accent,{transparency:Math.round((1-(0.3+i*0.2))*100)});
+    // badge
+    roundRect(slide,cx+0.16,CY+0.18,0.28,0.28,t.accent,null,0.06);
+    txt(slide,s.k,cx+0.16,CY+0.18,0.28,0.28,{fontSize:12,bold:true,color:'ffffff',align:'center',valign:'middle',isTextBox:true});
+    txt(slide,s.label.toUpperCase(),cx+0.52,CY+0.22,colW-0.68,0.2,{fontSize:8,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    hrLine(slide,cx+0.16,CY+0.54,colW-0.32,t.div);
+    // ghost letter
+    txt(slide,s.k,cx+colW-0.52,CY+0.12,0.44,0.52,{fontSize:42,bold:true,color:hexClean(t.accent),isTextBox:true,transparency:90});
+    // content
+    txt(slide,s.text||'-',cx+0.16,CY+0.64,colW-0.32,CH-0.78,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+    // arrow
+    if(i<3) txt(slide,'›',cx+colW+0.02,CY+CH/2-0.1,0.12,0.24,{fontSize:14,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+  });
+}
+
+/* ── 5k-t. New 10 Situation builders ── */
+function buildSituationCyber(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'SYS.LOG',t,0.5,0.28,SW-1.0);
+  // terminal header bar
+  rect(slide,0.5,0.62,SW-1.0,0.28,'#000000',t.div);
+  txt(slide,'● ● ●',0.64,0.67,0.8,0.16,{fontSize:8,color:'#ffaa00',isTextBox:true});
+  txt(slide,'> '+(exp.title||'PROJECT').toUpperCase().slice(0,24),1.4,0.67,SW-2.4,0.16,{fontSize:8,color:'#888888',isTextBox:true,fontFace:'Courier New'});
+  // terminal body bg
+  rect(slide,0.5,0.90,SW-1.0,SH-1.28,'#080808',t.div);
+  const CY=1.04; const CH=SH-CY-0.22;
+  const midX=SW/2+0.06;
+  // left: Problem
+  txt(slide,'$ PROBLEM_DEFINITION --scan',0.66,CY,midX-0.90,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',charSpacing:0.5});
+  const spBullets=smartBullets(f.task||f.overview||f.description,3);
+  spBullets.slice(0,3).forEach((b,i)=>{
+    txt(slide,`[!${i+1}]`,0.66,CY+0.26+i*0.60,0.36,0.20,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New'});
+    txt(slide,b,1.06,CY+0.24+i*0.60,midX-1.28,0.32,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+  // divider
+  rect(slide,midX,CY-0.02,0.01,CH,'#ffffff',undefined,20);
+  // right: Solution
+  txt(slide,'$ SOLUTION_INIT --execute',midX+0.16,CY,SW-midX-0.66,0.18,{fontSize:7,bold:true,color:'#28c840',isTextBox:true,fontFace:'Courier New',charSpacing:0.5});
+  const solBullets=smartBullets(f.process||f.intro,3);
+  solBullets.slice(0,3).forEach((b,i)=>{
+    txt(slide,'> S'+String(i+1).padStart(2,'0'),midX+0.16,CY+0.26+i*0.60,0.52,0.20,{fontSize:9,bold:true,color:'#28c840',isTextBox:true,fontFace:'Courier New'});
+    txt(slide,b,midX+0.72,CY+0.24+i*0.60,SW-midX-1.0,0.32,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationForest(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'INITIATIVE',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.06; const CH=SH-CY-0.30; const colW=(SW-1.14)/2;
+  // Left: WHY card
+  roundRect(slide,0.5,CY,colW,CH,t.card,t.accent,0.06);
+  rect(slide,0.5,CY,0.04,CH,t.accent,undefined);
+  txt(slide,'🌱 WHY',0.62,CY+0.12,colW-0.16,0.18,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+  addBulletRows(slide,smartBullets(f.task||f.overview||f.description,3),0.62,CY+0.38,colW-0.20,CH-0.56,t,'disc');
+  // Arrow
+  txt(slide,'→',SW/2-0.06,CY+CH/2-0.12,0.24,0.28,{fontSize:16,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+  // Right: HOW card with circle steps
+  const rx=0.5+colW+0.14;
+  roundRect(slide,rx,CY,colW,CH,t.card,t.accent,0.06);
+  txt(slide,'🌿 HOW',rx+0.16,CY+0.12,colW-0.20,0.18,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+  const sb=smartBullets(f.process||f.intro,3);
+  sb.slice(0,3).forEach((b,i)=>{
+    circle(slide,rx+0.24,CY+0.42+i*0.62,0.18,t.accent);
+    txt(slide,String(i+1),rx+0.18,CY+0.38+i*0.62,0.18,0.20,{fontSize:9,bold:true,color:'#ffffff',isTextBox:true,align:'center'});
+    txt(slide,b,rx+0.50,CY+0.38+i*0.62,colW-0.62,0.42,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationAurora(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  // aurora gradient header (simulated with rect)
+  rect(slide,0,0,SW,0.80,t.accent,undefined,15);
+  projectLabel(slide,num,'DEEP WORK',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.52,SW-1.0,0.40,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.08; const CH=SH-CY-0.30; const colW=(SW-1.10)/2;
+  // Left: CHALLENGE card with gradient effect
+  roundRect(slide,0.5,CY,colW,CH,t.card,t.accent,0.06);
+  sectionLabel(slide,'CHALLENGE',0.66,CY+0.12,colW-0.20,t);
+  addBulletRows(slide,smartBullets(f.task||f.overview||f.description,3),0.66,CY+0.38,colW-0.20,CH-0.52,t,'circle');
+  // Right: APPROACH card
+  const rx=0.5+colW+0.10;
+  roundRect(slide,rx,CY,colW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'APPROACH',rx+0.16,CY+0.12,colW-0.20,t);
+  const sb=smartBullets(f.process||f.intro,3);
+  sb.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,rx+0.16,CY+0.36+i*0.58,0.24,0.20,t.accent+'20',t.accent,0.04);
+    txt(slide,String(i+1).padStart(2,'0'),rx+0.16,CY+0.36+i*0.58,0.24,0.20,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+    txt(slide,b,rx+0.46,CY+0.34+i*0.58,colW-0.64,0.40,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationSunset(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'STORY',t,0.5,0.28,SW-1.0);
+  // Pull-quote bar
+  const quote=sh(f.aiSummary||f.task||f.overview||exp.description||exp.title||'',90);
+  rect(slide,0.5,0.52,0.05,0.44,t.accent,undefined);
+  roundRect(slide,0.5,0.52,SW-1.0,0.46,t.card,t.div,0.06);
+  txt(slide,'"',0.62,0.46,0.40,0.44,{fontSize:36,bold:true,color:hexClean(t.accent),isTextBox:true,transparency:80});
+  txt(slide,quote,0.98,0.56,SW-1.56,0.36,{fontSize:11,bold:true,italic:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+  const CY=1.08; const CH=SH-CY-0.30; const colW=(SW-1.10)/2;
+  // Left: CONTEXT
+  roundRect(slide,0.5,CY,colW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'CONTEXT',0.66,CY+0.12,colW-0.20,t);
+  addBulletRows(slide,smartBullets(f.task||f.overview||f.description,3),0.66,CY+0.36,colW-0.20,CH-0.50,t,'disc');
+  // Right: ACTION
+  const rx=0.5+colW+0.10;
+  roundRect(slide,rx,CY,colW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'ACTION',rx+0.16,CY+0.12,colW-0.20,t);
+  const sb=smartBullets(f.process||f.intro,3);
+  sb.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,rx+0.16,CY+0.36+i*0.58,0.28,0.26,t.accent+'20',undefined,0.04);
+    txt(slide,String(i+1),rx+0.16,CY+0.35+i*0.58,0.28,0.26,{fontSize:11,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center',valign:'middle'});
+    txt(slide,b,rx+0.52,CY+0.34+i*0.58,colW-0.70,0.42,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationNavyGold(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  // Header divider
+  hrLine(slide,0.5,0.38,SW-1.0,t.div);
+  txt(slide,'PROJECT '+num,0.5,0.26,1.8,0.18,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:3,textTransform:'uppercase'});
+  txt(slide,'EXECUTIVE BRIEF',SW-2.3,0.26,1.8,0.18,{fontSize:8,bold:false,color:hexClean(t.sub),isTextBox:true,charSpacing:2,align:'right',textTransform:'uppercase'});
+  txt(slide,sh(exp.title||'',42),0.5,0.46,SW-1.0,0.48,{fontSize:26,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  if(exp.role||exp.date) txt(slide,(exp.role||'')+(exp.date?' · '+exp.date:''),0.5,0.98,SW-1.0,0.22,{fontSize:11,bold:true,color:hexClean(t.accent),isTextBox:true});
+  const CY=1.28; const CH=SH-CY-0.30;
+  const leftW=SW*0.42-0.20;
+  // Left: SITUATION cards
+  sectionLabel(slide,'SITUATION',0.5,CY,leftW,t);
+  const sp=smartBullets(f.task||f.overview||f.description,2);
+  sp.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.24+i*(CH-0.24)/2.1,leftW,CH/2-0.18,t.card,t.div,0.06);
+    txt(slide,b,0.66,CY+0.32+i*(CH-0.24)/2.1,leftW-0.24,CH/2-0.36,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  // Divider
+  rect(slide,leftW+0.60,CY,0.01,CH,t.div,undefined,30);
+  // Right: Action timeline
+  const rx=leftW+0.80;
+  sectionLabel(slide,'ACTION PLAN',rx,CY,SW-rx-0.5,t);
+  const sb=smartBullets(f.process||f.intro,3);
+  sb.slice(0,3).forEach((b,i)=>{
+    // Timeline line
+    if(i<sb.length-1) rect(slide,rx+0.10,CY+0.44+i*0.64,0.02,0.64,t.accent,undefined,50);
+    circle(slide,rx+0.14,CY+0.40+i*0.64,0.14,t.accent);
+    txt(slide,'',rx+0.10,CY+0.38+i*0.64,0.14,0.14,{});
+    txt(slide,b,rx+0.38,CY+0.34+i*0.64,SW-rx-0.70,0.42,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationCoral(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'PROJECT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.06; const CH=SH-CY-0.30; const colW=(SW-1.20)/3;
+  const items=[
+    {emoji:'🔍',label:'WHY',text:toBullets(f.task||f.overview||f.description,1)[0]||''},
+    {emoji:'💡',label:'WHAT',text:toBullets(f.process||f.intro||f.aiSummary,1)[0]||''},
+    {emoji:'🚀',label:'HOW',text:toBullets(f.process||f.overview,1)[0]||''},
+  ];
+  items.forEach((item,i)=>{
+    const cx=0.5+i*(colW+0.10);
+    roundRect(slide,cx,CY,colW,CH,t.card,i===0?t.accent:t.div,0.08);
+    txt(slide,item.emoji,cx+0.20,CY+0.16,0.36,0.36,{fontSize:22,isTextBox:true,align:'center'});
+    txt(slide,item.label,cx+0.20,CY+0.58,colW-0.40,0.20,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2.5,textTransform:'uppercase'});
+    hrLine(slide,cx+0.20,CY+0.82,0.40,t.accent,undefined,30);
+    txt(slide,sh(item.text,100),cx+0.18,CY+0.96,colW-0.36,CH-1.12,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+}
+
+function buildSituationSlate(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'BREAKDOWN',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.06; const CH=SH-CY-0.30;
+  const sp=smartBullets(f.task||f.overview||f.description,3);
+  const sol=smartBullets(f.process||f.intro,3);
+  const rows=[...sp.slice(0,3).map((b,i)=>({b,type:'P',i})),...sol.slice(0,2).map((b,i)=>({b,type:'S',i}))].slice(0,5);
+  const rowH=CH/rows.length-0.06;
+  rows.forEach(({b,type,i},j)=>{
+    const ry=CY+j*(rowH+0.06);
+    roundRect(slide,0.5,ry,SW-1.0,rowH,t.card,t.div,0.06);
+    roundRect(slide,0.5,ry,0.56,rowH,t.accent+(type==='P'?'20':'40'),undefined,0.06);
+    txt(slide,type+(i+1),0.50,ry,0.56,rowH,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center',valign:'middle',fontFace:'Courier New'});
+    txt(slide,b,1.14,ry+0.06,SW-2.50,rowH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'middle',paraSpaceAfter:2});
+    roundRect(slide,SW-1.44,ry+0.06,0.86,rowH-0.12,t.step,undefined,0.04);
+    txt(slide,type==='P'?'Problem':'Solution',SW-1.42,ry+0.06,0.84,rowH-0.12,{fontSize:8,bold:true,color:hexClean(t.sub),isTextBox:true,align:'center',valign:'middle'});
+  });
+}
+
+function buildSituationCherry(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'EXPERIENCE',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.04; const CH=SH-CY-0.28; const colW=(SW-1.10)/2;
+  const sp=smartBullets(f.task||f.overview||f.description,3);
+  const sol=smartBullets(f.process||f.intro,3);
+  // Left: 과제
+  sectionBold(slide,'🌸 과제',0.5,CY,colW,t);
+  sp.slice(0,3).forEach((b,i)=>{
+    const rh=(CH-0.28)/3;
+    roundRect(slide,0.5,CY+0.24+i*(rh+0.06),colW,rh,t.card,t.div,0.06);
+    rect(slide,0.5,CY+0.24+i*(rh+0.06),colW,0.03,t.accent+(i===0?'DD':'66'),undefined);
+    txt(slide,b,0.66,CY+0.28+i*(rh+0.06),colW-0.24,rh-0.10,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+  // Right: 실행
+  const rx=0.5+colW+0.10;
+  sectionBold(slide,'🌸 실행',rx,CY,colW,t);
+  sol.slice(0,3).forEach((b,i)=>{
+    const rh=(CH-0.28)/3;
+    roundRect(slide,rx,CY+0.24+i*(rh+0.06),colW,rh,t.card,t.div,0.06);
+    rect(slide,rx,CY+0.24+i*(rh+0.06),colW,0.03,t.accent+(i===0?'DD':'66'),undefined);
+    txt(slide,'Step '+(i+1),rx+0.16,CY+0.30+i*(rh+0.06),0.54,0.18,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});
+    txt(slide,b,rx+0.70,CY+0.28+i*(rh+0.06),colW-0.82,rh-0.10,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationCharcoalMint(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  // Left accent panel
+  const PW=2.20;
+  rect(slide,0,0,PW,SH,t.coverBg,undefined);
+  txt(slide,'PROJECT\n'+num,0.16,SH-1.20,PW-0.32,0.52,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:3,valign:'bottom'});
+  txt(slide,sh(exp.title||'',20),0.16,SH-0.72,PW-0.32,0.58,{fontSize:17,bold:true,color:hexClean(t.text),isTextBox:true,valign:'bottom',charSpacing:-0.3});
+  if(exp.role) txt(slide,exp.role,0.16,SH-0.22,PW-0.32,0.20,{fontSize:9,color:hexClean(t.sub),isTextBox:true,bold:true});
+  rect(slide,0.20,SH-0.86,0.30,0.02,t.accent,undefined);
+  // Right body
+  const RX=PW+0.32;
+  const RW=SW-RX-0.40;
+  const CY=0.46; const CH=(SH-CY-0.26)/2-0.08;
+  // PROBLEM
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'PROBLEM',RX+0.16,CY+0.10,RW-0.24,t);
+  addBulletRows(slide,smartBullets(f.task||f.overview||f.description,3),RX+0.16,CY+0.32,RW-0.24,CH-0.44,t,'disc');
+  // SOLUTION
+  const SY=CY+CH+0.18;
+  roundRect(slide,RX,SY,RW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'SOLUTION',RX+0.16,SY+0.10,RW-0.24,t);
+  const sol=smartBullets(f.process||f.intro,3);
+  sol.slice(0,3).forEach((b,i)=>{
+    txt(slide,'0'+(i+1),RX+0.16,SY+0.32+i*0.42,0.26,0.22,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New'});
+    txt(slide,b,RX+0.46,SY+0.30+i*0.42,RW-0.64,0.34,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+}
+
+function buildSituationPastel(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'PROJECT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const CY=1.04; const CH=SH-CY-0.30;
+  const colW=(SW-1.24)/3;
+  const sections=[
+    {emoji:'🎯',label:'Challenge',text:toBullets(f.task||f.overview||f.description,1)[0]||''},
+    {emoji:'✨',label:'Approach',text:toBullets(f.process||f.intro,1)[0]||''},
+    {emoji:'💬',label:'Summary',text:sh(f.aiSummary||exp.description||exp.role||'',100)},
+  ];
+  sections.forEach((sec,i)=>{
+    const cx=0.5+i*(colW+0.12);
+    // header tag
+    roundRect(slide,cx,CY,colW,0.32,t.card,t.div,0.06);
+    txt(slide,sec.emoji+' '+sec.label.toUpperCase(),cx+0.14,CY,colW-0.28,0.32,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:1.5,valign:'middle'});
+    // content card
+    roundRect(slide,cx,CY+0.38,colW,CH-0.44,t.accent+'22',t.accent,0.08);
+    txt(slide,sec.text||'-',cx+0.16,CY+0.50,colW-0.32,CH-0.72,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:4,lineSpacingMultiple:1.3});
+  });
+}
+
 /* 5. SITUATION — dispatcher */
 function buildSituation(prs,exp,idx,t,f,theme){
   const layout=getLayout(theme);
@@ -642,6 +1134,21 @@ function buildSituation(prs,exp,idx,t,f,theme){
   if(layout==='story') return buildSituationStory(prs,exp,idx,t,f);
   if(layout==='consult') return buildSituationConsult(prs,exp,idx,t,f);
   if(layout==='design') return buildSituationDesign(prs,exp,idx,t,f);
+  if(layout==='dashboard') return buildSituationDashboard(prs,exp,idx,t,f);
+  if(layout==='funnel') return buildSituationFunnel(prs,exp,idx,t,f);
+  if(layout==='tshape') return buildSituationTshape(prs,exp,idx,t,f);
+  if(layout==='growth') return buildSituationGrowth(prs,exp,idx,t,f);
+  if(layout==='framework') return buildSituationFramework(prs,exp,idx,t,f);
+  if(layout==='cyber') return buildSituationCyber(prs,exp,idx,t,f);
+  if(layout==='forest') return buildSituationForest(prs,exp,idx,t,f);
+  if(layout==='aurora') return buildSituationAurora(prs,exp,idx,t,f);
+  if(layout==='sunset') return buildSituationSunset(prs,exp,idx,t,f);
+  if(layout==='navygold') return buildSituationNavyGold(prs,exp,idx,t,f);
+  if(layout==='coral') return buildSituationCoral(prs,exp,idx,t,f);
+  if(layout==='slate') return buildSituationSlate(prs,exp,idx,t,f);
+  if(layout==='cherry') return buildSituationCherry(prs,exp,idx,t,f);
+  if(layout==='charcoalmint') return buildSituationCharcoalMint(prs,exp,idx,t,f);
+  if(layout==='pastel') return buildSituationPastel(prs,exp,idx,t,f);
   return buildSituationDefault(prs,exp,idx,t,f);
 }
 
@@ -729,10 +1236,636 @@ function buildResultDefault(prs,exp,idx,t,f){
   }
 }
 
+/* 6c. RESULT — Dashboard (KPI grid + data insight 2-col) */
+function buildResultDashboard(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'DATA RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const kx=f.keyExperiences.slice(0,4);
+  let bodyY=1.08;
+  // KPI grid
+  if(kx.length>0){
+    const mW=(SW-1.0-(kx.length-1)*0.1)/Math.min(kx.length,4);
+    kx.slice(0,4).forEach((ke,i)=>{
+      const mx=0.5+i*(mW+0.1);
+      roundRect(slide,mx,bodyY,mW-0.1,0.72,t.resBg||t.card,t.resBd||t.div,0.08);
+      txt(slide,sh(ke.title||'KPI',20),mx+0.12,bodyY+0.08,mW-0.34,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true,align:'center'});
+      txt(slide,sh(String(ke.metric)||'-',12),mx+0.12,bodyY+0.28,mW-0.34,0.38,{fontSize:22,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+    });
+    bodyY+=0.84;
+  }
+  // Before/After bar
+  if(kx[0]?.beforeMetric&&kx[0]?.afterMetric){
+    roundRect(slide,0.5,bodyY,SW-1.0,0.68,t.card,t.div,0.08);
+    barPair(slide,0.72,bodyY+0.08,SW-1.44,kx[0].beforeMetric,kx[0].afterMetric,t);
+    bodyY+=0.78;
+  }
+  // 2-col insight
+  const CH=SH-bodyY-0.26;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  roundRect(slide,0.5,bodyY,LW,CH,t.card,t.div,0.08);
+  circle(slide,0.72,bodyY+0.16,0.08,t.accent);
+  txt(slide,'OUTPUT',0.86,bodyY+0.12,1.0,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+  const outB=toBullets(f.output,3);
+  let by=bodyY+0.38;
+  outB.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/50)*0.2+0.04);txt(slide,'>',0.72,by,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,0.88,by,LW-0.56,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});by+=ih+0.1;});
+  roundRect(slide,RX,bodyY,RW,CH,t.card,t.div,0.08);
+  circle(slide,RX+0.22,bodyY+0.16,0.08,t.accent);
+  txt(slide,'INSIGHT',RX+0.36,bodyY+0.12,1.0,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+  const growB=toBullets(f.growth||f.competency,3);
+  let gy=bodyY+0.38;
+  growB.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/44)*0.2+0.04);txt(slide,'>',RX+0.22,gy,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,RX+0.38,gy,RW-0.56,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});gy+=ih+0.1;});
+}
+
+/* 6d. RESULT — Funnel (Big impact banner + detail 2-col) */
+function buildResultFunnel(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'IMPACT',t,0.5,0.28,SW-1.0);
+  const kx=f.keyExperiences.slice(0,3);
+  const bigMetric=kx[0]?sh(String(kx[0].metric),14):'';
+  const bigLabel=kx[0]?sh(kx[0].title||'핵심 성과',24):'Result';
+  // Big impact banner
+  roundRect(slide,0.5,0.52,SW-1.0,1.0,t.accent+'18',t.accent+'44',0.1);
+  if(bigMetric) txt(slide,bigMetric,0.72,0.56,2.2,0.9,{fontSize:38,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+  txt(slide,bigLabel,3.1,0.58,1.8,0.2,{fontSize:8,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true});
+  txt(slide,sh(exp.title||'',40),3.1,0.82,3.0,0.36,{fontSize:16,bold:true,color:hexClean(t.text),isTextBox:true});
+  // Side metrics
+  kx.slice(1,3).forEach((ke,i)=>{
+    const mx=SW-0.5-1.6*(2-i);
+    roundRect(slide,mx,0.62,1.5,0.8,t.resBg||t.card,t.resBd||t.div,0.06);
+    txt(slide,sh(ke.title||'',16),mx+0.12,0.68,1.26,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:1.5,isTextBox:true,align:'center'});
+    txt(slide,sh(String(ke.metric)||'-',10),mx+0.12,0.88,1.26,0.44,{fontSize:18,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+  });
+  // Detail 2-col
+  const CY=1.66, CH=SH-CY-0.3;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.1);
+  sectionBold(slide,'Achieved Result',t,0.72,CY+0.16,LW-0.44);
+  const outB=toBullets(f.output,3);
+  let by=CY+0.46;
+  outB.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/50)*0.2+0.04);txt(slide,'>',0.72,by,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,0.88,by,LW-0.58,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});by+=ih+0.1;});
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.1);
+  sectionBold(slide,'Key Takeaway',t,RX+0.22,CY+0.16,RW-0.44);
+  const growB=toBullets(f.growth,3);
+  let gy=CY+0.46;
+  growB.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/44)*0.2+0.04);txt(slide,'>',RX+0.22,gy,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,RX+0.38,gy,RW-0.58,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});gy+=ih+0.1;});
+  if(kx[0]?.beforeMetric&&kx[0]?.afterMetric&&gy<CY+CH-0.7){
+    roundRect(slide,RX+0.18,gy+0.08,RW-0.36,0.68,t.resBg||t.card,t.resBd||t.div,0.06);
+    barPair(slide,RX+0.34,gy+0.16,RW-0.68,kx[0].beforeMetric,kx[0].afterMetric,t);
+  }
+}
+
+/* 6e. RESULT — T-Shape (metric strip + 3 horizontal cards) */
+function buildResultTshape(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'MULTI-IMPACT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.06;
+  // Metric strip
+  if(kx.length>0){
+    const mW=(SW-1.0-(kx.length-1)*0.1)/Math.min(kx.length,3);
+    kx.slice(0,3).forEach((ke,i)=>{
+      const mx=0.5+i*(mW+0.1);
+      roundRect(slide,mx,bodyY,mW-0.1,0.56,t.resBg||t.card,t.resBd||t.div,0.06);
+      txt(slide,sh(String(ke.metric)||'-',10),mx+0.16,bodyY+0.06,mW*0.4,0.44,{fontSize:18,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+      txt(slide,sh(ke.title||'',22),mx+mW*0.45,bodyY+0.16,mW*0.5,0.28,{fontSize:8,color:hexClean(t.sub),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.68;
+  }
+  // 3-column cards
+  const CH=SH-bodyY-0.28;
+  const colW=(SW-1.0-0.24)/3;
+  const outB=toBullets(f.output,3), growB=toBullets(f.growth,3), compB=toBullets(f.competency,2);
+  const cols=[
+    {label:'OUTPUT',items:outB},
+    {label:'GROWTH',items:growB},
+    {label:'COMPETENCY',items:compB.length>0?compB:growB.slice(0,2)},
+  ];
+  cols.forEach((col,i)=>{
+    const cx=0.5+i*(colW+0.12);
+    roundRect(slide,cx,bodyY,colW,CH,t.card,t.div,0.08);
+    rect(slide,cx,bodyY,colW,0.04,t.accent);
+    txt(slide,col.label,cx+0.16,bodyY+0.16,colW-0.32,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    hrLine(slide,cx+0.16,bodyY+0.38,colW-0.32,t.div);
+    let iy=bodyY+0.48;
+    col.items.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/38)*0.2+0.04);txt(slide,'>',cx+0.16,iy,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,cx+0.32,iy,colW-0.48,ih,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});iy+=ih+0.08;});
+  });
+}
+
+/* 6f. RESULT — Growth (progress indicators + Before/After + 2-col) */
+function buildResultGrowth(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'GROWTH RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.06;
+  // Growth progress indicators
+  if(kx.length>0){
+    const mW=(SW-1.0-(kx.length-1)*0.1)/Math.min(kx.length,3);
+    kx.slice(0,3).forEach((ke,i)=>{
+      const mx=0.5+i*(mW+0.1);
+      roundRect(slide,mx,bodyY,mW-0.1,0.62,t.card,t.div,0.08);
+      txt(slide,sh(ke.title||'성과',18),mx+0.14,bodyY+0.08,mW-0.38,0.16,{fontSize:6.5,bold:true,color:hexClean(t.sub),charSpacing:1.5,isTextBox:true});
+      txt(slide,sh(String(ke.metric)||'-',12),mx+0.14,bodyY+0.26,mW-0.38,0.28,{fontSize:18,bold:true,color:hexClean(t.accent),isTextBox:true});
+      // progress bar at bottom
+      roundRect(slide,mx,bodyY+0.58,mW-0.1,0.04,t.div,null,0.02);
+      const pw=Math.min(0.7+i*0.15,1)*(mW-0.1);
+      roundRect(slide,mx,bodyY+0.58,pw,0.04,t.accent,null,0.02);
+    });
+    bodyY+=0.76;
+  }
+  // Before/After emphasis
+  if(kx[0]?.beforeMetric&&kx[0]?.afterMetric){
+    roundRect(slide,0.5,bodyY,SW-1.0,0.72,t.resBg||t.card,t.resBd||t.div,0.08);
+    txt(slide,'BEFORE',0.72,bodyY+0.1,0.7,0.16,{fontSize:7,bold:true,color:hexClean(t.sub),charSpacing:2,isTextBox:true});
+    txt(slide,sh(String(kx[0].beforeMetric),20),1.5,bodyY+0.06,1.4,0.3,{fontSize:18,bold:true,color:hexClean(t.sub),isTextBox:true});
+    txt(slide,'→',3.1,bodyY+0.1,0.3,0.2,{fontSize:18,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center'});
+    txt(slide,'AFTER',3.5,bodyY+0.1,0.7,0.16,{fontSize:7,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    txt(slide,sh(String(kx[0].afterMetric),20),4.3,bodyY+0.06,1.4,0.3,{fontSize:18,bold:true,color:hexClean(t.accent),isTextBox:true});
+    barPair(slide,0.72,bodyY+0.38,SW-1.44,kx[0].beforeMetric,kx[0].afterMetric,t);
+    bodyY+=0.82;
+  }
+  // 2-col: What I Achieved / Learned
+  const CH=SH-bodyY-0.26;
+  const LW=(SW-1.4)/2, RX=0.5+LW+0.4, RW=SW-RX-0.5;
+  roundRect(slide,0.5,bodyY,LW,CH,t.card,t.div,0.08);
+  sectionBold(slide,'What I Achieved',t,0.72,bodyY+0.14,LW-0.44);
+  const outB=toBullets(f.output,3);
+  let by=bodyY+0.42;
+  outB.forEach(b=>{const ih=Math.max(0.22,Math.ceil(b.length/48)*0.2+0.04);txt(slide,'>',0.72,by,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,0.88,by,LW-0.58,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});by+=ih+0.1;});
+  roundRect(slide,RX,bodyY,RW,CH,t.card,t.div,0.08);
+  sectionBold(slide,'What I Learned',t,RX+0.22,bodyY+0.14,RW-0.44);
+  const growB=toBullets(f.growth,3);
+  let gy=bodyY+0.42;
+  growB.forEach(b=>{const ih=Math.max(0.22,Math.ceil(b.length/44)*0.2+0.04);txt(slide,'>',RX+0.22,gy,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,RX+0.38,gy,RW-0.58,ih,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top'});gy+=ih+0.1;});
+  if(f.competency&&gy<bodyY+CH-0.5){
+    roundRect(slide,RX+0.18,gy+0.06,RW-0.36,Math.min(0.46,bodyY+CH-gy-0.12),t.step,t.div+'44',0.05);
+    rect(slide,RX+0.18,gy+0.06,0.03,Math.min(0.46,bodyY+CH-gy-0.12),t.accent);
+    txt(slide,'CORE COMPETENCY',RX+0.28,gy+0.1,1.4,0.14,{fontSize:6,bold:true,color:hexClean(t.accent),charSpacing:1.5,isTextBox:true});
+    txt(slide,sh(f.competency,80),RX+0.28,gy+0.26,RW-0.48,0.22,{fontSize:9,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+/* 6g. RESULT — Framework (Big R focus + metrics + reflection) */
+function buildResultFramework(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT FRAMEWORK',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,7.8,0.46,{fontSize:21,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});
+  const CY=1.06, CH=SH-CY-0.28;
+  const kx=f.keyExperiences.slice(0,3);
+  const LW=(SW-1.0)*0.56, RX=0.5+LW+0.22, RW=SW-RX-0.5;
+  // Left: Big R card
+  roundRect(slide,0.5,CY,LW,CH,t.card,t.div,0.1);
+  txt(slide,'R',0.5+LW-0.7,CY+0.06,0.6,0.8,{fontSize:80,bold:true,color:hexClean(t.accent),isTextBox:true,transparency:92});
+  roundRect(slide,0.72,CY+0.16,0.28,0.28,t.accent,null,0.06);
+  txt(slide,'R',0.72,CY+0.16,0.28,0.28,{fontSize:12,bold:true,color:'ffffff',align:'center',valign:'middle',isTextBox:true});
+  txt(slide,'RESULT',1.08,CY+0.2,1.2,0.2,{fontSize:9,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+  hrLine(slide,0.72,CY+0.52,LW-0.44,t.div);
+  const outB=toBullets(f.output,4);
+  let by=CY+0.64;
+  outB.forEach(b=>{const ih=Math.max(0.24,Math.ceil(b.length/52)*0.2+0.04);txt(slide,'>',0.72,by,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,0.88,by,LW-0.6,ih,{fontSize:10.5,color:hexClean(t.text),isTextBox:true,valign:'top'});by+=ih+0.1;});
+  if(f.competency&&by<CY+CH-0.5){
+    roundRect(slide,0.72,by+0.06,LW-0.44,Math.min(0.5,CY+CH-by-0.12),t.step,t.div+'44',0.06);
+    rect(slide,0.72,by+0.06,0.03,Math.min(0.5,CY+CH-by-0.12),t.accent);
+    txt(slide,'COMPETENCY',0.82,by+0.1,1.2,0.14,{fontSize:6,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    txt(slide,sh(f.competency,90),0.82,by+0.26,LW-0.52,0.22,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+  // Right: Metrics + Reflection
+  let ry=CY;
+  if(kx.length>0){
+    kx.slice(0,2).forEach((ke,i)=>{
+      metricBox(slide,RX+i*(RW/2+0.06),ry,RW/2-0.06,0.78,sh(ke.title||('성과 '+(i+1)),20),sh(String(ke.metric)||'-',12),t);
+    });
+    ry+=0.88;
+  }
+  if(kx[0]?.beforeMetric&&kx[0]?.afterMetric){
+    roundRect(slide,RX,ry,RW,0.78,t.card,t.div,0.08);
+    barPair(slide,RX+0.16,ry+0.08,RW-0.32,kx[0].beforeMetric,kx[0].afterMetric,t);
+    ry+=0.88;
+  }
+  // Reflection card
+  const refH=CY+CH-ry;
+  if(refH>0.3){
+    roundRect(slide,RX,ry,RW,refH,t.card,t.div,0.08);
+    txt(slide,'REFLECTION',RX+0.16,ry+0.12,RW-0.32,0.16,{fontSize:7.5,bold:true,color:hexClean(t.accent),charSpacing:2,isTextBox:true});
+    const growB=toBullets(f.growth,3);
+    let gy2=ry+0.34;
+    growB.forEach(b=>{const ih=Math.max(0.22,Math.ceil(b.length/38)*0.2+0.04);txt(slide,'>',RX+0.16,gy2,0.16,ih,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true});txt(slide,b,RX+0.32,gy2,RW-0.48,ih,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});gy2+=ih+0.08;});
+  }
+}
+
+/* ── 6k-t. New 10 Result builders ── */
+function buildResultCyber(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'OUTPUT.LOG',t,0.5,0.28,SW-1.0);
+  txt(slide,'$ cat results.txt | grep SUCCESS',0.5,0.52,SW-1.0,0.18,{fontSize:7.5,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',charSpacing:0.5});
+  const CY=0.82; const CH=SH-CY-0.28;
+  const kx=f.keyExperiences.slice(0,3);
+  const LW=SW*0.56;
+  if(kx.length>0){
+    const mW=(LW-0.06)/Math.min(kx.length,3);
+    kx.slice(0,3).forEach((ke,i)=>{
+      const mx=0.5+i*mW;
+      roundRect(slide,mx,CY,mW-0.06,0.56,t.card,t.accent,0.06);
+      txt(slide,'[KEY]',mx+0.12,CY+0.06,mW-0.24,0.14,{fontSize:6.5,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',charSpacing:1});
+      txt(slide,sh(ke.keyword||ke.title||ke,18),mx+0.12,CY+0.22,mW-0.24,0.28,{fontSize:10,bold:true,color:hexClean(t.text),isTextBox:true,valign:'top'});
+    });
+  }
+  const bodyY=kx.length>0?CY+0.64:CY;
+  const bodyH=SH-bodyY-0.28;
+  rect(slide,0.5,bodyY,LW-0.06,bodyH,'#080808',t.accent,20);
+  const outB=toBullets(f.output,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    txt(slide,'>> OK'+(i+1),0.64,bodyY+0.14+i*0.42,0.62,0.22,{fontSize:8,bold:true,color:'#28c840',isTextBox:true,fontFace:'Courier New'});
+    txt(slide,b,1.30,bodyY+0.14+i*0.42,LW-1.02,0.30,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+  // Right panel: growth
+  const RX=LW+0.60;
+  const RW=SW-RX-0.40;
+  txt(slide,'$ growth_log --verbose',RX,CY,RW,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New',charSpacing:0.5});
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.26+i*0.72,RW,0.60,t.card,t.div,0.06);
+    txt(slide,'+'+String(i+1),RX+0.12,CY+0.34+i*0.72,0.20,0.18,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New'});
+    txt(slide,b,RX+0.36,CY+0.30+i*0.72,RW-0.44,0.48,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+  if(f.competency){
+    roundRect(slide,RX,CY+1.60,RW,bodyH-(1.60-0.26+0.18),t.card,t.div,0.06);
+    txt(slide,'// COMPETENCY',RX+0.12,CY+1.68,RW-0.20,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,fontFace:'Courier New'});
+    txt(slide,sh(f.competency,80),RX+0.12,CY+1.90,RW-0.20,0.42,{fontSize:9,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultForest(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'GROWTH REPORT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let headerY=1.02;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.2,headerY,2.0,0.26,t.tag,t.accent,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.2,headerY,1.82,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    headerY+=0.36;
+  }
+  const CY=headerY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.55;
+  sectionBold(slide,'🌲 성과',0.5,CY,LW,t);
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.28)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.24+i*(itemH+0.06),LW,itemH,t.card,i===0?t.accent:t.div,0.06);
+    txt(slide,'🍀',0.60,CY+0.30+i*(itemH+0.06),0.28,0.26,{fontSize:12,isTextBox:true,align:'center'});
+    txt(slide,b,0.96,CY+0.28+i*(itemH+0.06),LW-1.08,itemH-0.08,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  sectionBold(slide,'🌱 성장',RX,CY,RW,t);
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.24+i*1.00,RW,0.86,t.card,t.div,0.06);
+    txt(slide,b,RX+0.16,CY+0.32+i*1.00,RW-0.24,0.68,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    roundRect(slide,RX,CY+0.24+2*1.00,RW,CH-2*1.00-0.28,t.accent+'15',t.accent,0.06);
+    txt(slide,'역량',RX+0.16,CY+0.32+2*1.00,RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,100),RX+0.16,CY+0.52+2*1.00,RW-0.24,CH-2*1.00-0.72,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultAurora(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  rect(slide,0,SH-0.80,SW,0.80,t.accent,undefined,18);
+  projectLabel(slide,num,'OUTCOME',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,4);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,Math.min(kx.length,4)).forEach((ke,i)=>{
+      const mW=(SW-1.0-(kx.length-1)*0.08)/Math.min(kx.length,4);
+      const mx=0.5+i*(mW+0.08);
+      roundRect(slide,mx,bodyY,mW,0.26,t.tag,t.accent,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,20),mx+0.12,bodyY,mW-0.24,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const CY=bodyY; const CH=SH-CY-0.36; const LW=(SW-1.10)*0.56;
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.06)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+i*(itemH+0.06),LW,itemH,t.card,t.accent,0.06);
+    txt(slide,b,0.66,CY+0.08+i*(itemH+0.06),LW-0.24,itemH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    const gh=(CH-0.12)/2;
+    roundRect(slide,RX,CY+i*(gh+0.08),RW,gh,t.card,t.div,0.06);
+    txt(slide,'Growth '+(i+1),RX+0.16,CY+0.08+i*(gh+0.08),RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,b,RX+0.16,CY+0.28+i*(gh+0.08),RW-0.24,gh-0.36,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    const gy=CY+2*(CH/2+0.04);
+    roundRect(slide,RX,gy,RW,CY+CH-gy-0.02,t.card,t.div,0.06);
+    txt(slide,'Competency',RX+0.16,gy+0.08,RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,90),RX+0.16,gy+0.28,RW-0.24,CY+CH-gy-0.34,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultSunset(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  rect(slide,0,0,SW,0.05,t.accent,undefined);
+  projectLabel(slide,num,'RESULTS',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.4,bodyY,2.22,0.26,t.tag,t.div,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.4,bodyY,2.0,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const quote=sh(f.aiSummary||f.output||'',80);
+  if(quote){
+    roundRect(slide,0.5,bodyY,SW-1.0,0.38,t.card,t.div,0.06);
+    rect(slide,0.5,bodyY,0.04,0.38,t.accent,undefined);
+    txt(slide,quote,0.64,bodyY+0.04,SW-1.20,0.30,{fontSize:10,italic:true,bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+    bodyY+=0.48;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.55;
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.06*2)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+i*(itemH+0.06),LW,itemH,t.card,t.div,0.06);
+    roundRect(slide,0.5,CY+i*(itemH+0.06),0.34,itemH,t.accent+'20',undefined,0.06);
+    txt(slide,String(i+1),0.5,CY+i*(itemH+0.06),0.34,itemH,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center',valign:'middle'});
+    txt(slide,b,0.90,CY+0.08+i*(itemH+0.06),LW-1.02,itemH-0.16,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+i*(CH/2+0.04),RW,CH/2,t.card,t.div,0.06);
+    txt(slide,b,RX+0.16,CY+0.10+i*(CH/2+0.04),RW-0.24,CH/2-0.18,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+}
+
+function buildResultNavyGold(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  hrLine(slide,0.5,0.38,SW-1.0,t.div);
+  txt(slide,'PROJECT '+num+' · RESULTS',0.5,0.26,SW-1.0,0.18,{fontSize:8,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:3});
+  txt(slide,sh(exp.title||'',42),0.5,0.46,SW-1.0,0.48,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.04;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.4,bodyY,2.22,0.28,t.tag,t.accent,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.4,bodyY,2.0,0.28,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.38;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.55;
+  sectionLabel(slide,'DELIVERABLES',0.5,CY,LW,t);
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.28)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.24+i*(itemH+0.06),LW,itemH,t.card,t.div,0.06);
+    rect(slide,0.5,CY+0.24+i*(itemH+0.06),0.04,itemH,t.accent,undefined);
+    txt(slide,b,0.64,CY+0.30+i*(itemH+0.06),LW-0.76,itemH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  sectionLabel(slide,'LEARNING',RX,CY,RW,t);
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.24+i*0.92,RW,0.80,t.card,t.div,0.06);
+    txt(slide,b,RX+0.16,CY+0.32+i*0.92,RW-0.24,0.62,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    const gy=CY+0.24+2*0.92;
+    roundRect(slide,RX,gy,RW,CY+CH-gy,t.accent+'18',t.accent,0.06);
+    txt(slide,'COMPETENCY',RX+0.16,gy+0.10,RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,90),RX+0.16,gy+0.30,RW-0.24,CY+CH-gy-0.38,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultCoral(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.4,bodyY,2.22,0.26,t.tag,t.div,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.4,bodyY,2.0,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.60;
+  // 성과 header
+  txt(slide,'🎉 성과',0.5,CY,1.2,0.24,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true});
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.32)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.28+i*(itemH+0.06),LW,itemH,t.card,i===0?t.accent:t.div,0.06);
+    txt(slide,b,0.66,CY+0.34+i*(itemH+0.06),LW-0.24,itemH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  txt(slide,'📈 성장',RX,CY,RW,0.24,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true});
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.28+i*0.88,RW,0.76,t.card,t.div,0.06);
+    txt(slide,b,RX+0.16,CY+0.34+i*0.88,RW-0.24,0.60,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    const gy=CY+0.28+2*0.88;
+    roundRect(slide,RX,gy,RW,CY+CH-gy,t.accent+'15',t.accent,0.06);
+    txt(slide,'역량',RX+0.16,gy+0.10,RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,70),RX+0.16,gy+0.30,RW-0.24,CY+CH-gy-0.38,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultSlate(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.4,bodyY,2.22,0.26,t.tag,t.div,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.4,bodyY,2.0,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28;
+  const outB=toBullets(f.output,4);
+  const rows=outB.slice(0,4);
+  const rowH=(CH-0.06*rows.length)/rows.length;
+  rows.forEach((b,i)=>{
+    roundRect(slide,0.5,CY+i*(rowH+0.06),SW-1.0,rowH,t.card,t.div,0.06);
+    roundRect(slide,0.5,CY+i*(rowH+0.06),0.48,rowH,t.accent+'30',undefined,0.06);
+    txt(slide,'R'+(i+1),0.5,CY+i*(rowH+0.06),0.48,rowH,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true,align:'center',valign:'middle',fontFace:'Courier New'});
+    txt(slide,b,1.06,CY+0.08+i*(rowH+0.06),SW-2.10,rowH-0.16,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.growth||f.competency){
+    const extraY=CY+rows.length*(rowH+0.06);
+    if(extraY<SH-0.50){
+      const growB=toBullets(f.growth,1);
+      if(growB[0]){
+        roundRect(slide,0.5,extraY,SW/2-0.70,SH-extraY-0.22,t.step,t.div,0.06);
+        txt(slide,'Growth',0.66,extraY+0.08,(SW/2-0.70)-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+        txt(slide,growB[0],0.66,extraY+0.28,(SW/2-0.70)-0.24,SH-extraY-0.56,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      }
+      if(f.competency){
+        roundRect(slide,SW/2-0.20,extraY,SW/2-0.32,SH-extraY-0.22,t.step,t.div,0.06);
+        txt(slide,'Competency',SW/2-0.04,extraY+0.08,(SW/2-0.32)-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+        txt(slide,sh(f.competency,80),SW/2-0.04,extraY+0.28,(SW/2-0.32)-0.24,SH-extraY-0.56,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+      }
+    }
+  }
+}
+
+function buildResultCherry(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,3);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,3).forEach((ke,i)=>{
+      roundRect(slide,0.5+i*2.4,bodyY,2.22,0.26,t.tag,t.div,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,22),0.64+i*2.4,bodyY,2.0,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.60;
+  sectionBold(slide,'🌸 성과',0.5,CY,LW,t);
+  const outB=toBullets(f.output,3);
+  const itemH=(CH-0.30)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.26+i*(itemH+0.06),LW,itemH,t.card,t.div,0.06);
+    rect(slide,0.5,CY+0.26+(i+1)*(itemH+0.06)-0.09,LW,0.03,t.accent+(i===0?'DD':'66'),undefined);
+    txt(slide,b,0.66,CY+0.32+i*(itemH+0.06),LW-0.24,itemH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  sectionBold(slide,'🌸 배움',RX,CY,RW,t);
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.26+i*0.92,RW,0.80,t.card,t.div,0.06);
+    txt(slide,b,RX+0.16,CY+0.32+i*0.92,RW-0.24,0.62,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    const gy=CY+0.26+2*0.92;
+    roundRect(slide,RX,gy,RW,CY+CH-gy,t.accent+'15',t.accent,0.06);
+    txt(slide,'역량',RX+0.16,gy+0.10,RW-0.24,0.18,{fontSize:7,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,70),RX+0.16,gy+0.30,RW-0.24,CY+CH-gy-0.38,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultCharcoalMint(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  const PW=2.20;
+  rect(slide,0,0,PW,SH,t.coverBg,undefined);
+  txt(slide,'RESULT\n'+num,0.16,SH-1.20,PW-0.32,0.52,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:3,valign:'bottom'});
+  txt(slide,sh(exp.title||'',20),0.16,SH-0.72,PW-0.32,0.58,{fontSize:17,bold:true,color:hexClean(t.text),isTextBox:true,valign:'bottom',charSpacing:-0.3});
+  const kx=f.keyExperiences.slice(0,2);
+  kx.forEach((ke,i)=>{
+    roundRect(slide,0.16,0.48+i*0.38,PW-0.32,0.28,t.accent+'20',t.accent,0.04);
+    txt(slide,sh(ke.keyword||ke.title||ke,22),0.26,0.50+i*0.38,PW-0.44,0.24,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+  });
+  const RX=PW+0.32; const RW=SW-RX-0.40;
+  const CY=0.46; const CH=(SH-CY-0.26)/2-0.08;
+  // OUTPUT
+  roundRect(slide,RX,CY,RW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'OUTPUT',RX+0.16,CY+0.10,RW-0.24,t);
+  addBulletRows(slide,toBullets(f.output,3),RX+0.16,CY+0.32,RW-0.24,CH-0.44,t,'disc');
+  // GROWTH + COMPETENCY
+  const SY=CY+CH+0.18;
+  roundRect(slide,RX,SY,RW,CH,t.card,t.div,0.06);
+  sectionLabel(slide,'GROWTH & COMPETENCY',RX+0.16,SY+0.10,RW-0.24,t);
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    txt(slide,b,RX+0.16,SY+0.32+i*0.42,RW-0.24,0.34,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:2});
+  });
+  if(f.competency){
+    const cy2=SY+0.32+growB.length*0.42;
+    txt(slide,sh(f.competency,80),RX+0.16,cy2,RW-0.24,CH-(cy2-SY)-0.14,{fontSize:9,color:hexClean(t.sub),isTextBox:true,valign:'top'});
+  }
+}
+
+function buildResultPastel(prs,exp,idx,t,f){
+  const slide=prs.addSlide(); addBg(slide,t.bg);
+  const num=String(idx+1).padStart(2,'0');
+  projectLabel(slide,num,'RESULT',t,0.5,0.28,SW-1.0);
+  txt(slide,sh(exp.title||'',42),0.5,0.50,SW-1.0,0.42,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-0.5});
+  const kx=f.keyExperiences.slice(0,4);
+  let bodyY=1.02;
+  if(kx.length>0){
+    kx.slice(0,Math.min(kx.length,4)).forEach((ke,i)=>{
+      const mW=(SW-1.0-(kx.length-1)*0.08)/Math.min(kx.length,4);
+      roundRect(slide,0.5+i*(mW+0.08),bodyY,mW,0.26,t.tag,t.accent,0.04);
+      txt(slide,sh(ke.keyword||ke.title||ke,20),0.64+i*(mW+0.08),bodyY,mW-0.24,0.26,{fontSize:9,bold:true,color:hexClean(t.accent),isTextBox:true,valign:'middle'});
+    });
+    bodyY+=0.36;
+  }
+  const CY=bodyY; const CH=SH-CY-0.28; const LW=(SW-1.10)*0.56;
+  txt(slide,'🌟 Results',0.5,CY,1.4,0.26,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true});
+  const outB=toBullets(f.output,3);
+  const colors=[t.accent+'25',t.accent+'18',t.accent+'30'];
+  const itemH=(CH-0.32)/Math.min(outB.length,3);
+  outB.slice(0,3).forEach((b,i)=>{
+    roundRect(slide,0.5,CY+0.28+i*(itemH+0.06),LW,itemH,colors[i%3],t.accent,0.08);
+    txt(slide,b,0.66,CY+0.34+i*(itemH+0.06),LW-0.24,itemH-0.12,{fontSize:11,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  const RX=0.5+LW+0.14; const RW=SW-RX-0.40;
+  txt(slide,'🌱 Growth',RX,CY,RW,0.26,{fontSize:10,bold:true,color:hexClean(t.accent),isTextBox:true});
+  const growB=toBullets(f.growth,2);
+  growB.slice(0,2).forEach((b,i)=>{
+    roundRect(slide,RX,CY+0.28+i*0.88,RW,0.76,colors[(i+1)%3],t.accent,0.08);
+    txt(slide,b,RX+0.16,CY+0.34+i*0.88,RW-0.24,0.60,{fontSize:10,color:hexClean(t.text),isTextBox:true,valign:'top',paraSpaceAfter:3});
+  });
+  if(f.competency){
+    const gy=CY+0.28+2*0.88;
+    roundRect(slide,RX,gy,RW,CY+CH-gy,t.card,t.div,0.06);
+    txt(slide,'Competency',RX+0.16,gy+0.08,RW-0.24,0.20,{fontSize:7.5,bold:true,color:hexClean(t.accent),isTextBox:true,charSpacing:2});
+    txt(slide,sh(f.competency,90),RX+0.16,gy+0.30,RW-0.24,CY+CH-gy-0.38,{fontSize:9.5,color:hexClean(t.text),isTextBox:true,valign:'top'});
+  }
+}
+
 /* 6. RESULT — dispatcher */
 function buildResult(prs,exp,idx,t,f,theme){
   const layout=getLayout(theme);
   if(layout==='story') return buildResultStory(prs,exp,idx,t,f);
+  if(layout==='dashboard') return buildResultDashboard(prs,exp,idx,t,f);
+  if(layout==='funnel') return buildResultFunnel(prs,exp,idx,t,f);
+  if(layout==='tshape') return buildResultTshape(prs,exp,idx,t,f);
+  if(layout==='growth') return buildResultGrowth(prs,exp,idx,t,f);
+  if(layout==='framework') return buildResultFramework(prs,exp,idx,t,f);
+  if(layout==='cyber') return buildResultCyber(prs,exp,idx,t,f);
+  if(layout==='forest') return buildResultForest(prs,exp,idx,t,f);
+  if(layout==='aurora') return buildResultAurora(prs,exp,idx,t,f);
+  if(layout==='sunset') return buildResultSunset(prs,exp,idx,t,f);
+  if(layout==='navygold') return buildResultNavyGold(prs,exp,idx,t,f);
+  if(layout==='coral') return buildResultCoral(prs,exp,idx,t,f);
+  if(layout==='slate') return buildResultSlate(prs,exp,idx,t,f);
+  if(layout==='cherry') return buildResultCherry(prs,exp,idx,t,f);
+  if(layout==='charcoalmint') return buildResultCharcoalMint(prs,exp,idx,t,f);
+  if(layout==='pastel') return buildResultPastel(prs,exp,idx,t,f);
   return buildResultDefault(prs,exp,idx,t,f);
 }
 
