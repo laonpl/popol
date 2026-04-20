@@ -16,13 +16,16 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
-import api from '../../services/api';
+import {
+  analyzeJobUrl,
+  tailorExperience as tailorExperienceAPI,
+  recommendExperiences,
+  recommendSection as recommendSectionAPI,
+} from '../../services/jobAI';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor from '../../components/YooptaMiniEditor';
-
-function stripMd(s) {
-  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
-}
+import { stripMd } from '../../utils/textUtils';
+import { SECTION_LABELS, TEMPLATE_SECTION_MAP, SHORT_SECTION_LABELS } from '../../constants/portfolioSections';
 
 const EMPTY_PORTFOLIO = {
   templateType: 'notion',
@@ -120,56 +123,6 @@ export default function NotionPortfolioEditor() {
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [portfolio]);
 
-  // 템플릿별 섹션 레이블
-  const SECTION_LABELS = {
-    ashley: {
-      profile: '프로필',
-      education: '학교',
-      experiences: '경력 & 프로젝트',
-      interviews: '인터뷰',
-      books: '저서 & 글쓰기',
-      lectures: '강연 & 모더레이터',
-      skills: '이런 일을 할 수 있어요',
-      values: '나를 들려주는 이야기',
-      funfacts: '독특한 경험',
-      contact: '연락처',
-    },
-    academic: {
-      profile: '프로필',
-      education: '학력',
-      awards: '수상/장학금',
-      experiences: 'Portfolio & Experience',
-      curricular: '교과 활동',
-      extracurricular: '비교과 & 자격증',
-      skills: 'Skills',
-      goals: 'Personal Statement',
-      values: '소개글',
-      contact: 'Contact',
-    },
-    notion: {
-      profile: '프로필',
-      education: '학력',
-      awards: '수상/장학금',
-      experiences: '경험',
-      curricular: '교과 활동',
-      extracurricular: '비교과 활동',
-      skills: '기술',
-      goals: '목표와 계획',
-      values: '가치관',
-      contact: '연락처',
-    },
-    timeline: {
-      profile: '프로필',
-      education: '학력',
-      curricular: '학기별 수업',
-      experiences: '활동 기록',
-      goals: '스터디 계획',
-      skills: '기술',
-      awards: '수상/장학금',
-      contact: '연락처',
-    },
-  };
-
   const tid = portfolio?.templateId || 'notion';
   const defaultLabels = SECTION_LABELS[tid] || SECTION_LABELS.notion;
   const customLabels = portfolio?.customSectionLabels || {};
@@ -191,14 +144,6 @@ export default function NotionPortfolioEditor() {
     { id: 'funfacts', label: labels.funfacts || '독특한 경험', icon: Zap },
     { id: 'contact', label: labels.contact || '연락처', icon: Mail },
   ];
-
-  // 템플릿별 표시 섹션 정의
-  const TEMPLATE_SECTION_MAP = {
-    ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
-    academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
-    notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
-    timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
-  };
 
   const hiddenSections = portfolio?.hiddenSections || [];
 
@@ -654,11 +599,6 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [panelMaxH, setPanelMaxH] = useState('60vh');
   const btnRef = useRef(null);
 
-  const SECTION_LABELS = {
-    education: '교육', awards: '수상', skills: '기술',
-    goals: '목표와 계획', values: '가치관'
-  };
-
   if (!jobAnalysis || !sectionType) return null;
 
   const handleClick = async () => {
@@ -679,7 +619,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     setLoading(true);
     setShow(true);
     try {
-      const { data: resp } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
+      const resp = await recommendSectionAPI(jobAnalysis, sectionType);
       setData(resp);
     } catch { toast.error('내용 추천에 실패했습니다'); setShow(false); }
     setLoading(false);
@@ -706,7 +646,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
-              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
+              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SHORT_SECTION_LABELS[sectionType] || sectionType}</span>
             </div>
             <button onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
           </div>
@@ -770,7 +710,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     setTailorError(null);
     setAppliedSections({});
     try {
-      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: exp });
+      const data = await tailorExperienceAPI(jobAnalysis, exp);
       setTailorResult(data.tailored);
     } catch (err) {
       setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
@@ -1499,7 +1439,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecLoading(true);
     try {
-      const { data } = await api.post('/job/recommend-experiences', { jobAnalysis: portfolio.jobAnalysis });
+      const data = await recommendExperiences(portfolio.jobAnalysis);
       setRecResults(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecLoading(false);
@@ -1514,7 +1454,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const respData = await analyzeJobUrl(jobUrl);
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -2332,11 +2272,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     if (!portfolio.jobAnalysis) { toast.error('기업 분석을 먼저 등록해주세요'); return; }
     setRecLoading(true);
     try {
-      const res = await api.post('/job/recommend-experiences', {
-        jobAnalysis: portfolio.jobAnalysis,
-        experiences: userExperiences,
-      });
-      setRecResults(res.data);
+      const data = await recommendExperiences(portfolio.jobAnalysis, userExperiences);
+      setRecResults(data);
     } catch { toast.error('추천 불러오기 실패'); }
     finally { setRecLoading(false); }
   };
@@ -2346,7 +2283,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const respData = await analyzeJobUrl(jobUrl);
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -3404,7 +3341,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecLoading(true);
     try {
-      const { data } = await api.post('/job/recommend-experiences', { jobAnalysis: portfolio.jobAnalysis });
+      const data = await recommendExperiences(portfolio.jobAnalysis);
       setRecResults(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecLoading(false);
@@ -3415,7 +3352,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const respData = await analyzeJobUrl(jobUrl);
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -4920,9 +4857,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecommendLoading(true);
     try {
-      const { data } = await api.post('/job/recommend-experiences', {
-        jobAnalysis: portfolio.jobAnalysis,
-      });
+      const data = await recommendExperiences(portfolio.jobAnalysis);
       setRecommendations(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecommendLoading(false);
@@ -4971,10 +4906,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
     setTailoringIdx(i);
     setTailorResult(null);
     try {
-      const { data } = await api.post('/job/tailor-experience', {
-        jobAnalysis: portfolio.jobAnalysis,
-        experience: portfolio.experiences[i],
-      });
+      const data = await tailorExperienceAPI(portfolio.jobAnalysis, portfolio.experiences[i]);
       setTailorResult({ idx: i, ...data });
     } catch { toast.error('맞춤 변환 실패'); }
     setTailoringIdx(null);

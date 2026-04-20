@@ -4,102 +4,14 @@
  * 구조: Cover → Profile → Skills → [SectionDivider + Situation + Result] × N → Outro
  */
 import PptxGenJS from 'pptxgenjs';
+import { THEMES, getLayout } from '../../constants/portfolioThemes';
+import { strip, extractFields, toBullets, smartBullets, shorten, nameSpaced } from '../../utils/textUtils';
+
+/* ─── Local helpers (kept: differ in default/wrap) ─── */
+const sh = (txt, max = 55) => shorten(txt, max);
 
 const SW = 10;
 const SH = 5.625;
-
-/* ─── Utils ─── */
-function strip(txt){
-  if(txt==null)return'';
-  const s=Array.isArray(txt)?txt.join(', '):String(txt);
-  return s.replace(/\*\*(.+?)\*\*/g,'$1').replace(/\*(.+?)\*/g,'$1')
-    .replace(/#{1,6}\s*/g,'').replace(/`(.+?)`/g,'$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/^>\s*/gm,'').trim();
-}
-function extractFields(exp){
-  const sr=exp.structuredResult||{}, fc=exp.frameworkContent||{}, fs={};
-  (exp.sections||[]).forEach(s=>{
-    const tt=(s.title||'').replace(/\s/g,''), c=s.content?.trim();
-    if(!c)return;
-    if(/소개|intro/i.test(tt)) fs.intro=fs.intro||c;
-    else if(/개요|overview|배경/i.test(tt)) fs.overview=fs.overview||c;
-    else if(/진행|task|문제|일/i.test(tt)) fs.task=fs.task||c;
-    else if(/과정|process/i.test(tt)) fs.process=fs.process||c;
-    else if(/결과물|output/i.test(tt)) fs.output=fs.output||c;
-    else if(/성장|growth|배운/i.test(tt)) fs.growth=fs.growth||c;
-    else if(/역량|competency/i.test(tt)) fs.competency=fs.competency||c;
-  });
-  const g=k=>strip(sr[k]?.trim?.()||fc[k]?.trim?.()||fs[k]?.trim?.()||'');
-  return{
-    intro:g('intro'),overview:g('overview'),task:g('task'),process:g('process'),
-    output:g('output'),growth:g('growth'),competency:g('competency'),
-    description:strip(exp.description?.trim()||''),
-    aiSummary:strip(exp.aiSummary?.trim()||sr.projectOverview?.summary?.trim()||''),
-    keyExperiences:sr.keyExperiences||[],projectOverview:sr.projectOverview||{},
-  };
-}
-function toBullets(text,max=5){
-  if(!text)return[];
-  return text.split('\n').map(l=>strip(l.replace(/^(\d+[.)]\s*|[-•▸■□·]\s*)/,'').trim()))
-    .filter(l=>l.length>3).slice(0,max);
-}
-function smartBullets(text,maxItems=4,maxChars=80){
-  if(!text)return[];
-  const raw=strip(text);
-  if(!raw)return[];
-  // 줄바꿈 기반 분리 우선
-  const byLine=raw.split('\n')
-    .map(l=>strip(l.replace(/^(\d+[.)]\s*|[-•▸■□·]\s*)/,'').trim()))
-    .filter(l=>l.length>8);
-  if(byLine.length>=2){
-    // 너무 긴 항목은 쉼표/마침표로 재분리
-    const result=[];
-    for(const line of byLine){
-      if(result.length>=maxItems)break;
-      if(line.length<=maxChars){result.push(line);continue;}
-      const sub=line.split(/(?<=[.,;])/g).reduce((acc,s)=>{
-        const cur=acc[acc.length-1]||'';
-        if((cur+s).length>maxChars&&cur.length>0){acc.push(s.trim());}else{acc[acc.length-1]=(cur+s).trim();}
-        return acc;
-      },[line.slice(0,maxChars)]);
-      result.push(...sub.slice(0,maxItems-result.length));
-    }
-    return result.slice(0,maxItems);
-  }
-  // 문장 단위 분리
-  const sentences=raw.split(/(?<=[.!?。])/g).map(s=>s.trim()).filter(s=>s.length>5);
-  if(sentences.length<=1)return[raw];
-  const chunks=[];
-  let cur='';
-  for(const s of sentences){
-    if(cur.length+s.length>maxChars&&cur.length>0){
-      chunks.push(cur.trim());
-      cur=s+' ';
-      if(chunks.length>=maxItems-1){cur+=sentences.slice(sentences.indexOf(s)+1).join(' ');break;}
-    }else{cur+=s+' ';}
-  }
-  if(cur.trim())chunks.push(cur.trim());
-  return chunks.slice(0,maxItems);
-}
-function sh(txt,max=55){
-  if(!txt)return'';
-  const s=strip(txt);
-  return s.length>max?s.slice(0,max)+'...':s;
-}
-function hexA(hex,opacity){
-  const h=hex.replace('#','');
-  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
-  return'rgba('+r+','+g+','+b+','+opacity+')';
-}
-function hexClean(hex){
-  return(hex||'#888888').replace('#','').replace(/^rgba.*$/,'888888');
-}
-function nameSpaced(name){
-  if(!name)return name;
-  const n=name.trim();
-  if(n.length===3&&/[가-힣]/.test(n))return n[0]+' '+n[1]+' '+n[2];
-  return n;
-}
 
 /* ─── Low-level helpers ─── */
 function addBg(slide,color,opacity){
@@ -423,30 +335,6 @@ function buildSectionDivider(prs,exp,idx,t){
   }
 }
 
-/* ─── Layout Routing ─── */
-function getLayout(theme){
-  if(!theme) return 'default';
-  if(theme==='developer') return 'tech';
-  if(theme==='data_dashboard') return 'dashboard';
-  if(theme==='marketer_dark') return 'story';
-  if(theme==='marketer_light') return 'funnel';
-  if(theme==='problem_solver') return 'consult';
-  if(theme==='star_classic') return 'framework';
-  if(theme==='designer') return 'design';
-  if(theme==='t_shaped') return 'tshape';
-  if(theme==='rookie') return 'growth';
-  if(theme==='neon_cyber') return 'cyber';
-  if(theme==='forest') return 'forest';
-  if(theme==='aurora') return 'aurora';
-  if(theme==='sunset') return 'sunset';
-  if(theme==='navy_gold') return 'navygold';
-  if(theme==='coral_white') return 'coral';
-  if(theme==='slate_clean') return 'slate';
-  if(theme==='cherry_blossom') return 'cherry';
-  if(theme==='charcoal_mint') return 'charcoalmint';
-  if(theme==='pastel_portfolio') return 'pastel';
-  return 'default';
-}
 function slideHeader(slide,num,category,title,t){
   projectLabel(slide,num,category,t,0.5,0.28,SW-1.0);
   txt(slide,sh(title,42),0.5,0.50,7.8,0.50,{fontSize:22,bold:true,color:hexClean(t.text),isTextBox:true,charSpacing:-1});

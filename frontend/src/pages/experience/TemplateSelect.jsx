@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
-import api from '../../services/api';
+import { importFileUpload, importFromUrl } from '../../services/importAI';
 import toast from 'react-hot-toast';
 
 const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
@@ -16,37 +16,49 @@ const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
 /* description 텍스트에서 STAR 섹션 파싱 */
 function parseStarDescription(desc) {
   if (!desc) return null;
-  const regex = /Situation\s*[:：]\s*([\s\S]*?)(?=Action\s*[:：]|Result\s*[:：]|보완\s*[:：]|\(미확인|$)|Action\s*[:：]\s*([\s\S]*?)(?=Result\s*[:：]|보완\s*[:：]|\(미확인|$)|Result\s*[:：]\s*([\s\S]*?)(?=보완\s*[:：]|\(미확인|$)|보완\s*[:：]\s*([\s\S]*?)(?=\(미확인|$)|\(미확인\s*[:：]\s*([\s\S]*?)\)?(?=$)/g;
+  const regex = /Situation\s*[:：]\s*([\s\S]*?)(?=Action\s*[:：]|Result\s*[:：]|\(미확인|$)|Action\s*[:：]\s*([\s\S]*?)(?=Result\s*[:：]|\(미확인|$)|Result\s*[:：]\s*([\s\S]*?)(?=\(미확인|$)|\(미확인\s*[:：]?\s*([\s\S]*?)\)\s*$/g;
   const sections = [];
   let match;
   while ((match = regex.exec(desc)) !== null) {
-    if      (match[1] !== undefined) sections.push({ key: 'situation',  text: match[1].trim() });
-    else if (match[2] !== undefined) sections.push({ key: 'action',     text: match[2].trim() });
-    else if (match[3] !== undefined) sections.push({ key: 'result',     text: match[3].trim() });
-    else if (match[4] !== undefined) sections.push({ key: 'supplement', text: match[4].trim() });
-    else if (match[5] !== undefined) sections.push({ key: 'missing',    text: match[5].trim() });
+    if      (match[1] !== undefined) sections.push({ key: 'situation', text: match[1].trim() });
+    else if (match[2] !== undefined) sections.push({ key: 'action',    text: match[2].trim() });
+    else if (match[3] !== undefined) sections.push({ key: 'result',    text: match[3].trim() });
+    else if (match[4] !== undefined) sections.push({ key: 'missing',   text: match[4].trim() });
   }
   return sections.length === 0 ? null : sections;
 }
 
+/* 미확인 질문에서 이유 분리 */
+function splitMissingQuestion(text) {
+  // "질문 내용. 이유" or "질문 내용? 이유" 형태로 분리
+  const dotIdx = text.search(/[.?]\s+[가-힣]/);
+  if (dotIdx !== -1) {
+    return {
+      question: text.slice(0, dotIdx + 1).trim(),
+      reason: text.slice(dotIdx + 1).trim(),
+    };
+  }
+  return { question: text, reason: '' };
+}
+
 /* 미확인 질문 → 작성 추천 힌트 */
 function getMissingSuggestions(q) {
-  if (/수치|성과|%|배|개선/.test(q))
+  if (/수치|성과|%|배|개선|향상|단축|절감/.test(q))
     return ['API 응답 속도 40% 향상', '에러율 0.3% → 0.01%로 감소', '처리 시간 3일 → 반나절로 단축'];
-  if (/한계|문제|원인/.test(q))
+  if (/한계|문제|원인|이유|왜/.test(q))
     return ['메모리 한계로 배치 처리 불가', '기존 방식의 확장 불가 구조', '응답 지연으로 UX 심각하게 저하'];
-  if (/왜|동기|배경|계기/.test(q))
+  if (/동기|배경|계기|시작/.test(q))
     return ['팀 내 반복 업무 자동화 필요성', '기존 솔루션 비용 대비 효율이 낮아서', '사용자 이탈률 지속 증가로 인한 대응'];
-  if (/기간|일정|시간|기한/.test(q))
+  if (/기간|일정|시간|기한|언제/.test(q))
     return ['2주 스프린트 내 완료', '운영 3개월 후 성과 측정', '출시 후 1개월 내 목표 달성'];
-  if (/역할|담당|기여/.test(q))
+  if (/역할|담당|기여|비중|몇 %/.test(q))
     return ['백엔드 API 설계 및 구현 전담', '팀 내 유일한 프론트엔드 담당자', '데이터 파이프라인 70% 기여'];
+  if (/리소스|절감|비용|시간/.test(q))
+    return ['약 40시간/월 반복 작업 제거', '외주 비용 300만원 절감', '배포 주기 2주 → 3일로 단축'];
   return ['구체적인 수치와 함께 설명해주세요', '본인의 기여 범위를 명확히 적어주세요', '상황의 맥락과 결과를 함께 서술해주세요'];
 }
 
-const STAR_LABELS = { situation: 'Situation', action: 'Action', result: 'Result', supplement: '보완 답변' };
-
-/* STAR 구조화 렌더러 */
+/* STAR 구조화 렌더러 — STAR 라벨 없이 자연스러운 흐름으로 표시 */
 function StarDescription({ description, onUpdateMissing }) {
   const [draft, setDraft] = useState('');
 
@@ -60,47 +72,44 @@ function StarDescription({ description, onUpdateMissing }) {
 
   const handleApply = () => {
     if (!draft.trim()) return;
-    const cleaned = description.replace(/\s*\(미확인\s*[:：][\s\S]*?\)\s*/g, '').trim();
-    onUpdateMissing?.(`${cleaned} 보완: ${draft.trim()}`);
+    const cleaned = description.replace(/\s*\(미확인[\s\S]*?\)\s*$/g, '').trim();
+    onUpdateMissing?.(`${cleaned}\n추가 정보: ${draft.trim()}`);
     setDraft('');
   };
 
   return (
-    <div className="mt-1 space-y-1">
-      {/* Situation / Action / Result / 보완 — 라벨+텍스트, 흰 배경 */}
+    <div className="mt-1 space-y-1.5">
+      {/* Situation → Action → Result: 라벨 없이 단락으로 자연스럽게 */}
       {mainSections.map((s, i) => (
-        <div key={i} className="flex gap-2.5 py-0.5">
-          <span className="flex-shrink-0 w-[68px] text-[10px] font-bold text-bluewood-300 tracking-wider pt-[3px] text-right">
-            {STAR_LABELS[s.key] || s.key}
-          </span>
-          <div className="flex-1 border-l border-surface-200 pl-2.5">
-            <p className="text-[12.5px] text-bluewood-700 leading-relaxed">{s.text}</p>
-          </div>
-        </div>
+        <p key={i} className={`text-[12.5px] leading-relaxed ${
+          s.key === 'situation' ? 'text-bluewood-500' :
+          s.key === 'action'    ? 'text-bluewood-700' :
+          s.key === 'result'    ? 'text-bluewood-700 font-medium' :
+          'text-bluewood-600'
+        }`}>
+          {i > 0 && <span className="text-bluewood-200 mr-1.5">•</span>}
+          {s.text}
+        </p>
       ))}
 
-      {/* 미확인 — 인터랙티브 입력 섹션 */}
+      {/* 미확인 — 자연스러운 보완 질문 섹션 */}
       {missingSections.map((s, i) => {
+        const { question, reason } = splitMissingQuestion(s.text);
         const suggestions = getMissingSuggestions(s.text);
         return (
-          <div key={i} className="mt-2 rounded-xl border border-blue-100 bg-white px-3 py-2.5 space-y-2">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-blue-500 tracking-wider">보완 질문</span>
-                <span className="text-[10px] text-bluewood-300">· 선택사항</span>
-              </div>
-              <span className="text-[10px] text-blue-400">입력하면 경험이 더 구체적으로 만들어져요</span>
-            </div>
+          <div key={i} className="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-3 space-y-2">
             {/* 질문 */}
-            <p className="text-[11.5px] text-bluewood-600 leading-relaxed">{s.text}</p>
+            <p className="text-[12.5px] text-amber-800 leading-relaxed font-medium">{question}</p>
+            {reason && (
+              <p className="text-[11px] text-amber-500 leading-relaxed">{reason}</p>
+            )}
             {/* 추천 예시 칩 */}
             <div className="flex flex-wrap gap-1">
               {suggestions.map((sg, si) => (
                 <button key={si} type="button"
                   onClick={() => setDraft(sg)}
-                  className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-[10.5px] text-blue-600 hover:bg-blue-100 transition-colors">
-                  예: {sg}
+                  className="px-2 py-0.5 rounded-md bg-white border border-amber-200 text-[10.5px] text-amber-700 hover:bg-amber-100 transition-colors">
+                  {sg}
                 </button>
               ))}
             </div>
@@ -110,14 +119,14 @@ function StarDescription({ description, onUpdateMissing }) {
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 rows={2}
-                placeholder="알고 있다면 입력해주세요 (선택)"
-                className="flex-1 text-[12px] text-bluewood-700 bg-white border border-blue-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-blue-300 leading-relaxed"
+                placeholder="기억나는 내용을 자유롭게 입력해주세요 (선택)"
+                className="flex-1 text-[12px] text-bluewood-700 bg-white border border-amber-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-amber-300 leading-relaxed"
               />
               <button type="button"
                 onClick={handleApply}
                 disabled={!draft.trim()}
-                className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                적용
+                className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                추가
               </button>
             </div>
           </div>
@@ -148,7 +157,7 @@ const FIELD_OPTIONS = [
 
 export default function TemplateSelect() {
   const { user } = useAuthStore();
-  const { createExperience } = useExperienceStore();
+  const { createExperience, analyzeExperience, extractMoments } = useExperienceStore();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -261,7 +270,7 @@ export default function TemplateSelect() {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('targetType', 'experience');
-            const { data } = await api.post('/import/upload', formData, { timeout: 120000 });
+            const data = await importFileUpload(formData);
             if (data.imported?.content) {
               allText += `\n\n--- ${file.name} ---\n${data.imported.content}`;
             }
@@ -286,7 +295,7 @@ export default function TemplateSelect() {
       if (notionUrl.trim()) {
         updateLoadingStep(stepIdx, 'loading');
         try {
-          const { data } = await api.post('/import/notion', { url: notionUrl, targetType: 'experience' }, { timeout: 60000 });
+          const data = await importFromUrl('notion', notionUrl, 'experience');
           if (data.imported?.content) {
             allText += `\n\n--- Notion ---\n${data.imported.content}`;
           }
@@ -301,7 +310,7 @@ export default function TemplateSelect() {
       if (githubUrl.trim()) {
         updateLoadingStep(stepIdx, 'loading');
         try {
-          const { data } = await api.post('/import/github', { url: githubUrl, targetType: 'experience' }, { timeout: 60000 });
+          const data = await importFromUrl('github', githubUrl, 'experience');
           if (data.imported?.content) {
             allText += `\n\n--- GitHub ---\n${data.imported.content}`;
           }
@@ -331,10 +340,7 @@ export default function TemplateSelect() {
 
       // 6) 핵심 경험 추출
       updateLoadingStep(stepIdx, 'loading');
-      const { data: extractResult } = await api.post('/experience/extract-moments', {
-        rawText: allText.trim(),
-        title: title.trim(),
-      }, { timeout: 120000 });
+      const extractResult = await extractMoments(allText.trim(), title.trim());
       updateLoadingStep(stepIdx, 'done');
 
       setCollectedText(allText.trim());
@@ -393,7 +399,7 @@ export default function TemplateSelect() {
 
       // AI 분석
       updateLoadingStep(1, 'loading');
-      const { data: analysis } = await api.post('/experience/analyze', { experienceId, momentsCount: moments.length }, { timeout: 120000 });
+      const analysis = await analyzeExperience(experienceId, { momentsCount: moments.length });
       updateLoadingStep(1, 'done');
 
       toast.success('경험 정리가 완료되었습니다!');

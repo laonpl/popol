@@ -185,6 +185,17 @@ const usePortfolioStore = create((set, get) => ({
       exportReady: false,
     });
   },
+
+  /** 섹션별 기업/직무 요건 매칭. 결과는 { index: result } 맵과 matched 수를 반환. */
+  matchSectionsToRequirements: async ({ sections, targetCompany, targetPosition }) => {
+    const res = await api.post('/portfolio/match-sections', {
+      sections, targetCompany, targetPosition,
+    }, { timeout: 30000 });
+    const results = res.data.results || [];
+    const map = {};
+    results.forEach(r => { map[r.index] = r; });
+    return { map, matched: results.filter(r => r.matched).length, results };
+  },
 }));
 
 // 프론트엔드 검증 유틸

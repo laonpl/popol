@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { X, Loader2, Sparkles, Link as LinkIcon, Info, Trash2, CheckCircle2, UploadCloud } from 'lucide-react';
-import api from '../services/api';
+import { importFileUpload, importFromUrl, structureImportedData } from '../services/importAI';
 import toast from 'react-hot-toast';
 
 export default function ImportModal({ targetType, onClose, onImport }) {
@@ -68,21 +68,18 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     }
     setImporting(true);
     try {
-      let response;
+      let data;
       if (hasFiles) {
         const formData = new FormData();
         formData.append('file', files[0].file);
         if (targetType) formData.append('targetType', targetType);
-        response = await api.post('/import/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 120000,
-        });
+        data = await importFileUpload(formData);
       } else {
-        const endpoint = urlType === 'github' ? '/import/github' : '/import/notion';
-        response = await api.post(endpoint, { url: url.trim(), targetType }, { timeout: 120000 });
+        const source = urlType === 'github' ? 'github' : 'notion';
+        data = await importFromUrl(source, url, targetType);
       }
 
-      const { imported, structured } = response.data;
+      const { imported, structured } = data;
       setImportedData(imported);
       setStructuredData(structured);
       setStep('preview');
@@ -97,8 +94,8 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     if (!importedData) return;
     setStructuring(true);
     try {
-      const response = await api.post('/import/structure', { importedData, targetType }, { timeout: 60000 });
-      setStructuredData(response.data.structured);
+      const data = await structureImportedData(importedData, targetType);
+      setStructuredData(data.structured);
       toast.success('AI 구조화가 완료되었습니다!');
     } catch (error) {
       if (error.response?.status === 429) {
@@ -144,8 +141,8 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     if (targetType) {
       setStructuring(true);
       try {
-        const response = await api.post('/import/structure', { importedData: updated, targetType }, { timeout: 60000 });
-        setStructuredData(response.data.structured);
+        const data = await structureImportedData(updated, targetType);
+        setStructuredData(data.structured);
         toast.success('AI 구조화가 완료되었습니다!');
       } catch (error) {
         if (error.response?.status === 429) {

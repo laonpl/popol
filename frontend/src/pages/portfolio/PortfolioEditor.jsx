@@ -11,7 +11,7 @@ import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
 import ChecklistModal from '../../components/ChecklistModal';
-import api from '../../services/api';
+import { tailorPortfolio } from '../../services/jobAI';
 import toast from 'react-hot-toast';
 
 const SECTION_TYPES = [
@@ -27,7 +27,7 @@ const SECTION_TYPES = [
 export default function PortfolioEditor() {
   const { id } = useParams();
   const { user } = useAuthStore();
-  const { updatePortfolio, setCurrentPortfolio, exportPortfolio } = usePortfolioStore();
+  const { updatePortfolio, setCurrentPortfolio, exportPortfolio, matchSectionsToRequirements } = usePortfolioStore();
 
   const [portfolio, setPortfolio] = useState(null);
   const [experiences, setExperiences] = useState([]);
@@ -168,16 +168,13 @@ export default function PortfolioEditor() {
       if (portfolio.targetCompany && portfolio.targetPosition && sections.length > 0) {
         setMatching(true);
         try {
-          const res = await api.post('/portfolio/match-sections', {
+          const { map, matched } = await matchSectionsToRequirements({
             sections,
             targetCompany: portfolio.targetCompany,
             targetPosition: portfolio.targetPosition,
-          }, { timeout: 30000 });
-          if (res.data.results) {
-            const map = {};
-            res.data.results.forEach(r => { map[r.index] = r; });
+          });
+          if (map) {
             setSectionMatches(map);
-            const matched = res.data.results.filter(r => r.matched).length;
             toast.success(`${matched}/${sections.length}개 섹션이 ${portfolio.targetCompany} 요건에 부합합니다`);
           }
         } catch {
@@ -213,13 +210,10 @@ export default function PortfolioEditor() {
         tasks: [],
         requirements: { essential: [] },
       };
-      const res = await api.post('/job/tailor-portfolio', {
-        jobAnalysis,
-        sections: portfolio.sections || [],
-      }, { timeout: 120000 });
-      if (res.data.sections) {
-        setTailoredSections(res.data.sections);
-        setTailorNote(res.data.overallNote || '');
+      const data = await tailorPortfolio(jobAnalysis, portfolio.sections || []);
+      if (data.sections) {
+        setTailoredSections(data.sections);
+        setTailorNote(data.overallNote || '');
         toast.success('기업 맞춤형 재작성이 완료되었습니다. 변경 내용을 확인하세요.');
       }
     } catch {

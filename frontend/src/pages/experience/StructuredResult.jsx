@@ -9,7 +9,7 @@ import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
-import api from '../../services/api';
+import { analyzeJobUrl } from '../../services/jobAI';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -356,7 +356,7 @@ export default function StructuredResult() {
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const respData = await analyzeJobUrl(jobUrl);
       const analysis = respData.analysis;
       setJobAnalysis(analysis);
       setShowJobInput(false);

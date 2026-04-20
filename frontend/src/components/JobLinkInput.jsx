@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
-import api from '../services/api';
+import { analyzeJob } from '../services/jobAI';
+import { stripMd } from '../utils/textUtils';
 
 const JOB_SITES = [
   { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
@@ -11,10 +12,6 @@ const JOB_SITES = [
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
   return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
-}
-
-function stripMd(s) {
-  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -136,9 +133,9 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.post('/job/analyze', {
-        url: mode === 'url' ? url.trim() : undefined,
-        text: mode === 'text' ? text.trim() : undefined,
+      const data = await analyzeJob({
+        url: mode === 'url' ? url : undefined,
+        text: mode === 'text' ? text : undefined,
       });
       onAnalysisComplete(data.analysis);
     } catch (err) {

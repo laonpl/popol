@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
+import { stripMd } from '../utils/textUtils';
 
 /* ================================================================
    KeyExperienceSlider
@@ -7,9 +8,6 @@ import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } fro
    - 어떤 내용이든 균일하게 비교 그래프 생성
    - 아이콘 없음, 깨지는 글씨 없음
    ================================================================ */
-
-/* ── 마크다운 **bold** 제거 유틸 ── */
-function stripMd(s) { return s ? String(s).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '') : ''; }
 
 /* ── [작성 필요] 힌트 감지 ── */
 function isHint(s) { return s && String(s).startsWith('[작성 필요]'); }

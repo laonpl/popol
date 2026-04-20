@@ -7,9 +7,7 @@ import useExperienceStore from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
-
-/* ── 유틸 ── */
-function stripMd(s) { return s ? String(s).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '') : ''; }
+import { stripMd } from '../../utils/textUtils';
 
 function formatDate(ts) {
   if (!ts) return '';

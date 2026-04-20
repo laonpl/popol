@@ -15,9 +15,13 @@ import { aiRateLimiter, generalRateLimiter } from './middleware/rateLimiter.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 예상치 못한 예외로 서버가 종료되지 않도록 핸들러 등록
+// 예상치 못한 예외 핸들러 — EADDRINUSE 같은 치명적 에러는 즉시 종료
 process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT EXCEPTION] 서버가 종료되지 않도록 오류를 기록합니다:', err);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[EADDRINUSE] 포트 ${err.port || PORT}가 이미 사용 중입니다. 기존 프로세스를 종료 후 다시 시작하세요.`);
+    process.exit(1);
+  }
+  console.error('[UNCAUGHT EXCEPTION]', err);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[UNHANDLED REJECTION] 처리되지 않은 Promise 거부:', reason);
@@ -81,7 +85,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`?? POPOL Backend ?�버 ?�행 �? http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`✅ POPOL Backend 서버 실행 중 → http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[EADDRINUSE] 포트 ${PORT}가 이미 사용 중입니다. 기존 프로세스를 종료 후 다시 시작하세요.`);
+    process.exit(1);
+  }
+  console.error('[SERVER ERROR]', err);
+  process.exit(1);
 });
 

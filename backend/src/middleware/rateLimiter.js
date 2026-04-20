@@ -1,11 +1,11 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /**
  * 키 생성기: x-user-id 헤더 → IP 순으로 식별
  * (게스트 모드 포함 모든 요청을 유저 단위로 제한)
  */
 function keyGenerator(req) {
-  return req.headers['x-user-id'] || req.ip;
+  return req.headers['x-user-id'] || ipKeyGenerator(req);
 }
 
 /**

@@ -5,7 +5,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
-import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 export default function ExperienceEditor() {

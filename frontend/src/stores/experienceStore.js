@@ -103,7 +103,7 @@ const useExperienceStore = create((set, get) => ({
     }
   },
 
-  analyzeExperience: async (experienceId) => {
+  analyzeExperience: async (experienceId, options = {}) => {
     // AI 분석 전, 현재 structuredResult를 히스토리에 스냅샷 저장
     const current = get().experiences.find(e => e.id === experienceId);
     if (current) {
@@ -113,13 +113,23 @@ const useExperienceStore = create((set, get) => ({
         structuredResult: current.structuredResult,
       });
     }
-    const { data } = await api.post('/experience/analyze', { experienceId }, { timeout: 300000 });
+    const payload = { experienceId };
+    if (options.momentsCount !== undefined) payload.momentsCount = options.momentsCount;
+    const { data } = await api.post('/experience/analyze', payload, { timeout: 300000 });
     set(state => ({
       experiences: state.experiences.map(e =>
         e.id === experienceId ? { ...e, structuredResult: data, keywords: data.keywords || [] } : e
       ),
     }));
     return data;
+  },
+
+  /** 자료 텍스트에서 핵심 경험(moments)을 추출. TemplateSelect 자료 수집 플로우용. */
+  extractMoments: async (rawText, title) => {
+    const { data } = await api.post('/experience/extract-moments', {
+      rawText, title,
+    }, { timeout: 120000 });
+    return data; // { moments: [...] }
   },
 
   // ── 히스토리 관련 ──────────────────────────────────
