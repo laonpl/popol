@@ -1,9 +1,9 @@
 ﻿import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../../config/firebase';
+import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
@@ -302,14 +302,8 @@ export default function StructuredResult() {
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 크기 초과 (10MB)`); continue; }
-        // base64로 리사이즈 후 Blob으로 변환해 Storage에 업로드
         const base64 = await resizeToBase64(file);
-        const blob = await fetch(base64).then(r => r.blob());
-        const path = `experiences/${id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const sRef = storageRef(storage, path);
-        await uploadBytes(sRef, blob, { contentType: 'image/jpeg' });
-        const url = await getDownloadURL(sRef);
-        newImgs.push({ url, name: file.name, storagePath: path });
+        newImgs.push({ url: base64, name: file.name });
       }
       if (newImgs.length > 0) {
         const startIdx = allImages.length;
@@ -331,7 +325,6 @@ export default function StructuredResult() {
   };
 
   const handleImageDelete = async (imgIdx) => {
-    const target = allImages[imgIdx];
     const updatedAll = allImages.filter((_, i) => i !== imgIdx);
     const remap = (arr) => arr
       .filter(i => i !== imgIdx)
@@ -341,10 +334,6 @@ export default function StructuredResult() {
     setAllImages(updatedAll);
     setSectionImages(updatedSection);
     try {
-      // Firebase Storage에서도 삭제
-      if (target?.storagePath) {
-        await deleteObject(storageRef(storage, target.storagePath)).catch(() => {});
-      }
       const docRef = doc(db, 'experiences', id);
       await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, updatedAt: new Date() });
     } catch {}
@@ -1217,24 +1206,36 @@ function fuzzyIndexOf(text, needle) {
 
 function HighlightSpan({ text, type, keywords }) {
   const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const spanRef = useRef(null);
   const color = highlightColors[type] || highlightColors.core;
 
+  const handleEnter = () => {
+    setVisible(true);
+    if (spanRef.current) {
+      const rect = spanRef.current.getBoundingClientRect();
+      setPos({ left: rect.left + rect.width / 2, top: rect.top - 8 });
+    }
+  };
+
   return (
-    <span
-      className="relative inline"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-    >
+    <span className="relative inline">
       <span
+        ref={spanRef}
         className="cursor-help font-medium transition-colors"
         style={{
           borderBottom: `2.5px solid ${color.underline}`,
           paddingBottom: '1px',
           backgroundColor: `${color.underline}10`,
         }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setVisible(false)}
       >{text}</span>
-      {visible && keywords.length > 0 && (
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 whitespace-nowrap bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl pointer-events-none flex flex-col gap-1.5 min-w-max">
+      {visible && keywords.length > 0 && createPortal(
+        <span
+          className="fixed z-[9999] whitespace-normal max-w-xs bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl pointer-events-none flex flex-col gap-1.5"
+          style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
+        >
           <span className="flex items-center gap-1.5 font-semibold">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
             {color.label}
@@ -1244,8 +1245,8 @@ function HighlightSpan({ text, type, keywords }) {
               <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
             ))}
           </span>
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-        </span>
+        </span>,
+        document.body
       )}
     </span>
   );
