@@ -9,7 +9,7 @@
  * - extractFields: 경험 객체 → 섹션별 필드 정규화
  */
 
-/** 가벼운 마크다운 제거 — 인라인/리스트/제목 기호만 정리. */
+/** 가벼운 마크다운 제거 — 인라인/리스트/제목 기호 + 이모지 정리. */
 export function stripMd(s) {
   if (!s) return '';
   return String(s)
@@ -17,6 +17,7 @@ export function stripMd(s) {
     .replace(/\*/g, '')
     .replace(/^#+\s/gm, '')
     .replace(/^[-•*]\s/gm, '')
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
     .trim();
 }
 

@@ -1187,10 +1187,18 @@ function StandaloneImageBlock({ content, width, caption, onUpdate, uploadPlaceho
 
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
 // segments 형식: [{type:'text'|'image', content:string, width?:string}]
-function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName }) {
+// 크로스 블록 드래그 상태 (모듈 레벨)
+let __rceDrag = null;
+
+function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName, instanceId }) {
   const fileInputRef = useRef(null);
   const pendingInsertAfter = useRef(null);
   const [dragOver, setDragOver] = useState(null);
+  // 크로스 블록 드래그를 위한 refs (stale closure 방지)
+  const myId = instanceId || null;
+  const segmentsRef = useRef([]);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   // base64가 텍스트 세그먼트에 잘못 들어간 경우 자동 수정
   const rawSegs = Array.isArray(value) && value.length > 0
@@ -1201,6 +1209,8 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
       ? { ...s, type: 'image' }
       : s
   );
+  // segmentsRef를 항상 최신으로 유지
+  segmentsRef.current = segments;
 
   const updateSeg = (i, changes) => onChange(segments.map((s, si) => si === i ? { ...s, ...changes } : s));
 
@@ -1282,14 +1292,53 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
             e.dataTransfer.setData('rce-idx', String(i));
             e.dataTransfer.effectAllowed = 'move';
             e.currentTarget.style.opacity = '0.4';
+            // 크로스 블록 드래그: 이미지 세그먼트만 지원
+            if (myId && seg.type === 'image') {
+              const draggedContent = seg.content;
+              e.dataTransfer.setData('rce-source-id', myId);
+              __rceDrag = {
+                instanceId: myId,
+                seg: { ...seg },
+                removeFn: () => {
+                  let removed = false;
+                  const next = segmentsRef.current.filter(s => {
+                    if (!removed && s.type === 'image' && s.content === draggedContent) { removed = true; return false; }
+                    return true;
+                  });
+                  onChangeRef.current(next.length > 0 ? next : [{ type: 'text', content: '' }]);
+                },
+              };
+            }
           }}
-          onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
+          onDragEnd={e => {
+            e.currentTarget.style.opacity = '1';
+            // 크로스 블록으로 이동되지 않은 경우 상태 초기화
+            if (__rceDrag?.instanceId === myId) __rceDrag = null;
+          }}
           onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOver(i); }}
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
           onDrop={e => {
             e.preventDefault();
             e.stopPropagation(); // 상위 블록 onDrop 방지
+            const sourceId = e.dataTransfer.getData('rce-source-id');
             const from = parseInt(e.dataTransfer.getData('rce-idx'), 10);
+            // 크로스 블록 드롭 처리
+            if (sourceId && sourceId !== myId && __rceDrag?.instanceId === sourceId) {
+              const droppedSeg = { ...__rceDrag.seg };
+              const removeFn = __rceDrag.removeFn;
+              __rceDrag = null;
+              const next = [...segments];
+              next.splice(i, 0, droppedSeg);
+              // 이미지 뒤에 텍스트 세그먼트 보장
+              if (droppedSeg.type === 'image' && (!next[i + 1] || next[i + 1].type === 'image')) {
+                next.splice(i + 1, 0, { type: 'text', content: '' });
+              }
+              onChange(next);
+              removeFn();
+              setDragOver(null);
+              return;
+            }
+            // 내부 이동
             if (!isNaN(from) && from !== i) moveSeg(from, i);
             setDragOver(null);
           }}
@@ -1430,6 +1479,16 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   // 커스텀 블록 관련 state
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const [projectBlockPickerIdx, setProjectBlockPickerIdx] = useState(null);
+  const newAshleyImageRef = useRef(null);
+  const onAshleyNewImageFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const b64 = await resizeToBase64Global(file);
+      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
+    } catch { toast.error('이미지 처리 실패'); }
+  };
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -1896,16 +1955,17 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="px-10 pb-8"
-            draggable="true"
-            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
-            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
             onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
           >
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc] relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
+                  <div
+                    draggable="true"
+                    onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity = '0.4'; }}
+                    onDragEnd={e => { const sec = e.currentTarget.closest('section'); if (sec) sec.style.opacity = '1'; }}
+                    className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
                     <GripVertical size={14} />
                   </div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
@@ -1922,6 +1982,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               )}
               {block.type === 'text' && (
                 <RichContentEditor
+                  instanceId={`cb-ashley-t-${i}`}
                   value={block.segments || block.content || ''}
                   onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],segments:v,content:Array.isArray(v)?v.filter(s=>s.type==='text').map(s=>s.content).join('\n'):v}; update('customBlocks',b); }}
                   placeholder="텍스트를 입력하세요"
@@ -1929,12 +1990,21 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 />
               )}
               {block.type === 'image' && (
-                <StandaloneImageBlock
-                  content={block.content}
-                  width={block.width}
-                  caption={block.caption}
-                  uploadPlaceholderClass="border-[#e8e4dc] hover:border-[#c4a882]"
-                  onUpdate={changes => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],...changes}; update('customBlocks',b); }}
+                <RichContentEditor
+                  instanceId={`cb-ashley-i-${i}`}
+                  value={(() => {
+                    const c = block.content;
+                    if (Array.isArray(c)) return c;
+                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
+                      const segs = [{ type: 'image', content: c, width: block.width }];
+                      if (block.caption) segs.push({ type: 'text', content: block.caption });
+                      return segs;
+                    }
+                    return [{ type: 'text', content: '' }];
+                  })()}
+                  onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i], content:v, width:undefined, caption:undefined}; update('customBlocks',b); }}
+                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
+                  textRows={2}
                 />
               )}
               {block.type === 'divider' && <hr className="border-[#e8e4dc] my-2" />}
@@ -1995,6 +2065,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 블록 추가 버튼 */}
         <div className="px-10 pb-8">
+          <input ref={newAshleyImageRef} type="file" accept="image/*" className="hidden" onChange={onAshleyNewImageFile} />
           <div className="relative">
             <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-[#e8e4dc] rounded-xl text-sm text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
@@ -2006,10 +2077,11 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 {[
                   { type: 'heading', icon: <Type size={14}/>, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14}/>, label: '텍스트', desc: '자유 텍스트 블록' },
-                  { type: 'image', icon: <ImageIcon size={14}/>, label: '이미지', desc: '사진 첨부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowCustomBlockMenu(false); }}
+                  <button key={item.type} onClick={() => {
+                    addToArray('customBlocks', { type: item.type, content: '' }); setShowCustomBlockMenu(false);
+                  }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#f7f5f0] text-left">
                     <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]">{item.icon}</span>
                     <div><p className="text-sm font-medium text-[#2d2a26]">{item.label}</p><p className="text-[10px] text-[#8a8578]">{item.desc}</p></div>
@@ -2762,12 +2834,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="px-10 pb-8"
-            draggable="true"
-            onDragStart={e => {
-              if (e.target.closest('[data-rce-row]')) return;
-              e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4';
-            }}
-            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
             onDragOver={e => { if (e.dataTransfer.types.includes('rce-idx')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={e => {
               if (e.dataTransfer.types.includes('rce-idx')) return;
@@ -2777,7 +2843,11 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             <div className="bg-white rounded-xl p-6 border border-surface-200 relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
+                  <div
+                    draggable="true"
+                    onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity = '0.4'; }}
+                    onDragEnd={e => { const sec = e.currentTarget.closest('section'); if (sec) sec.style.opacity = '1'; }}
+                    className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
                     disabled={i===0} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-30"><ChevronUp size={14}/></button>
                   <button onClick={() => { if (i === (p.customBlocks||[]).length-1) return; const b=[...(p.customBlocks||[])]; [b[i+1],b[i]]=[b[i],b[i+1]]; update('customBlocks',b); }}
@@ -2791,10 +2861,12 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               )}
               {block.type === 'text' && (
                 <RichContentEditor value={block.content || ''} onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:v}; update('customBlocks',b); }}
+                  instanceId={`cb-academic-t-${i}`}
                   placeholder="텍스트 입력..." textRows={4} textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-y" />
               )}
               {block.type === 'image' && (
                 <RichContentEditor
+                  instanceId={`cb-academic-i-${i}`}
                   value={(() => {
                     const c = block.content;
                     if (Array.isArray(c)) return c;
@@ -2853,11 +2925,9 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
-                  { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
                 ].map(item => (
                   <button key={item.type} onClick={() => {
-                    if (item.type === 'image') { setShowBlockMenu(false); newImageBlockInputRef.current?.click(); return; }
                     addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false);
                   }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
@@ -3311,6 +3381,16 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [hoveredSection, setHoveredSection] = useState(null);
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const profileImageInputRef = useRef(null);
+  const newNotionImageRef = useRef(null);
+  const onNotionNewImageFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const b64 = await resizeToBase64Global(file);
+      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
+    } catch { toast.error('이미지 처리 실패'); }
+  };
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
@@ -4158,38 +4238,33 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   blocks[i] = { ...blocks[i], segments: v, content: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v };
                   update('customBlocks', blocks);
                 }}
+                instanceId={`cb-notion-t-${i}`}
                 placeholder="텍스트를 입력하세요"
                 textRows={4}
               />
             )}
             {block.type === 'image' && (
               <div className="mb-4">
-                {block.content ? (
-                  <RichContentEditor
-                    value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
-                    onChange={v => {
-                      const blocks = [...(p.customBlocks || [])];
-                      const imgSeg = Array.isArray(v) ? v.find(s => s.type === 'image') : null;
-                      blocks[i] = { ...blocks[i], segments: v, content: imgSeg?.content ?? block.content, width: imgSeg?.width };
-                      update('customBlocks', blocks);
-                    }}
-                    textRows={2}
-                  />
-                ) : (
-                  <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
-                    <ImageIcon size={24} className="text-gray-300" />
-                    <span className="text-xs text-gray-400">클릭하여 이미지 업로드</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const base64 = await resizeToBase64Global(file, 1200, 0.8);
-                        const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: base64 };
-                        update('customBlocks', blocks);
-                      } catch { toast.error('이미지 처리 실패'); }
-                    }} />
-                  </label>
-                )}
+                <RichContentEditor
+                  instanceId={`cb-notion-i-${i}`}
+                  value={(() => {
+                    const c = block.content;
+                    if (Array.isArray(c)) return c;
+                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
+                      const segs = [{ type: 'image', content: c, width: block.width }];
+                      if (block.caption) segs.push({ type: 'text', content: block.caption });
+                      return segs;
+                    }
+                    return [{ type: 'text', content: '' }];
+                  })()}
+                  onChange={v => {
+                    const blocks = [...(p.customBlocks || [])];
+                    blocks[i] = { ...blocks[i], content: v, width: undefined, caption: undefined };
+                    update('customBlocks', blocks);
+                  }}
+                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
+                  textRows={2}
+                />
               </div>
             )}
             {block.type === 'divider' && <hr className="border-surface-200 my-6" />}
@@ -4296,6 +4371,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Add Block Button (Notion-like) */}
         <div className="relative">
+          <input ref={newNotionImageRef} type="file" accept="image/*" className="hidden" onChange={onNotionNewImageFile} />
           <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
             className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
             <Plus size={16} /> 블록 추가
@@ -4306,7 +4382,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               {[
                 { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                 { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
-                { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
                 { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
               ].map(item => (
                 <button key={item.type} onClick={() => {

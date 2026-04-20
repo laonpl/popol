@@ -319,9 +319,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
       <div className="bg-white border border-gray-200 rounded-t-2xl px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 text-left">
-            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
-              <Building2 size={20} className="text-gray-600" />
-            </div>
             <div>
               <p className="text-sm font-bold text-gray-800 tracking-wide">
                 {analysis.company || '기업'} ({analysis.position || '직무'})
