@@ -1,20 +1,48 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+let openaiClient = null;
+function getOpenAIClient() {
+  if (!openaiClient && process.env.GITHUB_MODELS_TOKEN) {
+    openaiClient = new OpenAI({
+      baseURL: process.env.GITHUB_MODELS_ENDPOINT || "https://models.inference.ai.azure.com",
+      apiKey: process.env.GITHUB_MODELS_TOKEN
+    });
+  }
+  return openaiClient;
+}
+
+export async function callGitHubModelsFallback(prompt) {
+  const client = getOpenAIClient();
+  if (!client) throw new Error("GitHub Models Token not configured");
+  
+  console.log('[Fallback] Using GitHub Models (gpt-4o-mini)...');
+  const response = await client.chat.completions.create({
+    messages: [
+      { role: "system", content: "You are a helpful assistant." },
+      { role: "user", content: prompt }
+    ],
+    model: "gpt-4o-mini",
+    temperature: 0.7,
+  });
+  
+  return response.choices[0].message.content;
+}
+
 const MODEL_FALLBACKS = [
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite'
 ];
 
 // ── 세마포어: 동시 Gemini API 호출 수 제한 (30명+ 동시 사용 대응) ──
-const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT = 2; // TPM 제어를 위해 6에서 2로 낮춤
 const MAX_QUEUE_SIZE = 60;
 let activeCount = 0;
 const waitQueue = [];
 
-function acquireSemaphore(timeoutMs = 120000) {
+export function acquireSemaphore(timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     if (activeCount < MAX_CONCURRENT) {
       activeCount++;
@@ -33,11 +61,14 @@ function acquireSemaphore(timeoutMs = 120000) {
   });
 }
 
-function releaseSemaphore() {
+export function releaseSemaphore() {
   if (waitQueue.length > 0) {
     const next = waitQueue.shift();
     clearTimeout(next.timer);
-    next.resolve();
+    // TPM 제어를 위해 큐에서 다음 요청을 꺼낼 때 2초의 쿨다운(Delay) 강제 부여
+    setTimeout(() => {
+      next.resolve();
+    }, 2000);
   } else {
     activeCount--;
   }
@@ -67,7 +98,7 @@ function callModelWithTimeout(model, prompt, timeoutMs = 90000) {
   });
 }
 
-export async function generateWithRetry(prompt, retries = 3, delayMs = 3000) {
+export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
   // 세마포어 획득 — 동시 호출 수 제한
   try {
     await acquireSemaphore();
@@ -135,6 +166,17 @@ export async function generateWithRetry(prompt, retries = 3, delayMs = 3000) {
 
       if (modelName !== MODEL_FALLBACKS[MODEL_FALLBACKS.length - 1]) {
         await sleep(1000);
+      }
+    }
+
+    // 모든 Gemini 시도 실패 시 GitHub Models로 Fallback
+    if (lastError) {
+      console.error('[Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
+      try {
+        return await callGitHubModelsFallback(prompt);
+      } catch (fallbackErr) {
+        console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
+        throw lastError; // 둘 다 실패하면 원본 Gemini 에러 반환
       }
     }
 

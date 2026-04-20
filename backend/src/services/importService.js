@@ -1,48 +1,76 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
+import { createWorker } from 'tesseract.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
   'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-2.5-flash-lite'
 ];
 
-async function geminiGenerate(parts, retries = 3, delayMs = 3000) {
-  let lastError;
-  for (const modelName of MODEL_FALLBACKS) {
-    const model = genAI.getGenerativeModel({ model: modelName });
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        const result = await model.generateContent(parts);
-        return result.response.text();
-      } catch (err) {
-        lastError = err;
-        const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
-        const msg = err?.message || '';
-        // API Key 에러 → 즉시 중단
-        if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
-          console.error(`[Import Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요`);
-          throw err;
-        }
-        if ([429, 503, 500].includes(status)) {
-          if (attempt < retries - 1) {
-            const wait = delayMs * Math.pow(2, attempt);
-            console.warn(`[Import Gemini] ${modelName} ${status} - 재시도 (${wait}ms 대기)`);
-            await new Promise(r => setTimeout(r, wait));
-          } else {
-            console.warn(`[Import Gemini] ${modelName} 재시도 소진 - 다음 모델로 전환`);
-            break;
+async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
+  try {
+    await acquireSemaphore();
+  } catch (err) {
+    if (err.message === 'QUEUE_FULL') throw new Error('서버가 일시적으로 과부하 상태입니다. 잠시 후 시도해주세요.');
+    if (err.message === 'QUEUE_TIMEOUT') throw new Error('요청 대기 시간이 초과되었습니다.');
+    throw err;
+  }
+
+  try {
+    let lastError;
+    for (const modelName of MODEL_FALLBACKS) {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          const result = await model.generateContent(parts);
+          return result.response.text();
+        } catch (err) {
+          lastError = err;
+          const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
+          const msg = err?.message || '';
+          // API Key 에러 → 즉시 중단
+          if (status === 400 && (msg.includes('API key') || msg.includes('API Key'))) {
+            console.error(`[Import Gemini] API 키 오류 - 유효한 Gemini API 키를 설정하세요`);
+            throw err;
           }
-        } else if ([404, 400].includes(status)) {
-          console.warn(`[Import Gemini] ${modelName} ${status} - 다음 모델로 전환`);
-          break;
-        } else throw err;
+          if ([429, 503, 500].includes(status)) {
+            if (attempt < retries - 1) {
+              const wait = delayMs * Math.pow(2, attempt);
+              console.warn(`[Import Gemini] ${modelName} ${status} - 재시도 (${wait}ms 대기)`);
+              await new Promise(r => setTimeout(r, wait));
+            } else {
+              console.warn(`[Import Gemini] ${modelName} 재시도 소진 - 다음 모델로 전환`);
+              break;
+            }
+          } else if ([404, 400].includes(status)) {
+            console.warn(`[Import Gemini] ${modelName} ${status} - 다음 모델로 전환`);
+            break;
+          } else throw err;
+        }
       }
     }
+
+    // 모든 재시도 소진 후 GitHub Models 폴백 사용
+    if (lastError) {
+      console.error('[Import Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...');
+      try {
+        const promptString = Array.isArray(parts) 
+          ? parts.map(p => typeof p === 'string' ? p : (p.inlineData ? '[첨부된 파일 데이터 - OCR 생략]' : JSON.stringify(p))).join('\n')
+          : parts;
+        return await callGitHubModelsFallback(promptString);
+      } catch (fallbackErr) {
+        console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
+        throw lastError;
+      }
+    }
+
+    throw lastError;
+  } finally {
+    releaseSemaphore();
   }
-  throw lastError;
 }
 
 /**
@@ -353,16 +381,23 @@ export async function importFromFile(buffer, mimeType, fileName) {
         console.error('Gemini Vision OCR 실패:', e.message);
         // pdf-parse에서 추출한 부분 텍스트라도 있으면 사용
         if (!extractedText.trim()) {
-          throw new Error('PDF에서 텍스트를 추출할 수 없습니다. Gemini API 키를 확인해주세요.');
+          throw new Error('PDF에서 텍스트를 추출할 수 없습니다. 글자가 텍스트 형태로 포함된 원본 PDF를 사용해주세요.');
         }
       }
     }
   } else if (mimeType.startsWith('image/')) {
-    // 이미지 → Gemini Vision OCR
+    // 이미지 → Tesseract OCR (무료/로컬)
+    console.log('[Import] 이미지 감지, Tesseract OCR 시도');
     try {
-      extractedText = await extractWithGeminiVision(buffer, mimeType);
+      extractedText = await extractWithTesseractOCR(buffer);
+      // 만약 Tesseract가 너무 짧게 추출하거나 실패하면 안전망으로 Gemini Vision 폴백
+      if (extractedText.trim().length < 10) {
+        console.log('[Import] Tesseract 결과물 부족, Gemini Vision OCR 시도');
+        extractedText = await extractWithGeminiVision(buffer, mimeType);
+      }
     } catch (e) {
-      throw new Error('이미지에서 텍스트를 추출할 수 없습니다: ' + e.message);
+      console.warn('Tesseract OCR 실패, Gemini Vision으로 대체합니다:', e.message);
+      extractedText = await extractWithGeminiVision(buffer, mimeType);
     }
   } else {
     // HWP 등 기타 → Gemini Vision 시도 (PDF로 MIME 변환 시도)
@@ -385,6 +420,16 @@ export async function importFromFile(buffer, mimeType, fileName) {
     rawText: extractedText.trim(),
     importedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Tesseract.js (로컬 오픈소스)로 이미지에서 텍스트 추출 (Token 무료)
+ */
+async function extractWithTesseractOCR(buffer) {
+  const worker = await createWorker('kor+eng');
+  const { data: { text } } = await worker.recognize(buffer);
+  await worker.terminate();
+  return text;
 }
 
 /**
