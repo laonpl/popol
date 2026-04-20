@@ -338,9 +338,24 @@ export default function TemplateSelect() {
         return;
       }
 
-      // 6) 핵심 경험 추출
+      // 6) 핵심 경험 추출 (최대 2회 재시도)
       updateLoadingStep(stepIdx, 'loading');
-      const extractResult = await extractMoments(allText.trim(), title.trim());
+      let extractResult;
+      let extractError;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          extractResult = await extractMoments(allText.trim(), title.trim());
+          extractError = null;
+          break;
+        } catch (err) {
+          extractError = err;
+          if (attempt === 0) {
+            console.warn('핵심 경험 추출 1차 실패, 5초 후 재시도:', err.message);
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+      }
+      if (extractError) throw extractError;
       updateLoadingStep(stepIdx, 'done');
 
       setCollectedText(allText.trim());
@@ -349,7 +364,10 @@ export default function TemplateSelect() {
 
     } catch (error) {
       console.error('자료 수집 실패:', error);
-      toast.error('자료 수집에 실패했습니다. 다시 시도해주세요.');
+      const isAiError = error?.response?.status >= 500 || error?.response?.status === 429;
+      toast.error(isAiError
+        ? 'AI 서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해주세요.'
+        : '자료 수집에 실패했습니다. 다시 시도해주세요.');
       setStep(2);
     }
   };
@@ -397,9 +415,24 @@ export default function TemplateSelect() {
       });
       updateLoadingStep(0, 'done');
 
-      // AI 분석
+      // AI 분석 (최대 2회 재시도)
       updateLoadingStep(1, 'loading');
-      const analysis = await analyzeExperience(experienceId, { momentsCount: moments.length });
+      let analysis;
+      let analysisError;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          analysis = await analyzeExperience(experienceId, { momentsCount: moments.length });
+          analysisError = null;
+          break;
+        } catch (err) {
+          analysisError = err;
+          if (attempt === 0) {
+            console.warn('AI 분석 1차 실패, 5초 후 재시도:', err.message);
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+      }
+      if (analysisError) throw analysisError;
       updateLoadingStep(1, 'done');
 
       toast.success('경험 정리가 완료되었습니다!');
@@ -408,7 +441,10 @@ export default function TemplateSelect() {
       });
     } catch (error) {
       console.error('경험 생성 실패:', error);
-      toast.error('경험 생성에 실패했습니다. 다시 시도해주세요.');
+      const isAiError = error?.response?.status >= 500 || error?.response?.status === 429;
+      toast.error(isAiError
+        ? 'AI 서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해주세요.'
+        : '경험 생성에 실패했습니다. 다시 시도해주세요.');
       setStep(4);
     }
   };

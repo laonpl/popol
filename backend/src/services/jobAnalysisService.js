@@ -231,121 +231,80 @@ export async function scrapeJobPosting(url) {
 
 // ── 채용공고 분석 (Gemini) ─────────────────────────────
 export async function analyzeJobPosting(text) {
-  const prompt = `당신은 한국 최고의 채용시장 전문 분석가이자 기업 리서치 전문가입니다. TIO Korea 수준의 상세 기업 분석을 수행하세요.
-아래 채용공고 텍스트를 분석해서 구조화된 JSON으로 추출하되, 채용공고에 없는 정보라도 기업명이 식별되면 공개된 사업보고서, IR 자료, 뉴스, Glassdoor/크레딧잡 등의 정보를 기반으로 최대한 풍부하게 작성하세요.
+  const prompt = `채용시장 전문 분석가입니다. 아래 채용공고를 분석해 구조화된 JSON으로 추출하세요.
+기업명이 식별되면 공개 정보(사업보고서·IR·뉴스)를 기반으로 풍부하게 작성하세요.
 
-## 채용공고 텍스트:
-${text.substring(0, 14000)}
+채용공고:
+${text.substring(0, 8000)}
 
-## 분석 지침:
-1. **기업 분석**: 단순 소개가 아니라 투자자 관점의 사업 분석 수준으로. 매출 규모, 직원 수, 설립연도, 경쟁사 대비 포지셔닝, 최근 M&A/투자/신사업 동향을 포함
-2. **직무 적합도 스코어**: 각 요구사항에 대해 중요도(weight) 점수를 1-10으로 부여하고, 해당 직무의 기여 가치를 정량적으로 표현
-3. **경쟁력 분석**: 이 기업의 동종 업계 대비 강점/약점을 SWOT 형태로 분석
-4. **급여 수준 추정**: 직급, 경력, 업종 기반으로 시장 급여 범위를 추정
-5. **면접 전략**: 예상 질문은 5개 이상, 기업 특성 반영한 답변 포인트도 함께 제시
-6. **산업 분석**: 시장 규모, 성장률, 주요 플레이어, 기술 트렌드를 수치와 함께 제시
-7. **포트폴리오 요건 추출 (매우 중요)**: 채용공고에서 포트폴리오 관련 조건을 아래 항목별로 세밀하게 추출하세요.
-   - **required**: 제출이 필수인 항목 (예: "PDF 포트폴리오 필수", "GitHub 링크 필수", "포트폴리오 URL 첨부 필수" 등)
-   - **format**: 파일/제출 형식 조건 (예: "PDF만 허용", "10MB 이하", "A4 10페이지 이내", "링크(Notion/GitHub/개인사이트) 허용", "파일명: 이름_포지션" 등)
-   - **content**: 포트폴리오에 꼭 담아야 할 내용 (예: "주요 프로젝트 3개 이상", "본인 기여 부분 명시", "사용 기술 스택 기재", "결과/성과 수치화", "UI/UX 결과물 포함" 등)
-   - **submission**: 제출 방법/경로/플랫폼 (예: "지원서 파일 첨부", "이메일 별도 첨부", "지원 플랫폼 내 링크 입력란" 등)
-   채용공고에 명시되지 않은 경우라도 해당 직무/기업 관행을 기반으로 일반적으로 요구되는 최선의 가이드를 작성하세요.
+분석 지침:
+1. 기업 분석: 매출·직원수·설립연도·경쟁사 포지셔닝·최근 M&A/투자 동향 포함
+2. 직무 적합도: 각 요구사항 중요도(weight 1~10) 부여
+3. 급여 추정: 직급·경력·업종 기반 시장 급여 범위
+4. 면접 전략: 예상 질문 5개 이상, 기업 특성 반영 답변 포인트
+5. 포트폴리오 요건: required/format/content/submission 항목별 세밀하게 추출 (명시 없으면 직무 관행 기반 가이드 작성)
 
-반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 문자열 값 안에도 **, ##, * 등 마크다운 기호 금지):
+반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지):
 {
-  "company": "기업명",
-  "position": "직무/포지션",
-  "tasks": ["주요업무1", "주요업무2"],
-  "requirements": {
-    "essential": ["필수요건1", "필수요건2"],
-    "preferred": ["우대요건1", "우대요건2"]
-  },
-  "skills": ["스킬1", "스킬2"],
-  "skillImportance": [
-    {"skill": "스킬1", "weight": 9, "reason": "핵심 업무에 필수"},
-    {"skill": "스킬2", "weight": 6, "reason": "우대 사항"}
-  ],
+  "company": "",
+  "position": "",
+  "tasks": [],
+  "requirements": { "essential": [], "preferred": [] },
+  "skills": [],
+  "skillImportance": [{ "skill": "", "weight": 8, "reason": "" }],
   "applicationFormat": {
-    "documents": ["이력서", "자기소개서"],
-    "questions": [
-      {"question": "자소서 문항 텍스트", "maxLength": 500}
-    ],
-    "fileConstraints": {"maxSize": null, "format": null}
+    "documents": [],
+    "questions": [{ "question": "", "maxLength": 500 }],
+    "fileConstraints": { "maxSize": null, "format": null }
   },
-  "deadline": "마감일 텍스트 또는 null",
+  "deadline": null,
   "workConditions": {
-    "salary": "급여 정보 또는 null",
-    "estimatedSalaryRange": {"min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "업종·직급·경력 기반 시장 추정"},
-    "benefits": ["복리후생1"],
-    "location": "근무지 또는 null"
+    "salary": null,
+    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "benefits": [],
+    "location": null
   },
-  "coreValues": ["인재상 키워드1", "인재상 키워드2"],
+  "coreValues": [],
   "companyAnalysis": {
-    "overview": "기업 소개 및 현황 - 설립연도, 직원 수, 매출 규모 등 포함 (5-8문장 상세하게)",
-    "industry": "산업 분야",
-    "businessAreas": ["주요 사업 영역1", "주요 사업 영역2"],
-    "recentTrends": "최근 2년 동향 - M&A, 신사업, 투자유치, 실적 변화 등 (3-5문장)",
-    "culture": "기업 문화/특징 - 조직 구조, 워라밸, 성장 환경 (3-5문장)",
-    "strengths": ["기업 강점1", "기업 강점2"],
-    "weaknesses": ["기업 약점/리스크1", "약점2"],
-    "competitors": [
-      {"name": "경쟁사1", "comparison": "우리 기업 대비 차이점/유사점"}
-    ],
-    "companySize": {"employees": "직원 수 추정", "revenue": "매출 규모 추정", "founded": "설립연도"},
-    "homepage": "홈페이지 URL 또는 null"
+    "overview": "",
+    "industry": "",
+    "businessAreas": [],
+    "recentTrends": "",
+    "culture": "",
+    "strengths": [],
+    "weaknesses": [],
+    "competitors": [{ "name": "", "comparison": "" }],
+    "companySize": { "employees": "", "revenue": "", "founded": "" },
+    "homepage": null
   },
   "positionAnalysis": {
-    "roleDescription": "이 직무가 기업 내에서 담당하는 역할 상세 설명 (5-8문장)",
-    "growthPath": "커리어 성장 가능성 및 경로 (주니어→시니어→리드 등)",
-    "keyCompetencies": [
-      {"name": "핵심역량1", "weight": 9, "description": "왜 중요한지 설명"},
-      {"name": "핵심역량2", "weight": 7, "description": "설명"}
-    ],
-    "dailyTasks": "실제 일상 업무 예상 설명 (3-5문장)",
-    "teamStructure": "예상 팀 구조/규모",
-    "challengeLevel": {"score": 7, "description": "난이도와 그 이유"}
+    "roleDescription": "",
+    "growthPath": "",
+    "keyCompetencies": [{ "name": "", "weight": 8, "description": "" }],
+    "dailyTasks": "",
+    "teamStructure": "",
+    "challengeLevel": { "score": 7, "description": "" }
   },
   "applicationStrategy": {
-    "motivationPoints": [
-      {"point": "지원동기 포인트1", "how": "구체적으로 어떻게 녹일지 가이드"},
-      {"point": "포인트2", "how": "가이드"}
-    ],
-    "interviewQuestions": [
-      {"question": "면접 예상 질문1", "intent": "면접관의 의도", "answerTip": "답변 전략"},
-      {"question": "예상 질문2", "intent": "의도", "answerTip": "전략"}
-    ],
-    "appealPoints": ["어필 포인트1", "어필 포인트2"],
-    "cautionPoints": ["주의할 점1"],
-    "portfolioTips": ["포트폴리오에서 강조할 점1", "강조할 점2"]
+    "motivationPoints": [{ "point": "", "how": "" }],
+    "interviewQuestions": [{ "question": "", "intent": "", "answerTip": "" }],
+    "appealPoints": [],
+    "cautionPoints": [],
+    "portfolioTips": []
   },
-  "industryTrends": [
-    {"trend": "트렌드명", "description": "상세 설명 2-3문장", "impact": "이 직무에 미치는 영향"},
-    {"trend": "트렌드2", "description": "설명", "impact": "영향"}
-  ],
+  "industryTrends": [{ "trend": "", "description": "", "impact": "" }],
   "fitScoreFactors": [
-    {"factor": "기술 스택 일치도", "maxScore": 30, "description": "요구 스킬과 지원자 보유 스킬 비교"},
-    {"factor": "직무 경험 관련성", "maxScore": 25, "description": "관련 프로젝트/경력 존재 여부"},
-    {"factor": "인재상 부합도", "maxScore": 20, "description": "기업 핵심가치와의 정합성"},
-    {"factor": "성장 잠재력", "maxScore": 15, "description": "학습 능력, 신기술 적응력"},
-    {"factor": "문화 적합성", "maxScore": 10, "description": "기업 문화와의 적합도"}
+    { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
+    { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
+    { "factor": "인재상 부합도", "maxScore": 20, "description": "" },
+    { "factor": "성장 잠재력", "maxScore": 15, "description": "" },
+    { "factor": "문화 적합성", "maxScore": 10, "description": "" }
   ],
   "portfolioRequirements": {
-    "required": [
-      "PDF 포트폴리오 필수 제출 (개발자 직군 관행)",
-      "GitHub 프로필 링크 첨부 권장"
-    ],
-    "format": [
-      "PDF 단일 파일 형식 권장",
-      "파일 크기 10MB 이하",
-      "A4 기준 10페이지 이내"
-    ],
-    "content": [
-      "본인이 개발한 주요 프로젝트 2~3개 이상",
-      "각 프로젝트별 사용 기술 스택 명시",
-      "본인 기여도/역할 구체적으로 기재",
-      "성과 및 결과를 수치로 표현"
-    ],
-    "submission": "지원서 파일 첨부 또는 링크 입력란에 URL 기재 (채용 플랫폼에 따라 다름)"
+    "required": [],
+    "format": [],
+    "content": [],
+    "submission": ""
   }
 }`;
 
@@ -358,61 +317,57 @@ ${text.substring(0, 14000)}
 
 // ── 경험-요구사항 매칭 ─────────────────────────────────
 export async function matchExperiencesToJob(jobAnalysis, experiences, portfolio) {
-  const expSummaries = experiences.map((exp, i) => {
+  const expSummaries = experiences.slice(0, 6).map((exp, i) => {
     const content = exp.content
-      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${v}`).join('\n')
+      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${String(v).substring(0, 150)}`).join('\n')
       : '';
-    const sections = (exp.sections || []).map(s => `${s.title}: ${s.content}`).join('\n');
     return `[경험 ${i + 1}: ${exp.title}]
-설명: ${exp.description || ''}
-역할: ${exp.role || ''}
-스킬: ${(exp.skills || []).join(', ')}
-키워드: ${(exp.keywords || []).join(', ')}
-분류: ${(exp.classify || []).join(', ')}
-${content}
-${sections}`;
+설명: ${(exp.description || '').substring(0, 200)}
+역할: ${exp.role || ''} | 스킬: ${(exp.skills || []).join(', ')} | 키워드: ${(exp.keywords || []).join(', ')}
+${content}`.substring(0, 600);
   }).join('\n\n');
 
-  const portfolioSummary = portfolio ? `
-스킬: ${JSON.stringify(portfolio.skills || {})}
-학력: ${JSON.stringify(portfolio.education || [])}
-수상: ${JSON.stringify(portfolio.awards || [])}
-목표: ${JSON.stringify(portfolio.goals || [])}
-가치관: ${portfolio.valuesEssay || ''}` : '포트폴리오 없음';
+  const portfolioSummary = portfolio
+    ? `스킬: ${JSON.stringify(portfolio.skills || {})} | 학력: ${(portfolio.education || []).map(e => e.school).join(', ')} | 목표: ${(portfolio.goals || []).slice(0, 2).join(', ')}`
+    : '포트폴리오 없음';
 
-  const prompt = `당신은 취업 컨설턴트입니다. 채용공고 요구사항과 사용자의 경험/포트폴리오를 매칭해주세요.
+  const jobSummary = `기업: ${jobAnalysis.company} | 직무: ${jobAnalysis.position}
+필수요건: ${(jobAnalysis.requirements?.essential || []).slice(0, 5).join(', ')}
+우대요건: ${(jobAnalysis.requirements?.preferred || []).slice(0, 3).join(', ')}
+요구스킬: ${(jobAnalysis.skills || []).join(', ')}
+인재상: ${(jobAnalysis.coreValues || []).join(', ')}`;
 
-## 채용공고 분석:
-${JSON.stringify(jobAnalysis, null, 2)}
+  const prompt = `취업 컨설턴트입니다. 채용공고 요구사항과 사용자 경험/포트폴리오를 매칭하세요.
 
-## 사용자 경험:
+채용공고:
+${jobSummary}
+
+사용자 경험:
 ${expSummaries || '등록된 경험 없음'}
 
-## 사용자 포트폴리오:
+사용자 포트폴리오:
 ${portfolioSummary}
 
-## 요청:
-1. 각 필수/우대 요건에 대해 가장 부합하는 경험을 매칭하세요
-2. 사용자의 강점과 약점을 분석하세요
-3. 면접/자소서에서 강조할 포인트를 추천하세요
-4. 부족한 부분에 대한 보완 전략을 제시하세요
+요청:
+1. 각 필수/우대 요건에 가장 부합하는 경험 매칭
+2. 강점/약점 분석
+3. 면접·자소서에서 강조할 포인트 추천
+4. 부족한 부분 보완 전략
 
 반드시 아래 JSON으로만 응답 (마크다운 없이):
 {
   "matchResults": [
     {
-      "requirement": "요구사항 텍스트",
-      "type": "essential 또는 preferred",
-      "matchedExperiences": [
-        {"experienceIndex": 0, "title": "경험 제목", "relevance": "높음/보통/낮음", "reason": "매칭 이유"}
-      ],
+      "requirement": "",
+      "type": "essential",
+      "matchedExperiences": [{ "experienceIndex": 0, "title": "", "relevance": "높음", "reason": "" }],
       "coverageScore": 80
     }
   ],
-  "strengths": ["강점1", "강점2"],
-  "weaknesses": ["약점1", "약점2"],
-  "emphasisPoints": ["강조포인트1", "강조포인트2"],
-  "improvementStrategy": ["보완전략1", "보완전략2"],
+  "strengths": [],
+  "weaknesses": [],
+  "emphasisPoints": [],
+  "improvementStrategy": [],
   "overallFitScore": 75
 }`;
 
@@ -430,58 +385,48 @@ export async function generateTailoredCoverLetter(jobAnalysis, matchResult, expe
   const expTextMap = {};
   experiences.forEach((exp, i) => {
     const content = exp.content
-      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${v}`).join('\n')
+      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${String(v).substring(0, 200)}`).join('\n')
       : '';
-    const sections = (exp.sections || []).map(s => `${s.title}: ${s.content}`).join('\n');
-    expTextMap[i] = `[${exp.title}] ${exp.description || ''}\n${content}\n${sections}`;
+    const sections = (exp.sections || []).map(s => `${s.title}: ${(s.content || '').substring(0, 150)}`).join('\n');
+    expTextMap[i] = `[${exp.title}] ${(exp.description || '').substring(0, 200)}\n${content}\n${sections}`.substring(0, 800);
   });
 
   // 문항이 있으면 문항별, 없으면 일반 자소서 구조
   const questionsPrompt = questions.length > 0
     ? questions.map((q, i) =>
-      `### 문항 ${i + 1}: ${q.question}\n글자수 제한: ${q.maxLength || '제한없음'}자`
-    ).join('\n\n')
-    : `### 일반 자소서 구조로 작성:
-1. 지원 동기 (500자)
-2. 성장 과정 또는 직무 관련 경험 (500자)
-3. 입사 후 포부 (500자)`;
+      `문항 ${i + 1}: ${q.question} (${q.maxLength || '제한없음'}자)`
+    ).join('\n')
+    : `일반 자소서 구조: 1.지원동기(500자) 2.직무관련경험(500자) 3.입사후포부(500자)`;
 
-  const prompt = `당신은 대한민국 최고의 자소서 컨설턴트입니다. 기업 맞춤형 자기소개서를 작성하세요.
+  const expText = Object.values(expTextMap).join('\n\n');
+  const truncatedExpText = expText.length > 3000 ? expText.substring(0, 3000) + '...' : expText;
 
-## 기업 정보:
-- 기업: ${jobAnalysis.company}
-- 직무: ${jobAnalysis.position}
-- 인재상: ${coreValues.join(', ') || '정보 없음'}
-- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
+  const prompt = `자소서 전문 컨설턴트입니다. 기업 맞춤형 자기소개서를 작성하세요.
 
-## 자소서 문항:
+기업: ${jobAnalysis.company} | 직무: ${jobAnalysis.position}
+인재상: ${coreValues.join(', ') || '정보 없음'} | 요구 스킬: ${(jobAnalysis.skills || []).slice(0, 8).join(', ')}
+
+자소서 문항:
 ${questionsPrompt}
 
-## 매칭 분석:
-- 강점: ${(matchResult.strengths || []).join(', ')}
-- 강조 포인트: ${(matchResult.emphasisPoints || []).join(', ')}
+강점: ${(matchResult.strengths || []).join(', ')}
+강조 포인트: ${(matchResult.emphasisPoints || []).join(', ')}
 
-## 활용 가능한 경험:
-${Object.values(expTextMap).join('\n\n') || '등록된 경험 없음'}
+활용 경험:
+${truncatedExpText || '등록된 경험 없음'}
 
-## 작성 지침:
-- 각 문항에 대해 기업의 인재상과 직무 요구사항에 맞춰 작성
-- 글자수 제한이 있으면 반드시 준수
-- 구체적인 수치와 사례를 포함
-- STAR 구조를 자연스럽게 활용
-- 기업의 핵심가치/인재상 키워드를 자연스럽게 반영
-- 자연스러운 한국어 톤
+작성 기준: 인재상/직무요건 맞춤, 글자수 준수, 구체적 수치·사례 포함, STAR 구조, 자연스러운 한국어.
 
 반드시 아래 JSON 형식으로만 응답:
 {
   "answers": [
     {
-      "question": "문항 텍스트",
-      "answer": "작성된 답변",
+      "question": "",
+      "answer": "",
       "wordCount": 487,
       "maxWordCount": 500,
-      "usedExperiences": ["경험1 제목"],
-      "highlightedValues": ["반영된 인재상 키워드"]
+      "usedExperiences": [],
+      "highlightedValues": []
     }
   ],
   "tips": ["팁1", "팁2"]
@@ -495,22 +440,30 @@ ${Object.values(expTextMap).join('\n\n') || '등록된 경험 없음'}
 
 // ── 맞춤형 포트폴리오 제안 ─────────────────────────────
 export async function generateTailoredPortfolio(jobAnalysis, matchResult, experiences, portfolio) {
-  const prompt = `당신은 포트폴리오 컨설턴트입니다. 기업 맞춤형 포트폴리오 구성을 제안하세요.
+  const jobKey = `기업: ${jobAnalysis.company} | 직무: ${jobAnalysis.position}
+스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}`;
 
-## 기업 분석:
-${JSON.stringify(jobAnalysis, null, 2)}
+  const matchKey = `강점: ${(matchResult.strengths || []).join(', ')}
+약점: ${(matchResult.weaknesses || []).join(', ')} | 적합도: ${matchResult.overallFitScore || '?'}점`;
 
-## 매칭 결과:
-${JSON.stringify(matchResult, null, 2)}
+  const portfolioKey = portfolio
+    ? `헤드라인: ${portfolio.headline || ''} | 스킬: ${JSON.stringify(portfolio.skills || {}).substring(0, 200)}`
+    : '포트폴리오 없음';
 
-## 현재 포트폴리오:
-${JSON.stringify(portfolio, null, 2)}
+  const prompt = `포트폴리오 컨설턴트입니다. 기업 맞춤형 포트폴리오 구성을 제안하세요.
 
-## 현재 경험 목록:
-${experiences.map((e, i) => `${i + 1}. ${e.title} - ${e.description || ''} [스킬: ${(e.skills || []).join(',')}]`).join('\n')}
+기업 정보:
+${jobKey}
 
-## 요청:
-기업에 맞게 포트폴리오에서 강조할 항목, 순서 변경, 추가할 내용을 제안하세요.
+매칭 결과:
+${matchKey}
+
+현재 포트폴리오: ${portfolioKey}
+
+경험 목록:
+${experiences.slice(0, 8).map((e, i) => `${i + 1}. ${e.title} [스킬: ${(e.skills || []).join(', ')}]`).join('\n')}
+
+요청: 기업에 맞게 강조할 항목, 순서 변경, 추가할 내용 제안.
 
 JSON 형식으로만 응답:
 {
@@ -550,46 +503,35 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
     .map(k => `[${sectionLabels[k]}]\n${sr[k]}`)
     .join('\n\n');
 
-  const prompt = `당신은 취업 컨설턴트입니다. 사용자의 프로젝트/경험을 지원 기업과 직무에 최적화되도록 7가지 개요 섹션별로 재작성해주세요.
-원래 내용의 사실을 유지하되, 기업이 원하는 역량과 가치를 강조하도록 표현을 조정하세요.
-원본에 해당 섹션 내용이 없으면 해당 섹션은 빈 문자열로 두세요.
+  const prompt = `취업 컨설턴트입니다. 사용자 경험을 지원 기업/직무에 최적화되도록 7개 섹션별로 재작성하세요.
+원본 사실을 유지하되 기업이 원하는 역량·가치를 강조하도록 표현 조정. 원본 없는 섹션은 빈 문자열.
+JSON 값 안에 마크다운 기호(**, ##, *, -) 절대 사용 금지.
 
-## 지원 기업 정보:
-- 기업: ${jobAnalysis.company || ''}
-- 직무: ${jobAnalysis.position || ''}
-- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
-- 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
-- 주요 업무: ${(jobAnalysis.tasks || []).join(', ')}
+기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
+스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
+주요업무: ${(jobAnalysis.tasks || []).slice(0, 4).join(', ')}
 
-## 원본 경험:
-- 제목: ${experience.title || ''}
-- 설명: ${experience.description || ''}
-- 역할: ${experience.role || ''}
-- 스킬: ${(experience.skills || []).join(', ')}
-${content}
-${sections}
+원본 경험:
+제목: ${experience.title || ''} | 역할: ${experience.role || ''} | 스킬: ${(experience.skills || []).join(', ')}
+설명: ${(experience.description || '').substring(0, 300)}
+${content.substring(0, 800)}
 
-## 7가지 개요 섹션 원본:
-${sectionTexts || '(구조화된 섹션 없음)'}
-
-## 재작성 요청:
-각 섹션을 기업이 원하는 역량을 부각하도록 재작성하되, 원본 내용이 있는 섹션만 재작성하세요.
-각 섹션별로 변경 이유를 1줄로 설명해주세요.
-문자열 값 안에 **, ##, -, * 등 마크다운 기호를 절대 사용하지 말고 일반 텍스트로만 작성하세요.
+7개 섹션 원본:
+${(sectionTexts || '(없음)').substring(0, 2000)}
 
 JSON으로만 응답:
 {
   "sections": {
-    "intro": { "content": "재작성된 프로젝트 소개 (원본 없으면 빈 문자열)", "reason": "변경 이유" },
-    "overview": { "content": "재작성된 프로젝트 개요", "reason": "변경 이유" },
-    "task": { "content": "재작성된 진행한 일", "reason": "변경 이유" },
-    "process": { "content": "재작성된 과정", "reason": "변경 이유" },
-    "output": { "content": "재작성된 결과물", "reason": "변경 이유" },
-    "growth": { "content": "재작성된 성장한 점", "reason": "변경 이유" },
-    "competency": { "content": "재작성된 나의 역량", "reason": "변경 이유" }
+    "intro": { "content": "", "reason": "" },
+    "overview": { "content": "", "reason": "" },
+    "task": { "content": "", "reason": "" },
+    "process": { "content": "", "reason": "" },
+    "output": { "content": "", "reason": "" },
+    "growth": { "content": "", "reason": "" },
+    "competency": { "content": "", "reason": "" }
   },
-  "highlightedSkills": ["이 경험에서 기업에 어필할 스킬"],
-  "relevanceNote": "이 경험이 해당 기업/직무에 왜 적합한지 설명"
+  "highlightedSkills": [],
+  "relevanceNote": ""
 }`;
 
   const raw = await generateWithRetry(prompt);
@@ -601,28 +543,22 @@ JSON으로만 응답:
 // ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 ───────
 export async function tailorPortfolioSections(jobAnalysis, sections) {
   const sectionsText = sections
-    .map((s, i) => `섹션 ${i} [${s.type}] "${s.title}":\n${s.content || '(내용 없음)'}`)
-    .join('\n\n---\n\n');
+    .map((s, i) => `섹션 ${i} [${s.type}] "${s.title}":\n${(s.content || '(내용 없음)').substring(0, 400)}`)
+    .join('\n\n---\n\n')
+    .substring(0, 5000);
 
-  const prompt = `당신은 취업 전문 컨설턴트입니다. 아래 포트폴리오의 모든 섹션 내용을 지원 기업/직무에 최적화되도록 재작성하세요.
-사실을 유지하되, 해당 기업이 원하는 역량·가치관·스킬을 강조하는 방향으로 표현을 조정하세요.
-내용이 없거나 짧은 섹션은 그대로 두세요.
+  const prompt = `취업 전문 컨설턴트입니다. 포트폴리오 섹션들을 지원 기업/직무에 최적화되도록 재작성하세요.
+사실을 유지하되 기업이 원하는 역량·가치관·스킬 강조 방향으로 표현 조정. 내용 없는 섹션은 그대로.
 
-## 지원 기업 정보:
-- 기업: ${jobAnalysis.company || ''}
-- 직무: ${jobAnalysis.position || ''}
-- 요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
-- 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
-- 주요 업무: ${(jobAnalysis.tasks || []).join(', ')}
-- 필수 요건: ${(jobAnalysis.requirements?.essential || []).join(', ')}
+기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
+스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
+주요업무: ${(jobAnalysis.tasks || []).slice(0, 4).join(', ')}
+필수요건: ${(jobAnalysis.requirements?.essential || []).slice(0, 4).join(', ')}
 
-## 포트폴리오 섹션들:
+포트폴리오 섹션:
 ${sectionsText}
 
-## 재작성 규칙:
-1. 각 섹션을 기업 맞춤으로 재작성 (내용이 없으면 originalContent 그대로)
-2. 변경된 부분의 핵심 이유 1줄로 설명
-3. 수치/성과는 최대한 유지하되 기업 관점에서 강조
+규칙: 1.기업 맞춤 재작성(내용 없으면 원본 유지) 2.변경 이유 1줄 3.수치/성과 유지.
 
 반드시 아래 JSON으로만 응답:
 {

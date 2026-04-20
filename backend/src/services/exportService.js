@@ -4,7 +4,7 @@ import { generateWithRetry } from './geminiService.js';
  * Notion 최적화 Markdown 형태로 내보내기
  */
 export async function exportForNotion(data) {
-  const jsonStr = JSON.stringify(data, null, 2);
+  const jsonStr = JSON.stringify(data, null, 2).substring(0, 8000);
 
   const isPortfolio = !!(data.templateType || (data.education && data.experiences));
 
@@ -63,7 +63,7 @@ ${jsonStr}
  * GitHub README 최적화 Markdown 형태로 내보내기
  */
 export async function exportForGitHub(data) {
-  const jsonStr = JSON.stringify(data, null, 2);
+  const jsonStr = JSON.stringify(data, null, 2).substring(0, 8000);
 
   const prompt = `당신은 GitHub README.md 전문 작성자입니다.
 아래 JSON 데이터를 GitHub에서 렌더링했을 때 가장 보기 좋은 README.md 형식으로 변환하십시오.
@@ -107,7 +107,7 @@ ${jsonStr}
  * PDF 최적화 압축 텍스트로 내보내기
  */
 export async function exportForPDF(data) {
-  const jsonStr = JSON.stringify(data, null, 2);
+  const jsonStr = JSON.stringify(data, null, 2).substring(0, 8000);
 
   const prompt = `당신은 A4 이력서/포트폴리오 PDF 전문 편집자입니다.
 아래 JSON 데이터를 PDF 인쇄 시 가장 효율적인 텍스트로 변환하십시오.

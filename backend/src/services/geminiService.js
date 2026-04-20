@@ -24,10 +24,11 @@ export async function analyzeExperience(content, keyExperienceCount = 3) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 각 필드 3000자 제한으로 토큰 초과 방지.
-  const contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 3000)}`)
+  // 각 필드 1200자 제한 + 전체 4000자 상한으로 토큰 초과 방지.
+  let contentText = entries
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 1200)}`)
     .join('\n');
+  if (contentText.length > 4000) contentText = contentText.substring(0, 4000);
 
   const maxCount = Math.min(Math.max(Number(keyExperienceCount) || 3, 1), 10);
   const prompt = buildAnalyzeExperiencePrompt(contentText, maxCount);
@@ -105,7 +106,7 @@ function generateFallbackDraft(question, linkedExperiences, targetCompany, targe
 
 export async function validatePortfolioWithAI(portfolioData, experiencesData) {
   const sectionsText = (portfolioData.sections || []).map((s, i) =>
-    `[섹션 ${i + 1}: ${s.title}]\n역할: ${s.role || '미기재'}\n기여도: ${s.contribution || '미기재'}%\n내용: ${s.content || '(비어있음)'}`
+    `[섹션 ${i + 1}: ${s.title}]\n역할: ${s.role || '미기재'}\n기여도: ${s.contribution || '미기재'}%\n내용: ${(s.content || '(비어있음)').substring(0, 300)}`
   ).join('\n\n');
 
   const prompt = buildValidatePortfolioPrompt(portfolioData, sectionsText);
@@ -119,7 +120,7 @@ export async function validatePortfolioWithAI(portfolioData, experiencesData) {
 export async function matchSectionsToRequirements(sections, targetCompany, targetPosition) {
   const sectionsText = sections.map((s, i) => {
     const content = s.content
-      ? s.content.substring(0, 500)
+      ? s.content.substring(0, 300)
       : (s.projectTechStack ? `기술스택: ${s.projectTechStack.join(', ')}` : '(내용 없음)');
     return `[섹션 ${i}: "${s.title}" (타입: ${s.type})]\n${content}`;
   }).join('\n\n');
