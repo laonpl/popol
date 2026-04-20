@@ -162,9 +162,38 @@ async function fetchJobWithHttp(url) {
   }
 }
 
-// ── 채용공고 스크래핑 ──────────────────────────────────
+// ── 채용공고 스크래핑 (Puppeteer 동시 인스턴스 제한) ──────
+const MAX_PUPPETEER = 2;   // 동시 최대 2개 브라우저 (메모리 보호)
+let puppeteerActive = 0;
+const puppeteerQueue = [];
+
+function acquirePuppeteer(timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    if (puppeteerActive < MAX_PUPPETEER) {
+      puppeteerActive++;
+      return resolve();
+    }
+    const entry = { resolve, reject, timer: null };
+    entry.timer = setTimeout(() => {
+      const idx = puppeteerQueue.indexOf(entry);
+      if (idx !== -1) puppeteerQueue.splice(idx, 1);
+      reject(new Error('PUPPETEER_QUEUE_TIMEOUT'));
+    }, timeoutMs);
+    puppeteerQueue.push(entry);
+  });
+}
+
+function releasePuppeteer() {
+  if (puppeteerQueue.length > 0) {
+    const next = puppeteerQueue.shift();
+    clearTimeout(next.timer);
+    next.resolve();
+  } else {
+    puppeteerActive--;
+  }
+}
+
 export async function scrapeJobPosting(url) {
-  // 1단계: HTTP fetch (빠름 - 대부분의 SSR/정적 사이트에서 동작)
   try {
     const text = await fetchJobWithHttp(url);
     console.log('[Job] HTTP 스크래핑 성공, 길이:', text.length);
@@ -173,7 +202,13 @@ export async function scrapeJobPosting(url) {
     console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', httpErr.message);
   }
 
-  // 2단계: Puppeteer 폴백 (JS 렌더링 필요한 SPA 사이트)
+  // Puppeteer 동시 인스턴스 제한
+  try {
+    await acquirePuppeteer();
+  } catch {
+    throw new Error('스크래핑 서버가 혼잡합니다. 직접 텍스트를 붙여넣어주세요.');
+  }
+
   const SCRAPE_TIMEOUT_MS = 45000;
   let browser;
   try {
@@ -226,6 +261,7 @@ export async function scrapeJobPosting(url) {
     if (browser) {
       try { await browser.close(); } catch (_) { browser.process()?.kill('SIGKILL'); }
     }
+    releasePuppeteer();
   }
 }
 

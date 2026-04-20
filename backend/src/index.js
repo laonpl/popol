@@ -10,7 +10,8 @@ import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
 import uploadRoutes from './routes/upload.js';
-import { aiRateLimiter, generalRateLimiter } from './middleware/rateLimiter.js';
+import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
+import { getQueueStats } from './config/geminiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -55,15 +56,25 @@ app.use(cors({
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+// 요청 타임아웃: 2분 (AI 호출 포함 대기열 대기 시간 고려)
+app.use('/api', (req, res, next) => {
+  req.setTimeout(120000);
+  res.setTimeout(120000);
+  next();
+});
+
 // 전체 API 일반 제한
 app.use('/api', generalRateLimiter);
+
+// AI 엔드포인트: 유저별 + 글로벌 이중 제한
+const aiLimiters = [globalAiRateLimiter, aiRateLimiter];
 
 // Routes
 app.use('/api/experience', experienceRoutes);
 app.use('/api/portfolio', portfolioRoutes);
-app.use('/api/export', aiRateLimiter, exportRoutes);
+app.use('/api/export', ...aiLimiters, exportRoutes);
 app.use('/api/import', importRoutes);
-app.use('/api/job', aiRateLimiter, jobRoutes);
+app.use('/api/job', ...aiLimiters, jobRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // 업로드된 이미지 정적 서빙 (cross-origin 허용)
@@ -72,9 +83,9 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(process.cwd(), 'uploads')));
 
-// Health check
+// Health check (대기열 상태 포함)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ status: 'OK', timestamp: new Date().toISOString(), queue: getQueueStats() });
 });
 
 // Error handler

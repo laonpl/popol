@@ -24,19 +24,44 @@ export async function analyzeExperience(content, keyExperienceCount = 3) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
-  // 각 필드 1200자 제한 + 전체 4000자 상한으로 토큰 초과 방지.
   let contentText = entries
     .map(([key, val]) => `[${key}]: ${String(val).substring(0, 1200)}`)
     .join('\n');
   if (contentText.length > 4000) contentText = contentText.substring(0, 4000);
 
-  const maxCount = Math.min(Math.max(Number(keyExperienceCount) || 3, 1), 10);
-  const prompt = buildAnalyzeExperiencePrompt(contentText, maxCount);
+  const maxCount = Math.min(Math.max(Number(keyExperienceCount) || 3, 2), 10);
+  const MIN_KEY_EXPERIENCES = 2;
 
+  // 1차 시도
+  const prompt = buildAnalyzeExperiencePrompt(contentText, maxCount);
   const text = await generateWithRetry(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('AI 응답 파싱 실패');
-  return JSON.parse(jsonMatch[0]);
+  const result = JSON.parse(jsonMatch[0]);
+
+  // 핵심 경험 2개 미만이면 1회 재시도
+  if (!result.keyExperiences || result.keyExperiences.length < MIN_KEY_EXPERIENCES) {
+    console.warn(`[Gemini] keyExperiences ${result.keyExperiences?.length || 0}개 — 최소 ${MIN_KEY_EXPERIENCES}개 필요, 재시도`);
+    const retryPrompt = buildAnalyzeExperiencePrompt(contentText, Math.max(maxCount, MIN_KEY_EXPERIENCES));
+    try {
+      const retryText = await generateWithRetry(retryPrompt);
+      const retryMatch = retryText.match(/\{[\s\S]*\}/);
+      if (retryMatch) {
+        const retryResult = JSON.parse(retryMatch[0]);
+        if (retryResult.keyExperiences && retryResult.keyExperiences.length >= MIN_KEY_EXPERIENCES) {
+          return retryResult;
+        }
+        // 재시도 결과가 더 많으면 사용
+        if ((retryResult.keyExperiences?.length || 0) > (result.keyExperiences?.length || 0)) {
+          return retryResult;
+        }
+      }
+    } catch (retryErr) {
+      console.warn('[Gemini] keyExperiences 재시도 실패, 원본 결과 사용:', retryErr.message);
+    }
+  }
+
+  return result;
 }
 
 export async function extractMoments(rawText, title) {
