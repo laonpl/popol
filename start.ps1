@@ -3,6 +3,21 @@ Write-Host "POPOL 서버를 시작합니다..." -ForegroundColor Cyan
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# 기존에 켜져 있는 프로세스(5000: 백엔드, 3000/5173: 프론트엔드) 포트 강제 정리
+$portsToKill = @(5000, 3000, 5173)
+foreach ($port in $portsToKill) {
+    $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+    if ($conns) {
+        foreach ($conn in $conns) {
+            $pidToKill = $conn.OwningProcess
+            if ($pidToKill -ne 0) {
+                Write-Host "이전 프로세스 정리 중 (포트: $port, PID: $pidToKill)..." -ForegroundColor Yellow
+                Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
 # 백엔드 시작 (새 창)
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; Write-Host 'Backend 서버 시작 중...' -ForegroundColor Green; npm run dev" -WindowStyle Normal
 

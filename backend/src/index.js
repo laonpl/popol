@@ -98,3 +98,17 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
+// Windows nodemon 등에서 프로세스 종료 시 Port가 점유되는(Zombie) 현상 방지
+const gracefulShutdown = (signal) => {
+  console.log(`\n[${signal}] 종료 신호 수신. 포트 연결을 안전하게 해제합니다...`);
+  server.close(() => {
+    console.log('✅ 백엔드 서버 종료 완료. 포트 해제됨!');
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Nodemon reload signal
+
+
