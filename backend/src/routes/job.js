@@ -10,6 +10,7 @@ import {
   tailorPortfolioSections,
   generateWithRetry,
 } from '../services/jobAnalysisService.js';
+import { callProFirst, parseJSON } from '../services/geminiService.js';
 
 const router = Router();
 
@@ -216,9 +217,8 @@ ${currentContent ? `## 현재 작성된 내용:\n${currentContent}\n` : ''}
   ]
 }`;
 
-    const raw = await generateWithRetry(prompt);
-    const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const result = JSON.parse(cleaned);
+    const raw = await callProFirst(prompt, 'RecommendSection');
+    const result = parseJSON(raw);
     res.json(result);
   } catch (err) {
     console.error('[Job] 섹션 추천 실패:', err);
@@ -289,47 +289,32 @@ router.post('/recommend-experiences', async (req, res) => {
     }
 
     // 핵심 키워드 3개 + 경험 매칭을 Gemini로 분석
+    // GitHub Models(gpt-4o-mini) fallback 대비: 한국어 1~2자/token → 경험당 300자, 전체 3000자 제한
     const expSummaries = experiences.map((exp, i) => {
-      const content = exp.content
-        ? Object.entries(exp.content).map(([k, v]) => `${k}: ${v}`).join('\n')
-        : '';
-      return `[${i}] "${exp.title}" - ${exp.description || ''} / 키워드: ${(exp.keywords || []).join(', ')} / 스킬: ${(exp.skills || []).join(', ')} / ${content}`;
-    }).join('\n');
+      const title = (exp.title || '').substring(0, 40);
+      const desc = (exp.description || '').substring(0, 80);
+      const kw = (exp.keywords || []).slice(0, 5).join(', ');
+      const sk = (exp.skills || []).slice(0, 5).join(', ');
+      return `[${i}]${title}: ${desc} | ${kw} | ${sk}`;
+    }).join('\n').substring(0, 3000);
 
-    const prompt = `채용공고 분석 결과를 보고, 이 기업이 추구하는 핵심 키워드 3개를 추출하고, 사용자의 경험 DB에서 가장 어울리는 경험을 추천하세요.
+    const jaSkills = (jobAnalysis.skills || []).slice(0, 6).join(', ');
+    const jaValues = (jobAnalysis.coreValues || []).slice(0, 4).join(', ');
+    const jaReq = (jobAnalysis.requirements?.essential || []).slice(0, 4).join(', ');
 
-## 채용공고 분석:
-기업: ${jobAnalysis.company}
-직무: ${jobAnalysis.position}
-요구 스킬: ${(jobAnalysis.skills || []).join(', ')}
-핵심 역량: ${(jobAnalysis.positionAnalysis?.keyCompetencies || []).join(', ')}
-인재상: ${(jobAnalysis.coreValues || []).join(', ')}
-필수 요건: ${(jobAnalysis.requirements?.essential || []).join(', ')}
-우대 요건: ${(jobAnalysis.requirements?.preferred || []).join(', ')}
+    const prompt = `기업 채용공고를 분석하여 핵심 키워드 3개를 추출하고, 사용자 경험 중 적합한 것을 추천하세요.
 
-## 사용자 경험 DB:
+기업:${jobAnalysis.company} 직무:${jobAnalysis.position}
+스킬:${jaSkills} | 인재상:${jaValues} | 필수:${jaReq}
+
+경험목록:
 ${expSummaries}
 
-## 요청:
-1. 이 기업/직무가 추구하는 핵심 키워드 3개를 추출하세요 (짧고 명확한 한글 키워드)
-2. 각 키워드에 대해 가장 적합한 경험을 추천하세요 (경험 인덱스와 이유)
+JSON으로만 응답:
+{"keywords":[{"keyword":"k1","description":"이유"},{"keyword":"k2","description":"이유"},{"keyword":"k3","description":"이유"}],"recommendations":[{"experienceIndex":0,"matchedKeywords":["k1"],"reason":"추천 이유"}]}`;
 
-반드시 아래 JSON으로만 응답:
-{
-  "keywords": [
-    {"keyword": "키워드1", "description": "이 키워드가 중요한 이유 한줄"},
-    {"keyword": "키워드2", "description": "이유"},
-    {"keyword": "키워드3", "description": "이유"}
-  ],
-  "recommendations": [
-    {"experienceIndex": 0, "matchedKeywords": ["키워드1"], "reason": "추천 이유 2-3문장"}
-  ]
-}`;
-
-    const raw = await generateWithRetry(prompt);
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('추천 분석 실패');
-    const result = JSON.parse(jsonMatch[0]);
+    const raw = await callProFirst(prompt, 'RecommendExperiences');
+    const result = parseJSON(raw);
 
     // 경험 정보 붙이기
     const recommendations = (result.recommendations || []).map(r => ({

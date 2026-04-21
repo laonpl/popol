@@ -1,4 +1,8 @@
-import { generateWithRetry } from './geminiService.js';
+import { generateWithRetry, callProFirst, parseJSON } from './geminiService.js';
+import {
+  buildSingleSectionTailorPrompt,
+  buildSingleCoverLetterAnswerPrompt,
+} from '../prompts/portfolioPrompts.js';
 
 export { generateWithRetry };
 
@@ -344,10 +348,8 @@ ${text.substring(0, 8000)}
   }
 }`;
 
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('채용공고 분석 결과 파싱 실패');
-  const parsed = JSON.parse(jsonMatch[0]);
+  const raw = await callProFirst(prompt, 'AnalyzeJobPosting');
+  const parsed = parseJSON(raw);
   return enrichPortfolioRequirements(parsed, text);
 }
 
@@ -407,71 +409,68 @@ ${portfolioSummary}
   "overallFitScore": 75
 }`;
 
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('매칭 분석 실패');
-  return JSON.parse(jsonMatch[0]);
+  const raw = await callProFirst(prompt, 'MatchExperiences');
+  return parseJSON(raw);
 }
 
-// ── 맞춤형 자소서 생성 ─────────────────────────────────
+// ── 맞춤형 자소서 생성 (문항별 병렬 호출) ─────────────────────────────────
 export async function generateTailoredCoverLetter(jobAnalysis, matchResult, experiences, portfolio) {
-  const questions = jobAnalysis.applicationFormat?.questions || [];
-  const coreValues = jobAnalysis.coreValues || [];
+  const rawQuestions = jobAnalysis.applicationFormat?.questions || [];
 
-  const expTextMap = {};
-  experiences.forEach((exp, i) => {
+  // 문항이 없으면 일반 3문항으로 대체
+  const questions = rawQuestions.length > 0
+    ? rawQuestions
+    : [
+        { question: '지원 동기', maxLength: 500 },
+        { question: '직무 관련 경험', maxLength: 500 },
+        { question: '입사 후 포부', maxLength: 500 },
+      ];
+
+  const expText = experiences.slice(0, 5).map((exp, i) => {
     const content = exp.content
-      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${String(v).substring(0, 200)}`).join('\n')
+      ? Object.entries(exp.content).map(([k, v]) => `${k}: ${String(v).substring(0, 150)}`).join('\n')
       : '';
-    const sections = (exp.sections || []).map(s => `${s.title}: ${(s.content || '').substring(0, 150)}`).join('\n');
-    expTextMap[i] = `[${exp.title}] ${(exp.description || '').substring(0, 200)}\n${content}\n${sections}`.substring(0, 800);
-  });
+    const sr = exp.structuredResult || {};
+    const srText = ['task', 'process', 'output', 'growth'].filter(k => sr[k]?.trim()).map(k => sr[k]).join(' ').substring(0, 300);
+    return `[${exp.title}] ${(exp.description || '').substring(0, 200)}\n${content}\n${srText}`.substring(0, 600);
+  }).join('\n\n');
 
-  // 문항이 있으면 문항별, 없으면 일반 자소서 구조
-  const questionsPrompt = questions.length > 0
-    ? questions.map((q, i) =>
-      `문항 ${i + 1}: ${q.question} (${q.maxLength || '제한없음'}자)`
-    ).join('\n')
-    : `일반 자소서 구조: 1.지원동기(500자) 2.직무관련경험(500자) 3.입사후포부(500자)`;
+  console.log(`[CoverLetter] 병렬 호출 시작: 문항 ${questions.length}개`);
+  const t0 = Date.now();
 
-  const expText = Object.values(expTextMap).join('\n\n');
-  const truncatedExpText = expText.length > 3000 ? expText.substring(0, 3000) + '...' : expText;
+  // 문항별 독립 프롬프트로 분할 → Promise.all 병렬 실행
+  const answerResults = await Promise.all(
+    questions.map(async (q, i) => {
+      const questionText = typeof q === 'string' ? q : q.question;
+      const maxLength = typeof q === 'object' ? (q.maxLength || 500) : 500;
+      const prompt = buildSingleCoverLetterAnswerPrompt(questionText, maxLength, expText, jobAnalysis);
+      try {
+        const raw = await callProFirst(prompt, `CoverLetter[Q${i + 1}/${questions.length}]`);
+        const parsed = parseJSON(raw, /\{[\s\S]*\}/);
+        return {
+          question: questionText,
+          answer: parsed.answer || '',
+          wordCount: (parsed.answer || '').length,
+          maxWordCount: maxLength,
+          usedExperiences: parsed.usedExperiences || [],
+          highlightedValues: parsed.highlightedValues || [],
+        };
+      } catch (err) {
+        console.warn(`[CoverLetter[Q${i + 1}]] 실패:`, err.message);
+        return { question: questionText, answer: '', wordCount: 0, maxWordCount: maxLength, usedExperiences: [], highlightedValues: [] };
+      }
+    })
+  );
 
-  const prompt = `자소서 전문 컨설턴트입니다. 기업 맞춤형 자기소개서를 작성하세요.
+  console.log(`[CoverLetter] 병렬 완료: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
-기업: ${jobAnalysis.company} | 직무: ${jobAnalysis.position}
-인재상: ${coreValues.join(', ') || '정보 없음'} | 요구 스킬: ${(jobAnalysis.skills || []).slice(0, 8).join(', ')}
-
-자소서 문항:
-${questionsPrompt}
-
-강점: ${(matchResult.strengths || []).join(', ')}
-강조 포인트: ${(matchResult.emphasisPoints || []).join(', ')}
-
-활용 경험:
-${truncatedExpText || '등록된 경험 없음'}
-
-작성 기준: 인재상/직무요건 맞춤, 글자수 준수, 구체적 수치·사례 포함, STAR 구조, 자연스러운 한국어.
-
-반드시 아래 JSON 형식으로만 응답:
-{
-  "answers": [
-    {
-      "question": "",
-      "answer": "",
-      "wordCount": 487,
-      "maxWordCount": 500,
-      "usedExperiences": [],
-      "highlightedValues": []
-    }
-  ],
-  "tips": ["팁1", "팁2"]
-}`;
-
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('자소서 생성 실패');
-  return JSON.parse(jsonMatch[0]);
+  return {
+    answers: answerResults,
+    tips: [
+      `${jobAnalysis.company || '해당 기업'}의 인재상(${(jobAnalysis.coreValues || []).slice(0, 2).join(', ')})에 맞는 키워드를 자연스럽게 녹여주세요.`,
+      '구체적인 수치와 성과를 포함하면 신뢰도가 높아집니다.',
+    ],
+  };
 }
 
 // ── 맞춤형 포트폴리오 제안 ─────────────────────────────
@@ -514,10 +513,8 @@ JSON 형식으로만 응답:
   "overallAdvice": "전체적인 포트폴리오 조정 조언"
 }`;
 
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('포트폴리오 제안 생성 실패');
-  return JSON.parse(jsonMatch[0]);
+  const raw = await callProFirst(prompt, 'GenerateTailoredPortfolio');
+  return parseJSON(raw);
 }
 
 // ── 경험 내용을 기업에 맞게 재작성 ─────────────────────
@@ -570,48 +567,45 @@ JSON으로만 응답:
   "relevanceNote": ""
 }`;
 
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('경험 맞춤화 실패');
-  return JSON.parse(jsonMatch[0]);
+  const raw = await callProFirst(prompt, 'TailorExperienceContent');
+  return parseJSON(raw);
 }
 
-// ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 ───────
+// ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 (섹션별 병렬 호출) ───────
 export async function tailorPortfolioSections(jobAnalysis, sections) {
-  const sectionsText = sections
-    .map((s, i) => `섹션 ${i} [${s.type}] "${s.title}":\n${(s.content || '(내용 없음)').substring(0, 400)}`)
-    .join('\n\n---\n\n')
-    .substring(0, 5000);
+  console.log(`[TailorPortfolio] 병렬 호출 시작: 섹션 ${sections.length}개`);
+  const t0 = Date.now();
 
-  const prompt = `취업 전문 컨설턴트입니다. 포트폴리오 섹션들을 지원 기업/직무에 최적화되도록 재작성하세요.
-사실을 유지하되 기업이 원하는 역량·가치관·스킬 강조 방향으로 표현 조정. 내용 없는 섹션은 그대로.
+  // 섹션별 독립 프롬프트로 분할 → Promise.all 병렬 실행
+  const sectionResults = await Promise.all(
+    sections.map(async (section, i) => {
+      const prompt = buildSingleSectionTailorPrompt(section, i, jobAnalysis);
+      try {
+        const raw = await callProFirst(prompt, `TailorSection[${i}/${sections.length}]`);
+        const parsed = parseJSON(raw, /\{[\s\S]*\}/);
+        return {
+          index: i,
+          tailoredContent: parsed.tailoredContent || section.content || '',
+          changeReason: parsed.changeReason || '',
+          changed: parsed.changed !== false && !!(parsed.tailoredContent),
+        };
+      } catch (err) {
+        console.warn(`[TailorSection[${i}]] 실패, 원본 유지:`, err.message);
+        return {
+          index: i,
+          tailoredContent: section.content || '',
+          changeReason: '맞춤화 실패 — 원본 유지',
+          changed: false,
+        };
+      }
+    })
+  );
 
-기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
-스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
-주요업무: ${(jobAnalysis.tasks || []).slice(0, 4).join(', ')}
-필수요건: ${(jobAnalysis.requirements?.essential || []).slice(0, 4).join(', ')}
+  console.log(`[TailorPortfolio] 병렬 완료: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
-포트폴리오 섹션:
-${sectionsText}
-
-규칙: 1.기업 맞춤 재작성(내용 없으면 원본 유지) 2.변경 이유 1줄 3.수치/성과 유지.
-
-반드시 아래 JSON으로만 응답:
-{
-  "sections": [
-    {
-      "index": 0,
-      "tailoredContent": "재작성된 섹션 내용",
-      "changeReason": "변경 이유 한 줄",
-      "changed": true
-    }
-  ],
-  "overallNote": "전체 포트폴리오 맞춤화 방향 설명"
-}`;
-
-  const raw = await generateWithRetry(prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('포트폴리오 섹션 맞춤화 실패');
-  return JSON.parse(jsonMatch[0]);
+  return {
+    sections: sectionResults,
+    overallNote: `${jobAnalysis.company || '기업'} ${jobAnalysis.position || '직무'} 맞춤형으로 ${sectionResults.filter(s => s.changed).length}개 섹션이 수정되었습니다.`,
+  };
 }
 

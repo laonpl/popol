@@ -595,9 +595,29 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [show, setShow] = useState(false);
-  const [panelTop, setPanelTop] = useState(120);
-  const [panelMaxH, setPanelMaxH] = useState('60vh');
+  const [pos, setPos] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [scrollPct, setScrollPct] = useState(0);
   const btnRef = useRef(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 288, e.clientX - dragOffset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffset.current.y)),
+      });
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragging]);
 
   if (!jobAnalysis || !sectionType) return null;
 
@@ -605,16 +625,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     if (show && data) { setShow(false); return; }
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      const PANEL_H = 340; // 예상 패널 높이
-      const viewH = window.innerHeight;
-      const available = viewH - rect.top - 24;
-      if (available < PANEL_H) {
-        setPanelTop(Math.max(80, viewH - PANEL_H - 24));
-        setPanelMaxH(`${Math.min(PANEL_H, viewH - 104)}px`);
-      } else {
-        setPanelTop(Math.max(80, rect.top));
-        setPanelMaxH(`${available - 24}px`);
-      }
+      setPos({ x: window.innerWidth - 304, y: Math.max(80, rect.top) });
     }
     setLoading(true);
     setShow(true);
@@ -624,6 +635,29 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     } catch { toast.error('내용 추천에 실패했습니다'); setShow(false); }
     setLoading(false);
   };
+
+  const handleDragStart = (e) => {
+    if (e.button !== 0) return;
+    const cur = pos || { x: window.innerWidth - 304, y: 120 };
+    dragOffset.current = { x: e.clientX - cur.x, y: e.clientY - cur.y };
+    setDragging(true);
+    e.preventDefault();
+  };
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    setScrollPct(max > 0 ? (el.scrollTop / max) * 100 : 0);
+  };
+
+  const handleApply = (content) => {
+    navigator.clipboard.writeText(content)
+      .then(() => toast.success('클립보드에 복사되었습니다'))
+      .catch(() => toast.error('복사 실패'));
+  };
+
+  const panelPos = pos || { x: window.innerWidth - 304, y: 120 };
 
   return (
     <>
@@ -640,11 +674,26 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
       </button>
       {show && createPortal(
         <div
-          style={{ position: 'fixed', right: 24, top: panelTop, width: 280, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
+          style={{
+            position: 'fixed',
+            left: panelPos.x,
+            top: panelPos.y,
+            width: 280,
+            zIndex: 1000,
+            maxHeight: '60vh',
+            display: 'flex',
+            flexDirection: 'column',
+            userSelect: dragging ? 'none' : 'auto',
+          }}
           className="bg-white rounded-2xl border border-indigo-200 shadow-xl p-4 overflow-hidden"
         >
-          <div className="flex items-center justify-between mb-3">
+          <style>{`.vsr-list::-webkit-scrollbar{display:none}`}</style>
+          <div
+            onMouseDown={handleDragStart}
+            className={`flex items-center justify-between mb-3 select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          >
             <div className="flex items-center gap-1.5">
+              <GripVertical size={12} className="text-indigo-300" />
               <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
               <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SHORT_SECTION_LABELS[sectionType] || sectionType}</span>
             </div>
@@ -656,13 +705,33 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
               <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
             </div>
           ) : data?.recommendations ? (
-            <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
-              {data.recommendations.map((rec, i) => (
-                <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                  <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
-                  <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
-                </div>
-              ))}
+            <div className="flex gap-2 flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+              <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                className="vsr-list flex-1 space-y-3 overflow-y-auto"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {data.recommendations.map((rec, i) => (
+                  <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-2">{rec.content}</p>
+                    <button
+                      onClick={() => handleApply(rec.content)}
+                      className="flex items-center gap-1 px-2 py-1 bg-indigo-600 text-white text-[10px] font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      <Check size={10} />
+                      적용
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="w-1.5 flex-shrink-0 rounded-full bg-gray-100 relative self-stretch">
+                <div
+                  style={{ top: `${scrollPct * 0.7}%`, height: '30%' }}
+                  className="absolute inset-x-0 bg-indigo-400 rounded-full transition-all duration-75"
+                />
+              </div>
             </div>
           ) : (
             <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
@@ -2344,7 +2413,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     if (!portfolio.jobAnalysis) { toast.error('기업 분석을 먼저 등록해주세요'); return; }
     setRecLoading(true);
     try {
-      const data = await recommendExperiences(portfolio.jobAnalysis, userExperiences);
+      const data = await recommendExperiences(portfolio.jobAnalysis);
       setRecResults(data);
     } catch { toast.error('추천 불러오기 실패'); }
     finally { setRecLoading(false); }

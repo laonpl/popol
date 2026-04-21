@@ -55,13 +55,169 @@ function getMissingSuggestions(q) {
     return ['백엔드 API 설계 및 구현 전담', '팀 내 유일한 프론트엔드 담당자', '데이터 파이프라인 70% 기여'];
   if (/리소스|절감|비용|시간/.test(q))
     return ['약 40시간/월 반복 작업 제거', '외주 비용 300만원 절감', '배포 주기 2주 → 3일로 단축'];
-  return ['구체적인 수치와 함께 설명해주세요', '본인의 기여 범위를 명확히 적어주세요', '상황의 맥락과 결과를 함께 서술해주세요'];
+  if (/방어|성공률|유지|지켰|막았/.test(q))
+    return ['예산 삭감 없이 일정 방어 성공', '장애 발생률 80% 이상 감소', '추가 인원 없이 마감 준수'];
+  return ['약 40% 수준으로 개선됐어요', '정확한 수치 없이 체감상 절반 이상', '팀 기준으로 가장 높은 수치였어요'];
+}
+
+/* 질문이 수치형인지 감지 */
+function isNumericQuestion(q) {
+  return /수치|성과|%|배|개선|향상|단축|절감|방어|성공률|절약|비용|속도|건수|회|명|ms|TPS|RPS|율|량/.test(q);
+}
+
+/* 질문 유형별 단위 옵션 */
+function getUnitOptions(q) {
+  if (/시간|ms|속도|초|분|latency|지연/.test(q)) return ['ms', '초', '분', '시간', '%'];
+  if (/비용|원|만원|budget/.test(q)) return ['만원', '억원', '%'];
+  if (/건수|회|명|사용자|DAU/.test(q)) return ['건', '회', '명', '%'];
+  return ['%', '배', 'ms', '건', '만원'];
+}
+
+/* 미확인 섹션 — 수치형 가이드 플로우 */
+function MissingSection({ sectionText, description, onUpdateMissing }) {
+  const { question, reason } = splitMissingQuestion(sectionText);
+  const suggestions = getMissingSuggestions(sectionText);
+  const unitOptions = getUnitOptions(question);
+
+  const [mode, setMode] = useState('intro'); // 항상 intro(선택 화면)로 시작
+  const [draft, setDraft] = useState('');
+  const [beforeVal, setBeforeVal] = useState('');
+  const [afterVal, setAfterVal] = useState('');
+  const [unit, setUnit] = useState(unitOptions[0] || '%');
+
+  const buildPreview = () => {
+    if (beforeVal && afterVal) return `${beforeVal}${unit} → ${afterVal}${unit}`;
+    if (afterVal) return `${afterVal}${unit} 달성`;
+    return '';
+  };
+
+  const handleApply = (text) => {
+    const content = text || draft;
+    if (!content.trim()) return;
+    const cleaned = description.replace(/\s*\(미확인[\s\S]*?\)\s*$/g, '').trim();
+    onUpdateMissing?.(`${cleaned}\n추가 정보: ${content.trim()}`);
+    setDraft('');
+    setBeforeVal('');
+    setAfterVal('');
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-3 space-y-2">
+      <p className="text-[12.5px] text-blue-800 leading-relaxed font-medium">{question}</p>
+      {reason && <p className="text-[11px] text-blue-500 leading-relaxed">{reason}</p>}
+
+      {mode === 'intro' && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-blue-600">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setMode('guided')}
+              className="flex-1 py-2 rounded-xl bg-blue-500 text-white text-[12px] font-medium hover:bg-blue-600 transition-colors">
+              수치로 간단히 채우기
+            </button>
+            <button type="button" onClick={() => setMode('free')}
+              className="px-3 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-[12px] hover:bg-blue-50 transition-colors">
+              직접 쓰기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'guided' && (
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap gap-1">
+            {suggestions.map((sg, si) => (
+              <button key={si} type="button"
+                onClick={() => { setDraft(sg); setMode('free'); }}
+                className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10.5px] text-blue-700 hover:bg-blue-50 transition-colors">
+                {sg}
+              </button>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-blue-100 px-3 py-2.5 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] text-gray-400 w-16 shrink-0">이전 (선택)</span>
+              <input value={beforeVal} onChange={e => setBeforeVal(e.target.value)}
+                placeholder="ex. 800"
+                className="flex-1 text-[12px] text-gray-600 border-b border-gray-200 px-1 py-0.5 focus:outline-none focus:border-blue-300 bg-transparent" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] text-blue-600 w-16 shrink-0 font-medium">이후 *</span>
+              <input value={afterVal} onChange={e => setAfterVal(e.target.value)}
+                placeholder="ex. 480"
+                className="flex-1 text-[12px] text-blue-700 border-b border-blue-300 px-1 py-0.5 focus:outline-none focus:border-blue-500 bg-transparent" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] text-gray-400 w-16 shrink-0">단위</span>
+              <div className="flex gap-1 flex-wrap">
+                {unitOptions.map(u => (
+                  <button key={u} type="button" onClick={() => setUnit(u)}
+                    className={`px-2 py-0.5 rounded-full text-[10.5px] border transition-colors ${
+                      unit === u
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'border-gray-200 text-gray-500 hover:border-blue-200'
+                    }`}>{u}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {afterVal && (
+            <p className="text-[11.5px] text-blue-700 bg-white rounded-lg px-2.5 py-1.5 border border-blue-100">
+              ✦ {buildPreview()}
+            </p>
+          )}
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => setMode('free')}
+              className="text-[10.5px] text-blue-500 hover:underline">
+              직접 입력으로 전환
+            </button>
+            <button type="button"
+              onClick={() => handleApply(buildPreview())}
+              disabled={!afterVal.trim()}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              추가
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'free' && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1">
+            {suggestions.map((sg, si) => (
+              <button key={si} type="button"
+                onClick={() => setDraft(sg)}
+                className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10.5px] text-blue-700 hover:bg-blue-50 transition-colors">
+                {sg}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <textarea
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              rows={2}
+              placeholder="기억나는 내용을 자유롭게 입력해주세요 (선택)"
+              className="flex-1 text-[12px] text-gray-700 bg-white border border-blue-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-blue-300 leading-relaxed"
+            />
+            <button type="button"
+              onClick={() => handleApply(draft)}
+              disabled={!draft.trim()}
+              className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              추가
+            </button>
+          </div>
+          <button type="button" onClick={() => setMode('guided')}
+            className="text-[10.5px] text-blue-500 hover:underline">
+            수치 입력으로 전환
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* STAR 구조화 렌더러 — STAR 라벨 없이 자연스러운 흐름으로 표시 */
 function StarDescription({ description, onUpdateMissing }) {
-  const [draft, setDraft] = useState('');
-
   const sections = parseStarDescription(description);
   if (!sections) {
     return <p className="text-[12.5px] text-bluewood-600 leading-relaxed">{description}</p>;
@@ -70,16 +226,8 @@ function StarDescription({ description, onUpdateMissing }) {
   const mainSections = sections.filter(s => s.key !== 'missing');
   const missingSections = sections.filter(s => s.key === 'missing');
 
-  const handleApply = () => {
-    if (!draft.trim()) return;
-    const cleaned = description.replace(/\s*\(미확인[\s\S]*?\)\s*$/g, '').trim();
-    onUpdateMissing?.(`${cleaned}\n추가 정보: ${draft.trim()}`);
-    setDraft('');
-  };
-
   return (
     <div className="mt-1 space-y-1.5">
-      {/* Situation → Action → Result: 라벨 없이 단락으로 자연스럽게 */}
       {mainSections.map((s, i) => (
         <p key={i} className={`text-[12.5px] leading-relaxed ${
           s.key === 'situation' ? 'text-bluewood-500' :
@@ -92,46 +240,14 @@ function StarDescription({ description, onUpdateMissing }) {
         </p>
       ))}
 
-      {/* 미확인 — 자연스러운 보완 질문 섹션 */}
-      {missingSections.map((s, i) => {
-        const { question, reason } = splitMissingQuestion(s.text);
-        const suggestions = getMissingSuggestions(s.text);
-        return (
-          <div key={i} className="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-3 space-y-2">
-            {/* 질문 */}
-            <p className="text-[12.5px] text-amber-800 leading-relaxed font-medium">{question}</p>
-            {reason && (
-              <p className="text-[11px] text-amber-500 leading-relaxed">{reason}</p>
-            )}
-            {/* 추천 예시 칩 */}
-            <div className="flex flex-wrap gap-1">
-              {suggestions.map((sg, si) => (
-                <button key={si} type="button"
-                  onClick={() => setDraft(sg)}
-                  className="px-2 py-0.5 rounded-md bg-white border border-amber-200 text-[10.5px] text-amber-700 hover:bg-amber-100 transition-colors">
-                  {sg}
-                </button>
-              ))}
-            </div>
-            {/* 직접 입력 */}
-            <div className="flex gap-2">
-              <textarea
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                rows={2}
-                placeholder="기억나는 내용을 자유롭게 입력해주세요 (선택)"
-                className="flex-1 text-[12px] text-bluewood-700 bg-white border border-amber-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-amber-300 leading-relaxed"
-              />
-              <button type="button"
-                onClick={handleApply}
-                disabled={!draft.trim()}
-                className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                추가
-              </button>
-            </div>
-          </div>
-        );
-      })}
+      {missingSections.map((s, i) => (
+        <MissingSection
+          key={i}
+          sectionText={s.text}
+          description={description}
+          onUpdateMissing={onUpdateMissing}
+        />
+      ))}
     </div>
   );
 }
@@ -512,7 +628,7 @@ export default function TemplateSelect() {
           </div>
 
           <p className="text-xs text-bluewood-300 text-center mt-8">
-            AI가 자료를 분석하여 핵심 경험을 추출합니다.<br/>최대 1분 정도 소요될 수 있습니다.
+            AI가 자료를 분석하여 핵심 경험을 추출합니다.<br/>자료량에 따라 최대 5분까지 소요될 수 있어요 — 페이지를 벗어나지 말아주세요.
           </p>
         </div>
       </div>
@@ -559,7 +675,7 @@ export default function TemplateSelect() {
             ))}
           </div>
           <p className="text-xs text-bluewood-300 text-center mt-8">
-            선택한 경험을 바탕으로 7가지 섹션으로 구조화합니다.
+            선택한 경험을 바탕으로 7가지 섹션으로 구조화합니다.<br/>최대 5분까지 소요될 수 있어요 — 페이지를 벗어나지 말아주세요.
           </p>
         </div>
       </div>
@@ -705,6 +821,10 @@ export default function TemplateSelect() {
           )}
         </div>
 
+        <div className="flex items-start gap-2.5 p-3.5 bg-blue-50 border border-blue-100 rounded-xl mb-2">
+          <div className="flex-shrink-0 w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold mt-0.5">!</div>
+          <p className="text-xs text-blue-600 leading-relaxed">최종 AI 분석은 자료량에 따라 최대 5분 소요될 수 있어요 — 시작 후 페이지를 벗어나지 마세요.</p>
+        </div>
         <div className="flex gap-3 pb-8">
           <button
             onClick={() => setStep(2)}
@@ -831,6 +951,7 @@ export default function TemplateSelect() {
             다음 단계
             <ChevronRight size={18} />
           </button>
+          <p className="text-center text-xs text-blue-400 mt-1">AI 분석 과정은 자료량에 따라 최대 5분 소요될 수 있어요</p>
         </div>
       )}
 
@@ -1009,6 +1130,17 @@ export default function TemplateSelect() {
                     <CheckCircle2 size={12} /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개
                   </span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 처음 작업 안내 */}
+          {hasInput && (
+            <div className="flex items-start gap-2.5 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[11px] font-bold mt-0.5">!</div>
+              <div className="flex-1 text-[12.5px] text-blue-700 leading-relaxed">
+                <span className="font-semibold">자료량에 따라 최대 5분 정도 소요될 수 있어요.</span>
+                <span className="block text-blue-600 mt-0.5">페이지를 벗어나지 말고 잠시만 기다려 주세요 — 완료 후 자동으로 이동합니다.</span>
               </div>
             </div>
           )}

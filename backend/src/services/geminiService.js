@@ -53,6 +53,15 @@ async function callProFirst(prompt, label) {
     console.log(`[${label}] ✓ 호출 성공`);
     return text;
   } catch (err) {
+    const status = err?.status ?? null;
+    const msg = err?.message || '';
+    // 영구 오류(403 차단/유출, 월 한도 초과): Lite 재시도해도 소용없음 → 즉시 전파
+    const isPermanent = status === 403
+      || msg.includes('spending cap') || msg.includes('leaked') || msg.includes('Forbidden');
+    if (isPermanent) {
+      console.warn(`[${label}] 영구 오류 감지 (status=${status}) → Lite 폴백 건너뜀`);
+      throw err;
+    }
     console.warn(`[${label}] Pro+Lite 모두 실패 → 마지막 Lite 폴백:`, err.message);
     // 최후 수단: Lite 단독 재시도
     return await generateWithRetry(prompt, LITE_FALLBACK_OPTIONS);
@@ -62,6 +71,12 @@ async function callProFirst(prompt, label) {
 // 다른 서비스/라우트에서 import { generateWithRetry } from './geminiService.js' 를
 // 유지하기 위한 재노출. 점진적 마이그레이션 중이므로 지금은 그대로 둔다.
 export { generateWithRetry };
+
+// Pro 우선 + 자동 Lite 폴백 — jobAnalysisService 등 외부 서비스에서 사용
+export { callProFirst };
+
+// JSON 파싱 헬퍼 — 외부 서비스 공용
+export { parseJSON };
 
 /**
  * 분할 호출 기반 경험 분석.
@@ -92,36 +107,34 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     : Math.min(Math.max(Number(keyExperienceCount) || 3, 3), 10);
   const targetCount = hasReviewed ? lockedCount : Math.max(maxCount, 3);
 
-  console.log(`[경험분석] 분할 호출 시작: Overview + KeyExp×${targetCount} + Meta`);
+  console.log(`[경험분석] 병렬 호출 시작: Overview + KeyExp×${targetCount} + Meta (동시 실행)`);
+  const t0 = Date.now();
 
-  // ============================================================
-  // Step 1: 프로젝트 개요 추출 (작은 output)
-  // ============================================================
-  const overviewPrompt = buildOverviewPrompt(contentText);
-  const overviewText = await callProFirst(overviewPrompt, 'Step1-Overview');
-  const overviewJson = parseJSON(overviewText);
-
-  // ============================================================
-  // Step 2: keyExperience 개별 추출 — N회 순차 호출 (각각 작은 output)
-  // ============================================================
-  const keyExperiences = [];
   const momentHints = hasReviewed ? reviewedMoments : new Array(targetCount).fill(null);
 
-  for (let i = 0; i < targetCount; i++) {
-    const hint = momentHints[i];
+  // ============================================================
+  // 3 단계 (Overview / KeyExp×N / Meta) 를 모두 병렬 실행
+  // 각 단계는 서로의 결과에 의존하지 않으므로 동시 실행 가능.
+  // ============================================================
+  const overviewPromise = (async () => {
+    const prompt = buildOverviewPrompt(contentText);
+    const text = await callProFirst(prompt, 'Step1-Overview');
+    return parseJSON(text);
+  })();
+
+  const keyExpPromises = momentHints.map((hint, i) => (async () => {
     const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount);
     try {
       const expText = await callProFirst(expPrompt, `Step2-KeyExp[${i + 1}/${targetCount}]`);
       const expJson = parseJSON(expText);
 
-      // reviewedMoments가 있으면 원본 필드 보존
       if (hasReviewed && hint) {
         const pick = (a, b) => {
           const av = a == null ? '' : String(a);
           if (av && !av.startsWith('[작성 필요]')) return a;
           return b ?? a ?? '';
         };
-        keyExperiences.push({
+        return {
           title:        pick(expJson.title, hint.title),
           metric:       pick(expJson.metric, hint.metric),
           metricLabel:  pick(expJson.metricLabel, hint.metricLabel),
@@ -132,26 +145,24 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           result:       pick(expJson.result, hint.result),
           keywords:     (expJson.keywords && expJson.keywords.length ? expJson.keywords : (hint.keywords || [])),
           chartType:    expJson.chartType || 'horizontalBar',
-        });
-      } else {
-        keyExperiences.push({
-          title:        expJson.title || '',
-          metric:       expJson.metric || '',
-          metricLabel:  expJson.metricLabel || '',
-          beforeMetric: expJson.beforeMetric || '',
-          afterMetric:  expJson.afterMetric || '',
-          situation:    expJson.situation || '',
-          action:       expJson.action || '',
-          result:       expJson.result || '',
-          keywords:     expJson.keywords || [],
-          chartType:    expJson.chartType || 'horizontalBar',
-        });
+        };
       }
+      return {
+        title:        expJson.title || '',
+        metric:       expJson.metric || '',
+        metricLabel:  expJson.metricLabel || '',
+        beforeMetric: expJson.beforeMetric || '',
+        afterMetric:  expJson.afterMetric || '',
+        situation:    expJson.situation || '',
+        action:       expJson.action || '',
+        result:       expJson.result || '',
+        keywords:     expJson.keywords || [],
+        chartType:    expJson.chartType || 'horizontalBar',
+      };
     } catch (err) {
       console.warn(`[Step2-KeyExp[${i + 1}]] 추출 실패:`, err.message);
-      // 해당 경험만 실패해도 나머지는 계속 — reviewedMoments 있으면 원본 fallback
       if (hasReviewed && hint) {
-        keyExperiences.push({
+        return {
           title:        hint.title || '',
           metric:       hint.metric || '',
           metricLabel:  hint.metricLabel || '',
@@ -162,22 +173,30 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           result:       hint.result || '',
           keywords:     hint.keywords || [],
           chartType:    'horizontalBar',
-        });
+        };
       }
+      return null;
     }
-  }
+  })());
 
-  // ============================================================
-  // Step 3: 메타데이터 추출 (작은 output)
-  // ============================================================
-  let metaJson = { keywords: [], highlights: [], followUpQuestions: [] };
-  try {
-    const metaPrompt = buildMetaPrompt(contentText);
-    const metaText = await callProFirst(metaPrompt, 'Step3-Meta');
-    metaJson = parseJSON(metaText);
-  } catch (err) {
-    console.warn('[Step3-Meta] 메타 추출 실패 (비핵심, 빈 값으로 진행):', err.message);
-  }
+  const metaPromise = (async () => {
+    try {
+      const metaPrompt = buildMetaPrompt(contentText);
+      const metaText = await callProFirst(metaPrompt, 'Step3-Meta');
+      return parseJSON(metaText);
+    } catch (err) {
+      console.warn('[Step3-Meta] 메타 추출 실패 (비핵심, 빈 값으로 진행):', err.message);
+      return { keywords: [], highlights: [], followUpQuestions: [] };
+    }
+  })();
+
+  const [overviewJson, keyExpResults, metaJson] = await Promise.all([
+    overviewPromise,
+    Promise.all(keyExpPromises),
+    metaPromise,
+  ]);
+  const keyExperiences = keyExpResults.filter(Boolean);
+  console.log(`[경험분석] 병렬 완료: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   // ============================================================
   // 결과 통합

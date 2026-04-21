@@ -475,6 +475,21 @@ export default function StructuredResult() {
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
 
+  /* 페이지 전체 품질 체크리스트 */
+  const qualityChecks = [
+    { id: 'title',          label: '프로젝트 제목',     check: () => !!editedTitle.trim() },
+    { id: 'techStack',      label: '기술 스택 입력',    check: () => editedOverview.techStack.length > 0 },
+    { id: 'keywords',       label: '키워드 3개 이상',   check: () => editedKeywords.length >= 3 },
+    { id: 'keyExperiences', label: '핵심 경험 추가',    check: () => editedKeyExperiences.length > 0 },
+    { id: 'role',           label: '내 역할 명시',      check: () => !!editedOverview.role?.trim() },
+    { id: 'duration',       label: '프로젝트 기간',     check: () => !!editedOverview.duration?.trim() },
+    { id: 'metrics',        label: '수치/성과 포함',    check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) },
+    { id: 'images',         label: '이미지 첨부',       check: () => allImages.length > 0 },
+    { id: 'sections',       label: `7개 섹션 완성 (${filledCount}/7)`, check: () => filledCount === 7 },
+  ];
+  const passedChecks = qualityChecks.filter(c => c.check()).length;
+  const qualityPct = Math.round((passedChecks / qualityChecks.length) * 100);
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -681,36 +696,34 @@ export default function StructuredResult() {
          ║  하단 좌: 작성 완성도 + 사진 / 우: 힌트     ║
          ╚══════════════════════════════════════════════╝ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* 작성 완성도 — 체크리스트 */}
+        {/* 작성 완성도 — 페이지 전체 품질 체크리스트 */}
         <div className="bg-white rounded-2xl border border-surface-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[14px] font-extrabold text-bluewood-900">작성 완성도</h3>
-            <span className="text-[12px] font-bold text-caribbean-600">{filledCount}/7</span>
+            <span className="text-[12px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
           </div>
           {/* 프로그레스 바 */}
           <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
             <div
               className="h-full bg-caribbean-400 rounded-full transition-all duration-500"
-              style={{ width: `${completionPct}%` }}
+              style={{ width: `${qualityPct}%` }}
             />
           </div>
-          {/* 체크리스트 */}
+          {/* 품질 체크리스트 */}
           <ul className="space-y-2">
-            {SECTION_KEYS.map(k => {
-              const filled = !!editedContent[k]?.trim();
-              const meta = SECTION_META[k];
+            {qualityChecks.map(item => {
+              const passed = item.check();
               return (
-                <li key={k} className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${filled ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
-                    {filled && (
+                <li key={item.id} className="flex items-center gap-2.5">
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
+                    {passed && (
                       <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                         <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
-                  <span className={`text-[12px] font-medium leading-none ${filled ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
-                    <span className="text-[10px] font-semibold text-bluewood-300 mr-1">{meta.num}</span>
-                    {meta.label}
+                  <span className={`text-[12px] font-medium leading-none ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
+                    {item.label}
                   </span>
                 </li>
               );
@@ -809,7 +822,7 @@ export default function StructuredResult() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
             <h2 className="text-[15px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
-            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
+            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
           </div>
           <div className="flex items-center gap-2">
           </div>
@@ -833,9 +846,12 @@ export default function StructuredResult() {
             const meta = SECTION_META[key];
             const style = ACCENT_STYLES[meta.accent];
             const value = editedContent[key] || '';
-            const isEmpty = !value.trim() || value.trim().startsWith('[작성 필요]');
+            const isTrulyEmpty = !value.trim();
+            const isDraft = !isTrulyEmpty && value.trim().startsWith('[작성 필요]');
+            const isEmpty = isTrulyEmpty;
             const isEditing = editingSections[key];
             const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
+            const draftText = isDraft ? value.replace(/^\[작성 필요\]\s*/,'').trim() : '';
 
             return (
               <div key={key} className="group">
@@ -851,6 +867,8 @@ export default function StructuredResult() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {isEmpty ? (
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                    ) : isDraft ? (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
                     ) : (
                       <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
                     )}
@@ -895,6 +913,17 @@ export default function StructuredResult() {
                       className={`w-full py-3 border-2 border-dashed ${style.border} rounded-xl text-[13px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
                       <PenLine size={14} /> 빈칸 채우기
                     </button>
+                  ) : isDraft ? (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                      <p className="text-[11px] text-blue-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
+                      <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{draftText}</p>
+                      {!viewOnly && (
+                        <button onClick={() => handleStartEditing(key)}
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                          <PenLine size={11} /> 수정하기
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
                       <HighlightedText

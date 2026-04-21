@@ -35,10 +35,12 @@ export async function tailorPortfolio(jobAnalysis, sections, options = {}) {
   return data;
 }
 
-/** 직무 요건 기반 경험 추천. experiences가 있으면 사용자 보유 경험 기반 분석. */
-export async function recommendExperiences(jobAnalysis, experiences) {
-  const payload = experiences ? { jobAnalysis, experiences } : { jobAnalysis };
-  const { data } = await api.post('/job/recommend-experiences', payload);
+/** 직무 요건 기반 경험 추천. 백엔드가 userId로 직접 경험을 조회하므로 jobAnalysis만 전송. */
+export async function recommendExperiences(jobAnalysis) {
+  if (!jobAnalysis || typeof jobAnalysis !== 'object') {
+    throw new Error('기업 분석 결과가 없습니다');
+  }
+  const { data } = await api.post('/job/recommend-experiences', { jobAnalysis });
   return data;
 }
 
