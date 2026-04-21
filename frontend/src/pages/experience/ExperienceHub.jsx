@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X, GripVertical, CalendarDays, List } from 'lucide-react';
+import {
+  Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
+  GripVertical, CalendarDays, List, Star, ArrowUpDown,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -15,10 +18,9 @@ function formatDate(ts) {
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-/* period 문자열("2025-01-01 ~ 2025-06-30")에서 {start, end} Date 파싱 */
+/* period 문자열에서 {start, end} Date 파싱 */
 function parsePeriod(exp) {
   const period = exp.period || exp.structuredResult?.projectOverview?.duration || '';
-  // "YYYY-MM-DD ~ YYYY-MM-DD" 또는 "YYYY.MM ~ YYYY.MM" 등
   const dateRegex = /(\d{4})[.\-/](\d{1,2})(?:[.\-/](\d{1,2}))?/g;
   const matches = [...period.matchAll(dateRegex)];
   if (matches.length >= 2) {
@@ -31,13 +33,11 @@ function parsePeriod(exp) {
     const e = new Date(s); e.setMonth(e.getMonth() + 2);
     return { start: s, end: e };
   }
-  // period 없으면 createdAt 기준 2개월
   const created = exp.createdAt?.toDate?.() ?? (exp.createdAt instanceof Date ? exp.createdAt : new Date(exp.createdAt || Date.now()));
   const end = new Date(created); end.setMonth(end.getMonth() + 2);
   return { start: created, end };
 }
 
-/* 컬러 팔레트 3종 — 각각 진색/흰색/회색 조합 */
 const COLOR_PALETTES = {
   blue: [
     { bar: 'bg-blue-500',  barText: 'text-white',     light: 'bg-blue-50' },
@@ -57,6 +57,23 @@ const COLOR_PALETTES = {
 };
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+
+const SORT_OPTIONS = [
+  { value: 'custom',    label: '직접 정렬' },
+  { value: 'latest',    label: '최신순' },
+  { value: 'period',    label: '기간순' },
+  { value: 'favorite',  label: '즐겨찾기순' },
+];
+
+/* ── 즐겨찾기 로컬스토리지 헬퍼 ── */
+const FAV_KEY = 'exp_favorites';
+function loadFavs() {
+  try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function saveFavs(set) {
+  localStorage.setItem(FAV_KEY, JSON.stringify([...set]));
+}
 
 export default function ExperienceHub() {
   const { user } = useAuthStore();
@@ -78,7 +95,46 @@ export default function ExperienceHub() {
   const [hoveredBar, setHoveredBar] = useState(null);
   const [colorPalette, setColorPalette] = useState('blue');
 
-  /* ── 드래그 앤 드롭 ── */
+  /* ── 정렬 & 즐겨찾기 ── */
+  const [sortBy, setSortBy] = useState('custom');
+  const [sortDropOpen, setSortDropOpen] = useState(false);
+  const sortDropRef = useRef(null);
+  const [favorites, setFavorites] = useState(loadFavs);
+
+  const toggleFavorite = useCallback((id, e) => {
+    e?.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      saveFavs(next);
+      return next;
+    });
+  }, []);
+
+  /* 정렬된 경험 목록 */
+  const sortedExperiences = useMemo(() => {
+    const list = [...experiences];
+    if (sortBy === 'latest') {
+      return list.sort((a, b) => {
+        const ta = a.createdAt?.toDate?.() ?? new Date(a.createdAt || 0);
+        const tb = b.createdAt?.toDate?.() ?? new Date(b.createdAt || 0);
+        return tb - ta;
+      });
+    }
+    if (sortBy === 'period') {
+      return list.sort((a, b) => parsePeriod(b).start - parsePeriod(a).start);
+    }
+    if (sortBy === 'favorite') {
+      return list.sort((a, b) => {
+        const fa = favorites.has(a.id) ? 0 : 1;
+        const fb = favorites.has(b.id) ? 0 : 1;
+        return fa - fb;
+      });
+    }
+    return list; // custom — 원본 순서 유지
+  }, [experiences, sortBy, favorites]);
+
+  /* ── 드래그 앤 드롭 (custom 모드에서만) ── */
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
 
@@ -96,16 +152,19 @@ export default function ExperienceHub() {
 
   const handleDragEnd = useCallback(() => {
     if (dragIdx != null && overIdx != null && dragIdx !== overIdx) {
-      const ids = experiences.map(e => e.id);
+      // sortedExperiences 기준으로 새 순서를 계산한 뒤 저장
+      const ids = sortedExperiences.map(e => e.id);
       const [moved] = ids.splice(dragIdx, 1);
       ids.splice(overIdx, 0, moved);
       reorderExperiences(ids);
+      // 드래그 후에는 직접 정렬 모드로 전환
+      setSortBy('custom');
     }
     setDragIdx(null);
     setOverIdx(null);
-  }, [dragIdx, overIdx, experiences, reorderExperiences]);
+  }, [dragIdx, overIdx, sortedExperiences, reorderExperiences]);
 
-  /* ── 인라인 편집 ── */
+  /* ── 타임라인 인라인 편집 ── */
   const startEditing = (exp, e) => {
     e?.stopPropagation();
     const { start, end } = parsePeriod(exp);
@@ -114,31 +173,39 @@ export default function ExperienceHub() {
     setEditStart(`${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`);
     setEditEnd(`${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}`);
   };
-
-  const cancelEditing = (e) => {
-    e?.stopPropagation();
-    setEditingId(null);
-  };
-
+  const cancelEditing = (e) => { e?.stopPropagation(); setEditingId(null); };
   const saveEditing = async (e) => {
     e?.stopPropagation();
     if (!editingId || !editTitle.trim()) return;
     try {
-      const periodStr = `${editStart}-01 ~ ${editEnd}-28`;
-      await updateExperience(editingId, {
-        title: editTitle.trim(),
-        period: periodStr,
-      });
+      await updateExperience(editingId, { title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` });
       toast.success('수정 완료');
-    } catch (err) {
-      toast.error('수정 실패');
-    }
+    } catch { toast.error('수정 실패'); }
     setEditingId(null);
   };
+
+  /* ── 타임라인 바 삭제 ── */
+  const handleTimelineDelete = useCallback((exp, e) => {
+    e.stopPropagation();
+    if (window.confirm(`"${stripMd(exp.title)}" 경험을 삭제하시겠습니까?`)) {
+      deleteExperience(exp.id);
+      toast.success('삭제되었습니다');
+    }
+  }, [deleteExperience]);
 
   useEffect(() => {
     if (user?.uid) fetchExperiences(user.uid);
   }, [user?.uid]);
+
+  /* 정렬 드롭다운 외부 클릭 닫기 */
+  useEffect(() => {
+    const h = (e) => {
+      if (sortDropRef.current && !sortDropRef.current.contains(e.target)) setSortDropOpen(false);
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) setYearDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
 
   const handleImport = async ({ imported, structured }) => {
     try {
@@ -154,33 +221,18 @@ export default function ExperienceHub() {
     }
   };
 
-  /* ── 간트 타임라인 계산 (선택 년도 기준 12개월 고정) ── */
+  /* ── 간트 타임라인 계산 ── */
   const ganttData = useMemo(() => {
-    if (experiences.length === 0) return null;
-
-    const items = experiences.map((exp, idx) => {
-      const { start, end } = parsePeriod(exp);
-      return { exp, start, end };
-    });
-
-    // 선택 년도 1월 1일 ~ 12월 31일 고정
+    if (sortedExperiences.length === 0) return null;
+    const items = sortedExperiences.map(exp => ({ exp, ...parsePeriod(exp) }));
     const globalStart = new Date(selectedYear, 0, 1);
     const globalEnd = new Date(selectedYear, 11, 31);
-
-    // 12개월 고정 컬럼
     const months = Array.from({ length: 12 }, (_, i) => ({ year: selectedYear, month: i }));
-
     const totalMs = globalEnd.getTime() - globalStart.getTime();
-
-    // 해당 년도에 걸치는 항목만 필터
-    const visibleItems = items.filter(({ start, end }) => {
-      return end >= globalStart && start <= globalEnd;
-    });
-
+    const visibleItems = items.filter(({ start, end }) => end >= globalStart && start <= globalEnd);
     return { items: visibleItems, allItems: items, globalStart, globalEnd, months, totalMs };
-  }, [experiences, selectedYear]);
+  }, [sortedExperiences, selectedYear]);
 
-  /* ── 사용 가능 년도 목록 ── */
   const availableYears = useMemo(() => {
     if (experiences.length === 0) return [new Date().getFullYear()];
     const years = new Set();
@@ -191,16 +243,7 @@ export default function ExperienceHub() {
     return [...years].sort((a, b) => b - a);
   }, [experiences]);
 
-  /* ── 년도 드롭다운 외부 클릭 닫기 ── */
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) {
-        setYearDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
 
   return (
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
@@ -213,6 +256,34 @@ export default function ExperienceHub() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* 정렬 드롭다운 */}
+          <div className="relative" ref={sortDropRef}>
+            <button
+              onClick={() => setSortDropOpen(v => !v)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:border-gray-300 transition-colors"
+            >
+              <ArrowUpDown size={13} />
+              {currentSortLabel}
+              <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {sortDropOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1 min-w-[120px]">
+                {SORT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
+                      sortBy === opt.value ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 뷰 전환 */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
             <button
               onClick={() => setViewMode('timeline')}
@@ -220,8 +291,7 @@ export default function ExperienceHub() {
                 viewMode === 'timeline' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <CalendarDays size={14} />
-              타임라인
+              <CalendarDays size={14} />타임라인
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -229,17 +299,28 @@ export default function ExperienceHub() {
                 viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <List size={14} />
-              표
+              <List size={14} />표
             </button>
           </div>
-          <Link
-            to="/app/experience/new"
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
-          >
-            <Plus size={18} />
-            새 경험 추가
-          </Link>
+
+          {/* 새 경험 추가 버튼 + 말풍선 */}
+          <div className="relative">
+            {experiences.length === 0 && !loading && (
+              <div className="absolute -top-14 left-1/2 -translate-x-1/2 whitespace-nowrap animate-bounce z-10 pointer-events-none">
+                <div className="bg-gray-900 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg shadow-lg">
+                  여기서 첫 경험을 추가해보세요! 🎯
+                </div>
+                <div className="w-2.5 h-2.5 bg-gray-900 rotate-45 mx-auto -mt-1.5 shadow" />
+              </div>
+            )}
+            <Link
+              to="/app/experience/new"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
+            >
+              <Plus size={18} />
+              새 경험 추가
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -282,7 +363,7 @@ export default function ExperienceHub() {
                       </div>
                     )}
                   </div>
-                  <span className="text-sm font-bold text-gray-700">Product roadmap</span>
+                  <span className="text-sm font-bold text-gray-700">경험 타임라인</span>
                 </div>
                 {/* 팔레트 선택 */}
                 <div className="flex items-center gap-1.5">
@@ -294,7 +375,6 @@ export default function ExperienceHub() {
                     <button
                       key={p.key}
                       onClick={() => setColorPalette(p.key)}
-                      title={p.key === 'blue' ? '파란색' : p.key === 'green' ? '초록색' : '검은색'}
                       className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
                         colorPalette === p.key ? 'border-white shadow-md scale-110' : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'
                       }`}
@@ -307,16 +387,14 @@ export default function ExperienceHub() {
                 </div>
               </div>
 
-              {/* 간트 본체 — 90% 스케일, 스크롤 없음 */}
+              {/* 간트 본체 */}
               <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'hidden' }}>
                 <div>
-                  {/* 월 구분 격자 + 헤더 */}
                   <div className="relative">
-                    {/* 월 헤더 행 */}
+                    {/* 월 헤더 */}
                     <div className="flex border-b border-gray-200/60">
                       {ganttData.months.map((m, i) => (
-                        <div key={`${m.year}-${m.month}`}
-                          className="flex-1 border-r border-gray-200/40 px-2 pt-1 pb-2">
+                        <div key={`${m.year}-${m.month}`} className="flex-1 border-r border-gray-200/40 px-2 pt-1 pb-2">
                           <span className="text-[10px] font-medium text-gray-400">{MONTH_NAMES[m.month]}</span>
                         </div>
                       ))}
@@ -334,44 +412,79 @@ export default function ExperienceHub() {
                       {/* 간트 바 */}
                       {ganttData.items.map(({ exp, start, end }, idx) => {
                         const theme = COLOR_PALETTES[colorPalette][idx % 3];
-                        // 클램프: 선택 년도 범위 내로 제한
                         const clampedStart = new Date(Math.max(start.getTime(), ganttData.globalStart.getTime()));
                         const clampedEnd = new Date(Math.min(end.getTime(), ganttData.globalEnd.getTime()));
                         const startOffset = Math.max(0, (clampedStart.getTime() - ganttData.globalStart.getTime()) / ganttData.totalMs * 100);
                         const barWidth = Math.max(4, (clampedEnd.getTime() - clampedStart.getTime()) / ganttData.totalMs * 100);
                         const isSelected = selectedId === exp.id;
-                        const keyExps = exp.structuredResult?.keyExperiences || [];
-                        const tooltipLines = keyExps.slice(0, 3).map(ke => stripMd(ke.title)).filter(Boolean);
-                        const overview = exp.structuredResult?.projectOverview;
-                        const tooltipSummary = overview?.summary || overview?.background || '';
+                        const isEditingThis = editingId === exp.id;
 
                         return (
-                          <div key={exp.id}
-                            className="absolute"
-                            style={{
-                              top: `${idx * 56 + 16}px`,
-                              left: `${startOffset}%`,
-                              width: `${barWidth}%`,
-                              minWidth: '100px',
-                            }}
-                            onMouseEnter={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHoveredBar({ exp, rect });
-                            }}
-                            onMouseLeave={() => setHoveredBar(null)}>
-                            {/* 바 */}
-                            <div
-                              className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
-                                isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
-                              }`}
-                              onClick={() => setSelectedId(isSelected ? null : exp.id)}
-                              onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
-                            >
-                              <span className={`text-[13px] font-semibold ${theme.barText} truncate block`}>
-                                {stripMd(exp.title)}
-                              </span>
-                            </div>
-
+                          <div
+                            key={exp.id}
+                            className="absolute group"
+                            style={{ top: `${idx * 56 + 16}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '120px' }}
+                            onMouseEnter={(e) => { if (!isEditingThis) setHoveredBar({ exp, rect: e.currentTarget.getBoundingClientRect() }); }}
+                            onMouseLeave={() => setHoveredBar(null)}
+                          >
+                            {isEditingThis ? (
+                              /* ── 인라인 편집 모드 ── */
+                              <div className="bg-white border-2 border-blue-400 rounded-lg px-3 py-2 shadow-lg" onClick={e => e.stopPropagation()}>
+                                <input
+                                  value={editTitle}
+                                  onChange={e => setEditTitle(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
+                                  className="w-full text-[12px] font-semibold text-gray-800 bg-transparent outline-none border-b border-gray-200 pb-1 mb-1.5"
+                                  autoFocus
+                                />
+                                <div className="flex gap-1 items-center">
+                                  <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
+                                    className="text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                  <span className="text-[9px] text-gray-400">~</span>
+                                  <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
+                                    className="text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                  <button onClick={saveEditing} className="ml-auto p-1 text-green-500 hover:text-green-700 hover:bg-green-50 rounded">
+                                    <Check size={12} />
+                                  </button>
+                                  <button onClick={cancelEditing} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded">
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* ── 일반 바 ── */
+                              <div className="relative">
+                                <div
+                                  className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
+                                    isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
+                                  }`}
+                                  onClick={() => setSelectedId(isSelected ? null : exp.id)}
+                                  onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
+                                >
+                                  <span className={`text-[13px] font-semibold ${theme.barText} truncate block pr-12`}>
+                                    {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
+                                    {stripMd(exp.title)}
+                                  </span>
+                                </div>
+                                {/* 편집/삭제 버튼 오버레이 */}
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => startEditing(exp, e)}
+                                    className="p-1.5 bg-white/90 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-white shadow-sm transition-colors"
+                                    title="이름/기간 수정"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleTimelineDelete(exp, e)}
+                                    className="p-1.5 bg-white/90 rounded-lg text-red-400 hover:text-red-600 hover:bg-white shadow-sm transition-colors"
+                                    title="삭제"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -384,167 +497,193 @@ export default function ExperienceHub() {
 
           {/* ═══ 경험 목록 (테이블) ═══ */}
           {viewMode === 'table' && (
-          <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
-            {/* 테이블 헤더 */}
-            <div className="grid grid-cols-[24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-              <span></span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">순서</span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">프로젝트</span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">키워드</span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">기간</span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">성과</span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider text-right">관리</span>
-            </div>
+            <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
+              {/* 테이블 헤더 */}
+              <div className="grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+                <span></span>
+                <span></span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">순서</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">프로젝트</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">키워드</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">기간</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">성과</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider text-right">관리</span>
+              </div>
 
-            {/* 테이블 바디 */}
-            <div className="divide-y divide-gray-50">
-              {experiences.map((exp, idx) => {
-                const theme = COLOR_PALETTES[colorPalette][idx % 3];
-                const overview = exp.structuredResult?.projectOverview || {};
-                const displayKeywords = exp.keywords || exp.structuredResult?.keywords || [];
-                const keyExps = exp.structuredResult?.keyExperiences || [];
-                const metric = keyExps[0]?.metric;
-                const { start, end } = parsePeriod(exp);
-                const periodStr = `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')} – ${end.getFullYear()}.${String(end.getMonth() + 1).padStart(2, '0')}`;
-                const isSelected = selectedId === exp.id;
-                const isEditing = editingId === exp.id;
-                const isDragging = dragIdx === idx;
-                const isOver = overIdx === idx;
+              {/* 테이블 바디 */}
+              <div className="divide-y divide-gray-50">
+                {sortedExperiences.map((exp, idx) => {
+                  const theme = COLOR_PALETTES[colorPalette][idx % 3];
+                  const overview = exp.structuredResult?.projectOverview || {};
+                  const displayKeywords = exp.keywords || exp.structuredResult?.keywords || [];
+                  const keyExps = exp.structuredResult?.keyExperiences || [];
+                  const metric = keyExps[0]?.metric;
+                  const { start, end } = parsePeriod(exp);
+                  const periodStr = `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')} – ${end.getFullYear()}.${String(end.getMonth() + 1).padStart(2, '0')}`;
+                  const isSelected = selectedId === exp.id;
+                  const isEditing = editingId === exp.id;
+                  const isDragging = dragIdx === idx;
+                  const isOver = overIdx === idx;
+                  const isFav = favorites.has(exp.id);
 
-                return (
-                  <div
-                    key={exp.id}
-                    draggable={!isEditing}
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    onDoubleClick={() => !isEditing && navigate(`/app/experience/structured/${exp.id}?view=true`)}
-                    className={`group grid grid-cols-[24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
-                      isDragging ? 'opacity-40' : ''
-                    } ${isOver && !isDragging ? 'border-t-2 border-t-blue-400' : ''
-                    } ${isSelected ? `${theme.light}` : 'hover:bg-gray-50/60'
-                    }`}
-                    onClick={() => !isEditing && setSelectedId(isSelected ? null : exp.id)}
-                  >
-                    {/* 드래그 핸들 */}
-                    <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
-                      onMouseDown={e => e.stopPropagation()}>
-                      <GripVertical size={14} />
-                    </div>
-
-                    {/* # */}
-                    <div className={`w-7 h-7 rounded-lg ${theme.bar} ${theme.border || ''} flex items-center justify-center`}>
-                      <span className={`text-[11px] font-bold ${theme.barText}`}>{idx + 1}</span>
-                    </div>
-
-                    {/* 프로젝트 */}
-                    <div className="min-w-0" onClick={e => e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          value={editTitle}
-                          onChange={e => setEditTitle(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                          className="w-full text-[13px] font-semibold text-gray-800 bg-white border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-colors"
-                          autoFocus
-                        />
-                      ) : (
-                        <>
-                          <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight">{stripMd(exp.title)}</p>
-                          <p className="text-[11px] text-gray-400 truncate mt-0.5">
-                            {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    {/* 키워드 */}
-                    <div className="flex flex-wrap gap-1 overflow-hidden max-h-[36px]">
-                      {displayKeywords.slice(0, 2).map((k, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-medium truncate max-w-[60px]">{k}</span>
-                      ))}
-                    </div>
-
-                    {/* 기간 */}
-                    <div className="min-w-0" onClick={e => e.stopPropagation()}>
-                      {isEditing ? (
-                        <div className="flex flex-col gap-1">
-                          <input
-                            type="month"
-                            value={editStart}
-                            onChange={e => setEditStart(e.target.value)}
-                            className="w-full text-[10px] text-gray-600 bg-white border border-gray-200 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 transition-colors"
-                          />
-                          <input
-                            type="month"
-                            value={editEnd}
-                            onChange={e => setEditEnd(e.target.value)}
-                            className="w-full text-[10px] text-gray-600 bg-white border border-gray-200 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 transition-colors"
-                          />
+                  /* ── 편집 상태: 그리드를 무너뜨리고 풀 너비 form 패널 ── */
+                  if (isEditing) {
+                    return (
+                      <div key={exp.id} className="bg-blue-50 border-y border-blue-200 px-5 py-4">
+                        <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-3">경험 수정</p>
+                        <div className="flex flex-col gap-3">
+                          {/* 제목 */}
+                          <div>
+                            <label className="block text-[10px] text-gray-500 mb-1">제목</label>
+                            <input
+                              value={editTitle}
+                              onChange={e => setEditTitle(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
+                              className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200 transition-colors"
+                              autoFocus
+                            />
+                          </div>
+                          {/* 기간 */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <label className="block text-[10px] text-gray-500 mb-1">시작</label>
+                              <input
+                                type="month"
+                                value={editStart}
+                                onChange={e => setEditStart(e.target.value)}
+                                className="w-full text-sm text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-colors"
+                              />
+                            </div>
+                            <span className="text-gray-400 mt-5">–</span>
+                            <div className="flex-1">
+                              <label className="block text-[10px] text-gray-500 mb-1">종료</label>
+                              <input
+                                type="month"
+                                value={editEnd}
+                                onChange={e => setEditEnd(e.target.value)}
+                                className="w-full text-sm text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-colors"
+                              />
+                            </div>
+                          </div>
+                          {/* 버튼 */}
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={cancelEditing}
+                              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              <X size={13} /> 취소
+                            </button>
+                            <button
+                              onClick={saveEditing}
+                              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+                            >
+                              <Check size={13} /> 저장
+                            </button>
+                          </div>
                         </div>
-                      ) : (
-                        <span className="text-[11px] text-gray-500 font-medium">{periodStr}</span>
-                      )}
-                    </div>
+                      </div>
+                    );
+                  }
 
-                    {/* 성과 */}
-                    <span className={`text-[11px] font-semibold ${theme.label} truncate`}>
-                      {metric ? stripMd(metric) : '–'}
-                    </span>
+                  /* ── 일반 행 ── */
+                  return (
+                    <div
+                      key={exp.id}
+                      draggable={!isEditing}
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragEnd={handleDragEnd}
+                      onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
+                      className={`group grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
+                        isDragging ? 'opacity-40' : ''
+                      } ${isOver && !isDragging ? 'border-t-2 border-t-blue-400' : ''
+                      } ${isSelected ? `${theme.light}` : 'hover:bg-gray-50/60'}`}
+                      onClick={() => setSelectedId(isSelected ? null : exp.id)}
+                    >
+                      {/* 드래그 핸들 — 모든 모드에서 활성화 */}
+                      <div
+                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
+                        onMouseDown={e => e.stopPropagation()}
+                      >
+                        <GripVertical size={14} />
+                      </div>
 
-                    {/* 관리 */}
-                    <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                      {isEditing ? (
-                        <>
-                          <button onClick={saveEditing}
-                            className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-md transition-colors" title="저장">
-                            <Check size={14} />
-                          </button>
-                          <button onClick={cancelEditing}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors" title="취소">
-                            <X size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={(e) => startEditing(exp, e)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                            title="이름/기간 수정">
-                            <Pencil size={13} />
-                          </button>
-                          <button onClick={e => { e.stopPropagation(); if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id); }}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                            title="삭제">
-                            <Trash2 size={13} />
-                          </button>
-                        </>
-                      )}
+                      {/* 즐겨찾기 별 */}
+                      <button
+                        onClick={(e) => toggleFavorite(exp.id, e)}
+                        className={`flex items-center justify-center transition-all ${
+                          isFav ? 'text-yellow-400' : 'text-gray-200 group-hover:text-gray-300 hover:!text-yellow-300'
+                        }`}
+                        title={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                      >
+                        <Star size={14} className={isFav ? 'fill-current' : ''} />
+                      </button>
+
+                      {/* # */}
+                      <div className={`w-7 h-7 rounded-lg ${theme.bar} ${theme.border || ''} flex items-center justify-center flex-shrink-0`}>
+                        <span className={`text-[11px] font-bold ${theme.barText}`}>{idx + 1}</span>
+                      </div>
+
+                      {/* 프로젝트 */}
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight">{stripMd(exp.title)}</p>
+                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                          {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
+                        </p>
+                      </div>
+
+                      {/* 키워드 */}
+                      <div className="flex flex-wrap gap-1 overflow-hidden max-h-[36px]">
+                        {displayKeywords.slice(0, 2).map((k, i) => (
+                          <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-medium truncate max-w-[60px]">{k}</span>
+                        ))}
+                      </div>
+
+                      {/* 기간 */}
+                      <span className="text-[11px] text-gray-500 font-medium truncate">{periodStr}</span>
+
+                      {/* 성과 */}
+                      <span className="text-[11px] font-semibold text-gray-600 truncate">
+                        {metric ? stripMd(metric) : '–'}
+                      </span>
+
+                      {/* 관리 */}
+                      <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => startEditing(exp, e)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          title="이름/기간 수정"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id); }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          title="삭제"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
           )}
         </>
       )}
 
       {showImport && (
-        <ImportModal
-          targetType="experience"
-          onClose={() => setShowImport(false)}
-          onImport={handleImport}
-        />
+        <ImportModal targetType="experience" onClose={() => setShowImport(false)} onImport={handleImport} />
       )}
-
       {detailData && (
         <DetailModal type="experience" data={detailData} onClose={() => setDetailData(null)} />
       )}
-
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />
       )}
 
-      {/* ── 간트 호버 툴팁 (fixed, overflow 탈출) ── */}
+      {/* 간트 호버 툴팁 */}
       {hoveredBar && (() => {
         const { exp, rect } = hoveredBar;
         const keyExps = exp.structuredResult?.keyExperiences || [];
@@ -584,9 +723,7 @@ function EmptyState() {
         <FolderOpen size={28} className="text-gray-400" />
       </div>
       <h3 className="text-lg font-bold mb-2">아직 정리된 경험이 없습니다</h3>
-      <p className="text-gray-400 text-sm mb-6">
-        프레임워크를 선택하고 첫 경험을 정리해보세요
-      </p>
+      <p className="text-gray-400 text-sm mb-6">프레임워크를 선택하고 첫 경험을 정리해보세요</p>
       <Link
         to="/app/experience/new"
         className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"

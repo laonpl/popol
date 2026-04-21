@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw } from 'lucide-react';
@@ -140,10 +140,9 @@ export default function StructuredResult() {
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
       if (!viewOnly) {
+        // 비어있거나 아니거나 모든 섹션을 즐시 편집 모드로
         const autoEdit = {};
-        SECTION_KEYS.forEach(k => {
-          if (!fields[k]?.trim()) autoEdit[k] = true;
-        });
+        SECTION_KEYS.forEach(k => { autoEdit[k] = true; });
         setEditingSections(autoEdit);
       }
       // Load images & jobAnalysis from Firestore (navState doesn't include them)
@@ -195,10 +194,9 @@ export default function StructuredResult() {
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         if (!viewOnly) {
+          // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
           const autoEdit = {};
-          SECTION_KEYS.forEach(k => {
-            if (!fields[k]?.trim()) autoEdit[k] = true;
-          });
+          SECTION_KEYS.forEach(k => { autoEdit[k] = true; });
           setEditingSections(autoEdit);
         }
       }
@@ -365,8 +363,9 @@ export default function StructuredResult() {
     } catch {}
   };
 
-  // 수동 편집 시 히스토리에 스냅샷 저장 (섹션 편집 모드 진입 전)
+  // 모든 섹션 지정 토글 — 빈칸은 자동 폈치되지 않음
   const handleStartEditing = (key) => {
+    // 편집 시작 전 히스토리 스냅샷 저장
     if (!editingSections[key]) {
       pushEditSnapshot(id, {
         content: { ...editedContent },
@@ -374,20 +373,34 @@ export default function StructuredResult() {
         structuredResult: experience?.structuredResult,
       });
     }
+    // 모든 섹션을 한 번에 편집 모드로 (사용자가 수정 버튼을 누른 의도 매쳩)
     setEditingSections(prev => {
-      const next = { ...prev, [key]: !prev[key] };
-      // 편집 모드 진입 시 다음 틱에 포커스
-      if (!prev[key]) {
-        requestAnimationFrame(() => {
-          const el = sectionTextareaRefs.current[key];
-          if (el) {
-            el.focus();
-            el.setSelectionRange(el.value.length, el.value.length);
-          }
-        });
+      const allOn = {};
+      SECTION_KEYS.forEach(k => { allOn[k] = true; });
+      // 이미 모두 열려있으면 클릭한 � 하나만 토글
+      const allAlreadyOpen = SECTION_KEYS.every(k => prev[k]);
+      if (allAlreadyOpen) {
+        return { ...prev, [key]: false };
       }
-      return next;
+      // 아니면 모두 열기
+      requestAnimationFrame(() => {
+        const el = sectionTextareaRefs.current[key];
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      });
+      return allOn;
     });
+  };
+
+  // 수정하기 시작 시 모든 섹션 오픈
+  const openAllSections = () => {
+    pushEditSnapshot(id, {
+      content: { ...editedContent },
+      title: editedTitle,
+      structuredResult: experience?.structuredResult,
+    });
+    const allOn = {};
+    SECTION_KEYS.forEach(k => { allOn[k] = true; });
+    setEditingSections(allOn);
   };
 
   const handleUndo = () => {
@@ -519,7 +532,11 @@ export default function StructuredResult() {
         </Link>
         {viewOnly ? (
           <button
-            onClick={() => navigate(`/app/experience/structured/${id}`)}
+            onClick={() => {
+              // 수정하기 시작 시 모든 섹션 즉시 편집 모드로
+              navigate(`/app/experience/structured/${id}`);
+              // navigate 후 상태 초기화를 useEffect가 체이니코 openAllSections는 아래에서
+            }}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors shadow-sm"
           >
             <PenLine size={14} />

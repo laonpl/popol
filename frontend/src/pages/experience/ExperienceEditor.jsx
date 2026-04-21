@@ -19,6 +19,12 @@ export default function ExperienceEditor() {
   const [framework, setFramework] = useState(paramFramework || 'STRUCTURED');
   const [content, setContent] = useState({});
   const [images, setImages] = useState([]); // [{ url, storagePath, name }]
+  const [imageSizes, setImageSizes] = useState({}); // { [index]: widthPercent }
+  const imageSizesRef = useRef(imageSizes);
+  useEffect(() => {
+    imageSizesRef.current = imageSizes;
+  }, [imageSizes]);
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -43,6 +49,7 @@ export default function ExperienceEditor() {
         setFramework(data.framework || 'STAR');
         setContent(data.content || {});
         setImages(data.images || []);
+        setImageSizes(data.imageSizes || {});
       }
     } catch (error) {
       toast.error('경험 데이터를 불러오지 못했습니다');
@@ -62,12 +69,12 @@ export default function ExperienceEditor() {
     setSaving(true);
     try {
       if (isNew && !currentId) {
-        const newId = await createExperience(user.uid, { title, framework, content, images });
+        const newId = await createExperience(user.uid, { title, framework, content, images, imageSizes });
         setCurrentId(newId);
         toast.success('경험이 저장되었습니다!');
         navigate(`/app/experience/edit/${newId}`, { replace: true });
       } else {
-        await updateExperience(currentId || id, { title, framework, content, images });
+        await updateExperience(currentId || id, { title, framework, content, images, imageSizes });
         toast.success('수정사항이 저장되었습니다');
       }
     } catch (error) {
@@ -84,12 +91,11 @@ export default function ExperienceEditor() {
     setAnalyzing(true);
     try {
       let experienceId = currentId || id;
-      // 1단계: 최신 내용을 Firestore에 저장 (백엔드가 최신 데이터를 읽도록 보장)
       if (!experienceId) {
-        experienceId = await createExperience(user.uid, { title, framework, content, images });
+        experienceId = await createExperience(user.uid, { title, framework, content, images, imageSizes });
         setCurrentId(experienceId);
       } else {
-        await updateExperience(experienceId, { title, framework, content, images });
+        await updateExperience(experienceId, { title, framework, content, images, imageSizes });
       }
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
@@ -132,7 +138,7 @@ export default function ExperienceEditor() {
       img.src = url;
     });
 
-  // 이미지 업로드 핸들러 (Firebase Storage 없이 Base64로 Firestore에 저장)
+  // 이미지 업로드 핸들러
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -155,7 +161,6 @@ export default function ExperienceEditor() {
 
       setUploadingImage(true);
       try {
-        // 신규 경험은 먼저 저장해서 ID 확보
         let docId = currentId || id;
         if (!docId) {
           if (!title.trim()) {
@@ -164,17 +169,16 @@ export default function ExperienceEditor() {
             e.target.value = '';
             return;
           }
-          docId = await createExperience(user.uid, { title, framework, content, images: [] });
+          docId = await createExperience(user.uid, { title, framework, content, images: [], imageSizes: {} });
           setCurrentId(docId);
           navigate(`/app/experience/edit/${docId}`, { replace: true });
         }
 
-        // Base64로 변환 (리사이즈 + 압축)
         const base64 = await resizeToBase64(file);
         const newImage = { url: base64, name: file.name };
         const updatedImages = [...images, newImage];
         setImages(updatedImages);
-        await updateExperience(docId, { images: updatedImages });
+        await updateExperience(docId, { images: updatedImages, imageSizes });
         toast.success(`${file.name} 업로드 완료`);
       } catch (err) {
         console.error('이미지 업로드 실패:', err);
@@ -188,15 +192,48 @@ export default function ExperienceEditor() {
   // 이미지 삭제 핸들러
   const handleImageDelete = async (index) => {
     const updatedImages = images.filter((_, i) => i !== index);
+    // 삭제된 인덱스 이후는 재매핑
+    const updatedSizes = {};
+    Object.entries(imageSizes).forEach(([k, v]) => {
+      const ki = Number(k);
+      if (ki < index) updatedSizes[ki] = v;
+      else if (ki > index) updatedSizes[ki - 1] = v;
+    });
     setImages(updatedImages);
+    setImageSizes(updatedSizes);
     const docId = currentId || id;
     if (docId) {
       try {
-        await updateExperience(docId, { images: updatedImages });
+        await updateExperience(docId, { images: updatedImages, imageSizes: updatedSizes });
       } catch (err) {
         console.error('이미지 목록 저장 실패:', err);
       }
     }
+  };
+
+  // 이미지 리사이즉 핸들러 (포트폴리오와 동일한 UX)
+  const makeResizeHandler = (index) => (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const container = e.currentTarget.closest('[data-img-wrap]');
+    const startW = container?.offsetWidth || 200;
+    const parentW = container?.parentElement?.offsetWidth || 600;
+
+    const onMove = (mv) => {
+      const delta = mv.clientX - startX;
+      const newW = Math.max(80, Math.min(parentW, startW + delta));
+      const pct = Math.round((newW / parentW) * 100);
+      setImageSizes(prev => ({ ...prev, [index]: pct }));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      // 리사이즈 후 저장
+      const docId = currentId || id;
+      if (docId) updateExperience(docId, { imageSizes: imageSizesRef.current }).catch(() => {});
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   if (loading) {
@@ -297,34 +334,54 @@ export default function ExperienceEditor() {
             <p className="text-xs">JPG, PNG, WEBP · 최대 5MB · 최대 5장</p>
           </button>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {images.map((img, index) => (
-              <div key={index} className="relative group aspect-square rounded-xl overflow-hidden border border-surface-200">
-                <img
-                  src={img.url}
-                  alt={img.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+          <div className="flex flex-wrap gap-3">
+            {images.map((img, index) => {
+              const widthPct = imageSizes[index];
+              const style = widthPct
+                ? { width: `${widthPct}%` }
+                : { width: 'calc(33.33% - 8px)' };
+              return (
+                <div
+                  key={index}
+                  data-img-wrap="true"
+                  className="relative group/rimg rounded-xl overflow-hidden border border-surface-200 flex-shrink-0"
+                  style={style}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.name}
+                    className="w-full object-cover block"
+                    style={{ minHeight: '80px', maxHeight: '320px' }}
+                  />
+                  {/* 삭제 버튼 — 우상단 상시 표시 */}
                   <button
                     type="button"
                     onClick={() => handleImageDelete(index)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/90 rounded-full text-red-500 hover:bg-white transition-all"
+                    className="absolute top-1.5 right-1.5 p-1 bg-white/95 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm border border-red-100 transition-all z-10"
+                    title="사진 삭제"
                   >
-                    <X size={14} />
+                    <X size={12} />
                   </button>
+                  {/* 리사이즈 핸들 (우측 가장자리) */}
+                  <div
+                    onMouseDown={makeResizeHandler(index)}
+                    className="absolute top-1/2 right-0 -translate-y-1/2 w-3 h-10 cursor-ew-resize opacity-0 group-hover/rimg:opacity-100 transition-opacity z-10 rounded-l"
+                    style={{ background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.7))' }}
+                    title="우측으로 드래그해서 크기 조정"
+                  />
+                  <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-black/40 text-white text-[10px] truncate">
+                    {img.name}
+                  </p>
                 </div>
-                <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-black/40 text-white text-[10px] truncate">
-                  {img.name}
-                </p>
-              </div>
-            ))}
+              );
+            })}
             {images.length < 5 && (
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="aspect-square rounded-xl border-2 border-dashed border-surface-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 disabled:opacity-40 transition-all"
+                className="rounded-xl border-2 border-dashed border-surface-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30 disabled:opacity-40 transition-all"
+                style={{ width: 'calc(33.33% - 8px)', minHeight: '80px' }}
               >
                 {uploadingImage ? (
                   <Loader2 size={20} className="animate-spin" />
