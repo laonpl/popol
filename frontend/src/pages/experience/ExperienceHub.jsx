@@ -40,29 +40,29 @@ function parsePeriod(exp) {
 
 const COLOR_PALETTES = {
   blue: [
-    { bar: 'bg-blue-500',  barText: 'text-white',     light: 'bg-blue-50' },
-    { bar: 'bg-white',     barText: 'text-blue-600',  light: 'bg-gray-50', border: 'border border-blue-200' },
-    { bar: 'bg-gray-200',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+    { bar: 'bg-blue-500', barText: 'text-white', light: 'bg-blue-50' },
+    { bar: 'bg-white', barText: 'text-blue-600', light: 'bg-gray-50', border: 'border border-blue-200' },
+    { bar: 'bg-gray-200', barText: 'text-gray-700', light: 'bg-gray-50' },
   ],
   green: [
-    { bar: 'bg-emerald-500', barText: 'text-white',       light: 'bg-emerald-50' },
-    { bar: 'bg-white',       barText: 'text-emerald-600', light: 'bg-gray-50', border: 'border border-emerald-200' },
-    { bar: 'bg-gray-200',    barText: 'text-gray-700',    light: 'bg-gray-50' },
+    { bar: 'bg-emerald-500', barText: 'text-white', light: 'bg-emerald-50' },
+    { bar: 'bg-white', barText: 'text-emerald-600', light: 'bg-gray-50', border: 'border border-emerald-200' },
+    { bar: 'bg-gray-200', barText: 'text-gray-700', light: 'bg-gray-50' },
   ],
   dark: [
-    { bar: 'bg-gray-900',  barText: 'text-white',     light: 'bg-gray-100' },
-    { bar: 'bg-white',     barText: 'text-gray-800',  light: 'bg-gray-50', border: 'border border-gray-300' },
-    { bar: 'bg-gray-300',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+    { bar: 'bg-gray-900', barText: 'text-white', light: 'bg-gray-100' },
+    { bar: 'bg-white', barText: 'text-gray-800', light: 'bg-gray-50', border: 'border border-gray-300' },
+    { bar: 'bg-gray-300', barText: 'text-gray-700', light: 'bg-gray-50' },
   ],
 };
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
 const SORT_OPTIONS = [
-  { value: 'custom',    label: '직접 정렬' },
-  { value: 'latest',    label: '최신순' },
-  { value: 'period',    label: '기간순' },
-  { value: 'favorite',  label: '즐겨찾기순' },
+  { value: 'custom', label: '직접 정렬' },
+  { value: 'latest', label: '최신순' },
+  { value: 'period', label: '기간순' },
+  { value: 'favorite', label: '즐겨찾기순' },
 ];
 
 /* ── 즐겨찾기 로컬스토리지 헬퍼 ── */
@@ -272,9 +272,8 @@ export default function ExperienceHub() {
                   <button
                     key={opt.value}
                     onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
-                      sortBy === opt.value ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${sortBy === opt.value ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                   >
                     {opt.label}
                   </button>
@@ -287,17 +286,15 @@ export default function ExperienceHub() {
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
             <button
               onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'timeline' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${viewMode === 'timeline' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
             >
               <CalendarDays size={14} />타임라인
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
             >
               <List size={14} />표
             </button>
@@ -306,14 +303,16 @@ export default function ExperienceHub() {
           {/* 새 경험 추가 버튼 + 말풍선 */}
           <div className="relative" style={{ overflow: 'visible' }}>
             {experiences.length === 0 && !loading && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50 pointer-events-none animate-bounce" style={{ width: 'max-content' }}>
-                {/* 삼각형 화살표: border 트릭으로 완전한 삼각형 생성 */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 0 }}>
-                  <div style={{ width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '9px solid #4f46e5' }} />
-                </div>
-                {/* 말풍선 본체 */}
-                <div style={{ background: '#4f46e5', color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 10, boxShadow: '0 4px 12px rgba(79,70,229,0.3)', whiteSpace: 'nowrap' }}>
-                  여기서 첫 경험을 추가해보세요!
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50 pointer-events-none">
+                <div className="relative bg-white border border-blue-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-2.5 rounded-2xl animate-bounce whitespace-nowrap">
+                  {/* 화살표 */}
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-t border-l border-blue-100 rotate-45" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                    <span className="text-[11px] font-bold text-gray-800">
+                      여기서 첫 경험을 추가해보세요!
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -338,7 +337,7 @@ export default function ExperienceHub() {
         <>
           {/* ═══ 간트 타임라인 ═══ */}
           {viewMode === 'timeline' && ganttData && (
-            <div className="bg-gray-100 rounded-2xl overflow-hidden">
+            <div className="bg-gray-100 rounded-2xl">
               {/* 타임라인 헤더 */}
               <div className="px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -357,9 +356,8 @@ export default function ExperienceHub() {
                           <button
                             key={y}
                             onClick={() => { setSelectedYear(y); setYearDropdownOpen(false); }}
-                            className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${
-                              y === selectedYear ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'
-                            }`}
+                            className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${y === selectedYear ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'
+                              }`}
                           >
                             {y}년
                           </button>
@@ -372,16 +370,15 @@ export default function ExperienceHub() {
                 {/* 팔레트 선택 */}
                 <div className="flex items-center gap-1.5">
                   {[
-                    { key: 'blue',  colors: ['bg-blue-500', 'bg-blue-400', 'bg-blue-600'] },
+                    { key: 'blue', colors: ['bg-blue-500', 'bg-blue-400', 'bg-blue-600'] },
                     { key: 'green', colors: ['bg-emerald-500', 'bg-teal-500', 'bg-green-600'] },
-                    { key: 'dark',  colors: ['bg-gray-800', 'bg-gray-600', 'bg-gray-900'] },
+                    { key: 'dark', colors: ['bg-gray-800', 'bg-gray-600', 'bg-gray-900'] },
                   ].map(p => (
                     <button
                       key={p.key}
                       onClick={() => setColorPalette(p.key)}
-                      className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
-                        colorPalette === p.key ? 'border-white shadow-md scale-110' : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'
-                      }`}
+                      className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${colorPalette === p.key ? 'border-white shadow-md scale-110' : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'
+                        }`}
                     >
                       {p.colors.map((c, i) => (
                         <span key={i} className={`w-3 h-3 rounded-sm ${c}`} />
@@ -432,7 +429,7 @@ export default function ExperienceHub() {
                             onMouseLeave={() => setHoveredBar(null)}
                           >
                             {isEditingThis ? (
-                              {/* ── 인라인 편집 모드 ── */}
+                              /* ── 인라인 편집 모드 ── */
                               <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg" style={{ minWidth: '220px' }} onClick={e => e.stopPropagation()}>
                                 <input
                                   value={editTitle}
@@ -466,9 +463,8 @@ export default function ExperienceHub() {
                               /* ── 일반 바 ── */
                               <div className="relative">
                                 <div
-                                  className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
-                                    isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
-                                  }`}
+                                  className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
+                                    }`}
                                   onClick={() => setSelectedId(isSelected ? null : exp.id)}
                                   onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
                                 >
@@ -605,10 +601,9 @@ export default function ExperienceHub() {
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
                       onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
-                      className={`group grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
-                        isDragging ? 'opacity-40' : ''
-                      } ${isOver && !isDragging ? 'border-t-2 border-t-blue-400' : ''
-                      } ${isSelected ? `${theme.light}` : 'hover:bg-gray-50/60'}`}
+                      className={`group grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${isDragging ? 'opacity-40' : ''
+                        } ${isOver && !isDragging ? 'border-t-2 border-t-blue-400' : ''
+                        } ${isSelected ? `${theme.light}` : 'hover:bg-gray-50/60'}`}
                       onClick={() => setSelectedId(isSelected ? null : exp.id)}
                     >
                       {/* 드래그 핸들 — 모든 모드에서 활성화 */}
@@ -622,9 +617,8 @@ export default function ExperienceHub() {
                       {/* 즐겨찾기 별 */}
                       <button
                         onClick={(e) => toggleFavorite(exp.id, e)}
-                        className={`flex items-center justify-center transition-all ${
-                          isFav ? 'text-yellow-400' : 'text-gray-200 group-hover:text-gray-300 hover:!text-yellow-300'
-                        }`}
+                        className={`flex items-center justify-center transition-all ${isFav ? 'text-yellow-400' : 'text-gray-200 group-hover:text-gray-300 hover:!text-yellow-300'
+                          }`}
                         title={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                       >
                         <Star size={14} className={isFav ? 'fill-current' : ''} />

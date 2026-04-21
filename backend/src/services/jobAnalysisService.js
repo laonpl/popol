@@ -283,8 +283,10 @@ ${text.substring(0, 8000)}
 3. 급여 추정: 직급·경력·업종 기반 시장 급여 범위
 4. 합격 전략: 직무 및 기업 특성을 반영한 핵심 합격 전략 (면접 예상 질문 제외)
 5. 포트폴리오 요건: required/format/content/submission 항목별 세밀하게 추출 (명시 없으면 직무 관행 기반 가이드 작성)
+6. 산업 트렌드: 해당 기업이 속한 산업의 핵심 트렌드를 5개 이상 상세히 분석. 각 트렌드마다 trend(제목), description(2~3문장의 상세 설명), impact(해당 직무에 미치는 구체적 영향), keywords(관련 키워드 3~5개 배열), level(hot/growing/stable 중 하나), opportunity(해당 트렌드로 인한 기회), threat(주의해야 할 위험 요소)를 모두 작성하세요.
+7. 강조 표시: 모든 분석 결과 텍스트 중에서 포트폴리오나 자소서 작성 시 '치트키'가 될 만한 핵심 문구나 키워드는 반드시 <u>강조할내용</u> 태그로 감싸서 응답하세요. (예: <u>업계 1위의 시장 점유율</u>을 기반으로 한...)
 
-반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지):
+반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지, <u> 태그만 허용):
 {
   "company": "",
   "position": "",
@@ -331,7 +333,7 @@ ${text.substring(0, 8000)}
     "cautionPoints": [],
     "portfolioTips": []
   },
-  "industryTrends": [{ "trend": "", "description": "", "impact": "" }],
+  "industryTrends": [{ "trend": "", "description": "", "impact": "", "keywords": [], "level": "growing", "opportunity": "", "threat": "" }],
   "fitScoreFactors": [
     { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
     { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
@@ -420,10 +422,10 @@ export async function generateTailoredCoverLetter(jobAnalysis, matchResult, expe
   const questions = rawQuestions.length > 0
     ? rawQuestions
     : [
-        { question: '지원 동기', maxLength: 500 },
-        { question: '직무 관련 경험', maxLength: 500 },
-        { question: '입사 후 포부', maxLength: 500 },
-      ];
+      { question: '지원 동기', maxLength: 500 },
+      { question: '직무 관련 경험', maxLength: 500 },
+      { question: '입사 후 포부', maxLength: 500 },
+    ];
 
   const expText = experiences.slice(0, 5).map((exp, i) => {
     const content = exp.content
@@ -497,13 +499,20 @@ ${matchKey}
 경험 목록:
 ${experiences.slice(0, 8).map((e, i) => `${i + 1}. ${e.title} [스킬: ${(e.skills || []).join(', ')}]`).join('\n')}
 
-요청: 기업에 맞게 강조할 항목, 순서 변경, 추가할 내용 제안.
+요청: 기업에 맞게 강조할 항목, 순서 변경, 추가할 내용 제안. 
+특히 recommendedExperiences에는 이 기업에 가장 핵심적인 경험 2~3개만 남기고, 각 경험의 역할(tailoredRole)과 설명(tailoredDescription)을 해당 기업의 요구사항과 직접적으로 연관지어 재작성하세요.
 
 JSON 형식으로만 응답:
 {
   "headline": "기업맞춤 추천 헤드라인",
   "recommendedExperiences": [
-    {"title": "경험 제목", "reason": "추천 이유", "priority": 1}
+    {
+      "title": "경험 제목", 
+      "reason": "추천 이유", 
+      "priority": 1,
+      "tailoredRole": "해당 기업/직무에 맞게 재작성된 핵심 역할 (예: 데이터 파이프라인 설계 및 최적화)",
+      "tailoredDescription": "해당 기업의 비즈니스나 요구사항과 강력하게 연관지어 재작성된 핵심 성과 및 설명 (2~3줄 분량)"
+    }
   ],
   "skillsToHighlight": ["강조할 스킬1", "강조할 스킬2"],
   "sections": [
@@ -562,9 +571,17 @@ JSON으로만 응답:
     "growth": { "content": "", "reason": "" },
     "competency": { "content": "", "reason": "" }
   },
+  "keyExperiences": [
+    { "title": "기업 맞춤형 슬라이드 제목", "description": "요약", "problem": "문제상황(기업연관)", "action": "수행행동(기업연관)", "result": "성과", "relevance": "이 슬라이드를 남긴 이유" }
+  ],
   "highlightedSkills": [],
   "relevanceNote": ""
-}`;
+}
+
+요청: 
+1. 7개 섹션(intro~competency)을 기업 맞춤형으로 재작성하세요.
+2. 원본 경험 내용 중 이 기업에 가장 핵심적인 것만 1~2개 필터링하여 'keyExperiences' 배열에 담으세요. 
+3. 필터링된 핵심 경험의 내용(title, description, problem, action, result)을 해당 기업의 비즈니스나 기술 스택과 강력하게 연관지어 재작성하세요. (예: 기업의 XX 문제를 해결할 수 있는 YY 역량을 보여줌)`;
 
   const raw = await callProFirst(prompt, 'TailorExperienceContent');
   return parseJSON(raw);
