@@ -396,8 +396,22 @@ export default function TemplateSelect() {
     setLoadingSteps(finalSteps);
 
     try {
+      // 사용자가 description을 편집했을 수 있으므로 SAR 섹션을 다시 파싱해서 최신화
+      const syncedMoments = moments.map(m => {
+        const parsed = parseStarDescription(m.description);
+        const bySection = { situation: m.situation || '', action: m.action || '', result: m.result || '' };
+        if (parsed) {
+          for (const s of parsed) {
+            if (s.key === 'situation') bySection.situation = s.text;
+            else if (s.key === 'action') bySection.action = s.text;
+            else if (s.key === 'result') bySection.result = s.text;
+          }
+        }
+        return { ...m, ...bySection };
+      });
+
       // 선택된 경험을 rawInput에 포함
-      const momentsText = moments.map((m, i) =>
+      const momentsText = syncedMoments.map((m, i) =>
         `[경험 ${i + 1}] ${m.title}\n${m.description}\n키워드: ${(m.keywords || []).join(', ')}`
       ).join('\n\n');
       const finalText = `${collectedText}\n\n=== AI 추출 핵심 경험 ===\n${momentsText}`;
@@ -421,7 +435,10 @@ export default function TemplateSelect() {
       let analysisError;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          analysis = await analyzeExperience(experienceId, { momentsCount: moments.length });
+          analysis = await analyzeExperience(experienceId, {
+            momentsCount: syncedMoments.length,
+            reviewedMoments: syncedMoments,
+          });
           analysisError = null;
           break;
         } catch (err) {

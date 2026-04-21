@@ -513,11 +513,14 @@ const inlineBase = "bg-transparent border border-transparent rounded-lg focus:ou
 /* ── 편집 가능한 텍스트 필드 (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
 function EditableText({ value, field, placeholder, className, style, tag: Tag = 'p', editing, onChange }) {
   if (editing) {
+    const isValHint = isHint(value);
+    const displayValue = isValHint ? '' : (value || '');
+    const displayPlaceholder = isValHint ? value.replace(/\[작성 필요\]\s*/, '') : placeholder;
     return (
       <input
-        value={value || ''}
+        value={displayValue}
         onChange={e => onChange(field, e.target.value)}
-        placeholder={placeholder}
+        placeholder={displayPlaceholder}
         className={`${className} ${inlineBase}`}
         style={style}
       />
@@ -532,11 +535,14 @@ function EditableText({ value, field, placeholder, className, style, tag: Tag = 
 /* ── 편집 가능한 textarea (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
 function EditableArea({ value, field, placeholder, rows = 3, editing, onChange }) {
   if (editing) {
+    const isValHint = isHint(value);
+    const displayValue = isValHint ? '' : (value || '');
+    const displayPlaceholder = isValHint ? value.replace(/\[작성 필요\]\s*/, '') : placeholder;
     return (
       <textarea
-        value={value || ''}
+        value={displayValue}
         onChange={e => onChange(field, e.target.value)}
-        placeholder={placeholder}
+        placeholder={displayPlaceholder}
         rows={rows}
         className={`text-[13px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
       />
@@ -608,15 +614,15 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                 <div className="mt-2 space-y-2">
                   <div className="flex gap-2">
                     <input
-                      value={exp.beforeMetric || ''}
+                      value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
                       onChange={e => onChange('beforeMetric', e.target.value)}
-                      placeholder="개선 전 (예: 800ms)"
+                      placeholder={isHint(exp.beforeMetric) ? exp.beforeMetric.replace(/\[작성 필요\]\s*/, '') : "개선 전 (예: 800ms)"}
                       className={`flex-1 text-[12px] text-gray-600 px-2 py-1 ${inlineBase}`}
                     />
                     <input
-                      value={exp.afterMetric || ''}
+                      value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
                       onChange={e => onChange('afterMetric', e.target.value)}
-                      placeholder="개선 후 (예: 480ms)"
+                      placeholder={isHint(exp.afterMetric) ? exp.afterMetric.replace(/\[작성 필요\]\s*/, '') : "개선 후 (예: 480ms)"}
                       className={`flex-1 text-[12px] px-2 py-1 ${inlineBase}`}
                       style={{ color: theme.accent }}
                     />

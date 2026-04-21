@@ -9,7 +9,7 @@ const router = Router();
 // POST /api/experience/analyze - AI 경험 구조화
 router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
-    const { experienceId, momentsCount } = req.body;
+    const { experienceId, momentsCount, reviewedMoments } = req.body;
     if (!experienceId) {
       return res.status(400).json({ error: 'experienceId가 필요합니다' });
     }
@@ -28,14 +28,21 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
       return res.status(403).json({ error: '접근 권한이 없습니다' });
     }
 
-    // momentsCount: 요청 바디 → Firestore 저장값 순으로 fallback
-    const count = (momentsCount && Number.isInteger(Number(momentsCount)))
-      ? Number(momentsCount)
-      : (data.momentsCount || 3);
+    // 검토된 moments: 요청 바디 → Firestore 저장값 순으로 fallback
+    const moments = Array.isArray(reviewedMoments) && reviewedMoments.length > 0
+      ? reviewedMoments
+      : (Array.isArray(data.reviewedMoments) ? data.reviewedMoments : null);
+
+    // momentsCount: moments 길이 → 요청 바디 → Firestore 저장값 순으로 fallback
+    const count = moments
+      ? moments.length
+      : ((momentsCount && Number.isInteger(Number(momentsCount)))
+          ? Number(momentsCount)
+          : (data.momentsCount || 3));
 
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, count);
+      analysis = await analyzeExperience(data.content || {}, count, moments);
     } catch (aiError) {
       const errMsg = aiError.message || '';
       console.error('Gemini AI 분석 실패 (최종):', errMsg);

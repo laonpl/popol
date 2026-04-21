@@ -115,6 +115,9 @@ const useExperienceStore = create((set, get) => ({
     }
     const payload = { experienceId };
     if (options.momentsCount !== undefined) payload.momentsCount = options.momentsCount;
+    if (Array.isArray(options.reviewedMoments) && options.reviewedMoments.length > 0) {
+      payload.reviewedMoments = options.reviewedMoments;
+    }
     const { data } = await api.post('/experience/analyze', payload, { timeout: 300000 });
     set(state => ({
       experiences: state.experiences.map(e =>
