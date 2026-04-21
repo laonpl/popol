@@ -203,6 +203,16 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
   const [uploading, setUploading] = useState(false);
   const [localThumb, setLocalThumb] = useState(thumbnailUrl || null);
   const [favorited, setFavorited] = useState(isFavorite || false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [localTitle, setLocalTitle] = useState(displayTitle);
+  const titleInputRef = useRef(null);
+
+  const handleTitleSave = async () => {
+    setEditingTitle(false);
+    const trimmed = localTitle.trim();
+    if (!trimmed || trimmed === displayTitle) return;
+    await updatePortfolio(id, { title: trimmed });
+  };
 
   const handleThumbnailClick = () => fileInputRef.current?.click();
 
@@ -292,8 +302,29 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
           <span className="ml-auto text-xs text-gray-400">{date}</span>
         </div>
 
-        {/* 제목 */}
-        <h3 className="text-lg font-bold mb-1 line-clamp-1">{displayTitle}</h3>
+        {/* 제목 - 클릭하면 인라인 수정 */}
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={localTitle}
+            onChange={e => setLocalTitle(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={e => { if (e.key === 'Enter') handleTitleSave(); if (e.key === 'Escape') { setLocalTitle(displayTitle); setEditingTitle(false); } }}
+            className="w-full text-lg font-bold mb-1 border-b-2 border-primary-400 outline-none bg-transparent"
+            autoFocus
+          />
+        ) : (
+          <div className="flex items-center gap-1 group/title mb-1">
+            <h3 className="text-lg font-bold line-clamp-1 flex-1">{localTitle}</h3>
+            <button
+              onClick={() => { setEditingTitle(true); setTimeout(() => titleInputRef.current?.focus(), 50); }}
+              className="opacity-0 group-hover/title:opacity-100 p-1 text-gray-400 hover:text-gray-600 rounded transition-opacity flex-shrink-0"
+              title="제목 수정"
+            >
+              <Edit size={13} />
+            </button>
+          </div>
+        )}
 
         {/* 설명 */}
         <p className="text-sm text-gray-500 mb-4 line-clamp-2">
