@@ -32,22 +32,32 @@ export async function callGitHubModelsFallback(prompt) {
 }
 
 const MODEL_FALLBACKS = [
+  'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite'
 ];
 
-// ── 세마포어: 동시 Gemini API 호출 수 제한 (30명+ 동시 사용 대응) ──
-const MAX_CONCURRENT = 2; // TPM 제어를 위해 6에서 2로 낮춤
+// 경험 분석 전용: Pro 우선 + 최후의 안전망 Lite
+// preferPro:true 모드에서는 Pro 내에서 지수백오프 재시도 → Pro가 끝까지 안 되면 Lite 폴백
+export const EXPERIENCE_MODEL_FALLBACKS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite',
+];
+
+// Pro 전용 (안전망 없음) - 반드시 Pro로만 시도
+export const PRO_ONLY_FALLBACKS = ['gemini-2.5-pro'];
+
+// ── 글로벌 API 요청 큐: 15 RPM (분당 15요청) 한계선을 절대 넘지 않도록 강제 제어 ──
+// 15 RPM = 1요청 당 4000ms. 안전하게 4100ms 파괴적 딜레이 적용.
+const REQUEST_INTERVAL_MS = 4100;
 const MAX_QUEUE_SIZE = 60;
-let activeCount = 0;
 const waitQueue = [];
+let lastRequestTime = 0;
+let isProcessingQueue = false;
+let activeCount = 0; // 현재 AI가 처리중인 개수 (단순 통계용)
 
 export function acquireSemaphore(timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    if (activeCount < MAX_CONCURRENT) {
-      activeCount++;
-      return resolve();
-    }
     if (waitQueue.length >= MAX_QUEUE_SIZE) {
       return reject(new Error('QUEUE_FULL'));
     }
@@ -57,25 +67,55 @@ export function acquireSemaphore(timeoutMs = 120000) {
       if (idx !== -1) waitQueue.splice(idx, 1);
       reject(new Error('QUEUE_TIMEOUT'));
     }, timeoutMs);
+    
     waitQueue.push(entry);
+    processQueue();
   });
 }
 
-export function releaseSemaphore() {
-  if (waitQueue.length > 0) {
+function processQueue() {
+  if (isProcessingQueue || waitQueue.length === 0) return;
+  isProcessingQueue = true;
+
+  const now = Date.now();
+  const timeSinceLast = now - lastRequestTime;
+  const timeToWait = Math.max(0, REQUEST_INTERVAL_MS - timeSinceLast);
+
+  setTimeout(() => {
+    if (waitQueue.length === 0) {
+      isProcessingQueue = false;
+      return;
+    }
     const next = waitQueue.shift();
     clearTimeout(next.timer);
-    // TPM 제어를 위해 큐에서 다음 요청을 꺼낼 때 2초의 쿨다운(Delay) 강제 부여
-    setTimeout(() => {
-      next.resolve();
-    }, 2000);
-  } else {
-    activeCount--;
-  }
+    
+    lastRequestTime = Date.now();
+    activeCount++;
+    next.resolve(); // 요청 권한 획득!
+    
+    isProcessingQueue = false;
+    processQueue(); // 큐에 남아있으면 예약 시작
+  }, timeToWait);
+}
+
+export function releaseSemaphore() {
+  // 큐 방식에서는 release 시점에서 딜레이를 주지 않고, acquire(분출) 단계에서 철저히 4.1초를 통제함
+  activeCount = Math.max(0, activeCount - 1);
 }
 
 export function getQueueStats() {
-  return { active: activeCount, waiting: waitQueue.length, maxConcurrent: MAX_CONCURRENT, maxQueue: MAX_QUEUE_SIZE };
+  return { active: activeCount, waiting: waitQueue.length, maxQueue: MAX_QUEUE_SIZE };
+}
+
+export function getModelHealthStats() {
+  return Object.entries(modelHealthTracker).reduce((acc, [name, tracker]) => {
+    acc[name] = {
+      consecutiveErrors: tracker.consecutiveErrors,
+      blockedUntil: tracker.blockedUntil > 0 ? new Date(tracker.blockedUntil).toISOString() : null,
+      isBlocked: Date.now() < tracker.blockedUntil,
+    };
+    return acc;
+  }, {});
 }
 
 function extractStatus(err) {
@@ -88,6 +128,47 @@ function extractStatus(err) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ── Pro 모델 503 에러 추적: 연속 2회 503 → Pro 일시 건너뛰기 (60초간) ──
+const modelHealthTracker = {
+  'gemini-2.5-pro': { consecutiveErrors: 0, blockedUntil: 0 },
+};
+
+function isModelTemporarilyBlocked(modelName) {
+  if (!modelHealthTracker[modelName]) return false;
+  const tracker = modelHealthTracker[modelName];
+  if (Date.now() < tracker.blockedUntil) {
+    return true;
+  }
+  if (tracker.blockedUntil > 0) {
+    tracker.consecutiveErrors = 0;
+    tracker.blockedUntil = 0;
+  }
+  return false;
+}
+
+function recordModelError(modelName, status) {
+  if (!modelHealthTracker[modelName]) return;
+  const tracker = modelHealthTracker[modelName];
+
+  // 503 에러만 추적 (Pro TPM 부족 신호)
+  if (status === 503) {
+    tracker.consecutiveErrors++;
+    if (tracker.consecutiveErrors >= 2) {
+      console.warn(`[Model Health] ${modelName} 연속 503 에러 감지 → 60초간 대기`);
+      tracker.blockedUntil = Date.now() + 60000;
+    }
+  } else {
+    tracker.consecutiveErrors = 0; // 503 아닌 다른 에러면 카운트 초기화
+  }
+}
+
+function recordModelSuccess(modelName) {
+  if (!modelHealthTracker[modelName]) return;
+  const tracker = modelHealthTracker[modelName];
+  tracker.consecutiveErrors = 0;
+  tracker.blockedUntil = 0;
+}
+
 function callModelWithTimeout(model, prompt, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
@@ -98,7 +179,25 @@ function callModelWithTimeout(model, prompt, timeoutMs = 90000) {
   });
 }
 
-export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
+/**
+ * Gemini 호출 + 재시도 + 모델 폴백.
+ * @param {string} prompt
+ * @param {object} [options]
+ * @param {string[]} [options.models] 사용할 모델 폴백 순서. 생략 시 기본 MODEL_FALLBACKS.
+ * @param {number}   [options.retries] 각 모델당 시도 횟수. 기본 2.
+ * @param {number}   [options.delayMs] 재시도 기본 대기(백오프 기준). 기본 1500ms.
+ * @param {number}   [options.rateLimitDelayMs] 429(TPM/RPM) 전용 기본 대기. 기본 4000ms.
+ * @param {boolean}  [options.preferPro] Pro 우선 모드 — 503 발생해도 Pro 내에서 재시도, 회로차단기 무시.
+ */
+export async function generateWithRetry(prompt, options = {}) {
+  const {
+    models = MODEL_FALLBACKS,
+    retries = 2,
+    delayMs = 1500,
+    rateLimitDelayMs = 4000,
+    preferPro = false,
+  } = options;
+
   // 세마포어 획득 — 동시 호출 수 제한
   try {
     await acquireSemaphore();
@@ -115,12 +214,23 @@ export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
   try {
     let lastError;
 
-    for (const modelName of MODEL_FALLBACKS) {
+    for (const modelName of models) {
+      // Pro 우선 모드에서는 회로차단기 무시 (Pro 강제 시도)
+      if (!preferPro && isModelTemporarilyBlocked(modelName)) {
+        console.warn(`[Gemini] ${modelName} 일시 차단 상태 → 다음 모델로 이동`);
+        lastError = new Error(`${modelName}이(가) 일시 차단됨`);
+        continue;
+      }
+
       const model = genAI.getGenerativeModel({ model: modelName });
+      let attemptCount = 0;
 
       for (let attempt = 0; attempt < retries; attempt++) {
+        attemptCount = attempt + 1;
         try {
-          return await callModelWithTimeout(model, prompt);
+          const result = await callModelWithTimeout(model, prompt);
+          recordModelSuccess(modelName);
+          return result;
         } catch (err) {
           lastError = err;
           const status = extractStatus(err);
@@ -132,12 +242,14 @@ export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
             throw err;
           }
 
-          if (status === 404) { break; }
+          if (status === 404) {
+            break;
+          }
 
           if (status === 429) {
             if (attempt < retries - 1) {
-              const wait = delayMs * Math.pow(2, attempt + 1);
-              console.warn(`[Gemini] 429 쿼터 초과 - ${wait}ms 대기 후 재시도`);
+              const wait = Math.min(rateLimitDelayMs * Math.pow(2, attempt), 60000);
+              console.warn(`[Gemini] 429 쿼터 초과 - ${wait}ms 대기 후 재시도 (${modelName})`);
               await sleep(wait);
               continue;
             } else {
@@ -147,6 +259,29 @@ export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
           }
 
           if (status === 503 || status === 500) {
+            recordModelError(modelName, status);
+
+            const isPro = modelName.includes('pro');
+
+            // Pro 우선 모드: 503이어도 Pro 내에서 지수 백오프로 끝까지 재시도
+            if (preferPro && isPro && status === 503) {
+              if (attempt < retries - 1) {
+                const wait = Math.min(delayMs * Math.pow(2, attempt), 30000);
+                console.warn(`[Gemini] Pro 우선 모드 503 - ${wait}ms 대기 후 Pro 재시도 (${attempt + 1}/${retries})`);
+                await sleep(wait);
+                continue;
+              }
+              console.warn(`[Gemini] Pro 우선 모드 재시도 소진 → 다음 모델로`);
+              break;
+            }
+
+            // 일반 모드 Pro 503: 즉시 폴백 (대기 없음)
+            if (!preferPro && isPro && status === 503) {
+              console.warn(`[Gemini] Pro 모델 503 → 즉시 Lite로 폴백 (대기 없음)`);
+              break;
+            }
+
+            // Lite 모델이나 500 에러: 지수 백오프로 재시도
             if (attempt < retries - 1) {
               const wait = delayMs * Math.pow(2, attempt);
               console.warn(`[Gemini] ${status} 과부하 - ${wait}ms 대기 후 재시도`);
@@ -158,13 +293,16 @@ export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
             }
           }
 
-          if (msg === 'GEMINI_TIMEOUT') { await sleep(2000); break; }
+          if (msg === 'GEMINI_TIMEOUT') {
+            await sleep(2000);
+            break;
+          }
 
           break;
         }
       }
 
-      if (modelName !== MODEL_FALLBACKS[MODEL_FALLBACKS.length - 1]) {
+      if (modelName !== models[models.length - 1]) {
         await sleep(1000);
       }
     }
@@ -176,7 +314,7 @@ export async function generateWithRetry(prompt, retries = 2, delayMs = 1500) {
         return await callGitHubModelsFallback(prompt);
       } catch (fallbackErr) {
         console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
-        throw lastError; // 둘 다 실패하면 원본 Gemini 에러 반환
+        throw lastError;
       }
     }
 
