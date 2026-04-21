@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 
@@ -684,33 +684,61 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 /* ══════════════════════════════════════════════
    메인 슬라이더
    ══════════════════════════════════════════════ */
-export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, viewOnly = false }) {
+const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
+  keyExperiences = [], onUpdate, viewOnly = false,
+  hideHeader = false, onEditingChange, onCurrentChange, onDeletedCountChange,
+}, ref) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [localExp, setLocalExp] = useState(null);
   const [deletedStack, setDeletedStack] = useState([]);
   const touchStartX = useRef(null);
+  const stateRef = useRef({});
+  const handlersRef = useRef({});
+  stateRef.current = { current, editing, localExp, deletedStack, keyExperiences };
+
+  const _setEditing = (val) => { setEditing(val); onEditingChange?.(val); };
+  const _setCurrent = (val) => { setCurrent(val); onCurrentChange?.(val); };
+  const _setDeletedStack = (updater) => {
+    setDeletedStack(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      onDeletedCountChange?.(next.length);
+      return next;
+    });
+  };
+
+  useImperativeHandle(ref, () => ({
+    get editing() { return stateRef.current.editing; },
+    get current() { return stateRef.current.current; },
+    get deletedCount() { return stateRef.current.deletedStack.length; },
+    startEditing: () => handlersRef.current.startEditing?.(),
+    saveEditing: () => handlersRef.current.handleSave?.(),
+    cancelEditing: () => handlersRef.current.handleCancel?.(),
+    deleteSlide: () => handlersRef.current.handleDelete?.(),
+    undoDelete: () => handlersRef.current.handleUndo?.(),
+    addSlide: () => handlersRef.current.handleAdd?.(),
+    goTo: (idx) => handlersRef.current.goTo?.(idx),
+    goNext: () => handlersRef.current.goNext?.(),
+    goPrev: () => handlersRef.current.goPrev?.(),
+  }));
 
   if (keyExperiences.length === 0) return null;
 
   const exp = keyExperiences[current];
   const theme = THEMES[current % THEMES.length];
-
-  // 편집 중인 데이터 (localExp) 또는 원본
   const displayExp = editing && localExp ? localExp : exp;
 
   const goTo = (idx) => {
     if (isAnimating || idx === current) return;
-    // 편집 중 슬라이드 이동 시 변경사항 자동 저장
     if (editing && localExp && onUpdate) {
       const next = keyExperiences.map((e, i) => i === current ? localExp : e);
       onUpdate(next);
     }
-    setEditing(false);
+    _setEditing(false);
     setLocalExp(null);
     setIsAnimating(true);
-    setTimeout(() => { setCurrent(idx); setIsAnimating(false); }, 250);
+    setTimeout(() => { _setCurrent(idx); setIsAnimating(false); }, 250);
   };
   const goNext = () => goTo((current + 1) % keyExperiences.length);
   const goPrev = () => goTo((current - 1 + keyExperiences.length) % keyExperiences.length);
@@ -724,11 +752,7 @@ export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, vie
 
   const handleFieldChange = (key, val) => {
     if (key === '_editHint') {
-      // 힌트 클릭 시 편집 모드 진입
-      if (!editing) {
-        setLocalExp({ ...exp });
-        setEditing(true);
-      }
+      if (!editing) { setLocalExp({ ...exp }); _setEditing(true); }
       return;
     }
     setLocalExp(prev => ({ ...(prev || exp), [key]: val }));
@@ -738,37 +762,30 @@ export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, vie
     if (!onUpdate || !localExp) return;
     const next = keyExperiences.map((e, i) => i === current ? localExp : e);
     onUpdate(next);
-    setEditing(false);
+    _setEditing(false);
     setLocalExp(null);
   };
 
-  const handleCancel = () => {
-    setEditing(false);
-    setLocalExp(null);
-  };
+  const handleCancel = () => { _setEditing(false); setLocalExp(null); };
 
   const handleDelete = () => {
     if (!onUpdate) return;
-    setDeletedStack(prev => [...prev, { item: exp, index: current }]);
+    _setDeletedStack(prev => [...prev, { item: exp, index: current }]);
     const next = keyExperiences.filter((_, i) => i !== current);
     onUpdate(next);
-    setCurrent(Math.max(0, current - 1));
-    setEditing(false);
+    _setCurrent(Math.max(0, current - 1));
+    _setEditing(false);
     setLocalExp(null);
   };
 
   const handleUndo = () => {
     if (deletedStack.length === 0 || !onUpdate) return;
     const last = deletedStack[deletedStack.length - 1];
-    setDeletedStack(prev => prev.slice(0, -1));
+    _setDeletedStack(prev => prev.slice(0, -1));
     const insertIdx = Math.min(last.index, keyExperiences.length);
-    const next = [
-      ...keyExperiences.slice(0, insertIdx),
-      last.item,
-      ...keyExperiences.slice(insertIdx),
-    ];
+    const next = [...keyExperiences.slice(0, insertIdx), last.item, ...keyExperiences.slice(insertIdx)];
     onUpdate(next);
-    setCurrent(insertIdx);
+    _setCurrent(insertIdx);
   };
 
   const handleAdd = () => {
@@ -776,19 +793,19 @@ export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, vie
     const next = [...keyExperiences, { title: '', metric: '', metricLabel: '', beforeMetric: '', afterMetric: '', situation: '', action: '', result: '', keywords: [] }];
     onUpdate(next);
     const newIdx = next.length - 1;
-    setCurrent(newIdx);
+    _setCurrent(newIdx);
     setLocalExp({ ...next[newIdx] });
-    setEditing(true);
+    _setEditing(true);
   };
 
-  const startEditing = () => {
-    setLocalExp({ ...exp });
-    setEditing(true);
-  };
+  const startEditing = () => { setLocalExp({ ...exp }); _setEditing(true); };
+
+  handlersRef.current = { startEditing, handleSave, handleCancel, handleDelete, handleUndo, handleAdd, goTo, goNext, goPrev };
 
   return (
     <div className="mb-10">
       {/* 헤더 */}
+      {!hideHeader && (
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-extrabold text-bluewood-900">핵심 경험</h2>
@@ -857,6 +874,7 @@ export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, vie
           )}
         </div>
       </div>
+      )}
 
       {/* 슬라이드 */}
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
@@ -914,4 +932,6 @@ export default function KeyExperienceSlider({ keyExperiences = [], onUpdate, vie
       )}
     </div>
   );
-}
+});
+
+export default KeyExperienceSlider;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2 } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
@@ -30,9 +30,9 @@ function stripMarkdown(text) {
 
 // 하이라이트 색상 매핑 (밑줄 스타일)
 const highlightColors = {
-  core: { underline: '#ef4444', bg: 'bg-red-50', label: '핵심 역량', dot: 'bg-red-400', text: 'text-red-700' },
-  derived: { underline: '#f59e0b', bg: 'bg-amber-50', label: '파생 역량', dot: 'bg-amber-400', text: 'text-amber-700' },
-  growth: { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', dot: 'bg-green-400', text: 'text-green-700' },
+  core:    { underline: '#ef4444', bg: 'bg-red-50',   label: '핵심 역량', desc: '이 경험에서 발휘된 핵심 역량입니다',       dot: 'bg-red-400',   text: 'text-red-700'   },
+  derived: { underline: '#f59e0b', bg: 'bg-amber-50', label: '파생 역량', desc: '핵심 역량에서 파생된 부가적인 역량입니다', dot: 'bg-amber-400', text: 'text-amber-700' },
+  growth:  { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
 };
 
 const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
@@ -97,8 +97,12 @@ export default function StructuredResult() {
   const [showHighlights, setShowHighlights] = useState(true);
   const [imageConfig, setImageConfig] = useState({});
   const imageInputRef = useRef(null);
-  // 섹션별 textarea ref — 편집 시작 시 자동 포커스, 인라인 ref 콜백 재생성 방지
   const sectionTextareaRefs = useRef({});
+  // 핵심 경험 슬라이더 ref & 동기화 state
+  const sliderRef = useRef(null);
+  const [sliderEditing, setSliderEditing] = useState(false);
+  const [sliderCurrent, setSliderCurrent] = useState(0);
+  const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
@@ -532,11 +536,7 @@ export default function StructuredResult() {
         </Link>
         {viewOnly ? (
           <button
-            onClick={() => {
-              // 수정하기 시작 시 모든 섹션 즉시 편집 모드로
-              navigate(`/app/experience/structured/${id}`);
-              // navigate 후 상태 초기화를 useEffect가 체이니코 openAllSections는 아래에서
-            }}
+            onClick={() => navigate(`/app/experience/structured/${id}`)}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors shadow-sm"
           >
             <PenLine size={14} />
@@ -544,27 +544,76 @@ export default function StructuredResult() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleUndo}
-              disabled={!canUndo(id)}
-              title="이전으로 되돌리기 (Ctrl+Z)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
+            {/* 텍스트 히스토리 undo/redo */}
+            <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
               <RotateCcw size={14} />
             </button>
-            <button
-              onClick={handleRedo}
-              disabled={!canRedo(id)}
-              title="다시 실행 (Ctrl+Y)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
+            <button onClick={handleRedo} disabled={!canRedo(id)} title="다시 실행 (Ctrl+Y)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
               <RotateCw size={14} />
             </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
-            >
+
+            {/* 구분선 + 핵심경험 슬라이더 컨트롤 */}
+            {editedKeyExperiences.length > 0 && (
+              <>
+                <div className="w-px h-6 bg-surface-200 mx-1" />
+                {/* 인디케이터 */}
+                <div className="flex items-center gap-1">
+                  {editedKeyExperiences.map((_, i) => {
+                    const colors = ['#ef4444', '#2563eb', '#7c3aed'];
+                    return (
+                      <button key={i} onClick={() => sliderRef.current?.goTo(i)} className="p-0.5">
+                        <div className={`h-[6px] rounded-full transition-all duration-300 ${i === sliderCurrent ? 'w-5' : 'w-[6px] hover:w-3'}`}
+                          style={{ backgroundColor: i === sliderCurrent ? colors[i % 3] : '#d1d5db' }} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="text-xs text-bluewood-400 tabular-nums font-medium">{sliderCurrent + 1}/{editedKeyExperiences.length}</span>
+                <button onClick={() => sliderRef.current?.goPrev()}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
+                  <ChevronLeft size={16} className="text-bluewood-500" />
+                </button>
+                <button onClick={() => sliderRef.current?.goNext()}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
+                  <ChevronRight size={16} className="text-bluewood-500" />
+                </button>
+                {/* 삭제된 항목 되돌리기 */}
+                {sliderDeletedCount > 0 && (
+                  <button onClick={() => sliderRef.current?.undoDelete()}
+                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all shadow-sm">
+                    <Undo2 size={12} /> ({sliderDeletedCount})
+                  </button>
+                )}
+                {/* 수정 / 저장·취소·삭제 */}
+                {!sliderEditing ? (
+                  <button onClick={() => sliderRef.current?.startEditing()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-500 border-surface-200 hover:bg-surface-50 transition-all shadow-sm">
+                    <PenLine size={13} /> 수정
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => sliderRef.current?.deleteSlide()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 transition-all">
+                      <Trash2 size={13} /> 삭제
+                    </button>
+                    <button onClick={() => sliderRef.current?.cancelEditing()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-400 border-surface-200 hover:bg-surface-50 transition-all">
+                      <X size={13} /> 취소
+                    </button>
+                    <button onClick={() => sliderRef.current?.saveEditing()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-primary-500 text-white border-primary-500 shadow-sm hover:bg-primary-600 transition-all">
+                      <Check size={13} /> 저장
+                    </button>
+                  </>
+                )}
+                <div className="w-px h-6 bg-surface-200 mx-1" />
+              </>
+            )}
+
+            <button onClick={handleSave} disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
             </button>
@@ -702,9 +751,14 @@ export default function StructuredResult() {
         {/* ── 우: 핵심 경험 슬라이더 (편집 가능) ── */}
         <div className="min-w-0">
           <KeyExperienceSlider
+            ref={sliderRef}
             keyExperiences={editedKeyExperiences}
             onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
             viewOnly={viewOnly}
+            hideHeader={!viewOnly}
+            onEditingChange={setSliderEditing}
+            onCurrentChange={setSliderCurrent}
+            onDeletedCountChange={setSliderDeletedCount}
           />
         </div>
       </div>
@@ -1250,6 +1304,47 @@ function fuzzyIndexOf(text, needle) {
   return { pos: origPos, len: endOrigPos - origPos };
 }
 
+function SentenceKwSpan({ text, color, keywords }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const spanRef = useRef(null);
+
+  const handleEnter = () => {
+    setVisible(true);
+    if (spanRef.current) {
+      const rect = spanRef.current.getBoundingClientRect();
+      setPos({ left: rect.left + rect.width / 2, top: rect.top - 8 });
+    }
+  };
+
+  return (
+    <span className="relative inline">
+      <span
+        ref={spanRef}
+        className="cursor-help"
+        style={{ borderBottom: `2px solid ${color}`, paddingBottom: '1px' }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setVisible(false)}
+      >{text}</span>
+      {visible && createPortal(
+        <span
+          className="fixed z-[9999] whitespace-normal max-w-[240px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
+          style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
+        >
+          <span className="text-[11px] font-semibold text-gray-100">역량 키워드</span>
+          <span className="flex flex-wrap gap-1 mt-0.5">
+            {keywords.map(k => (
+              <span key={k} className="px-1.5 py-0.5 rounded-md text-[10px] leading-tight bg-white/20">{k}</span>
+            ))}
+          </span>
+          <span className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
+        </span>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 function HighlightSpan({ text, type, keywords }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -1277,20 +1372,25 @@ function HighlightSpan({ text, type, keywords }) {
         onMouseEnter={handleEnter}
         onMouseLeave={() => setVisible(false)}
       >{text}</span>
-      {visible && keywords.length > 0 && createPortal(
+      {visible && createPortal(
         <span
-          className="fixed z-[9999] whitespace-normal max-w-xs bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl pointer-events-none flex flex-col gap-1.5"
+          className="fixed z-[9999] whitespace-normal max-w-[260px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
           style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
         >
-          <span className="flex items-center gap-1.5 font-semibold">
+          <span className="flex items-center gap-1.5 font-bold text-[12px]">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
             {color.label}
           </span>
-          <span className="flex flex-wrap gap-1">
-            {keywords.map(k => (
-              <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
-            ))}
-          </span>
+          <span className="text-gray-300 text-[11px] leading-relaxed">{color.desc}</span>
+          {keywords.length > 0 && (
+            <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
+              {keywords.map(k => (
+                <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
+              ))}
+            </span>
+          )}
+          {/* 말풍선 꼬리 */}
+          <span className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
         </span>,
         document.body
       )}
@@ -1306,10 +1406,9 @@ const KEYWORD_COLORS = [
 
 function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline = false }) {
   if (!text) return <p></p>;
-  // 마크다운 볼드 마커 제거 (하이라이트 위치 계산 전에)
   const cleanText = stripMarkdown(text);
 
-  /* 1단계: 구조화 하이라이트 (AI가 표시한 핵심/파생/성장 역량) */
+  /* 1단계: 구조화 하이라이트 위치 계산 */
   const positioned = (highlights || [])
     .map(h => {
       const needle = stripMarkdown(h.text?.trim() ?? '');
@@ -1322,50 +1421,110 @@ function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline
     .filter(Boolean)
     .sort((a, b) => a.pos - b.pos);
 
-  /* 2단계: 역량 키워드 밑줄 (keywords 배열에 있는 단어 매칭) */
-  const kwMap = new Map(); // keyword → color
-  if (showKeywordUnderline && keywords.length > 0) {
-    keywords.forEach((kw, i) => {
-      kwMap.set(kw.toLowerCase(), KEYWORD_COLORS[i % KEYWORD_COLORS.length]);
-    });
+  /* 2단계: 하이라이트 구절 → 문장 단위로 확장 */
+  const expandToSentence = (pos, len) => {
+    let start = pos;
+    while (start > 0 && !/[.!?\n]/.test(cleanText[start - 1])) start--;
+    while (start < pos && /\s/.test(cleanText[start])) start++;
+    let end = pos + len;
+    while (end < cleanText.length && !/[.!?\n]/.test(cleanText[end])) end++;
+    if (end < cleanText.length) end++;
+    return { start, end };
+  };
+
+  // 문장 범위로 확장 후 겹치는 범위 병합
+  const typePriority = { core: 0, derived: 1, growth: 2 };
+  const sentenceRanges = positioned.map(h => ({ ...h, ...expandToSentence(h.pos, h.len) }));
+  const merged = [];
+  for (const r of sentenceRanges) {
+    if (merged.length > 0 && r.start <= merged[merged.length - 1].end) {
+      const last = merged[merged.length - 1];
+      last.end = Math.max(last.end, r.end);
+      last.keywords = [...new Set([...last.keywords, ...(r.keywords || [])])];
+      if ((typePriority[r.type] ?? 99) < (typePriority[last.type] ?? 99)) last.type = r.type;
+    } else {
+      merged.push({ ...r, keywords: [...(r.keywords || [])] });
+    }
   }
 
-  // 구조화 하이라이트 파트 분할
+  // parts 구성 (문장 단위 하이라이트 적용)
   let parts = [];
-  if (positioned.length > 0) {
+  if (merged.length > 0) {
     let lastIndex = 0;
-    for (const h of positioned) {
-      if (h.pos < lastIndex) continue;
-      if (h.pos > lastIndex) parts.push({ text: cleanText.slice(lastIndex, h.pos), type: null, keywords: [] });
-      parts.push({ text: cleanText.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
-      lastIndex = h.pos + h.len;
+    for (const r of merged) {
+      if (r.start < lastIndex) continue;
+      if (r.start > lastIndex) parts.push({ text: cleanText.slice(lastIndex, r.start), type: null, keywords: [] });
+      parts.push({ text: cleanText.slice(r.start, r.end), type: r.type || 'core', keywords: r.keywords });
+      lastIndex = r.end;
     }
     if (lastIndex < cleanText.length) parts.push({ text: cleanText.slice(lastIndex), type: null, keywords: [] });
   } else {
     parts = [{ text: cleanText, type: null, keywords: [] }];
   }
 
-  /* 키워드 밑줄 적용 함수: 텍스트 안에서 키워드를 찾아 밑줄 span 생성 */
+  /* 3단계: 역량 키워드 밑줄 */
+  const kwMap = new Map();
+  if (showKeywordUnderline && keywords.length > 0) {
+    keywords.forEach((kw, i) => {
+      kwMap.set(kw.toLowerCase(), KEYWORD_COLORS[i % KEYWORD_COLORS.length]);
+    });
+  }
+
+  /* 키워드 밑줄 적용 함수: 문장 단위로 확장 후 밑줄 + 말풍선 */
   const applyKeywordUnderlines = (str) => {
     if (kwMap.size === 0) return str;
-    // Build regex from keywords (sorted longest first to avoid partial matches)
-    const sortedKws = [...kwMap.keys()].sort((a, b) => b.length - a.length);
-    const escaped = sortedKws.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
-    const segments = str.split(regex);
-    if (segments.length <= 1) return str;
-    return segments.map((seg, i) => {
-      const color = kwMap.get(seg.toLowerCase());
-      if (color) {
-        return (
-          <span key={i}
-            className="font-semibold"
-            style={{ borderBottom: `2px solid ${color}`, paddingBottom: '0.5px' }}
-          >{seg}</span>
-        );
+
+    // 키워드 위치 수집
+    const matches = [];
+    for (const [kw, color] of kwMap) {
+      const lower = str.toLowerCase();
+      let idx = 0;
+      while (true) {
+        const found = lower.indexOf(kw, idx);
+        if (found === -1) break;
+        matches.push({ pos: found, len: kw.length, kw, color });
+        idx = found + 1;
       }
-      return seg;
-    });
+    }
+    if (matches.length === 0) return str;
+    matches.sort((a, b) => a.pos - b.pos);
+
+    // 문장 단위로 확장
+    const expandSent = (pos, len) => {
+      let start = pos;
+      while (start > 0 && !/[.!?\n]/.test(str[start - 1])) start--;
+      while (start < pos && /\s/.test(str[start])) start++;
+      let end = pos + len;
+      while (end < str.length && !/[.!?\n]/.test(str[end])) end++;
+      if (end < str.length) end++;
+      return { start, end };
+    };
+
+    // 겹치는 문장 범위 병합
+    const sentRanges = matches.map(m => ({ ...m, ...expandSent(m.pos, m.len) }));
+    const merged = [];
+    for (const r of sentRanges) {
+      if (merged.length > 0 && r.start <= merged[merged.length - 1].end) {
+        const last = merged[merged.length - 1];
+        last.end = Math.max(last.end, r.end);
+        if (!last.keywords.includes(r.kw)) last.keywords.push(r.kw);
+      } else {
+        merged.push({ ...r, keywords: [r.kw] });
+      }
+    }
+
+    // 결과 조합
+    const result = [];
+    let lastIdx = 0;
+    for (const r of merged) {
+      if (r.start > lastIdx) result.push(str.slice(lastIdx, r.start));
+      result.push(
+        <SentenceKwSpan key={`skw-${r.start}`} text={str.slice(r.start, r.end)} color={r.color} keywords={r.keywords} />
+      );
+      lastIdx = r.end;
+    }
+    if (lastIdx < str.length) result.push(str.slice(lastIdx));
+    return result;
   };
 
   return (
