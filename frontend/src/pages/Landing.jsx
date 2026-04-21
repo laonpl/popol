@@ -1,4 +1,4 @@
-﻿import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
@@ -13,7 +13,6 @@ import useAuthStore from '../stores/authStore';
 export default function Landing() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [storyIdx, setStoryIdx] = useState(0);
   const [heroVisible, setHeroVisible] = useState(false);
   const heroRef = useRef(null);
 
@@ -22,13 +21,6 @@ export default function Landing() {
   useEffect(() => {
     setHeroVisible(true);
   }, []);
-
-  /* ───── Stories data ───── */
-  const stories = [
-    { major: '컴퓨터공학 전공', name: '김○○ 님', quote: '파편화된 프로젝트 경험을 STAR 프레임워크로 정리하니 면접에서 자신있게 답변할 수 있었습니다. AI 분석이 핵심 역량을 정확히 뽑아줘서 놀랐어요.' },
-    { major: '경영학 전공', name: '이○○ 님', quote: '비전공자라 기술 포트폴리오 만들기가 어려웠는데, FitPoly 덕분에 업무 경험을 깔끔하게 구조화할 수 있었습니다. 합격까지 도움 받았어요.' },
-    { major: '디자인 전공', name: '박○○ 님', quote: '경험 정리부터 포트폴리오 구성까지 한 번에 해결되어 시간을 크게 절약했어요. 체크리스트 기능 덕분에 완성도도 높일 수 있었습니다.' },
-  ];
 
   return (
     <div className="min-h-screen bg-[#f0f2f7]">
@@ -47,7 +39,6 @@ export default function Landing() {
               <a href="#feature-experience" className="hover:text-bluewood-900 transition-colors">경험정리</a>
               <a href="#feature-portfolio" className="hover:text-bluewood-900 transition-colors">포트폴리오</a>
               <a href="#process" className="hover:text-bluewood-900 transition-colors">이용방법</a>
-              <a href="#stories" className="hover:text-bluewood-900 transition-colors">고객후기</a>
             </nav>
           </div>
           <div className="flex items-center gap-3">
@@ -636,59 +627,6 @@ export default function Landing() {
       </section>
 
       {/* ╔══════════════════════════════════╗
-         ║         SUCCESS STORIES          ║
-         ╚══════════════════════════════════╝ */}
-      <section id="stories" className="bg-[#f4f6fb] py-24">
-        <div className="max-w-[1140px] mx-auto px-8">
-          <p className="text-[11px] tracking-[0.15em] text-primary-500 uppercase font-bold mb-4">SUCCESS STORY</p>
-          <div className="flex justify-between items-end mb-4">
-            <h2 className="text-[30px] md:text-[36px] font-extrabold text-bluewood-900 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
-              FitPoly 서비스를 도입한<br />
-              취준생의 새로운 변화를 만나보세요.
-            </h2>
-            <div className="hidden md:flex gap-2">
-              <button onClick={() => setStoryIdx(Math.max(0, storyIdx - 1))} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-primary-300 transition-colors">
-                <ChevronLeft size={17} className="text-bluewood-400" />
-              </button>
-              <button onClick={() => setStoryIdx(Math.min(stories.length - 1, storyIdx + 1))} className="w-10 h-10 rounded-full border border-surface-200 bg-white flex items-center justify-center hover:border-primary-300 transition-colors">
-                <ChevronRight size={17} className="text-bluewood-400" />
-              </button>
-            </div>
-          </div>
-          <p className="text-[13px] text-bluewood-400 mb-10 max-w-lg leading-relaxed">
-            다양한 전공의 취업 준비생이 FitPoly을 활용하여 경험을 체계적으로<br />정리하고 성공적인 취업 준비를 완성했습니다.
-          </p>
-
-          {/* Story cards */}
-          <div className="grid md:grid-cols-3 gap-5">
-            {stories.map((s, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-surface-200/80 hover:shadow-card-hover transition-all">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
-                    <span className="text-primary-500 font-bold text-[13px]">{s.name[0]}</span>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-bluewood-300 mb-0.5">{s.major}</p>
-                    <p className="text-[13px] font-bold text-bluewood-900">{s.name}</p>
-                  </div>
-                </div>
-                <p className="text-[13px] text-bluewood-500 leading-[1.75]">"{s.quote}"</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Partner logos */}
-          <div className="flex items-center justify-center gap-10 md:gap-16 mt-16 flex-wrap">
-            <ChevronLeft size={16} className="text-bluewood-200" />
-            {['서울대학교', '연세대학교', 'KAIST', '고려대학교', '성균관대학교'].map(n => (
-              <span key={n} className="text-[13px] font-bold text-bluewood-200 tracking-wide select-none">{n}</span>
-            ))}
-            <ChevronRight size={16} className="text-bluewood-200" />
-          </div>
-        </div>
-      </section>
-
-      {/* ╔══════════════════════════════════╗
          ║           CTA BANNER             ║
          ╚══════════════════════════════════╝ */}
       <section className="px-8 py-8">
@@ -738,7 +676,7 @@ export default function Landing() {
             <div>
               <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-4">연락처</h4>
               <ul className="space-y-2.5 text-[13px] text-bluewood-500">
-                <li>이메일: contact@fitpoly.kr</li>
+                <li>이메일: gudrbs14@naver.com</li>
                 <li>운영시간: 평일 09:00 – 18:00</li>
               </ul>
             </div>

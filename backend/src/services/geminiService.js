@@ -38,11 +38,34 @@ const LITE_FALLBACK_OPTIONS = {
   rateLimitDelayMs: 6000,
 };
 
+// ── Lite 전용 (메타데이터 등 비핵심·저비용 작업) ──
+// aa.md 가이드 권장: 단순 작업은 flash-lite로 직접 처리해 비용 절감
+const LITE_ONLY_OPTIONS = {
+  models: ['gemini-2.5-flash-lite'],
+  retries: 3,
+  delayMs: 1500,
+  rateLimitDelayMs: 5000,
+};
+
 // ── JSON 파싱 헬퍼 ──
 function parseJSON(text, pattern = /\{[\s\S]*\}/) {
   const match = text.match(pattern);
   if (!match) throw new Error('AI 응답 JSON 파싱 실패');
   return JSON.parse(match[0]);
+}
+
+/**
+ * AI 호출에 타임아웃을 적용하는 래퍼.
+ * aa.md 가이드 권장: AI 분석 API 타임아웃을 최소 60초 이상으로 설정.
+ * 타임아웃 초과 시 명확한 에러를 반환해 hung 호출로 인한 서버 레소스 낭비를 방지.
+ */
+function withTimeout(promise, ms = 90000, label = 'AI') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`[${label}] 타임아웃 (${ms / 1000}초 초과)`)), ms)
+    ),
+  ]);
 }
 
 // ── Pro 우선 + 자동 Lite 폴백 호출 ──
@@ -179,13 +202,18 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     }
   })());
 
+  // Meta 단계는 비핵심 작업이므로 Lite 모델 직접 사용 (비용 절감 — aa.md 가이드 권장)
   const metaPromise = (async () => {
     try {
       const metaPrompt = buildMetaPrompt(contentText);
-      const metaText = await callProFirst(metaPrompt, 'Step3-Meta');
+      const metaText = await withTimeout(
+        generateWithRetry(metaPrompt, LITE_ONLY_OPTIONS),
+        60000,
+        'Step3-Meta'
+      );
       return parseJSON(metaText);
     } catch (err) {
-      console.warn('[Step3-Meta] 메타 추출 실패 (비핵심, 빈 값으로 진행):', err.message);
+      console.warn('[Step3-Meta] 메타 추출 실패 (Lite 직접 호출, 빈 값으로 진행):', err.message);
       return { keywords: [], highlights: [], followUpQuestions: [] };
     }
   })();

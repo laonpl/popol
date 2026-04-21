@@ -6,14 +6,26 @@ const api = axios.create({
   timeout: 120000,
 });
 
-// 요청마다 사용자 ID 헤더 추가
-api.interceptors.request.use((config) => {
+/**
+ * 요청마다 Firebase ID Token을 Authorization 헤더에 첨부
+ *
+ * 기존 x-user-id 헤더는 IDOR 취약점이 있으므로 제거.
+ * Firebase Auth의 getIdToken()을 사용하면 서버 측에서 위조 불가능한
+ * uid를 안전하게 검증할 수 있습니다.
+ *
+ * 토큰은 1시간마다 자동 갱신되므로 forceRefresh 불필요.
+ */
+api.interceptors.request.use(async (config) => {
   try {
     const user = auth.currentUser;
-    if (user?.uid) {
-      config.headers['x-user-id'] = user.uid;
+    if (user) {
+      // getIdToken()은 만료 시 자동으로 갱신된 토큰을 반환
+      const idToken = await user.getIdToken();
+      config.headers['Authorization'] = `Bearer ${idToken}`;
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.warn('[API] 토큰 취득 실패 (비인증 요청으로 처리):', e.message);
+  }
   return config;
 });
 
@@ -26,6 +38,12 @@ api.interceptors.response.use(
       serverError.isServerDown = true;
       console.error('API 에러: 백엔드 서버 미실행 (ERR_CONNECTION_REFUSED)');
       return Promise.reject(serverError);
+    }
+    // 인증 토큰 만료/무효 (401) — 재로그인 유도
+    if (error.response?.status === 401) {
+      const authError = new Error(error.response.data?.error || '인증이 필요합니다. 다시 로그인해주세요.');
+      authError.isAuthError = true;
+      return Promise.reject(authError);
     }
     // Rate limit 초과 (429) — retryAfter 정보를 에러에 첨부
     if (error.response?.status === 429) {
