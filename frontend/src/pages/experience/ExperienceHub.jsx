@@ -304,13 +304,17 @@ export default function ExperienceHub() {
           </div>
 
           {/* 새 경험 추가 버튼 + 말풍선 */}
-          <div className="relative">
+          <div className="relative" style={{ overflow: 'visible' }}>
             {experiences.length === 0 && !loading && (
-              <div className="absolute -top-14 left-1/2 -translate-x-1/2 whitespace-nowrap animate-bounce z-10 pointer-events-none">
-                <div className="bg-gray-900 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg shadow-lg">
-                  여기서 첫 경험을 추가해보세요! 🎯
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50 pointer-events-none animate-bounce" style={{ width: 'max-content' }}>
+                {/* 삼각형 화살표: border 트릭으로 완전한 삼각형 생성 */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 0 }}>
+                  <div style={{ width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '9px solid #4f46e5' }} />
                 </div>
-                <div className="w-2.5 h-2.5 bg-gray-900 rotate-45 mx-auto -mt-1.5 shadow" />
+                {/* 말풍선 본체 */}
+                <div style={{ background: '#4f46e5', color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 10, boxShadow: '0 4px 12px rgba(79,70,229,0.3)', whiteSpace: 'nowrap' }}>
+                  여기서 첫 경험을 추가해보세요!
+                </div>
               </div>
             )}
             <Link
@@ -388,7 +392,7 @@ export default function ExperienceHub() {
               </div>
 
               {/* 간트 본체 */}
-              <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'hidden' }}>
+              <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'visible' }}>
                 <div>
                   <div className="relative">
                     {/* 월 헤더 */}
@@ -423,27 +427,34 @@ export default function ExperienceHub() {
                           <div
                             key={exp.id}
                             className="absolute group"
-                            style={{ top: `${idx * 56 + 16}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '120px' }}
+                            style={{ top: `${idx * 56 + 16}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '120px', zIndex: isEditingThis ? 50 : 1 }}
                             onMouseEnter={(e) => { if (!isEditingThis) setHoveredBar({ exp, rect: e.currentTarget.getBoundingClientRect() }); }}
                             onMouseLeave={() => setHoveredBar(null)}
                           >
                             {isEditingThis ? (
-                              /* ── 인라인 편집 모드 ── */
-                              <div className="bg-white border-2 border-blue-400 rounded-lg px-3 py-2 shadow-lg" onClick={e => e.stopPropagation()}>
+                              {/* ── 인라인 편집 모드 ── */}
+                              <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg" style={{ minWidth: '220px' }} onClick={e => e.stopPropagation()}>
                                 <input
                                   value={editTitle}
                                   onChange={e => setEditTitle(e.target.value)}
                                   onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                                  className="w-full text-[12px] font-semibold text-gray-800 bg-transparent outline-none border-b border-gray-200 pb-1 mb-1.5"
+                                  className="w-full text-[12px] font-semibold text-gray-800 bg-transparent outline-none border-b border-gray-200 pb-1 mb-2"
                                   autoFocus
                                 />
-                                <div className="flex gap-1 items-center">
-                                  <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
-                                    className="text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
-                                  <span className="text-[9px] text-gray-400">~</span>
-                                  <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
-                                    className="text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
-                                  <button onClick={saveEditing} className="ml-auto p-1 text-green-500 hover:text-green-700 hover:bg-green-50 rounded">
+                                <div className="flex flex-col gap-1.5 mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] text-gray-400 w-6 flex-shrink-0">시작</span>
+                                    <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
+                                      className="flex-1 text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] text-gray-400 w-6 flex-shrink-0">종료</span>
+                                    <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
+                                      className="flex-1 text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-1">
+                                  <button onClick={saveEditing} className="p-1 text-green-500 hover:text-green-700 hover:bg-green-50 rounded">
                                     <Check size={12} />
                                   </button>
                                   <button onClick={cancelEditing} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded">
@@ -625,9 +636,9 @@ export default function ExperienceHub() {
                       </div>
 
                       {/* 프로젝트 */}
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight">{stripMd(exp.title)}</p>
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
+                        <p className="text-[11px] text-gray-400 truncate mt-0.5 block w-full">
                           {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
                         </p>
                       </div>

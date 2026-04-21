@@ -8,6 +8,7 @@ import { THEMES, getLayout } from '../../constants/portfolioThemes';
 import { strip, extractFields, toBullets, smartBullets, shorten, nameSpaced } from '../../utils/textUtils';
 
 /* ─── Local helpers (kept: differ in default/wrap) ─── */
+const hexClean = (color) => color ? color.replace('#', '') : '000000';
 const sh = (txt, max = 55) => shorten(txt, max);
 
 const SW = 10;
@@ -34,7 +35,12 @@ function hrLine(slide,x,y,w,color){
 }
 function txt(slide,text,x,y,w,h,opts={}){
   if(!text)return;
-  slide.addText(String(text),{x,y,w,h,...opts});
+  const str=String(text);
+  // 한글 폰트: Malgun Gothic, 영문 폰트: Calibri 명시적 지정 (폰트 깨집 방지)
+  const { fontFace:_ff, ...restOpts } = opts;
+  const ff = _ff || 'Malgun Gothic';
+  const paraOpts = { x, y, w, h, ...restOpts };
+  slide.addText([{ text: str, options: { fontFace: ff } }], paraOpts);
 }
 function sectionLabel(slide,label,t,x,y,lineW){
   txt(slide,label,x,y,2.5,0.18,{fontSize:7,bold:true,color:hexClean(t.sub),charSpacing:3,isTextBox:true});
@@ -154,8 +160,8 @@ function buildProfile(prs,p,t){
   const sk=p.skills||{};
   const langs=[...(sk.languages||[]),...(sk.frameworks||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,14);
   const tools=(sk.tools||[]).map(s=>typeof s==='string'?s:s?.name).filter(Boolean).slice(0,10);
-  const exps=(p.experiences||[]).slice(0,4);
-  const awards=(p.awards||[]).slice(0,4);
+  const exps=(p.experiences||[]).slice(0,3);
+  const awards=(p.awards||[]).slice(0,3);
   const density=edu.length+exps.length+awards.length;
   const scale=density<=2?1.2:density<=4?1.08:1;
   const fs=(n)=>Math.round(n*scale*10)/10;
@@ -223,38 +229,39 @@ function buildProfile(prs,p,t){
     sectionBold(slide,'Work Experience',t,RX,ry,RW);
     ry+=0.32;
     // 컨텐츠가 적을 때: 사용 가능한 높이를 고루 분배
-    const expBudget=awards.length>0?Math.min(contentH*0.58,exps.length*1.05):(contentH-0.32);
-    const expH=Math.max(0.8, Math.min(1.3, expBudget/Math.max(1,exps.length)));
+    const expBudget=awards.length>0?Math.min(contentH*0.52,exps.length*0.95):(contentH-0.32);
+    const expH=Math.max(0.72, Math.min(1.1, expBudget/Math.max(1,exps.length)));
     exps.forEach((e,i)=>{
-      const ey=ry+i*(expH+0.12);
+      const ey=ry+i*(expH+0.1);
+      if(ey+expH>contentY+contentH-0.05) return; // 슬라이드 범위 초과 방지
       roundRect(slide,RX,ey,RW,expH,t.card,t.div,0.08);
-      const iconS=Math.min(0.5, expH*0.55);
+      const iconS=Math.min(0.45, expH*0.5);
       const iconY=ey+(expH-iconS)/2;
       roundRect(slide,RX+0.16,iconY,iconS,iconS,t.accent+'30',null,0.06);
-      txt(slide,(e.organization||e.title||'?').trim()[0],RX+0.16,iconY,iconS,iconS,{fontSize:fs(15),bold:true,color:hexClean(t.accent),align:'center',valign:'middle',isTextBox:true});
-      const tx=RX+0.16+iconS+0.18;
-      const tw=RW-(0.16+iconS+0.18)-0.16;
-      txt(slide,sh(e.organization||e.title,28),tx,ey+0.14,tw-1.1,0.28,{fontSize:fs(13),bold:true,color:hexClean(t.text),isTextBox:true});
-      if(e.date) txt(slide,e.date,RX+RW-1.2,ey+0.14,1.04,0.24,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,align:'right'});
-      if(e.role) txt(slide,sh(e.role,30),tx,ey+0.42,tw,0.22,{fontSize:fs(10),bold:true,color:hexClean(t.accent),isTextBox:true});
+      txt(slide,(e.organization||e.title||'?').trim()[0],RX+0.16,iconY,iconS,iconS,{fontSize:fs(14),bold:true,color:hexClean(t.accent),align:'center',valign:'middle',isTextBox:true});
+      const tx=RX+0.16+iconS+0.16;
+      const tw=RW-(0.16+iconS+0.16)-0.14;
+      txt(slide,sh(e.organization||e.title,28),tx,ey+0.12,tw-1.0,0.26,{fontSize:fs(12),bold:true,color:hexClean(t.text),isTextBox:true});
+      if(e.date) txt(slide,e.date,RX+RW-1.1,ey+0.12,1.0,0.22,{fontSize:fs(8.5),color:hexClean(t.sub),isTextBox:true,align:'right'});
+      if(e.role) txt(slide,sh(e.role,30),tx,ey+0.38,tw,0.2,{fontSize:fs(9.5),bold:true,color:hexClean(t.accent),isTextBox:true});
       if(e.description&&expH>0.9){
-        const descLines=expH>1.1?2:1;
-        const descH=descLines*0.22;
-        txt(slide,sh(strip(e.description),descLines===2?130:80),tx,ey+0.68,tw,descH,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,valign:'top'});
+        const descH=0.2;
+        txt(slide,sh(strip(e.description),80),tx,ey+0.6,tw,descH,{fontSize:fs(8.5),color:hexClean(t.sub),isTextBox:true,valign:'top'});
       }
     });
-    ry+=exps.length*(expH+0.12)+0.12;
+    ry+=exps.length*(expH+0.1)+0.1;
   }
   // Awards
   if(awards.length>0&&ry<contentY+contentH-0.4){
     sectionBold(slide,'Awards & Certifications',t,RX,ry,RW);
-    ry+=0.3;
-    const awH=Math.min(0.34,(contentY+contentH-ry)/awards.length);
+    ry+=0.28;
+    const awBudget=contentY+contentH-ry-0.05;
+    const awH=Math.max(0.28, Math.min(0.34, awBudget/Math.max(1,awards.length)));
     awards.forEach((a,i)=>{
       const ay=ry+i*awH;
-      if(ay+awH>contentY+contentH-0.05) return;
-      txt(slide,sh(a.title,48),RX,ay,RW-1.2,awH,{fontSize:fs(11),bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
-      if(a.date) txt(slide,a.date,RX+RW-1.1,ay,1.0,awH,{fontSize:fs(9),color:hexClean(t.sub),isTextBox:true,align:'right',valign:'middle'});
+      if(ay+awH>contentY+contentH-0.03) return; // 슬라이드 범위 초과 방지
+      txt(slide,sh(a.title,44),RX,ay,RW-1.1,awH,{fontSize:fs(10.5),bold:true,color:hexClean(t.text),isTextBox:true,valign:'middle'});
+      if(a.date) txt(slide,a.date,RX+RW-1.0,ay,0.9,awH,{fontSize:fs(8.5),color:hexClean(t.sub),isTextBox:true,align:'right',valign:'middle'});
       hrLine(slide,RX,ay+awH-0.01,RW,t.div+'55');
     });
   }
@@ -1934,7 +1941,9 @@ function buildStrengths(prs,p,t){
 /* ─── MAIN EXPORT ─── */
 export async function generatePptx(portfolio,theme,themeObj){
   const prs=new PptxGenJS();
-  prs.layout='LAYOUT_WIDE';
+  // 코드에서 사용하는 SW=10, SH=5.625 인치와 슬라이드 크기를 일치시켜 짤림 방지
+  prs.defineLayout({ name:'CUSTOM_WIDE', width:10, height:5.625 });
+  prs.layout='CUSTOM_WIDE';
   prs.title=(portfolio.userName||'Portfolio')+' PPT';
   prs.author=portfolio.userName||'';
   const t=themeObj;

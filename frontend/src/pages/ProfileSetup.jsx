@@ -13,6 +13,7 @@ const LANGUAGE_TEST_OPTIONS = ['TOEIC', 'TOEFL', 'IELTS', 'TOEIC Speaking', 'OPI
 const PRESET_TOOLS = ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'Canva', 'Slack', 'Jira', 'Trello', 'Google Analytics', 'Excel', 'PowerPoint', 'Premiere Pro', 'After Effects', 'Sketch', 'Miro', 'Zeplin', 'InDesign', 'Lightroom', 'Blender', 'AutoCAD', 'GitHub', 'VS Code'];
 const PRESET_LANGUAGES = ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Go', 'Rust', 'Swift', 'Kotlin', 'Ruby', 'PHP', 'R', 'MATLAB', 'SQL', 'HTML/CSS', 'Dart', 'Scala', 'Perl'];
 const PRESET_FRAMEWORKS = ['React', 'Vue.js', 'Angular', 'Next.js', 'Spring', 'Django', 'Flask', 'Express.js', 'Node.js', 'TensorFlow', 'PyTorch', 'Flutter', 'React Native', 'Svelte', 'Tailwind CSS', 'Bootstrap', 'Laravel', 'FastAPI', 'NestJS', '.NET'];
+const PRESET_OTHERS = ['데이터 분석', 'UI/UX 디자인', '프로젝트 관리', '기획', '마케팅', '글쓰기', '발표', '리더십'];
 
 const PROFICIENCY_LEVELS = [
   { value: 1, label: '기초', color: 'bg-gray-300' },
@@ -39,6 +40,7 @@ export default function ProfileSetup() {
     tools: [],
     programmingLanguages: [],
     frameworks: [],
+    others: [],
   });
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function ProfileSetup() {
         tools: profile.tools || [],
         programmingLanguages: profile.programmingLanguages || [],
         frameworks: profile.frameworks || [],
+        others: profile.others || [],
       }));
     } else {
       setForm(prev => ({
@@ -106,6 +109,7 @@ export default function ProfileSetup() {
         tools: form.tools.filter(Boolean),
         programmingLanguages: form.programmingLanguages.filter(Boolean),
         frameworks: form.frameworks.filter(Boolean),
+        others: form.others.filter(Boolean),
       });
       toast.success('프로필이 저장되었습니다!');
       navigate('/app');
@@ -455,6 +459,8 @@ export default function ProfileSetup() {
                 presets={PRESET_LANGUAGES} placeholder="기타 언어 직접 입력..." />
               <SkillBubbleInput label="프레임워크/라이브러리" icon={BookOpen} field="frameworks"
                 presets={PRESET_FRAMEWORKS} placeholder="기타 프레임워크 입력..." />
+              <SkillBubbleInput label="기타 역량" icon={Check} field="others"
+                presets={PRESET_OTHERS} placeholder="기타 역량 직접 입력..." />
             </div>
           </Section>
 

@@ -281,7 +281,7 @@ ${text.substring(0, 8000)}
 1. 기업 분석: 매출·직원수·설립연도·경쟁사 포지셔닝·최근 M&A/투자 동향 포함
 2. 직무 적합도: 각 요구사항 중요도(weight 1~10) 부여
 3. 급여 추정: 직급·경력·업종 기반 시장 급여 범위
-4. 면접 전략: 예상 질문 5개 이상, 기업 특성 반영 답변 포인트
+4. 합격 전략: 직무 및 기업 특성을 반영한 핵심 합격 전략 (면접 예상 질문 제외)
 5. 포트폴리오 요건: required/format/content/submission 항목별 세밀하게 추출 (명시 없으면 직무 관행 기반 가이드 작성)
 
 반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지):
@@ -322,12 +322,11 @@ ${text.substring(0, 8000)}
     "growthPath": "",
     "keyCompetencies": [{ "name": "", "weight": 8, "description": "" }],
     "dailyTasks": "",
-    "teamStructure": "",
     "challengeLevel": { "score": 7, "description": "" }
   },
   "applicationStrategy": {
     "motivationPoints": [{ "point": "", "how": "" }],
-    "interviewQuestions": [{ "question": "", "intent": "", "answerTip": "" }],
+    "passingStrategy": [{ "strategy": "", "description": "" }],
     "appealPoints": [],
     "cautionPoints": [],
     "portfolioTips": []

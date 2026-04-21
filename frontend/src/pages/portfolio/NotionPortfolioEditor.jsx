@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -449,7 +449,7 @@ export default function NotionPortfolioEditor() {
             onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors"
           >
-            <Download size={16} /> PDF
+            <Download size={16} /> PPT
           </button>
         </div>
       </div>
@@ -1647,7 +1647,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             <button onClick={() => profileImageInputRef.current?.click()}
               className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-dashed border-[#c4b89a] hover:border-[#8a6c4a] transition-colors relative group flex-shrink-0">
               {p.profileImageUrl
-                ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+                ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-contain bg-surface-50" />
                 : <div className="w-full h-full bg-[#e8e4dc] flex items-center justify-center"><Upload size={28} className="text-[#c4b89a]" /></div>}
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Upload size={16} className="text-white" />
@@ -2307,21 +2307,18 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               )}
             </div>
           ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
+                  <p className="text-sm font-bold text-gray-800">채용공고 AI 분석</p>
+                  <p className="text-xs text-gray-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">
                 지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
               </p>
               <button onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-semibold hover:bg-gray-900 transition-colors shadow-sm">
                 채용공고 분석하기
               </button>
             </div>
@@ -2491,22 +2488,19 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               )}
             </div>
           ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
+                  <p className="text-sm font-bold text-gray-800">채용공고 AI 분석</p>
+                  <p className="text-xs text-gray-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">
                 지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
               </p>
               <button
                 onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-semibold hover:bg-gray-900 transition-colors shadow-sm"
               >
                 채용공고 분석하기
               </button>
@@ -2556,7 +2550,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           <button onClick={() => profileImageInputRef.current?.click()}
             className="w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 relative group flex-shrink-0">
             {p.profileImageUrl
-              ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+              ? <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-contain bg-surface-50" />
               : <div className="w-full h-full bg-white/10 flex items-center justify-center"><Upload size={28} className="text-white/40" /></div>}
             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Upload size={18} className="text-white" />
@@ -3072,21 +3066,18 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               )}
             </div>
           ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
+                  <p className="text-sm font-bold text-gray-800">채용공고 AI 분석</p>
+                  <p className="text-xs text-gray-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">
                 지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
               </p>
               <button onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-semibold hover:bg-gray-900 transition-colors shadow-sm">
                 채용공고 분석하기
               </button>
             </div>
@@ -3218,7 +3209,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
           {/* Profile image */}
           <div className="relative group cursor-pointer" onClick={() => profileImageInputRef.current?.click()}>
             {p.profileImageUrl ? (
-              <img src={p.profileImageUrl} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-white/20 shadow-lg" />
+              <img src={p.profileImageUrl} alt="" className="w-20 h-20 rounded-full object-contain bg-surface-50 ring-4 ring-white/20 shadow-lg" />
             ) : (
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl ring-4 ring-white/20 shadow-lg">
                 <ImagePlus size={24} className="text-white/60" />
@@ -3609,22 +3600,19 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               )}
             </div>
           ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
+                  <p className="text-sm font-bold text-gray-800">채용공고 AI 분석</p>
+                  <p className="text-xs text-gray-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">
                 지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
               </p>
               <button
                 onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-semibold hover:bg-gray-900 transition-colors shadow-sm"
               >
                 채용공고 분석하기
               </button>
@@ -3699,7 +3687,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <button onClick={() => profileImageInputRef.current?.click()}
             className="w-full aspect-square rounded-xl mb-4 overflow-hidden border-2 border-dashed border-transparent hover:border-primary-300 transition-colors relative group">
             {p.profileImageUrl ? (
-              <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-cover" />
+              <img src={p.profileImageUrl} alt="profile" className="w-full h-full object-contain bg-surface-50" />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex flex-col items-center justify-center gap-2">
                 <ImageIcon size={28} className="text-gray-300" />
@@ -4537,22 +4525,19 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               )}
             </div>
           ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
+                  <p className="text-sm font-bold text-gray-800">채용공고 AI 분석</p>
+                  <p className="text-xs text-gray-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
+              <p className="text-xs text-gray-600 leading-relaxed mb-4">
                 지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
               </p>
               <button
                 onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800 text-white rounded-xl text-sm font-semibold hover:bg-gray-900 transition-colors shadow-sm"
               >
                 채용공고 분석하기
               </button>
@@ -4726,7 +4711,7 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
             <label className="block text-xs text-gray-500 mb-1 font-medium">프로필 이미지</label>
             {portfolio.profileImageUrl ? (
               <div className="flex items-center gap-3 p-3 border border-surface-200 rounded-lg">
-                <img src={portfolio.profileImageUrl} alt="profile" className="w-14 h-14 rounded-xl object-cover border border-surface-200" />
+                <img src={portfolio.profileImageUrl} alt="profile" className="w-14 h-14 rounded-xl object-contain bg-surface-50 border border-surface-200" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-600 truncate">{portfolio.profileImageStoragePath?.split('/').pop() || '업로드된 이미지'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">클릭하여 교체</p>
