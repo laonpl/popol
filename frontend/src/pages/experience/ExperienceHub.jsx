@@ -388,7 +388,7 @@ export default function ExperienceHub() {
               </div>
 
               {/* 간트 본체 */}
-              <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'hidden' }}>
+              <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'visible' }}>
                 <div>
                   <div className="relative">
                     {/* 월 헤더 */}
@@ -429,7 +429,7 @@ export default function ExperienceHub() {
                           >
                             {isEditingThis ? (
                               /* ── 인라인 편집 모드 ── */
-                              <div className="bg-white border-2 border-blue-400 rounded-lg px-3 py-2 shadow-lg" onClick={e => e.stopPropagation()}>
+                              <div className="bg-white border-2 border-blue-400 rounded-lg px-3 py-2 shadow-lg relative z-50" onClick={e => e.stopPropagation()}>
                                 <input
                                   value={editTitle}
                                   onChange={e => setEditTitle(e.target.value)}
