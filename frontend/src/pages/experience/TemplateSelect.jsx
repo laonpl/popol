@@ -11,7 +11,7 @@ import useExperienceStore from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
 import toast from 'react-hot-toast';
 
-const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
+const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
 
 /* description 텍스트에서 STAR 섹션 파싱 */
 function parseStarDescription(desc) {
@@ -442,7 +442,17 @@ export default function TemplateSelect() {
         updateLoadingStep(stepIdx, 'loading');
         const urls = [blogUrl, ...linkInputs].filter(u => u.trim());
         for (const url of urls) {
-          allText += `\n\n--- 링크: ${url} ---\n(링크 참조)`;
+          try {
+            const source = /github\.com/i.test(url) ? 'github' : /notion\.so/i.test(url) ? 'notion' : 'blog';
+            const data = await importFromUrl(source, url, 'experience');
+            if (data.imported?.content) {
+              allText += `\n\n--- 블로그/링크: ${url} ---\n${data.imported.content}`;
+            } else {
+              allText += `\n\n--- 링크: ${url} ---\n(내용 추출 실패)`;
+            }
+          } catch {
+            allText += `\n\n--- 링크: ${url} ---\n(링크 참조)`;
+          }
         }
         updateLoadingStep(stepIdx, 'done');
         stepIdx++;

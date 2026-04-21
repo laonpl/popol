@@ -1,14 +1,26 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Lazy 초기화 — .env 변경 후 서버 재시작 시 새 키 반영 보장
+let genAIClient = null;
+function getGenAI() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+  if (!genAIClient) {
+    genAIClient = new GoogleGenerativeAI(key);
+    console.log('[Gemini] API 클라이언트 초기화 완료');
+  }
+  return genAIClient;
+}
 
 let openaiClient = null;
 function getOpenAIClient() {
-  if (!openaiClient && process.env.GITHUB_MODELS_TOKEN) {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) return null;
+  if (!openaiClient) {
     openaiClient = new OpenAI({
-      baseURL: process.env.GITHUB_MODELS_ENDPOINT || "https://models.inference.ai.azure.com",
-      apiKey: process.env.GITHUB_MODELS_TOKEN
+      baseURL: process.env.GITHUB_MODELS_ENDPOINT || 'https://models.inference.ai.azure.com',
+      apiKey: token,
     });
   }
   return openaiClient;
@@ -232,7 +244,7 @@ export async function generateWithRetry(prompt, options = {}) {
         continue;
       }
 
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = getGenAI().getGenerativeModel({ model: modelName });
 
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
