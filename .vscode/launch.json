@@ -11,7 +11,36 @@
       "envFile": "${workspaceFolder}/backend/.env",
       "console": "integratedTerminal",
       "outputCapture": "std",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": {
+        "group": "devServers",
+        "reveal": "always"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "POPOL 전체 실행 (백엔드 + 프론트엔드)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "console": "integratedTerminal",
+      "outputCapture": "std",
+      "skipFiles": ["<node_internals>/**"],
+      "preLaunchTask": "프론트엔드 시작",
+      "presentation": {
+        "group": "devServers",
+        "reveal": "always"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "POPOL Dev (F5)",
+      "configurations": ["Backend 서버 실행"],
+      "preLaunchTask": "프론트엔드 시작",
+      "stopAll": true
     }
   ]
 }
