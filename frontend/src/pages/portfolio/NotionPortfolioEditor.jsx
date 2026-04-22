@@ -769,12 +769,14 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const [tailoring, setTailoring] = useState(false);
   const [tailorError, setTailorError] = useState(null);
   const [appliedSections, setAppliedSections] = useState({});
+  const [appliedKeyExperiences, setAppliedKeyExperiences] = useState(false);
 
   const handleTailor = async () => {
     if (!jobAnalysis) return;
     setTailoring(true);
     setTailorError(null);
     setAppliedSections({});
+    setAppliedKeyExperiences(false);
     try {
       const data = await tailorExperienceAPI(jobAnalysis, exp);
       setTailorResult(data.tailored);
@@ -806,6 +808,44 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     const allApplied = {};
     EXP_SECTION_KEYS.forEach(k => { if (tailorResult.sections[k]?.content?.trim()) allApplied[k] = true; });
     setAppliedSections(allApplied);
+  };
+
+  // 핵심 경험 AI 추천 결과를 포트폴리오에 적용
+  // API 반환 형식 {title, description, problem, action, result, relevance}
+  // → KeyExperienceSlider 형식 {title, metric, metricLabel, beforeMetric, afterMetric, situation, action, result, keywords}로 변환
+  const applyKeyExperiences = () => {
+    const tailoredKe = tailorResult?.keyExperiences;
+    if (!tailoredKe || tailoredKe.length === 0 || !onUpdate) return;
+
+    // 기존 keyExperiences에서 인덱스와 메트릭 데이터 보존
+    const existingKe = exp.structuredResult?.keyExperiences || [];
+
+    const converted = tailoredKe.map((ke, i) => {
+      // 존재하는 항목의 메트릭 필드 보존 (그래프가 유지되도로)
+      const existing = existingKe[i] || {};
+      return {
+        // 메트릭 관련 필드 보존 (원본 관련 데이터 유지)
+        metric:       existing.metric       || '',
+        metricLabel:  existing.metricLabel  || '',
+        beforeMetric: existing.beforeMetric || '',
+        afterMetric:  existing.afterMetric  || '',
+        chartType:    existing.chartType    || 'horizontalBar',
+        keywords:     existing.keywords     || [],
+        // AI가 제안한 기업 맞춤 핵심 내용으로 교체
+        title:     ke.title     || existing.title     || '',
+        situation: ke.problem   || ke.description || existing.situation || '',
+        action:    ke.action    || existing.action    || '',
+        result:    ke.result    || existing.result    || '',
+      };
+    });
+
+    onUpdate({
+      structuredResult: {
+        ...(exp.structuredResult || {}),
+        keyExperiences: converted,
+      }
+    });
+    setAppliedKeyExperiences(true);
   };
 
   // Firestore에서 이미지 로드 (experienceId가 있을 때)
@@ -1095,6 +1135,66 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 {/* 섹션별 첨삭 결과 */}
                 {tailorResult && !tailoring && (
                   <div className="space-y-3">
+                    {/* ── 기업 맞춤 핵심 경험 (AI 선별) — 최상단 배치 ── */}
+                    {tailorResult.keyExperiences?.length > 0 && (
+                      <div className="rounded-xl border border-indigo-200 overflow-hidden bg-white">
+                        <div className="flex items-center justify-between px-3 py-2 bg-indigo-600">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-white text-[10px] font-bold tracking-wider">기업 맞춤 핵심 경험</span>
+                            <span className="text-indigo-200 text-[10px]">AI가 선별한 {tailorResult.keyExperiences.length}개</span>
+                          </div>
+                          <button
+                            onClick={applyKeyExperiences}
+                            disabled={appliedKeyExperiences}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                              appliedKeyExperiences
+                                ? 'bg-green-400 text-white cursor-default'
+                                : 'bg-white text-indigo-700 hover:bg-indigo-50'
+                            }`}
+                          >
+                            {appliedKeyExperiences ? <><Check size={10} />적용됨</> : <>포트폴리오에 적용</>}
+                          </button>
+                        </div>
+                        <div className="p-3 space-y-3">
+                          <p className="text-[10px] text-indigo-600 bg-indigo-50 rounded-lg px-2.5 py-1.5">
+                            <strong>{jobAnalysis?.company}</strong> 지원에 적합한 핵심 경험을 선별했습니다
+                          </p>
+                          {tailorResult.keyExperiences.map((ke, ki) => (
+                            <div key={ki} className="bg-surface-50 rounded-lg border border-gray-100 p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[9px] font-black">{ki + 1}</span>
+                                <p className="text-xs font-bold text-gray-800">{ke.title}</p>
+                              </div>
+                              {ke.description && <p className="text-[11px] text-gray-600 leading-relaxed mb-2">{stripMd(ke.description)}</p>}
+                              <div className="space-y-1.5">
+                                {ke.problem && (
+                                  <div className="flex gap-1.5">
+                                    <span className="text-[9px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">문제</span>
+                                    <p className="text-[10px] text-gray-600 leading-relaxed">{stripMd(ke.problem)}</p>
+                                  </div>
+                                )}
+                                {ke.action && (
+                                  <div className="flex gap-1.5">
+                                    <span className="text-[9px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">행동</span>
+                                    <p className="text-[10px] text-gray-600 leading-relaxed">{stripMd(ke.action)}</p>
+                                  </div>
+                                )}
+                                {ke.result && (
+                                  <div className="flex gap-1.5">
+                                    <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">성과</span>
+                                    <p className="text-[10px] text-gray-600 leading-relaxed">{stripMd(ke.result)}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {ke.relevance && (
+                                <p className="text-[9px] text-indigo-500 mt-2 pt-2 border-t border-gray-100 italic">{ke.relevance}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* 전체 적용 버튼 */}
                     {(() => {
                       const availableCount = EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).length;
@@ -1109,7 +1209,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                               : 'bg-indigo-600 text-white hover:bg-indigo-700'
                             }`}
                         >
-                          {allApplied ? <><Check size={13} />전체 적용 완료</> : <>전체 적용 ({availableCount}개 섹션)</>}
+                          {allApplied ? <><Check size={13} />전체 적용 완료</> : <>섹션 전체 적용 ({availableCount}개)</>}
                         </button>
                       );
                     })()}

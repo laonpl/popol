@@ -36,12 +36,17 @@ function hrLine(slide, x, y, w, color) {
 function txt(slide, text, x, y, w, h, opts = {}) {
   if (!text) return;
   const str = String(text);
-  const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str);
 
-  // 폰트 결정
+  // 폰트 결정 — '맑은 고딕'으로 통일 (한글/영문 모두 지원, 윈도우 기본 내장)
+  // Courier New는 영문 코드 표기 전용으로만 허용
   let ff = opts.fontFace;
-  if (!ff || (hasKorean && ff === 'Courier New')) {
-    ff = hasKorean ? 'Malgun Gothic' : 'Calibri';
+  if (!ff || ff === 'Calibri') {
+    ff = 'Malgun Gothic';  // 윈도우 기본 한글 폰트 (영문 공식명 사용)
+  }
+  // 한국어 포함 시 Courier New를 Malgun Gothic으로 교체
+  const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str);
+  if (hasKorean && ff === 'Courier New') {
+    ff = 'Malgun Gothic';
   }
 
   // text run 옵션 (fontFace, fontSize, bold, color, italic 등)
@@ -51,8 +56,8 @@ function txt(slide, text, x, y, w, h, opts = {}) {
   if (opts.italic) runOpts.italic = opts.italic;
   if (opts.color) runOpts.color = opts.color;
   if (opts.underline) runOpts.underline = opts.underline;
-  if (hasKorean) runOpts.charSpacing = 0;
-  else if (opts.charSpacing != null) runOpts.charSpacing = opts.charSpacing;
+  // 맑은 고딕(한국어)은 charSpacing 미적용 — PowerPoint 기본 자간이 가장 자연스러움
+  if (!hasKorean && opts.charSpacing != null) runOpts.charSpacing = opts.charSpacing;
 
   // paragraph 옵션 (x, y, w, h, align, valign, isTextBox 등)
   const paraOpts = { x, y, w, h };
@@ -64,17 +69,27 @@ function txt(slide, text, x, y, w, h, opts = {}) {
   if (opts.margin != null) paraOpts.margin = opts.margin;
   if (opts.lineSpacing != null) paraOpts.lineSpacing = opts.lineSpacing;
   if (opts.wrap != null) paraOpts.wrap = opts.wrap;
-  if (opts.shrinkText != null) paraOpts.shrinkText = opts.shrinkText;
   if (opts.transparency != null) paraOpts.transparency = opts.transparency;
-  if (opts.autoFit != null) paraOpts.autoFit = opts.autoFit;
   if (opts.rectRadius != null) paraOpts.rectRadius = opts.rectRadius;
   if (opts.fill) paraOpts.fill = opts.fill;
   if (opts.line) paraOpts.line = opts.line;
   if (opts.shadow) paraOpts.shadow = opts.shadow;
   if (opts.rotate != null) paraOpts.rotate = opts.rotate;
 
+  // 글자 짤림 방지: isTextBox일 때 shrinkText 기본 적용
+  // autoFit이 명시적으로 설정된 경우는 우선
+  if (opts.autoFit != null) {
+    paraOpts.autoFit = opts.autoFit;
+  } else if (opts.isTextBox) {
+    // shrinkText: 명시적으로 false를 주지 않는 한 자동 축소 활성화
+    paraOpts.shrinkText = opts.shrinkText !== false ? true : false;
+  } else if (opts.shrinkText != null) {
+    paraOpts.shrinkText = opts.shrinkText;
+  }
+
   slide.addText([{ text: str, options: runOpts }], paraOpts);
 }
+
 function sectionLabel(slide, label, t, x, y, lineW) {
   txt(slide, label, x, y, 2.5, 0.18, { fontSize: 7, bold: true, color: hexClean(t.sub), charSpacing: 3, isTextBox: true });
   hrLine(slide, x + 1.8, y + 0.07, lineW - 1.8, t.div);
@@ -1994,6 +2009,9 @@ export async function generatePptx(portfolio, theme, themeObj) {
   prs.layout = 'CUSTOM_WIDE';
   prs.title = (portfolio.userName || 'Portfolio') + ' PPT';
   prs.author = portfolio.userName || '';
+  // 프레젠테이션 기본 폰트: Malgun Gothic (한글/영문 모두 지원하는 윈도우 기본 폰트)
+  // 이 설정으로 슬라이드 마스터 수준에서 폰트를 통일하여 글자 깨짐 방지
+  prs.subject = 'Portfolio';
   const t = themeObj;
   const p = portfolio;
   const exps = p.experiences || [];
