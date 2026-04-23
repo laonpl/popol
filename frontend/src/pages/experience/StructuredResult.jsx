@@ -57,6 +57,16 @@ const ACCENT_STYLES = {
   caribbean: { num: 'bg-caribbean-500 text-white', border: 'border-caribbean-200', bg: 'bg-caribbean-50/40', label: 'text-caribbean-700', ring: 'focus:ring-caribbean-200' },
 };
 
+/* ── 역량 키워드 카테고리 스타일 ── */
+const KW_CATEGORY_STYLES = {
+  tech:       { dot: '#0284c7', bg: 'bg-sky-50',      text: 'text-sky-700',      border: 'border-sky-200',     label: '기술'   },
+  soft:       { dot: '#059669', bg: 'bg-emerald-50',  text: 'text-emerald-700',  border: 'border-emerald-200', label: '소통'   },
+  leadership: { dot: '#7c3aed', bg: 'bg-violet-50',   text: 'text-violet-700',   border: 'border-violet-200',  label: '리더십' },
+  planning:   { dot: '#d97706', bg: 'bg-amber-50',    text: 'text-amber-700',    border: 'border-amber-200',   label: '기획'   },
+  default:    { dot: '#4f46e5', bg: 'bg-primary-50',  text: 'text-primary-700',  border: 'border-primary-100', label: '역량'   },
+};
+const KW_CATEGORY_ORDER = ['tech', 'soft', 'leadership', 'planning', 'default'];
+
 function pickSectionFields(obj) {
   const result = {};
   for (const key of SECTION_KEYS) {
@@ -103,6 +113,13 @@ export default function StructuredResult() {
   const [sliderEditing, setSliderEditing] = useState(false);
   const [sliderCurrent, setSliderCurrent] = useState(0);
   const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
+
+  /* ── 역량 키워드 커스터마이징 ── */
+  const [newKeywordIdx, setNewKeywordIdx] = useState(null);     // 팝인 애니메이션 대상 인덱스
+  const [kwDragIdx, setKwDragIdx] = useState(null);             // 드래그 중인 키워드 인덱스
+  const [kwOverIdx, setKwOverIdx] = useState(null);             // 드롭 대상 인덱스
+  const [keywordCategories, setKeywordCategories] = useState({}); // keyword → 카테고리 key
+  const [flashedSection, setFlashedSection] = useState(null);   // 섹션 완성 피드백
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
@@ -211,11 +228,42 @@ export default function StructuredResult() {
   };
 
   const handleFieldChange = (key, value) => {
+    // 빈칸/초안 → 충분한 내용으로 완성될 때 섹션 완성 피드백
+    const currentVal = editedContent[key];
+    const wasEmpty = !currentVal?.trim() || currentVal.trim().startsWith('[작성 필요]');
+    const isNowFilled = !!value.trim() && !value.trim().startsWith('[작성 필요]') && value.trim().length > 15;
     setEditedContent(prev => ({ ...prev, [key]: value }));
+    if (wasEmpty && isNowFilled) {
+      setFlashedSection(key);
+      setTimeout(() => setFlashedSection(null), 1300);
+    }
   };
 
   const toggleEditing = (key) => {
     setEditingSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  /* ── 역량 키워드 드래그-재정렬 ── */
+  const handleKwDragEnd = () => {
+    if (kwDragIdx != null && kwOverIdx != null && kwDragIdx !== kwOverIdx) {
+      setEditedKeywords(prev => {
+        const next = [...prev];
+        const [moved] = next.splice(kwDragIdx, 1);
+        next.splice(kwOverIdx, 0, moved);
+        return next;
+      });
+    }
+    setKwDragIdx(null);
+    setKwOverIdx(null);
+  };
+
+  /* ── 역량 카테고리 사이클 ── */
+  const cycleKwCategory = (k) => {
+    setKeywordCategories(prev => {
+      const cur = prev[k] || 'default';
+      const idx = KW_CATEGORY_ORDER.indexOf(cur);
+      return { ...prev, [k]: KW_CATEGORY_ORDER[(idx + 1) % KW_CATEGORY_ORDER.length] };
+    });
   };
 
   const toggleExpand = (key) => {
@@ -687,7 +735,7 @@ export default function StructuredResult() {
           <div className="mb-4">
             <div className="flex flex-wrap gap-1.5 mb-2">
               {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium group/tech">
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium border border-surface-200 group/tech">
                   {tech}
                   {!viewOnly && (
                     <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
@@ -715,35 +763,91 @@ export default function StructuredResult() {
             )}
           </div>
 
-          {/* 역량 키워드 (편집) */}
+          {/* 역량 키워드 — 카테고리·드래그·팝인 애니메이션 */}
           <div className="mt-auto pt-4 border-t border-surface-100">
+            {/* 카테고리 범례 */}
+            {editedKeywords.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {KW_CATEGORY_ORDER.map(cat => {
+                  const cs = KW_CATEGORY_STYLES[cat];
+                  const count = editedKeywords.filter(k => (keywordCategories[k] || 'default') === cat).length;
+                  if (count === 0) return null;
+                  return (
+                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cs.dot }} />
+                      {cs.label} {count}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {editedKeywords.map((k, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[11px] font-medium border border-primary-100">
-                  {k}
-                  {!viewOnly && (
-                    <button onClick={() => setEditedKeywords(prev => prev.filter((_, j) => j !== i))}
-                      className="text-primary-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
-                  )}
-                </span>
-              ))}
+              {editedKeywords.map((k, i) => {
+                const catKey = keywordCategories[k] || 'default';
+                const cs = KW_CATEGORY_STYLES[catKey];
+                const isNew = i === newKeywordIdx;
+                const isDragging = kwDragIdx === i;
+                const isOver = kwOverIdx === i && kwDragIdx !== i;
+                return (
+                  <span
+                    key={`${k}-${i}`}
+                    draggable={!viewOnly}
+                    onDragStart={() => !viewOnly && setKwDragIdx(i)}
+                    onDragOver={e => { e.preventDefault(); if (!viewOnly) setKwOverIdx(i); }}
+                    onDragEnd={handleKwDragEnd}
+                    onClick={() => !viewOnly && cycleKwCategory(k)}
+                    title={!viewOnly ? `${cs.label} — 클릭: 분류 변경 / 드래그: 순서 변경` : cs.label}
+                    className={[
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all duration-200 select-none',
+                      cs.bg, cs.text, cs.border,
+                      !viewOnly ? 'cursor-grab active:cursor-grabbing' : '',
+                      isNew ? 'animate-pop-in animate-skill-shimmer' : '',
+                      isDragging ? 'opacity-40 scale-95' : '',
+                      isOver ? 'ring-2 ring-offset-1 ring-primary-400 scale-[1.04]' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cs.dot }} />
+                    {k}
+                    {!viewOnly && (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setEditedKeywords(prev => prev.filter((_, j) => j !== i));
+                          setKeywordCategories(prev => { const n = { ...prev }; delete n[k]; return n; });
+                        }}
+                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[10px]"
+                      >×</button>
+                    )}
+                  </span>
+                );
+              })}
             </div>
             {!viewOnly && (
-            <div className="flex gap-1.5">
-              <input
-                value={newKeywordInput}
-                onChange={e => setNewKeywordInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newKeywordInput.trim()) {
-                    e.preventDefault();
-                    setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
-                    setNewKeywordInput('');
-                  }
-                }}
-                className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
-                placeholder="키워드 추가 후 Enter"
-              />
-            </div>
+              <>
+              <div className="flex gap-1.5">
+                <input
+                  value={newKeywordInput}
+                  onChange={e => setNewKeywordInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newKeywordInput.trim()) {
+                      e.preventDefault();
+                      const newIdx = editedKeywords.length;
+                      setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
+                      setNewKeywordIdx(newIdx);
+                      setTimeout(() => setNewKeywordIdx(null), 900);
+                      setNewKeywordInput('');
+                    }
+                  }}
+                  className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
+                  placeholder="스킬 추가 후 Enter"
+                />
+              </div>
+              {editedKeywords.length > 0 && (
+                <p className="text-[9.5px] text-bluewood-300 mt-1.5 leading-relaxed">
+                  클릭해서 분류 변경 · 드래그해서 순서 변경
+                </p>
+              )}
+              </>
             )}
           </div>
         </div>
@@ -926,8 +1030,10 @@ export default function StructuredResult() {
 
             return (
               <div key={key} className="group">
-                {/* 섹션 헤더 바 */}
-                <div className="flex items-center gap-4 px-6 py-3 bg-surface-50/30">
+                {/* 섹션 헤더 바 — 완성 시 brief glow */}
+                <div className={`flex items-center gap-4 px-6 py-3 transition-colors duration-300 ${
+                  flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50/30'
+                }`}>
                   <span className={`flex-shrink-0 w-7 h-7 rounded-lg ${style.num} flex items-center justify-center text-[11px] font-bold`}>
                     {meta.num}
                   </span>
@@ -941,7 +1047,14 @@ export default function StructuredResult() {
                     ) : isDraft ? (
                       <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
                     ) : (
-                      <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold transition-transform duration-300 ${flashedSection === key ? 'scale-110' : 'scale-100'}`}>
+                        {flashedSection === key && (
+                          <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="animate-pop-in">
+                            <path d="M1 3.5L3.5 6L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                        완료
+                      </span>
                     )}
                     {!isEditing && !isEmpty && !viewOnly && (
                       <button onClick={() => handleStartEditing(key)}
@@ -1332,7 +1445,8 @@ function SentenceKwSpan({ text, color, keywords }) {
           style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
         >
           <span className="text-[11px] font-semibold text-gray-100">역량 키워드</span>
-          <span className="flex flex-wrap gap-1 mt-0.5">
+          <span className="text-[10px] text-gray-400 leading-relaxed">이 경험 서술 전체를 AI가 분석해 도출한 역량 키워드예요. 밑줄 친 문장에서 해당 역량이 드러납니다.</span>
+          <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
             {keywords.map(k => (
               <span key={k} className="px-1.5 py-0.5 rounded-md text-[10px] leading-tight bg-white/20">{k}</span>
             ))}

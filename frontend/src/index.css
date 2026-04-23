@@ -49,6 +49,36 @@ textarea {
   min-height: 100px;
 }
 
+/* ── Keyword pop-in animation ── */
+@keyframes pop-in {
+  0%   { transform: scale(0.55) rotate(-4deg); opacity: 0; }
+  60%  { transform: scale(1.10) rotate(1deg);  opacity: 1; }
+  100% { transform: scale(1)    rotate(0deg);  opacity: 1; }
+}
+.animate-pop-in {
+  animation: pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Section completion glow ── */
+@keyframes section-glow {
+  0%   { background-color: rgba(6, 214, 160, 0);    }
+  25%  { background-color: rgba(6, 214, 160, 0.14); }
+  100% { background-color: rgba(6, 214, 160, 0);    }
+}
+.animate-section-glow {
+  animation: section-glow 1.2s ease-out forwards;
+}
+
+/* ── Skill badge shimmer (new skill added) ── */
+@keyframes skill-shimmer {
+  0%   { box-shadow: 0 0 0 0px rgba(99,102,241,0.6); }
+  50%  { box-shadow: 0 0 0 4px rgba(99,102,241,0.2); }
+  100% { box-shadow: 0 0 0 0px rgba(99,102,241,0);   }
+}
+.animate-skill-shimmer {
+  animation: skill-shimmer 0.7s ease-out forwards;
+}
+
 /* Animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

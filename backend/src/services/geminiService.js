@@ -163,9 +163,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           metricLabel:  pick(expJson.metricLabel, hint.metricLabel),
           beforeMetric: pick(expJson.beforeMetric, hint.beforeMetric),
           afterMetric:  pick(expJson.afterMetric, hint.afterMetric),
-          situation:    pick(expJson.situation, hint.situation),
+          context:      pick(expJson.context ?? expJson.situation, hint.context ?? hint.situation),
           action:       pick(expJson.action, hint.action),
           result:       pick(expJson.result, hint.result),
+          learning:     pick(expJson.learning, hint.learning),
           keywords:     (expJson.keywords && expJson.keywords.length ? expJson.keywords : (hint.keywords || [])),
           chartType:    expJson.chartType || 'horizontalBar',
         };
@@ -176,9 +177,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
         metricLabel:  expJson.metricLabel || '',
         beforeMetric: expJson.beforeMetric || '',
         afterMetric:  expJson.afterMetric || '',
-        situation:    expJson.situation || '',
+        context:      expJson.context ?? expJson.situation ?? '',
         action:       expJson.action || '',
         result:       expJson.result || '',
+        learning:     expJson.learning || '',
         keywords:     expJson.keywords || [],
         chartType:    expJson.chartType || 'horizontalBar',
       };
@@ -191,9 +193,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           metricLabel:  hint.metricLabel || '',
           beforeMetric: hint.beforeMetric || '',
           afterMetric:  hint.afterMetric || '',
-          situation:    hint.situation || '',
+          context:      hint.context ?? hint.situation ?? '',
           action:       hint.action || '',
           result:       hint.result || '',
+          learning:     hint.learning || '',
           keywords:     hint.keywords || [],
           chartType:    'horizontalBar',
         };
@@ -298,9 +301,9 @@ function generateFallbackDraft(question, linkedExperiences, targetCompany, targe
   const firstExp = linkedExperiences[0];
   const content = firstExp.content || {};
 
-  if (content.situation) {
-    draft += content.situation.substring(0, 200);
-    if (content.situation.length > 200) draft += '...';
+  if (content.context || content.situation) {
+    draft += (content.context || content.situation).substring(0, 200);
+    if ((content.context || content.situation).length > 200) draft += '...';
     draft += '\n\n';
   }
   if (content.task) {

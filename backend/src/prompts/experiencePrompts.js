@@ -21,7 +21,7 @@ const METRIC_FILTER_GUIDELINES = `
 
 const NO_HALLUCINATION_RULES = `
 [⛔ 핵심: 원본에 없는 내용 금지 (기술/숫자/회사/역할/상황 창작 금지)]
-✅ 허용: 원본 요약·재구성·STAR 구조 매핑 · 명시된 수치 추출
+✅ 허용: 원본 요약·재구성·CARL 구조 매핑 · 명시된 수치 추출
 ❌ 금지 시 처리: "[작성 필요] (원본에 없음)" 표기
 `;
 
@@ -67,10 +67,10 @@ export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, t
 [이번에 분석할 경험 — ${index + 1}/${total}번째]
 ${JSON.stringify(momentHint, null, 2)}
 
-위 moment의 title/situation/action/result/metric/keywords를 그대로 보존하며 누락 필드만 원본에서 보강하세요.
+위 moment의 title/context/action/result/learning/metric/keywords를 그대로 보존하며 누락 필드만 원본에서 보강하세요.
 ` : `
 [${index + 1}/${total}번째 핵심 경험을 추출하세요]
-원본 자료 중 아직 다루지 않은 관점/에피소드를 하나 골라 STAR 구조로 정리하세요.
+원본 자료 중 아직 다루지 않은 관점/에피소드를 하나 골라 CARL 구조로 정리하세요.
 `;
 
   return `포트폴리오 커리어 코치입니다. 아래 경험 자료에서 ${index + 1}번째 핵심 경험 1건만 추출하세요.
@@ -91,9 +91,10 @@ ${contentText}
   "metricLabel": "수치 라벨 (예: 성능 향상)",
   "beforeMetric": "개선 전 수치 (있으면)",
   "afterMetric": "개선 후 수치 (있으면)",
-  "situation": "상황·배경 (2~3문장)",
-  "action": "구체적 행동 (2~3문장)",
-  "result": "결과·성과 (수치 포함)",
+  "context": "배경·맥락·문제 상황 (2~3문장)",
+  "action": "구체적 행동·의사결정·방법론 (2~3문장)",
+  "result": "결과·성과 (수치 포함, 2~3문장)",
+  "learning": "이 경험에서 얻은 인사이트·역량·성장 (1~2문장)",
   "keywords": ["키워드1", "키워드2"],
   "chartType": "horizontalBar"
 }
@@ -141,9 +142,10 @@ ${METRIC_FILTER_GUIDELINES}
 1. 위 10가지 포트폴리오 성과 도출 공식 중 어느 유형에 가장 잘 맞는지 'type' 필드에 정확한 명칭(예: 인프라개선, 비용절감 등 10가지 중 하나)으로 적으세요.
 2. 수치화된 그래프를 그려서 포트폴리오에 쓸 수 있도록, 정량적 수치(시간 단축, % 상승, 비용 방어 등)가 존재하는 경험을 가장 먼저, 집중적으로 추출하세요.
 3. 각 섹션은 2~3문장으로 구체적으로 서술하세요.
-   - Situation: 상황·문제·배경
-   - Action: 구체적 행동·방법·논리
-   - Result: 결과·성과·교훈 (수치 필수 추출)
+   - Context: 배경·맥락·문제 상황 (왜 이 일이 필요했는가)
+   - Action: 구체적 행동·의사결정·방법론 (내가 직접 한 것)
+   - Result: 결과·성과 (수치 필수 추출)
+   - Learning: 이 경험에서 얻은 인사이트·역량·성장 (입사 후 활용 가능한 부분)
 4. 자료에 없는 내용은 절대 창작하지 말고, 필요시 끝에 (미확인: [질문])을 추가.
 5. 위 NO_HALLUCINATION 규칙을 무조건 우선하세요. 원본에 없는 숫자·기술스택·회사명·역할은 한 글자도 쓰지 마세요.
 
@@ -157,10 +159,11 @@ ${rawText.substring(0, 5000)}
       "id": "1",
       "type": "위 10가지 공식 중 해당하는 유형명",
       "title": "경험 제목 (15자 이내)",
-      "description": "Situation: ...\\nAction: ...\\nResult: ...\\n(미확인: 선택적)",
-      "situation": "문제 상황·배경 (2~3문장)",
-      "action": "구체적 행동·방법 (2~3문장)",
-      "result": "결과·성과·교훈 (원본의 수치를 여기에 반드시 포함)",
+      "description": "Context: ...\\nAction: ...\\nResult: ...\\nLearning: ...\\n(미확인: 선택적)",
+      "context": "배경·맥락·문제 상황 (2~3문장)",
+      "action": "구체적 행동·의사결정·방법론 (2~3문장)",
+      "result": "결과·성과 (원본의 수치를 여기에 반드시 포함)",
+      "learning": "이 경험에서 얻은 인사이트·역량·성장 (1~2문장)",
       "metric": "원본에 있는 핵심 수치 한 가지 (예: 40% 단축, 3일→1일, 800ms, 200만원 절감). 없으면 빈 문자열.",
       "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간, 비용 절감). 없으면 빈 문자열.",
       "beforeMetric": "개선 전 수치 (예: 800ms, 3일, 100%). 원본에 있을 때만 기재.",
@@ -210,6 +213,6 @@ ${countDirective}
 ${contentText}
 
 JSON만 응답:
-{"projectOverview":{"summary":"","background":"","goal":"","role":"","team":"","duration":"","techStack":[]},"keyExperiences":[{"title":"","metric":"","metricLabel":"","beforeMetric":"","afterMetric":"","situation":"","action":"","result":"","keywords":[]}],"intro":"","overview":"","task":"","process":"","output":"","growth":"","competency":"","keywords":[],"followUpQuestions":[],"highlights":[]}
+{"projectOverview":{"summary":"","background":"","goal":"","role":"","team":"","duration":"","techStack":[]},"keyExperiences":[{"title":"","metric":"","metricLabel":"","beforeMetric":"","afterMetric":"","context":"","action":"","result":"","learning":"","keywords":[]}],"intro":"","overview":"","task":"","process":"","output":"","growth":"","competency":"","keywords":[],"followUpQuestions":[],"highlights":[]}
 `;
 }

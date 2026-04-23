@@ -4,7 +4,7 @@ import {
   ArrowLeft, Globe, Github,
   X, CheckCircle2, Calendar,
   ChevronRight, ChevronLeft, Link2, Plus, Code2,
-  Loader2, Check, FolderOpen, Palette, Monitor
+  Loader2, Check, FolderOpen, Palette, Monitor,
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
@@ -13,17 +13,18 @@ import toast from 'react-hot-toast';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
 
-/* description 텍스트에서 STAR 섹션 파싱 */
-function parseStarDescription(desc) {
+/* description 텍스트에서 CARL 섹션 파싱 */
+function parseCarlDescription(desc) {
   if (!desc) return null;
-  const regex = /Situation\s*[:：]\s*([\s\S]*?)(?=Action\s*[:：]|Result\s*[:：]|\(미확인|$)|Action\s*[:：]\s*([\s\S]*?)(?=Result\s*[:：]|\(미확인|$)|Result\s*[:：]\s*([\s\S]*?)(?=\(미확인|$)|\(미확인\s*[:：]?\s*([\s\S]*?)\)\s*$/g;
+  const regex = /Context\s*[:：]\s*([\s\S]*?)(?=Action\s*[:：]|Result\s*[:：]|Learning\s*[:：]|\(미확인|$)|Action\s*[:：]\s*([\s\S]*?)(?=Result\s*[:：]|Learning\s*[:：]|\(미확인|$)|Result\s*[:：]\s*([\s\S]*?)(?=Learning\s*[:：]|\(미확인|$)|Learning\s*[:：]\s*([\s\S]*?)(?=\(미확인|$)|\(미확인\s*[:：]?\s*([\s\S]*?)\)\s*$/g;
   const sections = [];
   let match;
   while ((match = regex.exec(desc)) !== null) {
-    if      (match[1] !== undefined) sections.push({ key: 'situation', text: match[1].trim() });
-    else if (match[2] !== undefined) sections.push({ key: 'action',    text: match[2].trim() });
-    else if (match[3] !== undefined) sections.push({ key: 'result',    text: match[3].trim() });
-    else if (match[4] !== undefined) sections.push({ key: 'missing',   text: match[4].trim() });
+    if      (match[1] !== undefined) sections.push({ key: 'context',  text: match[1].trim() });
+    else if (match[2] !== undefined) sections.push({ key: 'action',   text: match[2].trim() });
+    else if (match[3] !== undefined) sections.push({ key: 'result',   text: match[3].trim() });
+    else if (match[4] !== undefined) sections.push({ key: 'learning', text: match[4].trim() });
+    else if (match[5] !== undefined) sections.push({ key: 'missing',  text: match[5].trim() });
   }
   return sections.length === 0 ? null : sections;
 }
@@ -216,9 +217,102 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
   );
 }
 
-/* STAR 구조화 렌더러 — STAR 라벨 없이 자연스러운 흐름으로 표시 */
-function StarDescription({ description, onUpdateMissing }) {
-  const sections = parseStarDescription(description);
+/* 자동 높이 textarea */
+function AutoSizeTextarea({ value, onChange, className, placeholder }) {
+  const taRef = useRef(null);
+  useEffect(() => {
+    if (taRef.current) {
+      taRef.current.style.height = 'auto';
+      taRef.current.style.height = taRef.current.scrollHeight + 'px';
+    }
+  }, [value]);
+  return (
+    <textarea
+      ref={taRef}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      rows={1}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+}
+
+/* 인라인 CARL 편집 — 보기 스타일 그대로, 텍스트만 편집 가능 */
+function InlineCarlEdit({ description, onChange }) {
+  const sections = parseCarlDescription(description);
+
+  if (!sections) {
+    return (
+      <AutoSizeTextarea
+        value={description || ''}
+        onChange={onChange}
+        className="w-full bg-transparent text-[12.5px] text-bluewood-600 leading-relaxed outline-none resize-none border-b border-transparent focus:border-surface-200 transition-colors"
+        placeholder="내용을 입력하세요"
+      />
+    );
+  }
+
+  const mainSections = sections.filter(s => s.key !== 'missing');
+  const sectionMap = Object.fromEntries(mainSections.map(s => [s.key, s.text]));
+
+  const updateSection = (key, newText) => {
+    const updated = { ...sectionMap, [key]: newText };
+    const parts = [];
+    if (updated.context)  parts.push(`Context: ${updated.context}`);
+    if (updated.action)   parts.push(`Action: ${updated.action}`);
+    if (updated.result)   parts.push(`Result: ${updated.result}`);
+    if (updated.learning) parts.push(`Learning: ${updated.learning}`);
+    onChange(parts.join('\n'));
+  };
+
+  const styleMap = {
+    context:  'text-bluewood-500',
+    action:   'text-bluewood-700',
+    result:   'text-bluewood-700 font-medium',
+    learning: 'text-bluewood-600 italic',
+  };
+
+  return (
+    <div className="mt-1 space-y-1.5">
+      {mainSections.map((s, i) => (
+        <div key={s.key} className="relative flex">
+          {i > 0 && <span className="flex-shrink-0 text-bluewood-200 mr-1.5 text-[12.5px] leading-relaxed pt-[1px] select-none">&bull;</span>}
+          <AutoSizeTextarea
+            value={s.text}
+            onChange={v => updateSection(s.key, v)}
+            className={`flex-1 bg-transparent outline-none resize-none leading-relaxed text-[12.5px] border-b border-transparent focus:border-surface-200 transition-colors ${styleMap[s.key] || 'text-bluewood-600'}`}
+            placeholder={s.key === 'context' ? '배경을 입력하세요' : s.key === 'action' ? '행동을 입력하세요' : s.key === 'result' ? '결과를 입력하세요' : '배운 점을 입력하세요'}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* 키워드 인라인 추가 입력 */
+function InlineKeywordInput({ onAdd }) {
+  const [val, setVal] = useState('');
+  return (
+    <input
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ',') {
+          e.preventDefault();
+          const kw = val.trim().replace(/,$/, '');
+          if (kw) { onAdd(kw); setVal(''); }
+        }
+      }}
+      className="mt-1.5 text-[11.5px] text-bluewood-500 bg-transparent border-b border-surface-200 outline-none w-full placeholder:text-surface-300 transition-colors focus:border-bluewood-200"
+      placeholder="키워드 추가 (Enter로 확인)"
+    />
+  );
+}
+
+/* CARL 구조화 렌더러 — 라벨 없이 자연스러운 흐름으로 표시 */
+function CarlDescription({ description, onUpdateMissing }) {
+  const sections = parseCarlDescription(description);
   if (!sections) {
     return <p className="text-[12.5px] text-bluewood-600 leading-relaxed">{description}</p>;
   }
@@ -230,9 +324,10 @@ function StarDescription({ description, onUpdateMissing }) {
     <div className="mt-1 space-y-1.5">
       {mainSections.map((s, i) => (
         <p key={i} className={`text-[12.5px] leading-relaxed ${
-          s.key === 'situation' ? 'text-bluewood-500' :
-          s.key === 'action'    ? 'text-bluewood-700' :
-          s.key === 'result'    ? 'text-bluewood-700 font-medium' :
+          s.key === 'context'  ? 'text-bluewood-500' :
+          s.key === 'action'   ? 'text-bluewood-700' :
+          s.key === 'result'   ? 'text-bluewood-700 font-medium' :
+          s.key === 'learning' ? 'text-bluewood-600 italic' :
           'text-bluewood-600'
         }`}>
           {i > 0 && <span className="text-bluewood-200 mr-1.5">•</span>}
@@ -250,6 +345,60 @@ function StarDescription({ description, onUpdateMissing }) {
       ))}
     </div>
   );
+}
+
+/* ── 심화 질문 생성기 — 경험 내용을 분석해 최대 3가지 맞춤 질문 생성 ── */
+function getDeepQuestions(m) {
+  if (!m) return [];
+  const desc = m.description || '';
+  const qs = [];
+
+  // 수치 없으면: 정량 성과 유도
+  const hasMetric = /\d+\s*%|\d+\s*배|\d+\s*건|\d+\s*ms|\d+\s*초|\d+\s*만원|\d+\s*명/.test(desc);
+  if (!hasMetric) {
+    qs.push({
+      id: 'metric', label: '수치로 표현하기',
+      q: '이 결과를 숫자로 표현할 수 있나요?',
+      hint: '예: API 응답 40% 개선 / 에러율 0.3%→0.01% / 작업 시간 3일→반나절',
+      type: 'numeric',
+      chips: ['응답속도 XX% 개선', '에러율 XX% 감소', '처리시간 X배 단축', '비용 XX만원 절감', '누적 사용자 X명 달성'],
+    });
+  }
+
+  // 어려움/도전 없으면
+  if (!/어려|한계|문제|난관|실패|이슈|버그|지연|병목/.test(desc)) {
+    qs.push({
+      id: 'challenge', label: '핵심 도전 과제',
+      q: '가장 어려웠던 기술적/실무적 문제는 무엇이었나요?',
+      hint: '막혔던 순간이나 예상치 못한 이슈를 구체적으로 서술할수록 강한 경험이 됩니다',
+      type: 'chips',
+      chips: ['성능 병목 / 메모리 한계', '레거시 코드 호환 이슈', '데이터 정확도 확보 어려움', '팀 의견 충돌 조율', '일정 내 완료 압박', '요구사항 잦은 변경'],
+    });
+  }
+
+  // 의사결정 근거 없으면
+  if (!/선택|결정|비교|대안|왜|이유/.test(desc)) {
+    qs.push({
+      id: 'decision', label: '선택의 근거',
+      q: '이 방식/기술을 선택한 이유나 비교했던 대안이 있었나요?',
+      hint: '단순 구현 사실보다 "왜 이 선택을 했는지"가 면접에서 훨씬 강한 인상을 줍니다',
+      type: 'chips',
+      chips: ['성능 벤치마크 비교 결과', '팀 기술 스택과 적합성', '개발 속도 우선', '비용 효율이 최선', '유지보수 용이성', '오픈소스 생태계 활발'],
+    });
+  }
+
+  // 성장/배움 없으면
+  if (!/배웠|성장|깨달|이후|다음|앞으로|역량/.test(desc)) {
+    qs.push({
+      id: 'growth', label: '성장 포인트',
+      q: '이 경험에서 가장 크게 성장하거나 깨달은 점은 무엇인가요?',
+      hint: '기술 역량 외에 협업, 의사결정, 커뮤니케이션 측면의 성장도 포함하세요',
+      type: 'chips',
+      chips: ['시스템 설계 사고력', '문제 원인 분석 역량', '빠른 의사결정 경험', '협업·커뮤니케이션', '기술 깊이 이해', '우선순위 판단력'],
+    });
+  }
+
+  return qs.slice(0, 3);
 }
 
 const MOMENT_TYPE_DESC = {
@@ -296,6 +445,17 @@ export default function TemplateSelect() {
   const [collectedText, setCollectedText] = useState('');
   const [moments, setMoments] = useState([]); // { id, title, description, keywords }
   const [editingMomentId, setEditingMomentId] = useState(null);
+  const [currentMomentIdx, setCurrentMomentIdx] = useState(0);
+
+  /* ── 새 경험 직접 추가 ── */
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [newExp, setNewExp] = useState({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] });
+  const [newExpKwInput, setNewExpKwInput] = useState('');
+
+  /* ── 심화 Q&A ── */
+  const [deepQExpanded, setDeepQExpanded] = useState(true);
+  const [deepQAnswers, setDeepQAnswers] = useState({}); // `${momentId}-${qId}` → answer string
+  const [deepQDraft, setDeepQDraft] = useState({});     // `${momentId}-${qId}` → draft
 
   const handleFileAdd = (e) => {
     const newFiles = Array.from(e.target.files || []);
@@ -506,6 +666,57 @@ export default function TemplateSelect() {
     setMoments(prev => prev.filter(m => m.id !== id));
   };
 
+  /* ── 새 경험 직접 추가 ── */
+  const handleAddNewExp = () => {
+    if (!newExp.title.trim() || !newExp.action.trim()) {
+      toast.error('제목과 행동(Action) 내용은 필수입니다');
+      return;
+    }
+    const parts = [];
+    if (newExp.context.trim())  parts.push(`Context: ${newExp.context.trim()}`);
+    if (newExp.action.trim())   parts.push(`Action: ${newExp.action.trim()}`);
+    if (newExp.result.trim())   parts.push(`Result: ${newExp.result.trim()}`);
+    if (newExp.learning.trim()) parts.push(`Learning: ${newExp.learning.trim()}`);
+    const newMoment = {
+      id: `manual-${Date.now()}`,
+      title: newExp.title.trim(),
+      type: newExp.type || '',
+      description: parts.join('\n'),
+      keywords: newExp.keywords || [],
+      context: newExp.context.trim(),
+      action: newExp.action.trim(),
+      result: newExp.result.trim(),
+      learning: newExp.learning.trim(),
+    };
+    const newIdx = moments.length;
+    setMoments(prev => [...prev, newMoment]);
+    setCurrentMomentIdx(newIdx);
+    setIsCreatingNew(false);
+    setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] });
+    setNewExpKwInput('');
+    setDeepQExpanded(true);
+    toast.success('새 경험이 추가됐습니다');
+  };
+
+  /* ── 심화 Q&A 적용 ── */
+  const handleApplyDeepQ = (momentId, qId, answer) => {
+    if (!answer.trim()) return;
+    const labelMap = {
+      metric:    '추가 성과',
+      challenge: '핵심 도전',
+      decision:  '선택 근거',
+      growth:    '성장 포인트',
+    };
+    const prefix = labelMap[qId] || '추가 내용';
+    setMoments(prev => prev.map(m => {
+      if (m.id !== momentId) return m;
+      return { ...m, description: `${m.description || ''}\n${prefix}: ${answer.trim()}` };
+    }));
+    setDeepQAnswers(prev => ({ ...prev, [`${momentId}-${qId}`]: answer.trim() }));
+    setDeepQDraft(prev => { const n = { ...prev }; delete n[`${momentId}-${qId}`]; return n; });
+    toast.success('내용이 추가됐습니다 ✓');
+  };
+
   // 검토 완료 후 최종 경험 생성
   const handleFinalSubmit = async () => {
     if (moments.length === 0) {
@@ -524,13 +735,14 @@ export default function TemplateSelect() {
     try {
       // 사용자가 description을 편집했을 수 있으므로 SAR 섹션을 다시 파싱해서 최신화
       const syncedMoments = moments.map(m => {
-        const parsed = parseStarDescription(m.description);
-        const bySection = { situation: m.situation || '', action: m.action || '', result: m.result || '' };
+        const parsed = parseCarlDescription(m.description);
+        const bySection = { context: m.context || m.situation || '', action: m.action || '', result: m.result || '', learning: m.learning || '' };
         if (parsed) {
           for (const s of parsed) {
-            if (s.key === 'situation') bySection.situation = s.text;
-            else if (s.key === 'action') bySection.action = s.text;
-            else if (s.key === 'result') bySection.result = s.text;
+            if (s.key === 'context')  bySection.context = s.text;
+            else if (s.key === 'action')   bySection.action = s.text;
+            else if (s.key === 'result')   bySection.result = s.text;
+            else if (s.key === 'learning') bySection.learning = s.text;
           }
         }
         return { ...m, ...bySection };
@@ -694,161 +906,474 @@ export default function TemplateSelect() {
 
   // ===== Step 4: 핵심 경험 검토 =====
   if (step === 4) {
+    const safeIdx = Math.min(currentMomentIdx, Math.max(0, moments.length - 1));
+    const currentM = isCreatingNew ? null : moments[safeIdx];
+    const totalKeywords = [...new Set(moments.flatMap(m => m.keywords || []))].length;
+    const missingCount = moments.filter(m => m?.description?.includes('(미확인')).length;
+    const deepQuestions = getDeepQuestions(currentM);
+
+    const getAiHint = (m) => {
+      if (!m) return null;
+      if (m.description?.includes('(미확인')) {
+        return { text: '성과 수치가 비어 있어요. 아래 질문에 답하면 자동으로 보완됩니다.', level: 'warn' };
+      }
+      const kws = m.keywords || [];
+      if (kws.length >= 2) {
+        return { text: `"${kws[0]}", "${kws[1]}" 역량이 확인됩니다. 내용을 검토하고 심화 질문으로 경험을 더 풍부하게 만들어보세요.`, level: 'info' };
+      }
+      return { text: '내용이 정확한지 확인하고 아래 심화 질문으로 경험을 강화해보세요.', level: 'info' };
+    };
+
+    const hint = getAiHint(currentM);
+
+    const handleDeleteAndMove = (id) => {
+      deleteMoment(id);
+      setCurrentMomentIdx(prev => Math.max(0, Math.min(prev, moments.length - 2)));
+      setEditingMomentId(null);
+    };
+
     return (
-      <div className="animate-fadeIn max-w-2xl mx-auto">
+      <div className="animate-fadeIn max-w-[1180px] mx-auto">
+        {/* 뒤로가기 */}
         <button
           onClick={() => setStep(2)}
-          className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6"
+          className="inline-flex items-center gap-1.5 text-sm text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
         >
-          <ArrowLeft size={16} /> 자료 수집으로 돌아가기
+          <ArrowLeft size={14} /> 자료 수집으로 돌아가기
         </button>
 
         {/* 스텝 인디케이터 */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
-            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-              <Check size={12} />
-            </span>
-            기본 정보
-          </div>
-          <div className="w-8 h-px bg-surface-300" />
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
-            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-              <Check size={12} />
-            </span>
-            자료 수집
-          </div>
-          <div className="w-8 h-px bg-surface-300" />
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-primary-500 text-white shadow-sm">
-            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">3</span>
-            경험 검토
-          </div>
+        <div className="flex items-center gap-2 mb-8">
+          {[
+            { label: '기본 정보', done: true },
+            { label: '자료 수집', done: true },
+            { label: '경험 검토', done: false, active: true },
+          ].map((s, i, arr) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                s.active ? 'bg-bluewood-900 text-white' :
+                s.done   ? 'text-bluewood-400' : 'text-bluewood-300'
+              }`}>
+                {s.done && <Check size={11} strokeWidth={2.5} />}
+                {s.label}
+              </div>
+              {i < arr.length - 1 && <span className="text-bluewood-200 text-xs">/</span>}
+            </div>
+          ))}
+          <span className="ml-auto text-xs text-bluewood-400 tabular-nums">
+            {moments.length === 0 ? '0' : isCreatingNew ? '새 경험' : safeIdx + 1} / {moments.length}{isCreatingNew ? '+1' : ''}
+          </span>
         </div>
 
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm mb-5">
-          <div className="mb-5">
-            <h2 className="text-base font-bold text-bluewood-900 mb-1">AI가 추출한 핵심 경험</h2>
-            <p className="text-sm text-bluewood-400">
-              아래 {moments.length}개의 경험을 검토하세요. 필요 없는 항목은 삭제하고, 내용을 수정할 수 있습니다.
-            </p>
+        {/* 빈 상태 */}
+        {moments.length === 0 && !isCreatingNew ? (
+          <div className="bg-white rounded-xl border border-surface-200 p-12 text-center text-bluewood-300 text-sm mb-5">
+            추출된 경험이 없습니다. 자료 수집 단계로 돌아가거나 아래에서 직접 경험을 추가해주세요.
           </div>
+        ) : (
+          /* 3컬럼 레이아웃 */
+          <div className="flex gap-5 mb-6 items-start">
 
-          {moments.length === 0 ? (
-            <div className="text-center py-10 text-bluewood-300 text-sm">
-              추출된 경험이 없습니다. 자료 수집 단계로 돌아가 내용을 추가해주세요.
+            {/* 사이드바 */}
+            <div className="w-[196px] flex-shrink-0">
+              <p className="text-[11px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
+              <div className="flex flex-col gap-px mb-2">
+                {moments.map((m, idx) => {
+                  const isMissing = m.description?.includes('(미확인');
+                  const isActive = !isCreatingNew && idx === safeIdx;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setCurrentMomentIdx(idx); setEditingMomentId(null); setIsCreatingNew(false); }}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-[12.5px] leading-snug transition-colors ${
+                        isActive
+                          ? 'bg-bluewood-900 text-white font-medium'
+                          : 'text-bluewood-600 hover:bg-surface-100'
+                      }`}
+                    >
+                      <span className={`text-[10px] font-semibold mr-1.5 ${isActive ? 'text-white/50' : 'text-bluewood-300'}`}>{idx + 1}.</span>
+                      <span className="line-clamp-2">{m.title}</span>
+                      {isMissing && (
+                        <span className={`block mt-1 text-[10px] font-medium ${isActive ? 'text-amber-300' : 'text-amber-500'}`}>
+                          성과 보완 가능
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* 새 경험 추가 버튼 */}
+              <button
+                onClick={() => { setIsCreatingNew(true); setEditingMomentId(null); setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] }); }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-[12px] border border-dashed transition-colors ${
+                  isCreatingNew
+                    ? 'border-bluewood-400 bg-surface-50 text-bluewood-700 font-medium'
+                    : 'border-surface-300 text-bluewood-400 hover:border-bluewood-300 hover:bg-surface-50'
+                }`}
+              >
+                + 새 경험 추가
+              </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {moments.map((m, idx) => (
-                <div key={m.id} className="border border-surface-200 rounded-xl overflow-visible">
-                  {editingMomentId === m.id ? (
-                    /* 편집 모드 */
-                    <div className="p-4 bg-primary-50/30 space-y-3">
+
+            {/* 메인 컨텐츠 */}
+            <div className="flex-1 min-w-0 space-y-3">
+
+              {/* ── 새 경험 직접 작성 폼 ── */}
+              {isCreatingNew && (
+                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[14px] font-semibold text-bluewood-900">새 경험 직접 작성</h3>
+                      <span className="text-[10.5px] text-bluewood-400 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200">CARL 구조</span>
+                    </div>
+                    <button onClick={() => setIsCreatingNew(false)} className="text-xs text-bluewood-400 hover:text-bluewood-700 border border-surface-200 px-2.5 py-1 rounded-lg hover:bg-surface-50 transition-colors">
+                      닫기
+                    </button>
+                  </div>
+
+                  <div className="px-5 py-4 space-y-4">
+                    {/* 제목 */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 제목 <span className="text-red-400">*</span></label>
                       <input
-                        value={m.title}
-                        onChange={e => updateMoment(m.id, 'title', e.target.value)}
-                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm font-semibold text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-200"
-                        placeholder="경험 제목"
+                        value={newExp.title}
+                        onChange={e => setNewExp(p => ({ ...p, title: e.target.value }))}
+                        placeholder="예: 실시간 이상 감지 파이프라인 개발"
+                        className="w-full px-3 py-2.5 border border-surface-200 rounded-lg text-sm text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 placeholder-bluewood-300"
                       />
-                      <textarea
-                        value={m.description}
-                        onChange={e => updateMoment(m.id, 'description', e.target.value)}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200 resize-none"
-                        placeholder="경험 내용"
-                      />
-                      <input
-                        value={(m.keywords || []).join(', ')}
-                        onChange={e => updateMoment(m.id, 'keywords', e.target.value.split(',').map(k => k.trim()).filter(Boolean))}
-                        className="w-full px-3 py-2 border border-surface-200 rounded-lg text-xs text-bluewood-500 outline-none focus:ring-2 focus:ring-primary-200"
-                        placeholder="키워드 (쉼표로 구분)"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setEditingMomentId(null)}
-                          className="px-4 py-1.5 text-xs bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-                        >
-                          완료
-                        </button>
+                    </div>
+
+                    {/* 유형 선택 */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 유형</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(MOMENT_TYPE_DESC).map(([key, desc]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setNewExp(p => ({ ...p, type: p.type === key ? '' : key }))}
+                            title={desc}
+                            className={`px-2 py-1 text-[11px] rounded-md border transition-colors ${
+                              newExp.type === key
+                                ? 'bg-bluewood-900 text-white border-bluewood-900'
+                                : 'border-surface-200 text-bluewood-500 hover:border-bluewood-300 hover:bg-surface-50'
+                            }`}
+                          >{key}</button>
+                        ))}
                       </div>
                     </div>
-                  ) : (
-                    /* 보기 모드 */
-                    <div className="p-4 flex gap-3">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface-100 text-bluewood-400 text-xs font-bold flex items-center justify-center mt-0.5">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {m.type && m.type.split(',').map(t => t.trim()).filter(Boolean).map((typeKey, ti) => (
-                            <span key={ti} className="relative group flex-shrink-0">
-                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary-50 text-primary-600 border border-primary-100 cursor-default">
+
+                    {/* CARL 필드 */}
+                    {[
+                      { key: 'context',  label: '배경 Context', placeholder: '왜 이 일을 하게 됐나요? 기존의 어떤 문제가 있었나요?', required: false, rows: 2 },
+                      { key: 'action',   label: '행동 Action',  placeholder: '구체적으로 무엇을 했나요? 어떤 방식/기술로 해결했나요?', required: true,  rows: 3 },
+                      { key: 'result',   label: '결과 Result',  placeholder: '결과가 어떻게 됐나요? 수치(%, ms, 건수)가 있다면 꼭 포함해주세요.', required: false, rows: 2 },
+                      { key: 'learning', label: '배운 점 Learning', placeholder: '이 경험에서 무엇을 배웠고 어떻게 성장했나요?', required: false, rows: 2 },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">
+                          {f.label}
+                          {f.required && <span className="text-red-400 ml-1">*</span>}
+                        </label>
+                        <textarea
+                          value={newExp[f.key]}
+                          onChange={e => setNewExp(p => ({ ...p, [f.key]: e.target.value }))}
+                          rows={f.rows}
+                          placeholder={f.placeholder}
+                          className="w-full px-3 py-2.5 border border-surface-200 rounded-lg text-[12.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 resize-none placeholder-bluewood-300 leading-relaxed"
+                        />
+                      </div>
+                    ))}
+
+                    {/* 키워드 */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">역량 키워드</label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(newExp.keywords || []).map((kw, ki) => (
+                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11.5px] rounded-md border border-surface-200">
+                            {kw}
+                            <button
+                              onClick={() => setNewExp(p => ({ ...p, keywords: p.keywords.filter((_, j) => j !== ki) }))}
+                              className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5">×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={newExpKwInput}
+                          onChange={e => setNewExpKwInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newExpKwInput.trim()) {
+                              e.preventDefault();
+                              setNewExp(p => ({ ...p, keywords: [...p.keywords, newExpKwInput.trim()] }));
+                              setNewExpKwInput('');
+                            }
+                          }}
+                          placeholder="키워드 입력 후 Enter"
+                          className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-[11.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 제출 */}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        onClick={() => setIsCreatingNew(false)}
+                        className="px-4 py-2 text-xs text-bluewood-500 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
+                      >취소</button>
+                      <button
+                        onClick={handleAddNewExp}
+                        disabled={!newExp.title.trim() || !newExp.action.trim()}
+                        className="px-5 py-2 text-xs font-semibold bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >경험 추가하기</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── 기존 경험 카드 ── */}
+              {currentM && (
+                <>
+                {/* 힌트 바 */}
+                {hint && (
+                  <div className={`px-4 py-3 rounded-lg border-l-2 text-[12.5px] leading-relaxed ${
+                    hint.level === 'warn'
+                      ? 'bg-amber-50 border-amber-400 text-amber-800'
+                      : 'bg-surface-50 border-bluewood-300 text-bluewood-500'
+                  }`}>
+                    {hint.text}
+                  </div>
+                )}
+
+                {/* 경험 카드 */}
+                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+
+                  {/* 헤더 */}
+                  <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-surface-100">
+                    <div className="flex-1 min-w-0">
+                      {currentM.type && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {currentM.type.split(',').map(t => t.trim()).filter(Boolean).map((typeKey, ti) => (
+                            <span key={ti} className="relative group">
+                              <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-surface-100 text-bluewood-500 border border-surface-200 cursor-default">
                                 {typeKey}
                               </span>
                               {MOMENT_TYPE_DESC[typeKey] && (
-                                <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-56 rounded-lg bg-bluewood-900 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-bluewood-900 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
                                   {MOMENT_TYPE_DESC[typeKey]}
                                   <span className="absolute top-full left-3 border-4 border-transparent border-t-bluewood-900" />
                                 </span>
                               )}
                             </span>
                           ))}
-                          <p className="text-sm font-semibold text-bluewood-900 truncate">{m.title}</p>
                         </div>
-                        <StarDescription
-                          description={m.description}
-                          onUpdateMissing={(newDesc) => updateMoment(m.id, 'description', newDesc)}
+                      )}
+                      <input
+                        value={currentM.title}
+                        onChange={e => editingMomentId === currentM.id && updateMoment(currentM.id, 'title', e.target.value)}
+                        readOnly={editingMomentId !== currentM.id}
+                        className={`w-full text-[15px] font-semibold text-bluewood-900 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
+                      />
+                    </div>
+                    {editingMomentId === currentM.id ? (
+                      <button
+                        onClick={() => setEditingMomentId(null)}
+                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                      >
+                        완료
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setEditingMomentId(currentM.id)}
+                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-50 transition-colors"
+                      >
+                        수정
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 본문 */}
+                  <div className="px-5 py-4">
+                    {editingMomentId === currentM.id ? (
+                      <InlineCarlEdit
+                        description={currentM.description}
+                        onChange={(newDesc) => updateMoment(currentM.id, 'description', newDesc)}
+                      />
+                    ) : (
+                      <CarlDescription
+                        description={currentM.description}
+                        onUpdateMissing={(newDesc) => updateMoment(currentM.id, 'description', newDesc)}
+                      />
+                    )}
+                  </div>
+
+                  {/* 키워드 */}
+                  {(currentM.keywords || []).length > 0 && (
+                    <div className="px-5 pb-5 pt-2 border-t border-surface-100">
+                      <p className="text-[11px] text-bluewood-400 font-medium mb-2">역량 키워드</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(currentM.keywords || []).map((kw, ki) => (
+                          <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11.5px] rounded-md border border-surface-200">
+                            {kw}
+                            {editingMomentId === currentM.id && (
+                              <button
+                                onClick={() => updateMoment(currentM.id, 'keywords', (currentM.keywords || []).filter((_, j) => j !== ki))}
+                                className="text-bluewood-300 hover:text-red-400 transition-colors ml-0.5 text-[10px]"
+                              >&times;</button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                      {editingMomentId === currentM.id && (
+                        <InlineKeywordInput
+                          onAdd={(kw) => updateMoment(currentM.id, 'keywords', [...(currentM.keywords || []), kw])}
                         />
-                        {m.keywords?.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {m.keywords.map((kw, ki) => (
-                              <span key={ki} className="px-2 py-0.5 bg-surface-100 text-bluewood-500 text-xs rounded-md">
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-shrink-0 flex flex-col gap-1.5 ml-2">
-                        <button
-                          onClick={() => setEditingMomentId(m.id)}
-                          className="px-3 py-1.5 text-xs border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-50 transition-colors"
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() => deleteMoment(m.id)}
-                          className="px-3 py-1.5 text-xs border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-colors"
-                        >
-                          삭제
-                        </button>
-                      </div>
+                      )}
                     </div>
                   )}
+
+                  {/* 하단 네비게이션 */}
+                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-surface-100 bg-surface-50/50">
+                    <button
+                      onClick={() => handleDeleteAndMove(currentM.id)}
+                      className="text-xs text-red-400 hover:text-red-600 hover:underline transition-colors"
+                    >
+                      이 경험 제외
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setCurrentMomentIdx(i => Math.max(0, i - 1)); setEditingMomentId(null); }}
+                        disabled={safeIdx === 0}
+                        className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft size={13} /> 이전
+                      </button>
+                      {safeIdx < moments.length - 1 ? (
+                        <button
+                          onClick={() => { setCurrentMomentIdx(i => i + 1); setEditingMomentId(null); }}
+                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                        >
+                          다음 <ChevronRight size={13} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => document.getElementById('final-submit-btn')?.scrollIntoView({ behavior: 'smooth' })}
+                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                        >
+                          검토 완료
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ))}
+
+                </>
+              )}
             </div>
+
+            {/* ── 심화 Q&A 패널 (3번째 컬럼) ── */}
+            {currentM && deepQuestions.length > 0 && (
+              <div className="w-[268px] flex-shrink-0 sticky top-6">
+                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">
+                    <span className="text-[12.5px] font-semibold text-bluewood-800">내용 심화하기</span>
+                    <span className="text-[10.5px] text-bluewood-500 bg-surface-100 border border-surface-200 px-1.5 py-0.5 rounded font-medium">
+                      {deepQuestions.filter(dq => !deepQAnswers[`${currentM.id}-${dq.id}`]).length}개 질문
+                    </span>
+                  </div>
+                  <div className="px-4 pb-4 space-y-5">
+                    {deepQuestions.map((dq, qi) => {
+                      const ansKey = `${currentM.id}-${dq.id}`;
+                      const isAnswered = !!deepQAnswers[ansKey];
+                      const draft = deepQDraft[ansKey] || '';
+
+                      return (
+                        <div key={dq.id} className="pt-4">
+                          <div className="mb-2">
+                            <p className="text-[11px] font-semibold text-bluewood-400 mb-0.5">{qi + 1}. {dq.label}</p>
+                            <p className="text-[12.5px] font-semibold text-bluewood-800 leading-snug">{dq.q}</p>
+                            {dq.hint && <p className="text-[10.5px] text-bluewood-400 mt-0.5 leading-relaxed">{dq.hint}</p>}
+                          </div>
+
+                          {isAnswered ? (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border border-surface-200 rounded-lg">
+                              <span className="text-[11.5px] text-bluewood-600 flex-1">{deepQAnswers[ansKey]}</span>
+                              <button
+                                onClick={() => setDeepQAnswers(prev => { const n = { ...prev }; delete n[ansKey]; return n; })}
+                                className="text-[10px] text-bluewood-400 hover:text-red-400 transition-colors flex-shrink-0"
+                              >수정</button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-1.5">
+                                {dq.chips.map((chip, ci) => (
+                                  <button
+                                    key={ci}
+                                    type="button"
+                                    onClick={() => setDeepQDraft(prev => ({ ...prev, [ansKey]: chip }))}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${
+                                      draft === chip
+                                        ? 'bg-bluewood-900 border-bluewood-900 text-white font-medium'
+                                        : 'bg-white border-surface-200 text-bluewood-500 hover:bg-surface-50'
+                                    }`}
+                                  >{chip}</button>
+                                ))}
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  value={draft}
+                                  onChange={e => setDeepQDraft(prev => ({ ...prev, [ansKey]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) handleApplyDeepQ(currentM.id, dq.id, draft); }}
+                                  placeholder="직접 입력 또는 위에서 선택 후 추가"
+                                  className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-[11.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-bluewood-200 focus:border-bluewood-300 placeholder-bluewood-300"
+                                />
+                                <button
+                                  onClick={() => handleApplyDeepQ(currentM.id, dq.id, draft)}
+                                  disabled={!draft.trim()}
+                                  className="px-3.5 py-2 text-[11.5px] font-semibold bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                >추가</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 요약 바 */}
+        <div className="flex items-center gap-5 px-4 py-3 bg-surface-50 border border-surface-200 rounded-lg mb-4 text-xs text-bluewood-500">
+          <span><span className="font-semibold text-bluewood-800">{moments.length}</span>개 경험</span>
+          <span className="text-surface-300">|</span>
+          <span><span className="font-semibold text-bluewood-800">{totalKeywords}</span>개 역량 키워드</span>
+          {missingCount > 0 && (
+            <>
+              <span className="text-surface-300">|</span>
+              <span className="text-amber-600">{missingCount}개 성과 보완 가능</span>
+            </>
           )}
+          <span className="ml-auto text-bluewood-300">최종 분석은 최대 5분 소요됩니다</span>
         </div>
 
-        <div className="flex items-start gap-2.5 p-3.5 bg-blue-50 border border-blue-100 rounded-xl mb-2">
-          <div className="flex-shrink-0 w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold mt-0.5">!</div>
-          <p className="text-xs text-blue-600 leading-relaxed">최종 AI 분석은 자료량에 따라 최대 5분 소요될 수 있어요 — 시작 후 페이지를 벗어나지 마세요.</p>
-        </div>
+        {/* 하단 버튼 */}
         <div className="flex gap-3 pb-8">
           <button
             onClick={() => setStep(2)}
-            className="flex items-center justify-center gap-2 px-6 py-4 bg-white border border-surface-200 text-bluewood-600 rounded-2xl text-sm font-semibold hover:bg-surface-50 transition-all"
+            className="flex items-center justify-center gap-1.5 px-5 py-3 border border-surface-200 text-bluewood-600 text-sm font-medium rounded-lg hover:bg-surface-50 transition-colors"
           >
-            <ChevronLeft size={16} />
-            이전
+            <ChevronLeft size={14} /> 이전
           </button>
           <button
+            id="final-submit-btn"
             onClick={handleFinalSubmit}
             disabled={moments.length === 0}
-            className="flex-1 flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-base font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200/50"
+            className="flex-1 flex items-center justify-center py-3 bg-bluewood-900 text-white text-sm font-semibold rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            선택한 {moments.length}개 경험으로 정리 시작
+            {moments.length}개 경험으로 포트폴리오 정리 시작
           </button>
         </div>
       </div>

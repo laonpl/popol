@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-const STAR_LABELS = {
-  situation: '🎯 상황 (Situation)',
-  task: '📋 과제 (Task)',
-  action: '⚡ 행동 (Action)',
-  result: '📊 결과 (Result)',
+const CARL_LABELS = {
+  context:  '배경 (Context)',
+  action:   '행동 (Action)',
+  result:   '결과 (Result)',
+  learning: '배운 점 (Learning)',
 };
 
 // [key]\nvalue 형식의 텍스트를 파싱 (영문/한글 레이블 모두 지원)
@@ -59,7 +59,7 @@ export default function DetailModal({ type, data, onClose }) {
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
                 <span className="px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-semibold">
-                  {data.framework || 'STAR'}
+                  {data.framework || 'CARL'}
                 </span>
                 {data.keywords?.length > 0 && (
                   <div className="flex gap-1">
@@ -73,8 +73,7 @@ export default function DetailModal({ type, data, onClose }) {
               {data.content && Object.entries(data.content).map(([key, val]) => (
                 <div key={key} className="rounded-xl border border-surface-200 p-4">
                   <p className="text-sm font-bold text-gray-700 mb-2">
-                    {STAR_LABELS[key] || key}
-                  </p>
+                  {CARL_LABELS[key] || key}                  </p>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{val || '(내용 없음)'}</p>
                 </div>
               ))}
@@ -130,13 +129,13 @@ export default function DetailModal({ type, data, onClose }) {
                       </div>
                     )}
 
-                    {/* 섹션 내용 - STAR 형식이면 구조화해서 표시 */}
+                    {/* 섹션 내용 - CARL 형식이면 구조화해서 표시 */}
                     {!isExpanded && (
                       parsedStar ? (
                         <div className="space-y-2">
                           {Object.entries(parsedStar).map(([key, val]) => (
                             <div key={key} className="bg-surface-50 rounded-lg p-3">
-                              <p className="text-xs font-bold text-violet-700 mb-1">{STAR_LABELS[key] || key}</p>
+                              <p className="text-xs font-bold text-violet-700 mb-1">{CARL_LABELS[key] || key}</p>
                               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{val}</p>
                             </div>
                           ))}
@@ -154,7 +153,7 @@ export default function DetailModal({ type, data, onClose }) {
                         <p className="text-xs font-bold text-primary-600 mb-2">📎 연결된 경험: {linkedExp.title}</p>
                         {linkedExp.content && Object.entries(linkedExp.content).map(([key, val]) => (
                           <div key={key} className="bg-surface-50 rounded-lg p-3">
-                            <p className="text-xs font-bold text-violet-700 mb-1">{STAR_LABELS[key] || key}</p>
+                            <p className="text-xs font-bold text-violet-700 mb-1">{CARL_LABELS[key] || key}</p>
                             <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{val || '(내용 없음)'}</p>
                           </div>
                         ))}

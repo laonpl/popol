@@ -565,7 +565,7 @@ ${rawText}`,
   "title": "포트폴리오/프로젝트 제목",
   "sections": [
     {"type": "intro", "title": "프로젝트 소개", "content": "1-2줄 핵심 요약"},
-    {"type": "experience", "title": "핵심 경험", "content": "STAR 기반 정리된 내용", "role": "역할", "contribution": 50},
+    {"type": "experience", "title": "핵심 경험", "content": "CARL 기반 정리된 내용", "role": "역할", "contribution": 50},
     {"type": "tech", "title": "기술 스택", "content": "사용 기술 나열"},
     {"type": "result", "title": "성과", "content": "수치 포함 성과 요약"}
   ],
@@ -582,7 +582,7 @@ ${rawText}`,
 사용자가 업로드한 원본 데이터에서 자기소개서에 활용할 수 있는 핵심 경험, 역량, 성과를 추출하고, 자소서 문항별로 활용 가능한 형태로 재구성하십시오.
 
 [작업 지시사항]
-1. 핵심 경험을 STAR 기법으로 요약하여 추출하십시오.
+1. 핵심 경험을 CARL 프레임워크(배경-행동-결과-배운점)로 요약하여 추출하십시오.
 2. 각 경험에서 드러나는 역량 키워드를 도출하십시오.
 3. 어떤 자소서 문항에 활용 가능한지 추천하십시오.
 
@@ -593,7 +593,7 @@ ${rawText}`,
   "extractedExperiences": [
     {
       "title": "경험 제목",
-      "description": "STAR 기반 경험 요약 (상황-과제-행동-결과 순서로 3-4문장)",
+      "description": "CARL 기반 경험 요약 (배경-행동-결과-배운점 순서로 3-4문장)",
       "keywords": ["역량키워드1", "역량키워드2"]
     }
   ],

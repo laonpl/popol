@@ -11,7 +11,7 @@ export function buildCoverLetterDraftPrompt(question, experienceText, targetComp
 문항: ${question}
 활용 경험: ${experienceText ? experienceText.substring(0, 2000) : '없음'}
 
-작성 기준: STAR 구조, 구체적 수치 포함, 500자 내외, 자연스러운 한국어.
+작성 기준: CARL 구조(배경-행동-결과-배운점), 구체적 수치 포함, 500자 내외, 자연스러운 한국어.
 답변만 작성 (추가 설명 없이):`;
 }
 
@@ -82,7 +82,7 @@ export function buildSingleCoverLetterAnswerPrompt(question, maxLength, expText,
 활용 경험:
 ${(expText || '등록된 경험 없음').substring(0, 2000)}
 
-작성 기준: 인재상 맞춤, 글자수 준수, 구체적 수치·사례 포함, STAR 구조, 자연스러운 한국어.
+작성 기준: 인재상 맞춤, 글자수 준수, 구체적 수치·사례 포함, CARL 구조(배경-행동-결과-배운점), 자연스러운 한국어.
 
 반드시 아래 JSON으로만 응답:
 { "question": "${question.replace(/"/g, '\\"').substring(0, 100)}", "answer": "작성된 답변", "wordCount": 0, "highlightedValues": [] }`;
