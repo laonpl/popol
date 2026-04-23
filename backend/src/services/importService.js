@@ -2,7 +2,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Lazy init — .env 키 변경 후 재시작 시 반영 보장
+let _genAIClient = null;
+function getGenAI() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+  if (!_genAIClient) _genAIClient = new GoogleGenerativeAI(key);
+  return _genAIClient;
+}
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -22,7 +29,7 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
   try {
     let lastError;
     for (const modelName of MODEL_FALLBACKS) {
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = getGenAI().getGenerativeModel({ model: modelName });
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
           const result = await model.generateContent(parts);
@@ -257,50 +264,99 @@ export async function importFromNotion(notionUrl) {
   };
 }
 
+const GH_HEADERS = { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'POPOL-App' };
+
 /**
- * GitHub 리포지토리의 README 또는 특정 파일 내용 가져오기
+ * GitHub URL 타입에 따라 자동 분기 (프로필/Gist/리포지토리)
  */
 export async function importFromGitHub(githubUrl) {
   const parsed = parseGitHubUrl(githubUrl);
-  if (!parsed) {
-    throw new Error('유효하지 않은 GitHub URL입니다');
-  }
+  if (!parsed) throw new Error('유효하지 않은 GitHub URL입니다');
 
-  const { owner, repo, path } = parsed;
+  if (parsed.type === 'profile') return importFromGitHubProfile(parsed.owner, githubUrl);
+  if (parsed.type === 'gist') return importFromGist(parsed.owner, parsed.gistId, githubUrl);
+  return importFromGitHubRepo(parsed.owner, parsed.repo, parsed.path, githubUrl);
+}
 
-  // README.md 또는 특정 파일 가져오기
+async function importFromGitHubProfile(username, originalUrl) {
+  // 사용자 정보
+  const userRes = await fetch(`https://api.github.com/users/${username}`, { headers: GH_HEADERS });
+  if (!userRes.ok) throw new Error(`GitHub 사용자를 찾을 수 없습니다: ${username}`);
+  const user = await userRes.json();
+
+  // 최근 업데이트된 레포 최대 10개
+  const reposRes = await fetch(
+    `https://api.github.com/users/${username}/repos?sort=updated&per_page=10&type=owner`,
+    { headers: GH_HEADERS }
+  );
+  const repos = reposRes.ok ? await reposRes.json() : [];
+
+  const repoLines = repos
+    .filter(r => !r.fork && r.description)
+    .map(r => `- **${r.name}** (${r.language || '?'} · ⭐${r.stargazers_count}): ${r.description}${r.topics?.length ? ` [${r.topics.slice(0, 5).join(', ')}]` : ''}`)
+    .join('\n');
+
+  const content = [
+    `# ${user.name || username} (@${username})`,
+    user.bio ? `> ${user.bio}` : '',
+    user.company ? `회사: ${user.company}` : '',
+    user.location ? `위치: ${user.location}` : '',
+    user.blog ? `블로그: ${user.blog}` : '',
+    `팔로워: ${user.followers} · 공개 레포: ${user.public_repos}`,
+    '',
+    '## 주요 리포지토리',
+    repoLines || '(없음)',
+  ].filter(l => l !== null && l !== undefined).join('\n').trim();
+
+  return {
+    source: 'github',
+    url: originalUrl,
+    title: `${user.name || username} GitHub 프로필`,
+    content,
+    rawText: content,
+    metadata: { followers: user.followers, publicRepos: user.public_repos },
+    importedAt: new Date().toISOString(),
+  };
+}
+
+async function importFromGist(owner, gistId, originalUrl) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: GH_HEADERS });
+  if (!res.ok) throw new Error('GitHub Gist를 찾을 수 없습니다');
+  const gist = await res.json();
+
+  const files = Object.values(gist.files || {});
+  const content = files
+    .map(f => `## ${f.filename}\n${f.content || ''}`)
+    .join('\n\n')
+    .substring(0, 10000);
+
+  return {
+    source: 'github',
+    url: originalUrl,
+    title: gist.description || files[0]?.filename || 'GitHub Gist',
+    content,
+    rawText: content,
+    importedAt: new Date().toISOString(),
+  };
+}
+
+async function importFromGitHubRepo(owner, repo, path, originalUrl) {
   const filePath = path || 'README.md';
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
 
-  const response = await fetch(apiUrl, {
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      'User-Agent': 'POPOL-App',
-    },
-  });
+  const response = await fetch(apiUrl, { headers: GH_HEADERS });
 
   if (!response.ok) {
-    // README가 없으면 레포 정보라도 가져오기
-    const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'POPOL-App' },
-    });
-
-    if (!repoResponse.ok) {
-      throw new Error('GitHub 리포지토리를 찾을 수 없습니다');
-    }
-
+    const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: GH_HEADERS });
+    if (!repoResponse.ok) throw new Error('GitHub 리포지토리를 찾을 수 없습니다');
     const repoData = await repoResponse.json();
     return {
       source: 'github',
-      url: githubUrl,
+      url: originalUrl,
       title: repoData.name || 'GitHub 프로젝트',
       content: formatRepoInfo(repoData),
       rawText: repoData.description || '',
-      metadata: {
-        stars: repoData.stargazers_count,
-        language: repoData.language,
-        topics: repoData.topics || [],
-      },
+      metadata: { stars: repoData.stargazers_count, language: repoData.language, topics: repoData.topics || [] },
       importedAt: new Date().toISOString(),
     };
   }
@@ -308,26 +364,18 @@ export async function importFromGitHub(githubUrl) {
   const fileData = await response.json();
   const content = Buffer.from(fileData.content, 'base64').toString('utf8');
 
-  // 레포 상세정보도 함께 가져오기
   let repoMeta = {};
   try {
-    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'POPOL-App' },
-    });
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: GH_HEADERS });
     if (repoRes.ok) {
-      const repoData = await repoRes.json();
-      repoMeta = {
-        stars: repoData.stargazers_count,
-        language: repoData.language,
-        topics: repoData.topics || [],
-        description: repoData.description,
-      };
+      const d = await repoRes.json();
+      repoMeta = { stars: d.stargazers_count, language: d.language, topics: d.topics || [], description: d.description };
     }
   } catch { /* ignore */ }
 
   return {
     source: 'github',
-    url: githubUrl,
+    url: originalUrl,
     title: repo,
     content,
     rawText: content,
@@ -399,8 +447,26 @@ export async function importFromFile(buffer, mimeType, fileName) {
       console.warn('Tesseract OCR 실패, Gemini Vision으로 대체합니다:', e.message);
       extractedText = await extractWithGeminiVision(buffer, mimeType);
     }
+  } else if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    fileName?.toLowerCase().endsWith('.docx')
+  ) {
+    // DOCX → mammoth으로 텍스트 추출
+    try {
+      const { extractRawText } = await import('mammoth');
+      const result = await extractRawText({ buffer });
+      extractedText = result.value || '';
+      if (!extractedText.trim()) throw new Error('빈 문서');
+    } catch (e) {
+      console.warn('mammoth DOCX 파싱 실패, Gemini Vision 시도:', e.message);
+      try {
+        extractedText = await extractWithGeminiVision(buffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      } catch (e2) {
+        throw new Error('Word 문서에서 텍스트를 추출할 수 없습니다.');
+      }
+    }
   } else {
-    // HWP 등 기타 → Gemini Vision 시도 (PDF로 MIME 변환 시도)
+    // HWP 등 기타 → Gemini Vision 시도
     try {
       extractedText = await extractWithGeminiVision(buffer, 'application/octet-stream');
     } catch (e) {
@@ -499,7 +565,7 @@ ${rawText}`,
   "title": "포트폴리오/프로젝트 제목",
   "sections": [
     {"type": "intro", "title": "프로젝트 소개", "content": "1-2줄 핵심 요약"},
-    {"type": "experience", "title": "핵심 경험", "content": "STAR 기반 정리된 내용", "role": "역할", "contribution": 50},
+    {"type": "experience", "title": "핵심 경험", "content": "CARL 기반 정리된 내용", "role": "역할", "contribution": 50},
     {"type": "tech", "title": "기술 스택", "content": "사용 기술 나열"},
     {"type": "result", "title": "성과", "content": "수치 포함 성과 요약"}
   ],
@@ -516,7 +582,7 @@ ${rawText}`,
 사용자가 업로드한 원본 데이터에서 자기소개서에 활용할 수 있는 핵심 경험, 역량, 성과를 추출하고, 자소서 문항별로 활용 가능한 형태로 재구성하십시오.
 
 [작업 지시사항]
-1. 핵심 경험을 STAR 기법으로 요약하여 추출하십시오.
+1. 핵심 경험을 CARL 프레임워크(배경-행동-결과-배운점)로 요약하여 추출하십시오.
 2. 각 경험에서 드러나는 역량 키워드를 도출하십시오.
 3. 어떤 자소서 문항에 활용 가능한지 추천하십시오.
 
@@ -527,7 +593,7 @@ ${rawText}`,
   "extractedExperiences": [
     {
       "title": "경험 제목",
-      "description": "STAR 기반 경험 요약 (상황-과제-행동-결과 순서로 3-4문장)",
+      "description": "CARL 기반 경험 요약 (배경-행동-결과-배운점 순서로 3-4문장)",
       "keywords": ["역량키워드1", "역량키워드2"]
     }
   ],
@@ -693,10 +759,21 @@ function extractTextFromProperties(properties) {
 }
 
 function parseGitHubUrl(url) {
-  // https://github.com/owner/repo 또는 https://github.com/owner/repo/blob/main/file.md
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)(?:\/(?:blob|tree)\/[^/]+\/(.+))?/);
-  if (!match) return null;
-  return { owner: match[1], repo: match[2], path: match[3] || '' };
+  // Gist: gist.github.com/user/id
+  const gistMatch = url.match(/gist\.github\.com\/([^/?\s]+)\/([^/?\s#]+)/);
+  if (gistMatch) return { type: 'gist', owner: gistMatch[1], gistId: gistMatch[2] };
+
+  // Profile: github.com/username (단일 경로 세그먼트)
+  const profileMatch = url.match(/github\.com\/([^/?\s#]+)\/?(?:[?#]|$)/);
+  const SPECIAL = ['login', 'organizations', 'features', 'pricing', 'marketplace', 'explore', 'topics', 'collections'];
+  if (profileMatch && !SPECIAL.includes(profileMatch[1])) {
+    return { type: 'profile', owner: profileMatch[1] };
+  }
+
+  // Repo (blob/tree/issues/pull 등 포함)
+  const repoMatch = url.match(/github\.com\/([^/]+)\/([^/?#\s]+)(?:\/(?:blob|tree)\/[^/]+\/(.+))?/);
+  if (!repoMatch) return null;
+  return { type: 'repo', owner: repoMatch[1], repo: repoMatch[2], path: repoMatch[3] || '' };
 }
 
 function formatRepoInfo(repo) {
@@ -709,4 +786,247 @@ ${repo.description || '(설명 없음)'}
 - **Topics**: ${(repo.topics || []).join(', ') || '없음'}
 - **URL**: ${repo.html_url}
 `;
+}
+
+// ─────────────────────────────────────────────────────────
+// 블로그 임포트
+// ─────────────────────────────────────────────────────────
+
+/**
+ * 블로그 URL에서 게시글 내용 추출
+ * 지원: Velog, Tistory, 네이버블로그, Medium, Brunch, dev.to, 일반 블로그
+ */
+export async function importFromBlog(blogUrl) {
+  const platform = detectBlogPlatform(blogUrl);
+  let title = '블로그 포스트';
+  let content = '';
+
+  // 네이버 블로그는 iframe 구조라 바로 Puppeteer
+  if (platform !== 'naver') {
+    try {
+      const r = await fetchBlogHttp(blogUrl, platform);
+      if (r.title) title = r.title;
+      if (r.content && r.content.length > 100) content = r.content;
+    } catch (e) {
+      console.warn(`[Blog] HTTP 스크래핑 실패 (${platform}): ${e.message}`);
+    }
+  }
+
+  // HTTP 실패 or 내용 부족 → Puppeteer
+  if (!content || content.length < 100) {
+    try {
+      const r = await scrapeBlogPuppeteer(blogUrl, platform);
+      if (r.title) title = r.title;
+      if (r.content && r.content.length > content.length) content = r.content;
+    } catch (e) {
+      console.warn(`[Blog] Puppeteer 실패: ${e.message}`);
+    }
+  }
+
+  return {
+    source: 'blog',
+    platform,
+    url: blogUrl,
+    title,
+    content: content.trim(),
+    rawText: content.trim(),
+    needsManualInput: content.trim().length < 50,
+    importedAt: new Date().toISOString(),
+  };
+}
+
+function detectBlogPlatform(url) {
+  if (/velog\.io/i.test(url)) return 'velog';
+  if (/tistory\.com/i.test(url)) return 'tistory';
+  if (/blog\.naver\.com/i.test(url)) return 'naver';
+  if (/medium\.com/i.test(url)) return 'medium';
+  if (/brunch\.co\.kr/i.test(url)) return 'brunch';
+  if (/dev\.to/i.test(url)) return 'devto';
+  if (/github\.io/i.test(url)) return 'github-pages';
+  if (/wordpress\.com/i.test(url)) return 'wordpress';
+  if (/hashnode\.(dev|com)/i.test(url)) return 'hashnode';
+  return 'general';
+}
+
+const BLOG_FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+};
+
+async function fetchBlogHttp(blogUrl, platform) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(blogUrl, { headers: BLOG_FETCH_HEADERS, signal: controller.signal, redirect: 'follow' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+
+    // 타이틀
+    let title = '';
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (titleMatch) {
+      title = titleMatch[1]
+        .replace(/\s*[|–\-]\s*(Velog|Tistory|Medium|Brunch|NAVER|Dev\.to|Hashnode|브런치).*/i, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").trim();
+    }
+
+    let content = '';
+
+    if (platform === 'velog') {
+      // Next.js SSR: __NEXT_DATA__에 포스트 본문 포함
+      const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (nd) {
+        try {
+          const data = JSON.parse(nd[1]);
+          const post = data?.props?.pageProps?.post;
+          if (post?.body) { content = post.body; if (post.title) title = post.title; }
+        } catch { /* ignore */ }
+      }
+      if (!content) content = extractBlockText(html);
+    } else if (platform === 'tistory') {
+      content = extractSectionText(html, ['#article-content', '#body', '.article-content', '.entry-content', '.post-content', 'article']);
+    } else if (platform === 'medium') {
+      content = extractSectionText(html, ['article', 'section[data-testid="story-title"]', '.postArticle-content', 'main']);
+    } else if (platform === 'brunch') {
+      content = extractSectionText(html, ['.wrap_body_frame', '.article_view', 'article', 'main']);
+    } else if (platform === 'devto') {
+      content = extractSectionText(html, ['#article-body', 'article', 'main']);
+    } else if (platform === 'hashnode') {
+      const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (nd) {
+        try {
+          const data = JSON.parse(nd[1]);
+          const postContent = data?.props?.pageProps?.post?.content?.markdown || data?.props?.pageProps?.post?.content;
+          if (postContent) { content = typeof postContent === 'string' ? postContent : JSON.stringify(postContent); }
+        } catch { /* ignore */ }
+      }
+      if (!content) content = extractSectionText(html, ['article', 'main', '.prose']);
+    } else {
+      // wordpress, github-pages, general
+      content = extractSectionText(html, [
+        'article', 'main', '.post-content', '.entry-content',
+        '.content', '#content', '.blog-post', '.post-body',
+        '#main', '.main-content',
+      ]);
+    }
+
+    if (!content) content = extractBlockText(html);
+
+    return { title, content: content.trim() };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// id/class/태그 선택자로 HTML 영역 추출 (regex 기반)
+function extractSectionText(html, selectors) {
+  // 노이즈 제거
+  const clean = html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header\b[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer\b[\s\S]*?<\/footer>/gi, '')
+    .replace(/<aside\b[\s\S]*?<\/aside>/gi, '');
+
+  for (const sel of selectors) {
+    let match;
+    if (sel.startsWith('#')) {
+      const id = sel.slice(1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      match = clean.match(new RegExp(`<[^>]+\\bid="${id}"[^>]*>([\\s\\S]{80,}?)(?=<\\/(?:div|section|article|main)>|$)`, 'i'));
+    } else if (sel.startsWith('.')) {
+      const cls = sel.slice(1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      match = clean.match(new RegExp(`<[^>]+\\bclass="[^"]*\\b${cls}\\b[^"]*"[^>]*>([\\s\\S]{80,}?)(?=<\\/(?:div|section|article|main)>|$)`, 'i'));
+    } else if (sel.includes('[')) {
+      // 속성 선택자는 건너뜀 (복잡)
+      continue;
+    } else {
+      match = clean.match(new RegExp(`<${sel}\\b[^>]*>([\\s\S]{80,}?)<\\/${sel}>`, 'i'));
+    }
+    if (match?.[1]) {
+      const text = cleanHtmlText(match[1]);
+      if (text.length > 80) return text;
+    }
+  }
+  return '';
+}
+
+// 전체 HTML에서 p/h1-6/li 등 블록 요소 텍스트 추출
+function extractBlockText(html) {
+  const clean = html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header\b[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer\b[\s\S]*?<\/footer>/gi, '');
+
+  const parts = [];
+  const re = /<(h[1-6]|p|li|blockquote|pre|td|dt|dd)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = re.exec(clean)) !== null) {
+    const t = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    if (t.length > 10 && !t.startsWith('{') && !/^[\d\s.,!?:;()\[\]{}*#@]+$/.test(t)) {
+      parts.push(t);
+    }
+  }
+  const seen = new Set();
+  return parts.filter(t => { if (seen.has(t)) return false; seen.add(t); return true; })
+    .join('\n').substring(0, 8000);
+}
+
+function cleanHtmlText(html) {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\s{3,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+    .substring(0, 8000);
+}
+
+async function scrapeBlogPuppeteer(blogUrl, platform) {
+  const { default: puppeteer } = await import('puppeteer');
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(BLOG_FETCH_HEADERS['User-Agent']);
+    await page.goto(blogUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+
+    // 네이버 블로그: iframe 내부 URL로 재이동
+    if (platform === 'naver') {
+      const iframeSrc = await page.evaluate(() => {
+        const f = document.querySelector('iframe#mainFrame');
+        return f ? f.src : null;
+      });
+      if (iframeSrc) {
+        await page.goto(iframeSrc, { waitUntil: 'networkidle2', timeout: 20000 });
+      }
+    }
+
+    const result = await page.evaluate((plat) => {
+      const selMap = {
+        naver: ['.se-main-container', '.se_doc_viewer', '.post-content', '#content'],
+        tistory: ['#article-content', '.article-content', '.entry-content', 'article'],
+        medium: ['article', 'main'],
+        brunch: ['.wrap_body_frame', '.article_view', 'article'],
+        general: ['article', 'main', '.post-content', '.entry-content', '#content'],
+      };
+      const sels = selMap[plat] || selMap.general;
+      const title = document.title.replace(/\s*[|–\-].*$/, '').trim();
+      for (const s of sels) {
+        const el = document.querySelector(s);
+        if (el && (el.innerText || '').length > 100) return { title, content: el.innerText.substring(0, 8000) };
+      }
+      return { title, content: document.body.innerText.substring(0, 5000) };
+    }, platform);
+
+    return result;
+  } finally {
+    await browser.close();
+  }
 }

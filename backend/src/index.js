@@ -90,9 +90,10 @@ app.get('/api/health', (req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || '?�버 ?�류가 발생?�습?�다',
+  const status = err.status || err.statusCode || 500;
+  console.error(`[Server Error] ${status} ${req.method} ${req.path}:`, err.message || err);
+  res.status(status).json({
+    error: err.message || '서버 오류가 발생했습니다.',
   });
 });
 

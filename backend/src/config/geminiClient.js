@@ -1,14 +1,26 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Lazy 초기화 — .env 변경 후 서버 재시작 시 새 키 반영 보장
+let genAIClient = null;
+function getGenAI() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+  if (!genAIClient) {
+    genAIClient = new GoogleGenerativeAI(key);
+    console.log('[Gemini] API 클라이언트 초기화 완료');
+  }
+  return genAIClient;
+}
 
 let openaiClient = null;
 function getOpenAIClient() {
-  if (!openaiClient && process.env.GITHUB_MODELS_TOKEN) {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token) return null;
+  if (!openaiClient) {
     openaiClient = new OpenAI({
-      baseURL: process.env.GITHUB_MODELS_ENDPOINT || "https://models.inference.ai.azure.com",
-      apiKey: process.env.GITHUB_MODELS_TOKEN
+      baseURL: process.env.GITHUB_MODELS_ENDPOINT || 'https://models.inference.ai.azure.com',
+      apiKey: token,
     });
   }
   return openaiClient;
@@ -17,17 +29,24 @@ function getOpenAIClient() {
 export async function callGitHubModelsFallback(prompt) {
   const client = getOpenAIClient();
   if (!client) throw new Error("GitHub Models Token not configured");
-  
-  console.log('[Fallback] Using GitHub Models (gpt-4o-mini)...');
+
+  // gpt-4o-mini 한도 8000 tokens 총량(입출력 합산).
+  // 한국어는 1~2자/token → 안전하게 6000자(≈4000토큰) 제한, 출력 예산 1500토큰 확보.
+  const MAX_CHARS = 6000;
+  const safePrompt = prompt.length > MAX_CHARS
+    ? prompt.slice(0, MAX_CHARS) + '\n\n[내용 일부 생략. 위 정보만으로 JSON 응답하세요]'
+    : prompt;
+
+  console.log(`[Fallback] Using GitHub Models (gpt-4o-mini)... prompt=${safePrompt.length}자`);
   const response = await client.chat.completions.create({
     messages: [
-      { role: "system", content: "You are a helpful assistant." },
-      { role: "user", content: prompt }
+      { role: "system", content: "You are a helpful assistant. Always respond in valid JSON." },
+      { role: "user", content: safePrompt }
     ],
     model: "gpt-4o-mini",
     temperature: 0.7,
   });
-  
+
   return response.choices[0].message.content;
 }
 
@@ -213,8 +232,11 @@ export async function generateWithRetry(prompt, options = {}) {
 
   try {
     let lastError;
+    let skipAllGemini = false; // 월 한도 초과 시 모든 Gemini 즉시 포기 플래그
 
     for (const modelName of models) {
+      if (skipAllGemini) break;
+
       // Pro 우선 모드에서는 회로차단기 무시 (Pro 강제 시도)
       if (!preferPro && isModelTemporarilyBlocked(modelName)) {
         console.warn(`[Gemini] ${modelName} 일시 차단 상태 → 다음 모델로 이동`);
@@ -222,11 +244,9 @@ export async function generateWithRetry(prompt, options = {}) {
         continue;
       }
 
-      const model = genAI.getGenerativeModel({ model: modelName });
-      let attemptCount = 0;
+      const model = getGenAI().getGenerativeModel({ model: modelName });
 
       for (let attempt = 0; attempt < retries; attempt++) {
-        attemptCount = attempt + 1;
         try {
           const result = await callModelWithTimeout(model, prompt);
           recordModelSuccess(modelName);
@@ -242,11 +262,25 @@ export async function generateWithRetry(prompt, options = {}) {
             throw err;
           }
 
+          if (status === 403) {
+            // 키 유출 신고 / 영구 차단: 모든 Gemini 즉시 포기
+            console.warn(`[Gemini] 403 Forbidden (키 차단/유출) → 모든 Gemini 건너뜀, GitHub Models로 전환`);
+            skipAllGemini = true;
+            break;
+          }
+
           if (status === 404) {
             break;
           }
 
           if (status === 429) {
+            // 월 한도 초과: 재시도해도 소용없음 → 즉시 GitHub Models로
+            if (msg.includes('spending cap') || msg.includes('monthly spending') || msg.includes('spend cap')) {
+              console.warn('[Gemini] 월 한도 초과 감지 → 모든 Gemini 건너뜀, GitHub Models로 전환');
+              skipAllGemini = true;
+              break;
+            }
+            // 일반 RPM/TPM 쿼터 초과: 지수 백오프 재시도
             if (attempt < retries - 1) {
               const wait = Math.min(rateLimitDelayMs * Math.pow(2, attempt), 60000);
               console.warn(`[Gemini] 429 쿼터 초과 - ${wait}ms 대기 후 재시도 (${modelName})`);
@@ -302,7 +336,7 @@ export async function generateWithRetry(prompt, options = {}) {
         }
       }
 
-      if (modelName !== models[models.length - 1]) {
+      if (!skipAllGemini && modelName !== models[models.length - 1]) {
         await sleep(1000);
       }
     }

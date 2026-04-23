@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
-import { analyzeJob } from '../services/jobAI';
-import { stripMd } from '../utils/textUtils';
+import api from '../services/api';
 
 const JOB_SITES = [
   { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
@@ -12,6 +11,10 @@ const JOB_SITES = [
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
   return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+}
+
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -133,9 +136,9 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await analyzeJob({
-        url: mode === 'url' ? url : undefined,
-        text: mode === 'text' ? text : undefined,
+      const { data } = await api.post('/job/analyze', {
+        url: mode === 'url' ? url.trim() : undefined,
+        text: mode === 'text' ? text.trim() : undefined,
       });
       onAnalysisComplete(data.analysis);
     } catch (err) {
@@ -319,6 +322,9 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
       <div className="bg-white border border-gray-200 rounded-t-2xl px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 text-left">
+            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
+              <Building2 size={20} className="text-gray-600" />
+            </div>
             <div>
               <p className="text-sm font-bold text-gray-800 tracking-wide">
                 {analysis.company || '기업'} ({analysis.position || '직무'})
@@ -389,39 +395,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
 
             {activeTab === 'company' && (
               <>
-                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
-                <div className="grid grid-cols-2 gap-3">
-                  {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
-                  {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
-                </div>
-                {ca.businessAreas?.length > 0 && (
-                  <AnalysisCard title="사업 영역">
-                    <div className="flex flex-wrap gap-1.5">{ca.businessAreas.map((a, i) => <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>)}</div>
-                  </AnalysisCard>
-                )}
-                {(ca.strengths?.length > 0 || ca.weaknesses?.length > 0) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {ca.strengths?.length > 0 && (
-                      <AnalysisCard title="강점 (S)">
-                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
-                      </AnalysisCard>
-                    )}
-                    {ca.weaknesses?.length > 0 && (
-                      <AnalysisCard title="약점/리스크 (W)">
-                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
-                      </AnalysisCard>
-                    )}
-                  </div>
-                )}
-                {ca.competitors?.length > 0 && (
-                  <AnalysisCard title="경쟁사 비교">
-                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
-                  </AnalysisCard>
-                )}
-                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
-                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
-
-                {/* 포트폴리오 요건 */}
+                {/* 포트폴리오 요건 — 맨 위 */}
                 <AnalysisCard title="기업 포트폴리오 요건">
                   {(() => {
                     const pr = portfolioReq;
@@ -477,6 +451,37 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                     );
                   })()}
                 </AnalysisCard>
+                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
+                <div className="grid grid-cols-2 gap-3">
+                  {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
+                  {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
+                </div>
+                {ca.businessAreas?.length > 0 && (
+                  <AnalysisCard title="사업 영역">
+                    <div className="flex flex-wrap gap-1.5">{ca.businessAreas.map((a, i) => <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>)}</div>
+                  </AnalysisCard>
+                )}
+                {(ca.strengths?.length > 0 || ca.weaknesses?.length > 0) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {ca.strengths?.length > 0 && (
+                      <AnalysisCard title="강점 (S)">
+                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
+                      </AnalysisCard>
+                    )}
+                    {ca.weaknesses?.length > 0 && (
+                      <AnalysisCard title="약점/리스크 (W)">
+                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
+                      </AnalysisCard>
+                    )}
+                  </div>
+                )}
+                {ca.competitors?.length > 0 && (
+                  <AnalysisCard title="경쟁사 비교">
+                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
+                  </AnalysisCard>
+                )}
+                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
+                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
               </>
             )}
 
@@ -507,7 +512,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                     </div>
                   </AnalysisCard>
                 )}
-                {pa.teamStructure && <AnalysisCard title="예상 팀 구조"><p className="text-gray-700">{stripMd(pa.teamStructure)}</p></AnalysisCard>}
                 {pa.challengeLevel && (
                   <AnalysisCard title="직무 난이도">
                     <div className="flex items-center gap-3">
@@ -596,20 +600,55 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
             {activeTab === 'trends' && (
               <>
                 {trends.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {trends.map((t, i) => {
                       const trend = typeof t === 'string' ? t : t.trend;
                       const desc = typeof t === 'string' ? '' : t.description;
                       const impact = typeof t === 'string' ? '' : t.impact;
+                      const keywords = typeof t === 'string' ? [] : (t.keywords || []);
+                      const level = typeof t === 'string' ? '' : t.level;
+                      const opportunity = typeof t === 'string' ? '' : t.opportunity;
+                      const threat = typeof t === 'string' ? '' : t.threat;
+                      const levelConfig = {
+                        hot: { label: '🔥 HOT', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', headerBg: 'from-red-50 to-orange-50' },
+                        growing: { label: '📈 GROWING', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', headerBg: 'from-emerald-50 to-teal-50' },
+                        stable: { label: '⚖️ STABLE', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-gray-50 to-slate-50' },
+                      };
+                      const lc = levelConfig[level] || { label: '', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-indigo-50 to-purple-50' };
                       return (
-                        <div key={i} className="p-3 bg-white rounded-xl border border-gray-100">
-                          <div className="flex items-start gap-3">
-                            <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0">{i + 1}</span>
-                            <div>
-                              <p className="font-medium text-gray-800">{trend}</p>
-                              {desc && <p className="text-gray-600 mt-1 leading-relaxed">{stripMd(desc)}</p>}
-                              {impact && <p className="text-[10px] text-blue-500 mt-1">직무 영향: {stripMd(impact)}</p>}
-                            </div>
+                        <div key={i} className={`rounded-xl border ${lc.border} overflow-hidden shadow-sm`}>
+                          <div className={`flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r ${lc.headerBg} border-b ${lc.border}`}>
+                            <span className="w-6 h-6 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0">{i + 1}</span>
+                            <p className="font-bold text-gray-800 flex-1 text-[12px] leading-snug">{trend}</p>
+                            {level && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${lc.bg} ${lc.text} border ${lc.border} whitespace-nowrap`}>{lc.label}</span>}
+                          </div>
+                          <div className="p-3 space-y-2 bg-white">
+                            {desc && <p className="text-[11px] text-gray-600 leading-relaxed">{stripMd(desc)}</p>}
+                            {keywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {keywords.map((kw, ki) => (
+                                  <span key={ki} className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded font-medium border border-indigo-100">#{kw}</span>
+                                ))}
+                              </div>
+                            )}
+                            {impact && (
+                              <div className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-blue-600 text-[10px] whitespace-nowrap">📌 직무 영향</span>
+                                <span className="text-[10px] text-blue-700 leading-relaxed">{stripMd(impact)}</span>
+                              </div>
+                            )}
+                            {opportunity && (
+                              <div className="flex items-start gap-1.5 bg-green-50 border border-green-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-green-700 text-[10px] whitespace-nowrap">✓ 기회</span>
+                                <span className="text-[10px] text-green-800 leading-relaxed">{stripMd(opportunity)}</span>
+                              </div>
+                            )}
+                            {threat && (
+                              <div className="flex items-start gap-1.5 bg-orange-50 border border-orange-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-orange-600 text-[10px] whitespace-nowrap">△ 주의</span>
+                                <span className="text-[10px] text-orange-800 leading-relaxed">{stripMd(threat)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

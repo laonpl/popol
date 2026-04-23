@@ -6,7 +6,7 @@
 
 export const THEMES = {
   developer: {
-    label: 'Tech-Driven (개발자형)',
+    label: 'Tech-Driven 디자인형',
     bg: '#0d1117', coverBg: '#161b22', accent: '#58a6ff',
     text: '#e6edf3', sub: '#8b949e', div: '#30363d',
     card: '#1c2128', step: '#21262d', tag: '#21262d',
@@ -14,7 +14,7 @@ export const THEMES = {
     dark: true, mono: true,
   },
   data_dashboard: {
-    label: 'Data-Dashboard (PO/마케터)',
+    label: 'Data-Dashboard 디자인형',
     bg: '#04090f', coverBg: '#020609', accent: '#00d4aa',
     text: '#c8e8e0', sub: '#508070', div: '#0a2828',
     card: '#061818', step: '#082020', tag: '#0a1c1c',
@@ -22,7 +22,7 @@ export const THEMES = {
     dark: true, mono: true,
   },
   designer: {
-    label: 'Process-Canvas (디자이너)',
+    label: 'Process-Canvas 디자인형',
     bg: '#faf9ff', coverBg: '#ede9fe', accent: '#7c3aed',
     text: '#1f1235', sub: '#6b7280', div: '#ddd6fe',
     card: '#f5f3ff', step: '#ede9fe', tag: '#ede9fe',
@@ -30,7 +30,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   marketer_dark: {
-    label: 'Storyteller (브랜드마케터)',
+    label: 'Storyteller 디자인형',
     bg: '#606060', coverBg: '#4a4a4a', accent: '#d4f200',
     text: '#ffffff', sub: 'rgba(255,255,255,0.58)', div: 'rgba(255,255,255,0.18)',
     card: 'rgba(0,0,0,0.18)', step: 'rgba(255,255,255,0.06)', tag: 'rgba(212,242,0,0.14)',
@@ -38,7 +38,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   problem_solver: {
-    label: 'Problem-Solver (컨설턴트)',
+    label: 'Problem-Solver 디자인형',
     bg: '#0f1e3a', coverBg: '#091527', accent: '#ff6b35',
     text: '#e8f0ff', sub: '#8aa0c0', div: '#1e344f',
     card: '#0d1c35', step: '#132244', tag: '#172840',
@@ -46,7 +46,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   minimalist: {
-    label: 'Minimalist (미니멀)',
+    label: 'Minimalist 디자인형',
     bg: '#ffffff', coverBg: '#f6f6f6', accent: '#111111',
     text: '#111111', sub: '#888888', div: '#e0e0e0',
     card: '#f8f8f8', step: '#f2f2f2', tag: '#eeeeee',
@@ -54,7 +54,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   marketer_light: {
-    label: 'Marketer / PM (라이트)',
+    label: 'Marketer / PM 디자인형',
     bg: '#f0f2f7', coverBg: '#e8ecf4', accent: '#2d3d9b',
     text: '#1a1a2e', sub: '#555577', div: '#d0d8f0',
     card: '#ffffff', step: '#eef0fb', tag: '#dde3f8',
@@ -62,7 +62,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   t_shaped: {
-    label: 'T-Shaped (다능자형)',
+    label: 'T-Shaped 디자인형',
     bg: '#fffbf2', coverBg: '#fff7e6', accent: '#d97706',
     text: '#1c0f00', sub: '#7a6040', div: '#e8d0a0',
     card: '#fff9ed', step: '#fef3d0', tag: '#fde68a',
@@ -70,7 +70,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   rookie: {
-    label: 'Rookie (신입/대학생)',
+    label: 'Rookie 디자인형',
     bg: '#f0f9ff', coverBg: '#e0f2fe', accent: '#0ea5e9',
     text: '#0c2a3a', sub: '#4a7a96', div: '#bae6fd',
     card: '#e8f6ff', step: '#ddf3ff', tag: '#cceeff',
@@ -78,7 +78,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   star_classic: {
-    label: 'STAR Framework (전략형)',
+    label: 'STAR Framework 디자인형',
     bg: '#fafafa', coverBg: '#f0f0f0', accent: '#2563eb',
     text: '#1a1a2e', sub: '#555577', div: '#d0d8e8',
     card: '#f4f6fa', step: '#eef1f8', tag: '#e8ecf8',
@@ -86,7 +86,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   neon_cyber: {
-    label: 'Neon Cyber (사이버)',
+    label: 'Neon Cyber 디자인형',
     bg: '#05001a', coverBg: '#0a0030', accent: '#b700ff',
     text: '#f0e6ff', sub: '#7040a0', div: '#2a0060',
     card: '#0e0028', step: '#16004a', tag: '#1c0056',
@@ -94,7 +94,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   forest: {
-    label: 'Forest (자연/지속가능)',
+    label: 'Forest 디자인형',
     bg: '#f0f7f0', coverBg: '#e0f0e0', accent: '#2d6a2d',
     text: '#0d2b0d', sub: '#4a7040', div: '#b8d8b8',
     card: '#e8f4e8', step: '#ddf0dd', tag: '#cceccc',
@@ -102,7 +102,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   aurora: {
-    label: 'Aurora (오로라/창의)',
+    label: 'Aurora 디자인형',
     bg: '#0a0820', coverBg: '#06050f', accent: '#00ffcc',
     text: '#d8fff8', sub: '#508880', div: '#0e2030',
     card: '#0c1828', step: '#101e2a', tag: '#0e2030',
@@ -110,7 +110,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   sunset: {
-    label: 'Sunset (감성/크리에이터)',
+    label: 'Sunset 디자인형',
     bg: '#fff8f4', coverBg: '#fff0e8', accent: '#e05a20',
     text: '#2a0a00', sub: '#906040', div: '#f0c8a8',
     card: '#fff4ee', step: '#ffeada', tag: '#ffd8c0',
@@ -118,7 +118,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   navy_gold: {
-    label: 'Navy & Gold (클래식)',
+    label: 'Navy & Gold 디자인형',
     bg: '#0a1628', coverBg: '#060e1c', accent: '#d4a820',
     text: '#f0e8c8', sub: '#806840', div: '#1e2e48',
     card: '#0e1e38', step: '#142240', tag: '#182644',
@@ -126,7 +126,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   coral_white: {
-    label: 'Coral (발랄/콘텐츠)',
+    label: 'Coral 디자인형',
     bg: '#fff9f9', coverBg: '#fff0f0', accent: '#ff4f6a',
     text: '#1a0808', sub: '#906060', div: '#f8cccc',
     card: '#fff4f4', step: '#ffeeee', tag: '#ffe0e0',
@@ -134,7 +134,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   slate_clean: {
-    label: 'Slate Clean (심플다크)',
+    label: 'Slate Clean 디자인형',
     bg: '#1e2230', coverBg: '#161924', accent: '#94a3b8',
     text: '#e2e8f0', sub: '#64748b', div: '#2e3548',
     card: '#252a3a', step: '#2a3040', tag: '#2e3550',
@@ -142,7 +142,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   cherry_blossom: {
-    label: 'Cherry Blossom (봄/감성)',
+    label: 'Cherry Blossom 디자인형',
     bg: '#fff5f8', coverBg: '#ffe8f0', accent: '#d63384',
     text: '#1a0010', sub: '#906070', div: '#f8c0d8',
     card: '#fff0f5', step: '#ffe8f2', tag: '#ffd8ec',
@@ -150,7 +150,7 @@ export const THEMES = {
     dark: false, mono: false,
   },
   charcoal_mint: {
-    label: 'Charcoal & Mint (모던)',
+    label: 'Charcoal & Mint 디자인형',
     bg: '#181c20', coverBg: '#10141a', accent: '#00c896',
     text: '#e0f0e8', sub: '#508868', div: '#1e2830',
     card: '#1c2228', step: '#202830', tag: '#243040',
@@ -158,7 +158,7 @@ export const THEMES = {
     dark: true, mono: false,
   },
   pastel_portfolio: {
-    label: 'Pastel (일러스트/아트)',
+    label: 'Pastel 디자인형',
     bg: '#fdfaff', coverBg: '#f4eeff', accent: '#a855f7',
     text: '#1e0a2e', sub: '#7a5a90', div: '#e8d8f8',
     card: '#f8f0ff', step: '#f0e4ff', tag: '#e8d4ff',

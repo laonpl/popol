@@ -26,13 +26,14 @@ export default function ImportModal({ targetType, onClose, onImport }) {
     const ext = name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return { label: 'PDF', color: 'bg-red-500' };
     if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return { label: 'IMG', color: 'bg-primary-500' };
+    if (['docx', 'doc'].includes(ext)) return { label: 'DOC', color: 'bg-blue-700' };
     return { label: 'HWP', color: 'bg-green-700' };
   };
 
   const addFiles = useCallback((newFiles) => {
     const valid = Array.from(newFiles).filter(f => {
-      if (!/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx)$/i.test(f.name)) {
-        toast.error(`${f.name}: PDF, 이미지(JPG/PNG), HWP 파일만 업로드할 수 있습니다`);
+      if (!/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx|docx|doc)$/i.test(f.name)) {
+        toast.error(`${f.name}: PDF, Word(DOCX), 이미지(JPG/PNG), HWP 파일만 업로드할 수 있습니다`);
         return false;
       }
       if (f.size > 25 * 1024 * 1024) {
@@ -75,7 +76,8 @@ export default function ImportModal({ targetType, onClose, onImport }) {
         if (targetType) formData.append('targetType', targetType);
         data = await importFileUpload(formData);
       } else {
-        const source = urlType === 'github' ? 'github' : 'notion';
+        const sourceMap = { notion: 'notion', github: 'github', blog: 'blog' };
+        const source = sourceMap[urlType] || 'notion';
         data = await importFromUrl(source, url, targetType);
       }
 
@@ -248,7 +250,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                   파일을 선택하거나 드래그해서 올려주세요.
                 </p>
                 <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                  PDF, JPG/PNG, HWP 형식 · 최대 25MB
+                  PDF, Word(DOCX), HWP, 이미지(JPG/PNG) · 최대 25MB
                 </p>
                 <button
                   type="button"
@@ -262,7 +264,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.hwp,.hwpx"
+                accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx"
                 onChange={handleFileInput}
                 multiple
                 className="hidden"
@@ -318,16 +320,17 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                   <div className="group relative">
                     <Info size={13} className="text-gray-400 cursor-help" />
                     <div className="absolute left-5 -top-1 w-52 bg-gray-800 text-white text-[11px] rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
-                      Notion 페이지나 GitHub README를 AI로 자동 분석합니다
+                      Notion, GitHub(프로필/레포/Gist), 블로그 URL을 AI로 자동 분석합니다
                     </div>
                   </div>
                 </div>
 
                 {/* URL Type Tabs */}
-                <div className="flex gap-2 mb-2.5">
+                <div className="flex gap-2 mb-2.5 flex-wrap">
                   {[
                     { key: 'notion', label: 'Notion' },
                     { key: 'github', label: 'GitHub' },
+                    { key: 'blog', label: '블로그' },
                   ].map(({ key, label }) => (
                     <button
                       key={key}
@@ -350,16 +353,21 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                     value={url}
                     onChange={e => setUrl(e.target.value)}
                     placeholder={
-                      urlType === 'notion'
-                        ? 'Notion 페이지 URL 붙여넣기'
-                        : 'GitHub 리포지토리 URL 붙여넣기'
+                      urlType === 'notion' ? 'Notion 페이지 URL 붙여넣기' :
+                      urlType === 'github' ? 'github.com/username 또는 github.com/owner/repo' :
+                      'Velog, Tistory, 네이버블로그, Medium, Brunch URL'
                     }
                     className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-400 transition-all placeholder:text-gray-400"
                   />
                 </div>
                 {urlType === 'github' && (
                   <p className="text-[11px] text-gray-400 mt-1.5">
-                    리포지토리의 README.md를 자동으로 가져옵니다.
+                    프로필(github.com/username), 리포지토리, Gist 모두 지원합니다.
+                  </p>
+                )}
+                {urlType === 'blog' && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    Velog · Tistory · 네이버블로그 · Medium · Brunch · dev.to 지원
                   </p>
                 )}
               </div>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
@@ -67,7 +67,7 @@ export default function NotionPortfolioPreview() {
           </button>
           <button onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
-            <FileText size={14} /> PDF 내보내기
+            <FileText size={14} /> PPT 내보내기
           </button>
           <button onClick={() => setShowExportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl text-sm font-medium hover:from-gray-900 hover:to-black">
@@ -153,7 +153,7 @@ export default function NotionPortfolioPreview() {
           <div className="p-6 border-r border-surface-100 bg-[#fafaf8]">
             <div className="text-xs font-bold text-gray-400 tracking-wider mb-4 border-l-2 border-primary-600 pl-2">PROFILE</div>
             {p.profileImageUrl && (
-              <img src={p.profileImageUrl} alt="profile" className="w-full aspect-square object-cover rounded-xl mb-4" />
+              <img src={p.profileImageUrl} alt="profile" className="w-full aspect-square object-contain bg-surface-50 rounded-xl mb-4" />
             )}
             {!p.profileImageUrl && (
               <div className="w-full aspect-square bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-xl mb-4 flex items-center justify-center">
@@ -836,7 +836,7 @@ function AcademicLayout({ p, setSelectedExp }) {
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
         <div className="relative px-10 pt-12 pb-10 flex items-end gap-6">
           {p.profileImageUrl ? (
-            <img src={p.profileImageUrl} alt="profile" className="w-28 h-28 rounded-2xl object-cover border-4 border-white/20 shadow-lg" />
+            <img src={p.profileImageUrl} alt="profile" className="w-28 h-28 rounded-2xl object-contain bg-surface-50 border-4 border-white/20 shadow-lg" />
           ) : (
             <div className="w-28 h-28 rounded-2xl bg-white/10 border-4 border-white/20 flex items-center justify-center text-5xl">👤</div>
           )}
@@ -1154,7 +1154,7 @@ function AshleyLayout({ p, setSelectedExp }) {
               </div>
             </div>
             {p.profileImageUrl ? (
-              <img src={p.profileImageUrl} alt="profile" className="w-24 h-24 rounded-2xl object-cover shadow-md" />
+              <img src={p.profileImageUrl} alt="profile" className="w-24 h-24 rounded-2xl object-contain bg-surface-50 shadow-md" />
             ) : (
               <div className="w-24 h-24 rounded-2xl bg-[#e8e4dc] flex items-center justify-center text-4xl shadow-md">👤</div>
             )}
@@ -1596,7 +1596,7 @@ function TimelineLayout({ p, setSelectedExp }) {
       <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] rounded-t-2xl px-8 pt-8 pb-6">
         <div className="flex items-center gap-4 mb-6">
           {p.profileImageUrl ? (
-            <img src={p.profileImageUrl} alt="" className="w-16 h-16 rounded-full object-cover ring-4 ring-white/20" />
+            <img src={p.profileImageUrl} alt="" className="w-16 h-16 rounded-full object-contain bg-surface-50 ring-4 ring-white/20" />
           ) : (
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl ring-4 ring-white/20">👤</div>
           )}

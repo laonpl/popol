@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 const FORMATS = [
   { key: 'Notion', label: 'Notion 페이지', icon: Globe, desc: 'Notion에 복사하여 붙여넣기', color: 'bg-gray-900 text-white' },
-  { key: 'PDF', label: 'PDF 파일', icon: FileText, desc: '고퀄리티 기업 제출용 PDF', color: 'bg-red-500 text-white' },
+  { key: 'PPT', label: 'PPT 파일', icon: FileText, desc: '고퀄리티 기업 제출용 PPT', color: 'bg-red-500 text-white' },
 ];
 
 function markdownToHtml(md) {
@@ -120,9 +120,9 @@ export default function ExportModal({ type, data, onClose }) {
   const handleExport = async () => {
     if (!format) return;
 
-    // 템플릿 포트폴리오의 PDF 내보내기 → 전용 PDF 페이지로 이동
+    // 템플릿 포트폴리오의 PPT 내보내기 → 전용 PPT 페이지로 이동
     const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
-    if (isTemplate && format === 'PDF' && data.id) {
+    if (isTemplate && format === 'PPT' && data.id) {
       onClose();
       window.location.href = `/app/portfolio/pdf/${data.id}`;
       return;
@@ -135,7 +135,7 @@ export default function ExportModal({ type, data, onClose }) {
       if (isTemplate && format === 'Notion') {
         endpoint = '/export/notion-portfolio';
       } else {
-        const formatMap = { 'PDF': 'pdf', 'Notion': 'notion', 'GitHub': 'github' };
+        const formatMap = { 'PPT': 'ppt', 'Notion': 'notion', 'GitHub': 'github' };
         endpoint = `/export/${formatMap[format]}`;
       }
       const res = await api.post(endpoint, { data: exportData }, { timeout: 60000 });
@@ -238,7 +238,7 @@ ${htmlContent}
                 <div className="p-4 bg-surface-50 rounded-xl">
                   <p className="text-xs text-gray-500">
                     {format === 'Notion' && '💡 Notion에 최적화된 Markdown으로 변환합니다. 복사 후 Notion에 붙여넣기하세요.'}
-                    {format === 'PDF' && '💡 원티드 합격 포트폴리오 기반의 고퀄리티 A4 PDF를 생성합니다. 직무별 최적화 레이아웃을 지원합니다.'}
+                    {format === 'PPT' && '💡 원티드 합격 포트폴리오 기반의 고퀄리티 PPT를 생성합니다. 직무별 최적화 레이아웃을 지원합니다.'}
                   </p>
                 </div>
               )}
@@ -278,12 +278,12 @@ ${htmlContent}
                     </button>
                   </>
                 )}
-                {format === 'PDF' && (
+                {format === 'PPT' && (
                   <button
                     onClick={handleDownloadPDF}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors"
                   >
-                    <Download size={16} /> PDF 다운로드
+                    <Download size={16} /> PPT 다운로드
                   </button>
                 )}
               </div>

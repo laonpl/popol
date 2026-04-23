@@ -240,11 +240,11 @@ function generateNotionFallback(data) {
   const content = data.content || {};
   let md = `# 📌 ${title}\n\n---\n\n`;
 
-  if (content.situation) {
-    md += `## 🎯 상황 (Situation)\n> ${content.situation}\n\n`;
-    md += `## 📋 과제 (Task)\n> ${content.task || '내용 없음'}\n\n`;
-    md += `## ⚡ 행동 (Action)\n> ${content.action || '내용 없음'}\n\n`;
-    md += `## 📊 결과 (Result)\n> ${content.result || '내용 없음'}\n\n`;
+  if (content.context || content.situation) {
+    md += `## 배경 (Context)\n> ${content.context || content.situation}\n\n`;
+    md += `## 행동 (Action)\n> ${content.action || '내용 없음'}\n\n`;
+    md += `## 결과 (Result)\n> ${content.result || '내용 없음'}\n\n`;
+    if (content.learning) md += `## 배운 점 (Learning)\n> ${content.learning}\n\n`;
   }
 
   for (const section of sections) {
@@ -276,11 +276,11 @@ function generateGitHubFallback(data) {
   md += `## 📌 프로젝트 소개\n`;
   if (data.summary) md += `${data.summary}\n\n`;
 
-  if (content.situation) {
-    md += `## 🔍 배경\n${content.situation}\n\n`;
-    md += `## 🎯 목표\n${content.task || ''}\n\n`;
-    md += `## ⚡ 주요 기능\n${content.action || ''}\n\n`;
-    md += `## 📊 성과\n${content.result || ''}\n\n`;
+  if (content.context || content.situation) {
+    md += `## 배경\n${content.context || content.situation}\n\n`;
+    md += `## 행동\n${content.action || ''}\n\n`;
+    md += `## 성과\n${content.result || ''}\n\n`;
+    if (content.learning) md += `## 배운 점\n${content.learning}\n\n`;
   }
 
   if (data.sections) {
@@ -304,11 +304,12 @@ function generatePDFFallback(data) {
   if (data.metadata?.role) text += `역할: ${data.metadata.role}\n`;
   text += '\n';
 
-  if (content.situation) {
-    text += `[상황] ${content.situation}\n`;
-    text += `[과제] ${content.task || ''}\n`;
+  if (content.context || content.situation) {
+    text += `[배경] ${content.context || content.situation}\n`;
     text += `[행동] ${content.action || ''}\n`;
-    text += `[성과] ${content.result || ''}\n\n`;
+    text += `[성과] ${content.result || ''}\n`;
+    if (content.learning) text += `[배운 점] ${content.learning}\n`;
+    text += '\n';
   }
 
   if (data.sections) {

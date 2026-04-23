@@ -4,6 +4,7 @@ import multer from 'multer';
 import {
   importFromNotion,
   importFromGitHub,
+  importFromBlog,
   importFromPDF,
   importFromFile,
   structureImportedContent,
@@ -26,11 +27,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
   fileFilter: (req, file, cb) => {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx)$/i)) {
+    const allowed = [
+      'application/pdf',
+      'image/jpeg', 'image/png', 'image/webp',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx|docx|doc)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('PDF, 이미지, HWP 파일만 업로드할 수 있습니다'));
+      cb(new Error('PDF, Word(DOCX), 이미지, HWP 파일만 업로드할 수 있습니다'));
     }
   },
 });
@@ -83,6 +89,31 @@ router.post('/github', authMiddleware, async (req, res, next) => {
     }
 
     saveImportHistory({ userId: req.user.uid, source: 'github', url, targetType: targetType || null, importedData: imported, structuredData: structured });
+
+    res.json({ imported, structured });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/import/blog - 블로그 URL 임포트 (Velog/Tistory/네이버블로그/Medium/Brunch 등)
+router.post('/blog', authMiddleware, async (req, res, next) => {
+  try {
+    const { url, targetType } = req.body;
+    if (!url) return res.status(400).json({ error: '블로그 URL이 필요합니다' });
+
+    const imported = await importFromBlog(url);
+
+    let structured = null;
+    if (targetType) {
+      try {
+        structured = await structureImportedContent(imported, targetType);
+      } catch (aiError) {
+        console.error('AI 구조화 실패:', aiError);
+      }
+    }
+
+    saveImportHistory({ userId: req.user.uid, source: 'blog', url, targetType: targetType || null, importedData: imported, structuredData: structured });
 
     res.json({ imported, structured });
   } catch (error) {

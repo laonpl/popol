@@ -1,7 +1,7 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2 } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS } from '../../stores/experienceStore';
@@ -30,9 +30,9 @@ function stripMarkdown(text) {
 
 // 하이라이트 색상 매핑 (밑줄 스타일)
 const highlightColors = {
-  core: { underline: '#ef4444', bg: 'bg-red-50', label: '핵심 역량', dot: 'bg-red-400', text: 'text-red-700' },
-  derived: { underline: '#f59e0b', bg: 'bg-amber-50', label: '파생 역량', dot: 'bg-amber-400', text: 'text-amber-700' },
-  growth: { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', dot: 'bg-green-400', text: 'text-green-700' },
+  core:    { underline: '#ef4444', bg: 'bg-red-50',   label: '핵심 역량', desc: '이 경험에서 발휘된 핵심 역량입니다',       dot: 'bg-red-400',   text: 'text-red-700'   },
+  derived: { underline: '#f59e0b', bg: 'bg-amber-50', label: '파생 역량', desc: '핵심 역량에서 파생된 부가적인 역량입니다', dot: 'bg-amber-400', text: 'text-amber-700' },
+  growth:  { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
 };
 
 const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
@@ -56,6 +56,16 @@ const ACCENT_STYLES = {
   amber:     { num: 'bg-amber-500 text-white', border: 'border-amber-200', bg: 'bg-amber-50/40', label: 'text-amber-700', ring: 'focus:ring-amber-200' },
   caribbean: { num: 'bg-caribbean-500 text-white', border: 'border-caribbean-200', bg: 'bg-caribbean-50/40', label: 'text-caribbean-700', ring: 'focus:ring-caribbean-200' },
 };
+
+/* ── 역량 키워드 카테고리 스타일 ── */
+const KW_CATEGORY_STYLES = {
+  tech:       { dot: '#0284c7', bg: 'bg-sky-50',      text: 'text-sky-700',      border: 'border-sky-200',     label: '기술'   },
+  soft:       { dot: '#059669', bg: 'bg-emerald-50',  text: 'text-emerald-700',  border: 'border-emerald-200', label: '소통'   },
+  leadership: { dot: '#7c3aed', bg: 'bg-violet-50',   text: 'text-violet-700',   border: 'border-violet-200',  label: '리더십' },
+  planning:   { dot: '#d97706', bg: 'bg-amber-50',    text: 'text-amber-700',    border: 'border-amber-200',   label: '기획'   },
+  default:    { dot: '#4f46e5', bg: 'bg-primary-50',  text: 'text-primary-700',  border: 'border-primary-100', label: '역량'   },
+};
+const KW_CATEGORY_ORDER = ['tech', 'soft', 'leadership', 'planning', 'default'];
 
 function pickSectionFields(obj) {
   const result = {};
@@ -97,8 +107,19 @@ export default function StructuredResult() {
   const [showHighlights, setShowHighlights] = useState(true);
   const [imageConfig, setImageConfig] = useState({});
   const imageInputRef = useRef(null);
-  // 섹션별 textarea ref — 편집 시작 시 자동 포커스, 인라인 ref 콜백 재생성 방지
   const sectionTextareaRefs = useRef({});
+  // 핵심 경험 슬라이더 ref & 동기화 state
+  const sliderRef = useRef(null);
+  const [sliderEditing, setSliderEditing] = useState(false);
+  const [sliderCurrent, setSliderCurrent] = useState(0);
+  const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
+
+  /* ── 역량 키워드 커스터마이징 ── */
+  const [newKeywordIdx, setNewKeywordIdx] = useState(null);     // 팝인 애니메이션 대상 인덱스
+  const [kwDragIdx, setKwDragIdx] = useState(null);             // 드래그 중인 키워드 인덱스
+  const [kwOverIdx, setKwOverIdx] = useState(null);             // 드롭 대상 인덱스
+  const [keywordCategories, setKeywordCategories] = useState({}); // keyword → 카테고리 key
+  const [flashedSection, setFlashedSection] = useState(null);   // 섹션 완성 피드백
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
@@ -140,10 +161,9 @@ export default function StructuredResult() {
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
       if (!viewOnly) {
+        // 비어있거나 아니거나 모든 섹션을 즐시 편집 모드로
         const autoEdit = {};
-        SECTION_KEYS.forEach(k => {
-          if (!fields[k]?.trim()) autoEdit[k] = true;
-        });
+        SECTION_KEYS.forEach(k => { autoEdit[k] = true; });
         setEditingSections(autoEdit);
       }
       // Load images & jobAnalysis from Firestore (navState doesn't include them)
@@ -195,10 +215,9 @@ export default function StructuredResult() {
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         if (!viewOnly) {
+          // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
           const autoEdit = {};
-          SECTION_KEYS.forEach(k => {
-            if (!fields[k]?.trim()) autoEdit[k] = true;
-          });
+          SECTION_KEYS.forEach(k => { autoEdit[k] = true; });
           setEditingSections(autoEdit);
         }
       }
@@ -209,11 +228,42 @@ export default function StructuredResult() {
   };
 
   const handleFieldChange = (key, value) => {
+    // 빈칸/초안 → 충분한 내용으로 완성될 때 섹션 완성 피드백
+    const currentVal = editedContent[key];
+    const wasEmpty = !currentVal?.trim() || currentVal.trim().startsWith('[작성 필요]');
+    const isNowFilled = !!value.trim() && !value.trim().startsWith('[작성 필요]') && value.trim().length > 15;
     setEditedContent(prev => ({ ...prev, [key]: value }));
+    if (wasEmpty && isNowFilled) {
+      setFlashedSection(key);
+      setTimeout(() => setFlashedSection(null), 1300);
+    }
   };
 
   const toggleEditing = (key) => {
     setEditingSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  /* ── 역량 키워드 드래그-재정렬 ── */
+  const handleKwDragEnd = () => {
+    if (kwDragIdx != null && kwOverIdx != null && kwDragIdx !== kwOverIdx) {
+      setEditedKeywords(prev => {
+        const next = [...prev];
+        const [moved] = next.splice(kwDragIdx, 1);
+        next.splice(kwOverIdx, 0, moved);
+        return next;
+      });
+    }
+    setKwDragIdx(null);
+    setKwOverIdx(null);
+  };
+
+  /* ── 역량 카테고리 사이클 ── */
+  const cycleKwCategory = (k) => {
+    setKeywordCategories(prev => {
+      const cur = prev[k] || 'default';
+      const idx = KW_CATEGORY_ORDER.indexOf(cur);
+      return { ...prev, [k]: KW_CATEGORY_ORDER[(idx + 1) % KW_CATEGORY_ORDER.length] };
+    });
   };
 
   const toggleExpand = (key) => {
@@ -365,8 +415,9 @@ export default function StructuredResult() {
     } catch {}
   };
 
-  // 수동 편집 시 히스토리에 스냅샷 저장 (섹션 편집 모드 진입 전)
+  // 모든 섹션 지정 토글 — 빈칸은 자동 폈치되지 않음
   const handleStartEditing = (key) => {
+    // 편집 시작 전 히스토리 스냅샷 저장
     if (!editingSections[key]) {
       pushEditSnapshot(id, {
         content: { ...editedContent },
@@ -374,20 +425,34 @@ export default function StructuredResult() {
         structuredResult: experience?.structuredResult,
       });
     }
+    // 모든 섹션을 한 번에 편집 모드로 (사용자가 수정 버튼을 누른 의도 매쳩)
     setEditingSections(prev => {
-      const next = { ...prev, [key]: !prev[key] };
-      // 편집 모드 진입 시 다음 틱에 포커스
-      if (!prev[key]) {
-        requestAnimationFrame(() => {
-          const el = sectionTextareaRefs.current[key];
-          if (el) {
-            el.focus();
-            el.setSelectionRange(el.value.length, el.value.length);
-          }
-        });
+      const allOn = {};
+      SECTION_KEYS.forEach(k => { allOn[k] = true; });
+      // 이미 모두 열려있으면 클릭한 � 하나만 토글
+      const allAlreadyOpen = SECTION_KEYS.every(k => prev[k]);
+      if (allAlreadyOpen) {
+        return { ...prev, [key]: false };
       }
-      return next;
+      // 아니면 모두 열기
+      requestAnimationFrame(() => {
+        const el = sectionTextareaRefs.current[key];
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      });
+      return allOn;
     });
+  };
+
+  // 수정하기 시작 시 모든 섹션 오픈
+  const openAllSections = () => {
+    pushEditSnapshot(id, {
+      content: { ...editedContent },
+      title: editedTitle,
+      structuredResult: experience?.structuredResult,
+    });
+    const allOn = {};
+    SECTION_KEYS.forEach(k => { allOn[k] = true; });
+    setEditingSections(allOn);
   };
 
   const handleUndo = () => {
@@ -475,6 +540,21 @@ export default function StructuredResult() {
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
 
+  /* 페이지 전체 품질 체크리스트 */
+  const qualityChecks = [
+    { id: 'title',          label: '프로젝트 제목',     check: () => !!editedTitle.trim() },
+    { id: 'techStack',      label: '기술 스택 입력',    check: () => editedOverview.techStack.length > 0 },
+    { id: 'keywords',       label: '키워드 3개 이상',   check: () => editedKeywords.length >= 3 },
+    { id: 'keyExperiences', label: '핵심 경험 추가',    check: () => editedKeyExperiences.length > 0 },
+    { id: 'role',           label: '내 역할 명시',      check: () => !!editedOverview.role?.trim() },
+    { id: 'duration',       label: '프로젝트 기간',     check: () => !!editedOverview.duration?.trim() },
+    { id: 'metrics',        label: '수치/성과 포함',    check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) },
+    { id: 'images',         label: '이미지 첨부',       check: () => allImages.length > 0 },
+    { id: 'sections',       label: `7개 섹션 완성 (${filledCount}/7)`, check: () => filledCount === 7 },
+  ];
+  const passedChecks = qualityChecks.filter(c => c.check()).length;
+  const qualityPct = Math.round((passedChecks / qualityChecks.length) * 100);
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -512,27 +592,76 @@ export default function StructuredResult() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleUndo}
-              disabled={!canUndo(id)}
-              title="이전으로 되돌리기 (Ctrl+Z)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
+            {/* 텍스트 히스토리 undo/redo */}
+            <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
               <RotateCcw size={14} />
             </button>
-            <button
-              onClick={handleRedo}
-              disabled={!canRedo(id)}
-              title="다시 실행 (Ctrl+Y)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
+            <button onClick={handleRedo} disabled={!canRedo(id)} title="다시 실행 (Ctrl+Y)"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
               <RotateCw size={14} />
             </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card"
-            >
+
+            {/* 구분선 + 핵심경험 슬라이더 컨트롤 */}
+            {editedKeyExperiences.length > 0 && (
+              <>
+                <div className="w-px h-6 bg-surface-200 mx-1" />
+                {/* 인디케이터 */}
+                <div className="flex items-center gap-1">
+                  {editedKeyExperiences.map((_, i) => {
+                    const colors = ['#ef4444', '#2563eb', '#7c3aed'];
+                    return (
+                      <button key={i} onClick={() => sliderRef.current?.goTo(i)} className="p-0.5">
+                        <div className={`h-[6px] rounded-full transition-all duration-300 ${i === sliderCurrent ? 'w-5' : 'w-[6px] hover:w-3'}`}
+                          style={{ backgroundColor: i === sliderCurrent ? colors[i % 3] : '#d1d5db' }} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="text-xs text-bluewood-400 tabular-nums font-medium">{sliderCurrent + 1}/{editedKeyExperiences.length}</span>
+                <button onClick={() => sliderRef.current?.goPrev()}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
+                  <ChevronLeft size={16} className="text-bluewood-500" />
+                </button>
+                <button onClick={() => sliderRef.current?.goNext()}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
+                  <ChevronRight size={16} className="text-bluewood-500" />
+                </button>
+                {/* 삭제된 항목 되돌리기 */}
+                {sliderDeletedCount > 0 && (
+                  <button onClick={() => sliderRef.current?.undoDelete()}
+                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all shadow-sm">
+                    <Undo2 size={12} /> ({sliderDeletedCount})
+                  </button>
+                )}
+                {/* 수정 / 저장·취소·삭제 */}
+                {!sliderEditing ? (
+                  <button onClick={() => sliderRef.current?.startEditing()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-500 border-surface-200 hover:bg-surface-50 transition-all shadow-sm">
+                    <PenLine size={13} /> 수정
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => sliderRef.current?.deleteSlide()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 transition-all">
+                      <Trash2 size={13} /> 삭제
+                    </button>
+                    <button onClick={() => sliderRef.current?.cancelEditing()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-400 border-surface-200 hover:bg-surface-50 transition-all">
+                      <X size={13} /> 취소
+                    </button>
+                    <button onClick={() => sliderRef.current?.saveEditing()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-primary-500 text-white border-primary-500 shadow-sm hover:bg-primary-600 transition-all">
+                      <Check size={13} /> 저장
+                    </button>
+                  </>
+                )}
+                <div className="w-px h-6 bg-surface-200 mx-1" />
+              </>
+            )}
+
+            <button onClick={handleSave} disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
             </button>
@@ -606,7 +735,7 @@ export default function StructuredResult() {
           <div className="mb-4">
             <div className="flex flex-wrap gap-1.5 mb-2">
               {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium group/tech">
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium border border-surface-200 group/tech">
                   {tech}
                   {!viewOnly && (
                     <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
@@ -634,35 +763,91 @@ export default function StructuredResult() {
             )}
           </div>
 
-          {/* 역량 키워드 (편집) */}
+          {/* 역량 키워드 — 카테고리·드래그·팝인 애니메이션 */}
           <div className="mt-auto pt-4 border-t border-surface-100">
+            {/* 카테고리 범례 */}
+            {editedKeywords.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {KW_CATEGORY_ORDER.map(cat => {
+                  const cs = KW_CATEGORY_STYLES[cat];
+                  const count = editedKeywords.filter(k => (keywordCategories[k] || 'default') === cat).length;
+                  if (count === 0) return null;
+                  return (
+                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cs.dot }} />
+                      {cs.label} {count}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {editedKeywords.map((k, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[11px] font-medium border border-primary-100">
-                  {k}
-                  {!viewOnly && (
-                    <button onClick={() => setEditedKeywords(prev => prev.filter((_, j) => j !== i))}
-                      className="text-primary-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
-                  )}
-                </span>
-              ))}
+              {editedKeywords.map((k, i) => {
+                const catKey = keywordCategories[k] || 'default';
+                const cs = KW_CATEGORY_STYLES[catKey];
+                const isNew = i === newKeywordIdx;
+                const isDragging = kwDragIdx === i;
+                const isOver = kwOverIdx === i && kwDragIdx !== i;
+                return (
+                  <span
+                    key={`${k}-${i}`}
+                    draggable={!viewOnly}
+                    onDragStart={() => !viewOnly && setKwDragIdx(i)}
+                    onDragOver={e => { e.preventDefault(); if (!viewOnly) setKwOverIdx(i); }}
+                    onDragEnd={handleKwDragEnd}
+                    onClick={() => !viewOnly && cycleKwCategory(k)}
+                    title={!viewOnly ? `${cs.label} — 클릭: 분류 변경 / 드래그: 순서 변경` : cs.label}
+                    className={[
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all duration-200 select-none',
+                      cs.bg, cs.text, cs.border,
+                      !viewOnly ? 'cursor-grab active:cursor-grabbing' : '',
+                      isNew ? 'animate-pop-in animate-skill-shimmer' : '',
+                      isDragging ? 'opacity-40 scale-95' : '',
+                      isOver ? 'ring-2 ring-offset-1 ring-primary-400 scale-[1.04]' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cs.dot }} />
+                    {k}
+                    {!viewOnly && (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setEditedKeywords(prev => prev.filter((_, j) => j !== i));
+                          setKeywordCategories(prev => { const n = { ...prev }; delete n[k]; return n; });
+                        }}
+                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[10px]"
+                      >×</button>
+                    )}
+                  </span>
+                );
+              })}
             </div>
             {!viewOnly && (
-            <div className="flex gap-1.5">
-              <input
-                value={newKeywordInput}
-                onChange={e => setNewKeywordInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newKeywordInput.trim()) {
-                    e.preventDefault();
-                    setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
-                    setNewKeywordInput('');
-                  }
-                }}
-                className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
-                placeholder="키워드 추가 후 Enter"
-              />
-            </div>
+              <>
+              <div className="flex gap-1.5">
+                <input
+                  value={newKeywordInput}
+                  onChange={e => setNewKeywordInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newKeywordInput.trim()) {
+                      e.preventDefault();
+                      const newIdx = editedKeywords.length;
+                      setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
+                      setNewKeywordIdx(newIdx);
+                      setTimeout(() => setNewKeywordIdx(null), 900);
+                      setNewKeywordInput('');
+                    }
+                  }}
+                  className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
+                  placeholder="스킬 추가 후 Enter"
+                />
+              </div>
+              {editedKeywords.length > 0 && (
+                <p className="text-[9.5px] text-bluewood-300 mt-1.5 leading-relaxed">
+                  클릭해서 분류 변경 · 드래그해서 순서 변경
+                </p>
+              )}
+              </>
             )}
           </div>
         </div>
@@ -670,9 +855,14 @@ export default function StructuredResult() {
         {/* ── 우: 핵심 경험 슬라이더 (편집 가능) ── */}
         <div className="min-w-0">
           <KeyExperienceSlider
+            ref={sliderRef}
             keyExperiences={editedKeyExperiences}
             onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
             viewOnly={viewOnly}
+            hideHeader={!viewOnly}
+            onEditingChange={setSliderEditing}
+            onCurrentChange={setSliderCurrent}
+            onDeletedCountChange={setSliderDeletedCount}
           />
         </div>
       </div>
@@ -681,36 +871,34 @@ export default function StructuredResult() {
          ║  하단 좌: 작성 완성도 + 사진 / 우: 힌트     ║
          ╚══════════════════════════════════════════════╝ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* 작성 완성도 — 체크리스트 */}
+        {/* 작성 완성도 — 페이지 전체 품질 체크리스트 */}
         <div className="bg-white rounded-2xl border border-surface-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[14px] font-extrabold text-bluewood-900">작성 완성도</h3>
-            <span className="text-[12px] font-bold text-caribbean-600">{filledCount}/7</span>
+            <span className="text-[12px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
           </div>
           {/* 프로그레스 바 */}
           <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
             <div
               className="h-full bg-caribbean-400 rounded-full transition-all duration-500"
-              style={{ width: `${completionPct}%` }}
+              style={{ width: `${qualityPct}%` }}
             />
           </div>
-          {/* 체크리스트 */}
+          {/* 품질 체크리스트 */}
           <ul className="space-y-2">
-            {SECTION_KEYS.map(k => {
-              const filled = !!editedContent[k]?.trim();
-              const meta = SECTION_META[k];
+            {qualityChecks.map(item => {
+              const passed = item.check();
               return (
-                <li key={k} className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${filled ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
-                    {filled && (
+                <li key={item.id} className="flex items-center gap-2.5">
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
+                    {passed && (
                       <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                         <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
-                  <span className={`text-[12px] font-medium leading-none ${filled ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
-                    <span className="text-[10px] font-semibold text-bluewood-300 mr-1">{meta.num}</span>
-                    {meta.label}
+                  <span className={`text-[12px] font-medium leading-none ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
+                    {item.label}
                   </span>
                 </li>
               );
@@ -809,7 +997,7 @@ export default function StructuredResult() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
             <h2 className="text-[15px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
-            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
+            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
           </div>
           <div className="flex items-center gap-2">
           </div>
@@ -833,14 +1021,19 @@ export default function StructuredResult() {
             const meta = SECTION_META[key];
             const style = ACCENT_STYLES[meta.accent];
             const value = editedContent[key] || '';
-            const isEmpty = !value.trim() || value.trim().startsWith('[작성 필요]');
+            const isTrulyEmpty = !value.trim();
+            const isDraft = !isTrulyEmpty && value.trim().startsWith('[작성 필요]');
+            const isEmpty = isTrulyEmpty;
             const isEditing = editingSections[key];
             const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
+            const draftText = isDraft ? value.replace(/^\[작성 필요\]\s*/,'').trim() : '';
 
             return (
               <div key={key} className="group">
-                {/* 섹션 헤더 바 */}
-                <div className="flex items-center gap-4 px-6 py-3 bg-surface-50/30">
+                {/* 섹션 헤더 바 — 완성 시 brief glow */}
+                <div className={`flex items-center gap-4 px-6 py-3 transition-colors duration-300 ${
+                  flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50/30'
+                }`}>
                   <span className={`flex-shrink-0 w-7 h-7 rounded-lg ${style.num} flex items-center justify-center text-[11px] font-bold`}>
                     {meta.num}
                   </span>
@@ -851,8 +1044,17 @@ export default function StructuredResult() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {isEmpty ? (
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                    ) : isDraft ? (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
                     ) : (
-                      <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold transition-transform duration-300 ${flashedSection === key ? 'scale-110' : 'scale-100'}`}>
+                        {flashedSection === key && (
+                          <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="animate-pop-in">
+                            <path d="M1 3.5L3.5 6L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                        완료
+                      </span>
                     )}
                     {!isEditing && !isEmpty && !viewOnly && (
                       <button onClick={() => handleStartEditing(key)}
@@ -895,6 +1097,17 @@ export default function StructuredResult() {
                       className={`w-full py-3 border-2 border-dashed ${style.border} rounded-xl text-[13px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
                       <PenLine size={14} /> 빈칸 채우기
                     </button>
+                  ) : isDraft ? (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                      <p className="text-[11px] text-blue-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
+                      <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{draftText}</p>
+                      {!viewOnly && (
+                        <button onClick={() => handleStartEditing(key)}
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                          <PenLine size={11} /> 수정하기
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
                       <HighlightedText
@@ -1204,6 +1417,48 @@ function fuzzyIndexOf(text, needle) {
   return { pos: origPos, len: endOrigPos - origPos };
 }
 
+function SentenceKwSpan({ text, color, keywords }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const spanRef = useRef(null);
+
+  const handleEnter = () => {
+    setVisible(true);
+    if (spanRef.current) {
+      const rect = spanRef.current.getBoundingClientRect();
+      setPos({ left: rect.left + rect.width / 2, top: rect.top - 8 });
+    }
+  };
+
+  return (
+    <span className="relative inline">
+      <span
+        ref={spanRef}
+        className="cursor-help"
+        style={{ borderBottom: `2px solid ${color}`, paddingBottom: '1px' }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setVisible(false)}
+      >{text}</span>
+      {visible && createPortal(
+        <span
+          className="fixed z-[9999] whitespace-normal max-w-[240px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
+          style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
+        >
+          <span className="text-[11px] font-semibold text-gray-100">역량 키워드</span>
+          <span className="text-[10px] text-gray-400 leading-relaxed">이 경험 서술 전체를 AI가 분석해 도출한 역량 키워드예요. 밑줄 친 문장에서 해당 역량이 드러납니다.</span>
+          <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
+            {keywords.map(k => (
+              <span key={k} className="px-1.5 py-0.5 rounded-md text-[10px] leading-tight bg-white/20">{k}</span>
+            ))}
+          </span>
+          <span className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
+        </span>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 function HighlightSpan({ text, type, keywords }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -1231,20 +1486,25 @@ function HighlightSpan({ text, type, keywords }) {
         onMouseEnter={handleEnter}
         onMouseLeave={() => setVisible(false)}
       >{text}</span>
-      {visible && keywords.length > 0 && createPortal(
+      {visible && createPortal(
         <span
-          className="fixed z-[9999] whitespace-normal max-w-xs bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl pointer-events-none flex flex-col gap-1.5"
+          className="fixed z-[9999] whitespace-normal max-w-[260px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
           style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
         >
-          <span className="flex items-center gap-1.5 font-semibold">
+          <span className="flex items-center gap-1.5 font-bold text-[12px]">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
             {color.label}
           </span>
-          <span className="flex flex-wrap gap-1">
-            {keywords.map(k => (
-              <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
-            ))}
-          </span>
+          <span className="text-gray-300 text-[11px] leading-relaxed">{color.desc}</span>
+          {keywords.length > 0 && (
+            <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
+              {keywords.map(k => (
+                <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
+              ))}
+            </span>
+          )}
+          {/* 말풍선 꼬리 */}
+          <span className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
         </span>,
         document.body
       )}
@@ -1260,10 +1520,9 @@ const KEYWORD_COLORS = [
 
 function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline = false }) {
   if (!text) return <p></p>;
-  // 마크다운 볼드 마커 제거 (하이라이트 위치 계산 전에)
   const cleanText = stripMarkdown(text);
 
-  /* 1단계: 구조화 하이라이트 (AI가 표시한 핵심/파생/성장 역량) */
+  /* 1단계: 구조화 하이라이트 위치 계산 */
   const positioned = (highlights || [])
     .map(h => {
       const needle = stripMarkdown(h.text?.trim() ?? '');
@@ -1276,50 +1535,110 @@ function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline
     .filter(Boolean)
     .sort((a, b) => a.pos - b.pos);
 
-  /* 2단계: 역량 키워드 밑줄 (keywords 배열에 있는 단어 매칭) */
-  const kwMap = new Map(); // keyword → color
-  if (showKeywordUnderline && keywords.length > 0) {
-    keywords.forEach((kw, i) => {
-      kwMap.set(kw.toLowerCase(), KEYWORD_COLORS[i % KEYWORD_COLORS.length]);
-    });
+  /* 2단계: 하이라이트 구절 → 문장 단위로 확장 */
+  const expandToSentence = (pos, len) => {
+    let start = pos;
+    while (start > 0 && !/[.!?\n]/.test(cleanText[start - 1])) start--;
+    while (start < pos && /\s/.test(cleanText[start])) start++;
+    let end = pos + len;
+    while (end < cleanText.length && !/[.!?\n]/.test(cleanText[end])) end++;
+    if (end < cleanText.length) end++;
+    return { start, end };
+  };
+
+  // 문장 범위로 확장 후 겹치는 범위 병합
+  const typePriority = { core: 0, derived: 1, growth: 2 };
+  const sentenceRanges = positioned.map(h => ({ ...h, ...expandToSentence(h.pos, h.len) }));
+  const merged = [];
+  for (const r of sentenceRanges) {
+    if (merged.length > 0 && r.start <= merged[merged.length - 1].end) {
+      const last = merged[merged.length - 1];
+      last.end = Math.max(last.end, r.end);
+      last.keywords = [...new Set([...last.keywords, ...(r.keywords || [])])];
+      if ((typePriority[r.type] ?? 99) < (typePriority[last.type] ?? 99)) last.type = r.type;
+    } else {
+      merged.push({ ...r, keywords: [...(r.keywords || [])] });
+    }
   }
 
-  // 구조화 하이라이트 파트 분할
+  // parts 구성 (문장 단위 하이라이트 적용)
   let parts = [];
-  if (positioned.length > 0) {
+  if (merged.length > 0) {
     let lastIndex = 0;
-    for (const h of positioned) {
-      if (h.pos < lastIndex) continue;
-      if (h.pos > lastIndex) parts.push({ text: cleanText.slice(lastIndex, h.pos), type: null, keywords: [] });
-      parts.push({ text: cleanText.slice(h.pos, h.pos + h.len), type: h.type || 'core', keywords: h.keywords || [] });
-      lastIndex = h.pos + h.len;
+    for (const r of merged) {
+      if (r.start < lastIndex) continue;
+      if (r.start > lastIndex) parts.push({ text: cleanText.slice(lastIndex, r.start), type: null, keywords: [] });
+      parts.push({ text: cleanText.slice(r.start, r.end), type: r.type || 'core', keywords: r.keywords });
+      lastIndex = r.end;
     }
     if (lastIndex < cleanText.length) parts.push({ text: cleanText.slice(lastIndex), type: null, keywords: [] });
   } else {
     parts = [{ text: cleanText, type: null, keywords: [] }];
   }
 
-  /* 키워드 밑줄 적용 함수: 텍스트 안에서 키워드를 찾아 밑줄 span 생성 */
+  /* 3단계: 역량 키워드 밑줄 */
+  const kwMap = new Map();
+  if (showKeywordUnderline && keywords.length > 0) {
+    keywords.forEach((kw, i) => {
+      kwMap.set(kw.toLowerCase(), KEYWORD_COLORS[i % KEYWORD_COLORS.length]);
+    });
+  }
+
+  /* 키워드 밑줄 적용 함수: 문장 단위로 확장 후 밑줄 + 말풍선 */
   const applyKeywordUnderlines = (str) => {
     if (kwMap.size === 0) return str;
-    // Build regex from keywords (sorted longest first to avoid partial matches)
-    const sortedKws = [...kwMap.keys()].sort((a, b) => b.length - a.length);
-    const escaped = sortedKws.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
-    const segments = str.split(regex);
-    if (segments.length <= 1) return str;
-    return segments.map((seg, i) => {
-      const color = kwMap.get(seg.toLowerCase());
-      if (color) {
-        return (
-          <span key={i}
-            className="font-semibold"
-            style={{ borderBottom: `2px solid ${color}`, paddingBottom: '0.5px' }}
-          >{seg}</span>
-        );
+
+    // 키워드 위치 수집
+    const matches = [];
+    for (const [kw, color] of kwMap) {
+      const lower = str.toLowerCase();
+      let idx = 0;
+      while (true) {
+        const found = lower.indexOf(kw, idx);
+        if (found === -1) break;
+        matches.push({ pos: found, len: kw.length, kw, color });
+        idx = found + 1;
       }
-      return seg;
-    });
+    }
+    if (matches.length === 0) return str;
+    matches.sort((a, b) => a.pos - b.pos);
+
+    // 문장 단위로 확장
+    const expandSent = (pos, len) => {
+      let start = pos;
+      while (start > 0 && !/[.!?\n]/.test(str[start - 1])) start--;
+      while (start < pos && /\s/.test(str[start])) start++;
+      let end = pos + len;
+      while (end < str.length && !/[.!?\n]/.test(str[end])) end++;
+      if (end < str.length) end++;
+      return { start, end };
+    };
+
+    // 겹치는 문장 범위 병합
+    const sentRanges = matches.map(m => ({ ...m, ...expandSent(m.pos, m.len) }));
+    const merged = [];
+    for (const r of sentRanges) {
+      if (merged.length > 0 && r.start <= merged[merged.length - 1].end) {
+        const last = merged[merged.length - 1];
+        last.end = Math.max(last.end, r.end);
+        if (!last.keywords.includes(r.kw)) last.keywords.push(r.kw);
+      } else {
+        merged.push({ ...r, keywords: [r.kw] });
+      }
+    }
+
+    // 결과 조합
+    const result = [];
+    let lastIdx = 0;
+    for (const r of merged) {
+      if (r.start > lastIdx) result.push(str.slice(lastIdx, r.start));
+      result.push(
+        <SentenceKwSpan key={`skw-${r.start}`} text={str.slice(r.start, r.end)} color={r.color} keywords={r.keywords} />
+      );
+      lastIdx = r.end;
+    }
+    if (lastIdx < str.length) result.push(str.slice(lastIdx));
+    return result;
   };
 
   return (

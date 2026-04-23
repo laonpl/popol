@@ -11,7 +11,7 @@ export function buildCoverLetterDraftPrompt(question, experienceText, targetComp
 문항: ${question}
 활용 경험: ${experienceText ? experienceText.substring(0, 2000) : '없음'}
 
-작성 기준: STAR 구조, 구체적 수치 포함, 500자 내외, 자연스러운 한국어.
+작성 기준: CARL 구조(배경-행동-결과-배운점), 구체적 수치 포함, 500자 내외, 자연스러운 한국어.
 답변만 작성 (추가 설명 없이):`;
 }
 
@@ -49,4 +49,41 @@ ${sectionsText.substring(0, 3000)}
 
 JSON 배열로만 응답:
 [{ "index": 0, "matched": true, "relevance": "high", "reason": "한 문장" }]`;
+}
+
+/** 포트폴리오 섹션 1개를 기업 맞춤형으로 재작성하는 프롬프트 (병렬 처리용). */
+export function buildSingleSectionTailorPrompt(section, index, jobAnalysis) {
+  return `취업 전문 컨설턴트입니다. 포트폴리오 섹션 1개를 기업 맞춤형으로 재작성하세요.
+사실을 유지하되 기업이 원하는 역량·가치관 강조 방향으로 표현만 조정. 내용 없는 섹션은 그대로 반환.
+JSON 값 안에 마크다운 기호(**, ##, *, -) 사용 금지.
+
+기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
+스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
+필수요건: ${(jobAnalysis.requirements?.essential || []).slice(0, 4).join(', ')}
+
+섹션 정보:
+타입: ${section.type || ''} | 제목: ${section.title || ''}
+내용: ${(section.content || '(내용 없음)').substring(0, 600)}
+
+반드시 아래 JSON으로만 응답:
+{ "index": ${index}, "tailoredContent": "재작성된 내용", "changeReason": "변경 이유 한 줄", "changed": true }`;
+}
+
+/** 자소서 문항 1개에 대한 답변 초안을 생성하는 프롬프트 (병렬 처리용). */
+export function buildSingleCoverLetterAnswerPrompt(question, maxLength, expText, jobAnalysis) {
+  return `자소서 전문 컨설턴트입니다. 자기소개서 문항 1개에 대한 답변을 작성하세요.
+
+기업: ${jobAnalysis.company || '미정'} | 직무: ${jobAnalysis.position || '미정'}
+인재상: ${(jobAnalysis.coreValues || []).join(', ')} | 스킬: ${(jobAnalysis.skills || []).slice(0, 6).join(', ')}
+
+문항: ${question}
+글자 수 제한: ${maxLength || '제한 없음'}자 내외
+
+활용 경험:
+${(expText || '등록된 경험 없음').substring(0, 2000)}
+
+작성 기준: 인재상 맞춤, 글자수 준수, 구체적 수치·사례 포함, CARL 구조(배경-행동-결과-배운점), 자연스러운 한국어.
+
+반드시 아래 JSON으로만 응답:
+{ "question": "${question.replace(/"/g, '\\"').substring(0, 100)}", "answer": "작성된 답변", "wordCount": 0, "highlightedValues": [] }`;
 }

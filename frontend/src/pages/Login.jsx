@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, Briefcase, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
 
@@ -74,10 +74,6 @@ export default function Login() {
           <div className="inline-flex items-center gap-2.5 mb-4">
             <img src="/logo.png" alt="FitPoly" className="h-10 w-auto" />
             <h1 className="text-2xl font-bold text-bluewood-900">FitPoly</h1>
-          </div>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 rounded-full text-sm font-medium border border-primary-100">
-            <Sparkles size={14} />
-            AI 기반 올인원 취업 준비 플랫폼
           </div>
         </div>
 

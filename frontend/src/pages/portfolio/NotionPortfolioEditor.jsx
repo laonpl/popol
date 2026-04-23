@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -16,16 +16,13 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
-import {
-  analyzeJobUrl,
-  tailorExperience as tailorExperienceAPI,
-  recommendExperiences,
-  recommendSection as recommendSectionAPI,
-} from '../../services/jobAI';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor from '../../components/YooptaMiniEditor';
-import { stripMd } from '../../utils/textUtils';
-import { SECTION_LABELS, TEMPLATE_SECTION_MAP, SHORT_SECTION_LABELS } from '../../constants/portfolioSections';
+
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
 
 const EMPTY_PORTFOLIO = {
   templateType: 'notion',
@@ -123,6 +120,56 @@ export default function NotionPortfolioEditor() {
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [portfolio]);
 
+  // 템플릿별 섹션 레이블
+  const SECTION_LABELS = {
+    ashley: {
+      profile: '프로필',
+      education: '학교',
+      experiences: '경력 & 프로젝트',
+      interviews: '인터뷰',
+      books: '저서 & 글쓰기',
+      lectures: '강연 & 모더레이터',
+      skills: '이런 일을 할 수 있어요',
+      values: '나를 들려주는 이야기',
+      funfacts: '독특한 경험',
+      contact: '연락처',
+    },
+    academic: {
+      profile: '프로필',
+      education: '학력',
+      awards: '수상/장학금',
+      experiences: 'Portfolio & Experience',
+      curricular: '교과 활동',
+      extracurricular: '비교과 & 자격증',
+      skills: 'Skills',
+      goals: 'Personal Statement',
+      values: '소개글',
+      contact: 'Contact',
+    },
+    notion: {
+      profile: '프로필',
+      education: '학력',
+      awards: '수상/장학금',
+      experiences: '경험',
+      curricular: '교과 활동',
+      extracurricular: '비교과 활동',
+      skills: '기술',
+      goals: '목표와 계획',
+      values: '가치관',
+      contact: '연락처',
+    },
+    timeline: {
+      profile: '프로필',
+      education: '학력',
+      curricular: '학기별 수업',
+      experiences: '활동 기록',
+      goals: '스터디 계획',
+      skills: '기술',
+      awards: '수상/장학금',
+      contact: '연락처',
+    },
+  };
+
   const tid = portfolio?.templateId || 'notion';
   const defaultLabels = SECTION_LABELS[tid] || SECTION_LABELS.notion;
   const customLabels = portfolio?.customSectionLabels || {};
@@ -144,6 +191,14 @@ export default function NotionPortfolioEditor() {
     { id: 'funfacts', label: labels.funfacts || '독특한 경험', icon: Zap },
     { id: 'contact', label: labels.contact || '연락처', icon: Mail },
   ];
+
+  // 템플릿별 표시 섹션 정의
+  const TEMPLATE_SECTION_MAP = {
+    ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
+    academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+    notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+    timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
+  };
 
   const hiddenSections = portfolio?.hiddenSections || [];
 
@@ -599,6 +654,11 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [panelMaxH, setPanelMaxH] = useState('60vh');
   const btnRef = useRef(null);
 
+  const SECTION_LABELS = {
+    education: '교육', awards: '수상', skills: '기술',
+    goals: '목표와 계획', values: '가치관'
+  };
+
   if (!jobAnalysis || !sectionType) return null;
 
   const handleClick = async () => {
@@ -619,7 +679,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     setLoading(true);
     setShow(true);
     try {
-      const resp = await recommendSectionAPI(jobAnalysis, sectionType);
+      const { data: resp } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
       setData(resp);
     } catch { toast.error('내용 추천에 실패했습니다'); setShow(false); }
     setLoading(false);
@@ -646,7 +706,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
-              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SHORT_SECTION_LABELS[sectionType] || sectionType}</span>
+              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
             </div>
             <button onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
           </div>
@@ -703,14 +763,17 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const [tailoring, setTailoring] = useState(false);
   const [tailorError, setTailorError] = useState(null);
   const [appliedSections, setAppliedSections] = useState({});
+  const [appliedKeyExperiences, setAppliedKeyExperiences] = useState({});
+  const sliderRef = useRef(null);
 
   const handleTailor = async () => {
     if (!jobAnalysis) return;
     setTailoring(true);
     setTailorError(null);
     setAppliedSections({});
+    setAppliedKeyExperiences({});
     try {
-      const data = await tailorExperienceAPI(jobAnalysis, exp);
+      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: exp });
       setTailorResult(data.tailored);
     } catch (err) {
       setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
@@ -740,6 +803,51 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     const allApplied = {};
     EXP_SECTION_KEYS.forEach(k => { if (tailorResult.sections[k]?.content?.trim()) allApplied[k] = true; });
     setAppliedSections(allApplied);
+  };
+
+  // 핵심 경험 첨삭 적용: slideIndex 직접 사용, 폴백으로 title 매칭
+  const resolveKeyExpIdx = (ke, ki) => {
+    // 1순위: AI가 반환한 slideIndex 직접 사용
+    if (typeof ke.slideIndex === 'number' && ke.slideIndex >= 0 && ke.slideIndex < keyExps.length) {
+      return ke.slideIndex;
+    }
+    // 2순위: 정확한 title 일치
+    let idx = keyExps.findIndex(e =>
+      e.title && ke.title && e.title.trim() === ke.title.trim()
+    );
+    if (idx >= 0) return idx;
+    // 3순위: title 포함 관계
+    idx = keyExps.findIndex(e =>
+      e.title && ke.title && (
+        e.title.trim().includes(ke.title.trim()) ||
+        ke.title.trim().includes(e.title.trim())
+      )
+    );
+    if (idx >= 0) return idx;
+    // 4순위: 같은 순서 인덱스 폴백
+    if (ki < keyExps.length) return ki;
+    return -1;
+  };
+
+  const applyKeyExperience = (ke, ki) => {
+    if (!onUpdate) return;
+    const matchIdx = resolveKeyExpIdx(ke, ki);
+    if (matchIdx < 0) return;
+    const updatedKeyExps = keyExps.map((e, i) => {
+      if (i !== matchIdx) return e;
+      return {
+        ...e,
+        ...(ke.title     ? { title: ke.title }         : {}),
+        ...(ke.situation ? { situation: ke.situation }  : {}),
+        ...(ke.problem   ? { situation: ke.problem }    : {}),
+        ...(ke.action    ? { action: ke.action }        : {}),
+        ...(ke.result    ? { result: ke.result }        : {}),
+      };
+    });
+    onUpdate({ structuredResult: { ...structured, keyExperiences: updatedKeyExps } });
+    setAppliedKeyExperiences(prev => ({ ...prev, [ki]: true }));
+    setTab('view');
+    setTimeout(() => sliderRef.current?.goTo(matchIdx), 150);
   };
 
   // Firestore에서 이미지 로드 (experienceId가 있을 때)
@@ -865,12 +973,8 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {/* 핵심 경험 슬라이더 */}
               {keyExps.length > 0 && (
                 <div>
-                  <KeyExperienceSlider
-                    keyExperiences={keyExps}
-                    onUpdate={(next) => onUpdate({
-                      structuredResult: { ...(exp.structuredResult || {}), keyExperiences: next }
-                    })}
-                  />
+                  <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 &amp; 성과</h4>
+                  <KeyExperienceSlider ref={sliderRef} keyExperiences={keyExps} />
                 </div>
               )}
 
@@ -905,7 +1009,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
           {/* ── 편집 탭 ── */}
           {tab === 'edit' && (
             <div className="p-6 space-y-4">
-              {/* 썸네일 */}
+              {/* ── 기본 정보 ── */}
               <div className="relative w-full h-36 bg-surface-50 rounded-xl overflow-hidden">
                 {exp.thumbnailUrl
                   ? <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -919,8 +1023,6 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   }} />
                 </label>
               </div>
-
-              {/* 기본 정보 */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">제목</label>
                 <input value={exp.title || ''} onChange={e => onUpdate({ title: e.target.value })}
@@ -938,50 +1040,77 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">스킬 (쉼표로 구분)</label>
-                  <input value={(exp.skills || []).join(', ')} onChange={e => onUpdate({ skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">설명</label>
+                <div className="border border-gray-200 rounded-xl px-1 py-1 focus-within:ring-2 focus-within:ring-primary-200 transition-shadow">
+                  <RichContentEditor
+                    value={exp.descriptionBlocks || exp.description || ''}
+                    onChange={v => onUpdate({ descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s => s.type==='text').map(s=>s.content).join('\n') : v })}
+                    placeholder="프로젝트 설명..."
+                    textRows={3}
+                    textClassName="w-full px-2 py-1 text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-none leading-relaxed"
+                  />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">링크</label>
-                  <input value={exp.link || ''} onChange={e => onUpdate({ link: e.target.value })}
-                    placeholder="https://" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">스킬 (쉼표로 구분)</label>
+                <input value={(exp.skills || []).join(', ')} onChange={e => onUpdate({ skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">링크</label>
+                <input value={exp.link || ''} onChange={e => onUpdate({ link: e.target.value })}
+                  placeholder="https://" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
               </div>
 
-              {/* 구분선 */}
-              <div className="border-t border-surface-200 pt-4">
-                <p className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-primary-500" /> AI 분석 섹션 직접 편집
-                </p>
-                <div className="space-y-3">
-                  {[
-                    { key: 'intro',      num: '01', label: '프로젝트 소개',  color: 'bg-blue-50 border-blue-100',    placeholder: '프로젝트를 간략히 소개해주세요...' },
-                    { key: 'overview',   num: '02', label: '프로젝트 개요',  color: 'bg-violet-50 border-violet-100', placeholder: '프로젝트 배경, 목표, 기간 등을 적어주세요...' },
-                    { key: 'task',       num: '03', label: '진행한 일',      color: 'bg-amber-50 border-amber-100',   placeholder: '내가 직접 맡아서 진행한 일을 적어주세요...' },
-                    { key: 'process',    num: '04', label: '과정',           color: 'bg-emerald-50 border-emerald-100', placeholder: '어떻게 문제를 해결했는지 과정을 적어주세요...' },
-                    { key: 'output',     num: '05', label: '결과물',         color: 'bg-teal-50 border-teal-100',     placeholder: '프로젝트의 결과물이나 성과를 적어주세요...' },
-                    { key: 'growth',     num: '06', label: '성장한 점',      color: 'bg-rose-50 border-rose-100',     placeholder: '이 경험을 통해 어떻게 성장했는지 적어주세요...' },
-                    { key: 'competency', num: '07', label: '나의 역량',      color: 'bg-indigo-50 border-indigo-100', placeholder: '이 경험에서 발휘된 나만의 역량을 적어주세요...' },
-                  ].map(({ key, num, label, color, placeholder }) => (
-                    <div key={key} className={`rounded-xl border p-4 ${color}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="w-5 h-5 rounded-md bg-primary-500 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{num}</span>
-                        <label className="text-xs font-bold text-gray-700">{label}</label>
-                      </div>
-                      <textarea
-                        value={(exp.structuredResult || {})[key] || ''}
-                        onChange={e => onUpdate({ structuredResult: { ...(exp.structuredResult || {}), [key]: e.target.value } })}
-                        placeholder={placeholder}
-                        rows={4}
-                        className="w-full bg-white/70 rounded-lg border border-white/50 p-3 text-sm outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-y leading-relaxed"
-                      />
-                    </div>
-                  ))}
+              {/* ── 7개 섹션 편집 (경험정리와 동일) ── */}
+              <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-surface-100 bg-surface-50/40">
+                    <p className="text-[13px] font-bold text-gray-700">상세 경험 정리</p>
+                  </div>
+                  <div className="divide-y divide-surface-100">
+                    {EXP_SECTION_KEYS.map(key => {
+                      const meta = EXP_SECTION_META[key];
+                      const val = sectionContents[key] || '';
+                      const isDraft = val.trim().startsWith('[작성 필요]');
+                      const isEmpty = !val.trim();
+                      return (
+                        <div key={key} className="group">
+                          {/* 섹션 헤더 */}
+                          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50/30">
+                            <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
+                            <span className="text-[13px] font-bold text-primary-700 flex-1">{meta.label}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              isEmpty   ? 'bg-amber-100 text-amber-600' :
+                              isDraft   ? 'bg-blue-50 text-blue-500' :
+                                          'bg-caribbean-50 text-caribbean-600'
+                            }`}>
+                              {isEmpty ? '빈칸' : isDraft ? '초안' : '완료'}
+                            </span>
+                          </div>
+                          {/* 텍스트에어리어 */}
+                          <div className="px-4 py-3 pl-[52px]">
+                            <textarea
+                              value={isDraft ? val.replace(/^\[작성 필요\]\s*/, '').trim() : val}
+                              onChange={e => {
+                                const newSr = { ...(exp.structuredResult || {}), [key]: e.target.value };
+                                onUpdate({ structuredResult: newSr });
+                                // 높이 자동조절
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              }}
+                              placeholder={isEmpty ? '내용을 입력하세요' : ''}
+                              rows={3}
+                              className="w-full bg-white rounded-xl border border-surface-200 px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-none overflow-hidden text-gray-800 placeholder-gray-300 leading-relaxed"
+                              style={{ minHeight: '4rem' }}
+                              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
             </div>
           )}
         </div>
@@ -1030,6 +1159,85 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {/* 섹션별 첨삭 결과 */}
               {tailorResult && !tailoring && (
                 <div className="space-y-3">
+
+                  {/* ── 기업 맞춤 추천 핵심 경험 ── */}
+                  {tailorResult.keyExperiences?.length > 0 && keyExps.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천 핵심 경험</span>
+                        <span className="text-[10px] text-indigo-400">{Math.min(tailorResult.keyExperiences.length, 3)}개 선별됨</span>
+                      </div>
+                      {tailorResult.keyExperiences.slice(0, 3).map((ke, ki) => {
+                        const matchIdx = resolveKeyExpIdx(ke, ki);
+                        const isApplied = appliedKeyExperiences[ki];
+                        const canApply = matchIdx >= 0;
+                        const FIELDS = [
+                          { key: 'situation', label: '문제 상황' },
+                          { key: 'problem',   label: '문제 상황' },
+                          { key: 'action',    label: '핵심 행동' },
+                          { key: 'result',    label: '성과' },
+                        ];
+                        return (
+                          <div key={ki} className="rounded-xl border border-indigo-200 overflow-hidden bg-white">
+                            {/* 헤더 */}
+                            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100">
+                              <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{ki + 1}</span>
+                              <span className="text-xs font-bold text-gray-800 flex-1 leading-tight truncate">{ke.title}</span>
+                              <button
+                                onClick={() => applyKeyExperience(ke, ki)}
+                                disabled={isApplied || !canApply}
+                                className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                                  isApplied
+                                    ? 'bg-green-100 text-green-700 cursor-default'
+                                    : !canApply
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                                }`}
+                              >
+                                {isApplied ? <><Check size={10} />적용됨</> : <>적용</>}
+                              </button>
+                            </div>
+                            {/* 적합 이유 */}
+                            {ke.relevance && (
+                              <div className="px-3 pt-2.5 pb-1">
+                                <p className="text-[10px] text-indigo-500 italic leading-relaxed">{ke.relevance}</p>
+                              </div>
+                            )}
+                            {/* 첨삭 내용 필드들 */}
+                            <div className="divide-y divide-gray-50 px-3 pb-2">
+                              {/* 제목 (원본과 다를 때만 표시) */}
+                              {ke.title && keyExps[resolveKeyExpIdx(ke, ki)]?.title !== ke.title && (
+                                <div className="py-2">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">제목</p>
+                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.title)}</p>
+                                </div>
+                              )}
+                              {/* 문제 상황: situation 우선, 없으면 problem */}
+                              {(ke.situation || ke.problem) && (
+                                <div className="py-2">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">문제 상황</p>
+                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.situation || ke.problem)}</p>
+                                </div>
+                              )}
+                              {ke.action && (
+                                <div className="py-2">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">핵심 행동</p>
+                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.action)}</p>
+                                </div>
+                              )}
+                              {ke.result && (
+                                <div className="py-2">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">성과</p>
+                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.result)}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* 전체 적용 버튼 */}
                   {(() => {
                     const availableCount = EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).length;
@@ -1138,67 +1346,12 @@ function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
   });
 }
 
-/* ── StandaloneImageBlock: 단독 이미지 블록 (리사이즈·교체·삭제 지원) ── */
-function StandaloneImageBlock({ content, width, caption, onUpdate, uploadPlaceholderClass = '' }) {
-  const containerRef = useRef(null);
-  const startResize = (e, dir) => {
-    e.preventDefault(); e.stopPropagation();
-    const imgDiv = e.currentTarget.closest('[data-rimgb]');
-    const container = containerRef.current;
-    if (!imgDiv || !container) return;
-    const startX = e.clientX, startW = imgDiv.offsetWidth, maxW = container.offsetWidth;
-    const d = dir.includes('r') ? 1 : -1;
-    const onMove = ev => { const nw = Math.max(60, Math.min(maxW, startW + d * (ev.clientX - startX))); imgDiv.style.width = nw + 'px'; };
-    const onUp = () => { const pct = Math.round((imgDiv.offsetWidth / maxW) * 100); onUpdate({ width: pct + '%' }); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
-  };
-  if (!content) return (
-    <label className={`flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadPlaceholderClass || 'border-surface-200 hover:border-primary-300 hover:bg-primary-50/30'}`}>
-      <ImageIcon size={24} className="text-gray-300" />
-      <span className="text-xs text-gray-400">클릭하여 이미지 업로드</span>
-      <input type="file" accept="image/*" className="hidden" onChange={async e => {
-        const file = e.target.files?.[0]; if (!file) return;
-        try { const b = await resizeToBase64Global(file, 1200, 0.8); onUpdate({ content: b }); } catch { toast.error('이미지 처리 실패'); }
-      }} />
-    </label>
-  );
-  return (
-    <div ref={containerRef} className="w-full">
-      <div data-rimgb="1" className="relative group/sib inline-block" style={{ width: width || '100%', maxWidth: '100%', verticalAlign: 'top' }}>
-        <img src={content} alt="" draggable="false" className="w-full rounded-xl block select-none" onDragStart={e => e.preventDefault()} />
-        <div className="absolute top-2 left-2 right-2 flex items-center justify-between opacity-0 group-hover/sib:opacity-100 transition-opacity">
-          <label className="bg-black/60 text-white text-[10px] px-2 py-0.5 rounded cursor-pointer hover:bg-black/80">교체
-            <input type="file" accept="image/*" className="hidden" onChange={async e => {
-              const file = e.target.files?.[0]; if (!file) return;
-              try { const b = await resizeToBase64Global(file, 1200, 0.8); onUpdate({ content: b }); } catch { toast.error('이미지 처리 실패'); }
-            }} />
-          </label>
-          <button type="button" onClick={() => onUpdate({ content: '' })} className="bg-black/60 text-white p-1 rounded hover:bg-red-500/80 transition-colors"><Trash2 size={10} /></button>
-        </div>
-        <div onMouseDown={e => startResize(e, 'tl')} className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 0% 0%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
-        <div onMouseDown={e => startResize(e, 'tr')} className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 100% 0%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
-        <div onMouseDown={e => startResize(e, 'bl')} className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 0% 100%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
-        <div onMouseDown={e => startResize(e, 'br')} className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize opacity-0 group-hover/sib:opacity-100 transition-opacity z-10" style={{ background: 'radial-gradient(circle at 100% 100%, rgba(99,102,241,0.8) 40%, transparent 70%)' }} />
-      </div>
-      <input value={caption || ''} onChange={e => onUpdate({ caption: e.target.value })} placeholder="캡션 입력 (선택)" className="block w-full mt-1.5 text-center text-[11px] text-gray-400 bg-transparent outline-none placeholder:text-gray-200 hover:bg-gray-50 rounded px-2 py-0.5" />
-    </div>
-  );
-}
-
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
 // segments 형식: [{type:'text'|'image', content:string, width?:string}]
-// 크로스 블록 드래그 상태 (모듈 레벨)
-let __rceDrag = null;
-
-function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName, instanceId }) {
+function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName }) {
   const fileInputRef = useRef(null);
   const pendingInsertAfter = useRef(null);
   const [dragOver, setDragOver] = useState(null);
-  // 크로스 블록 드래그를 위한 refs (stale closure 방지)
-  const myId = instanceId || null;
-  const segmentsRef = useRef([]);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   // base64가 텍스트 세그먼트에 잘못 들어간 경우 자동 수정
   const rawSegs = Array.isArray(value) && value.length > 0
@@ -1209,8 +1362,6 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
       ? { ...s, type: 'image' }
       : s
   );
-  // segmentsRef를 항상 최신으로 유지
-  segmentsRef.current = segments;
 
   const updateSeg = (i, changes) => onChange(segments.map((s, si) => si === i ? { ...s, ...changes } : s));
 
@@ -1288,57 +1439,16 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
             // 텍스트 선택 중이면 드래그 취소
             const sel = window.getSelection();
             if (sel && sel.toString().length > 0) { e.preventDefault(); return; }
-            e.stopPropagation(); // 상위 블록 드래그와 충돌 방지
             e.dataTransfer.setData('rce-idx', String(i));
             e.dataTransfer.effectAllowed = 'move';
             e.currentTarget.style.opacity = '0.4';
-            // 크로스 블록 드래그: 이미지 세그먼트만 지원
-            if (myId && seg.type === 'image') {
-              const draggedContent = seg.content;
-              e.dataTransfer.setData('rce-source-id', myId);
-              __rceDrag = {
-                instanceId: myId,
-                seg: { ...seg },
-                removeFn: () => {
-                  let removed = false;
-                  const next = segmentsRef.current.filter(s => {
-                    if (!removed && s.type === 'image' && s.content === draggedContent) { removed = true; return false; }
-                    return true;
-                  });
-                  onChangeRef.current(next.length > 0 ? next : [{ type: 'text', content: '' }]);
-                },
-              };
-            }
           }}
-          onDragEnd={e => {
-            e.currentTarget.style.opacity = '1';
-            // 크로스 블록으로 이동되지 않은 경우 상태 초기화
-            if (__rceDrag?.instanceId === myId) __rceDrag = null;
-          }}
-          onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOver(i); }}
+          onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
+          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(i); }}
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
           onDrop={e => {
             e.preventDefault();
-            e.stopPropagation(); // 상위 블록 onDrop 방지
-            const sourceId = e.dataTransfer.getData('rce-source-id');
             const from = parseInt(e.dataTransfer.getData('rce-idx'), 10);
-            // 크로스 블록 드롭 처리
-            if (sourceId && sourceId !== myId && __rceDrag?.instanceId === sourceId) {
-              const droppedSeg = { ...__rceDrag.seg };
-              const removeFn = __rceDrag.removeFn;
-              __rceDrag = null;
-              const next = [...segments];
-              next.splice(i, 0, droppedSeg);
-              // 이미지 뒤에 텍스트 세그먼트 보장
-              if (droppedSeg.type === 'image' && (!next[i + 1] || next[i + 1].type === 'image')) {
-                next.splice(i + 1, 0, { type: 'text', content: '' });
-              }
-              onChange(next);
-              removeFn();
-              setDragOver(null);
-              return;
-            }
-            // 내부 이동
             if (!isNaN(from) && from !== i) moveSeg(from, i);
             setDragOver(null);
           }}
@@ -1479,16 +1589,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   // 커스텀 블록 관련 state
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const [projectBlockPickerIdx, setProjectBlockPickerIdx] = useState(null);
-  const newAshleyImageRef = useRef(null);
-  const onAshleyNewImageFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const b64 = await resizeToBase64Global(file);
-      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
-    } catch { toast.error('이미지 처리 실패'); }
-  };
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -1498,7 +1598,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecLoading(true);
     try {
-      const data = await recommendExperiences(portfolio.jobAnalysis);
+      const { data } = await api.post('/job/recommend-experiences', { jobAnalysis: portfolio.jobAnalysis });
       setRecResults(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecLoading(false);
@@ -1513,7 +1613,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const respData = await analyzeJobUrl(jobUrl);
+      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -1542,9 +1642,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     });
 
   return (
-    <div className="flex gap-6 items-start">
-    <div className="flex-1 min-w-0">
-    <div className="max-w-[860px] mx-auto">
+    <div className="flex gap-5 items-start w-fit mx-auto">
+    <div className="w-[860px] flex-shrink-0">
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         {/* Hero */}
         <div className="px-10 pt-10 pb-8">
@@ -1955,17 +2054,16 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="px-10 pb-8"
+            draggable="true"
+            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
+            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
             onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
           >
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc] relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div
-                    draggable="true"
-                    onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity = '0.4'; }}
-                    onDragEnd={e => { const sec = e.currentTarget.closest('section'); if (sec) sec.style.opacity = '1'; }}
-                    className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
+                  <div className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
                     <GripVertical size={14} />
                   </div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
@@ -1982,7 +2080,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               )}
               {block.type === 'text' && (
                 <RichContentEditor
-                  instanceId={`cb-ashley-t-${i}`}
                   value={block.segments || block.content || ''}
                   onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],segments:v,content:Array.isArray(v)?v.filter(s=>s.type==='text').map(s=>s.content).join('\n'):v}; update('customBlocks',b); }}
                   placeholder="텍스트를 입력하세요"
@@ -1990,22 +2087,25 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 />
               )}
               {block.type === 'image' && (
-                <RichContentEditor
-                  instanceId={`cb-ashley-i-${i}`}
-                  value={(() => {
-                    const c = block.content;
-                    if (Array.isArray(c)) return c;
-                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
-                      const segs = [{ type: 'image', content: c, width: block.width }];
-                      if (block.caption) segs.push({ type: 'text', content: block.caption });
-                      return segs;
-                    }
-                    return [{ type: 'text', content: '' }];
-                  })()}
-                  onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i], content:v, width:undefined, caption:undefined}; update('customBlocks',b); }}
-                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
-                  textRows={2}
-                />
+                <div>
+                  {block.content ? (
+                    <RichContentEditor
+                      value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
+                      onChange={v => { const b=[...(p.customBlocks||[])]; const imgSeg=Array.isArray(v)?v.find(s=>s.type==='image'):null; b[i]={...b[i],segments:v,content:imgSeg?.content??block.content,width:imgSeg?.width}; update('customBlocks',b); }}
+                      textRows={2}
+                    />
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-[#e8e4dc] rounded-xl cursor-pointer hover:border-[#c4a882] transition-colors">
+                      <ImageIcon size={24} className="text-[#c4b89a]" />
+                      <span className="text-xs text-[#8a8578]">클릭하여 이미지 업로드</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0]; if (!file) return;
+                        try { const base64 = await resizeToBase64Global(file, 1200, 0.8); const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:base64}; update('customBlocks',b); }
+                        catch { toast.error('이미지 처리 실패'); }
+                      }} />
+                    </label>
+                  )}
+                </div>
               )}
               {block.type === 'divider' && <hr className="border-[#e8e4dc] my-2" />}
               {block.type === 'project' && (() => {
@@ -2065,7 +2165,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 블록 추가 버튼 */}
         <div className="px-10 pb-8">
-          <input ref={newAshleyImageRef} type="file" accept="image/*" className="hidden" onChange={onAshleyNewImageFile} />
           <div className="relative">
             <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-[#e8e4dc] rounded-xl text-sm text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
@@ -2077,11 +2176,10 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 {[
                   { type: 'heading', icon: <Type size={14}/>, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14}/>, label: '텍스트', desc: '자유 텍스트 블록' },
+                  { type: 'image', icon: <ImageIcon size={14}/>, label: '이미지', desc: '사진 첨부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => {
-                    addToArray('customBlocks', { type: item.type, content: '' }); setShowCustomBlockMenu(false);
-                  }}
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowCustomBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#f7f5f0] text-left">
                     <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]">{item.icon}</span>
                     <div><p className="text-sm font-medium text-[#2d2a26]">{item.label}</p><p className="text-[10px] text-[#8a8578]">{item.desc}</p></div>
@@ -2189,11 +2287,10 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         );
       })()}
     </div>{/* end max-w */}
-    </div>{/* end flex-1 */}
 
-      {/* ── 우측 기업 분석 사이드바 (sticky) ── */}
+      {/* ── 우측 기업 분석 사이드바 (스티키) ── */}
       {analysisMode && (
-      <div className="w-[560px] flex-shrink-0">
+      <div className="w-[380px] flex-shrink-0">
         <div className="sticky top-5">
           <div className="flex items-center gap-2 mb-3 px-1">
             <h3 className="text-sm font-bold text-gray-800">기업 분석</h3>
@@ -2303,16 +2400,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const [analyzingJob, setAnalyzingJob] = useState(false);
   const [jobError, setJobError] = useState(null);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
-  const newImageBlockInputRef = useRef(null);
-  const onNewImageBlockFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const b64 = await resizeToBase64Global(file);
-      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
-    } catch { toast.error('이미지 처리 실패'); }
-  };
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
@@ -2344,8 +2431,11 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     if (!portfolio.jobAnalysis) { toast.error('기업 분석을 먼저 등록해주세요'); return; }
     setRecLoading(true);
     try {
-      const data = await recommendExperiences(portfolio.jobAnalysis, userExperiences);
-      setRecResults(data);
+      const res = await api.post('/job/recommend-experiences', {
+        jobAnalysis: portfolio.jobAnalysis,
+        experiences: userExperiences,
+      });
+      setRecResults(res.data);
     } catch { toast.error('추천 불러오기 실패'); }
     finally { setRecLoading(false); }
   };
@@ -2355,7 +2445,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const respData = await analyzeJobUrl(jobUrl);
+      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -2367,7 +2457,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   };
 
   return (
-    <div className={analysisMode ? "flex gap-5 items-start justify-center" : "max-w-[900px] mx-auto"}>
+    <div className="flex gap-5 items-start w-fit mx-auto">
 
       {/* ── 사이드바 왼쪽 [비활성화] ── */}
       {false && (
@@ -2474,7 +2564,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       </div>
       )}{/* end 사이드바 왼쪽 */}
 
-    <div className={analysisMode ? "w-[900px] flex-shrink-0" : "w-full"}>
+    <div className="w-[900px] flex-shrink-0">
     <div className="w-full">
       <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
@@ -2834,20 +2924,16 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="px-10 pb-8"
-            onDragOver={e => { if (e.dataTransfer.types.includes('rce-idx')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            onDrop={e => {
-              if (e.dataTransfer.types.includes('rce-idx')) return;
-              e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); }
-            }}
+            draggable="true"
+            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
+            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
           >
             <div className="bg-white rounded-xl p-6 border border-surface-200 relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div
-                    draggable="true"
-                    onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity = '0.4'; }}
-                    onDragEnd={e => { const sec = e.currentTarget.closest('section'); if (sec) sec.style.opacity = '1'; }}
-                    className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
+                  <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
                     disabled={i===0} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-30"><ChevronUp size={14}/></button>
                   <button onClick={() => { if (i === (p.customBlocks||[]).length-1) return; const b=[...(p.customBlocks||[])]; [b[i+1],b[i]]=[b[i],b[i+1]]; update('customBlocks',b); }}
@@ -2861,26 +2947,26 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               )}
               {block.type === 'text' && (
                 <RichContentEditor value={block.content || ''} onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:v}; update('customBlocks',b); }}
-                  instanceId={`cb-academic-t-${i}`}
                   placeholder="텍스트 입력..." textRows={4} textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-y" />
               )}
               {block.type === 'image' && (
-                <RichContentEditor
-                  instanceId={`cb-academic-i-${i}`}
-                  value={(() => {
-                    const c = block.content;
-                    if (Array.isArray(c)) return c;
-                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
-                      const segs = [{ type: 'image', content: c, width: block.width }];
-                      if (block.caption) segs.push({ type: 'text', content: block.caption });
-                      return segs;
-                    }
-                    return typeof c === 'string' ? c : '';
-                  })()}
-                  onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i], content:v, width:undefined, caption:undefined}; update('customBlocks',b); }}
-                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
-                  textRows={2}
-                />
+                <div className="space-y-2">
+                  {block.content ? (
+                    <div className="relative group/img">
+                      <img src={block.content} alt="block" className="max-w-full rounded-lg" />
+                      <button onClick={() => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:''}; update('customBlocks',b); }}
+                        className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover/img:opacity-100"><X size={12}/></button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50/30">
+                      <ImageIcon size={20} className="text-gray-300 mb-1" /><span className="text-xs text-gray-400">이미지 업로드</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={async ev => {
+                        const f=ev.target.files?.[0]; if(!f) return;
+                        try { const b64=await resizeToBase64(f); const nb=[...(p.customBlocks||[])]; nb[i]={...nb[i],content:b64}; update('customBlocks',nb); } catch{}
+                      }} />
+                    </label>
+                  )}
+                </div>
               )}
               {block.type === 'divider' && <hr className="border-t-2 border-gray-100 my-2" />}
               {block.type === 'project' && (
@@ -2913,7 +2999,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 블록 추가 */}
         <div className="px-10 pb-8">
-          <input ref={newImageBlockInputRef} type="file" accept="image/*" className="hidden" onChange={onNewImageBlockFile} />
           <div className="relative">
             <button onClick={() => setShowBlockMenu(m => !m)}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
@@ -2925,11 +3010,10 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
+                  { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 쳊부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => {
-                    addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false);
-                  }}
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
                     <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500">{item.icon}</span>
                     <div><p className="text-sm font-medium text-gray-700">{item.label}</p><p className="text-[10px] text-gray-400">{item.desc}</p></div>
@@ -2954,9 +3038,9 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         </div>
       </div>
     </div>{/* end max-w */}
-    </div>{/* end w-[900px] */}
+    </div>{/* end portfolio col */}
 
-      {/* ── 우측 기업 분석 사이드바 ── */}
+      {/* ── 우측 기업 분석 사이드바 (스티키) ── */}
       {analysisMode && (
       <div className="w-[360px] flex-shrink-0">
         <div className="sticky top-5">
@@ -3327,12 +3411,12 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   placeholder="계획 제목 (예: 2025년 3~6월)"
                   className="w-full bg-transparent text-sm font-bold text-emerald-800 placeholder-emerald-400 outline-none mb-1"
                 />
-                <RichContentEditor
-                  value={g.blocks || g.description || ''}
-                  onChange={v => updateArrayItem('goals', i, { ...g, blocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
+                <textarea
+                  value={g.description || ''}
+                  onChange={e => updateArrayItem('goals', i, { ...g, description: e.target.value })}
                   placeholder="계획 내용"
-                  textRows={2}
-                  textClassName="w-full bg-transparent text-xs text-emerald-600 placeholder-emerald-300 outline-none resize-none"
+                  rows={2}
+                  className="w-full bg-transparent text-xs text-emerald-600 placeholder-emerald-300 outline-none resize-none"
                 />
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
@@ -3381,16 +3465,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [hoveredSection, setHoveredSection] = useState(null);
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const profileImageInputRef = useRef(null);
-  const newNotionImageRef = useRef(null);
-  const onNotionNewImageFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const b64 = await resizeToBase64Global(file);
-      addToArray('customBlocks', { type: 'image', content: [{ type: 'image', content: b64 }, { type: 'text', content: '' }] });
-    } catch { toast.error('이미지 처리 실패'); }
-  };
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
@@ -3421,7 +3495,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecLoading(true);
     try {
-      const data = await recommendExperiences(portfolio.jobAnalysis);
+      const { data } = await api.post('/job/recommend-experiences', { jobAnalysis: portfolio.jobAnalysis });
       setRecResults(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecLoading(false);
@@ -3432,7 +3506,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const respData = await analyzeJobUrl(jobUrl);
+      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
@@ -3486,7 +3560,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hiddenSections = p.hiddenSections || [];
 
   return (
-    <div className={analysisMode ? "flex gap-5 items-start justify-center" : "max-w-[1100px] mx-auto"}>
+    <div className="flex gap-5 items-start w-fit mx-auto">
       {/* ── 사이드바 왼쪽 (Notion) [비활성화] ── */}
       {false && (
       <div className="w-[360px] flex-shrink-0">
@@ -3593,7 +3667,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       )}{/* end 사이드바 왼쪽 (Notion) */}
 
       {/* ── 포트폴리오 카드 ── */}
-      <div className={`${analysisMode ? 'w-[1100px] flex-shrink-0' : 'w-full'} bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden`}>
+      <div className="w-[1100px] flex-shrink-0 bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden">
       {/* Editable Header */}
       <div className="px-10 pt-10 pb-6 border-b border-surface-100 group relative">
         <input
@@ -4022,13 +4096,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
             <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
-            <RichContentEditor
-              value={extra.summaryBlocks || extra.summary || ''}
-              onChange={v => update('extracurricular', { ...extra, summaryBlocks: v, summary: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
-              placeholder="비교과 활동 요약을 입력하세요..."
-              textRows={2}
-              textClassName="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300"
-            />
+            <textarea value={extra.summary || ''} onChange={e => update('extracurricular', { ...extra, summary: e.target.value })}
+              placeholder="비교과 활동 요약을 입력하세요..." rows={2}
+              className="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
           </div>
           <h4 className="text-sm font-bold mb-2 text-gray-600">어학 성적 | Language Certification</h4>
           <table className="w-full text-sm border-collapse mb-3">
@@ -4077,12 +4147,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <input value={d.period || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], period: e.target.value }; update('extracurricular', { ...extra, details }); }}
                     placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
                 </div>
-                <RichContentEditor
+                <YooptaMiniEditor
                   value={d.descriptionBlocks || d.description || ''}
-                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v }; update('extracurricular', { ...extra, details }); }}
+                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v }; update('extracurricular', { ...extra, details }); }}
                   placeholder="상세 설명"
-                  textRows={2}
-                  textClassName="w-full text-sm text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-none"
+                  minHeight={60}
                 />
               </div>
             ))}
@@ -4158,12 +4227,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <option value="done">✅ 완료</option>
                   </select>
                 </div>
-                <RichContentEditor
+                <YooptaMiniEditor
                   value={g.descriptionBlocks || g.description || ''}
-                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v })}
+                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v })}
                   placeholder="상세 계획을 작성하세요..."
-                  textRows={3}
-                  textClassName="w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-none leading-relaxed"
+                  minHeight={80}
+                  className="mt-1"
                 />
               </div>
             ))}
@@ -4184,12 +4253,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <RichContentEditor
+          <YooptaMiniEditor
             value={p.valuesEssayBlocks || p.valuesEssay || ''}
-            onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v); }}
+            onChange={v => { update('valuesEssayBlocks', v); }}
             placeholder="가치관, 자기소개 에세이를 작성하세요..."
-            textRows={6}
-            textClassName="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 resize-y"
+            minHeight={180}
+            className="bg-transparent hover:bg-primary-50/10 rounded px-1"
           />
         </section>
         )}
@@ -4198,13 +4267,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {(p.customBlocks || []).map((block, i) => (
           <section key={i} className="group/cb relative"
             draggable
-            onDragStart={e => {
-              if (e.target.closest('[data-rce-row]')) return;
-              e.dataTransfer.setData('blockIdx', String(i)); e.dataTransfer.effectAllowed = 'move';
-            }}
-            onDragOver={e => { if (e.dataTransfer.types.includes('rce-idx')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDragStart={e => { e.dataTransfer.setData('blockIdx', String(i)); e.dataTransfer.effectAllowed = 'move'; }}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={e => {
-              if (e.dataTransfer.types.includes('rce-idx')) return;
               e.preventDefault();
               const from = parseInt(e.dataTransfer.getData('blockIdx'), 10);
               if (isNaN(from) || from === i) return;
@@ -4238,33 +4303,38 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   blocks[i] = { ...blocks[i], segments: v, content: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v };
                   update('customBlocks', blocks);
                 }}
-                instanceId={`cb-notion-t-${i}`}
                 placeholder="텍스트를 입력하세요"
                 textRows={4}
               />
             )}
             {block.type === 'image' && (
               <div className="mb-4">
-                <RichContentEditor
-                  instanceId={`cb-notion-i-${i}`}
-                  value={(() => {
-                    const c = block.content;
-                    if (Array.isArray(c)) return c;
-                    if (typeof c === 'string' && c && (c.startsWith('data:image') || c.startsWith('http'))) {
-                      const segs = [{ type: 'image', content: c, width: block.width }];
-                      if (block.caption) segs.push({ type: 'text', content: block.caption });
-                      return segs;
-                    }
-                    return [{ type: 'text', content: '' }];
-                  })()}
-                  onChange={v => {
-                    const blocks = [...(p.customBlocks || [])];
-                    blocks[i] = { ...blocks[i], content: v, width: undefined, caption: undefined };
-                    update('customBlocks', blocks);
-                  }}
-                  placeholder="'이미지 삽입' 버튼을 눌러 사진을 추가하세요..."
-                  textRows={2}
-                />
+                {block.content ? (
+                  <RichContentEditor
+                    value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
+                    onChange={v => {
+                      const blocks = [...(p.customBlocks || [])];
+                      const imgSeg = Array.isArray(v) ? v.find(s => s.type === 'image') : null;
+                      blocks[i] = { ...blocks[i], segments: v, content: imgSeg?.content ?? block.content, width: imgSeg?.width };
+                      update('customBlocks', blocks);
+                    }}
+                    textRows={2}
+                  />
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
+                    <ImageIcon size={24} className="text-gray-300" />
+                    <span className="text-xs text-gray-400">클릭하여 이미지 업로드</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const base64 = await resizeToBase64Global(file, 1200, 0.8);
+                        const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: base64 };
+                        update('customBlocks', blocks);
+                      } catch { toast.error('이미지 처리 실패'); }
+                    }} />
+                  </label>
+                )}
               </div>
             )}
             {block.type === 'divider' && <hr className="border-surface-200 my-6" />}
@@ -4371,7 +4441,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Add Block Button (Notion-like) */}
         <div className="relative">
-          <input ref={newNotionImageRef} type="file" accept="image/*" className="hidden" onChange={onNotionNewImageFile} />
           <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
             className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
             <Plus size={16} /> 블록 추가
@@ -4382,6 +4451,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               {[
                 { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                 { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
+                { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
                 { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
               ].map(item => (
                 <button key={item.type} onClick={() => {
@@ -4415,7 +4485,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       </div>
       </div>{/* end 포트폴리오 카드 */}
 
-      {/* ── 우측 기업 분석 사이드바 (Notion) ── */}
+      {/* ── 우측 기업 분석 사이드바 (Notion ─ 스티키) ── */}
       {analysisMode && (
       <div className="w-[360px] flex-shrink-0">
         <div className="sticky top-5">
@@ -4932,7 +5002,9 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
     if (!portfolio.jobAnalysis) { toast.error('연결된 기업 공고가 없습니다'); return; }
     setRecommendLoading(true);
     try {
-      const data = await recommendExperiences(portfolio.jobAnalysis);
+      const { data } = await api.post('/job/recommend-experiences', {
+        jobAnalysis: portfolio.jobAnalysis,
+      });
       setRecommendations(data);
     } catch { toast.error('경험 추천 분석에 실패했습니다'); }
     setRecommendLoading(false);
@@ -4981,7 +5053,10 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
     setTailoringIdx(i);
     setTailorResult(null);
     try {
-      const data = await tailorExperienceAPI(portfolio.jobAnalysis, portfolio.experiences[i]);
+      const { data } = await api.post('/job/tailor-experience', {
+        jobAnalysis: portfolio.jobAnalysis,
+        experience: portfolio.experiences[i],
+      });
       setTailorResult({ idx: i, ...data });
     } catch { toast.error('맞춤 변환 실패'); }
     setTailoringIdx(null);
