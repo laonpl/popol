@@ -544,6 +544,26 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
     .map(k => `[${sectionLabels[k]}]\n${sr[k]}`)
     .join('\n\n');
 
+  // 기존 핵심 경험 슬라이드 목록 (AI가 이 중에서 선별)
+  const existingKeyExps = (sr.keyExperiences || []).map((ke, i) => ({
+    slideIndex: i,
+    title: ke.title || '',
+    metric: ke.metric || '',
+    metricLabel: ke.metricLabel || '',
+    situation: ke.situation || '',
+    action: ke.action || '',
+    result: ke.result || '',
+  }));
+  const keyExpsText = existingKeyExps.length > 0
+    ? existingKeyExps.map(ke =>
+        `[슬라이드 ${ke.slideIndex}] 제목: ${ke.title}\n` +
+        (ke.metricLabel ? `지표: ${ke.metricLabel} / ${ke.metric}\n` : '') +
+        (ke.situation ? `문제상황: ${ke.situation}\n` : '') +
+        (ke.action ? `행동: ${ke.action}\n` : '') +
+        (ke.result ? `성과: ${ke.result}\n` : '')
+      ).join('\n')
+    : '(핵심 경험 슬라이드 없음)';
+
   const prompt = `당신은 취업 컨설턴트입니다.
 사용자의 실제 경험 내용을 그대로 보존하면서, 해당 경험이 지원 기업/직무와 어떻게 연결되는지를 보여주는 방식으로 포트폴리오를 작성합니다.
 
@@ -553,25 +573,20 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
 - 없는 내용을 만들거나 과장하지 마세요.
 - JSON 값 안에 마크다운 기호(**, ##, *, -) 사용 금지.
 
-[작업 방식]
-sections: 원본 내용을 최대한 살리되, 문장 앞이나 뒤에 "이 경험은 [기업명]의 [직무]에서 ~~와 연결됩니다" 같은
-         기업 연관 맥락 한 문장을 자연스럽게 추가할 수 있습니다. 원본 내용 자체를 변형하지 마세요.
-
-keyExperiences: 원본 경험에서 이 기업과 가장 관련 있는 부분을 선별하여,
-               problem/action/result는 원본 텍스트를 그대로 발췌합니다.
-               relevance 필드에만 "이 경험이 [기업]에 어떻게 연관되는지" 해설을 작성합니다.
-
 기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
 스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
 주요업무: ${(jobAnalysis.tasks || []).slice(0, 4).join(', ')}
 
-===== 원본 경험 (아래 내용을 그대로 보존하세요) =====
+===== 원본 경험 =====
 제목: ${experience.title || ''} | 역할: ${experience.role || ''} | 스킬: ${(experience.skills || []).join(', ')}
 설명: ${(experience.description || '').substring(0, 400)}
 ${content.substring(0, 800)}
 
-===== 7개 섹션 원본 내용 (변형 없이 사용하세요) =====
+===== 7개 섹션 원본 내용 (sections 작업 시 이 내용을 그대로 유지하세요) =====
 ${(sectionTexts || '(없음)').substring(0, 2500)}
+
+===== 핵심 경험 슬라이드 목록 (keyExperiences 작업 시 이 중에서만 선별하세요) =====
+${keyExpsText.substring(0, 2000)}
 
 JSON으로만 응답:
 {
@@ -586,12 +601,12 @@ JSON으로만 응답:
   },
   "keyExperiences": [
     {
-      "title": "원본 경험 제목 (변경 최소화)",
-      "description": "원본 설명 발췌",
-      "problem": "원본에서 발췌한 문제 상황 (변형 없이)",
-      "action": "원본에서 발췌한 수행 행동 (변형 없이)",
-      "result": "원본에서 발췌한 성과 (변형 없이)",
-      "relevance": "이 경험이 [기업명]의 [직무]에 연관되는 이유 (여기서만 기업 연결 해설 작성)"
+      "slideIndex": 0,
+      "title": "슬라이드의 원본 제목 그대로",
+      "situation": "슬라이드의 원본 문제상황 그대로 (변형 없이)",
+      "action": "슬라이드의 원본 행동 그대로 (변형 없이)",
+      "result": "슬라이드의 원본 성과 그대로 (변형 없이)",
+      "relevance": "이 슬라이드가 [기업명]의 [직무]에 연관되는 이유 (여기서만 기업 연결 해설 작성)"
     }
   ],
   "highlightedSkills": [],
@@ -600,9 +615,11 @@ JSON으로만 응답:
 
 요청:
 1. sections: 원본 내용을 그대로 유지하면서, 기업과 연관 있는 섹션에만 연관 맥락 1문장을 자연스럽게 추가하세요. 원본 없는 섹션은 빈 문자열.
-2. keyExperiences: 원본 경험에서 이 기업/직무와 연관성 높은 실제 경험을 1~3개 선별하세요.
-   - problem, action, result는 반드시 원본 텍스트 그대로 (또는 거의 그대로) 발췌
+2. keyExperiences: 위 핵심 경험 슬라이드 목록에서 이 기업/직무와 연관성 높은 슬라이드를 1~3개 선별하세요.
+   - slideIndex는 반드시 위 슬라이드 목록의 번호를 그대로 사용
+   - situation, action, result는 원본 텍스트 그대로 (또는 거의 그대로) 발췌
    - relevance 필드에만 기업과의 연결 해설을 작성
+   - 슬라이드 목록이 비어있으면 keyExperiences는 빈 배열로 응답
    - 원본에 없는 내용은 어떤 필드에도 작성 금지
 3. 연관성이 높을수록 더 많이 포함 (최대 3개), 관련이 낮으면 1개만.`;
 

@@ -1,18 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
-import { analyzeJob } from '../services/jobAI';
-import { stripMd } from '../utils/textUtils';
-import DOMPurify from 'dompurify';
-
-const SafeHTML = ({ html, className = '' }) => {
-  const cleanHtml = DOMPurify.sanitize(html || '', { ALLOWED_TAGS: ['u'] });
-  return (
-    <span 
-      className={`job-analysis-content ${className}`} 
-      dangerouslySetInnerHTML={{ __html: cleanHtml }} 
-    />
-  );
-};
+import api from '../services/api';
 
 const JOB_SITES = [
   { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
@@ -23,6 +11,10 @@ const JOB_SITES = [
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
   return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+}
+
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -144,9 +136,9 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await analyzeJob({
-        url: mode === 'url' ? url : undefined,
-        text: mode === 'text' ? text : undefined,
+      const { data } = await api.post('/job/analyze', {
+        url: mode === 'url' ? url.trim() : undefined,
+        text: mode === 'text' ? text.trim() : undefined,
       });
       onAnalysisComplete(data.analysis);
     } catch (err) {
@@ -330,6 +322,9 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
       <div className="bg-white border border-gray-200 rounded-t-2xl px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 text-left">
+            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
+              <Building2 size={20} className="text-gray-600" />
+            </div>
             <div>
               <p className="text-sm font-bold text-gray-800 tracking-wide">
                 {analysis.company || '기업'} ({analysis.position || '직무'})
@@ -396,337 +391,274 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 }
                 .animate-page-flip-right { animation: pageFlipRight 0.4s ease-out; }
                 .animate-page-flip-left { animation: pageFlipLeft 0.4s ease-out; }
-                .job-analysis-content u {
-                  text-decoration: none;
-                  border-bottom: 2px solid #818cf8;
-                  padding-bottom: 1px;
-                  background: linear-gradient(to top, #eef2ff 40%, transparent 40%);
-                  font-weight: 600;
-                  color: #312e81;
-                }
               `}</style>
 
-              {activeTab === 'company' && (
-                <>
-                  {/* 포트폴리오 요건 */}
-                  <AnalysisCard title="기업 포트폴리오 요건">
-                    {(() => {
-                      const pr = portfolioReq;
-                      const hasData = pr.required?.length > 0 || pr.format?.length > 0 || pr.content?.length > 0 || pr.submission;
-                      if (!hasData) {
-                        return <p className="text-[10px] text-gray-400 text-center py-2">이 채용공고에는 별도의 포트폴리오 요건이 명시되어 있지 않습니다</p>;
-                      }
-                      return (
-                        <div className="space-y-2.5">
-                          {pr.required?.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-bold text-red-500 mb-1">필수 제출 서류</p>
-                              <ul className="space-y-1">
-                                {pr.required.map((r, i) => (
-                                  <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                    <span className="text-red-400 flex-shrink-0 font-bold">!</span>{r}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {pr.format?.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-bold text-blue-500 mb-1">포맷/형식 조건</p>
-                              <ul className="space-y-1">
-                                {pr.format.map((f, i) => (
-                                  <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                    <span className="text-blue-400 flex-shrink-0">→</span>{f}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {pr.content?.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-bold text-emerald-500 mb-1">담아야 할 내용</p>
-                              <ul className="space-y-1">
-                                {pr.content.map((c, i) => (
-                                  <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                    <span className="text-emerald-500 flex-shrink-0">·</span>{c}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {pr.submission && (
-                            <div className="pt-1.5 border-t border-gray-100">
-                              <p className="text-[10px] font-bold text-gray-500 mb-0.5">제출 방법</p>
-                              <p className="text-gray-700">{pr.submission}</p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+            {activeTab === 'company' && (
+              <>
+                {/* 포트폴리오 요건 — 맨 위 */}
+                <AnalysisCard title="기업 포트폴리오 요건">
+                  {(() => {
+                    const pr = portfolioReq;
+                    const hasData = pr.required?.length > 0 || pr.format?.length > 0 || pr.content?.length > 0 || pr.submission;
+                    if (!hasData) {
+                      return <p className="text-[10px] text-gray-400 text-center py-2">이 채용공고에는 별도의 포트폴리오 요건이 명시되어 있지 않습니다</p>;
+                    }
+                    return (
+                      <div className="space-y-2.5">
+                        {pr.required?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-red-500 mb-1">필수 제출 서류</p>
+                            <ul className="space-y-1">
+                              {pr.required.map((r, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                                  <span className="text-red-400 flex-shrink-0 font-bold">!</span>{r}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {pr.format?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-blue-500 mb-1">포맷/형식 조건</p>
+                            <ul className="space-y-1">
+                              {pr.format.map((f, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                                  <span className="text-blue-400 flex-shrink-0">→</span>{f}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {pr.content?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-emerald-500 mb-1">담아야 할 내용</p>
+                            <ul className="space-y-1">
+                              {pr.content.map((c, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
+                                  <span className="text-emerald-500 flex-shrink-0">·</span>{c}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {pr.submission && (
+                          <div className="pt-1.5 border-t border-gray-100">
+                            <p className="text-[10px] font-bold text-gray-500 mb-0.5">제출 방법</p>
+                            <p className="text-gray-700">{pr.submission}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </AnalysisCard>
+                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
+                <div className="grid grid-cols-2 gap-3">
+                  {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
+                  {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
+                </div>
+                {ca.businessAreas?.length > 0 && (
+                  <AnalysisCard title="사업 영역">
+                    <div className="flex flex-wrap gap-1.5">{ca.businessAreas.map((a, i) => <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>)}</div>
                   </AnalysisCard>
-
-                  {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
+                )}
+                {(ca.strengths?.length > 0 || ca.weaknesses?.length > 0) && (
                   <div className="grid grid-cols-2 gap-3">
-                    {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
-                    {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
+                    {ca.strengths?.length > 0 && (
+                      <AnalysisCard title="강점 (S)">
+                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
+                      </AnalysisCard>
+                    )}
+                    {ca.weaknesses?.length > 0 && (
+                      <AnalysisCard title="약점/리스크 (W)">
+                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
+                      </AnalysisCard>
+                    )}
                   </div>
-                  {ca.businessAreas?.length > 0 && (
-                    <AnalysisCard title="사업 영역">
-                      <div className="flex flex-wrap gap-1.5">{ca.businessAreas.map((a, i) => <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>)}</div>
-                    </AnalysisCard>
-                  )}
-                  {(ca.strengths?.length > 0 || ca.weaknesses?.length > 0) && (
-                    <div className="grid grid-cols-2 gap-3">
-                      {ca.strengths?.length > 0 && (
-                        <AnalysisCard title="강점 (S)">
-                          <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
-                        </AnalysisCard>
-                      )}
-                      {ca.weaknesses?.length > 0 && (
-                        <AnalysisCard title="약점/리스크 (W)">
-                          <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
-                        </AnalysisCard>
-                      )}
-                    </div>
-                  )}
-                  {ca.competitors?.length > 0 && (
-                    <AnalysisCard title="경쟁사 비교">
-                      <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
-                    </AnalysisCard>
-                  )}
-                  {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
-                  {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
+                )}
+                {ca.competitors?.length > 0 && (
+                  <AnalysisCard title="경쟁사 비교">
+                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
+                  </AnalysisCard>
+                )}
+                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
+                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
+              </>
+            )}
 
-
-                </>
-              )}
-
-              {activeTab === 'position' && (
-                <>
-                  {pa.roleDescription && <AnalysisCard title="직무 설명"><p className="text-gray-700 leading-relaxed">{stripMd(pa.roleDescription)}</p></AnalysisCard>}
-                  {pa.dailyTasks && <AnalysisCard title="주요 업무"><p className="text-gray-700 leading-relaxed">{typeof pa.dailyTasks === 'string' ? stripMd(pa.dailyTasks) : ''}</p></AnalysisCard>}
-                  {pa.keyCompetencies?.length > 0 && (
-                    <AnalysisCard title="핵심 역량">
-                      <div className="space-y-2">
-                        {pa.keyCompetencies.map((c, i) => {
-                          const name = typeof c === 'string' ? c : c.name;
-                          const weight = typeof c === 'string' ? 5 : (c.weight || 5);
-                          const desc = typeof c === 'string' ? '' : c.description;
-                          return (
-                            <div key={i}>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <span className="font-medium text-gray-700">{name}</span>
-                                <span className="text-[10px] text-gray-400">{weight}/10</span>
-                              </div>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                <div className="h-1.5 rounded-full bg-gray-500" style={{ width: `${weight * 10}%` }} />
-                              </div>
-                              {desc && <p className="text-[10px] text-gray-400 mt-0.5">{stripMd(desc)}</p>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </AnalysisCard>
-                  )}
-
-                  {pa.challengeLevel && (
-                    <AnalysisCard title="직무 난이도">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                          <span className="text-lg font-black text-indigo-700">{pa.challengeLevel.score}</span>
-                        </div>
-                        <p className="text-gray-700 flex-1">{stripMd(pa.challengeLevel.description)}</p>
-                      </div>
-                    </AnalysisCard>
-                  )}
-                  {pa.growthPath && <AnalysisCard title="성장 경로"><p className="text-gray-700 leading-relaxed">{stripMd(pa.growthPath)}</p></AnalysisCard>}
-                  {analysis.requirements?.essential?.length > 0 && (
-                    <AnalysisCard title="필수 요건">
-                      <ul className="space-y-1">{analysis.requirements.essential.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-red-400 flex-shrink-0">•</span>{r}</li>)}</ul>
-                    </AnalysisCard>
-                  )}
-                  {analysis.requirements?.preferred?.length > 0 && (
-                    <AnalysisCard title="우대 요건">
-                      <ul className="space-y-1">{analysis.requirements.preferred.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-blue-400 flex-shrink-0">•</span>{r}</li>)}</ul>
-                    </AnalysisCard>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'strategy' && (
-                <>
-                  {as_.motivationPoints?.length > 0 && (
-                    <AnalysisCard title="지원동기 포인트">
-                      <ul className="space-y-2">
-                        {as_.motivationPoints.map((p, i) => {
-                          const point = typeof p === 'string' ? p : p.point;
-                          const how = typeof p === 'string' ? '' : p.how;
-                          return (
-                            <li key={i} className="text-gray-700">
-                              <div className="flex items-start gap-2">
-                                <span className="w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
-                                <div><p className="font-medium">{stripMd(point)}</p>{how && <p className="text-[10px] text-gray-400 mt-0.5">활용 방법: {stripMd(how)}</p>}</div>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </AnalysisCard>
-                  )}
-                  {as_.passingStrategy?.length > 0 && (
-                    <AnalysisCard title="핵심 합격 전략">
-                      <div className="space-y-3">
-                        {as_.passingStrategy.map((s, i) => {
-                          const strategy = typeof s === 'string' ? s : s.strategy;
-                          const desc = typeof s === 'string' ? '' : s.description;
-                          return (
-                            <div key={i} className="p-2.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                              <p className="font-medium text-indigo-900"><span className="text-indigo-600 mr-1">🎯</span> {strategy}</p>
-                              {desc && <p className="text-[10px] text-indigo-700 mt-1">{stripMd(desc)}</p>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </AnalysisCard>
-                  )}
-                  {as_.appealPoints?.length > 0 && (
-                    <AnalysisCard title="어필 포인트">
-                      <div className="flex flex-wrap gap-1.5">{as_.appealPoints.map((p, i) => <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded-lg">{p}</span>)}</div>
-                    </AnalysisCard>
-                  )}
-                  {as_.portfolioTips?.length > 0 && (
-                    <AnalysisCard title="포트폴리오 작성 팁">
-                      <ul className="space-y-1">{as_.portfolioTips.map((t, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-primary-500 flex-shrink-0">→</span>{t}</li>)}</ul>
-                    </AnalysisCard>
-                  )}
-                  {as_.cautionPoints?.length > 0 && (
-                    <AnalysisCard title="주의 사항">
-                      <ul className="space-y-1">{as_.cautionPoints.map((p, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">!</span>{p}</li>)}</ul>
-                    </AnalysisCard>
-                  )}
-                  {analysis.applicationFormat?.questions?.length > 0 && (
-                    <AnalysisCard title="자소서 문항">
-                      <ul className="space-y-2">{analysis.applicationFormat.questions.map((q, i) => <li key={i} className="text-gray-700 bg-gray-50 p-2 rounded-lg"><span className="font-medium">{i + 1}.</span> {q.question}{q.maxLength && <span className="ml-1 text-[10px] text-gray-400">({q.maxLength}자)</span>}</li>)}</ul>
-                    </AnalysisCard>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'trends' && (
-                <>
-                  {trends.length > 0 ? (
-                    <div className="space-y-0">
-                      {/* 헤더 인사이트 배너 */}
-                      <div className="mb-5 p-4 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white">
-                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1">Industry Intelligence</p>
-                        <p className="text-base font-bold leading-snug">{analysis.company || '해당 산업'}의 핵심 트렌드 {trends.length}가지</p>
-                        <p className="text-[13px] text-slate-300 mt-1.5 leading-relaxed">지원 직무에 직접적인 영향을 주는 시장 흐름을 분석했습니다. 각 트렌드를 이해하고 면접 및 포트폴리오에 활용하세요.</p>
-                      </div>
-
-                      {/* 트렌드 카드 리스트 */}
-                      {trends.map((t, i) => {
-                        const trend = typeof t === 'string' ? t : t.trend;
-                        const desc = typeof t === 'string' ? '' : t.description;
-                        const impact = typeof t === 'string' ? '' : t.impact;
-                        const keywords = typeof t === 'object' && t.keywords ? t.keywords : [];
-                        const level = typeof t === 'object' && t.level ? t.level : null;
-                        const opportunity = typeof t === 'object' ? t.opportunity : '';
-                        const threat = typeof t === 'object' ? t.threat : '';
-
-                        const levelStyle = {
-                          hot: { bg: 'bg-red-50', border: 'border-red-200', tag: 'text-red-600 bg-red-100', label: 'HOT' },
-                          growing: { bg: 'bg-amber-50', border: 'border-amber-200', tag: 'text-amber-700 bg-amber-100', label: 'GROWING' },
-                          stable: { bg: 'bg-blue-50', border: 'border-blue-200', tag: 'text-blue-600 bg-blue-100', label: 'STABLE' },
-                        }[level] || { bg: 'bg-gray-50', border: 'border-gray-200', tag: 'text-indigo-600 bg-indigo-100', label: null };
-
+            {activeTab === 'position' && (
+              <>
+                {pa.roleDescription && <AnalysisCard title="직무 설명"><p className="text-gray-700 leading-relaxed">{stripMd(pa.roleDescription)}</p></AnalysisCard>}
+                {pa.dailyTasks && <AnalysisCard title="주요 업무"><p className="text-gray-700 leading-relaxed">{typeof pa.dailyTasks === 'string' ? stripMd(pa.dailyTasks) : ''}</p></AnalysisCard>}
+                {pa.keyCompetencies?.length > 0 && (
+                  <AnalysisCard title="핵심 역량">
+                    <div className="space-y-2">
+                      {pa.keyCompetencies.map((c, i) => {
+                        const name = typeof c === 'string' ? c : c.name;
+                        const weight = typeof c === 'string' ? 5 : (c.weight || 5);
+                        const desc = typeof c === 'string' ? '' : c.description;
                         return (
-                          <div key={i} className={`mb-4 rounded-xl border ${levelStyle.border} ${levelStyle.bg} overflow-hidden`}>
-                            {/* 카드 헤더 */}
-                            <div className="flex items-start gap-3 px-4 pt-4 pb-2">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shadow-sm">
-                                <span className="text-[12px] font-black text-slate-700">{String(i + 1).padStart(2, '0')}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="text-sm font-bold text-gray-900 leading-tight">{trend}</p>
-                                  {levelStyle.label && (
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${levelStyle.tag}`}>{levelStyle.label}</span>
-                                  )}
-                                </div>
-                              </div>
+                          <div key={i}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="font-medium text-gray-700">{name}</span>
+                              <span className="text-[10px] text-gray-400">{weight}/10</span>
                             </div>
-
-                            {/* 본문 */}
-                            <div className="px-4 pb-4">
-                              <div className="ml-11 space-y-2.5">
-                                {/* 상세 설명 */}
-                                {desc && (
-                                  <p className="text-[13px] text-gray-700 leading-relaxed">{stripMd(desc)}</p>
-                                )}
-
-                                {/* 직무 영향 */}
-                                {impact && (
-                                  <div className="flex items-start gap-2 p-2.5 bg-white/80 rounded-lg border border-indigo-100">
-                                    <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                                      <span className="text-[10px] font-bold text-indigo-600">!</span>
-                                    </span>
-                                    <div>
-                                      <p className="text-[11px] font-bold text-indigo-600 mb-0.5">직무 영향</p>
-                                      <p className="text-[13px] text-indigo-900 leading-relaxed">{stripMd(impact)}</p>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* 기회 & 위협 */}
-                                {(opportunity || threat) && (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {opportunity && (
-                                      <div className="p-2.5 bg-emerald-50/80 rounded-lg border border-emerald-100">
-                                        <p className="text-[11px] font-bold text-emerald-700 mb-0.5">기회</p>
-                                        <p className="text-[12px] text-emerald-800 leading-relaxed">{stripMd(opportunity)}</p>
-                                      </div>
-                                    )}
-                                    {threat && (
-                                      <div className="p-2.5 bg-rose-50/80 rounded-lg border border-rose-100">
-                                        <p className="text-[11px] font-bold text-rose-600 mb-0.5">위협</p>
-                                        <p className="text-[12px] text-rose-800 leading-relaxed">{stripMd(threat)}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* 키워드 태그 */}
-                                {keywords.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5 pt-1">
-                                    {keywords.map((kw, ki) => (
-                                      <span key={ki} className="text-[11px] px-2 py-0.5 bg-white border border-gray-200 text-gray-600 rounded-full font-medium"># {kw}</span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div className="h-1.5 rounded-full bg-gray-500" style={{ width: `${weight * 10}%` }} />
                             </div>
+                            {desc && <p className="text-[10px] text-gray-400 mt-0.5">{stripMd(desc)}</p>}
                           </div>
                         );
                       })}
+                    </div>
+                  </AnalysisCard>
+                )}
+                {pa.challengeLevel && (
+                  <AnalysisCard title="직무 난이도">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                        <span className="text-lg font-black text-indigo-700">{pa.challengeLevel.score}</span>
+                      </div>
+                      <p className="text-gray-700 flex-1">{stripMd(pa.challengeLevel.description)}</p>
+                    </div>
+                  </AnalysisCard>
+                )}
+                {pa.growthPath && <AnalysisCard title="성장 경로"><p className="text-gray-700 leading-relaxed">{stripMd(pa.growthPath)}</p></AnalysisCard>}
+                {analysis.requirements?.essential?.length > 0 && (
+                  <AnalysisCard title="필수 요건">
+                    <ul className="space-y-1">{analysis.requirements.essential.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-red-400 flex-shrink-0">•</span>{r}</li>)}</ul>
+                  </AnalysisCard>
+                )}
+                {analysis.requirements?.preferred?.length > 0 && (
+                  <AnalysisCard title="우대 요건">
+                    <ul className="space-y-1">{analysis.requirements.preferred.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-blue-400 flex-shrink-0">•</span>{r}</li>)}</ul>
+                  </AnalysisCard>
+                )}
+              </>
+            )}
 
-                      {/* 하단 안내 */}
-                      <div className="mt-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                        <p className="text-[11px] text-gray-400 leading-relaxed text-center">
-                          AI가 채용공고 및 해당 산업 데이터를 기반으로 분석한 정보입니다.
-                          실제 시장 상황과 차이가 있을 수 있으니 참고용으로 활용하세요.
-                        </p>
-                      </div>
+            {activeTab === 'strategy' && (
+              <>
+                {as_.motivationPoints?.length > 0 && (
+                  <AnalysisCard title="지원동기 포인트">
+                    <ul className="space-y-2">
+                      {as_.motivationPoints.map((p, i) => {
+                        const point = typeof p === 'string' ? p : p.point;
+                        const how = typeof p === 'string' ? '' : p.how;
+                        return (
+                          <li key={i} className="text-gray-700">
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                              <div><p className="font-medium">{stripMd(point)}</p>{how && <p className="text-[10px] text-gray-400 mt-0.5">활용 방법: {stripMd(how)}</p>}</div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </AnalysisCard>
+                )}
+                {as_.interviewQuestions?.length > 0 && (
+                  <AnalysisCard title="면접 예상 질문">
+                    <div className="space-y-3">
+                      {as_.interviewQuestions.map((q, i) => {
+                        const question = typeof q === 'string' ? q : q.question;
+                        const intent = typeof q === 'string' ? '' : q.intent;
+                        const tip = typeof q === 'string' ? '' : q.answerTip;
+                        return (
+                          <div key={i} className="p-2.5 bg-gray-50 rounded-lg">
+                            <p className="font-medium text-gray-800"><span className="text-indigo-500">Q{i + 1}.</span> {question}</p>
+                            {intent && <p className="text-[10px] text-blue-500 mt-1">면접관 의도: {stripMd(intent)}</p>}
+                            {tip && <p className="text-[10px] text-green-600 mt-0.5">답변 전략: {stripMd(tip)}</p>}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ) : (
-                    <div className="py-12 flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
-                        <span className="text-xl">📊</span>
-                      </div>
-                      <p className="text-sm text-gray-400 text-center">채용공고 URL을 분석하면<br />산업 트렌드 정보가 표시됩니다.</p>
-                    </div>
-                  )}
-                </>
-              )}
+                  </AnalysisCard>
+                )}
+                {as_.appealPoints?.length > 0 && (
+                  <AnalysisCard title="어필 포인트">
+                    <div className="flex flex-wrap gap-1.5">{as_.appealPoints.map((p, i) => <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded-lg">{p}</span>)}</div>
+                  </AnalysisCard>
+                )}
+                {as_.portfolioTips?.length > 0 && (
+                  <AnalysisCard title="포트폴리오 작성 팁">
+                    <ul className="space-y-1">{as_.portfolioTips.map((t, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-primary-500 flex-shrink-0">→</span>{t}</li>)}</ul>
+                  </AnalysisCard>
+                )}
+                {as_.cautionPoints?.length > 0 && (
+                  <AnalysisCard title="주의 사항">
+                    <ul className="space-y-1">{as_.cautionPoints.map((p, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">!</span>{p}</li>)}</ul>
+                  </AnalysisCard>
+                )}
+                {analysis.applicationFormat?.questions?.length > 0 && (
+                  <AnalysisCard title="자소서 문항">
+                    <ul className="space-y-2">{analysis.applicationFormat.questions.map((q, i) => <li key={i} className="text-gray-700 bg-gray-50 p-2 rounded-lg"><span className="font-medium">{i + 1}.</span> {q.question}{q.maxLength && <span className="ml-1 text-[10px] text-gray-400">({q.maxLength}자)</span>}</li>)}</ul>
+                  </AnalysisCard>
+                )}
+              </>
+            )}
+
+            {activeTab === 'trends' && (
+              <>
+                {trends.length > 0 ? (
+                  <div className="space-y-3">
+                    {trends.map((t, i) => {
+                      const trend = typeof t === 'string' ? t : t.trend;
+                      const desc = typeof t === 'string' ? '' : t.description;
+                      const impact = typeof t === 'string' ? '' : t.impact;
+                      const keywords = typeof t === 'string' ? [] : (t.keywords || []);
+                      const level = typeof t === 'string' ? '' : t.level;
+                      const opportunity = typeof t === 'string' ? '' : t.opportunity;
+                      const threat = typeof t === 'string' ? '' : t.threat;
+                      const levelConfig = {
+                        hot: { label: '🔥 HOT', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', headerBg: 'from-red-50 to-orange-50' },
+                        growing: { label: '📈 GROWING', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', headerBg: 'from-emerald-50 to-teal-50' },
+                        stable: { label: '⚖️ STABLE', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-gray-50 to-slate-50' },
+                      };
+                      const lc = levelConfig[level] || { label: '', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-indigo-50 to-purple-50' };
+                      return (
+                        <div key={i} className={`rounded-xl border ${lc.border} overflow-hidden shadow-sm`}>
+                          <div className={`flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r ${lc.headerBg} border-b ${lc.border}`}>
+                            <span className="w-6 h-6 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0">{i + 1}</span>
+                            <p className="font-bold text-gray-800 flex-1 text-[12px] leading-snug">{trend}</p>
+                            {level && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${lc.bg} ${lc.text} border ${lc.border} whitespace-nowrap`}>{lc.label}</span>}
+                          </div>
+                          <div className="p-3 space-y-2 bg-white">
+                            {desc && <p className="text-[11px] text-gray-600 leading-relaxed">{stripMd(desc)}</p>}
+                            {keywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {keywords.map((kw, ki) => (
+                                  <span key={ki} className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded font-medium border border-indigo-100">#{kw}</span>
+                                ))}
+                              </div>
+                            )}
+                            {impact && (
+                              <div className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-blue-600 text-[10px] whitespace-nowrap">📌 직무 영향</span>
+                                <span className="text-[10px] text-blue-700 leading-relaxed">{stripMd(impact)}</span>
+                              </div>
+                            )}
+                            {opportunity && (
+                              <div className="flex items-start gap-1.5 bg-green-50 border border-green-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-green-700 text-[10px] whitespace-nowrap">✓ 기회</span>
+                                <span className="text-[10px] text-green-800 leading-relaxed">{stripMd(opportunity)}</span>
+                              </div>
+                            )}
+                            {threat && (
+                              <div className="flex items-start gap-1.5 bg-orange-50 border border-orange-100 rounded-lg p-2">
+                                <span className="flex-shrink-0 font-bold text-orange-600 text-[10px] whitespace-nowrap">△ 주의</span>
+                                <span className="text-[10px] text-orange-800 leading-relaxed">{stripMd(threat)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-center py-8">산업 트렌드 정보가 없습니다</p>
+                )}
+              </>
+            )}
 
             </div>{/* end animation wrapper */}
           </div>
@@ -748,11 +680,9 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
 
 function AnalysisCard({ title, compact, children }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm ${compact ? 'p-3' : 'p-4'}`}>
-      <p className={`font-bold text-gray-800 ${compact ? 'text-xs mb-2' : 'text-sm mb-3'}`}>{title}</p>
-      <div className={compact ? 'text-sm' : 'text-base'}>
-        {children}
-      </div>
+    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm ${compact ? 'p-2.5' : 'p-3'}`}>
+      <p className={`font-semibold text-gray-800 ${compact ? 'text-[11px] mb-1' : 'text-xs mb-2'}`}>{title}</p>
+      {children}
     </div>
   );
 }
