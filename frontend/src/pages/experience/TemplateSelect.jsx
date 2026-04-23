@@ -1483,17 +1483,16 @@ export default function TemplateSelect() {
             </div>
           </div>
 
-          {/* 다음 버튼 */}
-          <div className="flex justify-center pt-1">
-            <button
-              onClick={() => setStep(2)}
-              disabled={!canNext1}
-              className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-primary-200/60 transition-all hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              다음 단계
-              <ChevronRight size={18} />
-            </button>
-          </div>
+        </div>
+        <div className="flex flex-col items-center gap-3 pt-6 md:pt-8">
+          <button
+            onClick={() => setStep(2)}
+            disabled={!canNext1}
+            className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-primary-200/60 transition-all hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음 단계
+            <ChevronRight size={18} />
+          </button>
           <p className="text-center text-xs text-bluewood-400">AI 분석 과정은 자료량에 따라 최대 5분 소요될 수 있어요</p>
         </div>
       </div>
