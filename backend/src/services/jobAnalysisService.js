@@ -283,8 +283,10 @@ ${text.substring(0, 8000)}
 3. 급여 추정: 직급·경력·업종 기반 시장 급여 범위
 4. 합격 전략: 직무 및 기업 특성을 반영한 핵심 합격 전략 (면접 예상 질문 제외)
 5. 포트폴리오 요건: required/format/content/submission 항목별 세밀하게 추출 (명시 없으면 직무 관행 기반 가이드 작성)
+6. 산업 트렌드: 해당 기업이 속한 산업의 핵심 트렌드를 5개 이상 상세히 분석. 각 트렌드마다 trend(제목), description(2~3문장의 상세 설명), impact(해당 직무에 미치는 구체적 영향), keywords(관련 키워드 3~5개 배열), level(hot/growing/stable 중 하나), opportunity(해당 트렌드로 인한 기회), threat(주의해야 할 위험 요소)를 모두 작성하세요.
+7. 강조 표시: 모든 분석 결과 텍스트 중에서 포트폴리오나 자소서 작성 시 '치트키'가 될 만한 핵심 문구나 키워드는 반드시 <u>강조할내용</u> 태그로 감싸서 응답하세요. (예: <u>업계 1위의 시장 점유율</u>을 기반으로 한...)
 
-반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지):
+반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지, <u> 태그만 허용):
 {
   "company": "",
   "position": "",
@@ -331,7 +333,7 @@ ${text.substring(0, 8000)}
     "cautionPoints": [],
     "portfolioTips": []
   },
-  "industryTrends": [{ "trend": "", "description": "", "impact": "" }],
+  "industryTrends": [{ "trend": "", "description": "", "impact": "", "keywords": [], "level": "growing", "opportunity": "", "threat": "" }],
   "fitScoreFactors": [
     { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
     { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
@@ -420,10 +422,10 @@ export async function generateTailoredCoverLetter(jobAnalysis, matchResult, expe
   const questions = rawQuestions.length > 0
     ? rawQuestions
     : [
-        { question: '지원 동기', maxLength: 500 },
-        { question: '직무 관련 경험', maxLength: 500 },
-        { question: '입사 후 포부', maxLength: 500 },
-      ];
+      { question: '지원 동기', maxLength: 500 },
+      { question: '직무 관련 경험', maxLength: 500 },
+      { question: '입사 후 포부', maxLength: 500 },
+    ];
 
   const expText = experiences.slice(0, 5).map((exp, i) => {
     const content = exp.content
@@ -497,13 +499,20 @@ ${matchKey}
 경험 목록:
 ${experiences.slice(0, 8).map((e, i) => `${i + 1}. ${e.title} [스킬: ${(e.skills || []).join(', ')}]`).join('\n')}
 
-요청: 기업에 맞게 강조할 항목, 순서 변경, 추가할 내용 제안.
+요청: 기업에 맞게 강조할 항목, 순서 변경, 추가할 내용 제안. 
+특히 recommendedExperiences에는 이 기업에 가장 핵심적인 경험 2~3개만 남기고, 각 경험의 역할(tailoredRole)과 설명(tailoredDescription)을 해당 기업의 요구사항과 직접적으로 연관지어 재작성하세요.
 
 JSON 형식으로만 응답:
 {
   "headline": "기업맞춤 추천 헤드라인",
   "recommendedExperiences": [
-    {"title": "경험 제목", "reason": "추천 이유", "priority": 1}
+    {
+      "title": "경험 제목", 
+      "reason": "추천 이유", 
+      "priority": 1,
+      "tailoredRole": "해당 기업/직무에 맞게 재작성된 핵심 역할 (예: 데이터 파이프라인 설계 및 최적화)",
+      "tailoredDescription": "해당 기업의 비즈니스나 요구사항과 강력하게 연관지어 재작성된 핵심 성과 및 설명 (2~3줄 분량)"
+    }
   ],
   "skillsToHighlight": ["강조할 스킬1", "강조할 스킬2"],
   "sections": [
@@ -535,26 +544,39 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
     .map(k => `[${sectionLabels[k]}]\n${sr[k]}`)
     .join('\n\n');
 
-  const prompt = `취업 컨설턴트입니다. 사용자 경험을 지원 기업/직무에 최적화되도록 7개 섹션별로 재작성하세요.
-원본 사실을 유지하되 기업이 원하는 역량·가치를 강조하도록 표현 조정. 원본 없는 섹션은 빈 문자열.
-JSON 값 안에 마크다운 기호(**, ##, *, -) 절대 사용 금지.
+  const prompt = `당신은 취업 컨설턴트입니다.
+사용자의 실제 경험 내용을 그대로 보존하면서, 해당 경험이 지원 기업/직무와 어떻게 연결되는지를 보여주는 방식으로 포트폴리오를 작성합니다.
+
+[핵심 원칙]
+- 원본 내용(사실, 수치, 기술명, 과정, 결과)은 절대 변경하지 마세요.
+- 내용을 '새로 쓰는 것'이 아니라, 원본을 그대로 가져가면서 기업 맥락에서 어떤 의미가 있는지를 연결해주는 것입니다.
+- 없는 내용을 만들거나 과장하지 마세요.
+- JSON 값 안에 마크다운 기호(**, ##, *, -) 사용 금지.
+
+[작업 방식]
+sections: 원본 내용을 최대한 살리되, 문장 앞이나 뒤에 "이 경험은 [기업명]의 [직무]에서 ~~와 연결됩니다" 같은
+         기업 연관 맥락 한 문장을 자연스럽게 추가할 수 있습니다. 원본 내용 자체를 변형하지 마세요.
+
+keyExperiences: 원본 경험에서 이 기업과 가장 관련 있는 부분을 선별하여,
+               problem/action/result는 원본 텍스트를 그대로 발췌합니다.
+               relevance 필드에만 "이 경험이 [기업]에 어떻게 연관되는지" 해설을 작성합니다.
 
 기업: ${jobAnalysis.company || ''} | 직무: ${jobAnalysis.position || ''}
 스킬: ${(jobAnalysis.skills || []).join(', ')} | 인재상: ${(jobAnalysis.coreValues || []).join(', ')}
 주요업무: ${(jobAnalysis.tasks || []).slice(0, 4).join(', ')}
 
-원본 경험:
+===== 원본 경험 (아래 내용을 그대로 보존하세요) =====
 제목: ${experience.title || ''} | 역할: ${experience.role || ''} | 스킬: ${(experience.skills || []).join(', ')}
-설명: ${(experience.description || '').substring(0, 300)}
+설명: ${(experience.description || '').substring(0, 400)}
 ${content.substring(0, 800)}
 
-7개 섹션 원본:
-${(sectionTexts || '(없음)').substring(0, 2000)}
+===== 7개 섹션 원본 내용 (변형 없이 사용하세요) =====
+${(sectionTexts || '(없음)').substring(0, 2500)}
 
 JSON으로만 응답:
 {
   "sections": {
-    "intro": { "content": "", "reason": "" },
+    "intro": { "content": "원본 내용 보존 + 필요시 기업 연관 맥락 1문장 추가", "reason": "이 섹션이 기업에 연관되는 이유" },
     "overview": { "content": "", "reason": "" },
     "task": { "content": "", "reason": "" },
     "process": { "content": "", "reason": "" },
@@ -562,9 +584,27 @@ JSON으로만 응답:
     "growth": { "content": "", "reason": "" },
     "competency": { "content": "", "reason": "" }
   },
+  "keyExperiences": [
+    {
+      "title": "원본 경험 제목 (변경 최소화)",
+      "description": "원본 설명 발췌",
+      "problem": "원본에서 발췌한 문제 상황 (변형 없이)",
+      "action": "원본에서 발췌한 수행 행동 (변형 없이)",
+      "result": "원본에서 발췌한 성과 (변형 없이)",
+      "relevance": "이 경험이 [기업명]의 [직무]에 연관되는 이유 (여기서만 기업 연결 해설 작성)"
+    }
+  ],
   "highlightedSkills": [],
   "relevanceNote": ""
-}`;
+}
+
+요청:
+1. sections: 원본 내용을 그대로 유지하면서, 기업과 연관 있는 섹션에만 연관 맥락 1문장을 자연스럽게 추가하세요. 원본 없는 섹션은 빈 문자열.
+2. keyExperiences: 원본 경험에서 이 기업/직무와 연관성 높은 실제 경험을 1~3개 선별하세요.
+   - problem, action, result는 반드시 원본 텍스트 그대로 (또는 거의 그대로) 발췌
+   - relevance 필드에만 기업과의 연결 해설을 작성
+   - 원본에 없는 내용은 어떤 필드에도 작성 금지
+3. 연관성이 높을수록 더 많이 포함 (최대 3개), 관련이 낮으면 1개만.`;
 
   const raw = await callProFirst(prompt, 'TailorExperienceContent');
   return parseJSON(raw);
