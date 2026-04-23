@@ -725,81 +725,87 @@ export default function TemplateSelect() {
     );
   }
   return (
-    <div className="animate-fadeIn max-w-2xl mx-auto">
-      <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 mb-6">
+    <div className="animate-fadeIn mx-auto max-w-5xl px-1 pb-8">
+      <Link to="/app/experience" className="mb-8 inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600">
         <ArrowLeft size={16} /> 경험 정리로 돌아가기
       </Link>
 
       {/* 스텝 인디케이터 */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-          step === 1 ? 'bg-primary-500 text-white shadow-sm' : 'bg-surface-100 text-bluewood-400'
+      <div className="mb-12 flex items-center gap-4 px-1">
+        <div className={`flex min-w-[112px] items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-all ${
+          step === 1 ? 'bg-primary-500 text-white shadow-sm shadow-primary-200/70' : 'bg-white text-bluewood-400 border border-surface-200'
         }`}>
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
             {step > 1 ? <Check size={12} /> : '1'}
           </span>
           기본 정보
         </div>
-        <div className="w-8 h-px bg-surface-300" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-          step === 2 ? 'bg-primary-500 text-white shadow-sm' : 'bg-surface-100 text-bluewood-400'
+        <div className="h-px flex-1 bg-surface-300" />
+        <div className={`flex min-w-[112px] items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-all ${
+          step === 2 ? 'bg-primary-500 text-white shadow-sm shadow-primary-200/70' : 'bg-white text-bluewood-400 border border-surface-200'
         }`}>
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
             {step > 2 ? <Check size={12} /> : '2'}
           </span>
           자료 수집
         </div>
-        <div className="w-8 h-px bg-surface-300" />
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-surface-100 text-bluewood-400">
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">3</span>
+        <div className="h-px flex-1 bg-surface-300" />
+        <div className="flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-surface-200 bg-white px-4 py-3 text-sm font-semibold text-bluewood-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-100 text-xs font-bold">3</span>
           경험 검토
         </div>
       </div>
 
       {/* ===== Step 1: 기본 정보 ===== */}
       {step === 1 && (
-        <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            {/* 프로젝트명 */}
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-bluewood-600 mb-2">
-                프로젝트명 <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="프로젝트 이름을 입력하세요"
-                className="w-full px-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 text-bluewood-900 placeholder-bluewood-300 transition-all"
-              />
-            </div>
+        <div className="space-y-8">
+          <div className="border-b border-surface-200 pb-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Basic Information</p>
+            <h1 className="text-[34px] font-bold tracking-[-0.03em] text-bluewood-900">프로젝트 기본 정보를 입력해주세요</h1>
+            <p className="mt-3 text-sm leading-6 text-bluewood-400">
+              프로젝트명과 기간, 분야를 먼저 정리하면 다음 단계에서 자료 수집과 경험 검토를 더 깔끔하게 이어갈 수 있어요.
+            </p>
+          </div>
 
-            {/* 날짜 */}
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-bluewood-600 mb-2">
-                <Calendar size={12} className="inline mr-1" />
-                기간 <span className="text-red-400">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-[28px] border border-surface-200 bg-white px-6 py-7 shadow-[0_24px_60px_-50px_rgba(49,65,87,0.28)] md:px-10 md:py-9">
+            <div className="space-y-8">
+              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-center">
+                <label className="text-sm font-semibold text-bluewood-700">
+                  프로젝트명 <span className="text-red-400">*</span>
+                </label>
                 <input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="w-full px-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 text-bluewood-900 transition-all"
-                />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="w-full px-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 text-bluewood-900 transition-all"
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="프로젝트 이름을 입력하세요"
+                  className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
                 />
               </div>
-            </div>
 
-            {/* 분야 선택 */}
-            <div>
-              <label className="block text-xs font-semibold text-bluewood-600 mb-2">분야</label>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
+                <label className="pt-4 text-sm font-semibold text-bluewood-700">
+                  <Calendar size={14} className="mr-1 inline" />
+                  기간 <span className="text-red-400">*</span>
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
+                  />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
+                <label className="pt-3 text-sm font-semibold text-bluewood-700">분야</label>
+                <div className="flex flex-wrap gap-3">
                 {FIELD_OPTIONS.map(opt => {
                   const Icon = opt.icon;
                   const selected = field === opt.value;
@@ -807,10 +813,10 @@ export default function TemplateSelect() {
                     <button
                       key={opt.value}
                       onClick={() => setField(selected ? '' : opt.value)}
-                      className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                      className={`inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-medium transition-all ${
                         selected
-                          ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
-                          : 'bg-white text-bluewood-600 border-surface-200 hover:border-primary-300 hover:bg-primary-50/50'
+                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
+                          : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
                       }`}
                     >
                       <Icon size={14} />
@@ -823,15 +829,18 @@ export default function TemplateSelect() {
           </div>
 
           {/* 다음 버튼 */}
-          <button
-            onClick={() => setStep(2)}
-            disabled={!canNext1}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-base font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200/50"
-          >
-            다음 단계
-            <ChevronRight size={18} />
-          </button>
+          <div className="flex justify-center pt-1">
+            <button
+              onClick={() => setStep(2)}
+              disabled={!canNext1}
+              className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-primary-200/60 transition-all hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              다음 단계
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
+      </div>
       )}
 
       {/* ===== Step 2: 자료 수집 ===== */}

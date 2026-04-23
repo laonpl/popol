@@ -25,7 +25,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
   const getFileIcon = (name) => {
     const ext = name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return { label: 'PDF', color: 'bg-red-500' };
-    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return { label: 'IMG', color: 'bg-blue-500' };
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return { label: 'IMG', color: 'bg-primary-500' };
     return { label: 'HWP', color: 'bg-green-700' };
   };
 
@@ -236,13 +236,13 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl px-6 py-8 text-center cursor-pointer transition-all select-none ${
                   isDragging
-                    ? 'border-blue-400 bg-blue-50'
+                    ? 'border-primary-400 bg-primary-50'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60'
                 }`}
               >
                 <UploadCloud
                   size={28}
-                  className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-blue-400' : 'text-gray-400'}`}
+                  className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-primary-500' : 'text-gray-400'}`}
                 />
                 <p className="text-sm font-semibold text-gray-700">
                   파일을 선택하거나 드래그해서 올려주세요.
@@ -387,7 +387,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                       <li>본문 클릭 후 <b>Ctrl+A</b> → <b>Ctrl+C</b></li>
                       <li>아래 입력란에 <b>Ctrl+V</b> 붙여넣기</li>
                     </ol>
-                    <p className="text-xs text-blue-600 mt-2 font-medium">
+                    <p className="text-xs text-primary-600 mt-2 font-medium">
                       표·목록·제목 서식이 텍스트로 자동 변환됩니다
                     </p>
                   </div>

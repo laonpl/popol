@@ -34,9 +34,9 @@ function ViewText({ value, onEdit, className = '' }) {
 }
 
 const THEMES = [
-  { label: 'Background & Problem', color: '#ef4444', accent: '#3b82f6' },
-  { label: 'Analysis & Action',    color: '#2563eb', accent: '#2563eb' },
-  { label: 'Result & Impact',      color: '#7c3aed', accent: '#7c3aed' },
+  { label: 'Background & Problem', color: '#002F6C', accent: '#002F6C' },
+  { label: 'Analysis & Action',    color: '#002F6C', accent: '#002F6C' },
+  { label: 'Result & Impact',      color: '#002F6C', accent: '#002F6C' },
 ];
 
 /* ── 문자열에서 숫자 추출 ──

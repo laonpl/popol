@@ -1,4 +1,17 @@
 /** @type {import('tailwindcss').Config} */
+const mainPalette = {
+  50: '#edf3f9',
+  100: '#d7e4f1',
+  200: '#afc9e3',
+  300: '#87add5',
+  400: '#5f92c7',
+  500: '#002F6C',
+  600: '#002a61',
+  700: '#002353',
+  800: '#001c45',
+  900: '#001536',
+}
+
 export default {
   content: [
     "./index.html",
@@ -7,18 +20,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eef4ff',
-          100: '#dae6ff',
-          200: '#bdd4ff',
-          300: '#90baff',
-          400: '#6199fc',
-          500: '#3778f9',
-          600: '#2660ed',
-          700: '#1e4cd9',
-          800: '#1f3fb0',
-          900: '#1f398b',
-        },
+        primary: mainPalette,
+        blue: mainPalette,
+        indigo: mainPalette,
+        purple: mainPalette,
         bluewood: {
           50: '#f4f6f8',
           100: '#e3e8ed',
@@ -54,8 +59,8 @@ export default {
         sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'card': '0 1px 3px 0 rgba(55, 120, 249, 0.06), 0 1px 2px -1px rgba(55, 120, 249, 0.06)',
-        'card-hover': '0 10px 25px -5px rgba(55, 120, 249, 0.1), 0 8px 10px -6px rgba(55, 120, 249, 0.06)',
+        'card': '0 1px 3px 0 rgba(0, 47, 108, 0.06), 0 1px 2px -1px rgba(0, 47, 108, 0.06)',
+        'card-hover': '0 10px 25px -5px rgba(0, 47, 108, 0.1), 0 8px 10px -6px rgba(0, 47, 108, 0.06)',
         'sidebar': '4px 0 24px -4px rgba(49, 65, 87, 0.08)',
       }
     },
