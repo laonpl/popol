@@ -9,6 +9,7 @@ import {
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
@@ -436,6 +437,7 @@ export default function TemplateSelect() {
   const [textInput, setTextInput] = useState('');
   const [notionUrl, setNotionUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
+  const [githubUsername, setGithubUsername] = useState('');
   const [blogUrl, setBlogUrl] = useState('');
   const [linkInputs, setLinkInputs] = useState([]);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -586,9 +588,27 @@ export default function TemplateSelect() {
       if (githubUrl.trim()) {
         updateLoadingStep(stepIdx, 'loading');
         try {
+          // README/코드 구조 가져오기
           const data = await importFromUrl('github', githubUrl, 'experience');
           if (data.imported?.content) {
-            allText += `\n\n--- GitHub ---\n${data.imported.content}`;
+            allText += `\n\n--- GitHub 리포지토리 ---\n${data.imported.content}`;
+          }
+          // 내 커밋 분석 (username 입력된 경우)
+          if (githubUsername.trim()) {
+            try {
+              const { data: gitData } = await api.post('/experience/analyze-git', {
+                repoUrl: githubUrl.trim(),
+                authorParam: githubUsername.trim(),
+              });
+              if (gitData.experiences?.length > 0) {
+                const commitSummary = gitData.experiences.map(exp =>
+                  `[${exp.project_name}] 성과: ${exp.core_impact}\n문제: ${exp.problem_definition?.join(', ')}\n해결: ${exp.action_and_solution?.join(', ')}\n인사이트: ${exp.learning?.join(', ')}`
+                ).join('\n\n');
+                allText += `\n\n--- 내 커밋 기반 경험 (총 ${gitData.totalCommits}개 커밋) ---\n${commitSummary}`;
+              }
+            } catch {
+              // 커밋 분석 실패는 무시하고 계속 진행
+            }
           }
         } catch (err) {
           toast.error('GitHub 리포지토리 불러오기 실패');
@@ -1591,15 +1611,29 @@ export default function TemplateSelect() {
                 />
               </div>
               {/* GitHub */}
-              <div className="relative">
-                <Github size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                <input
-                  type="url"
-                  value={githubUrl}
-                  onChange={e => setGithubUrl(e.target.value)}
-                  placeholder="GitHub 리포지토리 URL"
-                  className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                />
+              <div className="space-y-2">
+                <div className="relative">
+                  <Github size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
+                  <input
+                    type="url"
+                    value={githubUrl}
+                    onChange={e => setGithubUrl(e.target.value)}
+                    placeholder="GitHub 리포지토리 URL"
+                    className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
+                  />
+                </div>
+                {githubUrl.trim() && (
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300 text-sm font-medium">@</span>
+                    <input
+                      type="text"
+                      value={githubUsername}
+                      onChange={e => setGithubUsername(e.target.value)}
+                      placeholder="내 GitHub 아이디 (커밋 필터용)"
+                      className="w-full pl-8 pr-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all bg-gray-50"
+                    />
+                  </div>
+                )}
               </div>
               {/* 블로그 */}
               <div className="relative">
