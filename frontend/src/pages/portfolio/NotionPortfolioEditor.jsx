@@ -7,7 +7,7 @@ import {
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
-  Mic, Users, Zap, Check, Building2, ExternalLink
+  Mic, Users, Zap, Check, Building2, ExternalLink, PenLine, Database
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -758,18 +758,17 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const [tab, setTab] = useState(hasRichData ? 'view' : 'edit');
 
   // 첨삭 관련 state
-  const [showTailor, setShowTailor] = useState(false);
+  const [tailorMode, setTailorMode] = useState(null); // null | 'key' | 'section'
   const [tailorResult, setTailorResult] = useState(null);
   const [tailoring, setTailoring] = useState(false);
   const [tailorError, setTailorError] = useState(null);
   const [appliedSections, setAppliedSections] = useState({});
   const [appliedKeyExperiences, setAppliedKeyExperiences] = useState({});
-  const [savedKeyExps, setSavedKeyExps] = useState(null); // 첨삭 전 원본 저장
+  const [savedKeyExps, setSavedKeyExps] = useState(null);
   const sliderRef = useRef(null);
 
-  const handleTailor = async () => {
+  const handleTailor = async (mode) => {
     if (!jobAnalysis) return;
-    // 이미 저장된 원본이 있으면 그것을 사용, 없으면 현재 keyExps가 원본
     const originalKeyExps = savedKeyExps !== null ? savedKeyExps : [...(exp?.structuredResult?.keyExperiences || [])];
     const baseStructured = exp?.structuredResult || {};
     setTailoring(true);
@@ -777,13 +776,12 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     setAppliedSections({});
     setAppliedKeyExperiences({});
     try {
-      // AI에게는 항상 원본 keyExperiences를 포함한 경험 전달
       const expForTailor = { ...exp, structuredResult: { ...baseStructured, keyExperiences: originalKeyExps } };
       const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: expForTailor });
-      // 첫 번째 첨삭일 때만 원본 저장
-      if (savedKeyExps === null) setSavedKeyExps(originalKeyExps);
-      // 기존 핵심 경험 모두 초기화 (사용자가 추천 경험만 골라 채워넣도록)
-      onUpdate({ structuredResult: { ...baseStructured, keyExperiences: [] } });
+      if (mode === 'key') {
+        if (savedKeyExps === null) setSavedKeyExps(originalKeyExps);
+        onUpdate({ structuredResult: { ...baseStructured, keyExperiences: [] } });
+      }
       setTailorResult(data.tailored);
     } catch (err) {
       setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
@@ -791,15 +789,25 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     setTailoring(false);
   };
 
-  const toggleTailor = () => {
-    const next = !showTailor;
-    // 첨삭 패널 닫을 때 아무것도 적용 안 했으면 원본 복원
-    if (!next && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
+  const openTailor = (mode) => {
+    if (tailorMode === mode) {
+      // 같은 버튼 다시 누르면 닫기
+      if (mode === 'key' && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
+        onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: savedKeyExps } });
+        setSavedKeyExps(null);
+      }
+      setTailorMode(null);
+      return;
+    }
+    // 다른 모드로 전환 시 key 모드 복원 처리
+    if (tailorMode === 'key' && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
       onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: savedKeyExps } });
       setSavedKeyExps(null);
     }
-    setShowTailor(next);
-    if (next && !tailorResult && !tailoring) handleTailor();
+    setTailorMode(mode);
+    setTailorResult(null);
+    setTailorError(null);
+    handleTailor(mode);
   };
 
   const applySingleSection = (sectionKey) => {
@@ -824,17 +832,45 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const applyKeyExperience = (ke, ki) => {
     if (!onUpdate) return;
     const currentKeyExps = exp?.structuredResult?.keyExperiences || [];
+    // slideIndex가 있으면 원본 슬라이드에서 시각화 지표 복원
+    const originalSlide = (savedKeyExps && ke.slideIndex != null) ? (savedKeyExps[ke.slideIndex] || {}) : {};
     const newEntry = {
-      title: ke.title || '',
-      situation: ke.situation || ke.problem || '',
-      action: ke.action || '',
-      result: ke.result || '',
+      title: ke.title || originalSlide.title || '',
+      situation: ke.situation || ke.problem || originalSlide.situation || '',
+      action: ke.action || originalSlide.action || '',
+      result: ke.result || originalSlide.result || '',
+      // 시각화 지표: AI가 반환하면 우선, 없으면 원본 슬라이드에서 복원
+      metric: ke.metric || originalSlide.metric || '',
+      metricLabel: ke.metricLabel || originalSlide.metricLabel || '',
+      beforeMetric: ke.beforeMetric || originalSlide.beforeMetric || '',
+      afterMetric: ke.afterMetric || originalSlide.afterMetric || '',
+      chartType: ke.chartType || originalSlide.chartType || 'horizontalBar',
+      keywords: ke.keywords?.length ? ke.keywords : (originalSlide.keywords || []),
     };
     const updatedKeyExps = [...currentKeyExps, newEntry];
     onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedKeyExps } });
     setAppliedKeyExperiences(prev => ({ ...prev, [ki]: true }));
     setTab('view');
     setTimeout(() => sliderRef.current?.goTo(updatedKeyExps.length - 1), 150);
+  };
+
+  const [editingSections, setEditingSections] = useState(false);
+  const [sectionDraft, setSectionDraft] = useState({});
+
+  const startSectionEdit = () => {
+    setSectionDraft({ ...sectionContents });
+    setEditingSections(true);
+  };
+
+  const saveSectionEdit = () => {
+    const updatedStructured = { ...(exp?.structuredResult || {}), ...sectionDraft };
+    onUpdate({ structuredResult: updatedStructured });
+    setEditingSections(false);
+  };
+
+  const cancelSectionEdit = () => {
+    setSectionDraft({});
+    setEditingSections(false);
   };
 
   // Firestore에서 이미지 로드 (experienceId가 있을 때)
@@ -890,7 +926,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${showTailor ? 'max-w-6xl' : 'max-w-3xl'} max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300`} onClick={e => e.stopPropagation()}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${tailorMode ? 'max-w-6xl' : 'max-w-3xl'} max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300`} onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -903,14 +939,14 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
           <div className="flex items-center gap-2">
             {jobAnalysis && (
               <button
-                onClick={toggleTailor}
+                onClick={() => openTailor('section')}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  showTailor
+                  tailorMode === 'section'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
                 }`}
               >
-                첨삭
+                전체 첨삭
               </button>
             )}
             <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
@@ -956,21 +992,72 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               )}
 
               {/* 핵심 경험 슬라이더 */}
-              {keyExps.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 &amp; 성과</h4>
-                  <KeyExperienceSlider ref={sliderRef} keyExperiences={keyExps} />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-gray-700">핵심 경험 &amp; 성과</h4>
+                  {jobAnalysis && (
+                    <button
+                      onClick={() => openTailor('key')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        tailorMode === 'key'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                      }`}
+                    >
+                      핵심 경험 첨삭
+                    </button>
+                  )}
                 </div>
-              )}
+                {keyExps.length > 0 && (
+                  <KeyExperienceSlider
+                    ref={sliderRef}
+                    keyExperiences={keyExps}
+                    onUpdate={(updatedExps) => onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedExps } })}
+                  />
+                )}
+              </div>
 
               {/* 상세 섹션 (StructuredResult와 동일 레이아웃) */}
               {hasSections && (
                 <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-surface-100 bg-surface-50/40">
+                    <span className="text-[13px] font-bold text-gray-700">상세 경험 정리</span>
+                    <div className="flex items-center gap-2">
+                      {editingSections ? (
+                        <>
+                          <button onClick={cancelSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
+                            <X size={12} /> 취소
+                          </button>
+                          <button onClick={saveSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 shadow-sm transition-colors">
+                            <Check size={12} /> 저장
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {jobAnalysis && (
+                            <button
+                              onClick={() => openTailor('section')}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                tailorMode === 'section'
+                                  ? 'bg-indigo-600 text-white shadow-sm'
+                                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                              }`}
+                            >
+                              7가지 개요 첨삭
+                            </button>
+                          )}
+                          <button onClick={startSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors">
+                            <PenLine size={12} /> 수정
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                   <div className="divide-y divide-surface-100">
                     {EXP_SECTION_KEYS.map(key => {
                       const meta = EXP_SECTION_META[key];
-                      const val = sectionContents[key];
-                      if (!val?.trim()) return null;
+                      const val = editingSections ? (sectionDraft[key] ?? sectionContents[key]) : sectionContents[key];
+                      if (!editingSections && !val?.trim()) return null;
                       return (
                         <div key={key}>
                           <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-50/40">
@@ -978,9 +1065,18 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                             <span className="text-[13px] font-bold text-primary-700">{meta.label}</span>
                           </div>
                           <div className="px-5 py-3 pl-[60px]">
-                            {imagesLoaded && renderSectionImages(key, 'above')}
-                            <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
-                            {imagesLoaded && renderSectionImages(key, 'below')}
+                            {imagesLoaded && !editingSections && renderSectionImages(key, 'above')}
+                            {editingSections ? (
+                              <textarea
+                                value={sectionDraft[key] ?? ''}
+                                onChange={e => setSectionDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                                rows={4}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-[13px] text-gray-700 leading-[1.85] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow"
+                              />
+                            ) : (
+                              <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                            )}
+                            {imagesLoaded && !editingSections && renderSectionImages(key, 'below')}
                           </div>
                         </div>
                       );
@@ -1174,14 +1270,16 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         </div>
 
         {/* ── 우측 첨삭 패널 ── */}
-        {showTailor && (
+        {tailorMode && (
           <div className="w-[400px] flex-shrink-0 border-l border-gray-100 overflow-y-auto bg-gradient-to-b from-indigo-50/30 to-white">
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-indigo-800">기업 맞춤 첨삭</h4>
+                <h4 className="text-sm font-bold text-indigo-800">
+                  {tailorMode === 'key' ? '핵심 경험 첨삭' : '개요 첨삭'}
+                </h4>
                 <div className="flex items-center gap-2">
                   {tailorResult && !tailoring && (
-                    <button onClick={handleTailor} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                    <button onClick={() => handleTailor(tailorMode)} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
                       다시 첨삭
                     </button>
                   )}
@@ -1202,7 +1300,9 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 <div className="flex flex-col items-center py-10">
                   <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
                   <p className="text-sm text-gray-500">AI가 첨삭 중입니다...</p>
-                  <p className="text-xs text-gray-400 mt-1">7개 섹션을 기업에 맞게 재구성합니다</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {tailorMode === 'key' ? '핵심 경험을 기업에 맞게 재구성합니다' : '7개 섹션을 기업에 맞게 재구성합니다'}
+                  </p>
                 </div>
               )}
 
@@ -1210,7 +1310,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {tailorError && !tailoring && (
                 <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                   <p className="text-xs text-red-600">{tailorError}</p>
-                  <button onClick={handleTailor} className="text-xs text-red-500 hover:text-red-700 mt-1 underline">다시 시도</button>
+                  <button onClick={() => handleTailor(tailorMode)} className="text-xs text-red-500 hover:text-red-700 mt-1 underline">다시 시도</button>
                 </div>
               )}
 
@@ -1219,7 +1319,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 <div className="space-y-3">
 
                   {/* ── 기업 맞춤 추천 핵심 경험 ── */}
-                  {tailorResult.keyExperiences?.length > 0 && (
+                  {tailorMode === 'key' && tailorResult.keyExperiences?.length > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천 핵심 경험</span>
@@ -1289,7 +1389,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   )}
 
                   {/* 전체 적용 버튼 */}
-                  {(() => {
+                  {tailorMode === 'section' && (() => {
                     const availableCount = EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).length;
                     const appliedCount = Object.keys(appliedSections).length;
                     const allApplied = availableCount > 0 && appliedCount >= availableCount;
@@ -1309,7 +1409,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   })()}
 
                   {/* 각 섹션 */}
-                  {EXP_SECTION_KEYS.map(key => {
+                  {tailorMode === 'section' && EXP_SECTION_KEYS.map(key => {
                     const meta = EXP_SECTION_META[key];
                     const section = tailorResult.sections?.[key];
                     if (!section?.content?.trim()) return null;
@@ -1342,7 +1442,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   })}
 
                   {/* 강조 스킬 */}
-                  {tailorResult.highlightedSkills?.length > 0 && (
+                  {tailorMode === 'section' && tailorResult.highlightedSkills?.length > 0 && (
                     <div className="pt-2">
                       <p className="text-[10px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">기업 어필 스킬</p>
                       <div className="flex flex-wrap gap-1.5">
@@ -1354,7 +1454,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   )}
 
                   {/* 적합도 메모 */}
-                  {tailorResult.relevanceNote && (
+                  {tailorMode === 'section' && tailorResult.relevanceNote && (
                     <p className="text-[10px] text-gray-500 italic bg-gray-50 rounded-xl px-3 py-2">{stripMd(tailorResult.relevanceNote)}</p>
                   )}
                 </div>
@@ -1615,6 +1715,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hiddenSections = p.hiddenSections || [];
   const profileImageInputRef = useRef(null);
   const [showExpPicker, setShowExpPicker] = useState(false);
+  const [showAddExpMenu, setShowAddExpMenu] = useState(false);
   const [expDetailIdx, setExpDetailIdx] = useState(null);
 
   // 섹션 이름 편집 헬퍼
@@ -1639,6 +1740,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   // 커스텀 블록 관련 state
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const [projectBlockPickerIdx, setProjectBlockPickerIdx] = useState(null);
+  const [addCardMenuIdx, setAddCardMenuIdx] = useState(null);
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -1915,22 +2017,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   기업 맞춤 경험 추천
                 </button>
               )}
-              {userExperiences.length > 0 && (
-                <div className="relative">
-                  <button onClick={() => setShowExpPicker(p => !p)}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#f7f5f0] text-[#5a564e] rounded-lg hover:bg-[#e8e4dc] border border-[#e8e4dc]">
-                    경험 DB에서 불러오기
-                  </button>
-                  {showExpPicker && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
-                      {userExperiences.map(exp => (
-                        <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
-                          className="w-full text-left px-3 py-2 hover:bg-[#f7f5f0] text-sm text-[#5a564e] truncate">{exp.title}</button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+
             </div>
           </div>
 
@@ -2008,10 +2095,40 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 </button>
               </div>
             ))}
-            <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
-              className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e4dc] text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
-              <Plus size={22} /><span className="text-xs">경험 추가</span>
-            </button>
+            <div className="relative aspect-[4/3]">
+              <button onClick={() => setShowAddExpMenu(prev => !prev)}
+                className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e4dc] text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
+                <Plus size={22} /><span className="text-xs">경험 추가</span>
+              </button>
+              {showAddExpMenu && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-20 py-1 w-52">
+                  <button onClick={() => { setShowExpPicker(true); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#f7f5f0] text-sm text-[#5a564e] text-left">
+                    <span className="w-5 h-5 bg-[#f0ece4] rounded flex items-center justify-center"><Database size={12} className="text-[#8a6c4a]" /></span>
+                    경험 DB에서 불러오기
+                  </button>
+                  <button onClick={() => { addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' }); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#f7f5f0] text-sm text-[#5a564e] text-left">
+                    <span className="w-5 h-5 bg-[#f0ece4] rounded flex items-center justify-center"><Plus size={12} className="text-[#8a6c4a]" /></span>
+                    직접 작성하기
+                  </button>
+                </div>
+              )}
+              {showExpPicker && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-30 py-1 w-60 max-h-48 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-[#e8e4dc]">
+                    <span className="text-xs font-bold text-[#5a564e]">경험 DB에서 선택</span>
+                    <button onClick={() => setShowExpPicker(false)} className="text-[#c4b89a] hover:text-[#5a564e]"><X size={14} /></button>
+                  </div>
+                  {userExperiences.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                  ) : userExperiences.map(exp => (
+                    <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-[#f7f5f0] text-sm text-[#5a564e] truncate">{exp.title}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         )}
@@ -2166,27 +2283,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-lg font-bold text-[#2d2a26]">프로젝트 / 경험</h4>
-                      {userExperiences.length > 0 && (
-                        <div className="relative">
-                          <button onClick={() => setProjectBlockPickerIdx(projectBlockPickerIdx===i?null:i)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#f7f5f0] text-[#5a564e] rounded-lg hover:bg-[#e8e4dc] border border-[#e8e4dc]">경험 DB에서 불러오기</button>
-                          {projectBlockPickerIdx===i && (
-                            <div className="absolute right-0 top-full mt-1 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-30 py-1 w-64 max-h-52 overflow-y-auto">
-                              {userExperiences.map(exp => (
-                                <button key={exp.id} onClick={() => {
-                                  const aiResult = exp.structuredResult||{};
-                                  const autoSkills = (aiResult.keywords||exp.keywords||[]).slice(0,8).map(k=>typeof k==='string'?k:k?.name??'').filter(Boolean);
-                                  updateCards([...cards,{ title:exp.title||'',date:exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0,7)||'',role:aiResult.projectOverview?.role||'',description:aiResult.projectOverview?.summary||aiResult.intro||exp.description||'',skills:autoSkills,link:'',thumbnailUrl:exp.images?.[0]||'',structuredResult:aiResult,experienceId:exp.id||null }]);
-                                  setProjectBlockPickerIdx(null);
-                                }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-[#f7f5f0] transition-colors">
-                                  {exp.images?.[0]||exp.thumbnailUrl ? <img src={exp.images?.[0]||exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" /> : <div className="w-8 h-8 rounded bg-[#f0ece4] flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-[#c4b89a]"/></div>}
-                                  <div className="min-w-0"><p className="text-sm text-[#2d2a26] font-medium truncate">{exp.title}</p>{exp.date&&<p className="text-[10px] text-[#8a8578]">{exp.date}</p>}</div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       {cards.map((card, ci) => (
@@ -2202,10 +2298,47 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           <button onClick={ev=>{ev.stopPropagation();updateCards(cards.filter((_,j)=>j!==ci));}} className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-[#c4b89a] hover:text-red-400 shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity"><Trash2 size={11}/></button>
                         </div>
                       ))}
-                      <button onClick={() => updateCards([...cards,{title:'',date:'',role:'',description:'',skills:[],link:'',thumbnailUrl:''}])}
-                        className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e4dc] text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
-                        <Plus size={20}/><span className="text-xs">경험 추가</span>
-                      </button>
+                      <div className="relative aspect-[4/3]">
+                        <button onClick={() => setAddCardMenuIdx(addCardMenuIdx === i ? null : i)}
+                          className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e4dc] text-[#c4b89a] hover:border-[#c4a882] hover:text-[#8a6c4a] transition-colors">
+                          <Plus size={20}/><span className="text-xs">경험 추가</span>
+                        </button>
+                        {addCardMenuIdx === i && (
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-20 py-1 w-52">
+                            <button onClick={() => { setProjectBlockPickerIdx(i); setAddCardMenuIdx(null); }}
+                              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#f7f5f0] text-sm text-[#5a564e] text-left">
+                              <span className="w-5 h-5 bg-[#f0ece4] rounded flex items-center justify-center"><Database size={12} className="text-[#8a6c4a]" /></span>
+                              경험 DB에서 불러오기
+                            </button>
+                            <button onClick={() => { updateCards([...cards,{title:'',date:'',role:'',description:'',skills:[],link:'',thumbnailUrl:''}]); setAddCardMenuIdx(null); }}
+                              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#f7f5f0] text-sm text-[#5a564e] text-left">
+                              <span className="w-5 h-5 bg-[#f0ece4] rounded flex items-center justify-center"><Plus size={12} className="text-[#8a6c4a]" /></span>
+                              직접 작성하기
+                            </button>
+                          </div>
+                        )}
+                        {projectBlockPickerIdx === i && (
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-30 py-1 w-64 max-h-52 overflow-y-auto">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-[#e8e4dc]">
+                              <span className="text-xs font-bold text-[#5a564e]">경험 DB에서 선택</span>
+                              <button onClick={() => setProjectBlockPickerIdx(null)} className="text-[#c4b89a] hover:text-[#5a564e]"><X size={14} /></button>
+                            </div>
+                            {userExperiences.length === 0 ? (
+                              <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                            ) : userExperiences.map(exp => (
+                              <button key={exp.id} onClick={() => {
+                                const aiResult = exp.structuredResult||{};
+                                const autoSkills = (aiResult.keywords||exp.keywords||[]).slice(0,8).map(k=>typeof k==='string'?k:k?.name??'').filter(Boolean);
+                                updateCards([...cards,{ title:exp.title||'',date:exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0,7)||'',role:aiResult.projectOverview?.role||'',description:aiResult.projectOverview?.summary||aiResult.intro||exp.description||'',skills:autoSkills,link:'',thumbnailUrl:exp.images?.[0]||'',structuredResult:aiResult,experienceId:exp.id||null }]);
+                                setProjectBlockPickerIdx(null);
+                              }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-[#f7f5f0] transition-colors">
+                                {exp.images?.[0]||exp.thumbnailUrl ? <img src={exp.images?.[0]||exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" /> : <div className="w-8 h-8 rounded bg-[#f0ece4] flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-[#c4b89a]"/></div>}
+                                <div className="min-w-0"><p className="text-sm text-[#2d2a26] font-medium truncate">{exp.title}</p>{exp.date&&<p className="text-[10px] text-[#8a8578]">{exp.date}</p>}</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2443,6 +2576,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const sections = p.sections || ['education', 'awards', 'experiences', 'skills', 'goals', 'values'];
   const profileImageInputRef = useRef(null);
   const [showExpPicker, setShowExpPicker] = useState(false);
+  const [showAddExpMenu, setShowAddExpMenu] = useState(false);
   const [expDetailIdx, setExpDetailIdx] = useState(null);
   const [recResults, setRecResults] = useState(null);
   const [recLoading, setRecLoading] = useState(false);
@@ -2811,22 +2945,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   {recLoading ? <><Loader2 size={12} className="animate-spin" /> 분석 중...</> : <>기업 맞춤 경험 추천</>}
                 </button>
               )}
-            {userExperiences.length > 0 && (
-              <div className="relative">
-                <button onClick={() => setShowExpPicker(pr => !pr)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100">
-                  경험 DB에서 불러오기
-                </button>
-                {showExpPicker && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 w-60 max-h-48 overflow-y-auto">
-                    {userExperiences.map(exp => (
-                      <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">{exp.title}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+
             </div>
           </div>
 
@@ -2900,10 +3019,40 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 </button>
               </div>
             ))}
-            <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
-              className="aspect-[16/10] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-300 hover:border-blue-300 hover:text-blue-500 transition-colors">
-              <Plus size={22} /><span className="text-xs">경험 추가</span>
-            </button>
+            <div className="relative aspect-[16/10]">
+              <button onClick={() => setShowAddExpMenu(prev => !prev)}
+                className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-300 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                <Plus size={22} /><span className="text-xs">경험 추가</span>
+              </button>
+              {showAddExpMenu && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-1 w-52">
+                  <button onClick={() => { setShowExpPicker(true); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Database size={12} className="text-blue-600" /></span>
+                    경험 DB에서 불러오기
+                  </button>
+                  <button onClick={() => { addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' }); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Plus size={12} className="text-blue-600" /></span>
+                    직접 작성하기
+                  </button>
+                </div>
+              )}
+              {showExpPicker && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-60 max-h-48 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-surface-100">
+                    <span className="text-xs font-bold text-gray-700">경험 DB에서 선택</span>
+                    <button onClick={() => setShowExpPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                  </div>
+                  {userExperiences.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                  ) : userExperiences.map(exp => (
+                    <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">{exp.title}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -3236,6 +3385,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const curr = p.curricular || { summary: { credits: '', gpa: '' }, courses: [], creditStatus: [] };
   const profileImageInputRef = useRef(null);
   const [showExpPicker, setShowExpPicker] = useState(false);
+  const [showAddExpMenu, setShowAddExpMenu] = useState(false);
   const [activeSemester, setActiveSemester] = useState(null);
 
   const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
@@ -3392,9 +3542,39 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
             </h2>
-            <button onClick={() => setShowExpPicker(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
-              <Plus size={14} /> 경험 DB에서 가져오기
-            </button>
+            <div className="relative">
+              <button onClick={() => setShowAddExpMenu(prev => !prev)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
+                <Plus size={14} /> 경험 추가
+              </button>
+              {showAddExpMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-1 w-52">
+                  <button onClick={() => { setShowExpPicker(true); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Database size={12} className="text-blue-600" /></span>
+                    경험 DB에서 불러오기
+                  </button>
+                  <button onClick={() => { addToArray('experiences', { title: '', period: '', category: 'other', role: '', description: '' }); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Plus size={12} className="text-blue-600" /></span>
+                    직접 작성하기
+                  </button>
+                </div>
+              )}
+              {showExpPicker && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-60 max-h-48 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-surface-100">
+                    <span className="text-xs font-bold text-gray-700">경험 DB에서 선택</span>
+                    <button onClick={() => setShowExpPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                  </div>
+                  {userExperiences.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                  ) : userExperiences.map(exp => (
+                    <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">{exp.title}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {(p.experiences || []).length > 0 ? (
@@ -3421,30 +3601,6 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
             </div>
           ) : (
             <p className="text-sm text-gray-400">경험 DB에서 활동을 가져오거나 직접 추가하세요</p>
-          )}
-
-          {/* 경험 DB 피커 */}
-          {showExpPicker && (
-            <div className="mt-4 p-4 bg-surface-50 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-gray-700">경험 DB에서 선택</span>
-                <button onClick={() => setShowExpPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-              </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {userExperiences.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
-                ) : userExperiences.map(exp => (
-                  <button
-                    key={exp.id}
-                    onClick={() => { importExperience(exp); setShowExpPicker(false); }}
-                    className="w-full text-left p-3 bg-white rounded-lg border border-surface-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
-                  >
-                    <p className="text-sm font-medium">{exp.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{exp.framework || ''} · {exp.period || ''}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
         </div>
 
@@ -3531,6 +3687,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   // 프로젝트 블록 DB 불러오기 피커
   const [projectBlockPickerIdx, setProjectBlockPickerIdx] = useState(null);
+  const [addCardMenuIdx, setAddCardMenuIdx] = useState(null);
+
+  // 경험 추가 드롭다운
+  const [showExpPicker, setShowExpPicker] = useState(false);
+  const [showAddExpMenu, setShowAddExpMenu] = useState(false);
 
   // 기업 분석 관련 state
   const [jobUrl, setJobUrl] = useState('');
@@ -4032,11 +4193,40 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             </div>
           ))}
           {/* Add new experience card */}
-          <button onClick={() => addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' })}
-            className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
-            <Plus size={24} />
-            <span className="text-xs">경험 추가</span>
-          </button>
+            <div className="relative aspect-[4/3]">
+              <button onClick={() => setShowAddExpMenu(prev => !prev)}
+                className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-300 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                <Plus size={22} /><span className="text-xs">경험 추가</span>
+              </button>
+              {showAddExpMenu && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-1 w-52">
+                  <button onClick={() => { setShowExpPicker(true); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Database size={12} className="text-blue-600" /></span>
+                    경험 DB에서 불러오기
+                  </button>
+                  <button onClick={() => { addToArray('experiences', { date: '', title: '', description: '', status: 'finished', classify: [], skills: [], role: '', link: '', sections: [], thumbnailUrl: '' }); setShowAddExpMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                    <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Plus size={12} className="text-blue-600" /></span>
+                    직접 작성하기
+                  </button>
+                </div>
+              )}
+              {showExpPicker && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-60 max-h-48 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-surface-100">
+                    <span className="text-xs font-bold text-gray-700">경험 DB에서 선택</span>
+                    <button onClick={() => setShowExpPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                  </div>
+                  {userExperiences.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                  ) : userExperiences.map(exp => (
+                    <button key={exp.id} onClick={() => { importExperience(exp); setShowExpPicker(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm text-gray-700 truncate">{exp.title}</button>
+                  ))}
+                </div>
+              )}
+            </div>
         </div>
       </div>
       )}
@@ -4408,46 +4598,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xl font-bold text-gray-900 pb-1 border-b-2 border-primary-300 inline-block">프로젝트 / 경험</h2>
-                    {userExperiences.length > 0 && (
-                      <div className="relative">
-                        <button
-                          onClick={() => setProjectBlockPickerIdx(projectBlockPickerIdx === i ? null : i)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
-                        >
-                          경험 DB에서 불러오기
-                        </button>
-                        {projectBlockPickerIdx === i && (
-                          <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-64 max-h-52 overflow-y-auto">
-                            {userExperiences.map(exp => (
-                              <button key={exp.id} onClick={() => {
-                                const aiResult = exp.structuredResult || {};
-                                const autoSkills = (aiResult.keywords || exp.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean);
-                                addCard({
-                                  title: exp.title || '',
-                                  date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
-                                  role: aiResult.projectOverview?.role || '',
-                                  description: aiResult.projectOverview?.summary || aiResult.intro || exp.description || '',
-                                  skills: autoSkills,
-                                  link: '',
-                                  thumbnailUrl: exp.images?.[0] || '',
-                                  structuredResult: aiResult,
-                                  experienceId: exp.id || null,
-                                });
-                                setProjectBlockPickerIdx(null);
-                              }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
-                                {exp.images?.[0] || exp.thumbnailUrl
-                                  ? <img src={exp.images?.[0] || exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" />
-                                  : <div className="w-8 h-8 rounded bg-surface-100 flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-gray-400" /></div>}
-                                <div className="min-w-0">
-                                  <p className="text-sm text-gray-700 font-medium truncate">{exp.title}</p>
-                                  {exp.date && <p className="text-[10px] text-gray-400">{exp.date}</p>}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.map((card, ci) => (
@@ -4480,10 +4630,52 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                         </button>
                       </div>
                     ))}
-                    <button onClick={() => addCard({ title: '', date: '', role: '', description: '', skills: [], link: '', thumbnailUrl: '' })}
-                      className="aspect-[4/3] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
-                      <Plus size={24} /><span className="text-xs">경험 추가</span>
-                    </button>
+                    <div className="relative aspect-[4/3]">
+                      <button onClick={() => setAddCardMenuIdx(addCardMenuIdx === i ? null : i)}
+                        className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-surface-200 text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
+                        <Plus size={24} /><span className="text-xs">경험 추가</span>
+                      </button>
+                      {addCardMenuIdx === i && (
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-1 w-52">
+                          <button onClick={() => { setProjectBlockPickerIdx(i); setAddCardMenuIdx(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                            <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Database size={12} className="text-blue-600" /></span>
+                            경험 DB에서 불러오기
+                          </button>
+                          <button onClick={() => { addCard({ title: '', date: '', role: '', description: '', skills: [], link: '', thumbnailUrl: '' }); setAddCardMenuIdx(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-sm text-gray-700 text-left">
+                            <span className="w-5 h-5 bg-blue-50 rounded flex items-center justify-center"><Plus size={12} className="text-blue-600" /></span>
+                            직접 작성하기
+                          </button>
+                        </div>
+                      )}
+                      {projectBlockPickerIdx === i && (
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-30 py-1 w-64 max-h-52 overflow-y-auto">
+                          <div className="flex items-center justify-between px-3 py-2 border-b border-surface-100">
+                            <span className="text-xs font-bold text-gray-700">경험 DB에서 선택</span>
+                            <button onClick={() => setProjectBlockPickerIdx(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                          </div>
+                          {userExperiences.length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-4">등록된 경험이 없습니다</p>
+                          ) : userExperiences.map(exp => (
+                            <button key={exp.id} onClick={() => {
+                              const aiResult = exp.structuredResult || {};
+                              const autoSkills = (aiResult.keywords || exp.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean);
+                              addCard({ title: exp.title || '', date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '', role: aiResult.projectOverview?.role || '', description: aiResult.projectOverview?.summary || aiResult.intro || exp.description || '', skills: autoSkills, link: '', thumbnailUrl: exp.images?.[0] || '', structuredResult: aiResult, experienceId: exp.id || null });
+                              setProjectBlockPickerIdx(null);
+                            }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
+                              {exp.images?.[0] || exp.thumbnailUrl
+                                ? <img src={exp.images?.[0] || exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" />
+                                : <div className="w-8 h-8 rounded bg-surface-100 flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-gray-400" /></div>}
+                              <div className="min-w-0">
+                                <p className="text-sm text-gray-700 font-medium truncate">{exp.title}</p>
+                                {exp.date && <p className="text-[10px] text-gray-400">{exp.date}</p>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

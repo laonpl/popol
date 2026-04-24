@@ -550,6 +550,9 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
     title: ke.title || '',
     metric: ke.metric || '',
     metricLabel: ke.metricLabel || '',
+    beforeMetric: ke.beforeMetric || '',
+    afterMetric: ke.afterMetric || '',
+    chartType: ke.chartType || 'horizontalBar',
     situation: ke.situation || '',
     action: ke.action || '',
     result: ke.result || '',
@@ -557,7 +560,10 @@ export async function tailorExperienceContent(jobAnalysis, experience) {
   const keyExpsText = existingKeyExps.length > 0
     ? existingKeyExps.map(ke =>
         `[슬라이드 ${ke.slideIndex}] 제목: ${ke.title}\n` +
-        (ke.metricLabel ? `지표: ${ke.metricLabel} / ${ke.metric}\n` : '') +
+        (ke.metricLabel ? `지표명: ${ke.metricLabel}\n` : '') +
+        (ke.metric ? `지표값: ${ke.metric}\n` : '') +
+        (ke.beforeMetric ? `개선 전: ${ke.beforeMetric}\n` : '') +
+        (ke.afterMetric ? `개선 후: ${ke.afterMetric}\n` : '') +
         (ke.situation ? `문제상황: ${ke.situation}\n` : '') +
         (ke.action ? `행동: ${ke.action}\n` : '') +
         (ke.result ? `성과: ${ke.result}\n` : '')
@@ -603,6 +609,11 @@ JSON으로만 응답:
     {
       "slideIndex": 0,
       "title": "슬라이드의 원본 제목 그대로",
+      "metric": "슬라이드의 원본 지표값 그대로",
+      "metricLabel": "슬라이드의 원본 지표명 그대로",
+      "beforeMetric": "슬라이드의 원본 개선 전 그대로",
+      "afterMetric": "슬라이드의 원본 개선 후 그대로",
+      "chartType": "슬라이드의 원본 chartType 그대로",
       "situation": "슬라이드의 원본 문제상황 그대로 (변형 없이)",
       "action": "슬라이드의 원본 행동 그대로 (변형 없이)",
       "result": "슬라이드의 원본 성과 그대로 (변형 없이)",

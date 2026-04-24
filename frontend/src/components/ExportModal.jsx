@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { X, Loader2, Copy, Download, FileText, Globe } from 'lucide-react';
+import { X, Loader2, Copy, Download, FileText, Globe, Link2, Check, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const FORMATS = [
-  { key: 'Notion', label: 'Notion 페이지', icon: Globe, desc: 'Notion에 복사하여 붙여넣기', color: 'bg-gray-900 text-white' },
-  { key: 'PPT', label: 'PPT 파일', icon: FileText, desc: '고퀄리티 기업 제출용 PPT', color: 'bg-red-500 text-white' },
+  { key: 'Link', label: '링크 공유', icon: Link2, desc: '공개 링크로 포트폴리오 공유', color: 'bg-primary-600 text-white' },
+  { key: 'PPT', label: 'PPT 파일', icon: FileText, desc: '고퀌리티 기업 제출용 PPT', color: 'bg-red-500 text-white' },
 ];
 
 function markdownToHtml(md) {
@@ -42,6 +42,7 @@ export default function ExportModal({ type, data, onClose }) {
   const [format, setFormat] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const buildExportData = () => {
     if (type === 'experience') {
@@ -128,16 +129,21 @@ export default function ExportModal({ type, data, onClose }) {
       return;
     }
 
+    // 링크 공유: API 호출 없이 공개 URL 설정
+    if (format === 'Link') {
+      if (data.id) {
+        setResult(`${window.location.origin}/p/${data.id}`);
+      } else {
+        toast.error('공유 링크를 생성할 수 없습니다');
+      }
+      return;
+    }
+
     setExporting(true);
     try {
       const exportData = buildExportData();
-      let endpoint;
-      if (isTemplate && format === 'Notion') {
-        endpoint = '/export/notion-portfolio';
-      } else {
-        const formatMap = { 'PPT': 'ppt', 'Notion': 'notion', 'GitHub': 'github' };
-        endpoint = `/export/${formatMap[format]}`;
-      }
+      const formatMap = { 'PPT': 'ppt', 'GitHub': 'github' };
+      const endpoint = `/export/${formatMap[format]}`;
       const res = await api.post(endpoint, { data: exportData }, { timeout: 60000 });
       if (res.data.content) {
         setResult(res.data.content);
@@ -237,7 +243,7 @@ ${htmlContent}
               {format && (
                 <div className="p-4 bg-surface-50 rounded-xl">
                   <p className="text-xs text-gray-500">
-                    {format === 'Notion' && '💡 Notion에 최적화된 Markdown으로 변환합니다. 복사 후 Notion에 붙여넣기하세요.'}
+                    {format === 'Link' && '💡 포트폴리오 공개 링크를 생성합니다. 링크를 아는 누구나 포트폴리오를 볼 수 있습니다.'}
                     {format === 'PPT' && '💡 원티드 합격 포트폴리오 기반의 고퀄리티 PPT를 생성합니다. 직무별 최적화 레이아웃을 지원합니다.'}
                   </p>
                 </div>
@@ -258,24 +264,34 @@ ${htmlContent}
           ) : (
             <div className="space-y-4">
               <div className="p-3 bg-green-50 border border-green-200 rounded-xl">
-                <p className="text-sm font-bold text-green-700">✓ {format} 형식으로 변환 완료</p>
+                <p className="text-sm font-bold text-green-700">
+                  {format === 'Link' ? '✓ 공개 링크가 생성되었습니다' : `✓ ${format} 형식으로 변환 완료`}
+                </p>
               </div>
 
               <div className="flex gap-2">
-                {format === 'Notion' && (
+                {format === 'Link' && (
                   <>
                     <button
-                      onClick={handleCopy}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(result);
+                        setLinkCopied(true);
+                        toast.success('링크가 복사되었습니다!');
+                        setTimeout(() => setLinkCopied(false), 2000);
+                      }}
                       className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
                     >
-                      <Copy size={16} /> 클립보드 복사
+                      {linkCopied ? <Check size={16} /> : <Copy size={16} />}
+                      {linkCopied ? '복사됨!' : '링크 복사'}
                     </button>
-                    <button
-                      onClick={handleDownloadMD}
-                      className="flex items-center justify-center gap-2 px-5 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
+                    <a
+                      href={result}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
                     >
-                      <Download size={16} /> .md 다운로드
-                    </button>
+                      <ExternalLink size={16} /> 열기
+                    </a>
                   </>
                 )}
                 {format === 'PPT' && (
@@ -288,12 +304,20 @@ ${htmlContent}
                 )}
               </div>
 
-              <div>
-                <p className="text-xs text-gray-400 mb-2">미리보기</p>
-                <pre className="whitespace-pre-wrap text-xs text-gray-600 bg-surface-50 rounded-xl p-4 max-h-64 overflow-auto border border-surface-100">
-                  {result}
-                </pre>
-              </div>
+              {format !== 'Link' && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">미리보기</p>
+                  <pre className="whitespace-pre-wrap text-xs text-gray-600 bg-surface-50 rounded-xl p-4 max-h-64 overflow-auto border border-surface-100">
+                    {result}
+                  </pre>
+                </div>
+              )}
+              {format === 'Link' && (
+                <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
+                  <Globe size={14} className="text-primary-400 flex-shrink-0" />
+                  <span className="text-sm text-primary-700 truncate font-mono">{result}</span>
+                </div>
+              )}
 
               <button
                 onClick={() => { setResult(null); setFormat(null); }}
