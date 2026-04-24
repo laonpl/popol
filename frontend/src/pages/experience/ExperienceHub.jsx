@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, CalendarDays, List, Star, ArrowUpDown,
+  Github, Loader2, ChevronRight, AlertCircle, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
@@ -11,6 +12,7 @@ import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import { stripMd } from '../../utils/textUtils';
+import api from '../../services/api';
 
 function formatDate(ts) {
   if (!ts) return '';
@@ -87,6 +89,63 @@ export default function ExperienceHub() {
   const [editTitle, setEditTitle] = useState('');
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+
+  /* ── Git 커밋 분석 ── */
+  const [showGitModal, setShowGitModal] = useState(false);
+  const [gitRepoUrl, setGitRepoUrl] = useState('');
+  const [gitAuthor, setGitAuthor] = useState('');
+  const [gitToken, setGitToken] = useState('');
+  const [gitAnalyzing, setGitAnalyzing] = useState(false);
+  const [gitResult, setGitResult] = useState(null); // { repoName, totalCommits, experiences[] }
+  const [gitSaving, setGitSaving] = useState({}); // { index: true/false }
+
+  const handleGitAnalyze = async () => {
+    if (!gitRepoUrl.trim() || !gitAuthor.trim()) {
+      toast.error('레포지토리 URL과 GitHub 사용자명을 모두 입력해주세요.');
+      return;
+    }
+    setGitAnalyzing(true);
+    setGitResult(null);
+    try {
+      const { data } = await api.post('/experience/analyze-git', {
+        repoUrl: gitRepoUrl.trim(),
+        authorParam: gitAuthor.trim(),
+        githubToken: gitToken.trim() || undefined,
+      });
+      setGitResult(data);
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || '분석 실패. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setGitAnalyzing(false);
+    }
+  };
+
+  const handleSaveGitExperience = async (exp, idx) => {
+    setGitSaving(prev => ({ ...prev, [idx]: true }));
+    try {
+      const content = {
+        intro: exp.core_impact || '',
+        overview: [exp.problem_definition?.join('\n'), exp.action_and_solution?.join('\n')].filter(Boolean).join('\n\n'),
+        task: exp.problem_definition?.join('\n') || '',
+        process: exp.action_and_solution?.join('\n') || '',
+        output: exp.core_impact || '',
+        growth: exp.learning?.join('\n') || '',
+        competency: exp.core_tech_stack || '',
+      };
+      const newId = await createExperience(user.uid, {
+        title: exp.project_name || gitResult?.repoName || '깃허브 프로젝트',
+        framework: 'STRUCTURED',
+        period: exp.period || '',
+        skills: exp.core_tech_stack ? exp.core_tech_stack.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean) : [],
+        content,
+      });
+      toast.success('경험이 저장되었습니다!');
+      setGitSaving(prev => ({ ...prev, [idx]: 'done' }));
+    } catch (err) {
+      toast.error('저장에 실패했습니다.');
+      setGitSaving(prev => ({ ...prev, [idx]: false }));
+    }
+  };
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
@@ -302,6 +361,15 @@ export default function ExperienceHub() {
               <List size={14} />표
             </button>
           </div>
+
+          {/* Git 커밋 분석 버튼 */}
+          <button
+            onClick={() => setShowGitModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors shadow-sm"
+          >
+            <Github size={15} />
+            Git 커밋 분석
+          </button>
 
           {/* 새 경험 추가 버튼 + 말풍선 */}
           <div className="relative" style={{ overflow: 'visible' }}>
@@ -692,6 +760,181 @@ export default function ExperienceHub() {
       )}
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />
+      )}
+
+      {/* ── Git 커밋 분석 모달 ── */}
+      {showGitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center">
+                  <Github size={16} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Git 커밋 분석</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">커밋 히스토리를 AI가 포트폴리오 경험으로 변환합니다</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowGitModal(false); setGitResult(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              {/* 입력 폼 */}
+              {!gitResult && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">GitHub 레포지토리 URL <span className="text-red-400">*</span></label>
+                    <input
+                      type="url"
+                      value={gitRepoUrl}
+                      onChange={e => setGitRepoUrl(e.target.value)}
+                      placeholder="https://github.com/username/repo-name"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">GitHub 사용자명 (username) <span className="text-red-400">*</span></label>
+                    <input
+                      type="text"
+                      value={gitAuthor}
+                      onChange={e => setGitAuthor(e.target.value)}
+                      placeholder="예: octocat"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">GitHub 프로필 URL의 사용자명입니다. (github.com/<strong>username</strong>)</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Personal Access Token <span className="text-gray-400 font-normal">(비공개 레포일 경우)</span></label>
+                    <input
+                      type="password"
+                      value={gitToken}
+                      onChange={e => setGitToken(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">공개 레포는 입력하지 않아도 됩니다. 비공개 레포는 <code>repo</code> 권한이 있는 토큰이 필요합니다.</p>
+                  </div>
+
+                  <div className="bg-blue-50 rounded-xl px-4 py-3 flex gap-2.5">
+                    <AlertCircle size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                    <div className="text-[11.5px] text-blue-700 space-y-1">
+                      <p className="font-semibold">분석 방식 안내</p>
+                      <p>최근 커밋 최대 80개를 수집하여 작업 유형별로 그룹핑한 뒤, AI가 각 그룹을 포트폴리오 경험 스토리로 변환합니다.</p>
+                      <p>분석에는 30~60초가 소요될 수 있습니다.</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleGitAnalyze}
+                    disabled={gitAnalyzing || !gitRepoUrl.trim() || !gitAuthor.trim()}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {gitAnalyzing ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        커밋 분석 중...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={16} />
+                        AI로 커밋 분석하기
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* 분석 결과 */}
+              {gitResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{gitResult.repoName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">총 {gitResult.totalCommits}개 커밋 분석 → {gitResult.experiences.length}개 경험 추출</p>
+                    </div>
+                    <button
+                      onClick={() => setGitResult(null)}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      다시 분석
+                    </button>
+                  </div>
+
+                  {gitResult.experiences.map((exp, idx) => (
+                    <div key={idx} className="border border-gray-100 rounded-2xl overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{exp.project_name}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {exp.core_tech_stack && exp.core_tech_stack.split(/[,，、\s]+/).filter(Boolean).slice(0, 5).map((t, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full text-[10px] font-medium">{t}</span>
+                            ))}
+                            {exp.period && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-medium">{exp.period}</span>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => gitSaving[idx] !== 'done' && handleSaveGitExperience(exp, idx)}
+                          disabled={gitSaving[idx] === true || gitSaving[idx] === 'done'}
+                          className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                            gitSaving[idx] === 'done'
+                              ? 'bg-green-100 text-green-700 cursor-default'
+                              : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+                          }`}
+                        >
+                          {gitSaving[idx] === true ? <Loader2 size={12} className="animate-spin" /> : gitSaving[idx] === 'done' ? <Check size={12} /> : <Plus size={12} />}
+                          {gitSaving[idx] === 'done' ? '저장됨' : '경험 저장'}
+                        </button>
+                      </div>
+
+                      <div className="px-4 py-3 space-y-3">
+                        {exp.core_impact && (
+                          <div>
+                            <p className="text-[10px] font-bold text-primary-600 uppercase tracking-wide mb-1">핵심 성과</p>
+                            <p className="text-xs text-gray-700 leading-relaxed">{exp.core_impact}</p>
+                          </div>
+                        )}
+                        {exp.problem_definition?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wide mb-1">문제 정의</p>
+                            <ul className="space-y-0.5">
+                              {exp.problem_definition.map((p, i) => (
+                                <li key={i} className="text-xs text-gray-600 flex gap-1.5"><ChevronRight size={11} className="shrink-0 mt-0.5 text-orange-400" />{p}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {exp.action_and_solution?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide mb-1">해결 방식</p>
+                            <ul className="space-y-0.5">
+                              {exp.action_and_solution.map((a, i) => (
+                                <li key={i} className="text-xs text-gray-600 flex gap-1.5"><ChevronRight size={11} className="shrink-0 mt-0.5 text-blue-400" />{a}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {exp.learning?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-1">인사이트</p>
+                            <ul className="space-y-0.5">
+                              {exp.learning.map((l, i) => (
+                                <li key={i} className="text-xs text-gray-600 flex gap-1.5"><ChevronRight size={11} className="shrink-0 mt-0.5 text-green-400" />{l}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 간트 호버 툴팁 */}
