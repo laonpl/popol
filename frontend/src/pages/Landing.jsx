@@ -10,16 +10,61 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 
+const MOCK_UPLOAD_FILES = [
+  { name: '프로젝트_회고록.hwp',   size: '245 KB', color: 'bg-blue-500' },
+  { name: '포트폴리오_v3.pdf',    size: '1.2 MB',  color: 'bg-red-500' },
+  { name: '개발일지_2025.docx',   size: '380 KB', color: 'bg-indigo-500' },
+  { name: '자기소개서_최종.hwp',  size: '178 KB', color: 'bg-blue-500' },
+];
+
 export default function Landing() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [heroVisible, setHeroVisible] = useState(false);
   const heroRef = useRef(null);
 
+  // ── 파일 업로드 애니메이션 ──
+  const [uploadAnimStep, setUploadAnimStep]     = useState(0);
+  const [uploadZoneActive, setUploadZoneActive] = useState(false);
+  const [uploadLoopKey, setUploadLoopKey]       = useState(0);
+  const uploadTimersRef = useRef([]);
+
   const go = () => navigate(user ? '/app' : '/login');
 
   useEffect(() => {
     setHeroVisible(true);
+  }, []);
+
+  useEffect(() => {
+    const FILE_INTERVAL  = 1300;
+    const ZONE_DURATION  = 550;
+    const FILE_COUNT     = MOCK_UPLOAD_FILES.length;
+
+    const runLoop = (loopNum) => {
+      setUploadAnimStep(0);
+      setUploadLoopKey(loopNum);
+      setUploadZoneActive(false);
+
+      for (let i = 0; i < FILE_COUNT; i++) {
+        const base = 700 + i * FILE_INTERVAL;
+        uploadTimersRef.current.push(
+          setTimeout(() => setUploadZoneActive(true),  base),
+          setTimeout(() => {
+            setUploadZoneActive(false);
+            setUploadAnimStep(i + 1);
+          }, base + ZONE_DURATION),
+        );
+      }
+      uploadTimersRef.current.push(
+        setTimeout(
+          () => runLoop(loopNum + 1),
+          700 + FILE_COUNT * FILE_INTERVAL + ZONE_DURATION + 2400,
+        ),
+      );
+    };
+
+    runLoop(0);
+    return () => uploadTimersRef.current.forEach(clearTimeout);
   }, []);
 
   return (
@@ -58,11 +103,6 @@ export default function Landing() {
       <section ref={heroRef} className="bg-white overflow-hidden">
         <div className="max-w-[1140px] mx-auto px-8 pt-20 pb-24">
           <div className={`transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-50 rounded-full mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
-              <span className="text-[11px] font-bold text-primary-600 tracking-wide">AI-POWERED PORTFOLIO BUILDER</span>
-            </div>
-
             <h1 className="text-[42px] md:text-[54px] font-extrabold leading-[1.15] text-bluewood-900 mb-6" style={{ wordBreak: 'keep-all' }}>
               파편화된 경험을 정리하고,<br />
               <span className="text-primary-500">맞춤 포트폴리오</span>까지 한번에.
@@ -151,22 +191,31 @@ export default function Landing() {
                     </div>
                   </div>
                   <div className="p-6 space-y-4">
-                    {/* Upload zone */}
-                    <div className="border-2 border-dashed border-primary-200 bg-primary-50/30 rounded-xl p-6 text-center">
-                      <div className="w-10 h-10 mx-auto rounded-full bg-primary-100 flex items-center justify-center mb-3">
-                        <FileUp size={18} className="text-primary-500" />
+                    {/* Upload zone – 드래그 활성 상태 애니메이션 */}
+                    <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-300 ${
+                      uploadZoneActive
+                        ? 'border-primary-400 bg-primary-100/60 scale-[1.015]'
+                        : 'border-primary-200 bg-primary-50/30'
+                    }`}>
+                      <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${
+                        uploadZoneActive ? 'bg-primary-200 scale-110' : 'bg-primary-100'
+                      }`}>
+                        <FileUp size={18} className={`text-primary-500 transition-transform duration-300 ${
+                          uploadZoneActive ? 'animate-bounce' : ''
+                        }`} />
                       </div>
-                      <p className="text-[13px] font-semibold text-bluewood-700 mb-1">파일을 드래그하거나 클릭하여 업로드</p>
+                      <p className="text-[13px] font-semibold text-bluewood-700 mb-1">
+                        {uploadZoneActive ? '파일 인식 중…' : '파일을 드래그하거나 클릭하여 업로드'}
+                      </p>
                       <p className="text-[11px] text-bluewood-400">HWP, PDF, DOCX, TXT (최대 10개)</p>
                     </div>
-                    {/* Mock uploaded files */}
-                    <div className="space-y-2">
-                      {[
-                        { name: '프로젝트_회고록.hwp', size: '245 KB', color: 'bg-blue-500' },
-                        { name: '포트폴리오_v3.pdf', size: '1.2 MB', color: 'bg-red-500' },
-                        { name: '개발일지_2025.docx', size: '380 KB', color: 'bg-indigo-500' },
-                      ].map((f, i) => (
-                        <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-lg">
+                    {/* Mock uploaded files – 순서대로 슬라이드인 후 반복 */}
+                    <div className="space-y-2 min-h-[148px]">
+                      {MOCK_UPLOAD_FILES.slice(0, uploadAnimStep).map((f, i) => (
+                        <div
+                          key={`${uploadLoopKey}-${i}`}
+                          className="flex items-center gap-3 px-4 py-2.5 bg-surface-50 rounded-lg animate-slide-in-file"
+                        >
                           <div className={`w-7 h-7 rounded-lg ${f.color} flex items-center justify-center`}>
                             <FileText size={13} className="text-white" />
                           </div>
