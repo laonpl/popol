@@ -764,16 +764,26 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const [tailorError, setTailorError] = useState(null);
   const [appliedSections, setAppliedSections] = useState({});
   const [appliedKeyExperiences, setAppliedKeyExperiences] = useState({});
+  const [savedKeyExps, setSavedKeyExps] = useState(null); // 첨삭 전 원본 저장
   const sliderRef = useRef(null);
 
   const handleTailor = async () => {
     if (!jobAnalysis) return;
+    // 이미 저장된 원본이 있으면 그것을 사용, 없으면 현재 keyExps가 원본
+    const originalKeyExps = savedKeyExps !== null ? savedKeyExps : [...(exp?.structuredResult?.keyExperiences || [])];
+    const baseStructured = exp?.structuredResult || {};
     setTailoring(true);
     setTailorError(null);
     setAppliedSections({});
     setAppliedKeyExperiences({});
     try {
-      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: exp });
+      // AI에게는 항상 원본 keyExperiences를 포함한 경험 전달
+      const expForTailor = { ...exp, structuredResult: { ...baseStructured, keyExperiences: originalKeyExps } };
+      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: expForTailor });
+      // 첫 번째 첨삭일 때만 원본 저장
+      if (savedKeyExps === null) setSavedKeyExps(originalKeyExps);
+      // 기존 핵심 경험 모두 초기화 (사용자가 추천 경험만 골라 채워넣도록)
+      onUpdate({ structuredResult: { ...baseStructured, keyExperiences: [] } });
       setTailorResult(data.tailored);
     } catch (err) {
       setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
@@ -783,6 +793,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
   const toggleTailor = () => {
     const next = !showTailor;
+    // 첨삭 패널 닫을 때 아무것도 적용 안 했으면 원본 복원
+    if (!next && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
+      onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: savedKeyExps } });
+      setSavedKeyExps(null);
+    }
     setShowTailor(next);
     if (next && !tailorResult && !tailoring) handleTailor();
   };
@@ -805,49 +820,21 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     setAppliedSections(allApplied);
   };
 
-  // 핵심 경험 첨삭 적용: slideIndex 직접 사용, 폴백으로 title 매칭
-  const resolveKeyExpIdx = (ke, ki) => {
-    // 1순위: AI가 반환한 slideIndex 직접 사용
-    if (typeof ke.slideIndex === 'number' && ke.slideIndex >= 0 && ke.slideIndex < keyExps.length) {
-      return ke.slideIndex;
-    }
-    // 2순위: 정확한 title 일치
-    let idx = keyExps.findIndex(e =>
-      e.title && ke.title && e.title.trim() === ke.title.trim()
-    );
-    if (idx >= 0) return idx;
-    // 3순위: title 포함 관계
-    idx = keyExps.findIndex(e =>
-      e.title && ke.title && (
-        e.title.trim().includes(ke.title.trim()) ||
-        ke.title.trim().includes(e.title.trim())
-      )
-    );
-    if (idx >= 0) return idx;
-    // 4순위: 같은 순서 인덱스 폴백
-    if (ki < keyExps.length) return ki;
-    return -1;
-  };
-
+  // 핵심 경험 첨삭 적용: AI 추천 경험을 새 항목으로 추가 (기존 목록은 이미 초기화된 상태)
   const applyKeyExperience = (ke, ki) => {
     if (!onUpdate) return;
-    const matchIdx = resolveKeyExpIdx(ke, ki);
-    if (matchIdx < 0) return;
-    const updatedKeyExps = keyExps.map((e, i) => {
-      if (i !== matchIdx) return e;
-      return {
-        ...e,
-        ...(ke.title     ? { title: ke.title }         : {}),
-        ...(ke.situation ? { situation: ke.situation }  : {}),
-        ...(ke.problem   ? { situation: ke.problem }    : {}),
-        ...(ke.action    ? { action: ke.action }        : {}),
-        ...(ke.result    ? { result: ke.result }        : {}),
-      };
-    });
-    onUpdate({ structuredResult: { ...structured, keyExperiences: updatedKeyExps } });
+    const currentKeyExps = exp?.structuredResult?.keyExperiences || [];
+    const newEntry = {
+      title: ke.title || '',
+      situation: ke.situation || ke.problem || '',
+      action: ke.action || '',
+      result: ke.result || '',
+    };
+    const updatedKeyExps = [...currentKeyExps, newEntry];
+    onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedKeyExps } });
     setAppliedKeyExperiences(prev => ({ ...prev, [ki]: true }));
     setTab('view');
-    setTimeout(() => sliderRef.current?.goTo(matchIdx), 150);
+    setTimeout(() => sliderRef.current?.goTo(updatedKeyExps.length - 1), 150);
   };
 
   // Firestore에서 이미지 로드 (experienceId가 있을 때)
@@ -908,12 +895,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-bold text-gray-900 truncate max-w-[280px]">{exp.title || '경험 상세'}</h3>
-            {hasRichData && (
-              <div className="flex bg-surface-100 rounded-lg p-0.5 gap-0.5">
-                <button onClick={() => setTab('view')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'view' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>상세보기</button>
-                <button onClick={() => setTab('edit')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'edit' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>편집</button>
-              </div>
-            )}
+            <div className="flex bg-surface-100 rounded-lg p-0.5 gap-0.5">
+              <button onClick={() => setTab('view')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'view' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>상세보기</button>
+              <button onClick={() => setTab('edit')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'edit' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>편집</button>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {jobAnalysis && (
@@ -1111,6 +1096,79 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     })}
                   </div>
                 </div>
+
+              {/* ── 핵심 경험 편집 ── */}
+              <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-surface-100 bg-surface-50/40 flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-gray-700">핵심 경험 &amp; 성과</p>
+                  <button
+                    onClick={() => {
+                      const newKe = { title: '', situation: '', action: '', result: '' };
+                      const updated = [...keyExps, newKe];
+                      onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
+                    }}
+                    className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800 font-medium"
+                  >
+                    <Plus size={13} /> 추가
+                  </button>
+                </div>
+                <div className="divide-y divide-surface-100">
+                  {keyExps.length === 0 && (
+                    <p className="px-4 py-6 text-center text-xs text-gray-400">핵심 경험이 없습니다. 추가 버튼을 눌러 직접 입력하거나 첨삭을 통해 받아보세요.</p>
+                  )}
+                  {keyExps.map((ke, ki) => (
+                    <div key={ki} className="p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-700">핵심 경험 {ki + 1}</span>
+                        <button
+                          onClick={() => {
+                            const updated = keyExps.filter((_, i) => i !== ki);
+                            onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      {[
+                        { field: 'title',     label: '제목',      multiline: false },
+                        { field: 'situation', label: '문제 상황', multiline: true, altField: 'problem' },
+                        { field: 'action',    label: '핵심 행동', multiline: true },
+                        { field: 'result',    label: '성과',      multiline: true },
+                      ].map(({ field, label, multiline, altField }) => (
+                        <div key={field}>
+                          <label className="text-[10px] font-semibold text-gray-500 mb-1 block">{label}</label>
+                          {multiline ? (
+                            <textarea
+                              value={ke[field] || (altField ? ke[altField] || '' : '')}
+                              onChange={e => {
+                                const updated = keyExps.map((k, i) => {
+                                  if (i !== ki) return k;
+                                  const u = { ...k, [field]: e.target.value };
+                                  if (altField) delete u[altField];
+                                  return u;
+                                });
+                                onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
+                              }}
+                              rows={2}
+                              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary-200 resize-none leading-relaxed"
+                            />
+                          ) : (
+                            <input
+                              value={ke[field] || ''}
+                              onChange={e => {
+                                const updated = keyExps.map((k, i) => i !== ki ? k : { ...k, [field]: e.target.value });
+                                onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
+                              }}
+                              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary-200"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1161,22 +1219,17 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 <div className="space-y-3">
 
                   {/* ── 기업 맞춤 추천 핵심 경험 ── */}
-                  {tailorResult.keyExperiences?.length > 0 && keyExps.length > 0 && (
+                  {tailorResult.keyExperiences?.length > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천 핵심 경험</span>
                         <span className="text-[10px] text-indigo-400">{Math.min(tailorResult.keyExperiences.length, 3)}개 선별됨</span>
                       </div>
+                      <p className="text-[10px] text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2 border border-indigo-100">
+                        기존 핵심 경험은 초기화되었습니다. 적용할 항목을 선택해 추가하세요.
+                      </p>
                       {tailorResult.keyExperiences.slice(0, 3).map((ke, ki) => {
-                        const matchIdx = resolveKeyExpIdx(ke, ki);
                         const isApplied = appliedKeyExperiences[ki];
-                        const canApply = matchIdx >= 0;
-                        const FIELDS = [
-                          { key: 'situation', label: '문제 상황' },
-                          { key: 'problem',   label: '문제 상황' },
-                          { key: 'action',    label: '핵심 행동' },
-                          { key: 'result',    label: '성과' },
-                        ];
                         return (
                           <div key={ki} className="rounded-xl border border-indigo-200 overflow-hidden bg-white">
                             {/* 헤더 */}
@@ -1185,12 +1238,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                               <span className="text-xs font-bold text-gray-800 flex-1 leading-tight truncate">{ke.title}</span>
                               <button
                                 onClick={() => applyKeyExperience(ke, ki)}
-                                disabled={isApplied || !canApply}
+                                disabled={isApplied}
                                 className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-default'
-                                    : !canApply
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                     : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
                                 }`}
                               >
@@ -1205,8 +1256,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                             )}
                             {/* 첨삭 내용 필드들 */}
                             <div className="divide-y divide-gray-50 px-3 pb-2">
-                              {/* 제목 (원본과 다를 때만 표시) */}
-                              {ke.title && keyExps[resolveKeyExpIdx(ke, ki)]?.title !== ke.title && (
+                              {ke.title && (
                                 <div className="py-2">
                                   <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">제목</p>
                                   <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.title)}</p>
