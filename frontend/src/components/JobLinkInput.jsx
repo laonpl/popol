@@ -633,7 +633,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                             )}
                             {impact && (
                               <div className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg p-2">
-                                <span className="flex-shrink-0 font-bold text-blue-600 text-[10px] whitespace-nowrap">📌 직무 영향</span>
+                                <span className="flex-shrink-0 font-bold text-blue-600 text-[10px] whitespace-nowrap">직무 영향</span>
                                 <span className="text-[10px] text-blue-700 leading-relaxed">{stripMd(impact)}</span>
                               </div>
                             )}

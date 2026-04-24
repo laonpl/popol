@@ -1643,6 +1643,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
+    {analysisMode && <div className="w-[380px] flex-shrink-0" />}{/* 중앙 고정용 균형 스페이서 */}
     <div className="w-[860px] flex-shrink-0">
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         {/* Hero */}
@@ -3561,6 +3562,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
+      {analysisMode && <div className="w-[360px] flex-shrink-0" />}{/* 중앙 고정용 균형 스페이서 */}
       {/* ── 사이드바 왼쪽 (Notion) [비활성화] ── */}
       {false && (
       <div className="w-[360px] flex-shrink-0">
