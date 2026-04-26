@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, Trash2, Edit, Upload, LayoutTemplate, Download, Eye, Camera, Search, Star, Clock } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Plus, FileText, Trash2, Edit, Upload, LayoutTemplate, Download, Eye, Camera, Search, Star, Clock, ExternalLink } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import ImportModal from '../../components/ImportModal';
@@ -12,12 +12,14 @@ export default function PortfolioHub() {
   const { user } = useAuthStore();
   const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, loading } = usePortfolioStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'favorites'
+  const [sortMode, setSortMode] = useState('recent');
+  const [exportConfig, setExportConfig] = useState(location.state?.exportConfig || null);
 
   useEffect(() => {
     if (user?.uid) fetchPortfolios(user.uid);
@@ -89,9 +91,26 @@ export default function PortfolioHub() {
         </div>
       </div>
 
+      {/* 경험 내보내기 배너 */}
+      {exportConfig && (
+        <div className="mb-5 flex items-center gap-4 px-5 py-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+          <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <ExternalLink size={17} className="text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-emerald-800">"{exportConfig.title}" 경험을 포트폴리오에 추가합니다</p>
+            <p className="text-[12px] text-emerald-600 mt-0.5">아래에서 포트폴리오를 선택하면 {exportConfig.sectionOrder?.length || 0}개 섹션이 자동으로 추가됩니다.</p>
+          </div>
+          <button onClick={() => { setExportConfig(null); window.history.replaceState({}, '', window.location.pathname); }}
+            className="text-emerald-400 hover:text-emerald-600 transition-colors text-xs px-2 py-1">
+            취소
+          </button>
+        </div>
+      )}
+
       {/* 검색 & 정렬 바 */}
       {portfolios.length > 0 && (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-5">
           <div className="relative flex-1 max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -146,6 +165,12 @@ export default function PortfolioHub() {
             <PortfolioCard
               key={p.id}
               portfolio={p}
+              exportMode={!!exportConfig}
+              onSelect={() => {
+                if (exportConfig) {
+                  navigate(`/app/portfolio/edit-notion/${p.id}`, { state: { exportConfig } });
+                }
+              }}
               onDetail={() => setDetailData(p)}
               onExport={() => setExportData(p)}
               onDelete={() => {
@@ -175,7 +200,7 @@ export default function PortfolioHub() {
   );
 }
 
-function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
+function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, onSelect }) {
   const { id, title, targetCompany, targetPosition, status, createdAt, templateType, thumbnailUrl, isFavorite, headline } = portfolio;
   const { user } = useAuthStore();
   const { updatePortfolio } = usePortfolioStore();
@@ -302,8 +327,15 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
 
         {/* 액션 버튼 */}
         <div className="mt-auto space-y-2">
-          {/* 주 버튼: 자세히보기(비템플릿) / 미리보기(템플릿) */}
-          {isTemplate ? (
+          {/* 내보내기 모드 - 선택 버튼 우선 표시 */}
+          {exportMode ? (
+            <button
+              onClick={onSelect}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+            >
+              <ExternalLink size={15} /> 이 포트폴리오에 추가
+            </button>
+          ) : isTemplate ? (
             <Link
               to={`/app/portfolio/preview/${id}`}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"

@@ -7,7 +7,7 @@ import {
   Loader2, Check, FolderOpen, Palette, Monitor,
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
-import useExperienceStore from '../../stores/experienceStore';
+import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -421,6 +421,8 @@ const FIELD_OPTIONS = [
   { value: '기획', label: '기획', icon: Monitor },
 ];
 
+// JOB_CATEGORIES는 experienceStore에서 가져옴 (import 됨)
+
 export default function TemplateSelect() {
   const { user } = useAuthStore();
   const { createExperience, analyzeExperience, extractMoments } = useExperienceStore();
@@ -432,6 +434,7 @@ export default function TemplateSelect() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [field, setField] = useState('');
+  const [jobCategory, setJobCategory] = useState('');
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [textInput, setTextInput] = useState('');
@@ -511,7 +514,7 @@ export default function TemplateSelect() {
   };
 
   const hasInput = files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim() || blogUrl.trim() || linkInputs.some(l => l.trim());
-  const canNext1 = title.trim() && startDate;
+  const canNext1 = title.trim() && startDate && jobCategory;
 
   const updateLoadingStep = (stepIdx, status) => {
     setLoadingSteps(prev => prev.map((s, i) => i === stepIdx ? { ...s, status } : s));
@@ -838,6 +841,7 @@ export default function TemplateSelect() {
         framework: 'STRUCTURED',
         period,
         field: field || undefined,
+        jobCategory: jobCategory || 'common',
         content: { rawInput: finalText },
         momentsCount: moments.length,
       });
@@ -1558,7 +1562,7 @@ export default function TemplateSelect() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Basic Information</p>
             <h1 className="text-[34px] font-bold tracking-[-0.03em] text-bluewood-900">프로젝트 기본 정보를 입력해주세요</h1>
             <p className="mt-3 text-sm leading-6 text-bluewood-400">
-              프로젝트명과 기간, 분야를 먼저 정리하면 다음 단계에서 자료 수집과 경험 검토를 더 깔끔하게 이어갈 수 있어요.
+              프로젝트명과 기간, <span className="font-medium text-bluewood-600">직군</span>을 먼저 정리하면 직군에 맞춘 특화 섹션이 자동으로 추가됩니다.
             </p>
           </div>
 
@@ -1599,31 +1603,41 @@ export default function TemplateSelect() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
-                <label className="pt-3 text-sm font-semibold text-bluewood-700">분야</label>
-                <div className="flex flex-wrap gap-3">
-                {FIELD_OPTIONS.map(opt => {
-                  const Icon = opt.icon;
-                  const selected = field === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setField(selected ? '' : opt.value)}
-                      className={`inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-medium transition-all ${
-                        selected
-                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
-                          : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
-                      }`}
-                    >
-                      <Icon size={14} />
-                      {opt.label}
-                    </button>
-                  );
-                })}
+                <label className="pt-3 text-sm font-semibold text-bluewood-700">
+                  직군 선택 <span className="text-red-400">*</span>
+                </label>
+                <div className="space-y-4">
+                  {JOB_CATEGORIES.map(group => (
+                    <div key={group.group}>
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-bluewood-300">{group.group}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.items.map(opt => {
+                          const selected = jobCategory === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setJobCategory(selected ? '' : opt.value)}
+                              title={opt.description}
+                              className={`group relative inline-flex flex-col items-start gap-0.5 rounded-2xl border px-4 py-3 text-left transition-all ${
+                                selected
+                                  ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
+                                  : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
+                              }`}
+                            >
+                              <span className="text-sm font-semibold leading-tight">{opt.label}</span>
+                              <span className={`text-[10px] leading-snug ${selected ? 'text-primary-100' : 'text-bluewood-300'}`}>{opt.description}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-        </div>
         <div className="flex flex-col items-center gap-3 pt-6 md:pt-8">
           <button
             onClick={() => setStep(2)}
@@ -1633,7 +1647,7 @@ export default function TemplateSelect() {
             다음 단계
             <ChevronRight size={18} />
           </button>
-          <p className="text-center text-xs text-bluewood-400">AI 분석 과정은 자료량에 따라 최대 5분 소요될 수 있어요</p>
+          <p className="text-center text-xs text-bluewood-400">프로젝트명·기간·직군 모두 선택해야 다음 단계로 이동할 수 있어요</p>
         </div>
       </div>
       )}

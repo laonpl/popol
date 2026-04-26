@@ -4,7 +4,7 @@ import { ArrowLeft, Save, Sparkles, Loader2, ImagePlus, X, Image } from 'lucide-
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
-import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
+import useExperienceStore, { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import toast from 'react-hot-toast';
 
 export default function ExperienceEditor() {
@@ -17,6 +17,7 @@ export default function ExperienceEditor() {
 
   const [title, setTitle] = useState('');
   const [framework, setFramework] = useState(paramFramework || 'STRUCTURED');
+  const [jobCategory, setJobCategory] = useState('common');
   const [content, setContent] = useState({});
   const [images, setImages] = useState([]); // [{ url, storagePath, name }]
   const [imageSizes, setImageSizes] = useState({}); // { [index]: widthPercent }
@@ -47,6 +48,7 @@ export default function ExperienceEditor() {
         const data = docSnap.data();
         setTitle(data.title || '');
         setFramework(data.framework || 'STAR');
+        setJobCategory(data.jobCategory || 'common');
         setContent(data.content || {});
         setImages(data.images || []);
         setImageSizes(data.imageSizes || {});
@@ -69,12 +71,12 @@ export default function ExperienceEditor() {
     setSaving(true);
     try {
       if (isNew && !currentId) {
-        const newId = await createExperience(user.uid, { title, framework, content, images, imageSizes });
+        const newId = await createExperience(user.uid, { title, framework, jobCategory, content, images, imageSizes });
         setCurrentId(newId);
         toast.success('경험이 저장되었습니다!');
         navigate(`/app/experience/edit/${newId}`, { replace: true });
       } else {
-        await updateExperience(currentId || id, { title, framework, content, images, imageSizes });
+        await updateExperience(currentId || id, { title, framework, jobCategory, content, images, imageSizes });
         toast.success('수정사항이 저장되었습니다');
       }
     } catch (error) {
@@ -92,10 +94,10 @@ export default function ExperienceEditor() {
     try {
       let experienceId = currentId || id;
       if (!experienceId) {
-        experienceId = await createExperience(user.uid, { title, framework, content, images, imageSizes });
+        experienceId = await createExperience(user.uid, { title, framework, jobCategory, content, images, imageSizes });
         setCurrentId(experienceId);
       } else {
-        await updateExperience(experienceId, { title, framework, content, images, imageSizes });
+        await updateExperience(experienceId, { title, framework, jobCategory, content, images, imageSizes });
       }
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
@@ -169,7 +171,7 @@ export default function ExperienceEditor() {
             e.target.value = '';
             return;
           }
-          docId = await createExperience(user.uid, { title, framework, content, images: [], imageSizes: {} });
+          docId = await createExperience(user.uid, { title, framework, jobCategory, content, images: [], imageSizes: {} });
           setCurrentId(docId);
           navigate(`/app/experience/edit/${docId}`, { replace: true });
         }
@@ -269,13 +271,63 @@ export default function ExperienceEditor() {
         />
       </div>
 
-      {/* Framework Fields */}
+      {/* 직군 선택 */}
+      <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-bold text-gray-700">직군 선택</h3>
+            <p className="text-xs text-gray-400 mt-0.5">선택한 직군에 맞는 특화 섹션이 추가됩니다</p>
+          </div>
+          {jobCategory && jobCategory !== 'common' && (
+            <span className="px-2.5 py-1 bg-primary-50 text-primary-600 rounded-lg text-xs font-medium border border-primary-100">
+              {JOB_CATEGORIES.flatMap(g => g.items).find(i => i.value === jobCategory)?.label || jobCategory}
+            </span>
+          )}
+        </div>
+        <div className="space-y-4">
+          {JOB_CATEGORIES.map(group => (
+            <div key={group.group}>
+              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-widest text-gray-300">{group.group}</p>
+              <div className="flex flex-wrap gap-2">
+                {group.items.map(opt => {
+                  const selected = jobCategory === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setJobCategory(selected ? 'common' : opt.value)}
+                      title={opt.description}
+                      className={`inline-flex flex-col items-start gap-0.5 rounded-xl border px-3.5 py-2.5 text-left transition-all ${
+                        selected
+                          ? 'border-primary-400 bg-primary-500 text-white shadow-sm'
+                          : 'border-surface-200 bg-white text-gray-600 hover:border-primary-200 hover:bg-primary-50/40'
+                      }`}
+                    >
+                      <span className="text-xs font-semibold leading-tight">{opt.label}</span>
+                      <span className={`text-[10px] leading-snug line-clamp-1 ${selected ? 'text-primary-100' : 'text-gray-400'}`}>{opt.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 필수 7개 섹션 (공통) ── */}
+      <div className="mb-2 flex items-center gap-2 px-1">
+        <span className="text-[10.5px] font-bold uppercase tracking-widest text-gray-300">필수 섹션</span>
+        <div className="flex-1 h-px bg-surface-100" />
+      </div>
       <div className="space-y-4 mb-6">
         {fw?.fields.map(field => (
           <div key={field.key} className={`rounded-2xl border p-6 ${field.color}`}>
-            <label className="block text-sm font-bold mb-2 text-gray-700">
+            <label className="block text-sm font-bold mb-1 text-gray-700">
               {field.label}
             </label>
+            {field.subtitle && (
+              <p className="text-xs text-gray-400 mb-3">{field.subtitle}</p>
+            )}
             <textarea
               value={content[field.key] || ''}
               onChange={e => handleFieldChange(field.key, e.target.value)}
@@ -291,6 +343,42 @@ export default function ExperienceEditor() {
           </div>
         ))}
       </div>
+
+      {/* ── 직군별 특화 섹션 ── */}
+      {JOB_SPECIFIC_FIELDS[jobCategory]?.length > 0 && (
+        <>
+          <div className="mb-2 flex items-center gap-2 px-1">
+            <span className="text-[10.5px] font-bold uppercase tracking-widest text-primary-400">
+              {JOB_CATEGORIES.flatMap(g => g.items).find(i => i.value === jobCategory)?.label} 특화 섹션
+            </span>
+            <div className="flex-1 h-px bg-primary-100" />
+          </div>
+          <div className="space-y-4 mb-6">
+            {JOB_SPECIFIC_FIELDS[jobCategory].map(field => (
+              <div key={field.key} className={`rounded-2xl border p-6 ${field.color}`}>
+                <label className="block text-sm font-bold mb-1 text-gray-700">
+                  {field.label}
+                </label>
+                {field.subtitle && (
+                  <p className="text-xs text-gray-400 mb-3">{field.subtitle}</p>
+                )}
+                <textarea
+                  value={content[field.key] || ''}
+                  onChange={e => handleFieldChange(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  rows={5}
+                  className="w-full bg-white/70 rounded-xl border border-white/50 p-4 text-sm outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-y"
+                />
+                {content[field.key] && (
+                  <p className="text-xs text-gray-400 mt-2 text-right">
+                    {content[field.key].length}자
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 사진 업로드 섹션 */}
       <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">

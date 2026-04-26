@@ -1,13 +1,15 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-// Lazy 초기화 — .env 변경 후 서버 재시작 시 새 키 반영 보장
+// 키 변경 시 자동 재생성 — .env 변경 후 서버 재시작 시 새 키 반영 보장
 let genAIClient = null;
+let _cachedGeminiKey = null;
 function getGenAI() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
-  if (!genAIClient) {
+  if (!genAIClient || _cachedGeminiKey !== key) {
     genAIClient = new GoogleGenerativeAI(key);
+    _cachedGeminiKey = key;
     console.log('[Gemini] API 클라이언트 초기화 완료');
   }
   return genAIClient;
@@ -149,7 +151,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── Pro 모델 503 에러 추적: 연속 2회 503 → Pro 일시 건너뛰기 (60초간) ──
 const modelHealthTracker = {
-  'gemini-2.5-pro': { consecutiveErrors: 0, blockedUntil: 0 },
+  'gemini-2.5-pro':       { consecutiveErrors: 0, blockedUntil: 0 },
+  'gemini-2.5-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
 };
 
 function isModelTemporarilyBlocked(modelName) {

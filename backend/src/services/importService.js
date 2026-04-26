@@ -2,12 +2,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
 
-// Lazy init — .env 키 변경 후 재시작 시 반영 보장
+// 키 변경 시 자동 재생성
 let _genAIClient = null;
+let _cachedImportKey = null;
 function getGenAI() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
-  if (!_genAIClient) _genAIClient = new GoogleGenerativeAI(key);
+  if (!_genAIClient || _cachedImportKey !== key) {
+    _genAIClient = new GoogleGenerativeAI(key);
+    _cachedImportKey = key;
+  }
   return _genAIClient;
 }
 

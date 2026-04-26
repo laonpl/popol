@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { FRAMEWORKS } from '../../stores/experienceStore';
+import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
@@ -26,6 +26,53 @@ function renderMarkdown(text) {
 function stripMarkdown(text) {
   if (!text) return '';
   return String(text).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '');
+}
+
+/* ── 핵심 경험 슬라이드 (미리보기 전용 서브 컴포넌트) ── */
+function PreviewKeySlides({ keyExperiences }) {
+  const [slideIdx, setSlideIdx] = useState(0);
+  if (!keyExperiences || keyExperiences.length === 0) return null;
+  const ke = keyExperiences[Math.min(slideIdx, keyExperiences.length - 1)];
+  return (
+    <div className="mb-8">
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+      <div className="bg-surface-50 border border-surface-200 rounded-xl overflow-hidden">
+        <div className="p-5">
+          {ke.title && <p className="text-[14px] font-bold text-bluewood-900 mb-3">{ke.title}</p>}
+          {(ke.metric || ke.afterMetric) && (
+            <div className="flex items-center gap-3 mb-3 p-3 bg-primary-50 rounded-lg border border-primary-100">
+              {ke.beforeMetric && (
+                <>
+                  <span className="text-[13px] text-bluewood-400">{ke.metricLabel || ''}</span>
+                  <span className="text-[18px] font-bold text-bluewood-500">{ke.beforeMetric}</span>
+                  <span className="text-bluewood-300 text-sm">→</span>
+                </>
+              )}
+              <span className="text-[22px] font-extrabold text-primary-600">{ke.afterMetric || ke.metric}</span>
+              {!ke.beforeMetric && ke.metricLabel && <span className="text-[12px] text-bluewood-400">{ke.metricLabel}</span>}
+            </div>
+          )}
+          {ke.situation && <p className="text-[13px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">상황 </span>{ke.situation}</p>}
+          {ke.action && <p className="text-[13px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">액션 </span>{ke.action}</p>}
+          {ke.result && <p className="text-[13px] text-bluewood-500 leading-relaxed"><span className="font-semibold text-bluewood-600">결과 </span>{ke.result}</p>}
+          {ke.keywords?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-3">
+              {ke.keywords.map((kw, i) => <span key={i} className="px-2 py-0.5 bg-primary-100 text-primary-600 rounded text-[11px] font-medium">{kw}</span>)}
+            </div>
+          )}
+        </div>
+        {keyExperiences.length > 1 && (
+          <div className="flex items-center justify-between px-5 py-2.5 border-t border-surface-200 bg-white">
+            <button onClick={() => setSlideIdx(i => Math.max(0, i - 1))} disabled={slideIdx === 0}
+              className="text-[12px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">◀ 이전</button>
+            <span className="text-[11px] text-bluewood-300">{slideIdx + 1} / {keyExperiences.length}</span>
+            <button onClick={() => setSlideIdx(i => Math.min(keyExperiences.length - 1, i + 1))} disabled={slideIdx === keyExperiences.length - 1}
+              className="text-[12px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">다음 ▶</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // 하이라이트 색상 매핑 (밑줄 스타일)
@@ -121,6 +168,17 @@ export default function StructuredResult() {
   const [keywordCategories, setKeywordCategories] = useState({}); // keyword → 카테고리 key
   const [flashedSection, setFlashedSection] = useState(null);   // 섹션 완성 피드백
 
+  /* ── 직군 특화 섹션 ── */
+  const [jobCategory, setJobCategory] = useState('common');
+  const [editedJobSpecific, setEditedJobSpecific] = useState({});
+  const [editingJobSections, setEditingJobSections] = useState({});
+
+  /* ── 포트폴리오 내보내기 커스텀 패널 ── */
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportEnabled, setExportEnabled] = useState({});
+  const [exportOrder, setExportOrder] = useState([]);
+  const [exportCoverImg, setExportCoverImg] = useState(null);
+
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
   useEffect(() => {
@@ -160,6 +218,8 @@ export default function StructuredResult() {
       });
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
+      setJobCategory(structured.jobCategory || 'common');
+      setEditedJobSpecific(structured.jobSpecific || {});
       if (!viewOnly) {
         // 비어있거나 아니거나 모든 섹션을 즐시 편집 모드로
         const autoEdit = {};
@@ -177,6 +237,7 @@ export default function StructuredResult() {
             setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
             setImageConfig(data.imageConfig || {});
             setJobAnalysis(data.jobAnalysis || null);
+            if (data.jobCategory) setJobCategory(data.jobCategory);
           }
         } catch (err) {
           console.error('이미지 로딩 실패:', err);
@@ -214,6 +275,9 @@ export default function StructuredResult() {
         });
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
+        setJobCategory(data.jobCategory || sr.jobCategory || 'common');
+        setEditedJobSpecific(sr.jobSpecific || {});
+        setExportCoverImg(sr.exportConfig?.coverImg || null);
         if (!viewOnly) {
           // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
           const autoEdit = {};
@@ -513,6 +577,30 @@ export default function StructuredResult() {
         projectOverview: { ...editedOverview },
         keywords: editedKeywords,
         keyExperiences: editedKeyExperiences,
+        jobCategory,
+        jobSpecific: editedJobSpecific,
+        exportConfig: (() => {
+          const prevCfg = experience?.structuredResult?.exportConfig || {};
+          const order = prevCfg.sectionOrder?.length ? prevCfg.sectionOrder : exportOrder;
+          const enabled = prevCfg.enabledMap || exportEnabled;
+          const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
+          const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
+          const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
+          const getSec = (key) => {
+            const jd = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
+            return jd ? (editedJobSpecific[key] || '') : (editedContent[key] || '');
+          };
+          return {
+            ...prevCfg,
+            sectionOrder: order,
+            enabledMap: enabled,
+            coverImg: exportCoverImg || prevCfg.coverImg || null,
+            sections: order
+              .filter(k => enabled[k] !== false)
+              .map(k => ({ key: k, label: allSectMap[k]?.label || k, type: allSectMap[k]?.type || 'base', content: getSec(k) }))
+              .filter(s => s.content?.trim()),
+          };
+        })(),
       };
       await updateDoc(ref, {
         title: editedTitle,
@@ -539,6 +627,104 @@ export default function StructuredResult() {
 
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
+
+  /* ── 포트폴리오 내보내기 섹션 목록 초기화 ── */
+  useEffect(() => {
+    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
+    const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
+    const allSects = [...jobSects, ...baseSects];
+    setExportOrder(allSects.map(s => s.key));
+    const enabled = {};
+    allSects.forEach(s => { enabled[s.key] = true; });
+    setExportEnabled(enabled);
+  }, [jobCategory]);
+
+  /* 포트폴리오 내보내기 핸들러 */
+  const handleExportToPortfolio = () => {
+    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
+    const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
+    const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
+
+    // 선택된 섹션만, 사용자 지정 순서로
+    const orderedEnabled = exportOrder.filter(k => exportEnabled[k]);
+    const sr = experience?.structuredResult || {};
+
+    // 각 섹션의 내용 매핑
+    const getSectionContent = (key) => {
+      const jobSectDef = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
+      if (jobSectDef) return editedJobSpecific[key] || sr.jobSpecific?.[key] || '';
+      return editedContent[key] || sr[key] || '';
+    };
+
+    const exportConfig = {
+      experienceId: id,
+      title: editedTitle,
+      jobCategory,
+      sectionOrder: orderedEnabled,
+      sections: orderedEnabled.map(key => ({
+        key,
+        label: allSectMap[key]?.label || key,
+        type: allSectMap[key]?.type || 'base',
+        content: getSectionContent(key),
+      })).filter(s => s.content?.trim()),
+      structuredResult: { ...sr, ...editedContent, jobSpecific: editedJobSpecific },
+      keywords: editedKeywords,
+      keyExperiences: editedKeyExperiences,
+      projectOverview: editedOverview,
+    };
+
+    navigate('/app/portfolio', { state: { exportConfig } });
+  };
+
+  /* 포트폴리오 미리보기 - 섹션 구성 Firestore 저장 */
+  const handleSaveExportConfig = async () => {
+    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
+    const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
+    const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
+    const orderedEnabled = exportOrder.filter(k => exportEnabled[k] !== false);
+    const getSectionContent = (key) => {
+      const jobDef = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
+      if (jobDef) return editedJobSpecific[key] || '';
+      return editedContent[key] || '';
+    };
+    const exportConfigData = {
+      sectionOrder: exportOrder,
+      enabledMap: exportEnabled,
+      sections: orderedEnabled.map(key => ({
+        key,
+        label: allSectMap[key]?.label || key,
+        type: allSectMap[key]?.type || 'base',
+        content: getSectionContent(key),
+      })).filter(s => s.content?.trim()),
+      coverImg: exportCoverImg || null,
+      savedAt: new Date(),
+    };
+    try {
+      await updateDoc(doc(db, 'experiences', id), {
+        'structuredResult.exportConfig': exportConfigData,
+        updatedAt: new Date(),
+      });
+      setExperience(prev => prev ? {
+        ...prev,
+        structuredResult: { ...(prev.structuredResult || {}), exportConfig: exportConfigData },
+      } : prev);
+      toast.success('포트폴리오 구성이 저장되었습니다');
+      setShowExportPanel(false);
+    } catch {
+      toast.error('저장에 실패했습니다');
+    }
+  };
+
+  /* 포트폴리오 내보내기 패널 - 섹션 이동 */
+  const moveExportSection = (idx, dir) => {
+    setExportOrder(prev => {
+      const arr = [...prev];
+      const target = idx + dir;
+      if (target < 0 || target >= arr.length) return arr;
+      [arr[idx], arr[target]] = [arr[target], arr[idx]];
+      return arr;
+    });
+  };
 
   /* 페이지 전체 품질 체크리스트 */
   const qualityChecks = [
@@ -664,6 +850,11 @@ export default function StructuredResult() {
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
+            </button>
+            <button
+              onClick={() => setShowExportPanel(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-card">
+              포트폴리오 미리보기
             </button>
           </div>
         )}
@@ -990,6 +1181,116 @@ export default function StructuredResult() {
       </div>
 
       {/* ╔══════════════════════════════════════════════╗
+         ║  직군 특화 핵심 분석 섹션 (7개 섹션 위)       ║
+         ╚══════════════════════════════════════════════╝ */}
+      {(() => {
+        const jobSections = JOB_SPECIFIC_FIELDS[jobCategory] || [];
+        if (jobSections.length === 0) return null;
+
+        const jobMeta = JOB_CATEGORIES.flatMap(g => g.items).find(it => it.value === jobCategory);
+        const jobLabel = jobMeta?.label || jobCategory;
+
+        return (
+          <div className="bg-white border border-surface-200 rounded-2xl shadow-sm overflow-hidden">
+            {/* 직군 특화 헤더 */}
+            <div className="flex items-center gap-3 px-6 py-4 bg-primary-50/40 border-b border-primary-100">
+              <span className="px-2.5 py-1 bg-primary-100 text-primary-700 rounded-lg text-[11px] font-bold tracking-wide uppercase">직군 특화</span>
+              <span className="text-[14px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
+              <span className="text-[12px] text-bluewood-400 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
+            </div>
+
+            <div className="divide-y divide-surface-100">
+              {jobSections.map((field, idx) => {
+                const val = editedJobSpecific[field.key] || '';
+                const isTrulyEmpty = !val.trim();
+                const isDraft = !isTrulyEmpty && val.trim().startsWith('[작성 필요]');
+                const isEditing = editingJobSections[field.key];
+
+                return (
+                  <div key={field.key} className="group">
+                    {/* 섹션 헤더 */}
+                    <div className="flex items-center gap-4 px-6 py-3 bg-primary-50/20">
+                      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-[11px] font-bold">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[13px] font-bold text-primary-700">{field.label}</span>
+                        {field.subtitle && <span className="text-[11px] text-bluewood-300 ml-2">{field.subtitle}</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isTrulyEmpty ? (
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                        ) : isDraft ? (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
+                        )}
+                        {!isEditing && !isTrulyEmpty && !viewOnly && (
+                          <button
+                            onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-bluewood-400 hover:text-primary-600 bg-white rounded-md border border-surface-200 transition-all">
+                            <PenLine size={11} /> 수정
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 섹션 본문 */}
+                    <div className="px-6 py-4 pl-[60px]">
+                      {isEditing ? (
+                        <div>
+                          <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                            💡 <strong>{field.subtitle}</strong><br />{field.placeholder}
+                          </p>
+                          <textarea
+                            value={val.startsWith('[작성 필요]') ? val.replace(/^\[작성 필요\]\s*/, '') : val}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setEditedJobSpecific(p => ({ ...p, [field.key]: v }));
+                              const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
+                            }}
+                            placeholder={field.placeholder || '내용을 입력하세요'}
+                            className="w-full bg-white rounded-xl border border-primary-200 p-4 text-[13px] outline-none focus:ring-2 focus:ring-primary-300 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300"
+                            style={{ minHeight: '7rem' }}
+                          />
+                          <div className="flex justify-end mt-2">
+                            <button
+                              onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: false }))}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-primary-700 hover:bg-primary-50 transition-colors">
+                              <Check size={13} /> 완료
+                            </button>
+                          </div>
+                        </div>
+                      ) : isTrulyEmpty ? (
+                        <button
+                          onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
+                          className="w-full py-3 border-2 border-dashed border-primary-200 rounded-xl text-[13px] font-medium text-primary-500 hover:bg-primary-50/60 transition-colors flex items-center justify-center gap-2">
+                          <PenLine size={14} /> 빈칸 채우기
+                        </button>
+                      ) : isDraft ? (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                          <p className="text-[11px] text-blue-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
+                          <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{val.replace(/^\[작성 필요\]\s*/,'').trim()}</p>
+                          {!viewOnly && (
+                            <button onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
+                              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                              <PenLine size={11} /> 수정하기
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ╔══════════════════════════════════════════════╗
          ║  하단: 상세 경험 정리 — 항상 펼쳐진 편집모드  ║
          ╚══════════════════════════════════════════════╝ */}
       <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
@@ -1075,6 +1376,9 @@ export default function StructuredResult() {
 
                   {isEditing ? (
                     <div>
+                      <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                        💡 <strong>{meta.subtitle}</strong><br />{field?.placeholder}
+                      </p>
                       <textarea
                         ref={el => { sectionTextareaRefs.current[key] = el; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
                         value={editedContent[key] || ''}
@@ -1273,6 +1577,271 @@ export default function StructuredResult() {
       <div className="hidden lg:block fixed right-0 top-20 z-30">
         <ProjectTimeline experiences={experiences} currentId={id} />
       </div>
+
+      {/* ── 포트폴리오 내보내기 모달 ── */}
+      {showExportPanel && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6" onClick={() => setShowExportPanel(false)}>
+          <div
+            className="w-full max-w-[1160px] h-[88vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-surface-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-7 py-4 border-b border-surface-200 flex-shrink-0">
+              <div>
+                <h3 className="text-[15px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
+                <p className="text-[12px] text-bluewood-400 mt-0.5">섹션을 구성하고 저장하면 포트폴리오에서 불러올 수 있어요</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] text-bluewood-400">{exportOrder.filter(k => exportEnabled[k] !== false).length}개 섹션 선택됨</span>
+                <button
+                  onClick={() => setShowExportPanel(false)}
+                  className="text-[13px] text-bluewood-400 hover:text-bluewood-700 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+
+            {/* 본문 */}
+            <div className="flex flex-1 min-h-0">
+
+              {/* 왼쪽: 섹션 구성 */}
+              <div className="w-[300px] flex-shrink-0 bg-surface-50 border-r border-surface-200 flex flex-col">
+                <div className="px-5 pt-4 pb-2 flex-shrink-0">
+                  <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-widest">섹션 구성</p>
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5">
+                  {exportOrder.map((key) => {
+                    const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
+                    const isSect = SECTION_KEYS.includes(key);
+                    if (!isJob && !isSect) return null;
+                    const label = isJob ? isJob.label : SECTION_META[key].label;
+                    const num = isSect ? SECTION_META[key].num : null;
+                    const enabled = exportEnabled[key] !== false;
+                    const globalIdx = exportOrder.indexOf(key);
+                    const hasContent = isJob
+                      ? !!(editedJobSpecific[key] || '').trim()
+                      : !!(editedContent[key] || '').trim();
+
+                    return (
+                      <div
+                        key={key}
+                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all cursor-default ${
+                          enabled
+                            ? isJob
+                              ? 'bg-caribbean-50 border-caribbean-200'
+                              : 'bg-white border-surface-200 hover:border-primary-300'
+                            : 'bg-transparent border-transparent opacity-40'
+                        }`}
+                      >
+                        {/* 체크박스 토글 */}
+                        <button
+                          onClick={() => setExportEnabled(p => ({ ...p, [key]: !enabled }))}
+                          className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                            enabled
+                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-primary-500 border-primary-500'
+                              : 'bg-white border-surface-300'
+                          }`}
+                        >
+                          {enabled && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        </button>
+
+                        {/* 번호 / 직군 마커 */}
+                        {num ? (
+                          <span className="flex-shrink-0 text-[11px] font-bold text-bluewood-400 w-5 text-right">{num}</span>
+                        ) : (
+                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-caribbean-400" />
+                        )}
+
+                        {/* 라벨 */}
+                        <span className={`flex-1 text-[13px] font-medium leading-tight ${
+                          enabled ? 'text-bluewood-800' : 'text-bluewood-300'
+                        }`}>{label}</span>
+
+                        {/* 빈칸 경고 */}
+                        {!hasContent && enabled && (
+                          <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">빈칸</span>
+                        )}
+
+                        {/* 순서 버튼 */}
+                        <div className="flex flex-col flex-shrink-0">
+                          <button
+                            onClick={() => moveExportSection(globalIdx, -1)}
+                            disabled={globalIdx === 0}
+                            className="text-[11px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
+                          >▲</button>
+                          <button
+                            onClick={() => moveExportSection(globalIdx, 1)}
+                            disabled={globalIdx === exportOrder.length - 1}
+                            className="text-[11px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
+                          >▼</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 하단 버튼 */}
+                <div className="px-4 py-4 border-t border-surface-200 flex-shrink-0 space-y-2">
+                  <button
+                    onClick={handleSaveExportConfig}
+                    className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl text-[14px] font-bold transition-colors"
+                  >
+                    구성 저장하기
+                  </button>
+                  <button
+                    onClick={() => setShowExportPanel(false)}
+                    className="w-full py-2 text-[13px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+
+              {/* 오른쪽: Notion 스타일 미리보기 */}
+              <div className="flex-1 bg-white overflow-y-auto">
+
+                {/* 커버 이미지 영역 */}
+                <div className={`relative w-full group ${exportCoverImg ? 'h-52' : 'h-14'}`}>
+                  {exportCoverImg ? (
+                    <>
+                      <img src={exportCoverImg} alt="cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <label className="cursor-pointer px-3 py-1.5 bg-white/90 text-[12px] font-semibold text-bluewood-700 rounded-lg hover:bg-white transition-colors">
+                          변경
+                          <input type="file" accept="image/*" className="hidden" onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => setExportCoverImg(ev.target.result);
+                            reader.readAsDataURL(file);
+                          }} />
+                        </label>
+                        <button
+                          onClick={() => setExportCoverImg(null)}
+                          className="px-3 py-1.5 bg-white/90 text-[12px] font-semibold text-red-600 rounded-lg hover:bg-white transition-colors"
+                        >
+                          제거
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full flex items-center px-14">
+                      <label className="cursor-pointer text-[12px] text-bluewood-300 hover:text-bluewood-500 transition-colors">
+                        + 커버 이미지 추가
+                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => setExportCoverImg(ev.target.result);
+                          reader.readAsDataURL(file);
+                        }} />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* 문서 본문 */}
+                <div className="max-w-[680px] mx-auto px-14 pb-16 pt-8">
+                  {/* 제목 */}
+                  <h1 className="text-[34px] font-extrabold text-bluewood-900 leading-tight mb-8">
+                    {editedTitle || '프로젝트 제목'}
+                  </h1>
+
+                  {/* 프로퍼티 */}
+                  <div className="mb-8 space-y-2.5 border-b border-surface-200 pb-6">
+                    {editedOverview.duration && (
+                      <div className="flex items-center gap-4">
+                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0">기간</span>
+                        <span className="text-[13px] text-bluewood-700">{editedOverview.duration}</span>
+                      </div>
+                    )}
+                    {editedOverview.role && (
+                      <div className="flex items-center gap-4">
+                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0">역할</span>
+                        <span className="text-[13px] text-bluewood-700">{editedOverview.role}</span>
+                      </div>
+                    )}
+                    {editedOverview.techStack?.length > 0 && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {editedOverview.techStack.map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[12px]">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {editedKeywords.length > 0 && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {editedKeywords.slice(0, 6).map((kw, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                              {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {editedOverview.goal && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                        <span className="text-[13px] text-bluewood-700 leading-relaxed">{editedOverview.goal}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 핵심 경험 슬라이드 */}
+                  <PreviewKeySlides keyExperiences={editedKeyExperiences} />
+
+                  {/* 섹션 본문 */}
+                  <div className="space-y-8">
+                    {exportOrder
+                      .filter(k => exportEnabled[k] !== false)
+                      .map(key => {
+                        const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
+                        const isSect = SECTION_KEYS.includes(key);
+                        const label = isJob ? isJob.label : (isSect ? SECTION_META[key].label : key);
+                        const content = isJob
+                          ? (editedJobSpecific[key] || '')
+                          : (editedContent[key] || '');
+                        if (!content.trim()) return null;
+                        const displayContent = content.trim().startsWith('[작성 필요]')
+                          ? content.replace(/^\[작성 필요\]\s*/, '')
+                          : content;
+
+                        return (
+                          <div key={key}>
+                            <h2 className={`text-[12px] font-bold uppercase tracking-widest mb-3 pb-2 border-b ${
+                              isJob
+                                ? 'text-primary-600 border-primary-100'
+                                : 'text-bluewood-400 border-surface-200'
+                            }`}>
+                              {label}{isJob ? ' · 직군특화' : ''}
+                            </h2>
+                            <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
+                              {displayContent}
+                            </p>
+                          </div>
+                        );
+                      })}
+
+                    {exportOrder.filter(k => exportEnabled[k] !== false).every(k => {
+                      const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === k);
+                      const content = isJob ? (editedJobSpecific[k] || '') : (editedContent[k] || '');
+                      return !content.trim();
+                    }) && (
+                      <p className="text-center text-bluewood-300 text-[14px] py-16">선택된 섹션에 내용이 없습니다</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
