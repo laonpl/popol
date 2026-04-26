@@ -247,6 +247,49 @@ export default function NotionPortfolioEditor() {
       setUserExperiences(expSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       // 초기 로드 완료 표시 — 자동 저장 활성화
       setTimeout(() => { initialLoaded.current = true; }, 500);
+
+      // 경험 내보내기 config가 있으면 자동 import
+      const exportConfig = location.state?.exportConfig;
+      if (exportConfig && portfolioSnap.exists()) {
+        const mergedPf = { ...EMPTY_PORTFOLIO, ...portfolioSnap.data() };
+        const existing = mergedPf.experiences || [];
+        const alreadyImported = existing.find(e => e.experienceId === exportConfig.experienceId);
+        if (!alreadyImported) {
+          const sr = exportConfig.structuredResult || {};
+          const newExp = {
+            date: '',
+            title: exportConfig.title || '',
+            description: sr.projectOverview?.summary || sr.intro || '',
+            experienceId: exportConfig.experienceId || null,
+            framework: 'STRUCTURED',
+            frameworkContent: {},
+            keywords: exportConfig.keywords || [],
+            aiSummary: sr.projectOverview?.summary || '',
+            structuredResult: {
+              ...sr,
+              exportConfig: {
+                sectionOrder: exportConfig.sectionOrder,
+                sections: exportConfig.sections,
+                jobCategory: exportConfig.jobCategory,
+              },
+            },
+            thumbnailUrl: '',
+            status: 'finished',
+            classify: [],
+            skills: (exportConfig.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
+            role: sr.projectOverview?.role || '',
+            link: '',
+            sections: exportConfig.sections.map(s => ({ title: s.label, content: s.content })),
+          };
+          const updatedExps = [...existing, newExp];
+          setPortfolio(prev => ({ ...prev, experiences: updatedExps }));
+          toast.success(`"${exportConfig.title}" 경험이 포트폴리오에 추가되었습니다`);
+        } else {
+          toast(`"${exportConfig.title}"은 이미 포함되어 있습니다`, { icon: 'ℹ️' });
+        }
+        // state 초기화
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     } catch (error) {
       toast.error('데이터를 불러오지 못했습니다');
     }
@@ -399,32 +442,36 @@ export default function NotionPortfolioEditor() {
   };
 
   const importExperience = (exp) => {
-    // FRAMEWORKS.STRUCTURED 필드 정의에서 라벨 가져오기
-    const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
-    const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
-
-    // AI 분석 결과(structuredResult)를 우선 사용하고, 없으면 원본 content 사용
     const aiResult = exp.structuredResult || {};
-    const contentSource = {};
-    fields.forEach(field => {
-      contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
-    });
+    const savedExportCfg = aiResult.exportConfig;
 
-    // content 객체를 sections 배열로 변환 (비어있지 않은 것만)
-    const sections = fields
-      .filter(field => contentSource[field.key]?.trim?.())
-      .map(field => ({
-        title: field.label,
-        content: contentSource[field.key],
-      }));
+    let sections = [];
+    let description = '';
 
-    // description: AI 프로젝트 개요 요약 > AI 요약 > intro > overview > 첫 번째 섹션 내용 순
-    const description =
-      aiResult.projectOverview?.summary ||
-      aiResult.intro ||
-      exp.content?.intro ||
-      exp.content?.overview ||
-      (sections[0]?.content ?? '');
+    if (savedExportCfg?.sections?.length > 0) {
+      // 사용자가 미리보기에서 저장한 섹션 구성 사용
+      sections = savedExportCfg.sections
+        .filter(s => s.content?.trim())
+        .map(s => ({ title: s.label, content: s.content }));
+      description = aiResult.projectOverview?.summary || aiResult.intro || sections[0]?.content || '';
+    } else {
+      // 저장된 구성 없으면 프레임워크 기본값 사용
+      const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
+      const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
+      const contentSource = {};
+      fields.forEach(field => {
+        contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
+      });
+      sections = fields
+        .filter(field => contentSource[field.key]?.trim?.())
+        .map(field => ({ title: field.label, content: contentSource[field.key] }));
+      description =
+        aiResult.projectOverview?.summary ||
+        aiResult.intro ||
+        exp.content?.intro ||
+        exp.content?.overview ||
+        (sections[0]?.content ?? '');
+    }
 
     // 키워드에서 skills 추출
     const autoSkills = aiResult.keywords || exp.keywords || [];
@@ -1017,73 +1064,107 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 )}
               </div>
 
-              {/* 상세 섹션 (StructuredResult와 동일 레이아웃) */}
-              {hasSections && (
-                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-surface-100 bg-surface-50/40">
-                    <span className="text-[13px] font-bold text-gray-700">상세 경험 정리</span>
-                    <div className="flex items-center gap-2">
-                      {editingSections ? (
-                        <>
-                          <button onClick={cancelSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
-                            <X size={12} /> 취소
-                          </button>
-                          <button onClick={saveSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 shadow-sm transition-colors">
-                            <Check size={12} /> 저장
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {jobAnalysis && (
-                            <button
-                              onClick={() => openTailor('section')}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                tailorMode === 'section'
-                                  ? 'bg-indigo-600 text-white shadow-sm'
-                                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                              }`}
-                            >
-                              7가지 개요 첨삭
+              {/* ── Notion 스타일 상세 섹션 ── */}
+              {hasSections && (() => {
+                // exportConfig가 있으면 그 순서/선택대로, 없으면 기본 7개 섹션
+                const exportCfg = exp?.structuredResult?.exportConfig;
+                const jobCat = exp?.structuredResult?.jobCategory || 'common';
+                const jobSpecific = exp?.structuredResult?.jobSpecific || {};
+
+                // 렌더할 섹션 목록 결정
+                let sectionsToRender;
+                if (exportCfg?.sections?.length > 0) {
+                  // 사용자가 커스텀 구성한 섹션 순서
+                  sectionsToRender = exportCfg.sections
+                    .filter(s => s.content?.trim())
+                    .map(s => ({ key: s.key, label: s.label, type: s.type, content: s.content }));
+                } else {
+                  // 기본: 7개 섹션 + job-specific
+                  const jobSects = Object.entries(jobSpecific)
+                    .filter(([, v]) => v?.trim?.())
+                    .map(([k, v]) => ({ key: k, label: k, type: 'job', content: v }));
+                  const baseSects = EXP_SECTION_KEYS
+                    .filter(k => sectionContents[k]?.trim())
+                    .map(k => ({ key: k, label: EXP_SECTION_META[k].label, type: 'base', content: sectionContents[k] }));
+                  sectionsToRender = [...jobSects, ...baseSects];
+                }
+
+                return (
+                  <div className="bg-white rounded-xl border border-surface-100 overflow-hidden">
+                    {/* Notion 스타일 헤더 */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
+                      <span className="text-[14px] font-bold text-gray-800">상세 내용</span>
+                      <div className="flex items-center gap-2">
+                        {editingSections ? (
+                          <>
+                            <button onClick={cancelSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
+                              <X size={12} /> 취소
                             </button>
-                          )}
-                          <button onClick={startSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors">
-                            <PenLine size={12} /> 수정
-                          </button>
-                        </>
-                      )}
+                            <button onClick={saveSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 shadow-sm transition-colors">
+                              <Check size={12} /> 저장
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {jobAnalysis && (
+                              <button
+                                onClick={() => openTailor('section')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                  tailorMode === 'section'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+                                }`}
+                              >
+                                AI 첨삭
+                              </button>
+                            )}
+                            <button onClick={startSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
+                              <PenLine size={12} /> 수정
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="divide-y divide-surface-100">
-                    {EXP_SECTION_KEYS.map(key => {
-                      const meta = EXP_SECTION_META[key];
-                      const val = editingSections ? (sectionDraft[key] ?? sectionContents[key]) : sectionContents[key];
-                      if (!editingSections && !val?.trim()) return null;
-                      return (
-                        <div key={key}>
-                          <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-50/40">
-                            <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
-                            <span className="text-[13px] font-bold text-primary-700">{meta.label}</span>
-                          </div>
-                          <div className="px-5 py-3 pl-[60px]">
-                            {imagesLoaded && !editingSections && renderSectionImages(key, 'above')}
+
+                    {/* Notion 문서 스타일 본문 */}
+                    <div className="px-6 py-2 divide-y divide-gray-50">
+                      {sectionsToRender.map((sect, i) => {
+                        const isJobType = sect.type === 'job';
+                        const editVal = editingSections ? (sectionDraft[sect.key] ?? sect.content) : sect.content;
+                        return (
+                          <div key={sect.key} className="py-5">
+                            {/* Notion 스타일 헤딩 */}
+                            <div className="flex items-center gap-2 mb-2.5">
+                              {isJobType && (
+                                <span className="inline-block w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
+                              )}
+                              <h3 className={`text-[13px] font-bold ${isJobType ? 'text-violet-700' : 'text-gray-500'} uppercase tracking-wide`}>
+                                {sect.label}
+                              </h3>
+                              {isJobType && (
+                                <span className="text-[10px] bg-violet-50 text-violet-500 px-1.5 py-0.5 rounded-full font-medium">직군특화</span>
+                              )}
+                            </div>
+                            {/* Notion 스타일 본문 */}
                             {editingSections ? (
                               <textarea
-                                value={sectionDraft[key] ?? ''}
-                                onChange={e => setSectionDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                                value={sectionDraft[sect.key] ?? ''}
+                                onChange={e => setSectionDraft(prev => ({ ...prev, [sect.key]: e.target.value }))}
                                 rows={4}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-[13px] text-gray-700 leading-[1.85] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow"
+                                className="w-full px-4 py-3 border border-gray-100 rounded-xl text-[14px] text-gray-800 leading-[1.9] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow bg-gray-50"
                               />
                             ) : (
-                              <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                              <p className={`text-[14px] leading-[1.9] whitespace-pre-wrap ${isJobType ? 'text-gray-700' : 'text-gray-600'} font-[450]`}>
+                                {editVal}
+                              </p>
                             )}
-                            {imagesLoaded && !editingSections && renderSectionImages(key, 'below')}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 

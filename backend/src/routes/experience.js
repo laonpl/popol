@@ -43,7 +43,7 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
 
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, count, moments);
+      analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common');
     } catch (aiError) {
       const errMsg = aiError.message || '';
       console.error('Gemini AI 분석 실패 (최종):', errMsg);
