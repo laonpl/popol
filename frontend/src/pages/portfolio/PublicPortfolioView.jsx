@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 const EXP_SECTION_META = {
   intro:      { num: '01', label: '프로젝트 소개' },
@@ -89,6 +90,11 @@ export default function PublicPortfolioView() {
     doing: { label: 'Doing', cls: 'bg-green-500' },
     finished: { label: 'Finished', cls: 'bg-red-500' },
   };
+
+  // 비주얼 템플릿이면 해당 렌더러로 바로 표시
+  if (VISUAL_TEMPLATE_IDS.includes(p.templateId)) {
+    return <VisualPortfolioRenderer portfolio={p} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] py-8 px-4">

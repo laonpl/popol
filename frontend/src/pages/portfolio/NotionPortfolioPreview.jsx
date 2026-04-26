@@ -12,6 +12,7 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -45,6 +46,108 @@ export default function NotionPortfolioPreview() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
+
+  // 비주얼 템플릿이면 별도 렌더러로 분기
+  if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {
+    return (
+      <div className="animate-fadeIn">
+        {/* Admin bar */}
+        <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
+          <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
+            <ArrowLeft size={16} /> 목록으로
+          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+              className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
+              <Edit size={14} /> 편집
+            </button>
+            <button onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
+              <FileText size={14} /> PPT 내보내기
+            </button>
+            <button onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-medium hover:from-primary-700 hover:to-primary-800">
+              <Link2 size={14} /> 링크 내보내기
+            </button>
+          </div>
+        </div>
+
+        {/* 공유 링크 */}
+        <div className="max-w-[1100px] mx-auto mb-4">
+          <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
+            <Share2 size={16} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">공개 링크</span>
+                <button
+                  onClick={async () => {
+                    setTogglingPublic(true);
+                    const newVal = !isPublic;
+                    try {
+                      await updatePortfolio(id, { isPublic: newVal });
+                      setIsPublic(newVal);
+                      toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+                    } catch { toast.error('공개 설정 변경 실패'); }
+                    setTogglingPublic(false);
+                  }}
+                  disabled={togglingPublic}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              {isPublic && (
+                <p className="text-xs text-gray-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+              )}
+            </div>
+            {isPublic && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+                  setLinkCopied(true);
+                  toast.success('링크가 복사되었습니다!');
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors flex-shrink-0"
+              >
+                {linkCopied ? <Check size={12} /> : <Copy size={12} />}
+                {linkCopied ? '복사됨' : '링크 복사'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <VisualPortfolioRenderer portfolio={portfolio} />
+
+        {/* Link Export Modal */}
+        {showExportModal && (
+          <LinkExportModal
+            portfolio={portfolio}
+            portfolioId={id}
+            isPublic={isPublic}
+            togglingPublic={togglingPublic}
+            customSlug={customSlug}
+            onSlugSave={async (slug) => {
+              await updatePortfolio(id, { customSlug: slug });
+              setCustomSlug(slug);
+              setPortfolio(prev => ({ ...prev, customSlug: slug }));
+            }}
+            onToggle={async () => {
+              setTogglingPublic(true);
+              const newVal = !isPublic;
+              try {
+                await updatePortfolio(id, { isPublic: newVal });
+                setIsPublic(newVal);
+                toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+              } catch { toast.error('공개 설정 변경 실패'); }
+              setTogglingPublic(false);
+            }}
+            onClose={() => setShowExportModal(false)}
+          />
+        )}
+      </div>
+    );
+  }
 
   const p = portfolio;
   const contact = p.contact || {};

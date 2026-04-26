@@ -11,8 +11,12 @@ import {
   generateWithRetry,
 } from '../services/jobAnalysisService.js';
 import { callProFirst, parseJSON } from '../services/geminiService.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
+
+// userId가 필요한 라우트에 사용할 헬퍼
+const getUserId = (req) => req.user?.uid || getUserId(req);
 
 // ── 채용공고 분석 ──────────────────────────────────────
 router.post('/analyze', async (req, res) => {
@@ -44,7 +48,7 @@ router.post('/analyze', async (req, res) => {
 // ── 경험 매칭 분석 ─────────────────────────────────────
 router.post('/match', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const { jobAnalysis } = req.body;
     if (!jobAnalysis) {
       return res.status(400).json({ error: '채용공고 분석 결과가 필요합니다' });
@@ -78,7 +82,7 @@ router.post('/match', async (req, res) => {
 // ── 맞춤 자소서 생성 ──────────────────────────────────
 router.post('/generate-coverletter', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const { jobAnalysis, matchResult } = req.body;
     if (!jobAnalysis || !matchResult) {
       return res.status(400).json({ error: '분석 결과와 매칭 결과가 필요합니다' });
@@ -107,7 +111,7 @@ router.post('/generate-coverletter', async (req, res) => {
 // ── 맞춤 포트폴리오 제안 ──────────────────────────────
 router.post('/generate-portfolio', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const { jobAnalysis, matchResult } = req.body;
     if (!jobAnalysis || !matchResult) {
       return res.status(400).json({ error: '분석 결과와 매칭 결과가 필요합니다' });
@@ -228,7 +232,7 @@ ${currentContent ? `## 현재 작성된 내용:\n${currentContent}\n` : ''}
 
 router.post('/save', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const { jobAnalysis, matchResult, coverLetter, portfolioSuggestion } = req.body;
 
     const docRef = await db.collection('jobMatches').add({
@@ -250,7 +254,7 @@ router.post('/save', async (req, res) => {
 // ── 저장된 매칭 목록 ──────────────────────────────────
 router.get('/list', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const snap = await db.collection('jobMatches')
       .where('userId', '==', userId)
       .orderBy('createdAt', 'desc')
@@ -270,12 +274,15 @@ router.get('/list', async (req, res) => {
 });
 
 // ── 키워드 기반 경험 추천 ─────────────────────────────
-router.post('/recommend-experiences', async (req, res) => {
+router.post('/recommend-experiences', authMiddleware, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = getUserId(req);
     const { jobAnalysis } = req.body;
     if (!jobAnalysis) {
       return res.status(400).json({ error: '채용공고 분석 결과가 필요합니다' });
+    }
+    if (!userId) {
+      return res.status(401).json({ error: '로그인이 필요합니다' });
     }
 
     // 사용자 경험 조회

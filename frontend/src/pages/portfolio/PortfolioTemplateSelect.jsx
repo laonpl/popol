@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import VisualPortfolioRenderer from './VisualPortfolioTemplates';
 import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
@@ -25,6 +26,70 @@ const PORTFOLIO_TEMPLATES = [
     sections: [],
     isNotion: true,
     previewBg: 'bg-slate-800',
+  },
+  {
+    id: 'visual-1',
+    name: '템플릿 3 (기본 노션형)',
+    description: '커버 이미지와 아바타가 인상적인 기본 노션 스타일. 경험·프로젝트를 카드로 깔끔하게 표현.',
+    tags: ['심플', '화이트', '카드형'],
+    isNotion: true,
+    previewBg: 'bg-white',
+  },
+  {
+    id: 'visual-2',
+    name: '템플릿 4 (베이지 톤)',
+    description: '따뜻한 베이지 색감의 고급스러운 포트폴리오. 세리프 폰트와 흑백 레이아웃으로 차분한 인상.',
+    tags: ['베이지', '고급', '세리프'],
+    isNotion: true,
+    previewBg: 'bg-[#f3f2eb]',
+  },
+  {
+    id: 'visual-3',
+    name: '템플릿 5 (DB 구조화)',
+    description: '노션 데이터베이스처럼 구조화된 레이아웃. 핑크·퍼플 그라디언트 포인트로 생동감 있는 디자인.',
+    tags: ['구조화', '컬러풀', '정보형'],
+    isNotion: true,
+    previewBg: 'bg-white',
+  },
+  {
+    id: 'visual-4',
+    name: '템플릿 6 (문제해결형)',
+    description: '실무 역량과 문제 해결 과정을 강조하는 취업형 포트폴리오. 타임라인 기반 경험 서술.',
+    tags: ['취업', '실무형', '3단 레이아웃'],
+    isNotion: true,
+    previewBg: 'bg-[#fcfcfc]',
+  },
+  {
+    id: 'visual-5',
+    name: '템플릿 7 (프로필 링크형)',
+    description: 'Link-in-bio 스타일의 모바일 친화적 포트폴리오. 프로필과 프로젝트 카드를 세로로 배치.',
+    tags: ['모바일', '링크형', '프로필'],
+    isNotion: true,
+    previewBg: 'bg-[#F7F6F3]',
+  },
+  {
+    id: 'visual-6',
+    name: '템플릿 8 (비주얼 갤러리)',
+    description: '프로젝트 이미지를 갤러리 형태로 크게 보여주는 비주얼 중심 포트폴리오.',
+    tags: ['갤러리', '비주얼', '디자이너'],
+    isNotion: true,
+    previewBg: 'bg-white',
+  },
+  {
+    id: 'visual-7',
+    name: '템플릿 9 (다크 모드)',
+    description: '우주/성운 느낌의 다크 배경에 파란 포인트 컬러. 세련된 분위기의 다크 포트폴리오.',
+    tags: ['다크', '세련됨', '개발자'],
+    isNotion: true,
+    previewBg: 'bg-[#1F1F1F]',
+  },
+  {
+    id: 'visual-8',
+    name: '템플릿 10 (개발자 다크)',
+    description: '체크박스 스킬 레벨과 갤러리 뷰 프로젝트 목록. 개발자에게 최적화된 다크 테마.',
+    tags: ['개발자', '다크', '스킬형'],
+    isNotion: true,
+    previewBg: 'bg-[#191919]',
   },
 ];
 
@@ -169,6 +234,198 @@ function AcademicPreview() {
   );
 }
 
+function Visual1Preview() {
+  return (
+    <div className="w-full h-full bg-white rounded-lg overflow-hidden text-[6px] leading-tight">
+      <div className="h-10 bg-gray-400 flex items-center justify-center">
+        <div className="h-2 w-16 bg-white/60 rounded-sm tracking-widest"></div>
+      </div>
+      <div className="p-2">
+        <div className="w-8 h-8 rounded-full bg-white border border-gray-200 -mt-4 mb-1 shadow-sm flex items-center justify-center text-sm">👤</div>
+        <div className="h-2 w-16 bg-gray-800 rounded-sm mb-0.5"></div>
+        <div className="h-1 w-24 bg-gray-300 rounded-sm mb-2"></div>
+        <div className="grid grid-cols-2 gap-0.5 mb-2">
+          {[1,2,3,4].map(i => <div key={i} className="flex items-center gap-0.5 p-0.5 bg-gray-50 rounded"><div className="w-1 h-1 bg-gray-300 rounded-sm"></div><div className="h-1 flex-1 bg-gray-200 rounded-sm"></div></div>)}
+        </div>
+        <div className="h-px bg-gray-200 mb-1"></div>
+        <div className="text-[5px] font-bold mb-1">Projects</div>
+        <div className="grid grid-cols-2 gap-0.5">
+          {[1,2].map(i => <div key={i} className="border border-gray-100 rounded overflow-hidden"><div className="h-4 bg-blue-50"></div><div className="p-0.5"><div className="h-1 bg-gray-200 rounded-sm"></div></div></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Visual2Preview() {
+  return (
+    <div className="w-full h-full bg-[#f3f2eb] rounded-lg overflow-hidden text-[6px] leading-tight p-2">
+      <div className="pb-1 mb-1 border-b-2 border-gray-200">
+        <div className="h-3 w-20 bg-[#dedbd2] rounded-sm mb-0.5"></div>
+        <div className="h-1.5 w-12 bg-gray-800 rounded-sm"></div>
+      </div>
+      <div className="flex justify-between items-start mb-1">
+        <div className="flex-1">
+          <div className="h-1 w-10 bg-gray-600 rounded-sm mb-0.5"></div>
+          <div className="border-l-2 border-black pl-1">
+            <div className="h-1 w-full bg-gray-300 rounded-sm mb-0.5"></div>
+            <div className="h-1 w-3/4 bg-gray-300 rounded-sm"></div>
+          </div>
+        </div>
+        <div className="w-5 h-5 bg-[#e8e4db] rounded-full ml-1 flex-shrink-0"></div>
+      </div>
+      <div className="flex gap-0.5 mb-1">
+        {['R','P','S','C'].map(l => <div key={l} className="flex-1 bg-[#e8e4db] text-center py-0.5 rounded text-[4px] font-bold text-gray-600">{l}</div>)}
+      </div>
+      <div className="grid grid-cols-2 gap-0.5">
+        {[1,2].map(i => <div key={i} className="border border-gray-200 rounded overflow-hidden bg-white"><div className="h-5 bg-blue-50 flex items-center justify-center text-[4px] text-gray-500">proj</div></div>)}
+      </div>
+    </div>
+  );
+}
+
+function Visual3Preview() {
+  return (
+    <div className="w-full h-full bg-white rounded-lg overflow-hidden text-[6px] leading-tight">
+      <div className="h-2 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full"></div>
+      <div className="p-2">
+        <div className="text-center mb-1">
+          <div className="text-[5px] font-bold mb-0.5">포트폴리오</div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-8 h-8 bg-pink-100 rounded-full"></div>
+            <div className="border border-gray-200 p-1 rounded w-full text-[4px] text-gray-500">
+              <div className="font-bold mb-0.5">안녕하세요!</div>
+              <div className="h-0.5 bg-gray-100 rounded mb-0.5"></div>
+              <div className="h-0.5 bg-gray-100 rounded"></div>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-0.5 mb-1">
+          {[1,2,3,4].map(i => <div key={i} className="border border-gray-100 rounded overflow-hidden"><div className="h-4 bg-pink-50 flex items-center justify-center text-[4px] text-gray-400">proj</div></div>)}
+        </div>
+        <div className="h-0.5 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200"></div>
+      </div>
+    </div>
+  );
+}
+
+function Visual4Preview() {
+  return (
+    <div className="w-full h-full bg-[#fcfcfc] rounded-lg overflow-hidden text-[6px] leading-tight p-2">
+      <div className="mb-1">
+        <div className="h-2 w-10 bg-gray-800 rounded-sm mb-0.5"></div>
+        <div className="h-1 w-14 bg-gray-400 rounded-sm mb-1"></div>
+        <div className="bg-[#f7f6f3] border border-gray-200 rounded p-1 flex items-start gap-0.5">
+          <div className="text-[5px]">💡</div>
+          <div className="space-y-0.5 flex-1"><div className="h-0.5 bg-gray-300 rounded-sm w-full"></div><div className="h-0.5 bg-gray-200 rounded-sm w-3/4"></div></div>
+        </div>
+      </div>
+      <div className="flex gap-1">
+        <div className="w-1/3 space-y-1">
+          <div className="text-[4px] font-bold text-gray-400 border-b border-gray-200 pb-0.5">Contact</div>
+          <div className="space-y-0.5">{[1,2,3].map(i => <div key={i} className="h-0.5 bg-gray-200 rounded-sm"></div>)}</div>
+          <div className="text-[4px] font-bold text-gray-400 border-b border-gray-200 pb-0.5 mt-1">Skills</div>
+          <div className="space-y-0.5">{[1,2,3].map(i => <div key={i} className="bg-white border border-gray-100 rounded p-0.5"><div className="h-0.5 bg-blue-200 rounded-sm w-1/2 mb-0.5"></div><div className="h-0.5 bg-gray-100 rounded-sm w-full"></div></div>)}</div>
+        </div>
+        <div className="flex-1 space-y-1">
+          <div className="text-[4px] font-bold border-b border-gray-200 pb-0.5">Core Experience</div>
+          <div className="space-y-0.5">{[1,2].map(i => <div key={i} className="pl-1 border-l-2 border-gray-200"><div className="h-0.5 bg-gray-300 rounded-sm w-10 mb-0.5"></div><div className="h-0.5 bg-gray-100 rounded-sm w-8"></div></div>)}</div>
+          <div className="text-[4px] font-bold border-b border-gray-200 pb-0.5 mt-1">Projects</div>
+          <div className="grid grid-cols-2 gap-0.5">{[1,2].map(i => <div key={i} className="border border-gray-200 rounded overflow-hidden"><div className="h-4 bg-blue-50"></div><div className="p-0.5"><div className="h-0.5 bg-gray-200 rounded-sm"></div></div></div>)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Visual5Preview() {
+  return (
+    <div className="w-full h-full bg-[#F7F6F3] rounded-lg overflow-hidden text-[6px] leading-tight p-2 flex flex-col items-center">
+      <div className="w-10 h-10 bg-white rounded-full border border-gray-200 flex items-center justify-center text-lg mb-1 shadow-sm">👤</div>
+      <div className="h-1.5 w-12 bg-gray-800 rounded-sm mb-0.5"></div>
+      <div className="h-1 w-16 bg-gray-400 rounded-sm mb-2"></div>
+      <div className="grid grid-cols-3 gap-0.5 w-full mb-2">
+        {['E','P','I'].map(l => <div key={l} className="flex flex-col items-center p-1 bg-white rounded border border-gray-100"><div className="w-2 h-2 bg-blue-100 rounded-full mb-0.5"></div><div className="text-[4px] text-gray-500">{l}</div></div>)}
+      </div>
+      <div className="w-full bg-white border border-gray-200 p-1 rounded mb-1">
+        <div className="h-0.5 bg-gray-200 rounded-sm mb-0.5 w-full"></div>
+        <div className="h-0.5 bg-gray-100 rounded-sm w-3/4"></div>
+      </div>
+      <div className="w-full space-y-0.5">
+        {[1,2,3].map(i => <div key={i} className="bg-white border border-gray-100 rounded flex items-center gap-1 p-0.5"><div className="w-3 h-3 bg-blue-50 rounded flex-shrink-0"></div><div className="flex-1"><div className="h-0.5 bg-gray-300 rounded-sm mb-0.5"></div><div className="h-0.5 bg-gray-100 rounded-sm w-3/4"></div></div></div>)}
+      </div>
+    </div>
+  );
+}
+
+function Visual6Preview() {
+  return (
+    <div className="w-full h-full bg-white rounded-lg overflow-hidden text-[6px] leading-tight">
+      <div className="h-10 bg-gradient-to-r from-gray-900 to-gray-700 relative flex items-center justify-center">
+        <div className="text-white/10 text-lg font-black">PORTFOLIO</div>
+      </div>
+      <div className="p-2">
+        <div className="flex items-end gap-1 -mt-4 mb-1">
+          <div className="w-8 h-8 bg-white rounded-lg shadow border border-white flex items-center justify-center text-sm">👤</div>
+          <div><div className="h-1.5 w-10 bg-gray-800 rounded-sm mb-0.5"></div><div className="h-1 w-8 bg-gray-400 rounded-sm"></div></div>
+        </div>
+        <div className="h-1 w-24 bg-gray-300 rounded-sm mb-2"></div>
+        <div className="text-[5px] font-bold mb-1 border-b-2 border-gray-900 inline-block">Featured Work</div>
+        <div className="grid grid-cols-3 gap-0.5">
+          {['bg-blue-50','bg-pink-50','bg-green-50'].map((c,i) => (
+            <div key={i} className="flex flex-col">
+              <div className={`aspect-[4/3] rounded ${c}`}></div>
+              <div className="h-1 bg-gray-200 rounded-sm mt-0.5"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Visual7Preview() {
+  return (
+    <div className="w-full h-full bg-[#1F1F1F] rounded-lg overflow-hidden text-[6px] leading-tight">
+      <div className="h-8 bg-gradient-to-r from-orange-900 via-indigo-900 to-purple-900 opacity-90"></div>
+      <div className="p-2">
+        <div className="text-center mb-1">
+          <div className="h-1.5 w-16 bg-white/80 rounded-sm mx-auto mb-0.5"></div>
+          <div className="h-1 w-10 bg-white/40 rounded-sm mx-auto"></div>
+        </div>
+        <div className="text-[4px] text-[#5C7CFA] font-bold border-b border-[#3A3A3A] pb-0.5 mb-0.5 uppercase">Introduce</div>
+        <div className="space-y-0.5 mb-1">{[1,2,3].map(i => <div key={i} className="h-0.5 bg-[#3A3A3A] rounded-sm w-full"></div>)}</div>
+        <div className="text-[4px] text-[#5C7CFA] font-bold border-b border-[#3A3A3A] pb-0.5 mb-0.5 uppercase">Projects</div>
+        <div className="grid grid-cols-3 gap-0.5">
+          {[1,2,3].map(i => <div key={i} className="bg-[#2A2A2A] rounded p-0.5 border border-[#3A3A3A]"><div className="h-2 bg-[#333] rounded-sm mb-0.5"></div><div className="h-1 bg-[#3A3A3A] rounded-sm"></div></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Visual8Preview() {
+  return (
+    <div className="w-full h-full bg-[#191919] rounded-lg overflow-hidden text-[6px] leading-tight">
+      <div className="h-8 bg-gradient-to-r from-yellow-700 via-green-800 to-teal-900 opacity-80"></div>
+      <div className="p-2">
+        <div className="h-1.5 w-12 bg-white/80 rounded-sm mx-auto mb-2"></div>
+        <div className="bg-[#2B323F] p-1 rounded mb-1 flex items-center gap-0.5">
+          <div className="text-[5px]">🧑🏻‍💻</div>
+          <div className="h-1 w-12 bg-[#EBEBEB]/60 rounded-sm"></div>
+        </div>
+        <div className="grid grid-cols-3 gap-0.5 mb-1">
+          {[1,2,3].map(i => <div key={i} className="bg-[#252525] rounded overflow-hidden border border-[#3A3A3A]"><div className="h-3 bg-blue-900/30"></div><div className="p-0.5"><div className="h-0.5 bg-[#D19ED1]/60 rounded-sm"></div></div></div>)}
+        </div>
+        <div className="bg-[#2B323F] p-1 rounded flex items-center gap-0.5">
+          <div className="text-[5px]">💻</div>
+          <div className="h-1 w-8 bg-[#EBEBEB]/60 rounded-sm"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelinePreview() {
   return (
     <div className="w-full h-full bg-[#1a1a2e] rounded-lg overflow-hidden text-[6px] leading-tight p-2">
@@ -214,6 +471,30 @@ function TimelinePreview() {
       </div>
     </div>
   );
+}
+
+// ── 비주얼 템플릿 풀 미리보기 (샘플 데이터 사용) ──
+const SAMPLE_PORTFOLIO = {
+  userName: '홍길동',
+  headline: 'UX/UI Designer & Front-end Developer',
+  about: '안녕하세요. 사용자 경험을 설계하는 디자이너 홍길동입니다.\n문제 해결을 위한 디자인을 고민하고, 코드로 구현하는 과정까지 즐깁니다.',
+  location: '서울특별시',
+  contact: { email: 'example@email.com', phone: '010-1234-5678', instagram: '', website: 'velog.io/@example' },
+  education: [
+    { name: '한국대학교', degree: '시각디자인학과 학사', period: '2018.03 - 2024.02', detail: '학점 4.2 / 4.5' },
+    { name: 'IT 부트캠프', degree: '프론트엔드 개발 과정 수료', period: '2023.01 - 2023.06', detail: 'React 기반 프로젝트 개발' },
+  ],
+  experiences: [
+    { company: '유저익스피리언스', role: 'UI/UX Designer', period: '2022.03 - 현재', bullets: ['자사 서비스 UI/UX 리뉴얼', '디자인 시스템 구축'] },
+    { company: '웹에이전시', role: 'Web Publisher', period: '2021.01 - 2022.02', bullets: ['반응형 웹 사이트 구축', '크로스 브라우징 최적화'] },
+  ],
+  skills: { tools: ['Figma', 'Photoshop'], languages: ['HTML/CSS', 'React'], frameworks: ['Notion'] },
+  awards: [{ date: '2023.11', title: 'K-디자인 어워드 위너' }, { date: '2022.05', title: '교내 웹 기획 공모전 대상' }],
+};
+
+function VisualFullPreview({ templateId }) {
+  const portfolio = { ...SAMPLE_PORTFOLIO, templateId };
+  return <VisualPortfolioRenderer portfolio={portfolio} />;
 }
 
 // ── 모달용 확대 미리보기 컴포넌트들 ──
@@ -646,6 +927,14 @@ export default function PortfolioTemplateSelect() {
   const previewComponents = {
     notion: NotionPreview,
     academic: AcademicPreview,
+    'visual-1': Visual1Preview,
+    'visual-2': Visual2Preview,
+    'visual-3': Visual3Preview,
+    'visual-4': Visual4Preview,
+    'visual-5': Visual5Preview,
+    'visual-6': Visual6Preview,
+    'visual-7': Visual7Preview,
+    'visual-8': Visual8Preview,
   };
 
   const handleNext = () => {
@@ -880,6 +1169,8 @@ export default function PortfolioTemplateSelect() {
               <div className="border border-surface-200 rounded-xl overflow-hidden" style={{ minHeight: '500px' }}>
                 {previewTemplate === 'notion' && <NotionFullPreview />}
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
+                {previewTemplate === 'timeline' && <TimelineFullPreview />}
+                {previewTemplate?.startsWith('visual-') && <VisualFullPreview templateId={previewTemplate} />}
               </div>
             </div>
           </div>

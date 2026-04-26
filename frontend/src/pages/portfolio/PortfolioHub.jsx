@@ -180,7 +180,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport }) {
   const { user } = useAuthStore();
   const { updatePortfolio } = usePortfolioStore();
   const date = createdAt?.toDate?.()?.toLocaleDateString('ko-KR') || '';
-  const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType);
+  const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType) || (typeof templateType === 'string' && templateType.startsWith('visual-'));
   // 표시 제목: 템플릿은 headline 우선, 일반은 title
   const displayTitle = (isTemplate ? (headline || title) : title) || '제목 없음';
   const TEMPLATE_LABELS = { notion: '템플릿 1', ashley: '템플릿 2', academic: '템플릿 2', timeline: '템플릿 4' };
