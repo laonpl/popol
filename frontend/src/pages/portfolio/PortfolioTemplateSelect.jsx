@@ -8,12 +8,21 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 import toast from 'react-hot-toast';
 
+const TEMPLATE_CATEGORIES = [
+  { id: 'all', label: '전체' },
+  { id: 'common', label: '전 직군 공통' },
+  { id: 'developer', label: '개발자' },
+  { id: 'pm', label: '기획/PM' },
+  { id: 'designer', label: '디자이너' },
+];
+
 const PORTFOLIO_TEMPLATES = [
   {
     id: 'notion',
     name: '템플릿 1',
     description: '프로필, 학력, 경험, 수상, 기술을 한 눈에 정리하는 3단 레이아웃 포트폴리오. Notion 내보내기 지원.',
     tags: ['이력서', '포트폴리오', 'Notion 내보내기', 'All-in-One'],
+    category: 'common',
     sections: [],
     isNotion: true,
     previewBg: 'bg-white',
@@ -23,6 +32,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 2',
     description: '대학생/취준생을 위한 학술 중심 포트폴리오. 학력, 연구, 활동 이력을 타임라인으로 깔끔하게 정리.',
     tags: ['학생', '취준생', '이력서', '타임라인'],
+    category: 'common',
     sections: [],
     isNotion: true,
     previewBg: 'bg-slate-800',
@@ -32,6 +42,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 3 (기본 노션형)',
     description: '커버 이미지와 아바타가 인상적인 기본 노션 스타일. 경험·프로젝트를 카드로 깔끔하게 표현.',
     tags: ['심플', '화이트', '카드형'],
+    category: 'common',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -40,6 +51,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 4 (베이지 톤)',
     description: '따뜻한 베이지 색감의 고급스러운 포트폴리오. 세리프 폰트와 흑백 레이아웃으로 차분한 인상.',
     tags: ['베이지', '고급', '세리프'],
+    category: 'designer',
     isNotion: true,
     previewBg: 'bg-[#f3f2eb]',
   },
@@ -48,6 +60,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 5 (DB 구조화)',
     description: '노션 데이터베이스처럼 구조화된 레이아웃. 핑크·퍼플 그라디언트 포인트로 생동감 있는 디자인.',
     tags: ['구조화', '컬러풀', '정보형'],
+    category: 'pm',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -56,6 +69,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 6 (문제해결형)',
     description: '실무 역량과 문제 해결 과정을 강조하는 취업형 포트폴리오. 타임라인 기반 경험 서술.',
     tags: ['취업', '실무형', '3단 레이아웃'],
+    category: 'pm',
     isNotion: true,
     previewBg: 'bg-[#fcfcfc]',
   },
@@ -64,6 +78,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 7 (프로필 링크형)',
     description: 'Link-in-bio 스타일의 모바일 친화적 포트폴리오. 프로필과 프로젝트 카드를 세로로 배치.',
     tags: ['모바일', '링크형', '프로필'],
+    category: 'common',
     isNotion: true,
     previewBg: 'bg-[#F7F6F3]',
   },
@@ -72,6 +87,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 8 (비주얼 갤러리)',
     description: '프로젝트 이미지를 갤러리 형태로 크게 보여주는 비주얼 중심 포트폴리오.',
     tags: ['갤러리', '비주얼', '디자이너'],
+    category: 'designer',
     isNotion: true,
     previewBg: 'bg-white',
   },
@@ -80,6 +96,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 9 (다크 모드)',
     description: '우주/성운 느낌의 다크 배경에 파란 포인트 컬러. 세련된 분위기의 다크 포트폴리오.',
     tags: ['다크', '세련됨', '개발자'],
+    category: 'developer',
     isNotion: true,
     previewBg: 'bg-[#1F1F1F]',
   },
@@ -88,6 +105,7 @@ const PORTFOLIO_TEMPLATES = [
     name: '템플릿 10 (개발자 다크)',
     description: '체크박스 스킬 레벨과 갤러리 뷰 프로젝트 목록. 개발자에게 최적화된 다크 테마.',
     tags: ['개발자', '다크', '스킬형'],
+    category: 'developer',
     isNotion: true,
     previewBg: 'bg-[#191919]',
   },
@@ -923,6 +941,7 @@ export default function PortfolioTemplateSelect() {
   const [step, setStep] = useState('template');
   const [jobAnalysis, setJobAnalysis] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('all');
 
   const previewComponents = {
     notion: NotionPreview,
@@ -1048,9 +1067,31 @@ export default function PortfolioTemplateSelect() {
             </p>
           </div>
 
+          {/* 카테고리 탭 */}
+          <div className="flex items-center gap-2 mb-6 flex-wrap">
+            {TEMPLATE_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  activeCategory === cat.id
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-surface-100 text-gray-600 hover:bg-surface-200'
+                }`}
+              >
+                {cat.label}
+                <span className="ml-1.5 text-[11px] opacity-70">
+                  ({activeCategory === cat.id || cat.id === 'all'
+                    ? PORTFOLIO_TEMPLATES.filter(t => cat.id === 'all' || t.category === cat.id).length
+                    : PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length})
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* Template Cards with Preview */}
           <div className="grid lg:grid-cols-3 gap-6 mb-8">
-            {PORTFOLIO_TEMPLATES.map(template => {
+            {PORTFOLIO_TEMPLATES.filter(t => activeCategory === 'all' || t.category === activeCategory).map(template => {
               const isSelected = selected === template.id;
               const Preview = previewComponents[template.id];
               return (

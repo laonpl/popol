@@ -13,6 +13,7 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import { JobAnalysisBadge } from '../../components/JobLinkInput';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -117,7 +118,21 @@ export default function NotionPortfolioPreview() {
           </div>
         </div>
 
-        <VisualPortfolioRenderer portfolio={portfolio} />
+        <div className="flex gap-5 items-start">
+          <div className="flex-1 min-w-0 border border-surface-200 rounded-2xl overflow-hidden">
+            <VisualPortfolioRenderer portfolio={portfolio} />
+          </div>
+          <div className="w-[380px] flex-shrink-0">
+            {portfolio.jobAnalysis && (
+              <div className="sticky top-5">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <h3 className="text-sm font-bold text-gray-800">기업 분석 · 첨삭</h3>
+                </div>
+                <JobAnalysisBadge analysis={portfolio.jobAnalysis} experiences={portfolio.experiences || []} />
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Link Export Modal */}
         {showExportModal && (

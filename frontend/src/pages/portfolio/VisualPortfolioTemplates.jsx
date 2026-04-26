@@ -6,7 +6,7 @@ import {
   Filter, ArrowUpDown, MoreHorizontal, Plus, ChevronDown,
   Phone, MapPin, Instagram, Star, Lightbulb, CheckCircle2,
   ExternalLink, Target, X, UserCircle2, Database, Trash2, GripVertical, Loader2,
-  Upload, GraduationCap, Award, Globe
+  Upload, GraduationCap, Award, Globe, Sparkles, Camera
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -152,6 +152,62 @@ function SkillLevelBadge({ skill, ec, dark = false }) {
   );
 }
 
+// ── 스킬 배지 with 말풍선 툴팁 ──
+function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badgeClassName = '', plain = false }) {
+  const [editing, setEditing] = useState(false);
+  const pct = parseInt(skill.percent) || 70;
+  const blocks = Math.round(pct / 20); // 1-5 blocks
+  const blockFill = dark ? 'bg-[#5C7CFA]' : 'bg-primary-500';
+  const blockEmpty = dark ? 'bg-[#3A3A3A]' : 'bg-gray-200';
+
+  return (
+    <div className="relative group/skill inline-flex">
+      {/* Badge or plain text */}
+      {plain
+        ? <span className={`font-bold text-sm cursor-default group-hover/skill:text-indigo-500 transition-colors ${dark ? 'text-[#EBEBEB]' : 'text-gray-900'}`}>{skill.name}</span>
+        : <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm cursor-default select-none transition-all group-hover/skill:ring-2 group-hover/skill:ring-indigo-400/50 ${badgeClassName || (dark ? 'bg-[#2A2A2A] text-[#EBEBEB] border border-[#3A3A3A]' : 'bg-gray-100 text-gray-700')}`}>{skill.name}</span>
+      }
+      {/* Speech bubble tooltip */}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 pointer-events-none opacity-0 group-hover/skill:opacity-100 transition-opacity duration-150 min-w-[100px]">
+        <div className={`rounded-lg px-3 py-2 shadow-lg text-center ${dark ? 'bg-[#1A1A1A] border border-[#3A3A3A]' : 'bg-white border border-gray-200'}`}>
+          <div className={`text-[10px] font-bold mb-1.5 ${dark ? 'text-[#EBEBEB]' : 'text-gray-700'}`}>{skill.name}</div>
+          {levelMode === 'blocks' ? (
+            <div className="flex items-center justify-center gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className={`w-3.5 h-1.5 rounded-sm ${i < blocks ? blockFill : blockEmpty}`} />
+              ))}
+            </div>
+          ) : (
+            <div className="w-full">
+              <div className={`w-full h-1.5 rounded-full ${dark ? 'bg-[#3A3A3A]' : 'bg-gray-200'} overflow-hidden`}>
+                <div className={`h-full rounded-full ${dark ? 'bg-[#5C7CFA]' : 'bg-primary-500'} transition-all`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className={`text-[9px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'}`}>{pct}%</div>
+            </div>
+          )}
+          {ec?.updateSkillLevel && (
+            <div className="mt-1.5 pointer-events-auto">
+              {editing ? (
+                <div className="flex items-center gap-1">
+                  <input type="range" min="10" max="100" step="5" value={pct}
+                    onChange={e => ec.updateSkillLevel(skill.name, parseInt(e.target.value))}
+                    className="w-16 h-1.5 accent-indigo-500 cursor-pointer"
+                  />
+                  <button type="button" onClick={() => setEditing(false)} className={`text-[9px] ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>✓</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setEditing(true)} className={`text-[9px] hover:underline ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>레벨 조절</button>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Arrow */}
+        <div className={`w-2 h-2 rotate-45 mx-auto -mt-1 border-r border-b ${dark ? 'bg-[#1A1A1A] border-[#3A3A3A]' : 'bg-white border-gray-200'}`} />
+      </div>
+    </div>
+  );
+}
+
 // ── 경험 상세 편집 버튼 (모든 템플릿 공유) ──
 function ExpDetailBtn({ exp, idx, ec, dark = false }) {
   if (!ec?.onOpenExpDetail) return null;
@@ -209,24 +265,103 @@ export function EditTextarea({ value, onChange, placeholder = '클릭하여 편�
   );
 }
 
-function ExpControls({ ec }) {
-  if (!ec) return null;
+// ── 편집 가능 섹션 제목 헬퍼 (ec 있으면 인라인 편집, 없으면 정적 텍스트) ──
+function EH({ ec, value, sectionKey, className = '' }) {
+  if (!ec) return <>{value}</>;
+  const stored = ec.portfolio?.sectionTitles?.[sectionKey];
+  const displayVal = stored !== undefined ? stored : value;
   return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      <button
-        type="button"
-        onClick={() => ec.addToArray('experiences', { company: '새 경험', title: '새 경험', role: '', period: '', bullets: [], description: '', detail: '' })}
-        className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors bg-white"
-      >
-        <Plus size={12} /> 경험 직접 추가
-      </button>
-      <button
-        type="button"
-        onClick={ec.onImportExperience}
-        className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-blue-300 rounded-lg text-xs text-blue-500 hover:border-blue-500 hover:bg-blue-50 transition-colors bg-white"
-      >
-        <Database size={12} /> 경험 DB에서 가져오기
-      </button>
+    <EditText
+      value={displayVal}
+      onChange={v => ec.update('sectionTitles', { ...(ec.portfolio?.sectionTitles || {}), [sectionKey]: v })}
+      placeholder={value}
+      className={className}
+    />
+  );
+}
+
+function ExpControls({ ec, dark = false }) {
+  if (!ec) return null;
+  const border = dark ? 'border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200' : 'border-gray-300 text-gray-500 hover:border-primary-400 hover:text-primary-600';
+  const borderBlue = dark ? 'border-blue-700 text-blue-400 hover:border-blue-500 hover:bg-blue-900/20' : 'border-blue-300 text-blue-500 hover:border-blue-500 hover:bg-blue-50';
+  const borderIndigo = dark ? 'border-indigo-700 text-indigo-400 hover:border-indigo-500' : 'border-indigo-300 text-indigo-500 hover:border-indigo-500 hover:bg-indigo-50';
+  const bg = dark ? 'bg-transparent' : 'bg-white';
+  const recPanel = ec.recResults;
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => ec.addToArray('experiences', { company: '새 경험', title: '새 경험', role: '', period: '', bullets: [], description: '', detail: '' })}
+          className={`flex items-center gap-1.5 px-3 py-1.5 border border-dashed rounded-lg text-xs transition-colors ${bg} ${border}`}
+        >
+          <Plus size={12} /> 경험 직접 추가
+        </button>
+        <button
+          type="button"
+          onClick={ec.onImportExperience}
+          className={`flex items-center gap-1.5 px-3 py-1.5 border border-dashed rounded-lg text-xs transition-colors ${bg} ${borderBlue}`}
+        >
+          <Database size={12} /> 경험 DB에서 가져오기
+        </button>
+        {ec.jobAnalysis && ec.onFetchRecommendations && (
+          <button
+            type="button"
+            onClick={ec.onFetchRecommendations}
+            disabled={ec.recLoading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border border-dashed rounded-lg text-xs transition-colors disabled:opacity-50 ${bg} ${borderIndigo}`}
+          >
+            {ec.recLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            기업 맞춤 경험 추천
+          </button>
+        )}
+      </div>
+      {recPanel && (
+        <div className={`rounded-xl border p-3 ${dark ? 'bg-[#1A1A1A] border-[#3A3A3A]' : 'bg-indigo-50/50 border-indigo-100'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-xs font-bold ${dark ? 'text-indigo-300' : 'text-indigo-700'}`}>
+              {ec.jobAnalysis?.company} 맞춤 추천 경험
+            </span>
+            <button type="button" onClick={ec.onCloseRec} className={`${dark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>
+              <X size={12} />
+            </button>
+          </div>
+          {(recPanel.keywords || []).length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {recPanel.keywords.map((kw, i) => (
+                <span key={i} className={`px-2 py-0.5 rounded-lg border text-[10px] ${dark ? 'bg-[#2A2A2A] border-[#3A3A3A] text-indigo-300' : 'bg-white border-indigo-200'}`}>
+                  <span className={`font-bold ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{kw.keyword}</span>
+                  <span className={`ml-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{kw.description}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {(recPanel.recommendations || []).map((rec, i) => (
+              <div key={i} className={`flex items-center gap-2 p-2 rounded-lg border ${dark ? 'bg-[#2A2A2A] border-[#3A3A3A]' : 'bg-white border-indigo-100'}`}>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${dark ? 'text-[#EBEBEB]' : 'text-gray-800'}`}>{rec.experience?.title}</p>
+                  <p className={`text-[10px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-500'}`}>{rec.reason}</p>
+                  {(rec.matchedKeywords || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {rec.matchedKeywords.map((mk, mi) => (
+                        <span key={mi} className={`px-1 py-0.5 rounded text-[9px] font-medium ${dark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{mk}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => ec.onImportRecommendedExp?.(rec)}
+                  className="flex-shrink-0 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-medium hover:bg-indigo-700 transition-colors"
+                >
+                  추가
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -240,6 +375,63 @@ function RemoveBtn({ onClick, dark = false }) {
     >
       <X size={10} />
     </button>
+  );
+}
+
+// ── 섹션 삭제 버튼 (편집 모드에서 섹션 헤더 옆에 표시) ──
+function SectionDeleteBtn({ ec, sectionKey, dark = false }) {
+  if (!ec?.hideSection) return null;
+  const isHidden = ec.hiddenSections?.includes(sectionKey);
+  if (isHidden) return null;
+  return (
+    <button
+      type="button"
+      title="섹션 숨기기"
+      onClick={e => { e.stopPropagation(); ec.hideSection(sectionKey); }}
+      className={`ml-2 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover/section:opacity-100 transition-opacity ${dark ? 'bg-[#3A3A3A] text-[#A0A0A0] hover:bg-red-900 hover:text-red-400' : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500'}`}
+    >
+      <X size={10} />
+    </button>
+  );
+}
+
+// ── 공통: Experience 타임라인 (모든 템플릿 공용) ──
+function ExperienceTimeline({ expList, ec, dark = false, accentDot = '' }) {
+  const lineColor = dark ? 'bg-[#3A3A3A]' : 'bg-gray-200';
+  const dotBase = accentDot || (dark ? 'bg-[#5C7CFA]' : 'bg-primary-500');
+  const titleColor = dark ? 'text-[#EBEBEB]' : 'text-gray-900';
+  const subtitleColor = dark ? 'text-[#A0A0A0]' : 'text-gray-500';
+  const periodColor = dark ? 'text-[#A0A0A0]' : 'text-gray-400';
+
+  return (
+    <div className="relative space-y-3 pl-5">
+      <div className={`absolute left-[7px] top-0 bottom-0 w-0.5 ${lineColor} rounded-full`} />
+      {expList.map((exp, idx) => (
+        <div key={idx} className="flex items-start gap-3 relative group">
+          {ec && <RemoveBtn dark={dark} onClick={() => ec.removeFromArray('experiences', idx)} />}
+          <div className={`w-2.5 h-2.5 rounded-full ${dotBase} border-2 ${dark ? 'border-[#1F1F1F]' : 'border-white'} z-10 mt-1.5 flex-shrink-0`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className={`font-medium text-sm ${titleColor}`}>
+                {ec
+                  ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className={`font-medium text-sm ${titleColor}`} placeholder="프로젝트명" />
+                  : (exp.company || exp.title || '')
+                }
+              </span>
+              {(exp.role || exp.subtitle) && (
+                <span className={`text-xs ${subtitleColor}`}>{exp.role || exp.subtitle}</span>
+              )}
+            </div>
+            <div className={`text-[11px] ${periodColor} mt-0.5`}>
+              {ec
+                ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className={`text-[11px] ${periodColor}`} placeholder="기간 (예: 2024.03 - 2024.06)" />
+                : exp.period
+              }
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -268,6 +460,27 @@ function ImageUploadSlot({ src, onUpload, children, className = '', imgClassName
   );
 }
 
+// ── 카메라 아이콘 오버레이 업로드 버튼 ──
+function CameraUploadBtn({ onUpload, dark = false, className = 'bottom-2 right-2' }) {
+  const ref = useRef(null);
+  if (!onUpload) return null;
+  return (
+    <>
+      <input ref={ref} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) { onUpload(f); e.target.value = ''; } }} />
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); ref.current?.click(); }}
+        className={`absolute ${className} z-20 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md ${
+          dark ? 'bg-[#2A2A2A] text-[#A0A0A0] hover:text-white border border-[#3A3A3A]' : 'bg-white text-gray-500 hover:text-gray-800 border border-gray-200'
+        }`}
+      >
+        <Camera size={13} />
+      </button>
+    </>
+  );
+}
+
 // ── 포트폴리오 데이터 → 템플릿 데이터 매핑 ──
 export function mapPortfolioToTemplateData(p) {
   const levels = p.skillLevels || {};
@@ -290,22 +503,33 @@ export function mapPortfolioToTemplateData(p) {
 
   const _getDetails = (e) => {
     if (e.bullets?.length > 0) return e.bullets;
+    if (e.details?.length > 0) return e.details;
     if (e.sections?.length > 0)
       return e.sections.map(s => s.title ? `[${s.title}] ${s.content}` : s.content).filter(Boolean);
+    const sr = e.structuredResult || e.frameworkContent || {};
+    const srKeys = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+    const srItems = srKeys.map(k => sr[k]).filter(v => v?.trim?.());
+    if (srItems.length > 0) return srItems;
     if (e.detail) return [e.detail];
+    if (e.description) return [e.description];
     return [];
   };
 
   const projects = experiences.length > 0
-    ? experiences.map((e, idx) => ({
-        name: e.company || e.title || `프로젝트 ${idx + 1}`,
-        period: e.period || '',
-        tag: e.tag || (e.type === 'project' ? 'Project' : 'Experience'),
-        tagColor: tagColors[idx % tagColors.length],
-        desc: e.description || e.detail || e.sections?.[0]?.content || e.bullets?.[0] || '',
-        img: imgBgs[idx % imgBgs.length],
-        details: _getDetails(e),
-      }))
+    ? experiences.map((e, idx) => {
+        const sr = e.structuredResult || e.frameworkContent || {};
+        const srDesc = sr.intro || sr.overview || sr.projectOverview?.summary || '';
+        return {
+          name: e.company || e.title || `프로젝트 ${idx + 1}`,
+          period: e.period || '',
+          tag: e.tag || (e.type === 'project' ? 'Project' : 'Experience'),
+          tagColor: tagColors[idx % tagColors.length],
+          desc: e.description || srDesc || e.detail || e.sections?.[0]?.content || e.bullets?.[0] || '',
+          img: imgBgs[idx % imgBgs.length],
+          details: _getDetails(e),
+          thumbnailUrl: e.thumbnailUrl || '',
+        };
+      })
     : [
         { name: '프로젝트 1', period: '', tag: 'Project', tagColor: tagColors[0], desc: '프로젝트 설명을 입력해 주세요.', img: imgBgs[0], details: [] },
       ];
@@ -325,8 +549,8 @@ export function mapPortfolioToTemplateData(p) {
     about: p.about || p.valuesEssay || '',
     education: (p.education || []).map(e => ({
       period: e.period || '',
-      school: e.name || '',
-      major: e.degree || '',
+      school: e.school || e.name || '',
+      major: e.major || e.degree || '',
       details: e.detail ? [e.detail] : [],
     })),
     experience: experiences.map(e => ({
@@ -469,55 +693,33 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <div className="flex items-center gap-2"><Briefcase className="w-6 h-6" /><h2 className="text-2xl font-bold">Work Experience</h2></div>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}
           </div>
-          <div className="space-y-6">
-            {expList.map((exp, idx) => (
-              <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-8 hover:bg-gray-50 p-2 -ml-2 rounded-md transition-colors relative group">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
-                <div className="w-full md:w-1/4 text-[#787774] shrink-0 pt-1">
-                  {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="text-sm text-[#787774]" /> : exp.period}
-                </div>
-                <div>
-                  {ec
-                    ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="text-lg font-bold mb-1 block" placeholder="회사/프로젝트명" />
-                    : <h3 className="text-lg font-bold mb-1">{exp.company}</h3>
-                  }
-                  {ec
-                    ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} placeholder="역할" className="text-gray-600 mb-2 font-medium block" />
-                    : <p className="text-gray-600 mb-2 font-medium">{exp.role}</p>
-                  }
-                  <ul className="list-disc list-outside ml-4 space-y-1 text-sm">
-                    {getExpDetails(exp).map((d, i) => <li key={i}>{d}</li>)}
-                  </ul>
-                </div>
-              </div>
-            ))}
-          </div>
-          {ec && <ExpControls ec={ec} />}
+          <ExperienceTimeline expList={expList} ec={ec} />
         </div>
 
         <hr className="border-[#ededed] my-8" />
         <div className="mb-12">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-2"><Folder className="w-6 h-6" /><h2 className="text-2xl font-bold">Projects</h2></div>
+            <div className="flex items-center gap-2"><Folder className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Projects" sectionKey="projects" /></h2></div>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="projects" jobAnalysis={ec.jobAnalysis} />}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`group ${ec ? '' : 'cursor-pointer'} flex flex-col border border-[#ededed] rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white relative`}>
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white relative">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                <ImageUploadSlot
-                  src={proj.thumbnailUrl}
-                  onUpload={ec && ((f) => ec.onUploadExpImage(f, idx))}
-                  className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden`}
-                  imgClassName="w-full h-full object-cover"
-                  rounded=""
-                >
-                  <div className={`aspect-video ${proj.img || 'bg-blue-50'} flex items-center justify-center overflow-hidden`}>
-                    <div className="w-3/4 h-3/4 bg-white/40 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"></div>
-                  </div>
-                </ImageUploadSlot>
+                <div className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
+                  <ImageUploadSlot
+                    src={proj.thumbnailUrl}
+                    onUpload={null}
+                    className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden`}
+                    imgClassName="w-full h-full object-cover"
+                    rounded=""
+                  >
+                    <div className={`aspect-video ${proj.img || 'bg-blue-50'} flex items-center justify-center overflow-hidden`}>
+                      <div className="w-3/4 h-3/4 bg-white/40 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"></div>
+                    </div>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                </div>
                 <div className="p-4">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg mb-1 block" placeholder="프로젝트명" />
@@ -566,20 +768,19 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12">
               <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2"><Code className="w-6 h-6" /><h2 className="text-2xl font-bold">Skills</h2></div>
+                <div className="flex items-center gap-2"><Code className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Skills" sectionKey="skills" /></h2></div>
                 {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
               </div>
               <div className="flex flex-wrap gap-2">
                 {skillList.map((skill, idx) => (
-                  <div key={idx} className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700 relative group">
+                  <div key={idx} className="relative group">
                     {ec && <RemoveBtn onClick={() => {
                       const cat = skill.category || 'tools';
                       const arr = [...(portfolio.skills?.[cat] || [])];
                       const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
                       ec.update('skills', { ...portfolio.skills, [cat]: arr });
                     }} />}
-                    {skill.name}
-                    {ec && <SkillLevelBadge skill={skill} ec={ec} />}
+                    <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" />
                   </div>
                 ))}
               </div>
@@ -701,24 +902,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
             </div>
             <div>
               <div className="bg-[#f3f2eb] text-center py-1 font-bold mb-6">Experience</div>
-              {expList.map((exp, idx) => (
-                <div key={idx} className="mb-8 relative group">
-                  {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                  {ec
-                    ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg block" placeholder="회사/프로젝트명" />
-                    : <h4 className="font-bold text-lg">{exp.company}</h4>
-                  }
-                  {ec
-                    ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-sm text-gray-600 mb-2 block" placeholder="역할" />
-                    : <p className="text-sm text-gray-600 mb-2">{exp.role}</p>
-                  }
-                  {ec
-                    ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-xs text-gray-400 mb-2 block" placeholder="기간" />
-                    : <p className="text-xs text-gray-400 mb-2">{exp.period}</p>
-                  }
-                </div>
-              ))}
-              {ec && <ExpControls ec={ec} />}
+              <ExperienceTimeline expList={expList} ec={ec} />
               {awardList.length > 0 && (
                 <>
                   <div className="flex items-center justify-between gap-2 mb-6 mt-10">
@@ -755,20 +939,22 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         </div>
         {/* Projects — ec 기반 inline 편집 + 이미지 업로드 */}
         <div className="py-10 border-t border-gray-100 font-sans">
-          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8 font-serif">PROJECT</h2>
+          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8 font-serif"><EH ec={ec} value="PROJECT" sectionKey="projects" /></h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`border border-gray-200 rounded-md overflow-hidden ${ec ? '' : 'cursor-pointer'} hover:shadow-md transition group relative`}>
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md overflow-hidden cursor-pointer hover:shadow-md transition group relative">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec && ((f) => ec.onUploadExpImage(f, idx))} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
-                  <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center font-bold text-lg text-gray-800`}>
-                    {ec
-                      ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-800" placeholder="프로젝트명" />
-                      : proj.name
-                    }
-                  </div>
-                </ImageUploadSlot>
+                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
+                    <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center font-bold text-lg text-gray-800`}>
+                      {ec
+                        ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-800" placeholder="프로젝트명" />
+                        : proj.name
+                      }
+                    </div>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                </div>
                 <div className="p-3 bg-white">
                   {ec
                     ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-gray-600 block" placeholder="설명" />
@@ -783,7 +969,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         {/* Skills — ec 지원 */}
         <div className="py-10 border-t border-gray-100 font-sans">
           <div className="flex items-center justify-between gap-3 mb-8">
-            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 font-serif">SKILLS</h2>
+            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 font-serif"><EH ec={ec} value="SKILLS" sectionKey="skills" /></h2>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -796,8 +982,8 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
                   ec.update('skills', { ...portfolio.skills, [cat]: arr });
                 }} />}
                 <div className="font-bold text-sm mb-2 flex justify-between items-center">
-                  {skill.name}
-                  <SkillLevelBadge skill={skill} ec={ec} />
+                  <SkillTooltipBadge skill={skill} ec={ec} plain levelMode="bar" />
+                  <span className="text-xs text-gray-400">{skill.percent}</span>
                 </div>
                 <div className="w-full bg-gray-100 h-2 mb-3 rounded overflow-hidden">
                   <div className="bg-black h-full" style={{ width: skill.percent }}></div>
@@ -878,7 +1064,10 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
               <div className="w-32 h-32 bg-pink-100 rounded-full flex items-center justify-center text-6xl shadow-sm">👱🏻‍♀️</div>
             </ImageUploadSlot>
             <div className="text-left border border-gray-200 p-6 rounded-lg shadow-sm w-full md:w-[400px]">
-              <h3 className="font-bold text-lg mb-2">안녕하세요! {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="font-bold" /> : data.name}입니다.</h3>
+              {ec
+                ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다.`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold text-lg mb-2 block" />
+                : <h3 className="font-bold text-lg mb-2">{data.greeting || `안녕하세요! ${data.name}입니다.`}</h3>
+              }
               {ec
                 ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-gray-500 mb-4" />
                 : <p className="text-sm text-gray-500 mb-4 line-clamp-2">{data.title}<br />{data.about.split('\n')[0]}</p>
@@ -938,27 +1127,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <div className="mb-12">
             <h2 className="text-xl font-bold mb-4">Experiences</h2>
             <DatabaseHeader />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {expList.map((exp, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-md p-4 shadow-sm bg-white relative group">
-                  {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                  {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
-                  <h3 className="font-bold text-purple-700 flex items-center gap-2 mb-2"><Briefcase className="w-4 h-4"/>
-                    {ec ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-purple-700" placeholder="회사명" /> : exp.company}
-                  </h3>
-                  {ec
-                    ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-xs text-gray-400 mb-2 block" placeholder="기간" />
-                    : <p className="text-xs text-gray-400 mb-2">{exp.period}</p>
-                  }
-                  {ec
-                    ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-sm font-semibold mb-2 block" placeholder="역할" />
-                    : <p className="text-sm font-semibold mb-2">{exp.role}</p>
-                  }
-                  <p className="text-xs text-gray-600 line-clamp-3">{getExpDetails(exp)[0]}</p>
-                </div>
-              ))}
-            </div>
-            {ec && <ExpControls ec={ec} />}
+            <ExperienceTimeline expList={expList} ec={ec} accentDot="bg-purple-500" />
           </div>
         )}
         <div className="mb-12">
@@ -966,12 +1135,14 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <DatabaseHeader />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white group hover:border-gray-300 transition-colors relative ${ec ? '' : 'cursor-pointer'}`}>
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec && ((f) => ec.onUploadExpImage(f, idx))} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
-                  <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{proj.name || proj.company || proj.title}</div>
-                </ImageUploadSlot>
+                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
+                    <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{proj.name || proj.company || proj.title}</div>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                </div>
                 <div className="p-4">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold mb-1 block" placeholder="프로젝트명" />
@@ -1026,8 +1197,8 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                   ec.update('skills', { ...portfolio.skills, [cat]: arr });
                 }} />}
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-sm">{skill.name}</h4>
-                  <SkillLevelBadge skill={skill} ec={ec} />
+                  <SkillTooltipBadge skill={skill} ec={ec} plain levelMode="bar" />
+                  <span className="text-xs text-gray-400">{skill.percent}</span>
                 </div>
                 <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                   <div className="bg-green-500 h-full" style={{ width: skill.percent }}></div>
@@ -1176,7 +1347,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             )}
             <section>
               <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
-                <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-gray-400" /> Tools & Skills</h2>
+                <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Tools & Skills" sectionKey="skills" /></h2>
                 {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
               </div>
               <div className="space-y-4">
@@ -1190,8 +1361,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                       ec.update('skills', { ...portfolio.skills, [cat]: arr });
                     }} />}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded">{skill.name}</span>
-                      <SkillLevelBadge skill={skill} ec={ec} />
+                      <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" badgeClassName="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded" />
                     </div>
                     <p className="text-xs text-gray-600 leading-relaxed">{skill.desc}</p>
                   </div>
@@ -1216,35 +1386,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
           <div className="lg:col-span-2 space-y-12">
             <section>
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><Briefcase className="w-6 h-6 text-gray-800" /> Core Experience</h2>
-              <div className="space-y-6">
-                {expList.map((exp, idx) => (
-                  <div key={idx} className="relative pl-6 border-l-2 border-gray-200 group">
-                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                    {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
-                    <div className="absolute w-3 h-3 bg-white border-2 border-gray-400 rounded-full -left-[7px] top-1.5"></div>
-                    <div className="mb-1 flex flex-wrap items-baseline gap-2">
-                      {ec
-                        ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-900" placeholder="회사/프로젝트명" />
-                        : <h3 className="font-bold text-lg text-gray-900">{exp.company}</h3>
-                      }
-                      {ec
-                        ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-sm font-medium text-blue-600" placeholder="역할" />
-                        : <span className="text-sm font-medium text-blue-600">{exp.role}</span>
-                      }
-                    </div>
-                    {ec
-                      ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-xs text-gray-500 mb-3 block" placeholder="기간" />
-                      : <p className="text-xs text-gray-500 mb-3">{exp.period}</p>
-                    }
-                    <ul className="space-y-1 text-sm text-gray-700">
-                      {getExpDetails(exp).map((d, i) => (
-                        <li key={i} className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" /><span>{d}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              {ec && <ExpControls ec={ec} />}
+              <ExperienceTimeline expList={expList} ec={ec} accentDot="bg-blue-500" />
             </section>
             <section>
               <div className="flex items-center justify-between gap-2 mb-6">
@@ -1253,14 +1395,16 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {projList.map((proj, idx) => (
-                  <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-blue-300 transition-all ${ec ? '' : 'cursor-pointer'} flex flex-col relative`}>
+                  <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
                     {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                    {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                    <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
-                      <div className={`h-32 ${proj.img || 'bg-blue-50'} w-full flex items-center justify-center overflow-hidden`}>
-                        <div className="text-gray-400 text-sm font-bold opacity-50">{proj.name || proj.company || '프로젝트'}</div>
-                      </div>
-                    </ImageUploadSlot>
+                    <div className="h-32 w-full overflow-hidden bg-blue-50 relative">
+                      <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
+                        <div className={`h-32 ${proj.img || 'bg-blue-50'} w-full flex items-center justify-center overflow-hidden`}>
+                          <div className="text-gray-400 text-sm font-bold opacity-50">{proj.name || proj.company || '프로젝트'}</div>
+                        </div>
+                      </ImageUploadSlot>
+                      <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                    </div>
                     <div className="p-4 flex flex-col flex-1">
                       {ec
                         ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900 block mb-1" placeholder="프로젝트명" />
@@ -1344,15 +1488,17 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           }
         </div>
         <div className="w-full mb-10">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Folder className="w-5 h-5 text-gray-800" /> Selected Projects</h2>
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Folder className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Selected Projects" sectionKey="projects" /></h2>
           <div className="space-y-4">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow ${ec ? '' : 'cursor-pointer'} flex items-center gap-4 relative group`}>
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4 relative group">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
-                  <div className={`w-16 h-16 rounded-lg ${proj.img || 'bg-blue-50'} flex-shrink-0 border border-gray-100`}></div>
-                </ImageUploadSlot>
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100 relative">
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
+                    <div className={`w-16 h-16 rounded-lg ${proj.img || 'bg-blue-50'} flex-shrink-0 border border-gray-100`}></div>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="bottom-0.5 right-0.5" />
+                </div>
                 <div className="flex-1 min-w-0">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900 block" placeholder="프로젝트명" />
@@ -1369,32 +1515,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         </div>
         <div className="w-full mb-10">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Briefcase className="w-5 h-5 text-gray-800" /> Experience</h2>
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            {expList.map((exp, idx) => (
-              <div key={idx} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 relative group">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
-                <div className="flex justify-between items-start mb-1">
-                  {ec
-                    ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900" placeholder="회사명" />
-                    : <h3 className="font-bold text-gray-900">{exp.company}</h3>
-                  }
-                  {ec
-                    ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-xs text-gray-400" placeholder="기간" />
-                    : <span className="text-xs text-gray-400">{exp.period}</span>
-                  }
-                </div>
-                {ec
-                  ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-sm text-blue-600 font-medium mb-2 block" placeholder="역할" />
-                  : <p className="text-sm text-blue-600 font-medium mb-2">{exp.role}</p>
-                }
-                <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                  {getExpDetails(exp).map((d, i) => <li key={i}>{d}</li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-          {ec && <ExpControls ec={ec} />}
+          <ExperienceTimeline expList={expList} ec={ec} />
         </div>
         {(ec ? true : skillList.length > 0) && (
           <div className="w-full mb-10">
@@ -1404,15 +1525,14 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
             </div>
             <div className="flex flex-wrap gap-2">
               {skillList.map((skill, idx) => (
-                <div key={idx} className="flex flex-col items-start px-3 py-1.5 bg-white rounded-lg text-sm font-medium text-gray-800 shadow-sm border border-gray-200 relative group">
+                <div key={idx} className="relative group">
                   {ec && <RemoveBtn onClick={() => {
                     const cat = skill.category || 'tools';
                     const arr = [...(portfolio.skills?.[cat] || [])];
                     const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
                     ec.update('skills', { ...portfolio.skills, [cat]: arr });
                   }} />}
-                  <span>{skill.name}</span>
-                  <SkillLevelBadge skill={skill} ec={ec} />
+                  <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" badgeClassName="px-3 py-1.5 bg-white rounded-lg text-sm font-medium text-gray-800 shadow-sm border border-gray-200" />
                 </div>
               ))}
             </div>
@@ -1508,19 +1628,21 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           : <p className="text-gray-700 text-lg leading-relaxed mb-12 max-w-2xl">{data.catchphrase}<br/><span className="text-sm text-gray-500">{data.about.split('\n')[0]}</span></p>
         }
         <div className="mb-20">
-          <h2 className="text-2xl font-bold mb-8 border-b-2 border-gray-900 inline-block pb-2">Featured Work</h2>
+          <h2 className="text-2xl font-bold mb-8 border-b-2 border-gray-900 inline-block pb-2"><EH ec={ec} value="Featured Work" sectionKey="projects" /></h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => !ec && setSelectedProject(proj)} className={`group ${ec ? '' : 'cursor-pointer'} flex flex-col relative`}>
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col relative">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} />}
-                <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
-                  <div className={`w-full aspect-[4/3] rounded-2xl ${proj.img || 'bg-blue-50'} mb-4 overflow-hidden shadow-sm border border-gray-100 relative`}>
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                      <span className="opacity-0 group-hover:opacity-100 bg-white text-black px-4 py-2 rounded-full text-sm font-bold transition-opacity shadow-lg transform translate-y-4 group-hover:translate-y-0 duration-300">View Project</span>
+                <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100 relative">
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
+                    <div className={`w-full aspect-[4/3] rounded-2xl ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 bg-white text-black px-4 py-2 rounded-full text-sm font-bold transition-opacity shadow-lg transform translate-y-4 group-hover:translate-y-0 duration-300">View Project</span>
+                      </div>
                     </div>
-                  </div>
-                </ImageUploadSlot>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                </div>
                 <div>
                   <div className="flex justify-between items-start mb-1">
                     {ec
@@ -1543,28 +1665,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           <div className="space-y-10">
             <div>
               <h2 className="text-xl font-bold mb-6">Experience</h2>
-              <div className="space-y-6">
-                {expList.map((exp, idx) => (
-                  <div key={idx} className="flex gap-4 relative group">
-                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                    {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
-                    <div className="w-24 flex-shrink-0 text-sm text-gray-400 font-medium">
-                      {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-sm text-gray-400 font-medium" placeholder="기간" /> : exp.period?.split(' - ')[0]}
-                    </div>
-                    <div>
-                      {ec
-                        ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900 block" placeholder="회사명" />
-                        : <h3 className="font-bold text-gray-900">{exp.company}</h3>
-                      }
-                      {ec
-                        ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-sm text-gray-600 mb-1 block" placeholder="역할" />
-                        : <p className="text-sm text-gray-600 mb-1">{exp.role}</p>
-                      }
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {ec && <ExpControls ec={ec} />}
+              <ExperienceTimeline expList={expList} ec={ec} />
             </div>
             {(ec ? true : eduList.length > 0) && (
               <div>
@@ -1617,7 +1718,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           <div className="space-y-10">
             <div>
               <div className="flex items-center justify-between gap-3 mb-6">
-                <h2 className="text-xl font-bold">Core Skills</h2>
+                <h2 className="text-xl font-bold"><EH ec={ec} value="Core Skills" sectionKey="skills" /></h2>
                 {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1630,7 +1731,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                       if (nameIdx > -1) arr.splice(nameIdx, 1);
                       ec.update('skills', { ...portfolio.skills, [cat]: arr });
                     }} />}
-                    <div className="flex items-center gap-1">{skill.name} <SkillLevelBadge skill={skill} ec={ec} /></div>
+                    <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" badgeClassName="px-4 py-2 bg-gray-100 rounded-full text-sm font-medium text-gray-800 shadow-sm border border-gray-200" />
                   </div>
                 ))}
               </div>
@@ -1676,6 +1777,8 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
+  const hidden = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden = (key) => hidden.includes(key);
   return (
     <div className="min-h-screen bg-[#1F1F1F] text-[#EBEBEB] font-sans pb-32 selection:bg-[#5C7CFA] selection:text-white">
       <ImageUploadSlot src={ec ? portfolio.coverImageUrl : null} onUpload={ec?.onUploadCoverImage} className="w-full h-48 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
@@ -1685,11 +1788,14 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
       </ImageUploadSlot>
       <div className="max-w-4xl mx-auto px-6 -mt-8 relative z-10">
         <div className="text-center mb-16">
-          <h1 className="text-3xl font-extrabold mb-12 tracking-wide text-white">디자인 포트폴리오</h1>
+          <h1 className="text-3xl font-extrabold mb-12 tracking-wide text-white">
+            {ec ? <EditText value={portfolio.portfolioTitle || '디자인 포트폴리오'} onChange={v => ec.update('portfolioTitle', v)} placeholder="포트폴리오 제목" className="text-3xl font-extrabold text-white" /> : (portfolio.portfolioTitle || '디자인 포트폴리오')}
+          </h1>
           <h2 className="text-2xl font-bold mb-3">
             {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-2xl font-bold text-[#EBEBEB]" /> : data.name}
           </h2>
-          <p className="text-[#EBEBEB] font-medium flex justify-center items-center gap-2 mb-10"><span className="text-yellow-500">🌻</span>
+          <p className="text-[#EBEBEB] font-medium flex justify-center items-center gap-2 mb-10">
+            <span>{ec ? <EditText value={portfolio.titleEmoji || '🌻'} onChange={v => ec.update('titleEmoji', v)} placeholder="🌻" className="text-yellow-500" /> : (portfolio.titleEmoji || '🌻')}</span>
             {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-[#EBEBEB] font-medium" /> : data.title}
           </p>
           <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3">
@@ -1709,22 +1815,29 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             )}
           </div>
         </div>
-        <div className="mb-14">
-          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Introduce</h3>
-          <p className="font-bold mb-4 text-[#EBEBEB]">안녕하세요! {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="font-bold text-[#EBEBEB]" /> : data.name}입니다!</p>
+        {!isHidden('introduce') && <div className="mb-14 group/section">
+          <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
+            <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Introduce" sectionKey="introduce" /></h3>
+            <SectionDeleteBtn ec={ec} sectionKey="introduce" dark />
+          </div>
+          {ec
+            ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다!`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold mb-4 text-[#EBEBEB] block" />
+            : <p className="font-bold mb-4 text-[#EBEBEB]">{data.greeting || `안녕하세요! ${data.name}입니다!`}</p>
+          }
           {ec
             ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-[#A0A0A0] leading-relaxed" />
             : <p className="text-sm text-[#A0A0A0] leading-relaxed whitespace-pre-wrap">{data.about}</p>
           }
-        </div>
-        <div className="mb-14">
-          <div className={`flex items-center justify-between gap-3 border-b ${borderColor} pb-2 mb-6`}>
-            <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider`}>Skills</h3>
+        </div>}
+        {!isHidden('skills') && <div className="mb-14 group/section">
+          <div className={`flex items-center gap-3 border-b ${borderColor} pb-2 mb-6`}>
+            <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Skills" sectionKey="skills" /></h3>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+            <SectionDeleteBtn ec={ec} sectionKey="skills" dark />
           </div>
           <div className="flex flex-wrap gap-2">
             {skillList.map((skill, idx) => (
-              <div key={idx} className="flex flex-col items-start px-3 py-1 bg-[#2A2A2A] rounded text-sm text-[#EBEBEB] border border-[#3A3A3A] relative group">
+              <div key={idx} className="relative group">
                 {ec && <RemoveBtn dark onClick={() => {
                   const cat = skill.category || 'tools';
                   const arr = [...(portfolio.skills?.[cat] || [])];
@@ -1732,8 +1845,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                   if (nameIdx > -1) arr.splice(nameIdx, 1);
                   ec.update('skills', { ...portfolio.skills, [cat]: arr });
                 }} />}
-                <span>{skill.name}</span>
-                <SkillLevelBadge skill={skill} ec={ec} dark />
+                <SkillTooltipBadge skill={skill} ec={ec} dark levelMode="blocks" />
               </div>
             ))}
           </div>
@@ -1751,17 +1863,19 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
               />
             </div>
           )}
-        </div>
-        <div className="mb-14">
-          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Projects</h3>
+        </div>}
+        {!isHidden('projects') && <div className="mb-14 group/section">
+          <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
+            <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Projects" sectionKey="projects" /></h3>
+            <SectionDeleteBtn ec={ec} sectionKey="projects" dark />
+          </div>
           <div className="flex items-center gap-2 mb-6">
             <span className="bg-[#2F2F2F] text-sm px-3 py-1.5 rounded-md flex items-center gap-2 font-bold text-white"><LayoutGrid className="w-4 h-4"/> Project</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#2A2A2A] rounded-xl overflow-hidden shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => !ec && setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#2A2A2A] rounded-xl overflow-hidden shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} dark />}
                 <div className="p-5 pb-10">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-sm mb-4 text-white block" placeholder="프로젝트명" />
@@ -1780,34 +1894,20 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             ))}
           </div>
           {ec && <ExpControls ec={ec} />}
-        </div>
-        <div className="mb-14">
-          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Career</h3>
-          <div className="space-y-8">
-            {expList.map((exp, idx) => (
-              <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-8 relative group">
-                {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} dark />}
-                <div className="w-full md:w-36 flex-shrink-0 text-[#A0A0A0] text-sm">
-                  {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-[#A0A0A0] text-sm" placeholder="기간" /> : exp.period}
-                </div>
-                <div>
-                  {ec
-                    ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold mb-3 text-[#EBEBEB] block" placeholder="회사명" />
-                    : <h4 className="font-bold mb-3 text-[#EBEBEB]">{exp.company}</h4>
-                  }
-                  <ul className="text-sm text-[#EBEBEB] space-y-2">
-                    {getExpDetails(exp).map((d, i) => <li key={i} className="flex gap-2"><span className="text-[#A0A0A0]">·</span> {d}</li>)}
-                  </ul>
-                </div>
-              </div>
-            ))}
+        </div>}
+        {!isHidden('career') && <div className="mb-14 group/section">
+          <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
+            <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Career" sectionKey="career" /></h3>
+            <SectionDeleteBtn ec={ec} sectionKey="career" dark />
           </div>
-          {ec && <ExpControls ec={ec} />}
-        </div>
-        {(ec ? true : eduList.length > 0) && (
-          <div className="mb-14">
-            <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Education</h3>
+          <ExperienceTimeline expList={expList} ec={ec} dark={true} />
+        </div>}
+        {!isHidden('education') && (ec ? true : eduList.length > 0) && (
+          <div className="mb-14 group/section">
+            <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
+              <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Education" sectionKey="education" /></h3>
+              <SectionDeleteBtn ec={ec} sectionKey="education" dark />
+            </div>
             <div className="space-y-4">
               {eduList.map((edu, idx) => (
                 <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-8 relative group">
@@ -1831,11 +1931,12 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('education', { school: '', major: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors mt-3"><Plus size={12}/> 학력 추가</button>}
           </div>
         )}
-        {(ec ? true : awardList.length > 0) && (
-          <div className="mb-14">
-            <div className="flex items-center justify-between gap-3 border-b border-[#3A3A3A] pb-2 mb-6">
-              <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider`}>Awards</h3>
+        {!isHidden('awards') && (ec ? true : awardList.length > 0) && (
+          <div className="mb-14 group/section">
+            <div className="flex items-center gap-3 border-b border-[#3A3A3A] pb-2 mb-6">
+              <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Awards" sectionKey="awards" /></h3>
               {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
+              <SectionDeleteBtn ec={ec} sectionKey="awards" dark />
             </div>
             <div className="space-y-3">
               {awardList.map((award, idx) => (
@@ -1856,6 +1957,26 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
           </div>
         )}
       </div>
+      {/* 숨겨진 섹션 복원 버튼 (편집 모드) */}
+      {ec && hidden.length > 0 && (
+        <div className="max-w-4xl mx-auto px-6 py-6">
+          <div className="border border-dashed border-[#3A3A3A] rounded-xl p-4">
+            <p className="text-xs text-[#A0A0A0] mb-3 font-medium">숨긴 섹션 복원</p>
+            <div className="flex flex-wrap gap-2">
+              {hidden.map(key => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => ec.showSection(key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[#2A2A2A] text-[#A0A0A0] border border-[#3A3A3A] hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors"
+                >
+                  <Plus size={11} /> {key}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
     </div>
   );
@@ -1903,7 +2024,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         </h1>
         <div className="mb-16">
           <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
-            🧑🏻‍💻 Project Summary
+            🧑🏻‍💻 <EH ec={ec} value="Project Summary" sectionKey="projects" className="text-[#EBEBEB] font-bold" />
           </div>
           <div className="space-y-12 pl-2">
             {projList.map((proj, idx) => (
@@ -1946,12 +2067,14 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#252525] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => !ec && setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#252525] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
-                {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} dark />}
-                <ImageUploadSlot src={proj.thumbnailUrl} onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
-                  <div className={`w-full h-36 ${proj.img || 'bg-blue-50'} flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity`}></div>
-                </ImageUploadSlot>
+                <div className="w-full h-36 overflow-hidden relative">
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
+                    <div className={`w-full h-36 ${proj.img || 'bg-blue-50'} flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity`}></div>
+                  </ImageUploadSlot>
+                  <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} dark />
+                </div>
                 <div className="p-4">
                   <p className="text-xs font-bold text-white mb-3">{proj.period}</p>
                   <div className="flex gap-2 flex-wrap">
@@ -1965,7 +2088,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         <div className="mb-16">
           <div className="flex items-center gap-2 mb-8">
             <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 shadow-sm border border-[#3A4354] flex-1">
-              💻 SKILLS
+              💻 <EH ec={ec} value="SKILLS" sectionKey="skills" className="text-[#EBEBEB] font-bold" />
             </div>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
           </div>
@@ -1981,12 +2104,11 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                 }} />}
                 <div className="w-16 flex-shrink-0 flex flex-col items-center justify-start gap-1">
                   <div className="w-8 h-8 bg-[#2D2D2D] rounded-full flex items-center justify-center text-xs text-white font-bold">{skill.name[0]}</div>
-                  <span className="text-xs font-bold text-center break-words w-full">{skill.name}</span>
+                  <SkillTooltipBadge skill={skill} ec={ec} dark plain levelMode="blocks" />
                 </div>
                 <div className="flex-1 pt-1">
                   <div className="flex items-center gap-2">
                     <Checkboxes level={getSkillLevel(skill.percent)} />
-                    <SkillLevelBadge skill={skill} ec={ec} dark />
                   </div>
                   <p className="text-xs text-[#A0A0A0] leading-relaxed mt-2">{skill.desc}</p>
                 </div>
@@ -2041,33 +2163,15 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         {(ec ? true : expList.length > 0) && (
           <div className="mb-16">
             <div className="bg-[#3A3A3A] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#4A4A4A]">
-              ⚡ EXPERIENCE
+              ⚡ <EH ec={ec} value="EXPERIENCE" sectionKey="career" className="text-[#EBEBEB] font-bold" />
             </div>
-            <div className="space-y-6 pl-2">
-              {expList.map((exp, idx) => (
-                <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-6 md:items-center relative group">
-                  {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
-                  {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} dark />}
-                  {ec
-                    ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm" placeholder="기간" />
-                    : <span className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm">{exp.period}</span>
-                  }
-                  <span className="text-[#D4D4D4] text-sm">
-                    {ec
-                      ? <><EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="text-[#D4D4D4] text-sm" placeholder="회사명" /> - <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} className="text-[#D4D4D4] text-sm" placeholder="역할" /></>
-                      : <>{exp.company} - {exp.role}</>
-                    }
-                  </span>
-                </div>
-              ))}
-            </div>
-            {ec && <ExpControls ec={ec} />}
+            <ExperienceTimeline expList={expList} ec={ec} dark={true} />
           </div>
         )}
         {(ec ? true : eduList.length > 0) && (
           <div className="mb-16">
             <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
-              🎓 EDUCATION
+              🎓 <EH ec={ec} value="EDUCATION" sectionKey="education" className="text-[#EBEBEB] font-bold" />
             </div>
             <div className="space-y-6 pl-2">
               {eduList.map((edu, idx) => (

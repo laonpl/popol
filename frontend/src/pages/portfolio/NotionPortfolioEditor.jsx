@@ -453,6 +453,7 @@ export default function NotionPortfolioEditor() {
 
     let sections = [];
     let description = '';
+    let contentSource = {};
 
     if (savedExportCfg?.sections?.length > 0) {
       // 사용자가 미리보기에서 저장한 섹션 구성 사용
@@ -464,7 +465,7 @@ export default function NotionPortfolioEditor() {
       // 저장된 구성 없으면 프레임워크 기본값 사용
       const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
       const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
-      const contentSource = {};
+      contentSource = {};
       fields.forEach(field => {
         contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
       });
@@ -721,7 +722,7 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode }
     setAnalyzingJob(false);
   };
 
-  if (!analysisMode) return null;
+  if (!analysisMode) return <div className="w-[380px] flex-shrink-0" />;
   const p = portfolio;
 
   return (
@@ -1724,101 +1725,29 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
     },
     onOpenExpDetail: (exp, idx) => setSelectedExpDetail({ exp, idx }),
     updateSkillLevel: (name, level) => update('skillLevels', { ...(p.skillLevels || {}), [name]: level }),
+    onFetchRecommendations: fetchVisualRecommendations,
+    recLoading,
+    recResults,
+    onCloseRec: () => setRecResults(null),
+    onImportRecommendedExp: (rec) => {
+      const exp = userExperiences.find(e => e.id === rec.experience?.id);
+      if (exp) importExperience(exp);
+    },
+    hideSection: (sectionKey) => {
+      const hidden = [...(p.hiddenSections || [])];
+      if (!hidden.includes(sectionKey)) hidden.push(sectionKey);
+      update('hiddenSections', hidden);
+    },
+    showSection: (sectionKey) => {
+      update('hiddenSections', (p.hiddenSections || []).filter(s => s !== sectionKey));
+    },
+    hiddenSections: p.hiddenSections || [],
   };
 
   return (
     <div className="relative flex gap-5 items-start">
       {/* ── 메인 영역 ── */}
       <div className="flex-1 min-w-0">
-        {/* 편집 모드 안내 배너 */}
-        <div className="mb-3 flex items-center gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-xs font-medium border border-primary-200">
-            <PenLine size={11} /> 편집 모드 — 텍스트를 클릭하여 직접 편집
-          </span>
-          <span className="text-xs text-gray-400">경험·기술·학력 항목은 마우스를 올리면 삭제 버튼이 나타납니다</span>
-        </div>
-
-        {/* 통합 기능 툴바: 블록 추가 + 섹션별 내용 추천 + 기업 맞춤 경험 추천 */}
-        <div className="mb-4 p-3 bg-white rounded-2xl border border-surface-200 shadow-sm">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setShowExpPicker(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 border border-primary-200 transition-colors font-medium"
-            >
-              <Database size={12} /> 경험 DB에서 블록 추가
-            </button>
-            <button
-              type="button"
-              onClick={() => addToArray('experiences', { company: '새 경험', title: '새 경험', role: '', period: '', bullets: [], description: '', detail: '' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors font-medium"
-            >
-              <Plus size={12} /> 경험 직접 추가
-            </button>
-            {p.jobAnalysis && (
-              <button
-                type="button"
-                onClick={fetchVisualRecommendations}
-                disabled={recLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-200 disabled:opacity-50 font-medium"
-              >
-                {recLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                기업 맞춤 경험 추천
-              </button>
-            )}
-            {p.jobAnalysis && (
-              <span className="text-[11px] text-gray-500 ml-1">섹션별 AI 추천은 각 섹션 헤더 옆 버튼을 사용하세요</span>
-            )}
-          </div>
-        </div>
-
-        {/* 기업 맞춤 경험 추천 결과 */}
-        {recResults && (
-          <div className="mb-4 border border-indigo-100 rounded-xl bg-indigo-50/50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-indigo-700">{p.jobAnalysis?.company} 맞춤 추천 경험</span>
-              <button onClick={() => setRecResults(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
-            </div>
-            {(recResults.keywords || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {recResults.keywords.map((kw, i) => (
-                  <span key={i} className="px-2 py-1 bg-white rounded-lg border border-indigo-200 text-xs">
-                    <span className="font-bold text-indigo-700">{kw.keyword}</span>
-                    <span className="text-gray-500 ml-1">{kw.description}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="space-y-2">
-              {(recResults.recommendations || []).map((rec, i) => (
-                <div key={i} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-indigo-100">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{rec.experience?.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
-                    {(rec.matchedKeywords || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {rec.matchedKeywords.map((mk, mi) => (
-                          <span key={mi} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-medium">{mk}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      const exp = userExperiences.find(e => e.id === rec.experience?.id);
-                      if (exp) importExperience(exp);
-                      else toast.error('경험 데이터를 찾을 수 없습니다');
-                    }}
-                    className="flex-shrink-0 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-                  >
-                    추가
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 실제 템플릿 (edit mode) */}
         <div className="border border-surface-200 rounded-2xl overflow-hidden">
           <VisualPortfolioRenderer portfolio={p} ec={ec} />
@@ -2213,7 +2142,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
-    {analysisMode && <div className="w-[380px] flex-shrink-0" />}{/* 중앙 고정용 균형 스페이서 */}
+    <div className="w-[380px] flex-shrink-0" />{/* 중앙 고정용 균형 스페이서 */}
     <div className="w-[860px] flex-shrink-0">
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         {/* Hero */}
@@ -2970,7 +2899,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   };
 
   return (
-    <div className="flex gap-5 items-start w-fit mx-auto">
+    <div className="relative flex gap-5 items-start">
 
       {/* ── 사이드바 왼쪽 [비활성화] ── */}
       {false && (
@@ -3077,7 +3006,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       </div>
       )}{/* end 사이드바 왼쪽 */}
 
-    <div className="w-[900px] flex-shrink-0">
+    <div className="flex-1 min-w-0">
     <div className="w-full">
       <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
@@ -4011,7 +3940,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
-      {analysisMode && <div className="w-[360px] flex-shrink-0" />}{/* 중앙 고정용 균형 스페이서 */}
+      <div className="w-[380px] flex-shrink-0" />{/* 중앙 고정용 균형 스페이서 */}
       {/* ── 사이드바 왼쪽 (Notion) [비활성화] ── */}
       {false && (
       <div className="w-[360px] flex-shrink-0">
@@ -4968,8 +4897,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       </div>{/* end 포트폴리오 카드 */}
 
       {/* ── 우측 기업 분석 사이드바 (Notion ─ 스티키) ── */}
+      <div className="w-[380px] flex-shrink-0">
       {analysisMode && (
-      <div className="w-[360px] flex-shrink-0">
         <div className="sticky top-5">
           <div className="flex items-center gap-2 mb-3 px-1">
             <h3 className="text-sm font-bold text-gray-800">기업 분석</h3>
@@ -5069,8 +4998,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             </div>
           )}
         </div>
-      </div>
-      )}{/* end 기업 분석 사이드바 (Notion) */}
+      )}
+      </div>{/* end 기업 분석 사이드바 (Notion) */}
 
     </div>
   );
