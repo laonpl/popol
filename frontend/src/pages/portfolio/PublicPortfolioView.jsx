@@ -4,8 +4,9 @@ import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
   Loader2, Code, Tag, X
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 const EXP_SECTION_META = {
   intro:      { num: '01', label: '프로젝트 소개' },
@@ -28,6 +29,7 @@ export default function PublicPortfolioView() {
   useEffect(() => {
     const load = async () => {
       try {
+        // 1차: doc ID로 직접 조회
         const snap = await getDoc(doc(db, 'portfolios', id));
         if (snap.exists()) {
           const data = snap.data();
@@ -37,7 +39,19 @@ export default function PublicPortfolioView() {
             setError('비공개 포트폴리오입니다.');
           }
         } else {
-          setError('포트폴리오를 찾을 수 없습니다.');
+          // 2차: customSlug로 조회
+          const q = query(
+            collection(db, 'portfolios'),
+            where('customSlug', '==', id),
+            where('isPublic', '==', true)
+          );
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) {
+            const d = qSnap.docs[0];
+            setPortfolio({ id: d.id, ...d.data() });
+          } else {
+            setError('포트폴리오를 찾을 수 없습니다.');
+          }
         }
       } catch (e) {
         setError('포트폴리오를 불러오는데 실패했습니다.');
@@ -76,6 +90,11 @@ export default function PublicPortfolioView() {
     doing: { label: 'Doing', cls: 'bg-green-500' },
     finished: { label: 'Finished', cls: 'bg-red-500' },
   };
+
+  // 비주얼 템플릿이면 해당 렌더러로 바로 표시
+  if (VISUAL_TEMPLATE_IDS.includes(p.templateId)) {
+    return <VisualPortfolioRenderer portfolio={p} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] py-8 px-4">

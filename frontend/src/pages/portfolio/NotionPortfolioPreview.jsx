@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
-  ExternalLink, Mail, Phone, Globe, ChevronUp, X, Key, FileText, Info,
-  Code, Monitor, ChevronRight, Tag, Share2, Copy, Check, Link2
+  ExternalLink, Mail, Phone, Globe, ChevronUp, X, FileText,
+  ChevronRight, Tag, Share2, Copy, Check, Link2
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -12,9 +12,7 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
-
-const NOTION_TOKEN_KEY = 'fitpoly_notion_token';
-const NOTION_PAGE_KEY = 'fitpoly_notion_page';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -28,6 +26,7 @@ export default function NotionPortfolioPreview() {
   const [isPublic, setIsPublic] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [customSlug, setCustomSlug] = useState('');
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -39,6 +38,7 @@ export default function NotionPortfolioPreview() {
         setPortfolio(p);
         setCurrentPortfolio(p);
         setIsPublic(!!p.isPublic);
+        setCustomSlug(p.customSlug || '');
       }
     } catch (e) { toast.error('불러오기 실패'); }
     setLoading(false);
@@ -46,6 +46,110 @@ export default function NotionPortfolioPreview() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
+
+  // 비주얼 템플릿이면 별도 렌더러로 분기
+  if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {
+    return (
+      <div className="animate-fadeIn">
+        {/* Admin bar */}
+        <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
+          <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
+            <ArrowLeft size={16} /> 목록으로
+          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+              className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
+              <Edit size={14} /> 편집
+            </button>
+            <button onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
+              <FileText size={14} /> PPT 내보내기
+            </button>
+            <button onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-medium hover:from-primary-700 hover:to-primary-800">
+              <Link2 size={14} /> 링크 내보내기
+            </button>
+          </div>
+        </div>
+
+        {/* 공유 링크 */}
+        <div className="max-w-[1100px] mx-auto mb-4">
+          <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
+            <Share2 size={16} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">공개 링크</span>
+                <button
+                  onClick={async () => {
+                    setTogglingPublic(true);
+                    const newVal = !isPublic;
+                    try {
+                      await updatePortfolio(id, { isPublic: newVal });
+                      setIsPublic(newVal);
+                      toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+                    } catch { toast.error('공개 설정 변경 실패'); }
+                    setTogglingPublic(false);
+                  }}
+                  disabled={togglingPublic}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              {isPublic && (
+                <p className="text-xs text-gray-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+              )}
+            </div>
+            {isPublic && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+                  setLinkCopied(true);
+                  toast.success('링크가 복사되었습니다!');
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors flex-shrink-0"
+              >
+                {linkCopied ? <Check size={12} /> : <Copy size={12} />}
+                {linkCopied ? '복사됨' : '링크 복사'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-hidden">
+          <VisualPortfolioRenderer portfolio={portfolio} />
+        </div>
+
+        {/* Link Export Modal */}
+        {showExportModal && (
+          <LinkExportModal
+            portfolio={portfolio}
+            portfolioId={id}
+            isPublic={isPublic}
+            togglingPublic={togglingPublic}
+            customSlug={customSlug}
+            onSlugSave={async (slug) => {
+              await updatePortfolio(id, { customSlug: slug });
+              setCustomSlug(slug);
+              setPortfolio(prev => ({ ...prev, customSlug: slug }));
+            }}
+            onToggle={async () => {
+              setTogglingPublic(true);
+              const newVal = !isPublic;
+              try {
+                await updatePortfolio(id, { isPublic: newVal });
+                setIsPublic(newVal);
+                toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+              } catch { toast.error('공개 설정 변경 실패'); }
+              setTogglingPublic(false);
+            }}
+            onClose={() => setShowExportModal(false)}
+          />
+        )}
+      </div>
+    );
+  }
 
   const p = portfolio;
   const contact = p.contact || {};
@@ -70,8 +174,8 @@ export default function NotionPortfolioPreview() {
             <FileText size={14} /> PPT 내보내기
           </button>
           <button onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl text-sm font-medium hover:from-gray-900 hover:to-black">
-            <Download size={14} /> Notion으로 내보내기
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-medium hover:from-primary-700 hover:to-primary-800">
+            <Link2 size={14} /> 링크 내보내기
           </button>
         </div>
       </div>
@@ -557,11 +661,29 @@ export default function NotionPortfolioPreview() {
         <AshleyLayout p={p} setSelectedExp={setSelectedExp} />
       )}
 
-      {/* Notion Export Modal */}
+      {/* Link Export Modal */}
       {showExportModal && (
-        <NotionExportModal
+        <LinkExportModal
           portfolio={portfolio}
-          userId={user.uid}
+          portfolioId={id}
+          isPublic={isPublic}
+          togglingPublic={togglingPublic}
+          customSlug={customSlug}
+          onSlugSave={async (slug) => {
+            await updatePortfolio(id, { customSlug: slug });
+            setCustomSlug(slug);
+            setPortfolio(prev => ({ ...prev, customSlug: slug }));
+          }}
+          onToggle={async () => {
+            setTogglingPublic(true);
+            const newVal = !isPublic;
+            try {
+              await updatePortfolio(id, { isPublic: newVal });
+              setIsPublic(newVal);
+              toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+            } catch { toast.error('공개 설정 변경 실패'); }
+            setTogglingPublic(false);
+          }}
           onClose={() => setShowExportModal(false)}
         />
       )}
@@ -577,14 +699,63 @@ export default function NotionPortfolioPreview() {
   );
 }
 
-// ── Export Modal (HTML + Notion API) ──
-function NotionExportModal({ portfolio, userId, onClose }) {
-  const [tab, setTab] = useState('html'); // 'html' | 'notion'
-  const [notionToken, setNotionToken] = useState(() => localStorage.getItem(NOTION_TOKEN_KEY) || '');
-  const [parentPage, setParentPage] = useState(() => localStorage.getItem(NOTION_PAGE_KEY) || '');
-  const [exporting, setExporting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [notionStep, setNotionStep] = useState(1);
+// ── Link Export Modal ──
+function LinkExportModal({ portfolio, portfolioId, isPublic, togglingPublic, customSlug, onSlugSave, onToggle, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const [slugInput, setSlugInput] = useState(customSlug || '');
+  const [slugSaving, setSlugSaving] = useState(false);
+  const [slugError, setSlugError] = useState('');
+
+  const activeSlug = customSlug || portfolioId;
+  const publicUrl = `${window.location.origin}/p/${activeSlug}`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(publicUrl);
+    setCopied(true);
+    toast.success('링크가 복사되었습니다!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const validateSlug = (val) => {
+    if (!val) return '';
+    if (!/^[a-z0-9-]+$/.test(val)) return '영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다';
+    if (val.length < 2) return '2자 이상 입력해주세요';
+    if (val.length > 50) return '50자 이하로 입력해주세요';
+    if (val.startsWith('-') || val.endsWith('-')) return '하이픈으로 시작하거나 끝날 수 없습니다';
+    return '';
+  };
+
+  const handleSlugChange = (e) => {
+    const val = e.target.value.toLowerCase().replace(/\s/g, '-');
+    setSlugInput(val);
+    setSlugError(validateSlug(val));
+  };
+
+  const handleSlugSave = async () => {
+    const err = validateSlug(slugInput);
+    if (err) { setSlugError(err); return; }
+    setSlugSaving(true);
+    try {
+      await onSlugSave(slugInput.trim());
+      toast.success('커스텀 링크가 저장되었습니다!');
+    } catch {
+      toast.error('저장에 실패했습니다');
+    }
+    setSlugSaving(false);
+  };
+
+  const handleSlugRemove = async () => {
+    setSlugSaving(true);
+    try {
+      await onSlugSave('');
+      setSlugInput('');
+      setSlugError('');
+      toast.success('커스텀 링크가 제거되었습니다');
+    } catch {
+      toast.error('제거에 실패했습니다');
+    }
+    setSlugSaving(false);
+  };
 
   // ── HTML Export: DOM 캡처 + standalone HTML 생성 ──
   const handleHtmlExport = () => {
@@ -670,153 +841,125 @@ ${cleanedHTML}
     toast.success('HTML 파일이 다운로드되었습니다!');
   };
 
-  // ── Notion API Export ──
-  const handleNotionExport = async () => {
-    if (!notionToken.trim() || !parentPage.trim()) {
-      toast.error('Notion 토큰과 부모 페이지 URL을 모두 입력해주세요');
-      return;
-    }
-    localStorage.setItem(NOTION_TOKEN_KEY, notionToken);
-    localStorage.setItem(NOTION_PAGE_KEY, parentPage);
-    setExporting(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/export/notion-page`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-        body: JSON.stringify({ notionToken: notionToken.trim(), parentPageId: parentPage.trim(), data: portfolio }),
-      });
-      const data = await res.json();
-      if (data.success) { setResult(data); toast.success('Notion 페이지가 생성되었습니다!'); }
-      else toast.error(data.message || data.error || 'Notion 내보내기에 실패했습니다');
-    } catch (e) { toast.error('내보내기 중 오류가 발생했습니다: ' + (e.message || '')); }
-    setExporting(false);
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-surface-100">
-          <h2 className="text-lg font-bold">내보내기</h2>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center">
+              <Link2 size={16} className="text-primary-600" />
+            </div>
+            <h2 className="text-lg font-bold">링크 내보내기</h2>
+          </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50">
             <X size={18} />
           </button>
         </div>
 
-        {result ? (
-          <div className="p-6 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">✅</span>
+        <div className="p-6 space-y-5">
+          {/* 공개 링크 토글 */}
+          <div className="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-100">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">공개 링크 활성화</p>
+              <p className="text-xs text-gray-400 mt-0.5">누구나 링크로 포트폴리오를 확인할 수 있어요</p>
             </div>
-            <h3 className="text-lg font-bold mb-2">Notion 페이지가 생성되었습니다!</h3>
-            <a href={result.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-black transition-colors">
-              <ExternalLink size={16} /> Notion에서 확인하기
-            </a>
-            <button onClick={onClose} className="block mx-auto mt-3 text-sm text-gray-400 hover:text-gray-600">닫기</button>
+            <button
+              onClick={onToggle}
+              disabled={togglingPublic}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
-        ) : (
-          <div className="p-6">
-            {/* Tab selector */}
-            <div className="flex bg-surface-50 rounded-xl p-1 mb-6">
-              <button onClick={() => setTab('html')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === 'html' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                <Monitor size={15} /> HTML 다운로드
-              </button>
-              <button onClick={() => setTab('notion')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === 'notion' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                <Code size={15} /> Notion API
-              </button>
-            </div>
 
-            {/* ── HTML Tab ── */}
-            {tab === 'html' && (
-              <div className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                  <h4 className="text-sm font-bold text-emerald-800 mb-2">✨ CSS 100% 동일한 HTML 파일</h4>
-                  <p className="text-xs text-emerald-700 leading-relaxed">
-                    현재 프리뷰 화면의 레이아웃, 색상, 폰트, 간격까지 <strong>완벽하게 동일한</strong> HTML 파일을 다운로드합니다.
-                    브라우저에서 바로 열어보거나, 웹 호스팅에 업로드할 수 있습니다.
-                  </p>
-                </div>
-
-                <div className="bg-surface-50 rounded-xl p-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">사용 방법</h4>
-                  <ul className="text-xs text-gray-500 space-y-1.5">
-                    <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5">1.</span> 아래 버튼으로 HTML 파일을 다운로드</li>
-                    <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5">2.</span> 브라우저에서 열어 그대로 확인</li>
-                    <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5">3.</span> GitHub Pages, Netlify 등에 호스팅 가능</li>
-                    <li className="flex items-start gap-2"><span className="text-emerald-500 font-bold mt-0.5">4.</span> Notion에서 <code className="bg-white px-1 py-0.5 rounded text-[11px]">/embed</code> 블록으로 호스팅 URL 삽입</li>
-                  </ul>
-                </div>
-
-                <button onClick={handleHtmlExport}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors">
-                  <Download size={16} /> HTML 파일 다운로드
+          {/* 링크 표시 및 복사 */}
+          {isPublic ? (
+            <>
+              <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
+                <Globe size={14} className="text-primary-400 flex-shrink-0" />
+                <span className="text-sm text-primary-700 truncate flex-1 font-mono">{publicUrl}</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopy}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? '복사됨!' : '링크 복사'}
                 </button>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
+                >
+                  <ExternalLink size={16} /> 열기
+                </a>
               </div>
-            )}
 
-            {/* ── Notion API Tab ── */}
-            {tab === 'notion' && (
-              <div className="space-y-4">
-                {notionStep === 1 && (
-                  <>
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <h4 className="text-sm font-bold text-amber-800 mb-2 flex items-center gap-1"><Info size={14} /> Notion Integration 설정 방법</h4>
-                      <ol className="text-sm text-amber-700 space-y-2 list-decimal list-inside">
-                        <li><a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline font-medium">notion.so/my-integrations</a> 접속</li>
-                        <li><strong>+ New integration</strong> 클릭 → 이름 입력 후 생성</li>
-                        <li>생성된 Integration의 <strong>Internal Integration Secret</strong> 복사</li>
-                        <li>Notion에서 포트폴리오를 생성할 <strong>부모 페이지</strong> 열기</li>
-                        <li>페이지 우측 상단 <strong>···</strong> → <strong>Connections</strong> → Integration 추가</li>
-                        <li>해당 페이지의 <strong>URL</strong> 복사</li>
-                      </ol>
-                    </div>
-                    <div className="bg-surface-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 leading-relaxed">
-                        Notion API로 생성하면 3컬럼 레이아웃, 표, 콜아웃 등이 <strong>Notion 네이티브 블록</strong>으로 생성됩니다.
-                        CSS는 Notion 기본 스타일을 따르므로 앱 프리뷰와 약간의 차이가 있을 수 있습니다.
-                      </p>
-                    </div>
-                    <button onClick={() => setNotionStep(2)}
-                      className="w-full py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-black transition-colors">
-                      다음 단계로 →
+              {/* 커스텀 슬러그 */}
+              <div className="pt-3 border-t border-surface-100">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-sm font-semibold text-gray-700">커스텀 링크 설정</p>
+                  {customSlug && (
+                    <span className="px-1.5 py-0.5 bg-primary-100 text-primary-700 text-[10px] font-bold rounded">적용 중</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  원하는 주소로 바꿀 수 있어요 · 영문 소문자, 숫자, 하이픈(-) 사용 가능
+                </p>
+                <div className="flex items-center gap-1.5 bg-surface-50 border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus-within:ring-2 focus-within:ring-primary-300 focus-within:border-primary-300 transition-all">
+                  <span className="text-gray-400 whitespace-nowrap flex-shrink-0">{window.location.origin}/p/</span>
+                  <input
+                    type="text"
+                    value={slugInput}
+                    onChange={handleSlugChange}
+                    placeholder={portfolioId.slice(0, 8) + '...'}
+                    className="flex-1 bg-transparent outline-none text-gray-800 font-mono min-w-0"
+                  />
+                </div>
+                {slugError && <p className="text-xs text-red-500 mt-1.5">{slugError}</p>}
+                <div className="flex gap-2 mt-2.5">
+                  <button
+                    onClick={handleSlugSave}
+                    disabled={slugSaving || !!slugError || !slugInput.trim() || slugInput === customSlug}
+                    className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-black disabled:opacity-40 transition-colors"
+                  >
+                    {slugSaving ? '저장 중...' : '저장'}
+                  </button>
+                  {customSlug && (
+                    <button
+                      onClick={handleSlugRemove}
+                      disabled={slugSaving}
+                      className="px-4 py-2.5 border border-surface-200 text-red-500 rounded-xl text-sm font-medium hover:bg-red-50 disabled:opacity-40 transition-colors"
+                    >
+                      제거
                     </button>
-                  </>
-                )}
-
-                {notionStep === 2 && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><Key size={14} /> Integration Token</label>
-                      <input type="password" value={notionToken} onChange={e => setNotionToken(e.target.value)}
-                        placeholder="ntn_xxxxxxxxxxxxxxxxxxxxx..."
-                        className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><FileText size={14} /> 부모 페이지 URL</label>
-                      <input value={parentPage} onChange={e => setParentPage(e.target.value)}
-                        placeholder="https://www.notion.so/My-Page-abc123..."
-                        className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300" />
-                    </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs text-blue-700">💡 토큰과 URL은 브라우저에 저장되어 다음에 자동 입력됩니다.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => setNotionStep(1)}
-                        className="flex-1 py-3 border border-surface-200 text-gray-600 rounded-xl font-medium hover:bg-surface-50 transition-colors">← 이전</button>
-                      <button onClick={handleNotionExport} disabled={exporting || !notionToken.trim() || !parentPage.trim()}
-                        className="flex-[2] flex items-center justify-center gap-2 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-black disabled:opacity-50 transition-colors">
-                        {exporting ? <><Loader2 size={16} className="animate-spin" /> 생성 중...</> : <><Download size={16} /> Notion 내보내기</>}
-                      </button>
-                    </div>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            )}
+            </>
+          ) : (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-sm text-amber-700">
+                💡 공개 링크를 활성화하면 링크를 아는 누구나 포트폴리오를 볼 수 있습니다.
+              </p>
+            </div>
+          )}
+
+          {/* HTML 다운로드 */}
+          <div className="pt-3 border-t border-surface-100">
+            <p className="text-xs text-gray-400 mb-2.5">오프라인 / 자체 호스팅용 파일</p>
+            <button
+              onClick={handleHtmlExport}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
+            >
+              <Download size={16} /> HTML 파일 다운로드
+            </button>
+            <p className="text-xs text-gray-400 mt-2 text-center">현재 포트폴리오 레이아웃을 그대로 HTML로 내보냅니다</p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -1338,7 +1481,7 @@ function ExperienceDetailModal({ exp, onClose }) {
   const fw = exp.framework && FRAMEWORKS[exp.framework];
   const hasSections = (exp.sections || []).some(s => s.title && s.content);
   const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
-  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(k => k.title);
+  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(Boolean);
   const st = STATUS_DISPLAY[exp.status] || STATUS_DISPLAY.finished;
   const [showAllProps, setShowAllProps] = useState(false);
 
@@ -1413,150 +1556,145 @@ function ExperienceDetailModal({ exp, onClose }) {
   const visibleProps = showAllProps ? props : props.slice(0, 3);
   const hiddenCount = props.length - 3;
 
+  const overview = structured.projectOverview || {};
+  const coverImg = structured.exportConfig?.coverImg || exp.thumbnailUrl || null;
+  const duration = overview.duration || exp.date || '';
+  const role = overview.role || exp.role || '';
+  const techStack = (overview.techStack?.length > 0 ? overview.techStack : null)
+    || (exp.skills?.length > 0 ? exp.skills : null)
+    || [];
+  const keywords = exp.keywords || [];
+  const goal = overview.goal || '';
+
+  // 섹션 목록
+  const exportCfg = structured.exportConfig;
+  const sectionsToRender = (() => {
+    if (exportCfg?.sections?.length > 0) {
+      return exportCfg.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content, key: s.key }));
+    }
+    if (hasSections) {
+      return (exp.sections || []).filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content, key: s.title }));
+    }
+    if (hasStructuredSections) {
+      return EXP_SECTION_KEYS_PREVIEW.filter(k => sectionContents[k]?.trim()).map(k => ({ label: EXP_SECTION_META_PREVIEW[k].label, content: sectionContents[k], key: k }));
+    }
+    return [];
+  })();
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[5vh] p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-[900px] shadow-2xl" onClick={e => e.stopPropagation()}>
-        {/* Close button */}
-        <div className="flex justify-start p-3 pb-0">
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50">
-            <X size={18} />
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[4vh] p-4 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-[780px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* 커버 이미지 영역 */}
+        <div className={`relative w-full ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
+          {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Title */}
-        <div className="px-16 pt-4 pb-2">
-          <h1 className="text-[28px] font-bold text-gray-900 leading-tight mb-4">{exp.title || '(제목 없음)'}</h1>
+        {/* 문서 본문 */}
+        <div className="max-w-[620px] mx-auto px-10 pb-14 pt-8 overflow-y-auto max-h-[75vh]">
+          {/* 제목 */}
+          <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
+            {exp.title || '(제목 없음)'}
+          </h1>
 
-          {/* Properties table (Notion style) */}
-          <div className="space-y-2">
-            {visibleProps.map((pr, i) => (
-              <div key={i} className="flex items-start gap-4 min-h-[32px] py-1">
-                <span className="w-24 text-sm text-gray-400 shrink-0 flex items-center gap-1.5 pt-0.5">
-                  {pr.label}
-                </span>
-                <div className="flex-1">{pr.node}</div>
+          {/* 프로퍼티 */}
+          <div className="mb-7 space-y-2 border-b border-surface-200 pb-5">
+            {duration && (
+              <div className="flex items-center gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">기간</span>
+                <span className="text-[13px] text-bluewood-700">{duration}</span>
               </div>
-            ))}
-          </div>
-
-          {hiddenCount > 0 && !showAllProps && (
-            <button onClick={() => setShowAllProps(true)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mt-2 py-1">
-              <ChevronRight size={12} /> 속성 {hiddenCount}개 더 보기
-            </button>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="mx-16 my-2 border-t border-surface-100" />
-
-        {/* Content */}
-        <div className="px-16 pb-10 space-y-6">
-          {/* 썸네일 */}
-          {exp.thumbnailUrl && (
-            <div className="w-full h-44 rounded-xl overflow-hidden bg-surface-50">
-              <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-
-          {/* 기본 정보 */}
-          <div>
-            <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
-              {exp.date && <span>{exp.date}</span>}
-              {exp.role && <span>{exp.role}</span>}
-              {structured.projectOverview?.team && <span>{structured.projectOverview.team}</span>}
-              {structured.projectOverview?.duration && <span>{structured.projectOverview.duration}</span>}
-              {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">링크</a>}
-            </div>
-            {(exp.skills || (structured.projectOverview?.techStack || [])).length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {(exp.skills?.length ? exp.skills : (structured.projectOverview?.techStack || [])).map((sk, si) => (
-                  <span key={si} className="px-2.5 py-1 bg-primary-50 text-primary-700 rounded-md text-xs font-medium border border-primary-100">{typeof sk === 'string' ? sk : sk?.name}</span>
-                ))}
+            )}
+            {role && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
+                <span className="text-[13px] text-bluewood-700 leading-relaxed">{role}</span>
+              </div>
+            )}
+            {techStack.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {techStack.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[12px]">
+                      {typeof t === 'string' ? t : t?.name || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {keywords.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {keywords.slice(0, 6).map((kw, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                      {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {goal && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                <span className="text-[13px] text-bluewood-700 leading-relaxed">{goal}</span>
+              </div>
+            )}
+            {exp.link && (
+              <div className="flex items-center gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">링크</span>
+                <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[13px] text-primary-600 hover:underline">
+                  <ExternalLink size={12} /> {exp.link}
+                </a>
               </div>
             )}
           </div>
 
-          {/* AI 요약 */}
-          {exp.aiSummary && (
-            <div className="bg-surface-50 border border-surface-200 rounded-lg p-4">
-              <p className="text-xs font-bold text-gray-700 mb-1">AI 역량 요약</p>
-              <p className="text-sm text-gray-600 leading-relaxed">{exp.aiSummary}</p>
-            </div>
-          )}
-
-          {/* 설명 또는 배경 */}
-          {(exp.description || structured.projectOverview?.background || structured.projectOverview?.summary) && (
-            <p className="text-sm text-gray-600 leading-relaxed bg-surface-50 rounded-xl p-4">
-              {exp.description || structured.projectOverview?.background || structured.projectOverview?.summary}
-            </p>
-          )}
-
-          {/* 핵심 경험 슬라이더 */}
+          {/* 핵심 경험 슬라이드 */}
           {keyExperiences.length > 0 && (
-            <div>
-              <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 & 성과</h4>
+            <div className="mb-7">
+              <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
               <KeyExperienceSlider keyExperiences={keyExperiences} />
             </div>
           )}
 
-          {/* 상세 섹션 (StructuredResult - 경험정리 내용) */}
-          {hasStructuredSections && (
-            <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
-              <div className="divide-y divide-surface-100">
-                {EXP_SECTION_KEYS_PREVIEW.map(key => {
-                  const meta = EXP_SECTION_META_PREVIEW[key];
-                  const val = sectionContents[key];
-                  if (!val?.trim()) return null;
-                  return (
-                    <div key={key}>
-                      <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-50/40">
-                        <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
-                        <span className="text-[13px] font-bold text-primary-700">{meta.label}</span>
-                      </div>
-                      <div className="px-5 py-3 pl-[60px]">
-                        {imagesLoaded && renderSectionImages(key, 'above')}
-                        <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
-                        {imagesLoaded && renderSectionImages(key, 'below')}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* 섹션 본문 */}
+          {sectionsToRender.length > 0 && (
+            <div className="space-y-7">
+              {sectionsToRender.map((sec, i) => (
+                <div key={i}>
+                  <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
+                    {sec.label}
+                  </h2>
+                  {imagesLoaded && renderSectionImages(sec.key, 'above')}
+                  <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                  {imagesLoaded && renderSectionImages(sec.key, 'below')}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* 경험 구조화 섹션 (sections - structuredResult이 없을 때) */}
-          {!hasStructuredSections && (exp.sections || []).map((sec, i) => (
-            sec.title && sec.content ? (
-              <div key={i}>
-                <h2 className="text-lg font-bold text-gray-900 mb-3">{sec.title}</h2>
-                <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{sec.content}</p>
-              </div>
-            ) : null
-          ))}
-
-          {/* 프레임워크 기반 상세 (sections 없을 때만 표시) */}
-          {!hasStructuredSections && hasFramework && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-3">{fw.name} 상세</h2>
-              <div className="space-y-4">
-                {fw.fields.map((field, idx) => {
-                  const val = exp.frameworkContent[field.key];
-                  if (!val) return null;
-                  return (
-                    <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
-                      <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
-                      <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{val}</p>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* 프레임워크 기반 상세 (sections·structuredResult 없을 때만 표시) */}
+          {sectionsToRender.length === 0 && hasFramework && (
+            <div className="space-y-4">
+              {fw.fields.map((field, idx) => {
+                const val = exp.frameworkContent[field.key];
+                if (!val) return null;
+                return (
+                  <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
+                    <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
+                    <p className="text-[14px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {/* 아무 내용도 없을 때 */}
-          {!exp.description && !hasSections && !hasFramework && !exp.aiSummary && keyExperiences.length === 0 && !hasStructuredSections && (
+          {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
           )}
         </div>

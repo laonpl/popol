@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import { analyzeExperience, extractMoments } from '../services/geminiService.js';
+import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
 
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, count, moments);
+      analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common');
     } catch (aiError) {
       const errMsg = aiError.message || '';
       console.error('Gemini AI 분석 실패 (최종):', errMsg);
@@ -110,6 +111,25 @@ router.get('/list', authMiddleware, async (req, res, next) => {
 
     res.json(experiences);
   } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/analyze-git - GitHub 커밋 분석으로 경험 스토리 생성
+router.post('/analyze-git', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { repoUrl, authorParam, githubToken } = req.body;
+    if (!repoUrl) return res.status(400).json({ error: 'GitHub 레포지토리 URL이 필요합니다.' });
+    if (!authorParam) return res.status(400).json({ error: 'GitHub 사용자명이 필요합니다.' });
+
+    const result = await analyzeGitCommits(repoUrl, authorParam, githubToken || undefined);
+    res.json(result);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('찾을 수 없습니다') || msg.includes('유효한') || msg.includes('커밋을 찾을 수 없습니다')) {
+      return res.status(400).json({ error: msg });
+    }
+    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
     next(error);
   }
 });

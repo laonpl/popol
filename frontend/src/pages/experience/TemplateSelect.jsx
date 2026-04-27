@@ -7,8 +7,9 @@ import {
   Loader2, Check, FolderOpen, Palette, Monitor,
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
-import useExperienceStore from '../../stores/experienceStore';
+import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
@@ -420,6 +421,8 @@ const FIELD_OPTIONS = [
   { value: '기획', label: '기획', icon: Monitor },
 ];
 
+// JOB_CATEGORIES는 experienceStore에서 가져옴 (import 됨)
+
 export default function TemplateSelect() {
   const { user } = useAuthStore();
   const { createExperience, analyzeExperience, extractMoments } = useExperienceStore();
@@ -431,11 +434,13 @@ export default function TemplateSelect() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [field, setField] = useState('');
+  const [jobCategory, setJobCategory] = useState('');
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [notionUrl, setNotionUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
+  const [githubUsername, setGithubUsername] = useState('');
   const [blogUrl, setBlogUrl] = useState('');
   const [linkInputs, setLinkInputs] = useState([]);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -509,7 +514,7 @@ export default function TemplateSelect() {
   };
 
   const hasInput = files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim() || blogUrl.trim() || linkInputs.some(l => l.trim());
-  const canNext1 = title.trim() && startDate;
+  const canNext1 = title.trim() && startDate && jobCategory;
 
   const updateLoadingStep = (stepIdx, status) => {
     setLoadingSteps(prev => prev.map((s, i) => i === stepIdx ? { ...s, status } : s));
@@ -586,9 +591,73 @@ export default function TemplateSelect() {
       if (githubUrl.trim()) {
         updateLoadingStep(stepIdx, 'loading');
         try {
+          // README/코드 구조 가져오기
           const data = await importFromUrl('github', githubUrl, 'experience');
           if (data.imported?.content) {
-            allText += `\n\n--- GitHub ---\n${data.imported.content}`;
+            allText += `\n\n--- GitHub 리포지토리 ---\n${data.imported.content}`;
+          }
+          // 내 커밋 분석 (username 입력된 경우)
+          if (githubUsername.trim()) {
+            let gitData = null;
+            try {
+              const res = await api.post('/experience/analyze-git', {
+                repoUrl: githubUrl.trim(),
+                authorParam: githubUsername.trim(),
+              });
+              gitData = res.data;
+            } catch (gitErr) {
+              const msg = gitErr.response?.data?.error || '';
+              if (msg.includes('커밋을 찾을 수 없습니다') || msg.includes('찾을 수 없습니다')) {
+                toast.error(`'${githubUsername.trim()}' 사용자의 커밋을 찾을 수 없습니다. GitHub 아이디를 확인해주세요.`, { duration: 5000 });
+                setStep(2);
+                return;
+              } else if (msg) {
+                toast.error(msg, { duration: 4000 });
+              } else {
+                toast.error('커밋 분석에 실패했습니다.', { duration: 3000 });
+              }
+            }
+            // 커밋 분석 성공 → moments에 직접 추가 (allText 우회)
+            if (gitData?.experiences?.length > 0) {
+              const toStrArr = (arr) => (arr || []).map(item =>
+                typeof item === 'string' ? item : Object.values(item).filter(v => typeof v === 'string').join(' ')
+              );
+              const gitMoments = gitData.experiences.map((exp, i) => ({
+                id: `git-${Date.now()}-${i}`,
+                title: exp.project_name || `GitHub 경험 ${i + 1}`,
+                type: 'project',
+                description: exp.core_impact || '',
+                keywords: exp.core_tech_stack ? exp.core_tech_stack.split(/,\s*/).map(s => s.trim()).filter(Boolean) : [],
+                // STAR 필드 매핑
+                context: [
+                  exp.period ? `기간: ${exp.period}` : '',
+                  ...toStrArr(exp.problem_definition),
+                ].filter(Boolean).join('\n'),
+                action: [
+                  ...toStrArr(exp.code_changes),
+                  ...toStrArr(exp.action_and_solution),
+                ].join('\n'),
+                result: exp.core_impact || '',
+                learning: [
+                  ...toStrArr(exp.troubleshooting),
+                  ...toStrArr(exp.learning),
+                ].join('\n'),
+                // 원본 깃 분석 데이터 보존 (검토 단계에서 표시용)
+                _git: {
+                  problem_definition: toStrArr(exp.problem_definition),
+                  code_changes: toStrArr(exp.code_changes),
+                  troubleshooting: toStrArr(exp.troubleshooting),
+                  action_and_solution: toStrArr(exp.action_and_solution),
+                  learning_items: toStrArr(exp.learning),
+                  core_tech_stack: exp.core_tech_stack || '',
+                  period: exp.period || '',
+                  totalCommits: gitData.totalCommits,
+                },
+              }));
+              // 기존 moments에 병합 (step4 진입 시 합쳐짐)
+              setMoments(prev => [...prev, ...gitMoments]);
+              toast.success(`커밋 ${gitData.totalCommits}개 분석 완료 → ${gitMoments.length}개 경험 추출`, { duration: 3000 });
+            }
           }
         } catch (err) {
           toast.error('GitHub 리포지토리 불러오기 실패');
@@ -618,34 +687,44 @@ export default function TemplateSelect() {
         stepIdx++;
       }
 
-      if (!allText.trim()) {
+      // 깃 분석으로 moments가 이미 채워진 경우 allText 없어도 통과
+      const hasGitMoments = moments.some(m => m.id?.startsWith('git-'));
+      if (!allText.trim() && !hasGitMoments) {
         toast.error('분석할 내용이 없습니다');
         setStep(2);
         return;
       }
 
-      // 6) 핵심 경험 추출 (최대 2회 재시도)
+      // 6) 핵심 경험 추출 — allText가 있을 때만 AI 추출, 없으면 git moments만으로 진행
       updateLoadingStep(stepIdx, 'loading');
-      let extractResult;
-      let extractError;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          extractResult = await extractMoments(allText.trim(), title.trim());
-          extractError = null;
-          break;
-        } catch (err) {
-          extractError = err;
-          if (attempt === 0) {
-            console.warn('핵심 경험 추출 1차 실패, 5초 후 재시도:', err.message);
-            await new Promise(r => setTimeout(r, 5000));
+      let aiMoments = [];
+      if (allText.trim()) {
+        let extractResult;
+        let extractError;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            extractResult = await extractMoments(allText.trim(), title.trim());
+            extractError = null;
+            break;
+          } catch (err) {
+            extractError = err;
+            if (attempt === 0) {
+              console.warn('핵심 경험 추출 1차 실패, 5초 후 재시도:', err.message);
+              await new Promise(r => setTimeout(r, 5000));
+            }
           }
         }
+        if (extractError) throw extractError;
+        aiMoments = extractResult.moments || [];
       }
-      if (extractError) throw extractError;
       updateLoadingStep(stepIdx, 'done');
 
       setCollectedText(allText.trim());
-      setMoments(extractResult.moments || []);
+      // 깃 분석 moments(git-*)와 AI 추출 moments 병합
+      setMoments(prev => {
+        const gitMoments = prev.filter(m => m.id?.startsWith('git-'));
+        return [...gitMoments, ...aiMoments];
+      });
       setStep(4); // 검토 단계로 이동
 
     } catch (error) {
@@ -762,6 +841,7 @@ export default function TemplateSelect() {
         framework: 'STRUCTURED',
         period,
         field: field || undefined,
+        jobCategory: jobCategory || 'common',
         content: { rawInput: finalText },
         momentsCount: moments.length,
       });
@@ -993,6 +1073,11 @@ export default function TemplateSelect() {
                     >
                       <span className={`text-[10px] font-semibold mr-1.5 ${isActive ? 'text-white/50' : 'text-bluewood-300'}`}>{idx + 1}.</span>
                       <span className="line-clamp-2">{m.title}</span>
+                      {m._git && (
+                        <span className={`block mt-1 text-[10px] font-medium ${isActive ? 'text-blue-300' : 'text-blue-500'}`}>
+                          GitHub 커밋 분석
+                        </span>
+                      )}
                       {isMissing && (
                         <span className={`block mt-1 text-[10px] font-medium ${isActive ? 'text-amber-300' : 'text-amber-500'}`}>
                           성과 보완 가능
@@ -1194,7 +1279,66 @@ export default function TemplateSelect() {
 
                   {/* 본문 */}
                   <div className="px-5 py-4">
-                    {editingMomentId === currentM.id ? (
+                    {/* GitHub 커밋 분석 결과 전용 뷰 */}
+                    {currentM._git ? (
+                      <div className="space-y-3 text-[12.5px]">
+                        {currentM._git.problem_definition?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold text-red-500 mb-1.5 flex items-center gap-1">🔴 문제 상황 (AS-IS)</p>
+                            <ul className="space-y-1">
+                              {currentM._git.problem_definition.map((p, i) => (
+                                <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-red-400 flex-shrink-0">•</span>{p}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {currentM._git.code_changes?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold text-purple-600 mb-1.5 flex items-center gap-1">🟣 코드 변경 내용</p>
+                            <ul className="space-y-1">
+                              {currentM._git.code_changes.map((c, i) => (
+                                <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-purple-400 flex-shrink-0 font-mono">±</span>{c}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {currentM._git.troubleshooting?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">🟠 트러블슈팅</p>
+                            <ul className="space-y-1">
+                              {currentM._git.troubleshooting.map((t, i) => (
+                                <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-orange-400 flex-shrink-0">→</span>{t}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {currentM._git.action_and_solution?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">🔵 실행 전략</p>
+                            <ul className="space-y-1">
+                              {currentM._git.action_and_solution.map((a, i) => (
+                                <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-blue-400 flex-shrink-0">→</span>{a}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {currentM._git.learning_items?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold text-emerald-600 mb-1.5 flex items-center gap-1">🟢 인사이트 & 성장</p>
+                            <ul className="space-y-1">
+                              {currentM._git.learning_items.map((l, i) => (
+                                <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-emerald-400 flex-shrink-0">✓</span>{l}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="pt-2 border-t border-surface-100 flex items-center gap-3 text-[11px] text-bluewood-400">
+                          <span>기술스택: <span className="font-medium text-bluewood-600">{currentM._git.core_tech_stack}</span></span>
+                          {currentM._git.period && <span>기간: {currentM._git.period}</span>}
+                          <span>커밋 {currentM._git.totalCommits}개 분석</span>
+                        </div>
+                      </div>
+                    ) : editingMomentId === currentM.id ? (
                       <InlineCarlEdit
                         description={currentM.description}
                         onChange={(newDesc) => updateMoment(currentM.id, 'description', newDesc)}
@@ -1418,7 +1562,7 @@ export default function TemplateSelect() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Basic Information</p>
             <h1 className="text-[34px] font-bold tracking-[-0.03em] text-bluewood-900">프로젝트 기본 정보를 입력해주세요</h1>
             <p className="mt-3 text-sm leading-6 text-bluewood-400">
-              프로젝트명과 기간, 분야를 먼저 정리하면 다음 단계에서 자료 수집과 경험 검토를 더 깔끔하게 이어갈 수 있어요.
+              프로젝트명과 기간, <span className="font-medium text-bluewood-600">직군</span>을 먼저 정리하면 직군에 맞춘 특화 섹션이 자동으로 추가됩니다.
             </p>
           </div>
 
@@ -1459,31 +1603,41 @@ export default function TemplateSelect() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
-                <label className="pt-3 text-sm font-semibold text-bluewood-700">분야</label>
-                <div className="flex flex-wrap gap-3">
-                {FIELD_OPTIONS.map(opt => {
-                  const Icon = opt.icon;
-                  const selected = field === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setField(selected ? '' : opt.value)}
-                      className={`inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-medium transition-all ${
-                        selected
-                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
-                          : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
-                      }`}
-                    >
-                      <Icon size={14} />
-                      {opt.label}
-                    </button>
-                  );
-                })}
+                <label className="pt-3 text-sm font-semibold text-bluewood-700">
+                  직군 선택 <span className="text-red-400">*</span>
+                </label>
+                <div className="space-y-4">
+                  {JOB_CATEGORIES.map(group => (
+                    <div key={group.group}>
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-bluewood-300">{group.group}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.items.map(opt => {
+                          const selected = jobCategory === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setJobCategory(selected ? '' : opt.value)}
+                              title={opt.description}
+                              className={`group relative inline-flex flex-col items-start gap-0.5 rounded-2xl border px-4 py-3 text-left transition-all ${
+                                selected
+                                  ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
+                                  : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
+                              }`}
+                            >
+                              <span className="text-sm font-semibold leading-tight">{opt.label}</span>
+                              <span className={`text-[10px] leading-snug ${selected ? 'text-primary-100' : 'text-bluewood-300'}`}>{opt.description}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-        </div>
         <div className="flex flex-col items-center gap-3 pt-6 md:pt-8">
           <button
             onClick={() => setStep(2)}
@@ -1493,7 +1647,7 @@ export default function TemplateSelect() {
             다음 단계
             <ChevronRight size={18} />
           </button>
-          <p className="text-center text-xs text-bluewood-400">AI 분석 과정은 자료량에 따라 최대 5분 소요될 수 있어요</p>
+          <p className="text-center text-xs text-bluewood-400">프로젝트명·기간·직군 모두 선택해야 다음 단계로 이동할 수 있어요</p>
         </div>
       </div>
       )}
@@ -1591,15 +1745,29 @@ export default function TemplateSelect() {
                 />
               </div>
               {/* GitHub */}
-              <div className="relative">
-                <Github size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                <input
-                  type="url"
-                  value={githubUrl}
-                  onChange={e => setGithubUrl(e.target.value)}
-                  placeholder="GitHub 리포지토리 URL"
-                  className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                />
+              <div className="space-y-2">
+                <div className="relative">
+                  <Github size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
+                  <input
+                    type="url"
+                    value={githubUrl}
+                    onChange={e => setGithubUrl(e.target.value)}
+                    placeholder="GitHub 리포지토리 URL"
+                    className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
+                  />
+                </div>
+                {githubUrl.trim() && (
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300 text-sm font-medium">@</span>
+                    <input
+                      type="text"
+                      value={githubUsername}
+                      onChange={e => setGithubUsername(e.target.value)}
+                      placeholder="내 GitHub 아이디 (커밋 필터용)"
+                      className="w-full pl-8 pr-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all bg-gray-50"
+                    />
+                  </div>
+                )}
               </div>
               {/* 블로그 */}
               <div className="relative">

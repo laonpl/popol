@@ -112,7 +112,7 @@ export { parseJSON };
  * 각 단계는 Pro 우선 모드로 호출하며, Pro가 끝까지 실패하는 경우에만 Lite로 폴백.
  * 분할 호출 덕분에 각 요청은 Pro의 TPM/output 한도 내에 충분히 들어감.
  */
-export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null) {
+export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common') {
   const entries = Object.entries(content).filter(([, val]) => val && String(val).trim().length > 0);
   if (entries.length === 0) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
@@ -140,7 +140,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   // 각 단계는 서로의 결과에 의존하지 않으므로 동시 실행 가능.
   // ============================================================
   const overviewPromise = (async () => {
-    const prompt = buildOverviewPrompt(contentText);
+    const prompt = buildOverviewPrompt(contentText, jobCategory);
     const text = await callProFirst(prompt, 'Step1-Overview');
     return parseJSON(text);
   })();
@@ -244,6 +244,8 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     output:    overviewJson.output || '',
     growth:    overviewJson.growth || '',
     competency: overviewJson.competency || '',
+    jobCategory: jobCategory || 'common',
+    jobSpecific: overviewJson.jobSpecific || {},
     keywords:  metaJson.keywords || [],
     highlights: metaJson.highlights || [],
     followUpQuestions: metaJson.followUpQuestions || [],

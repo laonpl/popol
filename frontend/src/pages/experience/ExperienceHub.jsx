@@ -83,10 +83,12 @@ export default function ExperienceHub() {
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
@@ -693,6 +695,8 @@ export default function ExperienceHub() {
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />
       )}
+
+
 
       {/* 간트 호버 툴팁 */}
       {hoveredBar && (() => {
