@@ -10,6 +10,7 @@ import exportRoutes from './routes/export.js';
 import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
 import uploadRoutes from './routes/upload.js';
+import waitlistRoutes from './routes/waitlist.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { getQueueStats } from './config/geminiClient.js';
 
@@ -76,6 +77,7 @@ app.use('/api/export', ...aiLimiters, exportRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/job', ...aiLimiters, jobRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 
 // 업로드된 이미지 정적 서빙 (cross-origin 허용)
 app.use('/uploads', (req, res, next) => {

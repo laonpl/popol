@@ -1,0 +1,1253 @@
+import React, { useState } from 'react';
+import { 
+  FileText, 
+  Briefcase, 
+  Mail, 
+  Folder, 
+  ChevronRight,
+  MonitorSmartphone,
+  PenTool,
+  Code,
+  Palette,
+  LayoutTemplate,
+  List,
+  LayoutGrid,
+  Columns,
+  Search,
+  Filter,
+  ArrowUpDown,
+  MoreHorizontal,
+  Plus,
+  ChevronDown,
+  Phone,
+  MapPin,
+  Instagram,
+  Star,
+  Lightbulb,
+  CheckCircle2,
+  ExternalLink,
+  Target,
+  X,
+  UserCircle2,
+  Image as ImageIcon,
+  Moon
+} from 'lucide-react';
+
+// 🌟 여기에 본인의 정보를 입력하세요! 🌟
+// 이 객체의 내용만 수정하면 모든 템플릿에 자동 적용됩니다.
+const myData = {
+  name: "홍길동",
+  title: "UX/UI Designer & Front-end Developer",
+  catchphrase: "사용자의 불편을 수치로 파악하고, 직관적인 UI로 문제를 해결하는 디자이너", // 템플릿 4에서 강조되는 한 줄 소개입니다.
+  email: "gildong.hong@email.com",
+  phone: "010-1234-5678",
+  location: "서울특별시 강남구",
+  social: {
+    instagram: "@gildong_design",
+    youtube: "youtube.com/@gildong",
+    blog: "velog.io/@gildong"
+  },
+  about: "안녕하세요. 사용자 경험을 설계하는 디자이너 홍길동입니다.\n문제 해결을 위한 디자인을 고민하고, 코드로 구현하는 과정까지 즐깁니다.",
+  education: [
+    { period: "2018.03 - 2024.02", school: "한국대학교", major: "시각디자인학과 학사", details: ["학점 4.2 / 4.5", "디자인 동아리 회장 및 전시 기획"] },
+    { period: "2023.01 - 2023.06", school: "IT 부트캠프", major: "프론트엔드 개발 과정 수료", details: ["React 기반 웹 애플리케이션 개발", "팀 프로젝트 우수상 수상"] }
+  ],
+  experience: [
+    { period: "2022.03 - 현재", company: "(주)유저익스피리언스", role: "UI/UX Designer", details: ["자사 서비스 웹/앱 UI/UX 리뉴얼 및 고도화", "디자인 시스템 구축 및 관리 가이드라인 제작"] },
+    { period: "2021.01 - 2022.02", company: "웹에이전시", role: "Web Publisher", details: ["다수의 에이전시 프로젝트 웹 디자인 및 퍼블리싱", "반응형 웹 사이트 구축 및 크로스 브라우징 최적화"] }
+  ],
+  projects: [
+    { 
+      name: "커머스 앱 리뉴얼", period: "2023.05 - 2023.08", tag: "UI/UX", tagColor: "bg-blue-100 text-blue-700", desc: "기존 커머스 앱의 불편한 결제 과정을 개선하고 전체적인 UI를 모던하게 리뉴얼한 프로젝트입니다.", img: "bg-blue-50",
+      details: ["기여도: 100% (기획 및 UI/UX 전담)", "주요 성과: 결제 이탈률 15% 감소, 일간 활성 사용자(DAU) 20% 증가", "사용 툴: Figma, Protopie", "문제 해결: 복잡한 할인 쿠폰 적용 단계 최소화 (5단계 -> 3단계)"]
+    },
+    { 
+      name: "브랜드 웹사이트 구축", period: "2022.09 - 2022.12", tag: "Web Design", tagColor: "bg-pink-100 text-pink-700", desc: "신규 브랜드 런칭에 맞춘 반응형 웹사이트 기획, 디자인 및 퍼블리싱 전 과정을 담당했습니다.", img: "bg-pink-50",
+      details: ["기여도: 디자인 100%, 퍼블리싱 100%", "사용 기술: HTML5, CSS3, JavaScript", "주요 특징: 브랜드 아이덴티티를 반영한 인터랙티브 웹, 웹 접근성 표준 준수"]
+    },
+    { 
+      name: "사내 어드민 대시보드", period: "2024.01 - 2024.04", tag: "Dashboard", tagColor: "bg-green-100 text-green-700", desc: "복잡한 데이터를 한눈에 파악할 수 있도록 데이터 시각화에 초점을 맞춘 대시보드 디자인입니다.", img: "bg-green-50",
+      details: ["기여도: 100% (UX/UI 디자인 및 데이터 시각화 기획)", "주요 성과: 임직원 업무 효율성 30% 증대 (사내 자체 설문 결과)", "문제 해결: 방대한 데이터를 직관적인 차트와 그리드로 구조화하여 정보 가독성 대폭 개선"]
+    }
+  ],
+  skills: [
+    { name: "Figma", percent: "95%", desc: "와이어프레임 설계, 디자인 시스템 구축 및 개발자 간 피드백 시 주로 사용" },
+    { name: "Photoshop", percent: "85%", desc: "프로모션 배너 및 마케팅 소재 그래픽 에셋 제작" },
+    { name: "HTML/CSS", percent: "90%", desc: "웹 표준 및 접근성을 고려한 시맨틱 마크업 및 크로스 브라우징 대응" },
+    { name: "React", percent: "60%", desc: "재사용 가능한 UI 컴포넌트 개발 및 기본적인 상태 관리 가능" },
+    { name: "Notion", percent: "90%", desc: "협업 시 회의록, 프로젝트 칸반보드 및 작업 히스토리 기록용으로 활용" }
+  ],
+  awards: [
+    { date: "2023.11", title: "K-디자인 어워드 위너" },
+    { date: "2022.05", title: "교내 웹 기획 공모전 대상" }
+  ]
+};
+
+// ==========================================
+// 공통 모달창 컴포넌트 (Project Modal)
+// ==========================================
+const ProjectModal = ({ project, onClose }) => {
+  if (!project) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* 배경 오버레이 */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
+      
+      {/* 모달 콘텐츠 */}
+      <div className="relative bg-white w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className={`w-full h-48 sm:h-56 ${project.img} relative flex-shrink-0 flex items-center justify-center text-gray-500/30 font-bold text-xl`}>
+          Cover Image
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/30 text-gray-800 hover:text-white rounded-full transition-colors backdrop-blur-md">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="p-8 md:p-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">{project.name}</h2>
+          <p className="text-gray-500 mb-6 font-medium">{project.period}</p>
+          <div className="mb-8">
+            <span className={`px-3 py-1 text-sm font-bold rounded-md ${project.tagColor}`}>{project.tag}</span>
+          </div>
+          
+          <div className="text-gray-700 space-y-6">
+            <p className="text-lg leading-relaxed">{project.desc}</p>
+            
+            {project.details && (
+              <div className="mt-8">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">프로젝트 상세</h3>
+                <ul className="space-y-3">
+                  {project.details.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 1. 기존 노션 기본 스타일 (Original)
+// ==========================================
+const NotionTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-white text-[#37352f] font-sans selection:bg-blue-200 pt-16">
+      <div className="w-full h-52 md:h-64 bg-gray-400 flex items-center justify-center relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20"></div>
+        <h1 className="text-5xl md:text-7xl font-light text-white/80 tracking-widest uppercase relative z-10 select-none">
+          PORTFOLIO
+        </h1>
+      </div>
+      <div className="max-w-4xl mx-auto px-6 md:px-24 pb-32">
+        <div className="relative -mt-12 mb-8">
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-5xl shadow-sm border border-gray-100 z-10 relative">
+            🧑🏻‍💻
+          </div>
+        </div>
+        <h1 className="text-4xl font-bold mb-4">Portfolio of {data.name}</h1>
+        <p className="text-[#787774] text-lg mb-8 whitespace-pre-wrap">
+          {data.about}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-12">
+          <div className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors group">
+            <FileText className="w-5 h-5 text-gray-500" />
+            <span className="border-b border-transparent group-hover:border-gray-400 transition-colors">이력서 (Resume)</span>
+          </div>
+          <div className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors group">
+            <Briefcase className="w-5 h-5 text-gray-500" />
+            <span className="border-b border-transparent group-hover:border-gray-400 transition-colors">경력 기술서 (Experience)</span>
+          </div>
+          <div className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors group">
+            <Folder className="w-5 h-5 text-gray-500" />
+            <span className="border-b border-transparent group-hover:border-gray-400 transition-colors">프로젝트 모음 (Projects)</span>
+          </div>
+          <div className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors group">
+            <Mail className="w-5 h-5 text-gray-500" />
+            <span className="border-b border-transparent group-hover:border-gray-400 transition-colors">연락처 (Contact)</span>
+          </div>
+        </div>
+
+        <hr className="border-[#ededed] my-8" />
+
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-6">
+            <Briefcase className="w-6 h-6" />
+            <h2 className="text-2xl font-bold">Work Experience</h2>
+          </div>
+          <div className="space-y-6">
+            {data.experience.map((exp, idx) => (
+              <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-8 hover:bg-gray-50 p-2 -ml-2 rounded-md transition-colors">
+                <div className="w-full md:w-1/4 text-[#787774] shrink-0 pt-1">{exp.period}</div>
+                <div>
+                  <h3 className="text-lg font-bold mb-1">{exp.company}</h3>
+                  <p className="text-gray-600 mb-2 font-medium">{exp.role}</p>
+                  <ul className="list-disc list-outside ml-4 space-y-1 text-[#37352f] text-sm md:text-base">
+                    {exp.details.map((detail, i) => <li key={i}>{detail}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <hr className="border-[#ededed] my-8" />
+
+        {/* Projects Section */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-6">
+            <Folder className="w-6 h-6" />
+            <h2 className="text-2xl font-bold">Projects</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} onClick={() => onProjectClick(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+                <div className={`aspect-video ${proj.img} flex items-center justify-center overflow-hidden`}>
+                  <div className="w-3/4 h-3/4 bg-white/40 rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"></div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-bold text-lg mb-1 flex items-center gap-1">
+                    {proj.name} <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </h3>
+                  <p className="text-sm text-[#787774] mb-3 line-clamp-2">{proj.desc}</p>
+                  <div className="flex gap-1">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor}`}>{proj.tag}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 2. 베이지 톤 노션 스타일 (Image 1 기반)
+// ==========================================
+const BeigeNotionTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-white text-[#37352f] font-serif pt-16 pb-32">
+      <div className="max-w-3xl mx-auto px-6">
+        <div className="py-12 border-b-2 border-gray-100">
+          <h1 className="text-6xl md:text-8xl font-light text-[#dedbd2] tracking-tighter uppercase mb-4">PORTFOLIO</h1>
+          <h2 className="text-2xl font-bold text-gray-800">Notion Portfolio (판매용)</h2>
+        </div>
+
+        <div className="py-10 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-500 mb-6">{data.title}</h3>
+          <div className="flex justify-between items-center">
+            <div className="flex-1">
+              <h4 className="text-lg font-bold mb-4">About me</h4>
+              <div className="border-l-4 border-black pl-4 py-1">
+                <p className="text-sm font-sans text-gray-700 leading-relaxed whitespace-pre-wrap">{data.about}</p>
+              </div>
+              <p className="text-xs text-gray-400 italic mt-4 font-sans">2023.04.11 UPDATE</p>
+            </div>
+            <div className="w-24 h-24 bg-[#e8e4db] rounded-full flex items-center justify-center text-5xl ml-6 shrink-0">👩🏻‍🎨</div>
+          </div>
+        </div>
+
+        <div className="flex justify-between gap-2 py-8 border-b border-gray-100 font-sans text-sm">
+          <div className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">RESUME</div>
+          <div className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">PROJECT</div>
+          <div className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">SKILLS</div>
+          <div className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">CONTACT</div>
+        </div>
+
+        <div className="py-10">
+          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8">RESUME</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 font-sans">
+            <div>
+              <div className="bg-[#f3f2eb] text-center py-1 font-bold mb-6">Education</div>
+              {data.education.map((edu, idx) => (
+                <div key={idx} className="mb-8">
+                  <h4 className="font-bold text-lg">{edu.school}</h4>
+                  <p className="text-sm text-gray-600 mb-2">{edu.major}</p>
+                  <p className="text-xs text-gray-400 mb-2">{edu.period}</p>
+                  <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                    {edu.details.map((detail, i) => <li key={i}>{detail}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="bg-[#f3f2eb] text-center py-1 font-bold mb-6">Experience</div>
+              {data.experience.map((exp, idx) => (
+                <div key={idx} className="mb-8">
+                  <h4 className="font-bold text-lg">{exp.company}</h4>
+                  <p className="text-sm text-gray-600 mb-2">{exp.role}</p>
+                  <p className="text-xs text-gray-400 mb-2">{exp.period}</p>
+                  <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                    {exp.details.map((detail, i) => <li key={i}>{detail}</li>)}
+                  </ul>
+                </div>
+              ))}
+              <div className="bg-[#f3f2eb] text-center py-1 font-bold mb-6 mt-10">Awards</div>
+              {data.awards.map((award, idx) => (
+                <div key={idx} className="mb-8">
+                  <h4 className="font-bold text-lg">{award.title}</h4>
+                  <p className="text-xs text-gray-400 mb-2">{award.date}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="py-10 border-t border-gray-100 font-sans">
+          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8 font-serif">PROJECT</h2>
+          <div className="flex items-center gap-2 mb-4 text-sm font-bold text-gray-600"><Folder className="w-4 h-4"/> Portfolio</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} onClick={() => onProjectClick(proj)} className="border border-gray-200 rounded-md overflow-hidden cursor-pointer hover:shadow-md transition group">
+                <div className={`h-40 ${proj.img} flex items-center justify-center font-bold text-lg text-gray-800`}>{proj.name}</div>
+                <div className="p-3 bg-white text-sm text-gray-600 flex items-center gap-1 group-hover:text-black transition-colors"><ChevronRight className="w-4 h-4"/> {proj.desc.split(' ')[0]}... 상세보기</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="py-10 border-t border-gray-100 font-sans">
+          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8 font-serif">SKILLS</h2>
+          <div className="flex items-center gap-2 mb-4 text-sm font-bold text-gray-600"><LayoutGrid className="w-4 h-4"/></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {data.skills.map((skill, idx) => (
+              <div key={idx} className="border border-gray-200 p-4 rounded-md bg-white">
+                <div className="font-bold text-sm mb-2 flex justify-between">
+                  {skill.name} <span className="text-xs text-gray-400">{skill.percent}</span>
+                </div>
+                <div className="w-full bg-gray-100 h-2 mb-3 rounded overflow-hidden">
+                  <div className="bg-black h-full" style={{ width: skill.percent }}></div>
+                </div>
+                <div className="text-xs text-gray-500 line-clamp-2">{skill.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="py-10 border-t border-gray-100 font-serif pb-20">
+          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8">Contact</h2>
+          <div className="border-l-2 border-black pl-4 mb-6 font-sans">
+            <p className="text-sm mb-1">tel : {data.phone}</p>
+            <p className="text-sm">e-mail : {data.email}</p>
+          </div>
+          <p className="text-sm text-gray-500 font-sans">Youtube / Instagram / Blog / Github</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 3. 데이터베이스 노션 스타일 (Image 2 기반)
+// ==========================================
+const DatabaseHeader = () => (
+  <div className="flex justify-between items-center mb-4 text-gray-500 border-b border-gray-100 pb-2">
+    <div className="flex gap-1">
+      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><List className="w-4 h-4" /></div>
+      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><LayoutGrid className="w-4 h-4" /></div>
+      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><Columns className="w-4 h-4" /></div>
+    </div>
+    <div className="flex gap-2 items-center">
+      <Filter className="w-4 h-4 cursor-pointer hover:text-gray-800" />
+      <ArrowUpDown className="w-4 h-4 cursor-pointer hover:text-gray-800" />
+      <Search className="w-4 h-4 cursor-pointer hover:text-gray-800" />
+      <MoreHorizontal className="w-4 h-4 cursor-pointer hover:text-gray-800" />
+      <button className="bg-blue-500 text-white px-2 py-1 rounded text-xs flex items-center gap-1 hover:bg-blue-600">
+        새로 만들기 <ChevronDown className="w-3 h-3"/>
+      </button>
+    </div>
+  </div>
+);
+
+const StructuredNotionTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-white text-[#37352f] font-sans pt-16 pb-32">
+      <div className="h-12 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-8"></div>
+      
+      <div className="max-w-4xl mx-auto px-6">
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold mb-8">깔끔한 감각 포트폴리오 색다른 이력</h1>
+          <div className="flex flex-col md:flex-row items-center gap-8 justify-center">
+            <div className="w-32 h-32 bg-pink-100 rounded-full flex items-center justify-center text-6xl shadow-sm">👱🏻‍♀️</div>
+            <div className="text-left border border-gray-200 p-6 rounded-lg shadow-sm w-full md:w-[400px]">
+              <h3 className="font-bold text-lg mb-2">안녕하세요! {data.name}입니다.</h3>
+              <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+                {data.title}<br/>{data.about.split('\n')[0]}
+              </p>
+              <h4 className="font-bold text-sm mb-2 border-b pb-1">contact</h4>
+              <div className="space-y-1 text-xs text-gray-600">
+                <p className="flex items-center gap-2"><Phone className="w-3 h-3"/> {data.phone}</p>
+                <p className="flex items-center gap-2"><Mail className="w-3 h-3"/> {data.email}</p>
+                <p className="flex items-center gap-2"><Instagram className="w-3 h-3"/> {data.social.instagram}</p>
+                <p className="flex items-center gap-2"><MapPin className="w-3 h-3"/> {data.location}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-1 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-12 opacity-50"></div>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-bold mb-4">Education</h2>
+          <DatabaseHeader />
+          <div className="space-y-3">
+            {data.education.map((edu, idx) => (
+              <div key={idx} className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded">
+                <span className="text-sm text-gray-500 w-40">{edu.period}</span>
+                <span className="font-bold text-sm">▶ {edu.school} {edu.major}</span>
+              </div>
+            ))}
+            <div className="text-gray-400 text-sm flex items-center gap-1 cursor-pointer mt-2 hover:bg-gray-50 w-fit p-1 rounded"><Plus className="w-4 h-4"/> 새 페이지</div>
+          </div>
+        </div>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-bold mb-4">Experiences</h2>
+          <DatabaseHeader />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {data.experience.map((exp, idx) => (
+              <div key={idx} className="border border-gray-200 rounded-md p-4 shadow-sm bg-white">
+                <h3 className="font-bold text-purple-700 flex items-center gap-2 mb-2"><Briefcase className="w-4 h-4"/> {exp.company}</h3>
+                <p className="text-xs text-gray-400 mb-2">{exp.period}</p>
+                <p className="text-sm font-semibold mb-2">{exp.role}</p>
+                <p className="text-xs text-gray-600 line-clamp-3">{exp.details[0]}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-bold mb-4">Project</h2>
+          <DatabaseHeader />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} onClick={() => onProjectClick(proj)} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white group cursor-pointer hover:border-gray-300 transition-colors">
+                <div className={`h-40 ${proj.img} flex items-center justify-center text-gray-600/50 text-xs font-bold group-hover:bg-opacity-80 transition-all`}>{proj.name}</div>
+                <div className="p-4">
+                  <h3 className="font-bold mb-1">{proj.name}</h3>
+                  <p className="text-xs text-gray-400 mb-2">{proj.period}</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${proj.tagColor}`}>{proj.tag}</span>
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-1">{proj.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-1 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-12 opacity-50"></div>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-bold mb-4">Skill</h2>
+          <DatabaseHeader />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {data.skills.map((skill, idx) => (
+              <div key={idx} className="border border-gray-200 rounded-md p-3 shadow-sm bg-white">
+                <h4 className="font-bold text-sm mb-2">{skill.name}</h4>
+                <p className="text-xs text-gray-500 mb-1">{skill.percent}</p>
+                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-green-500 h-full" style={{ width: skill.percent }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center gap-6 justify-center mt-20 mb-10">
+          <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center text-4xl shadow-sm">👱🏻‍♀️</div>
+          <div className="border border-yellow-200 bg-yellow-50/50 p-6 rounded-lg w-full md:w-[400px]">
+             <h4 className="font-bold mb-1 flex items-center gap-2"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500"/> 좋은 인연으로 함께 일하고 싶습니다</h4>
+             <p className="text-xs text-gray-500 mb-4 ml-6">감사합니다 :)</p>
+             <div className="space-y-1 text-sm text-gray-700 ml-6">
+                <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {data.phone}</p>
+                <p className="flex items-center gap-2"><Mail className="w-4 h-4"/> {data.email}</p>
+             </div>
+          </div>
+        </div>
+      </div>
+      <div className="h-4 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mt-8 opacity-50"></div>
+    </div>
+  );
+};
+
+// ==========================================
+// 4. 문제해결 중심 노션 스타일 (FameLee 기반)
+// ==========================================
+const ProblemSolvingTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-[#fcfcfc] text-[#37352f] font-sans pt-24 pb-32">
+      <div className="max-w-4xl mx-auto px-6">
+        
+        {/* 헤더 & 프로필 */}
+        <header className="mb-12">
+          <h1 className="text-4xl font-extrabold mb-2 tracking-tight">{data.name}</h1>
+          <p className="text-xl text-gray-500 font-medium mb-8">{data.title}</p>
+          
+          {/* 콜아웃: 한 줄 소개 (해결사로서의 정체성 강조) */}
+          <div className="bg-[#f7f6f3] border border-gray-200 rounded-lg p-5 flex items-start gap-4">
+            <span className="text-2xl">💡</span>
+            <div>
+              <p className="font-bold text-lg mb-1">{data.catchphrase}</p>
+              <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{data.about}</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          
+          {/* 왼쪽 컬럼 (연락처 & 스킬) */}
+          <div className="lg:col-span-1 space-y-10">
+            
+            {/* Contact */}
+            <section>
+              <h2 className="text-lg font-bold border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-gray-400" /> Contact
+              </h2>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p className="flex items-center gap-2 hover:text-blue-600 cursor-pointer"><Phone className="w-4 h-4"/> {data.phone}</p>
+                <p className="flex items-center gap-2 hover:text-blue-600 cursor-pointer"><Mail className="w-4 h-4"/> {data.email}</p>
+                <p className="flex items-center gap-2 hover:text-blue-600 cursor-pointer"><ExternalLink className="w-4 h-4"/> {data.social.blog}</p>
+              </div>
+            </section>
+
+            {/* Skills (맥락 중심) */}
+            <section>
+              <h2 className="text-lg font-bold border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-gray-400" /> Tools & Usage
+              </h2>
+              <div className="space-y-4">
+                {data.skills.map((skill, idx) => (
+                  <div key={idx} className="bg-white border border-gray-100 p-3 rounded shadow-sm">
+                    <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded mb-2">
+                      {skill.name}
+                    </span>
+                    {/* 단순 %가 아닌, '이 기술을 어디에 어떻게 썼는지'를 강조 */}
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      {skill.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* 오른쪽 컬럼 (경험 & 프로젝트) */}
+          <div className="lg:col-span-2 space-y-12">
+            
+            {/* 핵심 경험 */}
+            <section>
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Briefcase className="w-6 h-6 text-gray-800" /> Core Experience
+              </h2>
+              <div className="space-y-6">
+                {data.experience.map((exp, idx) => (
+                  <div key={idx} className="relative pl-6 border-l-2 border-gray-200">
+                    <div className="absolute w-3 h-3 bg-white border-2 border-gray-400 rounded-full -left-[7px] top-1.5"></div>
+                    <div className="mb-1 flex flex-wrap items-baseline gap-2">
+                      <h3 className="font-bold text-lg text-gray-900">{exp.company}</h3>
+                      <span className="text-sm font-medium text-blue-600">{exp.role}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-3">{exp.period}</p>
+                    <ul className="space-y-1 text-sm text-gray-700">
+                      {exp.details.map((detail, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                          <span>{detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* 프로젝트 (갤러리 뷰 응용) */}
+            <section>
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Folder className="w-6 h-6 text-gray-800" /> Projects
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {data.projects.map((proj, idx) => (
+                  <div key={idx} onClick={() => onProjectClick(proj)} className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col">
+                    <div className={`h-32 ${proj.img} flex items-center justify-center overflow-hidden`}>
+                      <div className="w-full h-full bg-black/5 flex items-center justify-center text-gray-600 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                        자세히 보기
+                      </div>
+                    </div>
+                    <div className="p-4 flex flex-col flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">{proj.name}</h3>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-3">{proj.period}</p>
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{proj.desc}</p>
+                      <div>
+                        <span className={`text-[10px] px-2 py-1 rounded font-medium ${proj.tagColor}`}>
+                          {proj.tag}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 5. 프로필 중심 노션 스타일 (Link-in-bio 형태)
+// ==========================================
+const ProfileNotionTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-[#F7F6F3] text-[#37352f] font-sans pt-24 pb-32 flex justify-center">
+      <div className="w-full max-w-lg px-6 flex flex-col items-center">
+        {/* Profile */}
+        <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center text-5xl shadow-sm border border-gray-200 mb-6">
+          🧑🏻‍💻
+        </div>
+        <h1 className="text-3xl font-extrabold mb-2 text-center">{data.name}</h1>
+        <p className="text-gray-500 font-medium mb-6 text-center">{data.title}</p>
+        
+        {/* Quick Links */}
+        <div className="w-full grid grid-cols-3 gap-3 mb-10">
+          <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+            <Mail className="w-5 h-5 mb-1 text-blue-500"/>
+            <span className="text-xs font-bold text-gray-700">Email</span>
+          </div>
+          <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+            <Phone className="w-5 h-5 mb-1 text-green-500"/>
+            <span className="text-xs font-bold text-gray-700">Phone</span>
+          </div>
+          <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
+            <Instagram className="w-5 h-5 mb-1 text-pink-500"/>
+            <span className="text-xs font-bold text-gray-700">Instagram</span>
+          </div>
+        </div>
+
+        {/* Catchphrase Callout */}
+        <div className="w-full bg-white border border-gray-200 p-5 rounded-xl shadow-sm mb-10 flex items-start gap-4">
+          <span className="text-2xl">✨</span>
+          <p className="text-sm text-gray-700 leading-relaxed font-medium">
+            {data.catchphrase}<br/><br/>
+            <span className="text-gray-500 font-normal whitespace-pre-wrap">{data.about}</span>
+          </p>
+        </div>
+
+        {/* Projects (Stacked Cards) */}
+        <div className="w-full mb-10">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Folder className="w-5 h-5 text-gray-800" /> Selected Projects
+          </h2>
+          <div className="space-y-4">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} onClick={() => onProjectClick(proj)} className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-lg ${proj.img} flex-shrink-0 border border-gray-100`}></div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 truncate">{proj.name}</h3>
+                  <p className="text-xs text-gray-400 mb-1">{proj.period}</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor}`}>{proj.tag}</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-300" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Experience List */}
+        <div className="w-full">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-gray-800" /> Experience
+          </h2>
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {data.experience.map((exp, idx) => (
+              <div key={idx} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className="font-bold text-gray-900">{exp.company}</h3>
+                  <span className="text-xs text-gray-400">{exp.period}</span>
+                </div>
+                <p className="text-sm text-blue-600 font-medium mb-2">{exp.role}</p>
+                <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                   {exp.details.map((detail, i) => <li key={i}>{detail}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 6. 비주얼 갤러리 노션 스타일 (Visual Portfolio)
+// ==========================================
+const GalleryNotionTemplate = ({ data, onProjectClick }) => {
+  return (
+    <div className="min-h-screen bg-white text-[#37352f] font-sans pb-32">
+      {/* Huge Cover Banner */}
+      <div className="w-full h-[30vh] bg-gradient-to-r from-gray-900 to-gray-700 flex items-center justify-center relative overflow-hidden group">
+         <div className="absolute inset-0 bg-black/20"></div>
+         <h1 className="text-white/10 text-9xl font-black absolute tracking-tighter mix-blend-overlay">PORTFOLIO</h1>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6">
+        {/* Floating Profile */}
+        <div className="relative -mt-16 mb-8 flex flex-col md:flex-row md:items-end gap-6">
+          <div className="w-32 h-32 bg-white rounded-2xl flex items-center justify-center text-6xl shadow-lg border-4 border-white z-10 relative">
+            🧑🏻‍💻
+          </div>
+          <div className="pb-2">
+            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">{data.name}</h1>
+            <p className="text-lg text-gray-500 font-medium">{data.title}</p>
+          </div>
+        </div>
+
+        <p className="text-gray-700 text-lg leading-relaxed mb-12 max-w-2xl">
+          {data.catchphrase} <br/>
+          <span className="text-sm text-gray-500">{data.about.split('\n')[0]}</span>
+        </p>
+
+        {/* Gallery Grid for Projects */}
+        <div className="mb-20">
+          <h2 className="text-2xl font-bold mb-8 border-b-2 border-gray-900 inline-block pb-2">Featured Work</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} onClick={() => onProjectClick(proj)} className="group cursor-pointer flex flex-col">
+                <div className={`w-full aspect-[4/3] rounded-2xl ${proj.img} mb-4 overflow-hidden shadow-sm border border-gray-100 relative`}>
+                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 bg-white text-black px-4 py-2 rounded-full text-sm font-bold transition-opacity shadow-lg transform translate-y-4 group-hover:translate-y-0 duration-300">View Project</span>
+                   </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">{proj.name}</h3>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-md font-medium inline-block mb-2 ${proj.tagColor}`}>{proj.tag}</span>
+                  <p className="text-sm text-gray-500 line-clamp-2">{proj.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer info Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-12 border-t border-gray-200">
+           {/* Experience */}
+           <div>
+             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">Experience</h2>
+             <div className="space-y-6">
+                {data.experience.map((exp, idx) => (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-24 flex-shrink-0 text-sm text-gray-400 font-medium">{exp.period.split(' - ')[0]}</div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">{exp.company}</h3>
+                      <p className="text-sm text-gray-600 mb-1">{exp.role}</p>
+                    </div>
+                  </div>
+                ))}
+             </div>
+           </div>
+
+           {/* Skills */}
+           <div>
+             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">Core Skills</h2>
+             <div className="flex flex-wrap gap-2">
+               {data.skills.map((skill, idx) => (
+                 <div key={idx} className="px-4 py-2 bg-gray-100 rounded-full text-sm font-medium text-gray-800 shadow-sm border border-gray-200">
+                   {skill.name} <span className="text-gray-400 font-normal ml-1">{skill.percent}</span>
+                 </div>
+               ))}
+             </div>
+           </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 7. 다크 모드 노션 스타일 (이미지 기반)
+// ==========================================
+const DarkNotionTemplate = ({ data, onProjectClick }) => {
+  // 다크 모드 포인트 컬러 및 보더 라인 정의
+  const accentColor = "text-[#5C7CFA]"; 
+  const borderColor = "border-[#3A3A3A]";
+  
+  return (
+    <div className="min-h-screen bg-[#1F1F1F] text-[#EBEBEB] font-sans pb-32 pt-16 selection:bg-[#5C7CFA] selection:text-white">
+      {/* Cover Image (우주/성운 느낌의 CSS 그라디언트 대체) */}
+      <div className="w-full h-48 md:h-64 bg-gradient-to-r from-orange-900 via-indigo-900 to-purple-900 opacity-90 mix-blend-screen shadow-inner"></div>
+      
+      <div className="max-w-4xl mx-auto px-6 -mt-8 relative z-10">
+        
+        {/* Title & Profile */}
+        <div className="text-center mb-16">
+          <h1 className="text-3xl font-extrabold mb-12 tracking-wide text-white">디자인 포트폴리오</h1>
+          
+          <h2 className="text-2xl font-bold mb-3">{data.name}</h2>
+          <p className="text-[#EBEBEB] font-medium flex justify-center items-center gap-2 mb-10">
+            <span className="text-yellow-500">🌻</span> {data.title}
+          </p>
+          
+          <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3">
+            <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">phone</span> <span className="text-[#EBEBEB]">{data.phone}</span></div>
+            <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">email</span> <span className="text-[#EBEBEB]">{data.email}</span></div>
+            <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">blog</span> <span className="text-[#EBEBEB] hover:text-[#5C7CFA] cursor-pointer transition-colors">{data.social.blog}</span></div>
+            <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">github</span> <span className="text-[#EBEBEB] hover:text-[#5C7CFA] cursor-pointer transition-colors">https://github.com/</span></div>
+          </div>
+        </div>
+
+        {/* INTRODUCE */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Introduce</h3>
+          <p className="font-bold mb-4 text-[#EBEBEB]">안녕하세요! {data.title.split(' ')[0]} {data.name}입니다!</p>
+          <ul className="space-y-5 list-disc list-outside ml-5 text-sm text-[#EBEBEB]">
+            <li>
+              <span className="font-bold block mb-1">{data.catchphrase}</span>
+              <p className="text-[#A0A0A0] pl-1 font-normal">· {data.about.split('\n')[0]}</p>
+            </li>
+            <li>
+              <span className="font-bold block mb-1">쉬운 디자인을 만들기 위해 지속적으로 개선합니다.</span>
+              <p className="text-[#A0A0A0] pl-1 font-normal">· 사용자 중심의 데이터 기반 사고방식 적용.</p>
+            </li>
+            <li>
+              <span className="font-bold block mb-1">적극적이고 쾌활한 성격을 가지고 있습니다.</span>
+              <p className="text-[#A0A0A0] pl-1 font-normal">· 팀워크를 중요시하며, 원활한 커뮤니케이션 능력을 갖추었습니다.</p>
+            </li>
+          </ul>
+        </div>
+
+        {/* SKILLS */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Skills</h3>
+          <div className="space-y-4 text-sm list-disc list-outside ml-5 text-[#EBEBEB]">
+            <div className="flex list-item"><span className="inline-block w-32 text-[#A0A0A0] font-bold">리스트</span> <span>{data.skills.map(s=>s.name).join(', ')}</span></div>
+            <div className="flex list-item"><span className="inline-block w-32 text-[#EBEBEB] font-bold">Design Tool</span> <span className="text-[#EBEBEB]">Figma, Photoshop, Illustrator</span></div>
+            <div className="flex list-item"><span className="inline-block w-32 text-[#EBEBEB] font-bold">Other Skills</span> <span className="text-[#EBEBEB]">HTML/CSS, React, Notion, Slack</span></div>
+          </div>
+        </div>
+
+        {/* MAIN PROJECT */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Main Project - {data.projects[0]?.name}</h3>
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-[30%]">
+              <h4 className="font-bold mb-4 text-[#EBEBEB]">소개</h4>
+              <p className={`text-sm ${accentColor} mb-2 cursor-pointer hover:underline underline-offset-4`}>Trouble Shooting</p>
+              <p className={`text-sm ${accentColor} mb-8 cursor-pointer hover:underline underline-offset-4`}>Design Notion</p>
+              
+              <h4 className="font-bold mb-4 text-[#EBEBEB]">{data.projects[0]?.name} 소개</h4>
+              <p className="text-sm text-[#A0A0A0] mb-6 leading-relaxed">{data.projects[0]?.desc}</p>
+              <p className="text-sm text-[#EBEBEB] mb-2">인원 : 4명</p>
+              <p className="text-sm text-[#EBEBEB] mb-2">기간 : {data.projects[0]?.period}</p>
+              <p className="text-sm text-[#EBEBEB]">skill : {data.projects[0]?.tag}</p>
+            </div>
+            <div className="w-full md:w-[70%] cursor-pointer" onClick={() => onProjectClick(data.projects[0])}>
+              <div className={`w-full h-full min-h-[250px] ${data.projects[0]?.img || 'bg-[#2F2F2F]'} rounded-lg flex items-center justify-center border border-[#333] shadow-lg hover:opacity-80 transition-opacity`}>
+                <span className="text-[#A0A0A0] text-sm px-4 py-2 bg-black/40 rounded-full font-bold">Main Project 클릭 시 팝업 오픈</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PROJECT 에서 기여한 역할 */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Project 에서 기여한 역할</h3>
+          <div className="space-y-10">
+            {data.projects.slice(0, 2).map((proj, idx) => (
+              <div key={idx} className="ml-2">
+                <h4 className="font-bold mb-4 text-[#EBEBEB]">{idx + 1}. 기여 역할</h4>
+                <ul className="list-none space-y-3 text-sm text-[#EBEBEB]">
+                  {proj.details?.map((detail, dIdx) => (
+                    <li key={dIdx} className="flex gap-2">
+                       <span className="text-[#A0A0A0]">·</span> <span>{detail}</span>
+                    </li>
+                  ))}
+                  <li className="mt-6 flex gap-2 font-bold text-[#EBEBEB]">
+                     <span className="text-[#A0A0A0]">·</span> <span>각 단계별 문제 해결에 대한 과정은 아래 블로그에 상세히 기록</span>
+                  </li>
+                  <li className="text-[#EBEBEB] cursor-pointer hover:text-[#5C7CFA] transition-colors ml-3 mt-2">⇒ 블로그 링크 바로가기</li>
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SIDE PROJECT */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Side Project - {data.projects[1]?.name || '집무실 홈페이지 제작'}</h3>
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-[30%]">
+              <h4 className="font-bold mb-4 text-[#EBEBEB]">소개</h4>
+              <p className={`text-sm ${accentColor} mb-2 cursor-pointer hover:underline underline-offset-4`}>Trouble Shooting</p>
+              <p className={`text-sm ${accentColor} mb-8 cursor-pointer hover:underline underline-offset-4`}>Design Notion</p>
+              
+              <h4 className="font-bold mb-4 text-[#EBEBEB]">{data.projects[1]?.name || '집무실'} 프로젝트 소개</h4>
+              <p className="text-sm text-[#A0A0A0] mb-6 leading-relaxed">{data.projects[1]?.desc || '소개 내용을 입력하세요.'}</p>
+              <p className="text-sm text-[#EBEBEB] mb-2">인원 : 4명</p>
+              <p className="text-sm text-[#EBEBEB] mb-2">기간 : {data.projects[1]?.period || '22.00.00 - 23.00.00'}</p>
+              <p className="text-sm text-[#EBEBEB]">skill : A, B, C, D</p>
+            </div>
+            <div className="w-full md:w-[70%] cursor-pointer" onClick={() => onProjectClick(data.projects[1])}>
+              <div className={`w-full h-full min-h-[250px] ${data.projects[1]?.img || 'bg-[#2F2F2F]'} rounded-lg flex items-center justify-center border border-[#333] shadow-lg hover:opacity-80 transition-opacity`}>
+                <span className="text-[#A0A0A0] text-sm px-4 py-2 bg-black/40 rounded-full font-bold">Side Project 클릭 시 팝업 오픈</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PROJECT PORTFOLIO (Gallery View) */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Project Portfolio</h3>
+          <div className="flex items-center gap-2 mb-6">
+            <span className="bg-[#2F2F2F] text-sm px-3 py-1.5 rounded-md flex items-center gap-2 font-bold text-white"><LayoutGrid className="w-4 h-4"/> Project</span>
+            <div className="ml-auto flex gap-3 text-[#A0A0A0]">
+               <Filter className="w-4 h-4 cursor-pointer hover:text-white"/>
+               <ArrowUpDown className="w-4 h-4 cursor-pointer hover:text-white"/>
+               <Search className="w-4 h-4 cursor-pointer hover:text-white"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} className="bg-[#2A2A2A] rounded-xl overflow-hidden shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group" onClick={() => onProjectClick(proj)}>
+                 <div className="p-5 pb-10">
+                    <h4 className="font-bold text-sm mb-4 text-white">소개</h4>
+                    <p className="text-xs text-[#A0A0A0] mb-2 hover:underline underline-offset-4 w-fit">Trouble Shooting</p>
+                    <p className="text-xs text-[#A0A0A0] mb-2 hover:underline underline-offset-4 w-fit">Team Notion</p>
+                    <p className="text-xs text-[#A0A0A0] mb-2 hover:underline underline-offset-4 w-fit">Github</p>
+                 </div>
+                 <div className="bg-[#333333] px-5 py-3 flex items-center gap-2 text-sm font-bold border-t border-[#3A3A3A] group-hover:bg-[#3A3A3A] transition-colors">
+                    <FileText className="w-4 h-4 text-white"/> {proj.name}
+                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* STUDY & CAREER */}
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Study</h3>
+          <div className="space-y-8">
+             {data.education.map((edu, idx) => (
+               <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-8">
+                 <div className="w-full md:w-36 flex-shrink-0 text-[#A0A0A0] text-sm">{edu.period}</div>
+                 <div>
+                   <h4 className="font-bold mb-3 text-[#EBEBEB]">{edu.school} - {edu.major}</h4>
+                   <ul className="text-sm text-[#EBEBEB] space-y-2">
+                     {edu.details.map((detail, dIdx) => <li key={dIdx} className="flex gap-2"><span className="text-[#A0A0A0]">·</span> {detail}</li>)}
+                   </ul>
+                 </div>
+               </div>
+             ))}
+          </div>
+        </div>
+
+        <div className="mb-14">
+          <h3 className={`text-lg font-bold ${accentColor} border-b ${borderColor} pb-2 mb-6 uppercase tracking-wider`}>Career</h3>
+          <div className="space-y-8">
+             {data.experience.map((exp, idx) => (
+               <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-8">
+                 <div className="w-full md:w-36 flex-shrink-0 text-[#A0A0A0] text-sm">{exp.period}</div>
+                 <div>
+                   <h4 className="font-bold mb-3 text-[#EBEBEB]">{exp.company}</h4>
+                   <ul className="text-sm text-[#EBEBEB] space-y-2">
+                     {exp.details.map((detail, dIdx) => <li key={dIdx} className="flex gap-2"><span className="text-[#A0A0A0]">·</span> {detail}</li>)}
+                   </ul>
+                 </div>
+               </div>
+             ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 8. 개발자 다크모드 노션 스타일 (Image 4~7 기반)
+// ==========================================
+const DeveloperDarkTemplate = ({ data, onProjectClick }) => {
+  // 스킬 퍼센트를 5점 만점 체크박스 개수로 변환
+  const getSkillLevel = (percent) => {
+    const num = parseInt(percent);
+    if (num >= 90) return 5;
+    if (num >= 80) return 4;
+    if (num >= 60) return 3;
+    if (num >= 40) return 2;
+    return 1;
+  };
+
+  // 커스텀 체크박스 렌더링 컴포넌트
+  const Checkboxes = ({ level }) => (
+    <div className="flex gap-1 mb-2">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className={`w-[14px] h-[14px] rounded-[2px] flex items-center justify-center text-[10px] font-extrabold ${i < level ? 'bg-[#51A15F] text-white' : 'bg-[#D1D1D1]'}`}>
+          {i < level ? '✓' : ''}
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#191919] text-[#D4D4D4] font-sans pb-32 pt-16 selection:bg-[#252B36] selection:text-white">
+      {/* Cover Banner */}
+      <div className="w-full h-48 md:h-64 bg-gradient-to-r from-yellow-700 via-green-800 to-teal-900 opacity-80"></div>
+      
+      <div className="max-w-4xl mx-auto px-6 -mt-8 relative z-10">
+        <h1 className="text-3xl font-extrabold mb-16 tracking-wide text-white text-center">{data.name}</h1>
+
+        {/* Project Summary */}
+        <div className="mb-16">
+          <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
+            🧑🏻‍💻 Project Summary
+          </div>
+          
+          <div className="space-y-12 pl-2">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} className="border-b border-[#333] pb-8 last:border-0">
+                <h3 className="text-lg font-bold text-white mb-4">{proj.name}</h3>
+                <div className="space-y-3 text-sm">
+                  <p><span className="text-[#A0A0A0] inline-block w-12 font-bold">주제</span> : {proj.desc.split(' ')[0] || '프로젝트 주제'}을 기반으로 한 플랫폼입니다.</p>
+                  <p><span className="text-[#A0A0A0] inline-block w-12 font-bold">기간</span> : {proj.period}</p>
+                  <p><span className="text-[#A0A0A0] inline-block w-12 font-bold">인원</span> : 4명 (기획 1, 디자인 1, 개발 2)</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[#A0A0A0] inline-block w-12 font-bold">스택</span> : 
+                    <span className="bg-[#2D2D2D] text-[#EB5757] px-1.5 py-0.5 rounded font-mono text-xs">{proj.tag}</span>
+                    <span className="bg-[#2D2D2D] text-[#EB5757] px-1.5 py-0.5 rounded font-mono text-xs">React</span>
+                    <span className="bg-[#2D2D2D] text-[#EB5757] px-1.5 py-0.5 rounded font-mono text-xs">MySQL</span>
+                    <span className="bg-[#2D2D2D] text-[#EB5757] px-1.5 py-0.5 rounded font-mono text-xs">Docker</span>
+                  </div>
+                  <p><span className="text-[#A0A0A0] inline-block w-12 font-bold">역할</span> : 프론트엔드 및 기획 지원</p>
+                  <ul className="list-disc list-outside ml-14 mt-4 space-y-1.5 text-[#D4D4D4]">
+                    {proj.details?.map((detail, dIdx) => <li key={dIdx}>{detail}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Project LIST */}
+        <div className="mb-16">
+          <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-2 shadow-sm border border-[#3A4354]">
+            👨🏻‍💻 Project LIST
+          </div>
+          <p className="text-xs text-[#51A15F] mb-6 pl-2 font-medium">※ 카드를 누르면 상세 내용을 확인하실 수 있습니다.</p>
+          
+          <div className="flex items-center gap-2 mb-6 pl-2">
+            <span className="bg-[#2D2D2D] text-sm px-3 py-1 rounded-md flex items-center gap-2 font-bold text-white"><LayoutGrid className="w-4 h-4"/> Gallery view</span>
+            <div className="ml-auto flex gap-3 text-[#A0A0A0]">
+               <Filter className="w-4 h-4 cursor-pointer hover:text-white transition-colors"/>
+               <ArrowUpDown className="w-4 h-4 cursor-pointer hover:text-white transition-colors"/>
+               <Search className="w-4 h-4 cursor-pointer hover:text-white transition-colors"/>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
+            {data.projects.map((proj, idx) => (
+              <div key={idx} className="bg-[#252525] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group" onClick={() => onProjectClick(proj)}>
+                 <div className={`w-full h-36 ${proj.img} flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity`}></div>
+                 <div className="p-4">
+                    <p className="text-xs font-bold text-white mb-3">{proj.period.replace(/ /g, '')}</p>
+                    <div className="flex gap-2 flex-wrap">
+                       <span className="bg-[#4B3B4B] text-[#D19ED1] text-[10px] px-2 py-0.5 rounded font-bold">{proj.tag}</span>
+                       <span className="bg-[#3A4B3A] text-[#9ED19E] text-[10px] px-2 py-0.5 rounded font-bold">Design</span>
+                       <span className="bg-[#3A404B] text-[#9EAAD1] text-[10px] px-2 py-0.5 rounded font-bold">Web</span>
+                    </div>
+                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SKILLS */}
+        <div className="mb-16">
+          <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
+            💻 SKILLS
+          </div>
+          
+          <div className="space-y-10 pl-2">
+            {/* FrontEnd & Design Section */}
+            <div>
+              <div className="bg-[#2B323F] text-white text-sm p-2 px-3 rounded mb-6 font-bold inline-block w-full">Design & FrontEnd</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {data.skills.filter(s => s.name !== 'Notion').map((skill, idx) => (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-16 flex-shrink-0 flex flex-col items-center justify-start gap-1">
+                      <div className="w-8 h-8 bg-[#2D2D2D] rounded-full flex items-center justify-center text-xs text-white font-bold">{skill.name[0]}</div>
+                      <span className="text-xs font-bold text-center break-words w-full">{skill.name}</span>
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <Checkboxes level={getSkillLevel(skill.percent)} />
+                      <p className="text-xs text-[#A0A0A0] leading-relaxed mt-2">{skill.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Others Section */}
+            <div>
+              <div className="bg-[#2B323F] text-white text-sm p-2 px-3 rounded mb-6 font-bold inline-block w-full">Others</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {data.skills.filter(s => s.name === 'Notion').map((skill, idx) => (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-16 flex-shrink-0 flex flex-col items-center justify-start gap-1">
+                      <div className="w-8 h-8 bg-[#2D2D2D] rounded-full flex items-center justify-center text-xs text-white font-bold">{skill.name[0]}</div>
+                      <span className="text-xs font-bold text-center">{skill.name}</span>
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <Checkboxes level={getSkillLevel(skill.percent)} />
+                      <p className="text-xs text-[#A0A0A0] leading-relaxed mt-2">{skill.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Awards / Certificates */}
+        <div className="mb-16">
+          <div className="bg-[#3A2D25] text-[#E0C8B1] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#4A392F]">
+            🏆 Awards / Certificates
+          </div>
+          <div className="space-y-4 pl-2">
+            {data.awards.map((award, idx) => (
+              <div key={idx} className="flex gap-6 items-center">
+                <span className="text-[#EBEBEB] font-bold w-20 text-sm">{award.date}</span>
+                <span className="text-[#D4D4D4] text-sm">{award.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* EXPERIENCE */}
+        <div className="mb-16">
+          <div className="bg-[#3A3A3A] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#4A4A4A]">
+            ⚡ EXPERIENCE
+          </div>
+          <div className="space-y-6 pl-2">
+            {data.experience.map((exp, idx) => (
+              <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-6 md:items-center">
+                <span className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm">{exp.period.replace(/ /g, '')}</span>
+                <span className="text-[#D4D4D4] text-sm">{exp.company} - {exp.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 5. 메인 앱 컴포넌트 (네비게이션 포함)
+// ==========================================
+const App = () => {
+  const [template, setTemplate] = useState('template1');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null); // 모달 상태 관리
+
+  // 드롭다운 메뉴 리스트 (템플릿 1 ~ 8)
+  const menus = [
+    { id: 'template1', name: '템플릿 1 (기본 노션)', icon: FileText },
+    { id: 'template2', name: '템플릿 2 (베이지 톤)', icon: PenTool },
+    { id: 'template3', name: '템플릿 3 (DB 구조화)', icon: Columns },
+    { id: 'template4', name: '템플릿 4 (문제해결/실무형)', icon: Lightbulb },
+    { id: 'template5', name: '템플릿 5 (프로필 링크형)', icon: UserCircle2 },
+    { id: 'template6', name: '템플릿 6 (비주얼 갤러리)', icon: ImageIcon },
+    { id: 'template7', name: '템플릿 7 (다크 모드)', icon: Moon },
+    { id: 'template8', name: '템플릿 8 (개발자 다크)', icon: Code },
+  ];
+
+  return (
+    <div className="relative">
+      {/* Top Menu Bar */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white/90 backdrop-blur-md border-b border-gray-200 z-50 flex items-center px-4 md:px-8 shadow-sm justify-between">
+        <div className="font-extrabold text-xl text-gray-900 tracking-tight shrink-0">
+          Portfo<span className="text-blue-600">.</span>
+        </div>
+
+        {/* Dropdown Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-semibold transition-colors text-gray-800 shadow-sm"
+          >
+            {menus.find(m => m.id === template)?.icon && React.createElement(menus.find(m => m.id === template).icon, { size: 16 })}
+            <span className="hidden sm:inline">{menus.find(m => m.id === template)?.name}</span>
+            <span className="inline sm:hidden">{menus.find(m => m.id === template)?.name.split(' ')[0]}</span>
+            <ChevronDown size={16} className={`transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Dropdown List */}
+          {isMenuOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setIsMenuOpen(false)}
+              ></div>
+              
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden flex flex-col z-50 max-h-[80vh] overflow-y-auto">
+                {menus.map((menu) => {
+                  const Icon = menu.icon;
+                  return (
+                    <button
+                      key={menu.id}
+                      onClick={() => {
+                        setTemplate(menu.id);
+                        setIsMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left ${
+                        template === menu.id
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {menu.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* Render Selected Template */}
+      <main>
+        {template === 'template1' && <NotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template2' && <BeigeNotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template3' && <StructuredNotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template4' && <ProblemSolvingTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template5' && <ProfileNotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template6' && <GalleryNotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template7' && <DarkNotionTemplate data={myData} onProjectClick={setSelectedProject} />}
+        {template === 'template8' && <DeveloperDarkTemplate data={myData} onProjectClick={setSelectedProject} />}
+      </main>
+
+      {/* 전역 프로젝트 상세 모달창 */}
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
+export default App;

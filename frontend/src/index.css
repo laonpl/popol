@@ -189,3 +189,14 @@ textarea {
   color: #b8c4d0;
   font-style: normal;
 }
+
+/* ── Floating Icon Animations ── */
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(5px, -10px) rotate(2deg); }
+  50% { transform: translate(-5px, 10px) rotate(-1deg); }
+  75% { transform: translate(-10px, -5px) rotate(1deg); }
+}
+.animate-float-slow { animation: float 12s ease-in-out infinite; }
+.animate-float-medium { animation: float 9s ease-in-out infinite; }
+.animate-float-fast { animation: float 6s ease-in-out infinite; }
