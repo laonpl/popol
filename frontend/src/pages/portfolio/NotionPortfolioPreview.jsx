@@ -281,7 +281,7 @@ export default function NotionPortfolioPreview() {
                   {p.values.map((v, i) => (
                     <div key={i} className="p-2.5 bg-white rounded-lg border border-surface-100">
                       <p className="text-sm font-medium text-gray-700">
-                        {['➕', '➖', '✖️', '➗', '🎓'][i % 5]} {v.keyword}
+                        {v.keyword}
                       </p>
                     </div>
                   ))}
@@ -295,7 +295,7 @@ export default function NotionPortfolioPreview() {
             {/* Education - Ashley 템플릿에서는 숨김 */}
             {p.templateId !== 'ashley' && (p.education || []).length > 0 && (
               <div className="mb-8" id="section-학력">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">🎓 Education</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">Education</h3>
                 <div className="space-y-6">
                   {p.education.map((edu, i) => (
                     <div key={i} className="pb-5 border-b border-surface-100 last:border-0">
@@ -314,7 +314,7 @@ export default function NotionPortfolioPreview() {
             {/* Interests */}
             {(p.interests || []).length > 0 && (
               <div className="mb-8">
-                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">💡 Interest</h3>
+                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Interest</h3>
                 <ul className="space-y-1.5">
                   {p.interests.map((interest, i) => (
                     <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
@@ -329,7 +329,7 @@ export default function NotionPortfolioPreview() {
             {/* Contact */}
             {(contact.phone || contact.email || contact.linkedin) && (
               <div className="mb-8">
-                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">📞 Contact Information</h3>
+                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Contact Information</h3>
                 <div className="space-y-2 text-sm">
                   {contact.phone && <p className="flex items-center gap-2 text-gray-600"><Phone size={14} /> {contact.phone}</p>}
                   {contact.email && <p className="flex items-center gap-2 text-gray-600"><Mail size={14} /> {contact.email}</p>}
@@ -346,7 +346,7 @@ export default function NotionPortfolioPreview() {
             {/* Awards - Ashley 템플릿에서는 숨김 */}
             {p.templateId !== 'ashley' && (p.awards || []).length > 0 && (
               <div className="mb-8" id="section-수상 내역">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">🏆 Scholarship and Awards</h3>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Scholarship and Awards</h3>
                 <div className="space-y-2">
                   {p.awards.map((a, i) => (
                     <div key={i} className="text-sm">
@@ -361,7 +361,7 @@ export default function NotionPortfolioPreview() {
             {/* Experience (요약 목록) */}
             {(p.experiences || []).length > 0 && (
               <div>
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">🔥 Experience</h3>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Experience</h3>
                 <div className="space-y-1.5">
                   {p.experiences.slice(0, 5).map((e, i) => (
                     <button key={i} onClick={() => setSelectedExp(e)}
@@ -381,7 +381,7 @@ export default function NotionPortfolioPreview() {
         {(p.experiences || []).length > 0 && (
           <div className="px-10 py-8 border-t border-surface-100">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">🔥 프로젝트 / 경험</h2>
+              <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">프로젝트 / 경험</h2>
               <p className="text-xs text-gray-400">⚠️ 각 항목을 클릭하시면 소개, 참여 동기, 활동 내용에 대한 정보를 확인하실 수 있습니다.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
@@ -436,8 +436,8 @@ export default function NotionPortfolioPreview() {
             {(curr.summary?.credits || curr.summary?.gpa) && (
               <div className="bg-surface-50 rounded-xl p-4 mb-4">
                 <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
-                {curr.summary?.credits && <p className="text-sm text-gray-700">📚 이수 학점: {curr.summary.credits}</p>}
-                {curr.summary?.gpa && <p className="text-sm text-gray-700">📊 평점 평균: {curr.summary.gpa}</p>}
+                {curr.summary?.credits && <p className="text-sm text-gray-700">이수 학점: {curr.summary.credits}</p>}
+                {curr.summary?.gpa && <p className="text-sm text-gray-700">평점 평균: {curr.summary.gpa}</p>}
               </div>
             )}
             {(curr.courses || []).length > 0 && (
@@ -498,7 +498,7 @@ export default function NotionPortfolioPreview() {
           {/* 비교과 활동 - Ashley 템플릿에서는 숨김 */}
           {p.templateId !== 'ashley' && (
           <section id="section-비교과 활동" className="mb-10">
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">💡 비교과 활동 | Extracurricular Activities</h2>
+            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">비교과 활동 | Extracurricular Activities</h2>
             {extra.summary && (
               <div className="bg-surface-50 rounded-xl p-4 mb-4">
                 <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
@@ -562,7 +562,7 @@ export default function NotionPortfolioPreview() {
 
           {/* 기술 */}
           <section id="section-기술" className="mb-10">
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">🛠 기술 | Skills</h2>
+            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">기술 | Skills</h2>
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
                 <div key={category}>
@@ -625,7 +625,7 @@ export default function NotionPortfolioPreview() {
 
           {/* 가치관 */}
           <section id="section-가치관" className="mb-10">
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">💬 가치관 | Values</h2>
+            <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">가치관 | Values</h2>
             {p.valuesEssay ? (
               <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line">
                 {p.valuesEssay}
@@ -635,7 +635,7 @@ export default function NotionPortfolioPreview() {
                 {p.values.map((v, i) => (
                   <div key={i}>
                     <h4 className="text-base font-bold text-gray-800 mb-2">
-                      {['➕', '➖', '✖️', '➗', '🎓'][i % 5]} {v.keyword}
+                      {v.keyword}
                     </h4>
                     {v.description && <p className="text-sm text-gray-600 leading-relaxed">{v.description}</p>}
                   </div>
@@ -1069,7 +1069,6 @@ function AcademicLayout({ p, setSelectedExp }) {
               <div className="space-y-3">
                 {(p.awards || []).map((a, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <span className="text-lg">🏆</span>
                     <div>
                       <p className="text-sm font-medium text-gray-800">{a.title}</p>
                       <p className="text-xs text-gray-400">{a.date}</p>
@@ -1346,7 +1345,7 @@ function AshleyLayout({ p, setSelectedExp }) {
         {(p.experiences || []).length > 0 && (
           <div className="px-10 pb-8">
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
-              <h3 className="font-bold text-lg text-[#2d2a26] mb-5">💬 인터뷰</h3>
+              <h3 className="font-bold text-lg text-[#2d2a26] mb-5">인터뷰</h3>
               <div className="space-y-5">
                 {p.experiences.slice(0, 3).map((e, i) => (
                   <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => setSelectedExp(e)}>
@@ -1367,7 +1366,7 @@ function AshleyLayout({ p, setSelectedExp }) {
         {/* 프로젝트 갤러리 */}
         {(p.experiences || []).length > 0 && (
           <div className="px-10 pb-8">
-            <h3 className="font-bold text-lg text-[#2d2a26] mb-4">🎨 프로젝트</h3>
+            <h3 className="font-bold text-lg text-[#2d2a26] mb-4">프로젝트</h3>
             <div className="grid grid-cols-3 gap-4">
               {p.experiences.map((e, i) => (
                 <button key={i} onClick={() => setSelectedExp(e)}
@@ -1862,7 +1861,6 @@ function TimelineLayout({ p, setSelectedExp }) {
             <div className="space-y-2">
               {p.awards.map((a, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <span className="text-base">🏆</span>
                   <div>
                     <p className="text-sm font-medium text-gray-800">{a.name}</p>
                     <p className="text-xs text-gray-400">{a.org} · {a.date}</p>
