@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 
 // ── 섹션별 AI 내용 추천 버튼 (visual 템플릿 공용) ──
 export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
@@ -122,12 +123,19 @@ export function getExpDetails(exp) {
 // ── 공통: 편집 모드용 스킬 목록 생성 (skillLevels 반영) ──
 function buildEditSkillList(portfolio) {
   const levels = portfolio.skillLevels || {};
-  const getPercent = (name, def) => levels[name] != null ? `${levels[name]}%` : def;
+  // skills 배열 요소: string 또는 {name, proficiency} 객체 모두 허용
+  const getName = (s) => typeof s === 'string' ? s : (s?.name || '');
+  const getPercent = (s, def) => {
+    const name = getName(s);
+    if (levels[name] != null) return `${levels[name]}%`;
+    if (typeof s === 'object' && s?.proficiency) return `${Math.round(s.proficiency * 20)}%`;
+    return def;
+  };
   return [
-    ...(portfolio.skills?.tools || []).map(s => ({ name: s, category: 'tools', percent: getPercent(s, '80%'), desc: s + ' 활용 가능' })),
-    ...(portfolio.skills?.languages || []).map(s => ({ name: s, category: 'languages', percent: getPercent(s, '75%'), desc: s + ' 개발 경험' })),
-    ...(portfolio.skills?.frameworks || []).map(s => ({ name: s, category: 'frameworks', percent: getPercent(s, '70%'), desc: s + ' 사용 가능' })),
-    ...(portfolio.skills?.others || []).map(s => ({ name: s, category: 'others', percent: getPercent(s, '65%'), desc: s })),
+    ...(portfolio.skills?.tools || []).map(s => { const name = getName(s); return { name, category: 'tools', percent: getPercent(s, '80%'), desc: name + ' 활용 가능' }; }),
+    ...(portfolio.skills?.languages || []).map(s => { const name = getName(s); return { name, category: 'languages', percent: getPercent(s, '75%'), desc: name + ' 개발 경험' }; }),
+    ...(portfolio.skills?.frameworks || []).map(s => { const name = getName(s); return { name, category: 'frameworks', percent: getPercent(s, '70%'), desc: name + ' 활용 가능' }; }),
+    ...(portfolio.skills?.others || []).map(s => { const name = getName(s); return { name, category: 'others', percent: getPercent(s, '65%'), desc: name }; }),
   ];
 }
 
@@ -302,7 +310,7 @@ function ExpControls({ ec, dark = false }) {
           onClick={ec.onImportExperience}
           className={`flex items-center gap-1.5 px-3 py-1.5 border border-dashed rounded-lg text-xs transition-colors ${bg} ${borderBlue}`}
         >
-          <Database size={12} /> 경험 DB에서 가져오기
+          경험 DB에서 가져오기
         </button>
         {ec.jobAnalysis && ec.onFetchRecommendations && (
           <button
@@ -311,7 +319,7 @@ function ExpControls({ ec, dark = false }) {
             disabled={ec.recLoading}
             className={`flex items-center gap-1.5 px-3 py-1.5 border border-dashed rounded-lg text-xs transition-colors disabled:opacity-50 ${bg} ${borderIndigo}`}
           >
-            {ec.recLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {ec.recLoading && <Loader2 size={12} className="animate-spin" />}
             기업 맞춤 경험 추천
           </button>
         )}
@@ -485,11 +493,18 @@ function CameraUploadBtn({ onUpload, dark = false, className = 'bottom-2 right-2
 export function mapPortfolioToTemplateData(p) {
   const levels = p.skillLevels || {};
   const getPercent = (name, def) => levels[name] != null ? `${levels[name]}%` : def;
+  const _sName = (s) => typeof s === 'string' ? s : (s?.name || '');
+  const _sPercent = (s, def) => {
+    const name = _sName(s);
+    if (levels[name] != null) return `${levels[name]}%`;
+    if (typeof s === 'object' && s?.proficiency) return `${Math.round(s.proficiency * 20)}%`;
+    return def;
+  };
   const skills = [
-    ...(p.skills?.tools || []).map(s => ({ name: s, percent: getPercent(s, '80%'), desc: s + ' 활용 가능' })),
-    ...(p.skills?.languages || []).map(s => ({ name: s, percent: getPercent(s, '75%'), desc: s + ' 개발 경험' })),
-    ...(p.skills?.frameworks || []).map(s => ({ name: s, percent: getPercent(s, '70%'), desc: s + ' 사용 가능' })),
-    ...(p.skills?.others || []).map(s => ({ name: s, percent: getPercent(s, '65%'), desc: s })),
+    ...(p.skills?.tools || []).map(s => { const name = _sName(s); return { name, percent: _sPercent(s, '80%'), desc: name + ' 활용 가능' }; }),
+    ...(p.skills?.languages || []).map(s => { const name = _sName(s); return { name, percent: _sPercent(s, '75%'), desc: name + ' 개발 경험' }; }),
+    ...(p.skills?.frameworks || []).map(s => { const name = _sName(s); return { name, percent: _sPercent(s, '70%'), desc: name + ' 활용 가능' }; }),
+    ...(p.skills?.others || []).map(s => { const name = _sName(s); return { name, percent: _sPercent(s, '65%'), desc: name }; }),
   ].slice(0, 8);
 
   const tagColors = [
@@ -504,8 +519,6 @@ export function mapPortfolioToTemplateData(p) {
   const _getDetails = (e) => {
     if (e.bullets?.length > 0) return e.bullets;
     if (e.details?.length > 0) return e.details;
-    if (e.sections?.length > 0)
-      return e.sections.map(s => s.title ? `[${s.title}] ${s.content}` : s.content).filter(Boolean);
     const sr = e.structuredResult || e.frameworkContent || {};
     const srKeys = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
     const srItems = srKeys.map(k => sr[k]).filter(v => v?.trim?.());
@@ -515,10 +528,22 @@ export function mapPortfolioToTemplateData(p) {
     return [];
   };
 
+  // 섹션 구조 추출: exportConfig.sections 우선, 없으면 e.sections 폴백
+  const _getSections = (e) => {
+    const exportSections = e.structuredResult?.exportConfig?.sections;
+    if (exportSections?.length > 0)
+      return exportSections.filter(s => s.content?.trim()).map(s => ({ label: s.label || s.key, content: s.content }));
+    if ((e.sections || []).some(s => s.title && s.content))
+      return e.sections.filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content }));
+    return null;
+  };
+
   const projects = experiences.length > 0
     ? experiences.map((e, idx) => {
         const sr = e.structuredResult || e.frameworkContent || {};
-        const srDesc = sr.intro || sr.overview || sr.projectOverview?.summary || '';
+        const ov = sr.projectOverview || {};
+        const srDesc = sr.intro || sr.overview || ov.summary || '';
+        const structuredSections = _getSections(e);
         return {
           name: e.company || e.title || `프로젝트 ${idx + 1}`,
           period: e.period || '',
@@ -526,8 +551,17 @@ export function mapPortfolioToTemplateData(p) {
           tagColor: tagColors[idx % tagColors.length],
           desc: e.description || srDesc || e.detail || e.sections?.[0]?.content || e.bullets?.[0] || '',
           img: imgBgs[idx % imgBgs.length],
-          details: _getDetails(e),
+          details: structuredSections ? [] : _getDetails(e),
+          sections: structuredSections || [],
           thumbnailUrl: e.thumbnailUrl || '',
+          // Notion 스타일 프로퍼티
+          duration: ov.duration || e.date || '',
+          role: ov.role || e.role || '',
+          techStack: (ov.techStack?.length > 0 ? ov.techStack : null) || (e.skills?.length > 0 ? e.skills : null) || [],
+          keywords: e.keywords || [],
+          goal: ov.goal || '',
+          keyExperiences: sr.keyExperiences || [],
+          coverImg: sr.exportConfig?.coverImg || '',
         };
       })
     : [
@@ -565,38 +599,102 @@ export function mapPortfolioToTemplateData(p) {
   };
 }
 
-// ── 공통 프로젝트 모달 ──
+// ── 공통 프로젝트 모달 (Notion 스타일) ──
 const ProjectModal = ({ project, onClose }) => {
   if (!project) return null;
+  const keyExperiences = (project.keyExperiences || []).filter(Boolean);
+  const sectionsToRender = project.sections?.length > 0
+    ? project.sections
+    : (project.details?.length > 0 ? project.details.map((d, i) => ({ label: `내용 ${i + 1}`, content: d })) : []);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[4vh] p-4 overflow-auto">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative bg-white w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl overflow-y-auto flex flex-col">
-        <div className={`w-full h-48 ${project.img || 'bg-gray-100'} relative flex-shrink-0 flex items-center justify-center text-gray-500/30 font-bold text-xl`}>
-          Cover Image
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/30 text-gray-800 hover:text-white rounded-full transition-colors">
-            <X className="w-5 h-5" />
+      <div className="relative bg-white w-full max-w-[780px] rounded-xl shadow-2xl overflow-hidden">
+        {/* 커버 이미지 */}
+        <div className={`w-full ${project.coverImg ? 'h-44' : 'h-10'} bg-gray-50 flex-shrink-0 relative`}>
+          {project.coverImg && <img src={project.coverImg} alt="cover" className="w-full h-full object-cover" />}
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">{project.name}</h2>
-          <p className="text-gray-500 mb-6 font-medium">{project.period}</p>
-          <div className="mb-8">
-            <span className={`px-3 py-1 text-sm font-bold rounded-md ${project.tagColor}`}>{project.tag}</span>
+
+        {/* 문서 본문 */}
+        <div className="max-w-[620px] mx-auto px-10 pb-14 pt-8 overflow-y-auto max-h-[75vh]">
+          {/* 제목 */}
+          <h1 className="text-[32px] font-extrabold text-gray-900 leading-tight mb-7">{project.name}</h1>
+
+          {/* 프로퍼티 */}
+          <div className="mb-7 space-y-2 border-b border-gray-100 pb-5">
+            {project.duration && (
+              <div className="flex items-center gap-4">
+                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
+                <span className="text-[13px] text-gray-700">{project.duration}</span>
+              </div>
+            )}
+            {project.role && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                <span className="text-[13px] text-gray-700 leading-relaxed">{project.role}</span>
+              </div>
+            )}
+            {project.techStack?.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {project.techStack.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[12px]">
+                      {typeof t === 'string' ? t : t?.name || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {project.keywords?.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {project.keywords.slice(0, 6).map((kw, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[12px] font-medium">
+                      {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {project.goal && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                <span className="text-[13px] text-gray-700 leading-relaxed">{project.goal}</span>
+              </div>
+            )}
           </div>
-          <p className="text-lg leading-relaxed text-gray-700">{project.desc}</p>
-          {project.details?.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">프로젝트 상세</h3>
-              <ul className="space-y-3">
-                {project.details.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed text-gray-700">{item}</span>
-                  </li>
-                ))}
-              </ul>
+
+          {/* 핵심 경험 슬라이드 */}
+          {keyExperiences.length > 0 && (
+            <div className="mb-7">
+              <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+              <KeyExperienceSlider keyExperiences={keyExperiences} />
             </div>
+          )}
+
+          {/* 섹션 본문 */}
+          {sectionsToRender.length > 0 && (
+            <div className="space-y-7">
+              {sectionsToRender.map((sec, i) => (
+                <div key={i}>
+                  <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
+                    {sec.label}
+                  </h2>
+                  <p className="text-[14px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 섹션 없을 때 기본 설명 */}
+          {sectionsToRender.length === 0 && keyExperiences.length === 0 && project.desc && (
+            <p className="text-[14px] text-gray-700 leading-[1.9]">{project.desc}</p>
           )}
         </div>
       </div>
@@ -604,7 +702,178 @@ const ProjectModal = ({ project, onClose }) => {
   );
 };
 
-// ── 템플릿 1: 기본 노션형 ──
+// ── 스킬 편집 패널 (모든 Visual 템플릿 공통) ──
+const SKILL_VT_PROFICIENCY_LEVELS = [
+  { value: 1, label: '기초', color: 'bg-gray-300' },
+  { value: 2, label: '초급', color: 'bg-blue-300' },
+  { value: 3, label: '중급', color: 'bg-green-400' },
+  { value: 4, label: '고급', color: 'bg-amber-400' },
+  { value: 5, label: '전문가', color: 'bg-red-400' },
+];
+const SKILL_VT_PRESETS = {
+  tools:      ['Notion', 'Figma', 'Photoshop', 'Illustrator', 'Canva', 'Slack', 'Jira', 'Excel', 'VS Code', 'GitHub', 'Premiere Pro'],
+  languages:  ['Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'Go', 'Swift', 'Kotlin', 'SQL', 'R'],
+  frameworks: ['React', 'Vue.js', 'Next.js', 'Spring', 'Django', 'Node.js', 'Express.js', 'TensorFlow', 'Flutter', 'Tailwind CSS'],
+  others:     ['데이터 분석', 'UI/UX 디자인', '프로젝트 관리', '기획', '마케팅', '글쓰기', '발표', '리더십'],
+};
+const SKILL_VT_CATEGORY_LABELS = {
+  tools: '도구 (Tools)', languages: '프로그래밍 언어', frameworks: '프레임워크/라이브러리', others: '기타 역량',
+};
+
+function SkillVTCategoryInput({ category, portfolio, ec }) {
+  const [customInput, setCustomInput] = useState('');
+  const [editingSkill, setEditingSkill] = useState(null);
+  const portfolioSkills = portfolio.skills || {};
+  const items = portfolioSkills[category] || [];
+  const getItemName = (item) => typeof item === 'string' ? item : (item.name || '');
+  const getItemProficiency = (item) => typeof item === 'string' ? 0 : (item.proficiency || 0);
+  const selectedNames = items.map(getItemName);
+
+  const toggleSkill = (name) => {
+    const currentCat = [...(portfolioSkills[category] || [])];
+    if (currentCat.map(getItemName).includes(name)) {
+      ec.update('skills', { ...portfolioSkills, [category]: currentCat.filter(item => getItemName(item) !== name) });
+    } else {
+      ec.update('skills', { ...portfolioSkills, [category]: [...currentCat, { name, proficiency: 3 }] });
+    }
+  };
+
+  const setProficiency = (name, level) => {
+    const currentCat = [...(portfolioSkills[category] || [])];
+    ec.update('skills', {
+      ...portfolioSkills,
+      [category]: currentCat.map(item =>
+        getItemName(item) === name
+          ? { name, proficiency: level }
+          : (typeof item === 'string' ? { name: item, proficiency: 0 } : item)
+      ),
+    });
+    setEditingSkill(null);
+  };
+
+  const addCustom = () => {
+    const val = customInput.trim();
+    if (!val) return;
+    const currentCat = [...(portfolioSkills[category] || [])];
+    if (currentCat.map(getItemName).includes(val)) return;
+    ec.update('skills', { ...portfolioSkills, [category]: [...currentCat, { name: val, proficiency: 3 }] });
+    setCustomInput('');
+  };
+
+  const presets = SKILL_VT_PRESETS[category] || [];
+
+  return (
+    <div className="mb-4">
+      <p className="text-[11px] font-semibold text-gray-400 mb-1.5">{SKILL_VT_CATEGORY_LABELS[category]}</p>
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {items.map((item, i) => {
+            const name = getItemName(item);
+            const prof = getItemProficiency(item);
+            return (
+              <div key={i} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setEditingSkill(editingSkill === name ? null : name)}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200 hover:bg-blue-100 transition-colors"
+                >
+                  {name}
+                  {prof > 0 && (
+                    <span className="flex gap-0.5 ml-1">
+                      {[1,2,3,4,5].map(l => (
+                        <span key={l} className={`w-1 h-2.5 rounded-sm ${l <= prof ? SKILL_VT_PROFICIENCY_LEVELS[prof-1].color : 'bg-gray-200'}`} />
+                      ))}
+                    </span>
+                  )}
+                  <span role="button" onClick={ev => { ev.stopPropagation(); toggleSkill(name); }} className="hover:text-red-500 ml-0.5">
+                    <X size={9} />
+                  </span>
+                </button>
+                {editingSkill === name && (
+                  <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[140px]">
+                    <p className="text-[10px] text-gray-400 mb-1 px-1">숙련도</p>
+                    {SKILL_VT_PROFICIENCY_LEVELS.map(lv => (
+                      <button key={lv.value} type="button" onClick={() => setProficiency(name, lv.value)}
+                        className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-gray-50 ${prof === lv.value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600'}`}>
+                        <span className="flex gap-0.5">
+                          {[1,2,3,4,5].map(l => <span key={l} className={`w-1 h-2.5 rounded-sm ${l <= lv.value ? lv.color : 'bg-gray-200'}`} />)}
+                        </span>
+                        {lv.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1 mb-2">
+        {presets.map(name => {
+          const isSelected = selectedNames.includes(name);
+          return (
+            <button key={name} type="button" onClick={() => toggleSkill(name)}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all ${
+                isSelected
+                  ? 'bg-blue-100 text-blue-700 border-blue-300'
+                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+              }`}>
+              {isSelected ? '✓ ' : ''}{name}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-1">
+        <input value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="직접 입력..."
+          className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded outline-none focus:ring-1 focus:ring-blue-300"
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }} />
+        <button type="button" onClick={addCustom}
+          className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs hover:bg-gray-200">추가</button>
+      </div>
+    </div>
+  );
+}
+
+function SkillsEditorPanel({ portfolio, ec }) {
+  if (!ec) return null;
+  return (
+    <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+      {['tools', 'languages', 'frameworks', 'others'].map(cat => (
+        <SkillVTCategoryInput key={cat} category={cat} portfolio={portfolio} ec={ec} />
+      ))}
+    </div>
+  );
+}
+
+// 섹션 순서 유틸 (Visual Templates 공통)
+function makeSectionOrderUtils(portfolio, ec, defaultSections) {
+  const sectionOrder = (portfolio.sectionOrder && portfolio.sectionOrder.length > 0)
+    ? portfolio.sectionOrder : defaultSections;
+  const getOrder = (key) => { const i = sectionOrder.indexOf(key); return i >= 0 ? i : 99; };
+  const swapOrder = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey || !ec) return;
+    const cur = [...sectionOrder];
+    const fi = cur.indexOf(fromKey), ti = cur.indexOf(toKey);
+    if (fi === -1 || ti === -1) return;
+    [cur[fi], cur[ti]] = [cur[ti], cur[fi]];
+    ec.update('sectionOrder', cur);
+  };
+  const dragProps = (key) => ec ? {
+    style: { order: getOrder(key) },
+    onDragOver: (e) => e.preventDefault(),
+    onDrop: (e) => { e.preventDefault(); swapOrder(e.dataTransfer.getData('text/plain'), key); },
+  } : {};
+  const gripProps = (key) => ec ? {
+    draggable: true,
+    onDragStart: (e) => { e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity = '0.5'; },
+    onDragEnd: (e) => { e.currentTarget.closest('div[style]').style.opacity = '1'; },
+    className: 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors ml-1',
+    title: '드래그하여 이동',
+  } : {};
+  return { getOrder, swapOrder, dragProps, gripProps };
+}
+
+// ── 템플릿 1: 기본 버전의 정의 ──
 export const VisualTemplate1 = ({ portfolio, ec }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
@@ -614,6 +883,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
   const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['education', 'experiences', 'projects', 'awards', 'skills', 'contact']);
 
   return (
     <div className="min-h-screen bg-white text-[#37352f] font-sans selection:bg-blue-200">
@@ -661,12 +931,12 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
 
         {/* Education */}
         {(eduList.length > 0 || ec) && (
-          <>
+          <div {...dp('education')}>
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <div className="flex items-center gap-2"><GraduationCap className="w-6 h-6" /><h2 className="text-2xl font-bold">Education</h2></div>
-                {ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}
+                <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}</div>
               </div>
               <div className="space-y-4">
                 {eduList.map((edu, idx) => (
@@ -684,18 +954,21 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
               </div>
               {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors mt-3"><Plus size={12} /> 학력 추가</button>}
             </div>
-          </>
+          </div>
         )}
 
+        <div {...dp('experiences')}>
         <hr className="border-[#ededed] my-8" />
         <div className="mb-12">
           <div className="flex items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-2"><Briefcase className="w-6 h-6" /><h2 className="text-2xl font-bold">Work Experience</h2></div>
-            {ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}</div>
           </div>
           <ExperienceTimeline expList={expList} ec={ec} />
         </div>
+        </div>
 
+        <div {...dp('projects')}>
         <hr className="border-[#ededed] my-8" />
         <div className="mb-12">
           <div className="flex items-center justify-between gap-3 mb-6">
@@ -736,13 +1009,17 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
           </div>
           {ec && <ExpControls ec={ec} />}
         </div>
+        </div>{/* end projects */}
 
         {/* Awards */}
         {(awardList.length > 0 || ec) && (
-          <>
+          <div {...dp('awards')}>
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12">
-              <div className="flex items-center gap-2 mb-6"><Award className="w-6 h-6" /><h2 className="text-2xl font-bold">Awards</h2></div>
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-2"><Award className="w-6 h-6" /><h2 className="text-2xl font-bold">Awards</h2></div>
+                <div className="flex items-center gap-1">{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}</div>
+              </div>
               <div className="space-y-3">
                 {awardList.map((award, idx) => (
                   <div key={idx} className="flex gap-8 hover:bg-gray-50 p-2 -ml-2 rounded-md relative group">
@@ -759,17 +1036,17 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
               </div>
               {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors mt-3"><Plus size={12} /> 수상 추가</button>}
             </div>
-          </>
+          </div>
         )}
 
         {/* Skills */}
         {(skillList.length > 0 || ec) && (
-          <>
+          <div {...dp('skills')}>
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <div className="flex items-center gap-2"><Code className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Skills" sectionKey="skills" /></h2></div>
-                {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+                <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {skillList.map((skill, idx) => (
@@ -784,20 +1061,20 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                   </div>
                 ))}
               </div>
-              {ec && (
-                <input className="mt-3 px-3 py-1.5 text-sm border border-dashed border-gray-300 rounded-lg outline-none focus:border-primary-300" placeholder="스킬 추가 후 Enter"
-                  onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value.trim()) { ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] }); e.currentTarget.value = ''; } }} />
-              )}
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
             </div>
-          </>
+          </div>
         )}
 
         {/* Contact */}
         {(data.email || data.phone || ec) && (
-          <>
+          <div {...dp('contact')}>
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12">
-              <div className="flex items-center gap-2 mb-6"><Mail className="w-6 h-6" /><h2 className="text-2xl font-bold">Contact</h2></div>
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-2"><Mail className="w-6 h-6" /><h2 className="text-2xl font-bold">Contact</h2></div>
+                {ec && <span {...gp('contact')}><GripVertical size={14} /></span>}
+              </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
                   <>
@@ -814,7 +1091,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                 )}
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
       <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
@@ -832,6 +1109,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
   const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['resume', 'projects', 'skills', 'contact']);
 
   return (
     <div className="min-h-screen bg-white text-[#37352f] font-serif pb-32">
@@ -869,8 +1147,13 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
             <div key={label} className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">{label}</div>
           ))}
         </div>
-        <div className="py-10">
-          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8">RESUME</h2>
+        {/* Reorderable sections */}
+        <div className="flex flex-col">
+        <div className="py-10" {...dp('resume')}>
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1">RESUME</h2>
+            {ec && <span {...gp('resume')}><GripVertical size={14} /></span>}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 font-sans">
             <div>
               <div className="flex items-center justify-between gap-2 mb-6">
@@ -936,10 +1219,13 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
               )}
             </div>
           </div>
-        </div>
-        {/* Projects — ec 기반 inline 편집 + 이미지 업로드 */}
-        <div className="py-10 border-t border-gray-100 font-sans">
-          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8 font-serif"><EH ec={ec} value="PROJECT" sectionKey="projects" /></h2>
+        </div>{/* end resume section */}
+        {/* Projects */}
+        <div className="py-10 border-t border-gray-100 font-sans" {...dp('projects')}>
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 font-serif"><EH ec={ec} value="PROJECT" sectionKey="projects" /></h2>
+            {ec && <span {...gp('projects')}><GripVertical size={14} /></span>}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md overflow-hidden cursor-pointer hover:shadow-md transition group relative">
@@ -966,11 +1252,11 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </div>
           {ec && <ExpControls ec={ec} />}
         </div>
-        {/* Skills — ec 지원 */}
-        <div className="py-10 border-t border-gray-100 font-sans">
+        {/* Skills */}
+        <div className="py-10 border-t border-gray-100 font-sans" {...dp('skills')}>
           <div className="flex items-center justify-between gap-3 mb-8">
             <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 font-serif"><EH ec={ec} value="SKILLS" sectionKey="skills" /></h2>
-            {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}</div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {skillList.map((skill, idx) => (
@@ -992,14 +1278,14 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
               </div>
             ))}
           </div>
-          {ec && (
-            <input className="mt-3 px-3 py-1.5 text-sm border border-dashed border-gray-300 rounded-lg outline-none focus:border-gray-400" placeholder="스킬 추가 후 Enter"
-              onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value.trim()) { ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] }); e.currentTarget.value = ''; } }} />
-          )}
+          <SkillsEditorPanel portfolio={portfolio} ec={ec} />
         </div>
         {/* Contact */}
-        <div className="py-10 border-t border-gray-100 font-serif pb-20">
-          <h2 className="text-2xl font-bold border-b border-black inline-block pb-1 mb-8">Contact</h2>
+        <div className="py-10 border-t border-gray-100 font-serif pb-20" {...dp('contact')}>
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1">Contact</h2>
+            {ec && <span {...gp('contact')}><GripVertical size={14} /></span>}
+          </div>
           <div className="border-l-2 border-black pl-4 mb-6 font-sans space-y-2">
             {ec ? (
               <>
@@ -1016,6 +1302,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
             )}
           </div>
         </div>
+        </div>{/* end flex col reorderable sections */}
       </div>
       <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
     </div>
@@ -1049,6 +1336,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
   const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, instagram: data.social?.instagram };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['education', 'experiences', 'projects', 'awards', 'skills']);
 
   return (
     <div className="min-h-screen bg-white text-[#37352f] font-sans pb-32">
@@ -1094,11 +1382,13 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           </div>
         </div>
         <div className="h-1 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-12 opacity-50"></div>
+        {/* Reorderable sections */}
+        <div className="flex flex-col">
         {(ec ? eduList.length > 0 : data.education.length > 0) && (
-          <div className="mb-12">
+          <div className="mb-12" {...dp('education')}>
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-xl font-bold">Education</h2>
-              {ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}
+              <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}</div>
             </div>
             <DatabaseHeader />
             <div className="space-y-3">
@@ -1124,14 +1414,20 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           </div>
         )}
         {(ec ? true : data.experience.length > 0) && (
-          <div className="mb-12">
-            <h2 className="text-xl font-bold mb-4">Experiences</h2>
+          <div className="mb-12" {...dp('experiences')}>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-xl font-bold">Experiences</h2>
+              {ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}
+            </div>
             <DatabaseHeader />
             <ExperienceTimeline expList={expList} ec={ec} accentDot="bg-purple-500" />
           </div>
         )}
-        <div className="mb-12">
-          <h2 className="text-xl font-bold mb-4">Project</h2>
+        <div className="mb-12" {...dp('projects')}>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold">Project</h2>
+            {ec && <span {...gp('projects')}><GripVertical size={14} /></span>}
+          </div>
           <DatabaseHeader />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
@@ -1159,14 +1455,14 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
             ))}
           </div>
           {ec && <ExpControls ec={ec} />}
-        </div>
+        </div>{/* end projects */}
         <div className="h-1 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-12 opacity-50"></div>
         {/* Awards */}
         {(awardList.length > 0 || ec) && (
-          <div className="mb-12">
+          <div className="mb-12" {...dp('awards')}>
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-xl font-bold">Awards</h2>
-              {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
+              <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}</div>
             </div>
             <DatabaseHeader />
             <div className="space-y-3">
@@ -1181,10 +1477,10 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors mt-3"><Plus size={12} /> 수상 추가</button>}
           </div>
         )}
-        <div className="mb-12">
+        <div className="mb-12" {...dp('skills')}>
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-xl font-bold">Skill</h2>
-            {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}</div>
           </div>
           <DatabaseHeader />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1206,11 +1502,9 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
               </div>
             ))}
           </div>
-          {ec && (
-            <input className="mt-3 px-2 py-1 text-xs border rounded-lg outline-none focus:ring-1 focus:ring-primary-300" placeholder="스킬 추가 후 Enter"
-              onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value.trim()) { ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] }); e.currentTarget.value = ''; } }} />
-          )}
-        </div>
+          <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+        </div>{/* end skills */}
+        </div>{/* end flex col reorderable sections */}
         {/* Contact 카드 */}
         <div className="flex flex-col md:flex-row items-center gap-6 justify-center mt-20 mb-10">
           <ImageUploadSlot src={ec ? portfolio.profileImageUrl : null} onUpload={ec?.onUploadProfileImage} className="w-24 h-24 rounded-full overflow-hidden bg-pink-100 shadow-sm flex-shrink-0" imgClassName="w-full h-full object-cover" rounded="rounded-full">
@@ -1367,20 +1661,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                   </div>
                 ))}
               </div>
-              {ec && (
-                <div className="flex gap-1 mt-2">
-                  <input
-                    className="px-2 py-1 text-xs border rounded-lg outline-none focus:ring-1 focus:ring-primary-300"
-                    placeholder="스킬 추가 후 Enter"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                        ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] });
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
-                </div>
-              )}
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
             </section>
           </div>
           <div className="lg:col-span-2 space-y-12">
@@ -1440,8 +1721,8 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards']);
   return (
-    <div className="min-h-screen bg-[#F7F6F3] text-[#37352f] font-sans pt-10 pb-32 flex justify-center">
       <div className="w-full max-w-lg px-6 flex flex-col items-center">
         <ImageUploadSlot src={ec ? portfolio.profileImageUrl : null} onUpload={ec?.onUploadProfileImage} className="w-28 h-28 rounded-full overflow-hidden bg-white border border-gray-200 shadow-sm mb-6 flex-shrink-0" imgClassName="w-full h-full object-cover" rounded="rounded-full">
           <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center text-5xl shadow-sm border border-gray-200">🧑🏻‍💻</div>
@@ -1478,7 +1759,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           )}
         </div>
         <div className="w-full bg-white border border-gray-200 p-5 rounded-xl shadow-sm mb-10 flex items-start gap-4">
-          <span className="text-2xl">✨</span>
+          <span className="text-2xl">💬</span>
           {ec
             ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-gray-700 leading-relaxed font-medium flex-1" />
             : <p className="text-sm text-gray-700 leading-relaxed font-medium">
@@ -1512,16 +1793,19 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
             ))}
           </div>
           {ec && <ExpControls ec={ec} />}
-        </div>
-        <div className="w-full mb-10">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Briefcase className="w-5 h-5 text-gray-800" /> Experience</h2>
+        </div>{/* end projects */}
+        <div className="w-full mb-10" {...dp('experiences')}>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold flex items-center gap-2"><Briefcase className="w-5 h-5 text-gray-800" /> Experience</h2>
+            {ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}
+          </div>
           <ExperienceTimeline expList={expList} ec={ec} />
         </div>
         {(ec ? true : skillList.length > 0) && (
-          <div className="w-full mb-10">
+          <div className="w-full mb-10" {...dp('skills')}>
             <div className="flex items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5 text-gray-800" /> Skills</h2>
-              {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+              <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}</div>
             </div>
             <div className="flex flex-wrap gap-2">
               {skillList.map((skill, idx) => (
@@ -1536,12 +1820,15 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
                 </div>
               ))}
             </div>
-            {ec && <input className="mt-3 px-2 py-1 text-xs border rounded-lg outline-none focus:ring-1 focus:ring-primary-300" placeholder="스킬 추가 후 Enter" onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value.trim()) { ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] }); e.currentTarget.value = ''; } }} />}
+            <SkillsEditorPanel portfolio={portfolio} ec={ec} />
           </div>
         )}
         {(ec ? true : eduList.length > 0) && (
-          <div className="w-full mb-10">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><GraduationCap className="w-5 h-5 text-gray-800" /> Education</h2>
+          <div className="w-full mb-10" {...dp('education')}>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-gray-800" /> Education</h2>
+              {ec && <span {...gp('education')}><GripVertical size={14} /></span>}
+            </div>
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               {eduList.map((edu, idx) => (
                 <div key={idx} className="p-4 border-b border-gray-100 last:border-0 relative group">
@@ -1561,10 +1848,10 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           </div>
         )}
         {(ec ? true : awardList.length > 0) && (
-          <div className="w-full mb-10">
+          <div className="w-full mb-10" {...dp('awards')}>
             <div className="flex items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold flex items-center gap-2"><Award className="w-5 h-5 text-gray-800" /> Awards</h2>
-              {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
+              <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}</div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               {awardList.map((award, idx) => (
@@ -1584,9 +1871,8 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors mt-3"><Plus size={12}/> 수상 추가</button>}
           </div>
         )}
+        <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
       </div>
-      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
-    </div>
   );
 };
 
@@ -1735,7 +2021,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                   </div>
                 ))}
               </div>
-              {ec && <input className="mt-2 px-2 py-1 text-xs border rounded-lg outline-none focus:ring-1 focus:ring-primary-300" placeholder="스킬 추가 후 Enter" onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value.trim()) { ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] }); e.currentTarget.value = ''; } }} />}
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
             </div>
             <div>
               <h2 className="text-xl font-bold mb-4">Contact</h2>
@@ -1779,6 +2065,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
   const hidden = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden = (key) => hidden.includes(key);
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['introduce', 'skills', 'projects', 'career', 'education', 'awards']);
   return (
     <div className="min-h-screen bg-[#1F1F1F] text-[#EBEBEB] font-sans pb-32 selection:bg-[#5C7CFA] selection:text-white">
       <ImageUploadSlot src={ec ? portfolio.coverImageUrl : null} onUpload={ec?.onUploadCoverImage} className="w-full h-48 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
@@ -1815,9 +2102,12 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             )}
           </div>
         </div>
-        {!isHidden('introduce') && <div className="mb-14 group/section">
+        {/* Reorderable sections */}
+        <div className="flex flex-col">
+        {!isHidden('introduce') && <div {...dp('introduce')}><div className="mb-14 group/section">
           <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
             <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Introduce" sectionKey="introduce" /></h3>
+            {ec && <span {...gp('introduce')}><GripVertical size={14} /></span>}
             <SectionDeleteBtn ec={ec} sectionKey="introduce" dark />
           </div>
           {ec
@@ -1828,8 +2118,8 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-[#A0A0A0] leading-relaxed" />
             : <p className="text-sm text-[#A0A0A0] leading-relaxed whitespace-pre-wrap">{data.about}</p>
           }
-        </div>}
-        {!isHidden('skills') && <div className="mb-14 group/section">
+        </div></div>}{/* end introduce */}
+        {!isHidden('skills') && <div {...dp('skills')}><div className="mb-14 group/section">
           <div className={`flex items-center gap-3 border-b ${borderColor} pb-2 mb-6`}>
             <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Skills" sectionKey="skills" /></h3>
             {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
@@ -1849,24 +2139,12 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
               </div>
             ))}
           </div>
-          {ec && (
-            <div className="flex gap-1 mt-2">
-              <input
-                className="px-2 py-1 text-xs border border-[#3A3A3A] bg-[#2A2A2A] text-[#EBEBEB] rounded-lg outline-none focus:ring-1 focus:ring-[#5C7CFA]"
-                placeholder="스킬 추가 후 Enter"
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] });
-                    e.currentTarget.value = '';
-                  }
-                }}
-              />
-            </div>
-          )}
-        </div>}
-        {!isHidden('projects') && <div className="mb-14 group/section">
+          <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+        </div></div>}{/* end skills */}
+        {!isHidden('projects') && <div {...dp('projects')}><div className="mb-14 group/section">
           <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
             <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Projects" sectionKey="projects" /></h3>
+            {ec && <span {...gp('projects')}><GripVertical size={14} /></span>}
             <SectionDeleteBtn ec={ec} sectionKey="projects" dark />
           </div>
           <div className="flex items-center gap-2 mb-6">
@@ -1894,18 +2172,20 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             ))}
           </div>
           {ec && <ExpControls ec={ec} />}
-        </div>}
-        {!isHidden('career') && <div className="mb-14 group/section">
+        </div></div>}{/* end projects */}
+        {!isHidden('career') && <div {...dp('career')}><div className="mb-14 group/section">
           <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
             <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Career" sectionKey="career" /></h3>
+            {ec && <span {...gp('career')}><GripVertical size={14} /></span>}
             <SectionDeleteBtn ec={ec} sectionKey="career" dark />
           </div>
           <ExperienceTimeline expList={expList} ec={ec} dark={true} />
-        </div>}
+        </div></div>}{/* end career */}
         {!isHidden('education') && (ec ? true : eduList.length > 0) && (
-          <div className="mb-14 group/section">
+          <div {...dp('education')}><div className="mb-14 group/section">
             <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
               <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Education" sectionKey="education" /></h3>
+              {ec && <span {...gp('education')}><GripVertical size={14} /></span>}
               <SectionDeleteBtn ec={ec} sectionKey="education" dark />
             </div>
             <div className="space-y-4">
@@ -1929,13 +2209,13 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
               ))}
             </div>
             {ec && <button type="button" onClick={() => ec.addToArray('education', { school: '', major: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors mt-3"><Plus size={12}/> 학력 추가</button>}
-          </div>
-        )}
+          </div></div>)}{/* end education */}
         {!isHidden('awards') && (ec ? true : awardList.length > 0) && (
-          <div className="mb-14 group/section">
+          <div {...dp('awards')}><div className="mb-14 group/section">
             <div className="flex items-center gap-3 border-b border-[#3A3A3A] pb-2 mb-6">
               <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Awards" sectionKey="awards" /></h3>
               {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
+              {ec && <span {...gp('awards')}><GripVertical size={14} /></span>}
               <SectionDeleteBtn ec={ec} sectionKey="awards" dark />
             </div>
             <div className="space-y-3">
@@ -1953,9 +2233,9 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                 </div>
               ))}
             </div>
-            {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors mt-3"><Plus size={12}/> 수상 추가</button>}
-          </div>
-        )}
+            {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors mt-3"><Plus size={12}/> 상장 추가</button>}
+          </div></div>)}{/* end awards */}
+        </div>{/* end flex col reorderable sections */}
       </div>
       {/* 숨겨진 섹션 복원 버튼 (편집 모드) */}
       {ec && hidden.length > 0 && (
@@ -1993,6 +2273,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
 
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'skills', 'awards', 'career', 'education']);
   const getSkillLevel = (percent) => {
     const num = parseInt(percent);
     if (num >= 90) return 5;
@@ -2022,7 +2303,9 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         <h1 className="text-3xl font-extrabold mb-16 tracking-wide text-white text-center">
           {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-extrabold text-white" /> : data.name}
         </h1>
-        <div className="mb-16">
+        {/* Reorderable sections */}
+        <div className="flex flex-col">
+        <div className="mb-16" {...dp('projects')}>
           <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
             🧑🏻‍💻 <EH ec={ec} value="Project Summary" sectionKey="projects" className="text-[#EBEBEB] font-bold" />
           </div>
@@ -2085,12 +2368,12 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
             ))}
           </div>
         </div>
-        <div className="mb-16">
+        <div className="mb-16" {...dp('skills')}>
           <div className="flex items-center gap-2 mb-8">
             <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 shadow-sm border border-[#3A4354] flex-1">
-              💻 <EH ec={ec} value="SKILLS" sectionKey="skills" className="text-[#EBEBEB] font-bold" />
+              🛠 <EH ec={ec} value="SKILLS" sectionKey="skills" className="text-[#EBEBEB] font-bold" />
             </div>
-            {ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}</div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pl-2">
             {skillList.map((skill, idx) => (
@@ -2115,28 +2398,15 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
               </div>
             ))}
           </div>
-          {ec && (
-            <div className="flex gap-1 mt-3 pl-2">
-              <input
-                className="px-2 py-1 text-xs border border-[#3A3A3A] bg-[#2A2A2A] text-[#EBEBEB] rounded-lg outline-none focus:ring-1 focus:ring-[#5C7CFA]"
-                placeholder="스킬 추가 후 Enter"
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    ec.update('skills', { ...portfolio.skills, tools: [...(portfolio.skills?.tools || []), e.currentTarget.value.trim()] });
-                    e.currentTarget.value = '';
-                  }
-                }}
-              />
-            </div>
-          )}
-        </div>
+          <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+        </div>{/* end skills */}
         {(ec ? true : awardList.length > 0) && (
-          <div className="mb-16">
+          <div className="mb-16" {...dp('awards')}>
             <div className="flex items-center gap-2 mb-8">
               <div className="bg-[#3A2D25] text-[#E0C8B1] p-3 rounded-lg font-bold flex items-center gap-2 shadow-sm border border-[#4A392F] flex-1">
                 🏆 Awards
               </div>
-              {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
+              <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}</div>
             </div>
             <div className="space-y-4 pl-2">
               {awardList.map((award, idx) => (
@@ -2161,17 +2431,19 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           </div>
         )}
         {(ec ? true : expList.length > 0) && (
-          <div className="mb-16">
-            <div className="bg-[#3A3A3A] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#4A4A4A]">
-              ⚡ <EH ec={ec} value="EXPERIENCE" sectionKey="career" className="text-[#EBEBEB] font-bold" />
+          <div className="mb-16" {...dp('career')}>
+            <div className="flex items-center justify-between gap-2 bg-[#3A3A3A] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#4A4A4A]">
+              <span>🗂 <EH ec={ec} value="EXPERIENCE" sectionKey="career" className="text-[#EBEBEB] font-bold" /></span>
+              {ec && <span {...gp('career')}><GripVertical size={14} /></span>}
             </div>
             <ExperienceTimeline expList={expList} ec={ec} dark={true} />
           </div>
         )}
         {(ec ? true : eduList.length > 0) && (
-          <div className="mb-16">
-            <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
-              🎓 <EH ec={ec} value="EDUCATION" sectionKey="education" className="text-[#EBEBEB] font-bold" />
+          <div className="mb-16" {...dp('education')}>
+            <div className="flex items-center justify-between gap-2 bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#3A4354]">
+              <span>🎓 <EH ec={ec} value="EDUCATION" sectionKey="education" className="text-[#EBEBEB] font-bold" /></span>
+              {ec && <span {...gp('education')}><GripVertical size={14} /></span>}
             </div>
             <div className="space-y-6 pl-2">
               {eduList.map((edu, idx) => (
@@ -2193,6 +2465,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('education', { school: '', major: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors mt-3 ml-2"><Plus size={12}/> 학력 추가</button>}
           </div>
         )}
+        </div>{/* end flex col reorderable sections */}
         <div className="mb-16">
           <div className="bg-[#1E2A3A] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#2A3A4A]">
             📬 CONTACT

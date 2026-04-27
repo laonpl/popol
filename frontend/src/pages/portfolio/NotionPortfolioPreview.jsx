@@ -13,7 +13,6 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
-import { JobAnalysisBadge } from '../../components/JobLinkInput';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -118,20 +117,8 @@ export default function NotionPortfolioPreview() {
           </div>
         </div>
 
-        <div className="flex gap-5 items-start">
-          <div className="flex-1 min-w-0 border border-surface-200 rounded-2xl overflow-hidden">
-            <VisualPortfolioRenderer portfolio={portfolio} />
-          </div>
-          <div className="w-[380px] flex-shrink-0">
-            {portfolio.jobAnalysis && (
-              <div className="sticky top-5">
-                <div className="flex items-center gap-2 mb-3 px-1">
-                  <h3 className="text-sm font-bold text-gray-800">기업 분석 · 첨삭</h3>
-                </div>
-                <JobAnalysisBadge analysis={portfolio.jobAnalysis} experiences={portfolio.experiences || []} />
-              </div>
-            )}
-          </div>
+        <div className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-hidden">
+          <VisualPortfolioRenderer portfolio={portfolio} />
         </div>
 
         {/* Link Export Modal */}
@@ -1494,7 +1481,7 @@ function ExperienceDetailModal({ exp, onClose }) {
   const fw = exp.framework && FRAMEWORKS[exp.framework];
   const hasSections = (exp.sections || []).some(s => s.title && s.content);
   const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
-  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(k => k.title);
+  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(Boolean);
   const st = STATUS_DISPLAY[exp.status] || STATUS_DISPLAY.finished;
   const [showAllProps, setShowAllProps] = useState(false);
 
@@ -1569,150 +1556,145 @@ function ExperienceDetailModal({ exp, onClose }) {
   const visibleProps = showAllProps ? props : props.slice(0, 3);
   const hiddenCount = props.length - 3;
 
+  const overview = structured.projectOverview || {};
+  const coverImg = structured.exportConfig?.coverImg || exp.thumbnailUrl || null;
+  const duration = overview.duration || exp.date || '';
+  const role = overview.role || exp.role || '';
+  const techStack = (overview.techStack?.length > 0 ? overview.techStack : null)
+    || (exp.skills?.length > 0 ? exp.skills : null)
+    || [];
+  const keywords = exp.keywords || [];
+  const goal = overview.goal || '';
+
+  // 섹션 목록
+  const exportCfg = structured.exportConfig;
+  const sectionsToRender = (() => {
+    if (exportCfg?.sections?.length > 0) {
+      return exportCfg.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content, key: s.key }));
+    }
+    if (hasSections) {
+      return (exp.sections || []).filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content, key: s.title }));
+    }
+    if (hasStructuredSections) {
+      return EXP_SECTION_KEYS_PREVIEW.filter(k => sectionContents[k]?.trim()).map(k => ({ label: EXP_SECTION_META_PREVIEW[k].label, content: sectionContents[k], key: k }));
+    }
+    return [];
+  })();
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[5vh] p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-[900px] shadow-2xl" onClick={e => e.stopPropagation()}>
-        {/* Close button */}
-        <div className="flex justify-start p-3 pb-0">
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50">
-            <X size={18} />
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[4vh] p-4 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-[780px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* 커버 이미지 영역 */}
+        <div className={`relative w-full ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
+          {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Title */}
-        <div className="px-16 pt-4 pb-2">
-          <h1 className="text-[28px] font-bold text-gray-900 leading-tight mb-4">{exp.title || '(제목 없음)'}</h1>
+        {/* 문서 본문 */}
+        <div className="max-w-[620px] mx-auto px-10 pb-14 pt-8 overflow-y-auto max-h-[75vh]">
+          {/* 제목 */}
+          <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
+            {exp.title || '(제목 없음)'}
+          </h1>
 
-          {/* Properties table (Notion style) */}
-          <div className="space-y-2">
-            {visibleProps.map((pr, i) => (
-              <div key={i} className="flex items-start gap-4 min-h-[32px] py-1">
-                <span className="w-24 text-sm text-gray-400 shrink-0 flex items-center gap-1.5 pt-0.5">
-                  {pr.label}
-                </span>
-                <div className="flex-1">{pr.node}</div>
+          {/* 프로퍼티 */}
+          <div className="mb-7 space-y-2 border-b border-surface-200 pb-5">
+            {duration && (
+              <div className="flex items-center gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">기간</span>
+                <span className="text-[13px] text-bluewood-700">{duration}</span>
               </div>
-            ))}
-          </div>
-
-          {hiddenCount > 0 && !showAllProps && (
-            <button onClick={() => setShowAllProps(true)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mt-2 py-1">
-              <ChevronRight size={12} /> 속성 {hiddenCount}개 더 보기
-            </button>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="mx-16 my-2 border-t border-surface-100" />
-
-        {/* Content */}
-        <div className="px-16 pb-10 space-y-6">
-          {/* 썸네일 */}
-          {exp.thumbnailUrl && (
-            <div className="w-full h-44 rounded-xl overflow-hidden bg-surface-50">
-              <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-
-          {/* 기본 정보 */}
-          <div>
-            <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
-              {exp.date && <span>{exp.date}</span>}
-              {exp.role && <span>{exp.role}</span>}
-              {structured.projectOverview?.team && <span>{structured.projectOverview.team}</span>}
-              {structured.projectOverview?.duration && <span>{structured.projectOverview.duration}</span>}
-              {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">링크</a>}
-            </div>
-            {(exp.skills || (structured.projectOverview?.techStack || [])).length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {(exp.skills?.length ? exp.skills : (structured.projectOverview?.techStack || [])).map((sk, si) => (
-                  <span key={si} className="px-2.5 py-1 bg-primary-50 text-primary-700 rounded-md text-xs font-medium border border-primary-100">{typeof sk === 'string' ? sk : sk?.name}</span>
-                ))}
+            )}
+            {role && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
+                <span className="text-[13px] text-bluewood-700 leading-relaxed">{role}</span>
+              </div>
+            )}
+            {techStack.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {techStack.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[12px]">
+                      {typeof t === 'string' ? t : t?.name || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {keywords.length > 0 && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {keywords.slice(0, 6).map((kw, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                      {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {goal && (
+              <div className="flex items-start gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                <span className="text-[13px] text-bluewood-700 leading-relaxed">{goal}</span>
+              </div>
+            )}
+            {exp.link && (
+              <div className="flex items-center gap-4">
+                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">링크</span>
+                <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[13px] text-primary-600 hover:underline">
+                  <ExternalLink size={12} /> {exp.link}
+                </a>
               </div>
             )}
           </div>
 
-          {/* AI 요약 */}
-          {exp.aiSummary && (
-            <div className="bg-surface-50 border border-surface-200 rounded-lg p-4">
-              <p className="text-xs font-bold text-gray-700 mb-1">AI 역량 요약</p>
-              <p className="text-sm text-gray-600 leading-relaxed">{exp.aiSummary}</p>
-            </div>
-          )}
-
-          {/* 설명 또는 배경 */}
-          {(exp.description || structured.projectOverview?.background || structured.projectOverview?.summary) && (
-            <p className="text-sm text-gray-600 leading-relaxed bg-surface-50 rounded-xl p-4">
-              {exp.description || structured.projectOverview?.background || structured.projectOverview?.summary}
-            </p>
-          )}
-
-          {/* 핵심 경험 슬라이더 */}
+          {/* 핵심 경험 슬라이드 */}
           {keyExperiences.length > 0 && (
-            <div>
-              <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 & 성과</h4>
+            <div className="mb-7">
+              <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
               <KeyExperienceSlider keyExperiences={keyExperiences} />
             </div>
           )}
 
-          {/* 상세 섹션 (StructuredResult - 경험정리 내용) */}
-          {hasStructuredSections && (
-            <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
-              <div className="divide-y divide-surface-100">
-                {EXP_SECTION_KEYS_PREVIEW.map(key => {
-                  const meta = EXP_SECTION_META_PREVIEW[key];
-                  const val = sectionContents[key];
-                  if (!val?.trim()) return null;
-                  return (
-                    <div key={key}>
-                      <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-50/40">
-                        <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
-                        <span className="text-[13px] font-bold text-primary-700">{meta.label}</span>
-                      </div>
-                      <div className="px-5 py-3 pl-[60px]">
-                        {imagesLoaded && renderSectionImages(key, 'above')}
-                        <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
-                        {imagesLoaded && renderSectionImages(key, 'below')}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* 섹션 본문 */}
+          {sectionsToRender.length > 0 && (
+            <div className="space-y-7">
+              {sectionsToRender.map((sec, i) => (
+                <div key={i}>
+                  <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
+                    {sec.label}
+                  </h2>
+                  {imagesLoaded && renderSectionImages(sec.key, 'above')}
+                  <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                  {imagesLoaded && renderSectionImages(sec.key, 'below')}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* 경험 구조화 섹션 (sections - structuredResult이 없을 때) */}
-          {!hasStructuredSections && (exp.sections || []).map((sec, i) => (
-            sec.title && sec.content ? (
-              <div key={i}>
-                <h2 className="text-lg font-bold text-gray-900 mb-3">{sec.title}</h2>
-                <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{sec.content}</p>
-              </div>
-            ) : null
-          ))}
-
-          {/* 프레임워크 기반 상세 (sections 없을 때만 표시) */}
-          {!hasStructuredSections && hasFramework && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-3">{fw.name} 상세</h2>
-              <div className="space-y-4">
-                {fw.fields.map((field, idx) => {
-                  const val = exp.frameworkContent[field.key];
-                  if (!val) return null;
-                  return (
-                    <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
-                      <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
-                      <p className="text-[15px] text-gray-700 leading-[1.8] whitespace-pre-line">{val}</p>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* 프레임워크 기반 상세 (sections·structuredResult 없을 때만 표시) */}
+          {sectionsToRender.length === 0 && hasFramework && (
+            <div className="space-y-4">
+              {fw.fields.map((field, idx) => {
+                const val = exp.frameworkContent[field.key];
+                if (!val) return null;
+                return (
+                  <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
+                    <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
+                    <p className="text-[14px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {/* 아무 내용도 없을 때 */}
-          {!exp.description && !hasSections && !hasFramework && !exp.aiSummary && keyExperiences.length === 0 && !hasStructuredSections && (
+          {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
           )}
         </div>

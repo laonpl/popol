@@ -84,6 +84,8 @@ const EMPTY_PORTFOLIO = {
   funfacts: [],
   // 숨겨진 섹션
   hiddenSections: [],
+  // 섹션 순서 (드래그 or 버튼으로 변경)
+  sectionOrder: [],
   // 섹션 이름 커스텀
   customSectionLabels: {},
   // 스킬 레벨 (퍼센트)
@@ -262,28 +264,34 @@ export default function NotionPortfolioEditor() {
         const alreadyImported = existing.find(e => e.experienceId === exportConfig.experienceId);
         if (!alreadyImported) {
           const sr = exportConfig.structuredResult || {};
+          const overview = exportConfig.projectOverview || sr.projectOverview || {};
           const newExp = {
-            date: '',
+            date: overview.duration || '',
             title: exportConfig.title || '',
-            description: sr.projectOverview?.summary || sr.intro || '',
+            description: overview.summary || sr.intro || '',
             experienceId: exportConfig.experienceId || null,
             framework: 'STRUCTURED',
             frameworkContent: {},
             keywords: exportConfig.keywords || [],
-            aiSummary: sr.projectOverview?.summary || '',
+            aiSummary: overview.summary || sr.intro || '',
             structuredResult: {
               ...sr,
+              projectOverview: overview,
+              keyExperiences: exportConfig.keyExperiences || sr.keyExperiences || [],
               exportConfig: {
                 sectionOrder: exportConfig.sectionOrder,
                 sections: exportConfig.sections,
                 jobCategory: exportConfig.jobCategory,
+                coverImg: exportConfig.coverImg || null,
               },
             },
             thumbnailUrl: '',
             status: 'finished',
             classify: [],
-            skills: (exportConfig.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
-            role: sr.projectOverview?.role || '',
+            skills: (overview.techStack || []).length > 0
+              ? overview.techStack
+              : (exportConfig.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
+            role: overview.role || '',
             link: '',
             sections: exportConfig.sections.map(s => ({ title: s.label, content: s.content })),
           };
@@ -500,8 +508,10 @@ export default function NotionPortfolioEditor() {
       thumbnailUrl: exp.images?.[0] || '',
       status: 'finished',
       classify: [],
-      skills: autoSkills.slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
-      role: '',
+      skills: (aiResult.projectOverview?.techStack || []).length > 0
+        ? aiResult.projectOverview.techStack
+        : autoSkills.slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
+      role: aiResult.projectOverview?.role || '',
       link: '',
       sections,
     };
@@ -928,7 +938,8 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   }, {});
   const hasSections = EXP_SECTION_KEYS.some(k => sectionContents[k]?.trim());
   const hasRichData = keyExps.length > 0 || hasSections;
-  const [tab, setTab] = useState(hasRichData ? 'view' : 'edit');
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [metaDraft, setMetaDraft] = useState(null);
 
   // 첨삭 관련 state
   const [tailorMode, setTailorMode] = useState(null); // null | 'key' | 'section'
@@ -1023,7 +1034,6 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     const updatedKeyExps = [...currentKeyExps, newEntry];
     onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedKeyExps } });
     setAppliedKeyExperiences(prev => ({ ...prev, [ki]: true }));
-    setTab('view');
     setTimeout(() => sliderRef.current?.goTo(updatedKeyExps.length - 1), 150);
   };
 
@@ -1104,10 +1114,25 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-bold text-gray-900 truncate max-w-[280px]">{exp.title || '경험 상세'}</h3>
-            <div className="flex bg-surface-100 rounded-lg p-0.5 gap-0.5">
-              <button onClick={() => setTab('view')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'view' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>상세보기</button>
-              <button onClick={() => setTab('edit')} className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${tab === 'edit' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500'}`}>편집</button>
-            </div>
+            <button
+              onClick={() => {
+                if (!editingMeta) {
+                  const ov = structured.projectOverview || {};
+                  setMetaDraft({
+                    date: exp.date || ov.duration || '',
+                    role: exp.role || ov.role || '',
+                    skills: (exp.skills || []).join(', '),
+                    keywords: (exp.keywords || []).map(k => typeof k === 'string' ? k : k?.name || k?.keyword || '').join(', '),
+                    goal: ov.goal || '',
+                    description: exp.description || ov.background || ov.summary || '',
+                  });
+                }
+                setEditingMeta(v => !v);
+              }}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all border ${editingMeta ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-primary-700 border-primary-200 hover:bg-primary-50'}`}
+            >
+              {editingMeta ? '닫기' : '수정'}
+            </button>
           </div>
           <div className="flex items-center gap-2">
             {jobAnalysis && (
@@ -1128,34 +1153,135 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
         <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto">
-          {/* ── 상세보기 탭 ── */}
-          {(tab === 'view' || !hasRichData) && (
-            <div className="p-6 space-y-6">
-              {/* 썸네일 */}
-              {exp.thumbnailUrl && (
-                <div className="w-full h-44 rounded-xl overflow-hidden bg-surface-50">
-                  <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+          {/* ── 상세보기 ── */}
+          <div className="p-6 space-y-6">
+              {/* ── 메타 인라인 편집 ── */}
+              {editingMeta && metaDraft && (
+                <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 mb-1 block">기간</label>
+                      <input value={metaDraft.date} onChange={e => setMetaDraft(d => ({ ...d, date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 mb-1 block">역할</label>
+                      <input value={metaDraft.role} onChange={e => setMetaDraft(d => ({ ...d, role: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 mb-1 block">기술 (쉼표로 구분)</label>
+                    <input value={metaDraft.skills} onChange={e => setMetaDraft(d => ({ ...d, skills: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 mb-1 block">키워드 (쉼표로 구분)</label>
+                    <input value={metaDraft.keywords} onChange={e => setMetaDraft(d => ({ ...d, keywords: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 mb-1 block">목표</label>
+                    <textarea value={metaDraft.goal} onChange={e => setMetaDraft(d => ({ ...d, goal: e.target.value }))}
+                      rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 mb-1 block">간단한 소개</label>
+                    <textarea value={metaDraft.description} onChange={e => setMetaDraft(d => ({ ...d, description: e.target.value }))}
+                      rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">취소</button>
+                    <button onClick={() => {
+                      const skills = metaDraft.skills.split(',').map(s => s.trim()).filter(Boolean);
+                      const keywords = metaDraft.keywords.split(',').map(s => s.trim()).filter(Boolean);
+                      const newSr = {
+                        ...(exp.structuredResult || {}),
+                        projectOverview: {
+                          ...((exp.structuredResult || {}).projectOverview || {}),
+                          duration: metaDraft.date,
+                          role: metaDraft.role,
+                          goal: metaDraft.goal,
+                        },
+                      };
+                      onUpdate({ date: metaDraft.date, role: metaDraft.role, skills, keywords, description: metaDraft.description, structuredResult: newSr });
+                      setEditingMeta(false);
+                    }} className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700">저장</button>
+                  </div>
+                </div>
+              )}
+              {/* 커버 이미지 */}
+              {structured.exportConfig?.coverImg && (
+                <div className="w-full h-40 rounded-xl overflow-hidden -mx-0 -mt-0">
+                  <img src={structured.exportConfig.coverImg} alt="cover" className="w-full h-full object-cover" />
                 </div>
               )}
 
-              {/* 기본 정보 */}
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{exp.title}</h2>
-                <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
-                  {exp.date && <span>{exp.date}</span>}
-                  {exp.role && <span>{exp.role}</span>}
-                  {structured.projectOverview?.team && <span>{structured.projectOverview.team}</span>}
-                  {structured.projectOverview?.duration && <span>{structured.projectOverview.duration}</span>}
-                  {exp.link && <a href={exp.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">링크</a>}
-                </div>
-                {(exp.skills || (structured.projectOverview?.techStack || [])).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(exp.skills?.length ? exp.skills : (structured.projectOverview?.techStack || [])).map((sk, si) => (
-                      <span key={si} className="px-2.5 py-1 bg-primary-50 text-primary-700 rounded-md text-xs font-medium border border-primary-100">{typeof sk === 'string' ? sk : sk?.name}</span>
-                    ))}
+              {/* Notion 스타일 프로퍼티 */}
+              {(() => {
+                const ov = structured.projectOverview || {};
+                const duration = ov.duration || exp.date || '';
+                const role = ov.role || exp.role || '';
+                const techStack = (ov.techStack?.length > 0 ? ov.techStack : null) || (exp.skills?.length > 0 ? exp.skills : null) || [];
+                const keywords = exp.keywords || [];
+                const goal = ov.goal || '';
+                const hasAny = duration || role || techStack.length > 0 || keywords.length > 0 || goal;
+                if (!hasAny) return null;
+                return (
+                  <div className="space-y-2 border-b border-surface-100 pb-4">
+                    {duration && (
+                      <div className="flex items-center gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
+                        <span className="text-[13px] text-gray-700">{duration}</span>
+                      </div>
+                    )}
+                    {role && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                        <span className="text-[13px] text-gray-700 leading-relaxed">{role}</span>
+                      </div>
+                    )}
+                    {techStack.length > 0 && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {techStack.map((t, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-gray-600 rounded text-[12px]">
+                              {typeof t === 'string' ? t : t?.name || ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {keywords.length > 0 && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {keywords.slice(0, 6).map((kw, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                              {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {goal && (
+                      <div className="flex items-start gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                        <span className="text-[13px] text-gray-700 leading-relaxed">{goal}</span>
+                      </div>
+                    )}
+                    {exp.link && (
+                      <div className="flex items-center gap-4">
+                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">링크</span>
+                        <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[13px] text-primary-600 hover:underline">
+                          <ExternalLink size={12} /> {exp.link}
+                        </a>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* 설명 또는 배경 */}
               {(exp.description || structured.projectOverview?.background || structured.projectOverview?.summary) && (
@@ -1292,189 +1418,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                 );
               })()}
             </div>
-          )}
-
-          {/* ── 편집 탭 ── */}
-          {tab === 'edit' && (
-            <div className="p-6 space-y-4">
-              {/* ── 기본 정보 ── */}
-              <div className="relative w-full h-36 bg-surface-50 rounded-xl overflow-hidden">
-                {exp.thumbnailUrl
-                  ? <img src={exp.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-4xl opacity-30"><Briefcase size={28} className="text-gray-300" /></div>}
-                <label className="absolute inset-0 cursor-pointer hover:bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                  <span className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full">썸네일 변경</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                    const file = e.target.files?.[0]; if (!file) return;
-                    const b = await resizeToBase64(file, 1200, 0.8);
-                    onUpdate({ thumbnailUrl: b });
-                  }} />
-                </label>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">제목</label>
-                <input value={exp.title || ''} onChange={e => onUpdate({ title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">날짜</label>
-                  <input value={exp.date || ''} onChange={e => onUpdate({ date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">역할</label>
-                  <input value={exp.role || ''} onChange={e => onUpdate({ role: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">설명</label>
-                <div className="border border-gray-200 rounded-xl px-1 py-1 focus-within:ring-2 focus-within:ring-primary-200 transition-shadow">
-                  <RichContentEditor
-                    value={exp.descriptionBlocks || exp.description || ''}
-                    onChange={v => onUpdate({ descriptionBlocks: v, description: Array.isArray(v) ? v.filter(s => s.type==='text').map(s=>s.content).join('\n') : v })}
-                    placeholder="프로젝트 설명..."
-                    textRows={3}
-                    textClassName="w-full px-2 py-1 text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 resize-none leading-relaxed"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">스킬 (쉼표로 구분)</label>
-                <input value={(exp.skills || []).join(', ')} onChange={e => onUpdate({ skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">링크</label>
-                <input value={exp.link || ''} onChange={e => onUpdate({ link: e.target.value })}
-                  placeholder="https://" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-              </div>
-
-              {/* ── 7개 섹션 편집 (경험정리와 동일) ── */}
-              <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-surface-100 bg-surface-50/40">
-                    <p className="text-[13px] font-bold text-gray-700">상세 경험 정리</p>
-                  </div>
-                  <div className="divide-y divide-surface-100">
-                    {EXP_SECTION_KEYS.map(key => {
-                      const meta = EXP_SECTION_META[key];
-                      const val = sectionContents[key] || '';
-                      const isDraft = val.trim().startsWith('[작성 필요]');
-                      const isEmpty = !val.trim();
-                      return (
-                        <div key={key} className="group">
-                          {/* 섹션 헤더 */}
-                          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-50/30">
-                            <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
-                            <span className="text-[13px] font-bold text-primary-700 flex-1">{meta.label}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              isEmpty   ? 'bg-amber-100 text-amber-600' :
-                              isDraft   ? 'bg-blue-50 text-blue-500' :
-                                          'bg-caribbean-50 text-caribbean-600'
-                            }`}>
-                              {isEmpty ? '빈칸' : isDraft ? '초안' : '완료'}
-                            </span>
-                          </div>
-                          {/* 텍스트에어리어 */}
-                          <div className="px-4 py-3 pl-[52px]">
-                            <textarea
-                              value={isDraft ? val.replace(/^\[작성 필요\]\s*/, '').trim() : val}
-                              onChange={e => {
-                                const newSr = { ...(exp.structuredResult || {}), [key]: e.target.value };
-                                onUpdate({ structuredResult: newSr });
-                                // 높이 자동조절
-                                e.target.style.height = 'auto';
-                                e.target.style.height = e.target.scrollHeight + 'px';
-                              }}
-                              placeholder={isEmpty ? '내용을 입력하세요' : ''}
-                              rows={3}
-                              className="w-full bg-white rounded-xl border border-surface-200 px-3 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary-200 transition-shadow resize-none overflow-hidden text-gray-800 placeholder-gray-300 leading-relaxed"
-                              style={{ minHeight: '4rem' }}
-                              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              {/* ── 핵심 경험 편집 ── */}
-              <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-surface-100 bg-surface-50/40 flex items-center justify-between">
-                  <p className="text-[13px] font-bold text-gray-700">핵심 경험 &amp; 성과</p>
-                  <button
-                    onClick={() => {
-                      const newKe = { title: '', situation: '', action: '', result: '' };
-                      const updated = [...keyExps, newKe];
-                      onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
-                    }}
-                    className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800 font-medium"
-                  >
-                    <Plus size={13} /> 추가
-                  </button>
-                </div>
-                <div className="divide-y divide-surface-100">
-                  {keyExps.length === 0 && (
-                    <p className="px-4 py-6 text-center text-xs text-gray-400">핵심 경험이 없습니다. 추가 버튼을 눌러 직접 입력하거나 첨삭을 통해 받아보세요.</p>
-                  )}
-                  {keyExps.map((ke, ki) => (
-                    <div key={ki} className="p-4 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-indigo-700">핵심 경험 {ki + 1}</span>
-                        <button
-                          onClick={() => {
-                            const updated = keyExps.filter((_, i) => i !== ki);
-                            onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      {[
-                        { field: 'title',     label: '제목',      multiline: false },
-                        { field: 'situation', label: '문제 상황', multiline: true, altField: 'problem' },
-                        { field: 'action',    label: '핵심 행동', multiline: true },
-                        { field: 'result',    label: '성과',      multiline: true },
-                      ].map(({ field, label, multiline, altField }) => (
-                        <div key={field}>
-                          <label className="text-[10px] font-semibold text-gray-500 mb-1 block">{label}</label>
-                          {multiline ? (
-                            <textarea
-                              value={ke[field] || (altField ? ke[altField] || '' : '')}
-                              onChange={e => {
-                                const updated = keyExps.map((k, i) => {
-                                  if (i !== ki) return k;
-                                  const u = { ...k, [field]: e.target.value };
-                                  if (altField) delete u[altField];
-                                  return u;
-                                });
-                                onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
-                              }}
-                              rows={2}
-                              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary-200 resize-none leading-relaxed"
-                            />
-                          ) : (
-                            <input
-                              value={ke[field] || ''}
-                              onChange={e => {
-                                const updated = keyExps.map((k, i) => i !== ki ? k : { ...k, [field]: e.target.value });
-                                onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updated } });
-                              }}
-                              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary-200"
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
 
         {/* ── 우측 첨삭 패널 ── */}
         {tailorMode && (
@@ -1745,9 +1689,9 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
   };
 
   return (
-    <div className="relative flex gap-5 items-start">
-      {/* ── 메인 영역 ── */}
-      <div className="flex-1 min-w-0">
+    <div className="relative flex gap-5 items-start w-fit mx-auto">
+      {/* ── 메인 영역 (Notion 카드와 동일한 1100px 고정 너비) ── */}
+      <div className="w-[1100px] flex-shrink-0">
         {/* 실제 템플릿 (edit mode) */}
         <div className="border border-surface-200 rounded-2xl overflow-hidden">
           <VisualPortfolioRenderer portfolio={p} ec={ec} />
@@ -2123,6 +2067,20 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     update('skills', { ...skills, [category]: value });
   };
 
+  // 섹션 순서 관리 (Ashley)
+  const ASHLEY_REORDERABLE = ['skills', 'goals', 'values'];
+  const ashleySectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : ASHLEY_REORDERABLE;
+  const getAshleySectionOrder = (key) => { const i = ashleySectionOrder.indexOf(key); return i >= 0 ? i : ashleySectionOrder.length; };
+  const swapAshleySectionOrder = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey) return;
+    const cur = [...ashleySectionOrder];
+    const fromIdx = cur.indexOf(fromKey);
+    const toIdx = cur.indexOf(toKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
+    update('sectionOrder', cur);
+  };
+
   const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -2143,7 +2101,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
     <div className="w-[380px] flex-shrink-0" />{/* 중앙 고정용 균형 스페이서 */}
-    <div className="w-[860px] flex-shrink-0">
+    <div className="w-[1100px] flex-shrink-0">
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         {/* Hero */}
         <div className="px-10 pt-10 pb-8">
@@ -2360,7 +2318,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               {portfolio.jobAnalysis && (
                 <button onClick={fetchVisualRecommendations} disabled={recLoading}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-200 disabled:opacity-50">
-                  {recLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  {recLoading && <Loader2 size={12} className="animate-spin" />}
                   기업 맞춤 경험 추천
                 </button>
               )}
@@ -2480,13 +2438,19 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         </div>
         )}
 
+        {/* 재정렬 가능한 섹션들 (기술/목표/가치관) */}
+        <div className="flex flex-col">
+
         {/* 기술 */}
         {!hiddenSections.includes('skills') && (
-        <div className="px-10 pb-8">
+        <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('skills') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'skills'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="skills" defaultLabel="이런 일을 할 수 있어요" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => hideSection('skills')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -2513,11 +2477,14 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 목표와 계획 */}
         {!hiddenSections.includes('goals') && (
-        <div className="px-10 pb-8">
+        <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('goals') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'goals'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => hideSection('goals')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -2546,12 +2513,15 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 가치관 에세이 */}
         {!hiddenSections.includes('values') && (
-        <div className="px-10 pb-8">
+        <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('values') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'values'); }}>
           <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
             <div className="flex items-center justify-between mb-4">
               <EditableTitle sectionKey="values" defaultLabel="나를 들려주는 이야기" className="font-bold text-lg text-[#2d2a26]" />
               <div className="flex items-center gap-2">
                 <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
+                <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'values'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
                 <button onClick={() => hideSection('values')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
               </div>
             </div>
@@ -2565,6 +2535,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
         </div>
         )}
+
+        </div>{/* end flex col wrapper for Ashley reorderable sections */}
 
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
@@ -2869,6 +2841,20 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       reader.onerror = reject; reader.readAsDataURL(file);
     });
 
+  // 섹션 순서 관리 (Academic)
+  const ACADEMIC_REORDERABLE = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
+  const academicSectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : ACADEMIC_REORDERABLE;
+  const getAcademicSectionOrder = (key) => { const i = academicSectionOrder.indexOf(key); return i >= 0 ? i : academicSectionOrder.length; };
+  const swapAcademicSectionOrder = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey) return;
+    const cur = [...academicSectionOrder];
+    const fromIdx = cur.indexOf(fromKey);
+    const toIdx = cur.indexOf(toKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
+    update('sectionOrder', cur);
+  };
+
   const fetchVisualRecommendations = async () => {
     if (!portfolio.jobAnalysis) { toast.error('기업 분석을 먼저 등록해주세요'); return; }
     setRecLoading(true);
@@ -2899,7 +2885,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   };
 
   return (
-    <div className="relative flex gap-5 items-start">
+    <div className="relative flex gap-5 items-start w-fit mx-auto">
 
       {/* ── 사이드바 왼쪽 [비활성화] ── */}
       {false && (
@@ -3006,7 +2992,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       </div>
       )}{/* end 사이드바 왼쪽 */}
 
-    <div className="flex-1 min-w-0">
+    <div className="w-[1100px] flex-shrink-0">
     <div className="w-full">
       <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
@@ -3199,7 +3185,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               {portfolio.jobAnalysis && (
                 <button onClick={fetchVisualRecommendations} disabled={recLoading}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors font-medium">
-                  {recLoading ? <><Loader2 size={12} className="animate-spin" /> 분석 중...</> : <>기업 맞춤 경험 추천</>}
+                  {recLoading ? <><Loader2 size={12} className="animate-spin" /> 분석 중...</> : '기업 맞춤 경험 추천'}
                 </button>
               )}
 
@@ -3313,13 +3299,21 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
         </div>
 
+        {/* 재정렬 가능한 섹션들 (기술/목표) */}
+        <div className="flex flex-col">
+
         {/* 기술 */}
-        <div className="px-10 py-8 border-b border-surface-100">
+        <div className="px-10 py-8 border-b border-surface-100" style={{ order: getAcademicSectionOrder('skills') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAcademicSectionOrder(from, 'skills'); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-teal-500 rounded-full inline-block" /><EditableTitle sectionKey="skills" defaultLabel="기술" className="text-lg font-bold text-gray-900" />
             </h2>
-            <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
+            <div className="flex items-center gap-2">
+              <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-6">
             {[
@@ -3343,13 +3337,16 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 목표와 계획 */}
         {!hiddenSections.includes('goals') && sections.includes('goals') && (
-        <div className="px-10 pb-8">
+        <div className="px-10 pb-8" style={{ order: getAcademicSectionOrder('goals') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAcademicSectionOrder(from, 'goals'); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-green-500 rounded-full inline-block" /><EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="text-lg font-bold text-gray-900" />
             </h2>
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
@@ -3377,6 +3374,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
         </div>
         )}
+
+        </div>{/* end flex col wrapper for Academic reorderable sections */}
 
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
@@ -3575,6 +3574,20 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
       reader.readAsDataURL(file);
     });
 
+  // 섹션 순서 관련 (Timeline)
+  const TIMELINE_REORDERABLE = ['activities', 'goals', 'skills'];
+  const timelineSectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : TIMELINE_REORDERABLE;
+  const getTimelineSectionOrder = (key) => { const i = timelineSectionOrder.indexOf(key); return i >= 0 ? i : timelineSectionOrder.length; };
+  const swapTimelineSectionOrder = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey) return;
+    const cur = [...timelineSectionOrder];
+    const fromIdx = cur.indexOf(fromKey);
+    const toIdx = cur.indexOf(toKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
+    update('sectionOrder', cur);
+  };
+
   // 학기별로 courses 그룹핑
   const coursesBySemester = (curr.courses || []).reduce((acc, c) => {
     const sem = c.semester || '기타';
@@ -3594,7 +3607,8 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const dayNames = ['일','월','화','수','목','금','토'];
 
   return (
-    <div className="min-h-screen">
+    <div className="flex gap-5 items-start w-fit mx-auto">
+      <div className="w-[1100px] flex-shrink-0 min-h-screen border border-surface-200 rounded-2xl overflow-hidden">
       {/* ── Dark Header with Calendar ── */}
       <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] rounded-t-2xl px-10 pt-10 pb-8">
         <div className="flex items-center gap-5 mb-8">
@@ -3703,16 +3717,23 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
           )}
         </div>
 
+        {/* 재정렬 가능한 섹션들 */}
+        <div className="flex flex-col">
+
         {/* 활동 기록 (경험) — Timeline style */}
-        <div className="px-10 py-8 border-b border-surface-100">
+        <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('activities') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'activities'); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
             </h2>
-            <div className="relative">
-              <button onClick={() => setShowAddExpMenu(prev => !prev)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
-                <Plus size={14} /> 경험 추가
-              </button>
+            <div className="flex items-center gap-2">
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'activities'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <div className="relative">
+                <button onClick={() => setShowAddExpMenu(prev => !prev)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
+                  <Plus size={14} /> 경험 추가
+                </button>
               {showAddExpMenu && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-1 w-52">
                   <button onClick={() => { setShowExpPicker(true); setShowAddExpMenu(false); }}
@@ -3741,8 +3762,9 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </div>{/* closes relative */}
+          </div>{/* closes flex items-center gap-2 */}
+          </div>{/* closes flex items-center justify-between mb-4 */}
 
           {(p.experiences || []).length > 0 ? (
             <div className="relative">
@@ -3772,10 +3794,15 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
         </div>
 
         {/* 스터디 계획 (goals) */}
-        <div className="px-10 py-8 border-b border-surface-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
-          </h2>
+        <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('goals') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'goals'); }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
+            </h2>
+            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {(p.goals || []).map((g, i) => (
               <div key={i} className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 group relative">
@@ -3806,10 +3833,15 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
         </div>
 
         {/* Skills */}
-        <div className="px-10 py-8 border-b border-surface-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
-          </h2>
+        <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('skills') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'skills'); }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
+            </h2>
+            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {[...(skills.tools || []), ...(skills.languages || []), ...(skills.frameworks || []), ...(skills.others || [])].map((s, i) => (
               <span key={i} className="px-3 py-1.5 bg-gray-50 rounded-lg text-sm text-gray-700 border border-gray-200">{typeof s === 'string' ? s : s.name || s}</span>
@@ -3820,11 +3852,15 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
         </div>
 
+        </div>{/* end flex col wrapper for Timeline reorderable sections */}
+
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
           <span>POPOL Dashboard · {p.userName || ''}</span>
         </div>
       </div>
+      </div>
+      <div className="w-[380px] flex-shrink-0" />
     </div>
   );
 }
@@ -3937,6 +3973,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   };
   const sections = SECTION_MAP[templateId] || SECTION_MAP.notion;
   const hiddenSections = p.hiddenSections || [];
+
+  // 섹션 순서 관리
+  const REORDERABLE_SECTIONS = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
+  const sectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : REORDERABLE_SECTIONS;
+  const getSectionOrder = (key) => { const i = sectionOrder.indexOf(key); return i >= 0 ? i : sectionOrder.length; };
+  const swapSectionOrder = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey) return;
+    const cur = [...sectionOrder];
+    const fromIdx = cur.indexOf(fromKey);
+    const toIdx = cur.indexOf(toKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
+    update('sectionOrder', cur);
+  };
 
   return (
     <div className="flex gap-5 items-start w-fit mx-auto">
@@ -4434,15 +4484,19 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       })()}
 
       {/* ── Full-width sections (Preview 디자인 + 인라인 편집) ── */}
-      <div className="px-10 py-8 border-t border-surface-100 space-y-10">
+      <div className="px-10 py-8 border-t border-surface-100 flex flex-col gap-10">
 
         {/* 교과 활동 */}
         {!hiddenSections.includes('curricular') && sections.includes('curricular') && (
-        <section id="editor-section-교과 활동">
+        <section id="editor-section-교과 활동" style={{ order: getSectionOrder('curricular') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'curricular'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="curricular" defaultLabel="📝 교과 활동 | Curricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
-            <button onClick={() => update('hiddenSections', [...hiddenSections, 'curricular'])}
-              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <div className="flex items-center gap-1">
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'curricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => update('hiddenSections', [...hiddenSections, 'curricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
             <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
@@ -4497,11 +4551,15 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 비교과 활동 */}
         {!hiddenSections.includes('extracurricular') && sections.includes('extracurricular') && (
-        <section id="editor-section-비교과 활동">
+        <section id="editor-section-비교과 활동" style={{ order: getSectionOrder('extracurricular') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'extracurricular'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="extracurricular" defaultLabel="💡 비교과 활동 | Extracurricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
-            <button onClick={() => update('hiddenSections', [...hiddenSections, 'extracurricular'])}
-              className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <div className="flex items-center gap-1">
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'extracurricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => update('hiddenSections', [...hiddenSections, 'extracurricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
             <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
@@ -4572,11 +4630,14 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Skills */}
         {!hiddenSections.includes('skills') && sections.includes('skills') && (
-        <section id="editor-section-기술">
+        <section id="editor-section-기술" style={{ order: getSectionOrder('skills') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'skills'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="skills" defaultLabel="🛠 기술 | Skills" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'skills'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
@@ -4604,11 +4665,14 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Goals - Preview 디자인 */}
         {!hiddenSections.includes('goals') && sections.includes('goals') && (
-        <section id="editor-section-목표와 계획">
+        <section id="editor-section-목표와 계획" style={{ order: getSectionOrder('goals') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'goals'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="goals" defaultLabel="✨ 목표와 계획 | Future Plans" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
@@ -4653,11 +4717,14 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Values - Preview 디자인 */}
         {!hiddenSections.includes('values') && sections.includes('values') && (
-        <section id="editor-section-가치관">
+        <section id="editor-section-가치관" style={{ order: getSectionOrder('values') }}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'values'); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="values" defaultLabel="💬 가치관 | Values" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'values'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'values'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>

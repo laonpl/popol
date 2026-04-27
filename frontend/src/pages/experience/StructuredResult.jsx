@@ -671,6 +671,7 @@ export default function StructuredResult() {
       keywords: editedKeywords,
       keyExperiences: editedKeyExperiences,
       projectOverview: editedOverview,
+      coverImg: exportCoverImg || sr.exportConfig?.coverImg || null,
     };
 
     navigate('/app/portfolio', { state: { exportConfig } });
