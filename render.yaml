@@ -23,3 +23,23 @@ services:
         sync: false
       - key: PUPPETEER_CACHE_DIR
         value: /opt/render/.cache/puppeteer
+      - key: FIREBASE_PROJECT_ID
+        value: popol-cb20b
+      - key: FIREBASE_STORAGE_BUCKET
+        value: popol-cb20b.firebasestorage.app
+      - key: GITHUB_MODELS_ENDPOINT
+        value: https://models.inference.ai.azure.com
+      - key: GITHUB_MODELS_TOKEN
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_SECURE
+        value: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
