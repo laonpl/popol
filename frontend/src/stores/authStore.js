@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
@@ -72,9 +72,7 @@ const useAuthStore = create((set, get) => ({
   },
 
   signInWithGoogle: async () => {
-    await signInWithRedirect(auth, googleProvider);
-    // 리다이렉트 후 페이지가 reload되므로 여기 이하 코드는 실행되지 않음
-    // 결과는 init()의 getRedirectResult에서 처리됨
+    await signInWithPopup(auth, googleProvider);
   },
 
   // OTP 발송 요청
