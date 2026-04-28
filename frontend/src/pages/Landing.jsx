@@ -1039,11 +1039,7 @@ export default function Landing() {
 
       {/* ── CTA BANNER ── */}
       <section className="py-20 sm:py-28 md:py-32 bg-white flex flex-col items-center text-center px-4 sm:px-6">
-        {/* 쿠폰 배지 */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-6 sm:mb-8">
-          <Gift size={14} className="text-indigo-500" />
-          <span className="text-[12px] sm:text-[13px] font-bold text-indigo-600">정식 출시 예약자 한정 무료 쿠폰 증정</span>
-        </div>
+
 
         <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.25] mb-4 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
           지금 예약하면,<br />
@@ -1076,7 +1072,7 @@ export default function Landing() {
               {waitlistStatus.type === 'loading' ? '등록 중...' : waitlistStatus.type === 'success' ? (
                 <><Check size={14} /> 예약 완료</>
               ) : (
-                <><Gift size={14} /> 출시 예약하기</>
+                출시 예약하기
               )}
             </button>
           </div>
