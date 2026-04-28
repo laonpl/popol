@@ -292,9 +292,6 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
   const pa = analysis.positionAnalysis || {};
   const as_ = analysis.applicationStrategy || {};
   const trends = analysis.industryTrends || [];
-  const skillImp = analysis.skillImportance || [];
-  const fitFactors = analysis.fitScoreFactors || [];
-  const salaryRange = analysis.workConditions?.estimatedSalaryRange;
   const portfolioReq = buildDisplayPortfolioRequirements(analysis);
 
   const tabs = [
@@ -316,361 +313,324 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
 
   const flipDir = tabs.findIndex(t => t.key === activeTab) > tabs.findIndex(t => t.key === prevTab) ? 'right' : 'left';
 
+  const NAV = '#002F6C';
+
   return (
-    <div className="relative" style={{ perspective: '1200px' }}>
+    <div style={{ fontFamily: 'inherit' }}>
       {/* 헤더 */}
-      <div className="bg-white border border-gray-200 rounded-t-2xl px-5 py-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 text-left">
-            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
-              <Building2 size={20} className="text-gray-600" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-800 tracking-wide">
-                {analysis.company || '기업'} ({analysis.position || '직무'})
-              </p>
-              <p className="text-[11px] text-gray-400">
-                AI 기업 분석 보고서 {analysis.deadline && `· 마감 ${analysis.deadline}`}
-              </p>
-            </div>
-          </button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setExpanded(!expanded)}>
-              {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-            </button>
+      <div style={{ borderBottom: `2px solid ${NAV}`, paddingBottom: 12, marginBottom: 14 }}>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+        >
+          <div>
+            <p style={{ fontSize: 16, fontWeight: 800, color: NAV, letterSpacing: '-0.01em', margin: 0 }}>
+              {analysis.company || '기업'}
+            </p>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+              {analysis.position || '직무'}{analysis.deadline ? ` · 마감 ${analysis.deadline}` : ''}
+            </p>
           </div>
-        </div>
+          <ChevronDown size={16} style={{ color: NAV, transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
+        </button>
+        {(analysis.skills?.length > 0 || analysis.coreValues?.length > 0) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>
+            {analysis.skills?.slice(0, 5).map((s, i) => (
+              <span key={i} style={{ fontSize: 11, padding: '3px 8px', background: '#f1f5f9', color: NAV, fontWeight: 700, letterSpacing: '0.03em', border: `1px solid ${NAV}` }}>{s}</span>
+            ))}
+            {analysis.coreValues?.slice(0, 2).map((v, i) => (
+              <span key={`v${i}`} style={{ fontSize: 11, padding: '3px 8px', background: '#fff', color: '#64748b', border: '1px dotted #94a3b8', fontWeight: 500 }}>{v}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {expanded && (
-        <div className="relative bg-white rounded-b-2xl border border-t-0 border-gray-200 shadow-sm overflow-hidden">
-          {/* 스킬 태그 */}
-          <div className="px-6 py-3 bg-gray-50/80 flex flex-wrap gap-2 border-b border-gray-100">
-            {analysis.skills?.slice(0, 6).map((s, i) => (
-              <span key={i} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full font-medium">{s}</span>
-            ))}
-            {analysis.coreValues?.slice(0, 3).map((v, i) => (
-              <span key={`v${i}`} className="text-[10px] px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full font-medium">{v}</span>
-            ))}
-          </div>
-
+        <div>
           {/* 탭 */}
-          <div className="flex border-b border-gray-200 px-4 bg-white overflow-x-auto">
-            {tabs.map((tab, idx) => (
+          <div style={{ display: 'flex', borderBottom: '1px dotted #d1d5db', marginBottom: 16 }}>
+            {tabs.map((tab) => (
               <button key={tab.key} onClick={() => handleTabChange(tab.key)}
-                className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap
-                  ${activeTab === tab.key
-                    ? 'border-gray-800 text-gray-800'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+                style={{
+                  flex: 1, padding: '8px 2px', fontSize: 13,
+                  fontWeight: activeTab === tab.key ? 700 : 500,
+                  color: activeTab === tab.key ? NAV : '#94a3b8',
+                  background: 'none', border: 'none',
+                  borderBottom: activeTab === tab.key ? `2px solid ${NAV}` : '2px solid transparent',
+                  cursor: 'pointer', transition: 'all 0.15s', marginBottom: -1, whiteSpace: 'nowrap',
+                }}>
                 {tab.label}
               </button>
             ))}
           </div>
 
           {/* 페이지 번호 */}
-          <div className="flex items-center justify-between px-6 pt-3 pb-1">
-            <p className="text-[10px] text-gray-400 font-medium">Chapter {currentTabIdx + 1}</p>
-            <p className="text-[10px] text-gray-400 font-medium">p.{currentTabIdx + 1} / {tabs.length}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <p style={{ fontSize: 11, color: '#94a3b8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>Chapter {currentTabIdx + 1}</p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>p.{currentTabIdx + 1} / {tabs.length}</p>
           </div>
 
-          {/* 페이지 내용 (넘김 애니메이션) */}
-          <div className="relative px-6 py-4 max-h-[520px] overflow-y-auto text-xs space-y-3 bg-white">
-            <div
-              className={animating ? (flipDir === 'right' ? 'animate-page-flip-right' : 'animate-page-flip-left') : ''}
-              style={{ transformOrigin: flipDir === 'right' ? 'left center' : 'right center' }}
-            >
-
-              <style>{`
-                @keyframes pageFlipRight {
-                  0% { opacity:0; transform: rotateY(-12deg) translateX(30px); }
-                  100% { opacity:1; transform: rotateY(0) translateX(0); }
-                }
-                @keyframes pageFlipLeft {
-                  0% { opacity:0; transform: rotateY(12deg) translateX(-30px); }
-                  100% { opacity:1; transform: rotateY(0) translateX(0); }
-                }
-                .animate-page-flip-right { animation: pageFlipRight 0.4s ease-out; }
-                .animate-page-flip-left { animation: pageFlipLeft 0.4s ease-out; }
-              `}</style>
+          {/* 내용 */}
+          <div
+            className={animating ? (flipDir === 'right' ? 'animate-page-flip-right' : 'animate-page-flip-left') : ''}
+            style={{ transformOrigin: flipDir === 'right' ? 'left center' : 'right center' }}
+          >
+            <style>{`
+              @keyframes pageFlipRight {
+                0% { opacity:0; transform: rotateY(-12deg) translateX(30px); }
+                100% { opacity:1; transform: rotateY(0) translateX(0); }
+              }
+              @keyframes pageFlipLeft {
+                0% { opacity:0; transform: rotateY(12deg) translateX(-30px); }
+                100% { opacity:1; transform: rotateY(0) translateX(0); }
+              }
+              .animate-page-flip-right { animation: pageFlipRight 0.4s ease-out; }
+              .animate-page-flip-left { animation: pageFlipLeft 0.4s ease-out; }
+            `}</style>
 
             {activeTab === 'company' && (
-              <>
-                {/* 포트폴리오 요건 — 맨 위 */}
-                <AnalysisCard title="기업 포트폴리오 요건">
+              <div>
+                <AnalysisCard title="포트폴리오 요건">
                   {(() => {
                     const pr = portfolioReq;
                     const hasData = pr.required?.length > 0 || pr.format?.length > 0 || pr.content?.length > 0 || pr.submission;
-                    if (!hasData) {
-                      return <p className="text-[10px] text-gray-400 text-center py-2">이 채용공고에는 별도의 포트폴리오 요건이 명시되어 있지 않습니다</p>;
-                    }
+                    if (!hasData) return <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>별도 포트폴리오 요건이 없습니다</p>;
                     return (
-                      <div className="space-y-2.5">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {pr.required?.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-bold text-red-500 mb-1">필수 제출 서류</p>
-                            <ul className="space-y-1">
-                              {pr.required.map((r, i) => (
-                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                  <span className="text-red-400 flex-shrink-0 font-bold">!</span>{r}
-                                </li>
-                              ))}
-                            </ul>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: NAV, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>필수 서류</p>
+                            {pr.required.map((r, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 4, lineHeight: 1.6 }}>{r}</p>)}
                           </div>
                         )}
                         {pr.format?.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-bold text-blue-500 mb-1">포맷/형식 조건</p>
-                            <ul className="space-y-1">
-                              {pr.format.map((f, i) => (
-                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                  <span className="text-blue-400 flex-shrink-0">→</span>{f}
-                                </li>
-                              ))}
-                            </ul>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>포맷 조건</p>
+                            {pr.format.map((f, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{f}</p>)}
                           </div>
                         )}
                         {pr.content?.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-bold text-emerald-500 mb-1">담아야 할 내용</p>
-                            <ul className="space-y-1">
-                              {pr.content.map((c, i) => (
-                                <li key={i} className="flex items-start gap-1.5 text-gray-700">
-                                  <span className="text-emerald-500 flex-shrink-0">·</span>{c}
-                                </li>
-                              ))}
-                            </ul>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>담아야 할 내용</p>
+                            {pr.content.map((c, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{c}</p>)}
                           </div>
                         )}
                         {pr.submission && (
-                          <div className="pt-1.5 border-t border-gray-100">
-                            <p className="text-[10px] font-bold text-gray-500 mb-0.5">제출 방법</p>
-                            <p className="text-gray-700">{pr.submission}</p>
+                          <div style={{ borderTop: '1px dotted #e2e8f0', paddingTop: 10 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>제출 방법</p>
+                            <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{pr.submission}</p>
                           </div>
                         )}
                       </div>
                     );
                   })()}
                 </AnalysisCard>
-                {ca.overview && <AnalysisCard title="기업 개요"><p className="text-gray-700 leading-relaxed">{stripMd(ca.overview)}</p></AnalysisCard>}
-                <div className="grid grid-cols-2 gap-3">
-                  {ca.industry && <AnalysisCard title="업종" compact><p className="text-gray-700">{ca.industry}</p></AnalysisCard>}
-                  {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">{ca.homepage}</a></AnalysisCard>}
-                </div>
+                {ca.overview && <AnalysisCard title="기업 개요"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(ca.overview)}</p></AnalysisCard>}
+                {(ca.industry || ca.homepage) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    {ca.industry && <AnalysisCard title="업종" compact><p style={{ color: '#374151', fontSize: 13 }}>{ca.industry}</p></AnalysisCard>}
+                    {ca.homepage && <AnalysisCard title="홈페이지" compact><a href={ca.homepage} target="_blank" rel="noopener noreferrer" style={{ color: NAV, fontSize: 12, textDecoration: 'none' }}>{ca.homepage}</a></AnalysisCard>}
+                  </div>
+                )}
                 {ca.businessAreas?.length > 0 && (
                   <AnalysisCard title="사업 영역">
-                    <div className="flex flex-wrap gap-1.5">{ca.businessAreas.map((a, i) => <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{a}</span>)}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {ca.businessAreas.map((a, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{a}</span>)}
+                    </div>
                   </AnalysisCard>
                 )}
                 {(ca.strengths?.length > 0 || ca.weaknesses?.length > 0) && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                     {ca.strengths?.length > 0 && (
                       <AnalysisCard title="강점 (S)">
-                        <ul className="space-y-1">{ca.strengths.map((s, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-green-500 flex-shrink-0">+</span>{stripMd(s)}</li>)}</ul>
+                        {ca.strengths.map((s, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(s)}</p>)}
                       </AnalysisCard>
                     )}
                     {ca.weaknesses?.length > 0 && (
-                      <AnalysisCard title="약점/리스크 (W)">
-                        <ul className="space-y-1">{ca.weaknesses.map((w, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">-</span>{stripMd(w)}</li>)}</ul>
+                      <AnalysisCard title="약점 (W)">
+                        {ca.weaknesses.map((w, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(w)}</p>)}
                       </AnalysisCard>
                     )}
                   </div>
                 )}
                 {ca.competitors?.length > 0 && (
-                  <AnalysisCard title="경쟁사 비교">
-                    <div className="space-y-2">{ca.competitors.map((c, i) => <div key={i} className="p-2 bg-gray-50 rounded-lg"><p className="font-bold text-gray-800 text-[11px]">{c.name}</p><p className="text-gray-600 text-[10px] mt-0.5">{stripMd(c.comparison)}</p></div>)}</div>
+                  <AnalysisCard title="경쟁사">
+                    {ca.competitors.map((c, i) => (
+                      <div key={i} style={{ borderBottom: '1px dotted #e2e8f0', paddingBottom: 8, marginBottom: 8 }}>
+                        <p style={{ fontWeight: 700, color: NAV, fontSize: 13, marginBottom: 3 }}>{c.name}</p>
+                        <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.55 }}>{stripMd(c.comparison)}</p>
+                      </div>
+                    ))}
                   </AnalysisCard>
                 )}
-                {ca.culture && <AnalysisCard title="기업 문화"><p className="text-gray-700 leading-relaxed">{stripMd(ca.culture)}</p></AnalysisCard>}
-                {ca.recentTrends && <AnalysisCard title="최근 동향"><p className="text-gray-700 leading-relaxed">{stripMd(ca.recentTrends)}</p></AnalysisCard>}
-              </>
+                {ca.culture && <AnalysisCard title="기업 문화"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(ca.culture)}</p></AnalysisCard>}
+                {ca.recentTrends && <AnalysisCard title="최근 동향"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(ca.recentTrends)}</p></AnalysisCard>}
+              </div>
             )}
 
             {activeTab === 'position' && (
-              <>
-                {pa.roleDescription && <AnalysisCard title="직무 설명"><p className="text-gray-700 leading-relaxed">{stripMd(pa.roleDescription)}</p></AnalysisCard>}
-                {pa.dailyTasks && <AnalysisCard title="주요 업무"><p className="text-gray-700 leading-relaxed">{typeof pa.dailyTasks === 'string' ? stripMd(pa.dailyTasks) : ''}</p></AnalysisCard>}
+              <div>
+                {pa.roleDescription && <AnalysisCard title="직무 설명"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(pa.roleDescription)}</p></AnalysisCard>}
+                {pa.dailyTasks && <AnalysisCard title="주요 업무"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{typeof pa.dailyTasks === 'string' ? stripMd(pa.dailyTasks) : ''}</p></AnalysisCard>}
                 {pa.keyCompetencies?.length > 0 && (
                   <AnalysisCard title="핵심 역량">
-                    <div className="space-y-2">
-                      {pa.keyCompetencies.map((c, i) => {
-                        const name = typeof c === 'string' ? c : c.name;
-                        const weight = typeof c === 'string' ? 5 : (c.weight || 5);
-                        const desc = typeof c === 'string' ? '' : c.description;
-                        return (
-                          <div key={i}>
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="font-medium text-gray-700">{name}</span>
-                              <span className="text-[10px] text-gray-400">{weight}/10</span>
-                            </div>
-                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                              <div className="h-1.5 rounded-full bg-gray-500" style={{ width: `${weight * 10}%` }} />
-                            </div>
-                            {desc && <p className="text-[10px] text-gray-400 mt-0.5">{stripMd(desc)}</p>}
+                    {pa.keyCompetencies.map((c, i) => {
+                      const name = typeof c === 'string' ? c : c.name;
+                      const weight = typeof c === 'string' ? 5 : (c.weight || 5);
+                      const desc = typeof c === 'string' ? '' : c.description;
+                      return (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{name}</span>
+                            <span style={{ fontSize: 11, color: '#94a3b8' }}>{weight}/10</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div style={{ width: '100%', height: 2, background: '#e2e8f0' }}>
+                            <div style={{ height: 2, background: NAV, width: `${weight * 10}%` }} />
+                          </div>
+                          {desc && <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{stripMd(desc)}</p>}
+                        </div>
+                      );
+                    })}
                   </AnalysisCard>
                 )}
                 {pa.challengeLevel && (
                   <AnalysisCard title="직무 난이도">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                        <span className="text-lg font-black text-indigo-700">{pa.challengeLevel.score}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, border: `2px solid ${NAV}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 16, fontWeight: 900, color: NAV }}>{pa.challengeLevel.score}</span>
                       </div>
-                      <p className="text-gray-700 flex-1">{stripMd(pa.challengeLevel.description)}</p>
+                      <p style={{ color: '#374151', lineHeight: 1.6, fontSize: 13 }}>{stripMd(pa.challengeLevel.description)}</p>
                     </div>
                   </AnalysisCard>
                 )}
-                {pa.growthPath && <AnalysisCard title="성장 경로"><p className="text-gray-700 leading-relaxed">{stripMd(pa.growthPath)}</p></AnalysisCard>}
+                {pa.growthPath && <AnalysisCard title="성장 경로"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(pa.growthPath)}</p></AnalysisCard>}
                 {analysis.requirements?.essential?.length > 0 && (
                   <AnalysisCard title="필수 요건">
-                    <ul className="space-y-1">{analysis.requirements.essential.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-red-400 flex-shrink-0">•</span>{r}</li>)}</ul>
+                    {analysis.requirements.essential.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
                   </AnalysisCard>
                 )}
                 {analysis.requirements?.preferred?.length > 0 && (
                   <AnalysisCard title="우대 요건">
-                    <ul className="space-y-1">{analysis.requirements.preferred.map((r, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-blue-400 flex-shrink-0">•</span>{r}</li>)}</ul>
+                    {analysis.requirements.preferred.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
                   </AnalysisCard>
                 )}
-              </>
+              </div>
             )}
 
             {activeTab === 'strategy' && (
-              <>
+              <div>
                 {as_.motivationPoints?.length > 0 && (
                   <AnalysisCard title="지원동기 포인트">
-                    <ul className="space-y-2">
-                      {as_.motivationPoints.map((p, i) => {
-                        const point = typeof p === 'string' ? p : p.point;
-                        const how = typeof p === 'string' ? '' : p.how;
-                        return (
-                          <li key={i} className="text-gray-700">
-                            <div className="flex items-start gap-2">
-                              <span className="w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
-                              <div><p className="font-medium">{stripMd(point)}</p>{how && <p className="text-[10px] text-gray-400 mt-0.5">활용 방법: {stripMd(how)}</p>}</div>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </AnalysisCard>
-                )}
-                {as_.interviewQuestions?.length > 0 && (
-                  <AnalysisCard title="면접 예상 질문">
-                    <div className="space-y-3">
-                      {as_.interviewQuestions.map((q, i) => {
-                        const question = typeof q === 'string' ? q : q.question;
-                        const intent = typeof q === 'string' ? '' : q.intent;
-                        const tip = typeof q === 'string' ? '' : q.answerTip;
-                        return (
-                          <div key={i} className="p-2.5 bg-gray-50 rounded-lg">
-                            <p className="font-medium text-gray-800"><span className="text-indigo-500">Q{i + 1}.</span> {question}</p>
-                            {intent && <p className="text-[10px] text-blue-500 mt-1">면접관 의도: {stripMd(intent)}</p>}
-                            {tip && <p className="text-[10px] text-green-600 mt-0.5">답변 전략: {stripMd(tip)}</p>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </AnalysisCard>
-                )}
-                {as_.appealPoints?.length > 0 && (
-                  <AnalysisCard title="어필 포인트">
-                    <div className="flex flex-wrap gap-1.5">{as_.appealPoints.map((p, i) => <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded-lg">{p}</span>)}</div>
-                  </AnalysisCard>
-                )}
-                {as_.portfolioTips?.length > 0 && (
-                  <AnalysisCard title="포트폴리오 작성 팁">
-                    <ul className="space-y-1">{as_.portfolioTips.map((t, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-primary-500 flex-shrink-0">→</span>{t}</li>)}</ul>
-                  </AnalysisCard>
-                )}
-                {as_.cautionPoints?.length > 0 && (
-                  <AnalysisCard title="주의 사항">
-                    <ul className="space-y-1">{as_.cautionPoints.map((p, i) => <li key={i} className="flex items-start gap-1.5 text-gray-700"><span className="text-orange-400 flex-shrink-0">!</span>{p}</li>)}</ul>
-                  </AnalysisCard>
-                )}
-                {analysis.applicationFormat?.questions?.length > 0 && (
-                  <AnalysisCard title="자소서 문항">
-                    <ul className="space-y-2">{analysis.applicationFormat.questions.map((q, i) => <li key={i} className="text-gray-700 bg-gray-50 p-2 rounded-lg"><span className="font-medium">{i + 1}.</span> {q.question}{q.maxLength && <span className="ml-1 text-[10px] text-gray-400">({q.maxLength}자)</span>}</li>)}</ul>
-                  </AnalysisCard>
-                )}
-              </>
-            )}
-
-            {activeTab === 'trends' && (
-              <>
-                {trends.length > 0 ? (
-                  <div className="space-y-3">
-                    {trends.map((t, i) => {
-                      const trend = typeof t === 'string' ? t : t.trend;
-                      const desc = typeof t === 'string' ? '' : t.description;
-                      const impact = typeof t === 'string' ? '' : t.impact;
-                      const keywords = typeof t === 'string' ? [] : (t.keywords || []);
-                      const level = typeof t === 'string' ? '' : t.level;
-                      const opportunity = typeof t === 'string' ? '' : t.opportunity;
-                      const threat = typeof t === 'string' ? '' : t.threat;
-                      const levelConfig = {
-                        hot: { label: '🔥 HOT', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', headerBg: 'from-red-50 to-orange-50' },
-                        growing: { label: '📈 GROWING', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', headerBg: 'from-emerald-50 to-teal-50' },
-                        stable: { label: '⚖️ STABLE', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-gray-50 to-slate-50' },
-                      };
-                      const lc = levelConfig[level] || { label: '', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-indigo-50 to-purple-50' };
+                    {as_.motivationPoints.map((p, i) => {
+                      const point = typeof p === 'string' ? p : p.point;
+                      const how = typeof p === 'string' ? '' : p.how;
                       return (
-                        <div key={i} className={`rounded-xl border ${lc.border} overflow-hidden shadow-sm`}>
-                          <div className={`flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r ${lc.headerBg} border-b ${lc.border}`}>
-                            <span className="w-6 h-6 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0">{i + 1}</span>
-                            <p className="font-bold text-gray-800 flex-1 text-[12px] leading-snug">{trend}</p>
-                            {level && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${lc.bg} ${lc.text} border ${lc.border} whitespace-nowrap`}>{lc.label}</span>}
-                          </div>
-                          <div className="p-3 space-y-2 bg-white">
-                            {desc && <p className="text-[11px] text-gray-600 leading-relaxed">{stripMd(desc)}</p>}
-                            {keywords.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {keywords.map((kw, ki) => (
-                                  <span key={ki} className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded font-medium border border-indigo-100">#{kw}</span>
-                                ))}
-                              </div>
-                            )}
-                            {impact && (
-                              <div className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg p-2">
-                                <span className="flex-shrink-0 font-bold text-blue-600 text-[10px] whitespace-nowrap">직무 영향</span>
-                                <span className="text-[10px] text-blue-700 leading-relaxed">{stripMd(impact)}</span>
-                              </div>
-                            )}
-                            {opportunity && (
-                              <div className="flex items-start gap-1.5 bg-green-50 border border-green-100 rounded-lg p-2">
-                                <span className="flex-shrink-0 font-bold text-green-700 text-[10px] whitespace-nowrap">✓ 기회</span>
-                                <span className="text-[10px] text-green-800 leading-relaxed">{stripMd(opportunity)}</span>
-                              </div>
-                            )}
-                            {threat && (
-                              <div className="flex items-start gap-1.5 bg-orange-50 border border-orange-100 rounded-lg p-2">
-                                <span className="flex-shrink-0 font-bold text-orange-600 text-[10px] whitespace-nowrap">△ 주의</span>
-                                <span className="text-[10px] text-orange-800 leading-relaxed">{stripMd(threat)}</span>
-                              </div>
-                            )}
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                          <span style={{ width: 20, height: 20, border: `1.5px solid ${NAV}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: NAV, flexShrink: 0 }}>{i + 1}</span>
+                          <div>
+                            <p style={{ fontWeight: 600, color: '#1e293b', fontSize: 13, lineHeight: 1.55 }}>{stripMd(point)}</p>
+                            {how && <p style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>활용 방법: {stripMd(how)}</p>}
                           </div>
                         </div>
                       );
                     })}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-center py-8">산업 트렌드 정보가 없습니다</p>
+                  </AnalysisCard>
                 )}
-              </>
+                {as_.interviewQuestions?.length > 0 && (
+                  <AnalysisCard title="면접 예상 질문">
+                    {as_.interviewQuestions.map((q, i) => {
+                      const question = typeof q === 'string' ? q : q.question;
+                      const intent = typeof q === 'string' ? '' : q.intent;
+                      const tip = typeof q === 'string' ? '' : q.answerTip;
+                      return (
+                        <div key={i} style={{ borderBottom: '1px dotted #e2e8f0', paddingBottom: 10, marginBottom: 10 }}>
+                          <p style={{ fontWeight: 600, color: '#1e293b', fontSize: 13, lineHeight: 1.55 }}>
+                            <span style={{ color: NAV, fontWeight: 800 }}>Q{i + 1}.</span> {question}
+                          </p>
+                          {intent && <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>의도: {stripMd(intent)}</p>}
+                          {tip && <p style={{ fontSize: 12, color: '#374151', marginTop: 3 }}>전략: {stripMd(tip)}</p>}
+                        </div>
+                      );
+                    })}
+                  </AnalysisCard>
+                )}
+                {as_.appealPoints?.length > 0 && (
+                  <AnalysisCard title="어필 포인트">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {as_.appealPoints.map((p, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{p}</span>)}
+                    </div>
+                  </AnalysisCard>
+                )}
+                {as_.portfolioTips?.length > 0 && (
+                  <AnalysisCard title="포트폴리오 팁">
+                    {as_.portfolioTips.map((t, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{t}</p>)}
+                  </AnalysisCard>
+                )}
+                {as_.cautionPoints?.length > 0 && (
+                  <AnalysisCard title="주의 사항">
+                    {as_.cautionPoints.map((p, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #f59e0b', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{p}</p>)}
+                  </AnalysisCard>
+                )}
+                {analysis.applicationFormat?.questions?.length > 0 && (
+                  <AnalysisCard title="자소서 문항">
+                    {analysis.applicationFormat.questions.map((q, i) => (
+                      <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `1px dotted ${NAV}`, marginBottom: 8, fontSize: 13, lineHeight: 1.55 }}>
+                        <span style={{ fontWeight: 800, color: NAV }}>{i + 1}.</span> {q.question}
+                        {q.maxLength && <span style={{ color: '#94a3b8', fontSize: 11 }}> ({q.maxLength}자)</span>}
+                      </p>
+                    ))}
+                  </AnalysisCard>
+                )}
+              </div>
             )}
 
-            </div>{/* end animation wrapper */}
+            {activeTab === 'trends' && (
+              <div>
+                {trends.length > 0 ? trends.map((t, i) => {
+                  const trend = typeof t === 'string' ? t : t.trend;
+                  const desc = typeof t === 'string' ? '' : t.description;
+                  const impact = typeof t === 'string' ? '' : t.impact;
+                  const keywords = typeof t === 'string' ? [] : (t.keywords || []);
+                  const level = typeof t === 'string' ? '' : t.level;
+                  const opportunity = typeof t === 'string' ? '' : t.opportunity;
+                  const threat = typeof t === 'string' ? '' : t.threat;
+                  const levelLabels = { hot: 'HOT', growing: 'GROWING', stable: 'STABLE' };
+                  const levelColors = { hot: '#dc2626', growing: '#059669', stable: '#64748b' };
+                  return (
+                    <AnalysisCard key={i} title="">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: desc ? 8 : 0 }}>
+                        <span style={{ width: 22, height: 22, border: `1.5px solid ${NAV}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: NAV, flexShrink: 0 }}>{i + 1}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                            <p style={{ fontWeight: 700, color: '#1e293b', fontSize: 13, lineHeight: 1.4, margin: 0 }}>{trend}</p>
+                            {level && <span style={{ fontSize: 10, fontWeight: 700, color: levelColors[level] || '#64748b', border: `1px solid ${levelColors[level] || '#64748b'}`, padding: '2px 6px', letterSpacing: '0.06em', flexShrink: 0 }}>{levelLabels[level] || level.toUpperCase()}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      {desc && <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, marginBottom: 7, paddingLeft: 32 }}>{stripMd(desc)}</p>}
+                      {keywords.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 32, marginBottom: 7 }}>
+                          {keywords.map((kw, ki) => <span key={ki} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #cbd5e1', color: '#64748b' }}>#{kw}</span>)}
+                        </div>
+                      )}
+                      {impact && <p style={{ fontSize: 11, color: NAV, borderLeft: `2px solid ${NAV}`, paddingLeft: 7, marginLeft: 32, marginBottom: 5, lineHeight: 1.5 }}><span style={{ fontWeight: 700 }}>직무 영향</span> {stripMd(impact)}</p>}
+                      {opportunity && <p style={{ fontSize: 11, color: '#059669', borderLeft: '2px solid #059669', paddingLeft: 7, marginLeft: 32, marginBottom: 5, lineHeight: 1.5 }}><span style={{ fontWeight: 700 }}>기회</span> {stripMd(opportunity)}</p>}
+                      {threat && <p style={{ fontSize: 11, color: '#b45309', borderLeft: '2px solid #f59e0b', paddingLeft: 7, marginLeft: 32, lineHeight: 1.5 }}><span style={{ fontWeight: 700 }}>주의</span> {stripMd(threat)}</p>}
+                    </AnalysisCard>
+                  );
+                }) : (
+                  <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '32px 0' }}>산업 트렌드 정보가 없습니다</p>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 하단 페이지 장식 */}
-          <div className="flex items-center justify-center py-2 border-t border-gray-100 bg-white">
-            <div className="flex items-center gap-1.5">
-              {tabs.map((tab, idx) => (
-                <button key={tab.key} onClick={() => handleTabChange(tab.key)}
-                  className={`w-2 h-2 rounded-full transition-all ${activeTab === tab.key ? 'bg-gray-700 scale-125' : 'bg-gray-300 hover:bg-gray-400'}`} />
-              ))}
-            </div>
+          {/* 하단 페이지 도트 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 14, borderTop: '1px dotted #e2e8f0', gap: 6, marginTop: 10 }}>
+            {tabs.map((tab) => (
+              <button key={tab.key} onClick={() => handleTabChange(tab.key)}
+                style={{ width: activeTab === tab.key ? 20 : 7, height: 7, background: activeTab === tab.key ? NAV : '#d1d5db', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }} />
+            ))}
           </div>
         </div>
       )}
@@ -680,9 +640,9 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
 
 function AnalysisCard({ title, compact, children }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm ${compact ? 'p-2.5' : 'p-3'}`}>
-      <p className={`font-semibold text-gray-800 ${compact ? 'text-[11px] mb-1' : 'text-xs mb-2'}`}>{title}</p>
-      {children}
+    <div style={{ paddingBottom: compact ? 10 : 16, marginBottom: compact ? 8 : 16, borderBottom: '1px dotted #e2e8f0', fontSize: 13 }}>
+      {title && <p style={{ fontSize: 11, fontWeight: 700, color: '#002F6C', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: compact ? 5 : 8, paddingBottom: 4, borderBottom: '1px solid #002F6C', display: 'inline-block' }}>{title}</p>}
+      <div>{children}</div>
     </div>
   );
 }

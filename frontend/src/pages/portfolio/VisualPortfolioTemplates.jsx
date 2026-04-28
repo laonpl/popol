@@ -17,13 +17,17 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [show, setShow] = useState(false);
-  const [panelTop, setPanelTop] = useState(120);
+  const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
   const [panelMaxH, setPanelMaxH] = useState('60vh');
   const btnRef = useRef(null);
 
   const SECTION_LABELS = {
     education: '교육', awards: '수상', skills: '기술',
-    goals: '목표와 계획', values: '가치관'
+    goals: '목표와 계획', values: '가치관',
+    interviews: '인터뷰', experiences: '프로젝트/경험',
+    profile: '프로필/소개', projects: '프로젝트',
+    curricular: '교내 활동', extracurricular: '교외 활동',
+    contact: '연락처',
   };
 
   if (!jobAnalysis || !sectionType) return null;
@@ -33,16 +37,24 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     if (show && data) { setShow(false); return; }
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
+      const PANEL_W = 280;
       const PANEL_H = 340;
       const viewH = window.innerHeight;
+      const viewW = window.innerWidth;
+
+      let x = rect.left - PANEL_W - 12;
+      if (x < 8) x = Math.min(rect.right + 12, viewW - PANEL_W - 8);
+
       const available = viewH - rect.top - 24;
+      let y = rect.top;
       if (available < PANEL_H) {
-        setPanelTop(Math.max(80, viewH - PANEL_H - 24));
+        y = Math.max(80, viewH - PANEL_H - 24);
         setPanelMaxH(`${Math.min(PANEL_H, viewH - 104)}px`);
       } else {
-        setPanelTop(Math.max(80, rect.top));
         setPanelMaxH(`${available - 24}px`);
       }
+
+      setPanelPos({ x, y });
     }
     setLoading(true);
     setShow(true);
@@ -51,6 +63,27 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
       setData(resp);
     } catch { toast.error('내용 추천에 실패했습니다'); setShow(false); }
     setLoading(false);
+  };
+
+  const handleDragStart = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPosX = panelPos.x;
+    const startPosY = panelPos.y;
+
+    const onMove = (ev) => {
+      setPanelPos({
+        x: startPosX + ev.clientX - startX,
+        y: startPosY + ev.clientY - startY,
+      });
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   };
 
   return (
@@ -69,33 +102,38 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
       </button>
       {show && createPortal(
         <div
-          style={{ position: 'fixed', right: 24, top: panelTop, width: 280, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
-          className="bg-white rounded-2xl border border-indigo-200 shadow-xl p-4 overflow-hidden"
+          style={{ position: 'fixed', left: panelPos.x, top: panelPos.y, width: 280, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
+          className="bg-white rounded-2xl border border-indigo-200 shadow-xl overflow-hidden"
         >
-          <div className="flex items-center justify-between mb-3">
+          <div
+            onMouseDown={handleDragStart}
+            className="flex items-center justify-between px-4 py-3 cursor-grab active:cursor-grabbing select-none border-b border-indigo-100 bg-indigo-50/60"
+          >
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
-              <span className="text-[10px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
+              <span className="text-[10px] text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
             </div>
             <button type="button" onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
           </div>
-          {loading ? (
-            <div className="flex flex-col items-center py-6">
-              <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
-              <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
-            </div>
-          ) : data?.recommendations ? (
-            <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
-              {data.recommendations.map((rec, i) => (
-                <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                  <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
-                  <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
-          )}
+          <div className="p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+            {loading ? (
+              <div className="flex flex-col items-center py-6">
+                <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
+                <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
+              </div>
+            ) : data?.recommendations ? (
+              <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
+                {data.recommendations.map((rec, i) => (
+                  <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
+            )}
+          </div>
         </div>,
         document.body
       )}
