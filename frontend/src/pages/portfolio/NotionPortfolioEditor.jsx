@@ -633,7 +633,7 @@ export default function NotionPortfolioEditor() {
         updateArrayItem={updateArrayItem}
         userId={user.uid}
         portfolioId={id}
-        templateId={tid}
+        templateId={portfolio?.templateId}
         userExperiences={userExperiences}
         importExperience={importExperience}
         analysisMode={analysisMode}
