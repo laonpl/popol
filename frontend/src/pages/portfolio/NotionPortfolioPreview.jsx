@@ -818,7 +818,7 @@ tailwind.config = {
   }
 }
 <\/script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css" />
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; background:#f5f5f7; color:#1a1a1a; }
