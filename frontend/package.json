@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hello-pangea/dnd": "^16.5.0",
+    "@vercel/analytics": "^2.0.1",
     "@yoopta/accordion": "^6.0.2",
     "@yoopta/blockquote": "^6.0.2",
     "@yoopta/callout": "^6.0.2",

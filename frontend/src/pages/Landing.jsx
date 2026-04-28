@@ -1,4 +1,4 @@
-﻿import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
@@ -7,9 +7,11 @@ import {
   Check, Star, Users, Target,
   Building2, Search, ChevronDown, BarChart3, Award,
   Code, GraduationCap, ArrowDownUp, Calendar, List, Plus, PenTool, LayoutTemplate,
-  MapPin, Phone, Mail
+  MapPin, Phone, Mail, Gift
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
+import { db } from '../config/firebase';
+import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   const containerRef = useRef(null);
@@ -101,24 +103,32 @@ export default function Landing() {
 
   const handleWaitlistSubmit = async () => {
     if (!waitlistEmail) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(waitlistEmail)) {
+      setWaitlistStatus({ type: 'error', message: '올바른 이메일 주소를 입력해주세요.' });
+      return;
+    }
     setWaitlistStatus({ type: 'loading', message: '' });
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/waitlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: waitlistEmail })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setWaitlistStatus({ type: 'success', message: data.message || '등록되었습니다.' });
-        setWaitlistEmail('');
-      } else {
-        setWaitlistStatus({ type: 'error', message: data.error || '오류가 발생했습니다.' });
+      // 중복 이메일 확인
+      const q = query(collection(db, 'waitlist'), where('email', '==', waitlistEmail.toLowerCase().trim()));
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        setWaitlistStatus({ type: 'error', message: '이미 등록된 이메일입니다. 출시 알림을 보내드릴게요! 🎁' });
+        return;
       }
+      // Firestore에 저장
+      await addDoc(collection(db, 'waitlist'), {
+        email: waitlistEmail.toLowerCase().trim(),
+        registeredAt: serverTimestamp(),
+        couponGranted: false,
+      });
+      setWaitlistStatus({ type: 'success', message: '출시 예약 완료! 정식 출시 시 무료 쿠폰 3장을 보내드릴게요 🎁' });
+      setWaitlistEmail('');
     } catch (error) {
       console.error(error);
-      setWaitlistStatus({ type: 'error', message: '서버와 연결할 수 없습니다.' });
+      setWaitlistStatus({ type: 'error', message: '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
     }
   };
 
@@ -1029,36 +1039,49 @@ export default function Landing() {
 
       {/* ── CTA BANNER ── */}
       <section className="py-20 sm:py-28 md:py-32 bg-white flex flex-col items-center text-center px-4 sm:px-6">
+        {/* 쿠폰 배지 */}
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-6 sm:mb-8">
+          <Gift size={14} className="text-indigo-500" />
+          <span className="text-[12px] sm:text-[13px] font-bold text-indigo-600">정식 출시 예약자 한정 무료 쿠폰 증정</span>
+        </div>
+
         <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.25] mb-4 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
-          다음 공고 마감 전에,<br />
-          <span className="text-[#4F46E5]">먼저</span> 등록하세요.
+          지금 예약하면,<br />
+          <span className="text-[#4F46E5]">3건 생성</span> 무료 쿠폰을 드려요.
         </h2>
-        <p className="text-[13px] sm:text-[15px] text-gray-500 mb-8 sm:mb-10 leading-relaxed font-medium">
-          평균 제작 시간 12분.<br />
-          12분이면 다음 공고는 다른 결과를 받을 수도 있어요.
+        <p className="text-[13px] sm:text-[15px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
+          이메일을 등록하시면 정식 출시 알림과 함께<br />
+          포트폴리오 <strong className="text-gray-700">3건을 무료로 생성</strong>할 수 있는 쿠폰을 보내드립니다.
         </p>
-        <div className="w-full max-w-[420px] flex flex-col items-center px-0">
+        <p className="text-[11px] sm:text-[12px] text-gray-400 mb-8 sm:mb-10 font-medium">
+          선착순 한정 · 평균 제작 시간 12분
+        </p>
+
+        <div className="w-full max-w-[480px] flex flex-col items-center px-0">
           <div className="w-full flex flex-col sm:flex-row gap-3">
             <input
               type="email"
               value={waitlistEmail}
-              onChange={(e) => setWaitlistEmail(e.target.value)}
-              placeholder="이메일 주소"
-              className="flex-1 px-4 sm:px-5 py-3.5 sm:py-4 bg-[#f8f9fa] border border-gray-200 rounded-xl text-[13px] sm:text-[14px] font-medium focus:outline-none focus:border-gray-300 transition-all placeholder:text-gray-400 disabled:opacity-50"
-              disabled={waitlistStatus.type === 'loading'}
+              onChange={(e) => { setWaitlistEmail(e.target.value); if (waitlistStatus.type !== 'idle') setWaitlistStatus({ type: 'idle', message: '' }); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleWaitlistSubmit()}
+              placeholder="이메일 주소를 입력해주세요"
+              className="flex-1 px-4 sm:px-5 py-3.5 sm:py-4 bg-[#f8f9fa] border border-gray-200 rounded-xl text-[13px] sm:text-[14px] font-medium focus:outline-none focus:border-indigo-300 transition-all placeholder:text-gray-400 disabled:opacity-50"
+              disabled={waitlistStatus.type === 'loading' || waitlistStatus.type === 'success'}
             />
             <button
               onClick={handleWaitlistSubmit}
-              disabled={waitlistStatus.type === 'loading' || !waitlistEmail}
-              className="bg-gray-900 text-white px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl text-[13px] sm:text-[14px] font-bold hover:bg-black transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+              disabled={waitlistStatus.type === 'loading' || !waitlistEmail || waitlistStatus.type === 'success'}
+              className="bg-indigo-600 text-white px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl text-[13px] sm:text-[14px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
             >
-              {waitlistStatus.type === 'loading' ? '등록 중...' : (
-                <>대기자 명단 등록 <span className="text-[15px] sm:text-[16px] leading-none mb-[2px]">→</span></>
+              {waitlistStatus.type === 'loading' ? '등록 중...' : waitlistStatus.type === 'success' ? (
+                <><Check size={14} /> 예약 완료</>
+              ) : (
+                <><Gift size={14} /> 출시 예약하기</>
               )}
             </button>
           </div>
           {waitlistStatus.message && (
-            <p className={`mt-3 text-[13px] font-bold ${waitlistStatus.type === 'success' ? 'text-caribbean-600' : 'text-red-500'}`}>
+            <p className={`mt-3 text-[13px] font-bold ${waitlistStatus.type === 'success' ? 'text-indigo-600' : 'text-red-500'}`}>
               {waitlistStatus.message}
             </p>
           )}
