@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
@@ -22,6 +23,9 @@ const useAuthStore = create((set, get) => ({
 
   init: () => {
     set({ loading: true });
+    // 구글 리다이렉트 로그인 결과 처리 (onAuthStateChanged보다 먼저 실행)
+    getRedirectResult(auth).catch(() => {});
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const user = {
@@ -68,20 +72,9 @@ const useAuthStore = create((set, get) => ({
   },
 
   signInWithGoogle: async () => {
-    const cred = await signInWithPopup(auth, googleProvider);
-    const user = {
-      uid: cred.user.uid,
-      email: cred.user.email,
-      displayName: cred.user.displayName || '',
-      photoURL: cred.user.photoURL || '',
-      emailVerified: cred.user.emailVerified,
-    };
-    set({ user });
-    const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid));
-    if (profileSnap.exists()) {
-      set({ profile: profileSnap.data() });
-    }
-    return user;
+    await signInWithRedirect(auth, googleProvider);
+    // 리다이렉트 후 페이지가 reload되므로 여기 이하 코드는 실행되지 않음
+    // 결과는 init()의 getRedirectResult에서 처리됨
   },
 
   // OTP 발송 요청

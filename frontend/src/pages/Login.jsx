@@ -222,16 +222,12 @@ export default function Login() {
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const user = await signInWithGoogle();
-      const { profile } = useAuthStore.getState();
-      toast.success('로그인 성공!');
-      navigate(profile ? '/app' : '/app/profile-setup');
+      await signInWithGoogle();
+      // 리다이렉트 방식: 구글 인증 페이지로 이동하므로 이후 코드는 실행되지 않음
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        toast.error('구글 로그인에 실패했습니다');
-      }
+      toast.error('구글 로그인에 실패했습니다');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // ── OTP 인증 화면 ────────────────────────────────────
