@@ -10,22 +10,11 @@ const JOB_SITES = [
 
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
-  return value.map(v => {
-    if (typeof v === 'string') return v.trim();
-    if (v && typeof v === 'object') return (v.content || v.text || v.name || v.value || '').toString().trim();
-    return '';
-  }).filter(Boolean);
+  return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
 }
 
 function stripMd(s) {
-  if (s && typeof s === 'object') s = s.content || s.text || s.name || s.value || JSON.stringify(s);
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
-}
-// AI 응답이 string 또는 {weight,content} 등 객체일 수 있으므로 안전하게 문자열 추출
-function toStr(item) {
-  if (!item) return '';
-  if (typeof item === 'string') return stripMd(item);
-  return stripMd(item.content || item.text || item.name || item.value || '');
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -411,19 +400,19 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                         {pr.required?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: NAV, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>필수 서류</p>
-                            {pr.required.map((r, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 4, lineHeight: 1.6 }}>{toStr(r)}</p>)}
+                            {pr.required.map((r, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 4, lineHeight: 1.6 }}>{r}</p>)}
                           </div>
                         )}
                         {pr.format?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>포맷 조건</p>
-                            {pr.format.map((f, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{toStr(f)}</p>)}
+                            {pr.format.map((f, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{f}</p>)}
                           </div>
                         )}
                         {pr.content?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>담아야 할 내용</p>
-                            {pr.content.map((c, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{toStr(c)}</p>)}
+                            {pr.content.map((c, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{c}</p>)}
                           </div>
                         )}
                         {pr.submission && (
@@ -446,7 +435,7 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {ca.businessAreas?.length > 0 && (
                   <AnalysisCard title="사업 영역">
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {ca.businessAreas.map((a, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{toStr(a)}</span>)}
+                      {ca.businessAreas.map((a, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{a}</span>)}
                     </div>
                   </AnalysisCard>
                 )}
@@ -454,12 +443,12 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                     {ca.strengths?.length > 0 && (
                       <AnalysisCard title="강점 (S)">
-                        {ca.strengths.map((s, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{toStr(s)}</p>)}
+                        {ca.strengths.map((s, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(s)}</p>)}
                       </AnalysisCard>
                     )}
                     {ca.weaknesses?.length > 0 && (
                       <AnalysisCard title="약점 (W)">
-                        {ca.weaknesses.map((w, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{toStr(w)}</p>)}
+                        {ca.weaknesses.map((w, i) => <p key={i} style={{ color: '#374151', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(w)}</p>)}
                       </AnalysisCard>
                     )}
                   </div>
@@ -517,12 +506,12 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {pa.growthPath && <AnalysisCard title="성장 경로"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(pa.growthPath)}</p></AnalysisCard>}
                 {analysis.requirements?.essential?.length > 0 && (
                   <AnalysisCard title="필수 요건">
-                    {analysis.requirements.essential.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{toStr(r)}</p>)}
+                    {analysis.requirements.essential.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
                   </AnalysisCard>
                 )}
                 {analysis.requirements?.preferred?.length > 0 && (
                   <AnalysisCard title="우대 요건">
-                    {analysis.requirements.preferred.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{toStr(r)}</p>)}
+                    {analysis.requirements.preferred.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
                   </AnalysisCard>
                 )}
               </div>
@@ -568,18 +557,18 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {as_.appealPoints?.length > 0 && (
                   <AnalysisCard title="어필 포인트">
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {as_.appealPoints.map((p, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{toStr(p)}</span>)}
+                      {as_.appealPoints.map((p, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{p}</span>)}
                     </div>
                   </AnalysisCard>
                 )}
                 {as_.portfolioTips?.length > 0 && (
                   <AnalysisCard title="포트폴리오 팁">
-                    {as_.portfolioTips.map((t, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{toStr(t)}</p>)}
+                    {as_.portfolioTips.map((t, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{t}</p>)}
                   </AnalysisCard>
                 )}
                 {as_.cautionPoints?.length > 0 && (
                   <AnalysisCard title="주의 사항">
-                    {as_.cautionPoints.map((p, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #f59e0b', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{toStr(p)}</p>)}
+                    {as_.cautionPoints.map((p, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #f59e0b', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{p}</p>)}
                   </AnalysisCard>
                 )}
                 {analysis.applicationFormat?.questions?.length > 0 && (
