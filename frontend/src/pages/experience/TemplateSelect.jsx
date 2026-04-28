@@ -12,7 +12,7 @@ import { importFileUpload, importFromUrl } from '../../services/importAI';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
-const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp,.hwp,.hwpx';
+const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp';
 
 /* description 텍스트에서 CARL 섹션 파싱 */
 function parseCarlDescription(desc) {
@@ -474,6 +474,11 @@ export default function TemplateSelect() {
       return;
     }
     for (const f of newFiles) {
+      const ext = f.name.split('.').pop()?.toLowerCase();
+      if (ext === 'hwp' || ext === 'hwpx') {
+        toast.error(`한글 파일(.hwp)은 지원되지 않습니다. PDF로 변환해서 업로드해주세요.`);
+        return;
+      }
       if (f.size > 25 * 1024 * 1024) {
         toast.error(`${f.name}의 크기가 25MB를 초과합니다`);
         return;
@@ -1673,11 +1678,8 @@ export default function TemplateSelect() {
                   : 'border-surface-300 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30'
               }`}
             >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-1 transition-colors ${isDragging ? 'bg-primary-100' : 'bg-surface-100'}`}>
-                <FolderOpen size={22} className={isDragging ? 'text-primary-400' : 'text-bluewood-300'} />
-              </div>
               <p className="font-medium text-sm">클릭하여 파일을 선택하세요</p>
-              <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP), HWP · 최대 25MB · 최대 10개</p>
+              <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP) · 최대 25MB · 최대 10개 · HWP는 PDF 변환 후 업로드</p>
             </div>
 
             {/* File List */}
@@ -1687,9 +1689,6 @@ export default function TemplateSelect() {
                   const typeInfo = getFileTypeInfo(f.name);
                   return (
                     <div key={i} className="flex items-center gap-3 px-4 py-3 border border-gray-100 rounded-xl bg-white shadow-sm">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${typeInfo.color}`}>
-                        <span className="text-white text-[9px] font-bold tracking-wide">{typeInfo.label}</span>
-                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-bluewood-900 truncate">{f.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">

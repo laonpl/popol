@@ -14,7 +14,7 @@ services:
       - key: PORT
         value: 10000
       - key: FRONTEND_URL
-        sync: false   # Vercel 배포 후 대시보드에서 직접 입력
+        value: https://fitpoly.kr,https://www.fitpoly.kr
       - key: GEMINI_API_KEY
         sync: false
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
