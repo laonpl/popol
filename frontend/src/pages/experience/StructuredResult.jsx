@@ -1241,7 +1241,7 @@ export default function StructuredResult() {
                       {isEditing ? (
                         <div>
                           <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
-                            💡 <strong>{field.subtitle}</strong><br />{field.placeholder}
+                            <strong>{field.subtitle}</strong><br />{field.placeholder}
                           </p>
                           <textarea
                             value={val.startsWith('[작성 필요]') ? val.replace(/^\[작성 필요\]\s*/, '') : val}
@@ -1378,7 +1378,7 @@ export default function StructuredResult() {
                   {isEditing ? (
                     <div>
                       <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
-                        💡 <strong>{meta.subtitle}</strong><br />{field?.placeholder}
+                        <strong>{meta.subtitle}</strong><br />{field?.placeholder}
                       </p>
                       <textarea
                         ref={el => { sectionTextareaRefs.current[key] = el; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
