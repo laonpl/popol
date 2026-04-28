@@ -1683,7 +1683,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 }
 
 /* ── Visual Inline Editor — 템플릿 자체에서 인라인 편집 ── */
-function VisualInlineEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode }) {
+function VisualInlineEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const [showExpPicker, setShowExpPicker] = useState(false);
   const [selectedExpDetail, setSelectedExpDetail] = useState(null); // { exp, idx }
@@ -1762,7 +1762,7 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
       </div>
 
       {/* ── 우측 기업 분석 Drawer (portal 렌더링) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => setAnalysisMode(prev => !prev)} />
+      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
       {showExpPicker && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40 backdrop-blur-sm" onClick={() => setShowExpPicker(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -1820,7 +1820,7 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
 }
 
 /* ── Visual Template Editor Wrapper ── */
-function VisualTemplateEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode }) {
+function VisualTemplateEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   return (
     <VisualInlineEditor
       portfolio={portfolio}
@@ -1835,6 +1835,7 @@ function VisualTemplateEditor({ portfolio, update, updateNested, addToArray, rem
       userExperiences={userExperiences}
       importExperience={importExperience}
       analysisMode={analysisMode}
+      onCloseAnalysis={onCloseAnalysis}
     />
   );
 }
