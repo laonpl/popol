@@ -192,6 +192,7 @@ router.post('/recommend-section', async (req, res) => {
       lectures: '강연/교육',
       funfacts: '재미있는 사실',
       profile: '프로필/소개',
+      projects: '프로젝트',
     };
 
     const label = sectionLabels[sectionType] || sectionType;

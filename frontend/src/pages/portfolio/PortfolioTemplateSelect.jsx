@@ -943,18 +943,6 @@ export default function PortfolioTemplateSelect() {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
 
-  const previewComponents = {
-    notion: NotionPreview,
-    academic: AcademicPreview,
-    'visual-1': Visual1Preview,
-    'visual-2': Visual2Preview,
-    'visual-3': Visual3Preview,
-    'visual-4': Visual4Preview,
-    'visual-5': Visual5Preview,
-    'visual-6': Visual6Preview,
-    'visual-7': Visual7Preview,
-    'visual-8': Visual8Preview,
-  };
 
   const handleNext = () => {
     if (!selected) { toast.error('템플릿을 선택해주세요'); return; }
@@ -1093,7 +1081,6 @@ export default function PortfolioTemplateSelect() {
           <div className="grid lg:grid-cols-3 gap-6 mb-8">
             {PORTFOLIO_TEMPLATES.filter(t => activeCategory === 'all' || t.category === activeCategory).map(template => {
               const isSelected = selected === template.id;
-              const Preview = previewComponents[template.id];
               return (
                 <div
                   key={template.id}
@@ -1107,14 +1094,26 @@ export default function PortfolioTemplateSelect() {
                       : 'border-surface-200 bg-white hover:border-gray-300'
                   }`}
                 >
-                  {/* Preview Area */}
-                  <div className={`h-48 ${template.previewBg} p-2 relative`}>
+                  {/* Preview Area — 실제 프리뷰 컴포넌트를 0.42 배율로 축소 표시 */}
+                  <div className={`h-52 ${template.previewBg} overflow-hidden relative`}>
                     {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center z-10">
+                      <div className="absolute top-2 right-2 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center z-10 shadow">
                         <Check size={14} className="text-white" />
                       </div>
                     )}
-                    <Preview />
+                    <div
+                      style={{
+                        transform: 'scale(0.42)',
+                        transformOrigin: 'top left',
+                        width: '238%',
+                        pointerEvents: 'none',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {template.id === 'notion' && <NotionFullPreview />}
+                      {template.id === 'academic' && <AcademicFullPreview />}
+                      {template.id?.startsWith('visual-') && <VisualFullPreview templateId={template.id} />}
+                    </div>
                   </div>
                   {/* Info */}
                   <div className="p-5 bg-white">
