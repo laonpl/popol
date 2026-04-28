@@ -81,29 +81,37 @@ export default function Login() {
   const [otpExpiresAt, setOtpExpiresAt] = useState(null); // Date
   const [timeLeft, setTimeLeft] = useState(0); // 초
 
-  // 이미 로그인됐지만 이메일 미인증 → OTP 단계로 자동 이동
+  const isFormSubmit = useRef(false);
+  const handledAutoLogin = useRef(false);
+
+  // 이미 로그인됐거나 구글 리다이렉트 후 사용자 정보가 로드된 경우 자동 이동
   useEffect(() => {
-    if (user && !user.emailVerified) {
-      setEmail(user.email || '');
-      setOtpContext('login');
-      setStep('otp');
-      setLoading(true);
-      requestOtp()
-        .then(res => {
-          if (res.alreadyVerified) { navigate('/app'); return; }
-          const expiresAt = new Date(Date.now() + (res.expiresInMinutes || 15) * 60 * 1000);
-          setOtpExpiresAt(expiresAt);
-          setTimeLeft((res.expiresInMinutes || 15) * 60);
-          setResendCooldown(60);
-        })
-        .catch(err => {
-          const wait = err.response?.data?.waitSeconds;
-          if (wait) setResendCooldown(wait);
-          toast.error(err.response?.data?.error || '인증 코드 발송에 실패했습니다');
-        })
-        .finally(() => setLoading(false));
+    if (user && !handledAutoLogin.current && !isFormSubmit.current) {
+      handledAutoLogin.current = true;
+      if (user.emailVerified) {
+        navigate('/app');
+      } else {
+        setEmail(user.email || '');
+        setOtpContext('login');
+        setStep('otp');
+        setLoading(true);
+        requestOtp()
+          .then(res => {
+            if (res.alreadyVerified) { navigate('/app'); return; }
+            const expiresAt = new Date(Date.now() + (res.expiresInMinutes || 15) * 60 * 1000);
+            setOtpExpiresAt(expiresAt);
+            setTimeLeft((res.expiresInMinutes || 15) * 60);
+            setResendCooldown(60);
+          })
+          .catch(err => {
+            const wait = err.response?.data?.waitSeconds;
+            if (wait) setResendCooldown(wait);
+            toast.error(err.response?.data?.error || '인증 코드 발송에 실패했습니다');
+          })
+          .finally(() => setLoading(false));
+      }
     }
-  }, []);
+  }, [user, navigate, requestOtp]);
 
   // 만료 카운트다운 타이머
   useEffect(() => {
@@ -159,6 +167,7 @@ export default function Login() {
       if (password.length < 6) { toast.error('비밀번호는 6자 이상이어야 합니다'); return; }
       if (password !== confirmPassword) { toast.error('비밀번호가 일치하지 않습니다'); return; }
     }
+    isFormSubmit.current = true;
     setLoading(true);
     try {
       if (step === 'login') {
@@ -186,8 +195,10 @@ export default function Login() {
       else if (code === 'auth/user-not-found') toast.error('등록되지 않은 이메일입니다');
       else if (code === 'auth/weak-password') toast.error('비밀번호는 6자 이상이어야 합니다');
       else toast.error(err.message || '오류가 발생했습니다');
+    } finally {
+      isFormSubmit.current = false;
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // OTP 인증 제출

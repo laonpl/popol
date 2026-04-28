@@ -37,7 +37,9 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000', 
   'http://localhost:3001', 
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'https://www.fitpoly.kr',
+  'https://fitpoly.kr'
 ];
 if (process.env.FRONTEND_URL) {
   // 여러 URL을 콤마로 구분해서 설정 가능: https://a.vercel.app,https://b.vercel.app
