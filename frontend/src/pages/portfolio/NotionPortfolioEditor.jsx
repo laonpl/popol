@@ -2091,7 +2091,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
 }
 
 /* ── Ashley Visual Editor ── */
-function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode }) {
+function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -2864,7 +2864,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     </div>{/* end max-w */}
 
       {/* ── 우측 기업 분석 사이드바 (공용) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => props.onCloseAnalysis?.()} />
+      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
 
     </div>
   );
@@ -3618,7 +3618,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     </div>
   );
 }
-function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
+function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -3934,13 +3934,14 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
         </div>
       </div>
       </div>
+      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
       <div className="w-[380px] flex-shrink-0" />
     </div>
   );
 }
 
 /* ── Notion Visual Editor (기존 3컬럼) ── */
-function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode }) {
+function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -4991,156 +4992,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </section>
         ))}
 
-        {/* Add Block Button (Notion-like) */}
-        <div className="relative">
-          <button onClick={() => setShowCustomBlockMenu(prev => !prev)}
-            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
-            <Plus size={16} /> 블록 추가
-          </button>
-          {showCustomBlockMenu && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-2 w-60">
-              <p className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
-              {[
-                { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
-                { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
-                { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
-                { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분' },
-              ].map(item => (
-                <button key={item.type} onClick={() => {
-                  addToArray('customBlocks', { type: item.type, content: '' });
-                  setShowCustomBlockMenu(false);
-                }}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
-                  <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500">{item.icon}</span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">{item.label}</p>
-                    <p className="text-[10px] text-gray-400">{item.desc}</p>
-                  </div>
-                </button>
-              ))}
-              <div className="border-t border-gray-100 mt-1 pt-1">
-                <p className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
-                <button onClick={() => {
-                  addToArray('customBlocks', { type: 'project', content: [] });
-                  setShowCustomBlockMenu(false);
-                }} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
-                  <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500"><Briefcase size={14} /></span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">프로젝트 / 경험</p>
-                    <p className="text-[10px] text-gray-400">카드 갤러리, DB에서 불러오기 지원</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
       </div>{/* end 포트폴리오 카드 */}
 
-      {/* ── 우측 기업 분석 사이드바 (Notion ─ 스티키) ── */}
-      <div className="w-[380px] flex-shrink-0">
-      {analysisMode && (
-        <div className="sticky top-5">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <h3 className="text-sm font-bold text-gray-800">기업 분석</h3>
-          </div>
-          {p.jobAnalysis ? (
-            <div className="space-y-3">
-              <JobAnalysisBadge
-                analysis={p.jobAnalysis}
-                onRemove={() => update('jobAnalysis', null)}
-                experiences={p.experiences || []}
-                onTailorApply={(expIdx, sectionKey, content) => {
-                  const updated = { ...p.experiences[expIdx] };
-                  updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
-                  updateArrayItem('experiences', expIdx, updated);
-                }}
-              />
-              {!showJobInput ? (
-                <button
-                  onClick={() => setShowJobInput(true)}
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded-xl bg-white hover:bg-blue-50 transition-colors font-medium"
-                >
-                  <Globe size={13} /> 다른 공고로 변경
-                </button>
-              ) : (
-                <div className="bg-white border border-blue-200 rounded-2xl p-4 space-y-3 shadow-sm">
-                  <p className="text-xs font-semibold text-blue-700">새 채용공고로 변경</p>
-                  <div className="relative">
-                    <Globe size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="url"
-                      value={jobUrl}
-                      onChange={e => setJobUrl(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-                      placeholder="https:// 채용공고 링크"
-                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
-                  </div>
-                  {jobError && <p className="text-xs text-red-500 flex items-center gap-1"><X size={12} />{jobError}</p>}
-                  <div className="flex gap-2">
-                    <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                      {analyzingJob ? <><Loader2 size={14} className="animate-spin" />분석 중...</> : <>분석하기</>}
-                    </button>
-                    <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
-                      className="px-4 py-2.5 text-gray-500 hover:text-gray-700 text-sm border border-gray-200 rounded-xl transition-colors">취소</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : !showJobInput ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
-                  <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
-                </div>
-              </div>
-              <p className="text-xs text-blue-600 leading-relaxed mb-4">
-                지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
-              </p>
-              <button
-                onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-              >
-                채용공고 분석하기
-              </button>
-            </div>
-          ) : (
-            <div className="bg-white border border-blue-200 rounded-2xl p-5 shadow-sm space-y-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Globe size={14} className="text-blue-500" />
-                <p className="text-sm font-semibold text-blue-800">채용공고 URL 입력</p>
-              </div>
-              <div className="relative">
-                <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="url"
-                  value={jobUrl}
-                  onChange={e => setJobUrl(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-                  placeholder="https:// 채용공고 링크를 붙여넣으세요"
-                  className="w-full pl-9 pr-3 py-3 text-sm border border-blue-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-              </div>
-              {jobError && <p className="text-sm text-red-500 flex items-center gap-1.5"><X size={13} />{jobError}</p>}
-              <div className="flex gap-2">
-                <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {analyzingJob ? <><Loader2 size={15} className="animate-spin" />분석 중...</> : <>분석하기</>}
-                </button>
-                <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
-                  className="px-4 py-3 text-gray-500 hover:text-gray-700 text-sm border border-gray-200 rounded-xl transition-colors">취소</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      </div>{/* end 기업 분석 사이드바 (Notion) */}
+      {/* ── 우측 기업 분석 사이드바 (공용 JobAnalysisSidebar) ── */}
+      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
+      <div className="w-[380px] flex-shrink-0" />
 
     </div>
   );

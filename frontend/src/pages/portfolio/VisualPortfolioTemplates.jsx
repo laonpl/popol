@@ -1475,20 +1475,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
 
 // ── 템플릿 3: DB 구조화 ──
 const DatabaseHeader = () => (
-  <div className="flex justify-between items-center mb-4 text-gray-500 border-b border-gray-100 pb-2">
-    <div className="flex gap-1">
-      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><List className="w-4 h-4" /></div>
-      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><LayoutGrid className="w-4 h-4" /></div>
-      <div className="p-1 hover:bg-gray-100 rounded cursor-pointer"><Columns className="w-4 h-4" /></div>
-    </div>
-    <div className="flex gap-2 items-center">
-      <Filter className="w-4 h-4 cursor-pointer hover:text-gray-800" />
-      <ArrowUpDown className="w-4 h-4 cursor-pointer hover:text-gray-800" />
-      <Search className="w-4 h-4 cursor-pointer hover:text-gray-800" />
-      <MoreHorizontal className="w-4 h-4 cursor-pointer hover:text-gray-800" />
-      <button className="bg-blue-500 text-white px-2 py-1 rounded text-xs flex items-center gap-1 hover:bg-blue-600">새로 만들기 <ChevronDown className="w-3 h-3"/></button>
-    </div>
-  </div>
+  <div className="mb-4 border-b border-gray-100 pb-2" />
 );
 
 export const VisualTemplate3 = ({ portfolio, ec }) => {

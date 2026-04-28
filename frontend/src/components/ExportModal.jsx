@@ -43,6 +43,7 @@ export default function ExportModal({ type, data, onClose }) {
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showPptNotice, setShowPptNotice] = useState(false);
 
   const buildExportData = () => {
     if (type === 'experience') {
@@ -121,18 +122,16 @@ export default function ExportModal({ type, data, onClose }) {
   const handleExport = async () => {
     if (!format) return;
 
-    // 템플릿 포트폴리오의 PPT 내보내기 → 전용 PPT 페이지로 이동
-    const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
-    if (isTemplate && format === 'PPT' && data.id) {
-      onClose();
-      window.location.href = `/app/portfolio/pdf/${data.id}`;
+    // PPT 내보내기 → 추후 업데이트 예정 안내
+    if (format === 'PPT') {
+      setShowPptNotice(true);
       return;
     }
 
     // 링크 공유: API 호출 없이 공개 URL 설정
     if (format === 'Link') {
       if (data.id) {
-        setResult(`${window.location.origin}/p/${data.id}`);
+        setResult(`https://fitpoly.kr/p/${data.id}`);
       } else {
         toast.error('공유 링크를 생성할 수 없습니다');
       }
@@ -207,6 +206,24 @@ ${htmlContent}
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* PPT 추후 업데이트 예정 안내 모달 */}
+      {showPptNotice && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
+            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText size={28} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">PPT 내보내기</h3>
+            <p className="text-sm text-gray-500 mb-6">PPT 내보내기 기능은 추후 업데이트 예정입니다.<br/>조금만 기다려주세요!</p>
+            <button
+              onClick={() => setShowPptNotice(false)}
+              className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-surface-200">
           <div>
