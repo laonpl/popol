@@ -11,8 +11,8 @@ import importRoutes from './routes/import.js';
 import jobRoutes from './routes/job.js';
 import uploadRoutes from './routes/upload.js';
 import waitlistRoutes from './routes/waitlist.js';
+import authRoutes from './routes/auth.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
-import { getQueueStats } from './config/geminiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,8 +45,8 @@ if (process.env.FRONTEND_URL) {
 }
 app.use(cors({
   origin: (origin, cb) => {
-    // 서버 간 요청(origin=undefined) 또는 허용 목록 또는 *.vercel.app 허용
-    if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+    // 서버 간 요청(origin=undefined) 또는 명시적으로 허용된 Origin만 허용
+    if (!origin || allowedOrigins.includes(origin)) {
       cb(null, true);
     } else {
       cb(new Error(`CORS blocked: ${origin}`));
@@ -78,6 +78,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/job', ...aiLimiters, jobRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/auth', authRoutes);
 
 // 업로드된 이미지 정적 서빙 (cross-origin 허용)
 app.use('/uploads', (req, res, next) => {
@@ -85,17 +86,18 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(process.cwd(), 'uploads')));
 
-// Health check (대기열 상태 포함)
+// Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString(), queue: getQueueStats() });
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Error handler
+// Error handler — 프로덕션에서 내부 메시지 노출 지연
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   console.error(`[Server Error] ${status} ${req.method} ${req.path}:`, err.message || err);
+  const isProd = process.env.NODE_ENV === 'production';
   res.status(status).json({
-    error: err.message || '서버 오류가 발생했습니다.',
+    error: isProd && status >= 500 ? '서버 오류가 발생했습니다.' : (err.message || '서버 오류가 발생했습니다.'),
   });
 });
 

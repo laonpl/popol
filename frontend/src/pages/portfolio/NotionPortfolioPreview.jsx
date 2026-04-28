@@ -1581,10 +1581,10 @@ function ExperienceDetailModal({ exp, onClose }) {
   })();
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-[4vh] p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-[780px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-[90vw] h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 영역 */}
-        <div className={`relative w-full ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
+        <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
           {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
           <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
             <X size={16} />
@@ -1592,7 +1592,7 @@ function ExperienceDetailModal({ exp, onClose }) {
         </div>
 
         {/* 문서 본문 */}
-        <div className="max-w-[620px] mx-auto px-10 pb-14 pt-8 overflow-y-auto max-h-[75vh]">
+        <div className="flex-1 overflow-y-auto"><div className="max-w-[780px] mx-auto px-10 pb-14 pt-8">
           {/* 제목 */}
           <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
             {exp.title || '(제목 없음)'}
@@ -1696,7 +1696,7 @@ function ExperienceDetailModal({ exp, onClose }) {
           {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
           )}
-        </div>
+        </div></div>
       </div>
     </div>
   );

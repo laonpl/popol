@@ -1,5 +1,5 @@
 ﻿import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
   ChevronLeft, ChevronRight,
@@ -17,28 +17,27 @@ const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState('auto');
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current && contentRef.current) {
-        const containerW = containerRef.current.clientWidth;
-        if (containerW < minWidth) {
-          const newScale = containerW / minWidth;
-          setScale(newScale);
-          setHeight(contentRef.current.offsetHeight * newScale);
-        } else {
-          setScale(1);
-          setHeight('auto');
-        }
-      }
-    };
+  const handleResize = useCallback(() => {
+    if (!containerRef.current || !contentRef.current) return;
+    const containerW = containerRef.current.clientWidth;
+    if (containerW < minWidth) {
+      const newScale = containerW / minWidth;
+      setScale(newScale);
+      setHeight(contentRef.current.offsetHeight * newScale);
+    } else {
+      setScale(1);
+      setHeight('auto');
+    }
+  }, [minWidth]);
 
-    const observer = new ResizeObserver(() => handleResize());
+  useEffect(() => {
+    const observer = new ResizeObserver(handleResize);
     if (contentRef.current) observer.observe(contentRef.current);
     if (containerRef.current) observer.observe(containerRef.current);
 
     handleResize();
     return () => observer.disconnect();
-  }, [minWidth]);
+  }, [handleResize]);
 
   return (
     <div ref={containerRef} className="w-full relative origin-top-left" style={{ height }}>

@@ -73,7 +73,16 @@ export default function ProfileSetup() {
 
   const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const openAddressSearch = () => {
+  const openAddressSearch = async () => {
+    // 다음 주소 API 동적 로드 (최초 코드 스플리팅 유지)
+    if (!window.daum?.Postcode) {
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+    }
     if (!window.daum?.Postcode) {
       toast.error('주소 검색 서비스를 불러올 수 없습니다');
       return;
@@ -86,25 +95,84 @@ export default function ProfileSetup() {
     }).open();
   };
 
+  const formatPhone = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  };
+
   const handleSubmit = async () => {
-    if (!form.nameKo.trim()) { toast.error('이름(한글)을 입력해주세요'); return; }
-    if (!form.location.trim()) { toast.error('거주지를 입력해주세요'); return; }
-    if (!form.birthDate.trim()) { toast.error('생년월일을 입력해주세요'); return; }
-    if (!form.phone.trim()) { toast.error('전화번호를 입력해주세요'); return; }
-    if (!form.email.trim()) { toast.error('이메일을 입력해주세요'); return; }
-    const hasEducation = form.education.some(e => e.school.trim());
-    if (!hasEducation) { toast.error('학력을 하나 이상 입력해주세요'); return; }
+    const nameKo = form.nameKo.trim();
+    const nameEn = form.nameEn.trim();
+    const location = form.location.trim();
+    const birthDate = form.birthDate.trim();
+    const phone = form.phone.trim();
+    const email = form.email.trim();
+
+    // 이름 (한글)
+    if (!nameKo) { toast.error('이름(한글)을 입력해주세요'); return; }
+    if (!/^[가-힣]{2,10}$/.test(nameKo)) {
+      toast.error('이름(한글)은 한글 2~10자로 입력해주세요 (공백·숫자·특수문자 불가)'); return;
+    }
+
+    // 이름 (영문) - 선택이지만 입력 시 형식 검증
+    if (nameEn && !/^[a-zA-Z][a-zA-Z\s\-\.]{1,}$/.test(nameEn)) {
+      toast.error('이름(영문)은 영문자만 입력 가능합니다'); return;
+    }
+
+    // 거주지
+    if (!location) { toast.error('거주지를 입력해주세요'); return; }
+    if (location.length < 5) { toast.error('유효한 주소를 입력해주세요 (주소 검색 버튼을 이용하세요)'); return; }
+
+    // 생년월일
+    if (!birthDate) { toast.error('생년월일을 입력해주세요'); return; }
+    const bParts = birthDate.split('.');
+    const birthYear = parseInt(bParts[0]);
+    const currentYear = new Date().getFullYear();
+    if (isNaN(birthYear) || birthYear < 1940 || birthYear > currentYear - 15) {
+      toast.error(`생년월일은 1940년 ~ ${currentYear - 15}년생까지 입력 가능합니다`); return;
+    }
+
+    // 전화번호
+    if (!phone) { toast.error('전화번호를 입력해주세요'); return; }
+    const phoneDigits = phone.replace(/[-\s]/g, '');
+    if (!/^0[0-9]{9,10}$/.test(phoneDigits)) {
+      toast.error('올바른 전화번호를 입력해주세요 (예: 010-1234-5678)'); return;
+    }
+
+    // 이메일
+    if (!email) { toast.error('이메일을 입력해주세요'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      toast.error('올바른 이메일 형식으로 입력해주세요'); return;
+    }
+
+    // 학력
+    const validEducation = form.education.filter(e => e.school.trim());
+    if (validEducation.length === 0) { toast.error('학력을 하나 이상 입력해주세요'); return; }
+    for (const edu of validEducation) {
+      if (edu.school.trim().length < 2) { toast.error('학교명을 2자 이상 입력해주세요'); return; }
+      if (!edu.degree) { toast.error('학위/과정을 선택해주세요'); return; }
+      if (!edu.period.trim()) { toast.error('재학 기간을 입력해주세요 (예: 2020.03 - 현재)'); return; }
+      if (!/\d{4}/.test(edu.period)) { toast.error('재학 기간에 연도(YYYY)를 포함해주세요 (예: 2020.03 - 현재)'); return; }
+    }
+
+    // 어학 성적 (입력된 항목 검증)
+    for (const lang of form.languageScores) {
+      if (!lang.name.trim()) { toast.error('어학 성적 시험명을 입력하거나 해당 항목을 삭제해주세요'); return; }
+      if (!lang.score.trim()) { toast.error('어학 성적 점수/등급을 입력해주세요'); return; }
+    }
 
     setSaving(true);
     try {
       await saveProfile({
-        nameKo: form.nameKo.trim(),
-        nameEn: form.nameEn.trim(),
-        location: form.location.trim(),
-        birthDate: form.birthDate.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        education: form.education.filter(e => e.school.trim()),
+        nameKo,
+        nameEn,
+        location,
+        birthDate,
+        phone,
+        email,
+        education: validEducation,
         languageScores: form.languageScores.filter(l => l.name.trim()),
         tools: form.tools.filter(Boolean),
         programmingLanguages: form.programmingLanguages.filter(Boolean),

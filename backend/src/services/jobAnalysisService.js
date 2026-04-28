@@ -198,12 +198,17 @@ function releasePuppeteer() {
 }
 
 export async function scrapeJobPosting(url) {
+  // URL은 job.js의 validateJobUrl()에서 이미 검증됨
+  // 로그에 URL 경로를 직접 출력하지 않음 (민감 정보 마스킹)
+  let maskedHost;
+  try { maskedHost = new URL(url).hostname; } catch { maskedHost = '[unknown]'; }
+
   try {
     const text = await fetchJobWithHttp(url);
-    console.log('[Job] HTTP 스크래핑 성공, 길이:', text.length);
+    console.log('[Job] HTTP 스크래핑 성공:', maskedHost, '길이:', text.length);
     return text;
   } catch (httpErr) {
-    console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', httpErr.message);
+    console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', maskedHost, httpErr.code || httpErr.message);
   }
 
   // Puppeteer 동시 인스턴스 제한

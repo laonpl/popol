@@ -1,9 +1,19 @@
 import express from 'express';
 import { adminDb } from '../config/firebase.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+// waitlist 전용 레이트 리밋: IP당 1시간에 최대 5회
+const waitlistLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '너무 많은 요청입니다. 1시간 후 다시 시도해주세요.' },
+});
+
+router.post('/', waitlistLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     

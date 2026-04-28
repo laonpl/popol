@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -9,11 +9,11 @@ import {
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
   Mic, Users, Zap, Check, Building2, ExternalLink, PenLine, Database
 } from 'lucide-react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
-import { FRAMEWORKS } from '../../stores/experienceStore';
+import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
 import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
@@ -92,6 +92,80 @@ const EMPTY_PORTFOLIO = {
   skillLevels: {},
 };
 
+// 컴포넌트 외부 상수 — 렌더링마다 재생성 방지
+const SECTION_LABELS = {
+  ashley: {
+    profile: '프로필',
+    education: '학교',
+    experiences: '경력 & 프로젝트',
+    interviews: '인터뷰',
+    books: '저서 & 글쓰기',
+    lectures: '강연 & 모더레이터',
+    skills: '이런 일을 할 수 있어요',
+    values: '나를 들려주는 이야기',
+    funfacts: '독특한 경험',
+    contact: '연락처',
+  },
+  academic: {
+    profile: '프로필',
+    education: '학력',
+    awards: '수상/장학금',
+    experiences: 'Portfolio & Experience',
+    curricular: '교과 활동',
+    extracurricular: '비교과 & 자격증',
+    skills: 'Skills',
+    goals: 'Personal Statement',
+    values: '소개글',
+    contact: 'Contact',
+  },
+  notion: {
+    profile: '프로필',
+    education: '학력',
+    awards: '수상/장학금',
+    experiences: '경험',
+    curricular: '교과 활동',
+    extracurricular: '비교과 활동',
+    skills: '기술',
+    goals: '목표와 계획',
+    values: '가치관',
+    contact: '연락처',
+  },
+  timeline: {
+    profile: '프로필',
+    education: '학력',
+    curricular: '학기별 수업',
+    experiences: '활동 기록',
+    goals: '스터디 계획',
+    skills: '기술',
+    awards: '수상/장학금',
+    contact: '연락처',
+  },
+};
+
+const TEMPLATE_SECTION_MAP = {
+  ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
+  academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
+};
+
+const SECTIONS_BASE = [
+  { id: 'profile', icon: Heart, defaultLabel: '프로필' },
+  { id: 'education', icon: GraduationCap, defaultLabel: '학력' },
+  { id: 'awards', icon: Award, defaultLabel: '수상/장학금' },
+  { id: 'experiences', icon: Briefcase, defaultLabel: '경험' },
+  { id: 'interviews', icon: Mic, defaultLabel: '인터뷰' },
+  { id: 'books', icon: BookOpen, defaultLabel: '저서' },
+  { id: 'lectures', icon: Users, defaultLabel: '강연' },
+  { id: 'curricular', icon: BookOpen, defaultLabel: '교과 활동' },
+  { id: 'extracurricular', icon: Star, defaultLabel: '비교과 활동' },
+  { id: 'skills', icon: Code, defaultLabel: '기술' },
+  { id: 'goals', icon: Target, defaultLabel: '목표와 계획' },
+  { id: 'values', icon: MessageSquare, defaultLabel: '가치관' },
+  { id: 'funfacts', icon: Zap, defaultLabel: '독특한 경험' },
+  { id: 'contact', icon: Mail, defaultLabel: '연락처' },
+];
+
 export default function NotionPortfolioEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -113,120 +187,48 @@ export default function NotionPortfolioEditor() {
   // 자동 저장 관련
   const autoSaveTimer = useRef(null);
   const initialLoaded = useRef(false);
+  const pendingRef = useRef(false);
 
   useEffect(() => {
     if (!portfolio || !initialLoaded.current) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
       try {
         const { id: _id, ...data } = portfolio;
         await updatePortfolio(id, data);
-        setCurrentPortfolio(portfolio);
       } catch { /* 자동 저장 실패 시 무시 — 수동 저장으로 보완 */ }
+      finally { pendingRef.current = false; }
     }, 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [portfolio]);
+  }, [portfolio, id, updatePortfolio]);
 
-  // 템플릿별 섹션 레이블
-  const SECTION_LABELS = {
-    ashley: {
-      profile: '프로필',
-      education: '학교',
-      experiences: '경력 & 프로젝트',
-      interviews: '인터뷰',
-      books: '저서 & 글쓰기',
-      lectures: '강연 & 모더레이터',
-      skills: '이런 일을 할 수 있어요',
-      values: '나를 들려주는 이야기',
-      funfacts: '독특한 경험',
-      contact: '연락처',
-    },
-    academic: {
-      profile: '프로필',
-      education: '학력',
-      awards: '수상/장학금',
-      experiences: 'Portfolio & Experience',
-      curricular: '교과 활동',
-      extracurricular: '비교과 & 자격증',
-      skills: 'Skills',
-      goals: 'Personal Statement',
-      values: '소개글',
-      contact: 'Contact',
-    },
-    notion: {
-      profile: '프로필',
-      education: '학력',
-      awards: '수상/장학금',
-      experiences: '경험',
-      curricular: '교과 활동',
-      extracurricular: '비교과 활동',
-      skills: '기술',
-      goals: '목표와 계획',
-      values: '가치관',
-      contact: '연락처',
-    },
-    timeline: {
-      profile: '프로필',
-      education: '학력',
-      curricular: '학기별 수업',
-      experiences: '활동 기록',
-      goals: '스터디 계획',
-      skills: '기술',
-      awards: '수상/장학금',
-      contact: '연락처',
-    },
-  };
+  const labels = useMemo(() => ({
+    ...(SECTION_LABELS[portfolio?.templateId] || SECTION_LABELS.notion),
+    ...(portfolio?.customSectionLabels || {}),
+  }), [portfolio?.templateId, portfolio?.customSectionLabels]);
 
-  const tid = portfolio?.templateId || 'notion';
-  const defaultLabels = SECTION_LABELS[tid] || SECTION_LABELS.notion;
-  const customLabels = portfolio?.customSectionLabels || {};
-  const labels = { ...defaultLabels, ...customLabels };
-
-  const SECTIONS = [
-    { id: 'profile', label: labels.profile || '프로필', icon: Heart },
-    { id: 'education', label: labels.education || '학력', icon: GraduationCap },
-    { id: 'awards', label: labels.awards || '수상/장학금', icon: Award },
-    { id: 'experiences', label: labels.experiences || '경험', icon: Briefcase },
-    { id: 'interviews', label: labels.interviews || '인터뷰', icon: Mic },
-    { id: 'books', label: labels.books || '저서', icon: BookOpen },
-    { id: 'lectures', label: labels.lectures || '강연', icon: Users },
-    { id: 'curricular', label: labels.curricular || '교과 활동', icon: BookOpen },
-    { id: 'extracurricular', label: labels.extracurricular || '비교과 활동', icon: Star },
-    { id: 'skills', label: labels.skills || '기술', icon: Code },
-    { id: 'goals', label: labels.goals || '목표와 계획', icon: Target },
-    { id: 'values', label: labels.values || '가치관', icon: MessageSquare },
-    { id: 'funfacts', label: labels.funfacts || '독특한 경험', icon: Zap },
-    { id: 'contact', label: labels.contact || '연락처', icon: Mail },
-  ];
-
-  // 템플릿별 표시 섹션 정의
-  const TEMPLATE_SECTION_MAP = {
-    ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
-    academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
-    notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
-    timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
-  };
-
-  const hiddenSections = portfolio?.hiddenSections || [];
-
-  const visibleSections = SECTIONS.filter(s => {
+  const visibleSections = useMemo(() => {
     const allowed = TEMPLATE_SECTION_MAP[portfolio?.templateId] || TEMPLATE_SECTION_MAP.notion;
-    return allowed.includes(s.id) && !hiddenSections.includes(s.id);
-  });
+    const hidden = portfolio?.hiddenSections || [];
+    return SECTIONS_BASE
+      .filter(s => allowed.includes(s.id) && !hidden.includes(s.id))
+      .map(s => ({ ...s, label: labels[s.id] || s.defaultLabel }));
+  }, [portfolio?.templateId, portfolio?.hiddenSections, labels]);
 
-  const removableHiddenSections = SECTIONS.filter(s => {
+  const removableHiddenSections = useMemo(() => {
     const allowed = TEMPLATE_SECTION_MAP[portfolio?.templateId] || TEMPLATE_SECTION_MAP.notion;
-    return allowed.includes(s.id) && hiddenSections.includes(s.id);
-  });
+    return SECTIONS_BASE
+      .filter(s => allowed.includes(s.id) && (portfolio?.hiddenSections || []).includes(s.id))
+      .map(s => ({ ...s, label: labels[s.id] || s.defaultLabel }));
+  }, [portfolio?.templateId, portfolio?.hiddenSections, labels]);
 
   useEffect(() => { loadData(); }, [id]);
 
   const loadData = async () => {
     try {
-      const [portfolioSnap, expSnapshot] = await Promise.all([
-        getDoc(doc(db, 'portfolios', id)),
-        getDocs(query(collection(db, 'experiences'), where('userId', '==', user.uid)))
-      ]);
+      const portfolioSnap = await getDoc(doc(db, 'portfolios', id));
       if (portfolioSnap.exists()) {
         const pData = { id: portfolioSnap.id, ...portfolioSnap.data() };
         // Merge with EMPTY_PORTFOLIO defaults
@@ -252,7 +254,8 @@ export default function NotionPortfolioEditor() {
         setPortfolio(merged);
         setCurrentPortfolio(merged);
       }
-      setUserExperiences(expSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      await useExperienceStore.getState().fetchExperiences(user.uid);
+      setUserExperiences(useExperienceStore.getState().experiences);
       // 초기 로드 완료 표시 — 자동 저장 활성화
       setTimeout(() => { initialLoaded.current = true; }, 500);
 
@@ -992,7 +995,7 @@ const EXP_SECTION_META = {
 };
 const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
 
-function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply }) {
+function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply, analysisMode }) {
   const keyExps = exp?.structuredResult?.keyExperiences || [];
   const structured = exp?.structuredResult || {};
   const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
@@ -1171,12 +1174,16 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${tailorMode ? 'max-w-6xl' : 'max-w-3xl'} max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300`} onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3"
+      style={{ paddingRight: analysisMode ? '420px' : '12px' }}
+      onClick={onClose}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 w-full h-[92vh]" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[280px]">{exp.title || '경험 상세'}</h3>
+            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{exp.title || '경험 상세'}</h3>
             <button
               onClick={() => {
                 if (!editingMeta) {
@@ -1217,7 +1224,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto">
           {/* ── 상세보기 ── */}
-          <div className="p-6 space-y-6">
+          <div className="p-8 space-y-6">
               {/* ── 메타 인라인 편집 ── */}
               {editingMeta && metaDraft && (
                 <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">
@@ -1808,6 +1815,7 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
           onClose={() => setSelectedExpDetail(null)}
           resizeToBase64={resizeToBase64Global}
           jobAnalysis={p?.jobAnalysis}
+          analysisMode={analysisMode}
           onTailorApply={(sectionKey, content) => {
             const updated = { ...selectedExpDetail.exp };
             updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -2827,6 +2835,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               onClose={() => setExpDetailIdx(null)}
               resizeToBase64={resizeToBase64}
               jobAnalysis={portfolio.jobAnalysis}
+              analysisMode={analysisMode}
               onTailorApply={(sectionKey, content) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, structuredResult: { ...(c.structuredResult || {}), [sectionKey]: content } } : c);
                 const b = [...(p.customBlocks || [])]; b[blockIdx] = { ...b[blockIdx], content: newCards };
@@ -2843,6 +2852,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
             jobAnalysis={portfolio.jobAnalysis}
+            analysisMode={analysisMode}
             onTailorApply={(sectionKey, content) => {
               const updated = { ...p.experiences[expDetailIdx] };
               updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -3579,6 +3589,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               onClose={() => setExpDetailIdx(null)}
               resizeToBase64={resizeToBase64}
               jobAnalysis={portfolio.jobAnalysis}
+              analysisMode={analysisMode}
               onTailorApply={(sectionKey, content) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, structuredResult: { ...(c.structuredResult || {}), [sectionKey]: content } } : c);
                 const b = [...(p.customBlocks || [])]; b[blockIdx] = { ...b[blockIdx], content: newCards };
@@ -3595,6 +3606,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
             jobAnalysis={portfolio.jobAnalysis}
+            analysisMode={analysisMode}
             onTailorApply={(sectionKey, content) => {
               const updated = { ...p.experiences[expDetailIdx] };
               updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -5271,17 +5283,26 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
               />
               <button
                 type="button"
-                onClick={() => {
-                  if (window.daum?.Postcode) {
-                    new window.daum.Postcode({
-                      oncomplete: (data) => {
-                        const addr = data.roadAddress || data.jibunAddress || data.address;
-                        update('location', addr);
-                      },
-                    }).open();
-                  } else {
-                    toast.error('주소 검색 서비스를 불러올 수 없습니다');
+                onClick={async () => {
+                  // 다음 주소 API 동적 로드
+                  if (!window.daum?.Postcode) {
+                    await new Promise((resolve) => {
+                      const s = document.createElement('script');
+                      s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+                      s.onload = resolve;
+                      document.head.appendChild(s);
+                    });
                   }
+                  if (!window.daum?.Postcode) {
+                    toast.error('주소 검색 서비스를 불러올 수 없습니다');
+                    return;
+                  }
+                  new window.daum.Postcode({
+                    oncomplete: (data) => {
+                      const addr = data.roadAddress || data.jibunAddress || data.address;
+                      update('location', addr);
+                    },
+                  }).open();
                 }}
                 className="px-3 py-2 bg-primary-50 text-primary-600 border border-primary-200 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors whitespace-nowrap"
               >
