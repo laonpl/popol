@@ -703,100 +703,129 @@ export function mapPortfolioToTemplateData(p) {
 // ── 공통 프로젝트 모달 (Notion 스타일) ──
 const ProjectModal = ({ project, onClose }) => {
   if (!project) return null;
-  const keyExperiences = (project.keyExperiences || []).filter(Boolean);
-  const sectionsToRender = project.sections?.length > 0
-    ? project.sections
-    : (project.details?.length > 0 ? project.details.map((d, i) => ({ label: `내용 ${i + 1}`, content: d })) : []);
+  const sr = project.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const keyExperiences = (sr.keyExperiences || project.keyExperiences || []).filter(Boolean);
+  const coverImg = sr.exportConfig?.coverImg || project.coverImg || null;
+
+  // 섹션 본문: exportConfig > structuredResult 섹션 > 기본 sections/details
+  const EXP_SECTION_KEYS = ['background', 'situation', 'task', 'process', 'result', 'growth', 'contribution'];
+  const EXP_SECTION_LABELS = { background: '배경', situation: '상황', task: '진행한 일', process: '과정', result: '결과물', growth: '성장한 점', contribution: '나의 역할' };
+  let sectionsToRender = [];
+  if (sr.exportConfig?.sections?.length > 0) {
+    sectionsToRender = sr.exportConfig.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content }));
+  } else {
+    const baseSects = EXP_SECTION_KEYS.filter(k => (typeof sr[k] === 'string' ? sr[k] : '').trim()).map(k => ({ label: EXP_SECTION_LABELS[k], content: sr[k] }));
+    if (baseSects.length > 0) sectionsToRender = baseSects;
+    else if (project.sections?.length > 0) sectionsToRender = project.sections;
+    else if (project.details?.length > 0) sectionsToRender = project.details.map((d, i) => ({ label: `내용 ${i + 1}`, content: d }));
+  }
+
+  const duration = ov.duration || project.duration || '';
+  const role = ov.role || project.role || '';
+  const techStack = (ov.techStack?.length > 0 ? ov.techStack : null) || (project.techStack?.length > 0 ? project.techStack : null) || [];
+  const keywords = project.keywords || [];
+  const goal = ov.goal || project.goal || '';
+  const description = project.description || ov.background || ov.summary || project.desc || '';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[4vh] p-4 overflow-auto">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative bg-white w-full max-w-[780px] rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative bg-white w-[90vw] h-[92vh] rounded-xl shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 */}
-        <div className={`w-full ${project.coverImg ? 'h-44' : 'h-10'} bg-gray-50 flex-shrink-0 relative`}>
-          {project.coverImg && <img src={project.coverImg} alt="cover" className="w-full h-full object-cover" />}
+        <div className={`w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-gray-50 relative`}>
+          {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
           <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 문서 본문 */}
-        <div className="max-w-[620px] mx-auto px-10 pb-14 pt-8 overflow-y-auto max-h-[75vh]">
-          {/* 제목 */}
-          <h1 className="text-[32px] font-extrabold text-gray-900 leading-tight mb-7">{project.name}</h1>
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-[780px] mx-auto px-10 pb-14 pt-8">
+            {/* 제목 */}
+            <h1 className="text-[32px] font-extrabold text-gray-900 leading-tight mb-7">{project.name || project.title}</h1>
 
-          {/* 프로퍼티 */}
-          <div className="mb-7 space-y-2 border-b border-gray-100 pb-5">
-            {project.duration && (
-              <div className="flex items-center gap-4">
-                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
-                <span className="text-[13px] text-gray-700">{project.duration}</span>
+            {/* 프로퍼티 */}
+            {(duration || role || techStack.length > 0 || keywords.length > 0 || goal) && (
+              <div className="mb-7 space-y-2.5 border-b border-gray-100 pb-6">
+                {duration && (
+                  <div className="flex items-center gap-4">
+                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
+                    <span className="text-[13px] text-gray-700">{duration}</span>
+                  </div>
+                )}
+                {role && (
+                  <div className="flex items-start gap-4">
+                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                    <span className="text-[13px] text-gray-700 leading-relaxed">{role}</span>
+                  </div>
+                )}
+                {techStack.length > 0 && (
+                  <div className="flex items-start gap-4">
+                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {techStack.map((t, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[12px]">
+                          {typeof t === 'string' ? t : t?.name || ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {keywords.length > 0 && (
+                  <div className="flex items-start gap-4">
+                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {keywords.slice(0, 6).map((kw, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[12px] font-medium">
+                          {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {goal && (
+                  <div className="flex items-start gap-4">
+                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                    <span className="text-[13px] text-gray-700 leading-relaxed">{goal}</span>
+                  </div>
+                )}
               </div>
             )}
-            {project.role && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
-                <span className="text-[13px] text-gray-700 leading-relaxed">{project.role}</span>
+
+            {/* 간단 설명 */}
+            {description && (
+              <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-4 mb-7">{description}</p>
+            )}
+
+            {/* 핵심 경험 슬라이드 */}
+            {keyExperiences.length > 0 && (
+              <div className="mb-7">
+                <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+                <KeyExperienceSlider keyExperiences={keyExperiences} />
               </div>
             )}
-            {project.techStack?.length > 0 && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {project.techStack.map((t, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[12px]">
-                      {typeof t === 'string' ? t : t?.name || ''}
-                    </span>
-                  ))}
-                </div>
+
+            {/* 섹션 본문 */}
+            {sectionsToRender.length > 0 && (
+              <div className="space-y-7">
+                {sectionsToRender.map((sec, i) => (
+                  <div key={i}>
+                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
+                      {sec.label}
+                    </h2>
+                    <p className="text-[14px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                  </div>
+                ))}
               </div>
             )}
-            {project.keywords?.length > 0 && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {project.keywords.slice(0, 6).map((kw, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[12px] font-medium">
-                      {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {project.goal && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
-                <span className="text-[13px] text-gray-700 leading-relaxed">{project.goal}</span>
-              </div>
+
+            {/* 아무 내용도 없을 때 */}
+            {sectionsToRender.length === 0 && keyExperiences.length === 0 && !description && (
+              <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
             )}
           </div>
-
-          {/* 핵심 경험 슬라이드 */}
-          {keyExperiences.length > 0 && (
-            <div className="mb-7">
-              <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
-              <KeyExperienceSlider keyExperiences={keyExperiences} />
-            </div>
-          )}
-
-          {/* 섹션 본문 */}
-          {sectionsToRender.length > 0 && (
-            <div className="space-y-7">
-              {sectionsToRender.map((sec, i) => (
-                <div key={i}>
-                  <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
-                    {sec.label}
-                  </h2>
-                  <p className="text-[14px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 섹션 없을 때 기본 설명 */}
-          {sectionsToRender.length === 0 && keyExperiences.length === 0 && project.desc && (
-            <p className="text-[14px] text-gray-700 leading-[1.9]">{project.desc}</p>
-          )}
         </div>
       </div>
     </div>

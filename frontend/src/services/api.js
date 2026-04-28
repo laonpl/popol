@@ -9,19 +9,34 @@ const api = axios.create({
 /**
  * 요청마다 Firebase ID Token을 Authorization 헤더에 첨부
  *
- * 기존 x-user-id 헤더는 IDOR 취약점이 있으므로 제거.
- * Firebase Auth의 getIdToken()을 사용하면 서버 측에서 위조 불가능한
- * uid를 안전하게 검증할 수 있습니다.
- *
- * 토큰은 1시간마다 자동 갱신되므로 forceRefresh 불필요.
+ * 토큰은 인메모리에 캐시하여 매 요청마다 Firebase SDK를 호출하지 않음.
+ * 만료 5분 전부터 강제 갱신 → 실질적으로 새 토큰 발급은 ~55분 간격.
  */
+let _tokenCache = { value: null, exp: 0 };
+
+async function getToken(user) {
+  const now = Date.now() / 1000;
+  // 만료까지 5분 이상 남아 있으면 캐시 재사용
+  if (_tokenCache.value && _tokenCache.exp - now > 300) {
+    return _tokenCache.value;
+  }
+  const idToken = await user.getIdToken();
+  try {
+    // JWT payload의 exp 파싱 (외부 검증 없음 — 로컬 캐시 만료 계산 전용)
+    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    _tokenCache = { value: idToken, exp: payload.exp };
+  } catch {
+    // 파싱 실패 시 캐시 없이 반환 (다음 요청에서 재시도)
+    _tokenCache = { value: null, exp: 0 };
+  }
+  return idToken;
+}
+
 api.interceptors.request.use(async (config) => {
   try {
     const user = auth.currentUser;
     if (user) {
-      // getIdToken()은 만료 시 자동으로 갱신된 토큰을 반환
-      const idToken = await user.getIdToken();
-      config.headers['Authorization'] = `Bearer ${idToken}`;
+      config.headers['Authorization'] = `Bearer ${await getToken(user)}`;
     }
   } catch (e) {
     console.warn('[API] 토큰 취득 실패 (비인증 요청으로 처리):', e.message);

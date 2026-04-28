@@ -73,13 +73,22 @@ const usePortfolioStore = create((set, get) => ({
     return docRef.id;
   },
 
-  updatePortfolio: async (id, data) => {
+  updatePortfolio: async (id, data, prevSnapshot) => {
+    // diff: 변경된 최상위 키만 전송 (자동 저장 트래픽 절감)
+    const updatedFields = prevSnapshot
+      ? Object.fromEntries(
+          Object.entries(data).filter(
+            ([k, v]) => JSON.stringify(v) !== JSON.stringify(prevSnapshot[k])
+          )
+        )
+      : data;
+    if (Object.keys(updatedFields).length === 0) return; // 변경 없음
     await updateDoc(doc(db, 'portfolios', id), {
-      ...data,
+      ...updatedFields,
       updatedAt: serverTimestamp(),
     });
     const portfolios = get().portfolios.map(p =>
-      p.id === id ? { ...p, ...data } : p
+      p.id === id ? { ...p, ...updatedFields } : p
     );
     set({ portfolios });
   },

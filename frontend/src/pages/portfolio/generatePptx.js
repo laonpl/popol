@@ -3,7 +3,6 @@
  * Wanted Portfolio Style PPTX Generator (pptxgenjs)
  * 구조: Cover → Profile → Skills → [SectionDivider + Situation + Result] × N → Outro
  */
-import PptxGenJS from 'pptxgenjs';
 import { THEMES, getLayout } from '../../constants/portfolioThemes';
 import { strip, extractFields, toBullets, smartBullets, shorten, nameSpaced } from '../../utils/textUtils';
 
@@ -2003,6 +2002,7 @@ function buildStrengths(prs, p, t) {
 
 /* ─── MAIN EXPORT ─── */
 export async function generatePptx(portfolio, theme, themeObj) {
+  const { default: PptxGenJS } = await import('pptxgenjs');
   const prs = new PptxGenJS();
   // 코드에서 사용하는 SW=10, SH=5.625 인치와 슬라이드 크기를 일치시켜 짤림 방지
   prs.defineLayout({ name: 'CUSTOM_WIDE', width: 10, height: 5.625 });

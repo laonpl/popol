@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import api from '../services/api';
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -28,6 +29,7 @@ const useAuthStore = create((set, get) => ({
           email: firebaseUser.email,
           displayName: firebaseUser.displayName || '',
           photoURL: firebaseUser.photoURL || '',
+          emailVerified: firebaseUser.emailVerified,
         };
         set({ user, loading: false });
         get().loadProfile(firebaseUser.uid);
@@ -46,6 +48,7 @@ const useAuthStore = create((set, get) => ({
       email: cred.user.email,
       displayName,
       photoURL: '',
+      emailVerified: false,
     };
     set({ user });
     return user;
@@ -58,6 +61,7 @@ const useAuthStore = create((set, get) => ({
       email: cred.user.email,
       displayName: cred.user.displayName || '',
       photoURL: cred.user.photoURL || '',
+      emailVerified: cred.user.emailVerified,
     };
     set({ user });
     return user;
@@ -70,6 +74,7 @@ const useAuthStore = create((set, get) => ({
       email: cred.user.email,
       displayName: cred.user.displayName || '',
       photoURL: cred.user.photoURL || '',
+      emailVerified: cred.user.emailVerified,
     };
     set({ user });
     const profileSnap = await getDoc(doc(db, 'profiles', cred.user.uid));
@@ -77,6 +82,34 @@ const useAuthStore = create((set, get) => ({
       set({ profile: profileSnap.data() });
     }
     return user;
+  },
+
+  // OTP 발송 요청
+  requestOtp: async () => {
+    const { data } = await api.post('/auth/request-otp');
+    return data;
+  },
+
+  // OTP 검증 후 Firebase 토큰 갱신
+  verifyOtp: async (otp) => {
+    const { data } = await api.post('/auth/verify-otp', { otp });
+    if (data.verified) {
+      // Firebase 클라이언트 토큰 강제 갱신 (emailVerified: true 반영)
+      await auth.currentUser?.reload();
+      const refreshed = auth.currentUser;
+      if (refreshed) {
+        set({
+          user: {
+            uid: refreshed.uid,
+            email: refreshed.email,
+            displayName: refreshed.displayName || '',
+            photoURL: refreshed.photoURL || '',
+            emailVerified: true,
+          },
+        });
+      }
+    }
+    return data;
   },
 
   loadProfile: async (uid) => {
