@@ -237,17 +237,23 @@ export default function NotionPortfolioPreview() {
 
         {/* Quick Menu - 템플릿별 차별화 */}
         <div className="px-10 py-4 border-b border-surface-100 flex gap-3 overflow-x-auto">
-          {(p.templateId === 'ashley'
-            ? ['프로젝트', '기술', '가치관']
-            : p.templateId === 'academic'
-            ? ['학력', '교과 활동', '비교과 활동', '기술', '수상 내역', '목표와 계획', '가치관']
-            : ['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관']
-          ).map(menu => (
-            <a key={menu} href={`#section-${menu}`}
-              className="px-4 py-2 bg-surface-50 hover:bg-surface-100 rounded-lg text-sm text-gray-600 font-medium whitespace-nowrap transition-colors">
-              {menu}
-            </a>
-          ))}
+          {(() => {
+            const hiddenSections = p.hiddenSections || [];
+            const menuDefs = p.templateId === 'ashley'
+              ? [['프로젝트', 'experiences'], ['기술', 'skills'], ['가치관', 'values']]
+              : p.templateId === 'academic'
+              ? [['학력', 'education'], ['교과 활동', 'curricular'], ['비교과 활동', 'extracurricular'], ['기술', 'skills'], ['수상 내역', 'awards'], ['목표와 계획', 'goals'], ['가치관', 'values']]
+              : [['교과 활동', 'curricular'], ['비교과 활동', 'extracurricular'], ['기술', 'skills'], ['목표와 계획', 'goals'], ['가치관', 'values']];
+            const dataCheck = { education: (p.education||[]).length > 0, experiences: (p.experiences||[]).length > 0, skills: !!(p.skills?.languages?.length || p.skills?.tools?.length || p.skills?.certificates?.length), curricular: (p.curricular||[]).length > 0, extracurricular: (p.extracurricular||[]).length > 0, awards: (p.awards||[]).length > 0, goals: (p.goals||[]).length > 0, values: !!(p.valuesEssay || p.valuesEssayBlocks) };
+            return menuDefs
+              .filter(([, key]) => !hiddenSections.includes(key) && dataCheck[key])
+              .map(([label]) => (
+                <a key={label} href={`#section-${label}`} onClick={e => { e.preventDefault(); const el = document.getElementById(`section-${label}`); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}
+                  className="px-4 py-2 bg-surface-50 hover:bg-surface-100 rounded-lg text-sm text-gray-600 font-medium whitespace-nowrap transition-colors">
+                  {label}
+                </a>
+              ));
+          })()}
         </div>
 
         {/* Three-column layout */}
@@ -379,7 +385,7 @@ export default function NotionPortfolioPreview() {
 
         {/* ── Experience Gallery ── */}
         {(p.experiences || []).length > 0 && (
-          <div className="px-10 py-8 border-t border-surface-100">
+          <div className="px-10 py-8 border-t border-surface-100" id="section-프로젝트">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block">프로젝트 / 경험</h2>
               <p className="text-xs text-gray-400">⚠️ 각 항목을 클릭하시면 소개, 참여 동기, 활동 내용에 대한 정보를 확인하실 수 있습니다.</p>

@@ -1433,7 +1433,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
   const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, instagram: data.social?.instagram };
-  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['education', 'experiences', 'projects', 'awards', 'skills']);
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['education', 'experiences', 'projects', 'awards', 'skills', 'contact']);
   const hidden3 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden3 = (key) => hidden3.includes(key);
   return (
@@ -1449,7 +1449,8 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
             <ImageUploadSlot src={ec ? portfolio.profileImageUrl : null} onUpload={ec?.onUploadProfileImage} className="w-32 h-32 rounded-full overflow-hidden bg-pink-100 shadow-sm flex-shrink-0" imgClassName="w-full h-full object-cover" rounded="rounded-full">
               <div className="w-32 h-32 bg-pink-100 rounded-full flex items-center justify-center shadow-sm"><UserCircle2 className="w-16 h-16 text-pink-300" /></div>
             </ImageUploadSlot>
-            <div className="text-left border border-gray-200 p-6 rounded-lg shadow-sm w-full md:w-[400px]">
+            {!isHidden3('contact') && <div className="text-left border border-gray-200 p-6 rounded-lg shadow-sm w-full md:w-[400px] relative group/section" {...(ec ? dp('contact') : {})}>
+              {ec && <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-400 cursor-grab" /></span><SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
               {ec
                 ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다.`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold text-lg mb-2 block" />
                 : <h3 className="font-bold text-lg mb-2">{data.greeting || `안녕하세요! ${data.name}입니다.`}</h3>
@@ -1476,7 +1477,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                   </>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
         <div className="h-1 bg-gradient-to-r from-pink-200 via-purple-200 to-blue-200 w-full mb-12 opacity-50"></div>
@@ -1856,7 +1857,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
-  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards']);
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards', 'contact']);
   const hidden5 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden5 = (key) => hidden5.includes(key);
   return (
@@ -1871,7 +1872,8 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         <p className="text-gray-500 font-medium mb-6 text-center">
           {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-gray-500 font-medium" /> : data.title}
         </p>
-        <div className="w-full grid grid-cols-3 gap-3 mb-10">
+        {!isHidden5('contact') && <div className="w-full grid grid-cols-3 gap-3 mb-10 group/section relative" {...(ec ? dp('contact') : {})}>
+          {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-400 cursor-grab" /></span><SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
           {ec ? (
             <>
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -1895,7 +1897,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
               </div> : null
             ))
           )}
-        </div>
+        </div>}
         <div className="w-full bg-white border border-gray-200 p-5 rounded-xl shadow-sm mb-10">
           {ec
             ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-gray-700 leading-relaxed font-medium" />
@@ -2042,7 +2044,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const awardList = ec ? (portfolio.awards || []) : data.awards;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
-  const { dragProps: dp6, gripProps: gp6 } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'education', 'awards', 'skills']);
+  const { dragProps: dp6, gripProps: gp6 } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'education', 'awards', 'skills', 'contact']);
   const hidden6 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden6 = (key) => hidden6.includes(key);
   return (
@@ -2191,8 +2193,11 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
               </div>
               <SkillsEditorPanel portfolio={portfolio} ec={ec} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold mb-4">Contact</h2>
+            {!isHidden6('contact') && <div className="group/section" {...dp6('contact')}>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-xl font-bold">Contact</h2>
+                <div className="flex items-center gap-1">{ec && <span {...gp6('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
+              </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
                   <>
@@ -2210,7 +2215,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                   </>
                 )}
               </div>
-            </div>
+            </div>}
           </div>}
         </div>
         {ec && (ec.hiddenSections || []).length > 0 && (
@@ -2248,7 +2253,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
   const hidden = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden = (key) => hidden.includes(key);
-  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['introduce', 'skills', 'projects', 'career', 'education', 'awards']);
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['introduce', 'skills', 'projects', 'career', 'education', 'awards', 'contact']);
   return (
     <div className="min-h-screen bg-[#1F1F1F] text-[#EBEBEB] font-sans pb-32 selection:bg-[#5C7CFA] selection:text-white">
       <ImageUploadSlot src={ec ? portfolio.coverImageUrl : null} onUpload={ec?.onUploadCoverImage} className="w-full h-48 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
@@ -2267,7 +2272,8 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
           <p className="text-[#EBEBEB] font-medium flex justify-center items-center gap-2 mb-10">
             {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-[#EBEBEB] font-medium" /> : data.title}
           </p>
-          <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3">
+          {!isHidden('contact') && <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3 group/section relative" {...(ec ? dp('contact') : {})}>
+            {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-500 cursor-grab" /></span><SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>}
             {ec ? (
               <>
                 <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">phone</span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
@@ -2282,9 +2288,8 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                 {data.social?.blog && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">blog</span> <span className="text-[#EBEBEB] hover:text-[#5C7CFA] cursor-pointer">{data.social.blog}</span></div>}
               </>
             )}
-          </div>
+          </div>}
         </div>
-        {/* Reorderable sections */}
         <div className="flex flex-col">
         {!isHidden('introduce') && <div {...dp('introduce')}><div className="mb-14 group/section">
           <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
@@ -2455,7 +2460,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
   const eduList = ec ? (portfolio.education || []) : data.education;
   const contact = ec ? (portfolio.contact || {}) : { phone: data.phone, email: data.email, github: data.social?.github, website: data.social?.blog };
 
-  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'skills', 'awards', 'career', 'education']);
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'skills', 'awards', 'career', 'education', 'contact']);
   const hidden8 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden8 = (key) => hidden8.includes(key);
   const getSkillLevel = (percent) => {
@@ -2650,25 +2655,10 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('education', { school: '', major: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors mt-3 ml-2"><Plus size={12}/> 학력 추가</button>}
           </div>
         )}
-        </div>{/* end flex col reorderable sections */}
-        {ec && (ec.hiddenSections || []).length > 0 && (
-          <div className="mt-8 mb-4">
-            <div className="border border-dashed border-[#444] rounded-xl p-4">
-              <p className="text-xs text-[#777] mb-3">숨긴 섹션 복원</p>
-              <div className="flex flex-wrap gap-2">
-                {(ec.hiddenSections || []).map(key => (
-                  <button key={key} type="button" onClick={() => ec.showSection(key)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[#252525] text-[#999] border border-[#444] hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors">
-                    <Plus size={11} /> {key}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="mb-16">
-          <div className="bg-[#1E2A3A] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#2A3A4A]">
-            <Mail className="w-4 h-4 text-[#EBEBEB]" /> CONTACT
+        {!isHidden8('contact') && <div className="mb-16 group/section" {...dp('contact')}>
+          <div className="flex items-center justify-between gap-2 bg-[#1E2A3A] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#2A3A4A]">
+            <span><Mail className="w-4 h-4 text-[#EBEBEB] inline" /> CONTACT</span>
+            <div className="flex items-center gap-1">{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>
           </div>
           <div className="space-y-3 pl-2 text-sm">
             {ec ? (
@@ -2687,7 +2677,23 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
               </>
             )}
           </div>
-        </div>
+        </div>}
+        </div>{/* end flex col reorderable sections */}
+        {ec && (ec.hiddenSections || []).length > 0 && (
+          <div className="mt-8 mb-4">
+            <div className="border border-dashed border-[#444] rounded-xl p-4">
+              <p className="text-xs text-[#777] mb-3">숨긴 섹션 복원</p>
+              <div className="flex flex-wrap gap-2">
+                {(ec.hiddenSections || []).map(key => (
+                  <button key={key} type="button" onClick={() => ec.showSection(key)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[#252525] text-[#999] border border-[#444] hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors">
+                    <Plus size={11} /> {key}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
     </div>
