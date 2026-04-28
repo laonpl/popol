@@ -4695,9 +4695,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     className={`px-2 py-0.5 rounded text-xs outline-none border-none cursor-pointer ${
                       g.status === 'done' ? 'text-green-600' : g.status === 'ing' ? 'text-blue-600' : 'text-gray-400'
                     }`}>
-                    <option value="planned">📋 예정</option>
-                    <option value="ing">🔄 진행 중</option>
-                    <option value="done">✅ 완료</option>
+                    <option value="planned">예정</option>
+                    <option value="ing">진행 중</option>
+                    <option value="done">완료</option>
                   </select>
                 </div>
                 <YooptaMiniEditor

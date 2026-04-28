@@ -610,9 +610,9 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                       const opportunity = typeof t === 'string' ? '' : t.opportunity;
                       const threat = typeof t === 'string' ? '' : t.threat;
                       const levelConfig = {
-                        hot: { label: '🔥 HOT', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', headerBg: 'from-red-50 to-orange-50' },
-                        growing: { label: '📈 GROWING', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', headerBg: 'from-emerald-50 to-teal-50' },
-                        stable: { label: '⚖️ STABLE', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-gray-50 to-slate-50' },
+                        hot: { label: 'HOT', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', headerBg: 'from-red-50 to-orange-50' },
+                        growing: { label: 'GROWING', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', headerBg: 'from-emerald-50 to-teal-50' },
+                        stable: { label: 'STABLE', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-gray-50 to-slate-50' },
                       };
                       const lc = levelConfig[level] || { label: '', bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-100', headerBg: 'from-indigo-50 to-purple-50' };
                       return (

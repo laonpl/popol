@@ -117,7 +117,7 @@ export default function NotionPortfolioPreview() {
           </div>
         </div>
 
-        <div className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-hidden">
+        <div className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-visible">
           <VisualPortfolioRenderer portfolio={portfolio} />
         </div>
 
@@ -610,7 +610,7 @@ export default function NotionPortfolioPreview() {
                       </span>
                       <h4 className="text-sm font-bold text-gray-800">{g.title}</h4>
                       <span className={`ml-auto text-xs ${g.status === 'done' ? 'text-green-600' : g.status === 'ing' ? 'text-blue-600' : 'text-gray-400'}`}>
-                        {g.status === 'done' ? '✅ 완료' : g.status === 'ing' ? '🔄 진행 중' : '📋 예정'}
+                        {g.status === 'done' ? '완료' : g.status === 'ing' ? '진행 중' : '예정'}
                       </span>
                     </div>
                     {g.description && <p className="text-sm text-gray-600 mt-1">{g.description}</p>}
