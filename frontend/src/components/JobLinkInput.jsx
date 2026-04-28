@@ -14,7 +14,7 @@ function toCleanList(value) {
 }
 
 function stripMd(s) {
-  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/<\/?u>/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {

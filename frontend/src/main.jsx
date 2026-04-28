@@ -5,6 +5,14 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
 
+// 배포 후 구 청크 URL 로딩 실패 시 자동 새로고침 (1회 한정)
+window.addEventListener('vite:preloadError', () => {
+  if (!sessionStorage.getItem('chunkReloaded')) {
+    sessionStorage.setItem('chunkReloaded', '1');
+    window.location.reload();
+  }
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
