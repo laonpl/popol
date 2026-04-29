@@ -230,6 +230,42 @@ router.post('/verify-otp', authMiddleware, async (req, res) => {
   }
 });
 
+// ── 회원가입 완료 처리: OTP 성공 이력을 확인 후 emailVerified 확정 ──
+router.post('/signup-complete', authMiddleware, async (req, res) => {
+  try {
+    const { uid, email } = req.user;
+    if (!email) {
+      return res.status(400).json({ error: '이메일 정보가 없습니다' });
+    }
+
+    const tempKey = 'signup_' + Buffer.from(email.toLowerCase()).toString('base64');
+    const docRef = adminDb.collection('emailOtps').doc(tempKey);
+    const snap = await docRef.get();
+
+    if (!snap.exists) {
+      return res.status(400).json({ error: '회원가입 인증 기록이 없습니다. 코드를 다시 인증해주세요.' });
+    }
+
+    const d = snap.data();
+    if (!d.used) {
+      return res.status(400).json({ error: 'OTP 인증이 완료되지 않았습니다.' });
+    }
+
+    if ((d.email || '').toLowerCase() !== email.toLowerCase()) {
+      return res.status(403).json({ error: '인증 이메일이 일치하지 않습니다.' });
+    }
+
+    await adminAuth.updateUser(uid, { emailVerified: true });
+    // 재사용 방지를 위해 인증 기록 제거
+    await docRef.delete();
+
+    res.json({ verified: true });
+  } catch (err) {
+    console.error('[Auth] 회원가입 완료 처리 실패:', err);
+    res.status(500).json({ error: err.message || '회원가입 완료 처리에 실패했습니다' });
+  }
+});
+
 // ── 계정 및 데이터 전체 삭제 (PIPA/GDPR 삭제권 준수) ────────────
 router.delete('/account', authMiddleware, async (req, res) => {
   const { uid } = req.user;

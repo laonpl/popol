@@ -28,15 +28,17 @@ const useAuthStore = create((set, get) => ({
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        await firebaseUser.reload().catch(() => {});
+        const refreshedUser = auth.currentUser || firebaseUser;
         const user = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || '',
-          photoURL: firebaseUser.photoURL || '',
-          emailVerified: firebaseUser.emailVerified,
+          uid: refreshedUser.uid,
+          email: refreshedUser.email,
+          displayName: refreshedUser.displayName || '',
+          photoURL: refreshedUser.photoURL || '',
+          emailVerified: refreshedUser.emailVerified,
         };
         set({ user, loading: false });
-        get().loadProfile(firebaseUser.uid);
+        get().loadProfile(refreshedUser.uid);
       } else {
         set({ user: null, profile: null, loading: false });
       }
@@ -74,10 +76,13 @@ const useAuthStore = create((set, get) => ({
   signUpCreate: async (email, password, displayName) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName });
-    // 백엔드 Admin SDK로 emailVerified: true 설정 (이미 OTP 통과)
+    // OTP 통과 이력을 기반으로 백엔드에서 emailVerified를 확정
+    await api.post('/auth/signup-complete');
+    await cred.user.reload();
+    const refreshed = auth.currentUser || cred.user;
     const user = {
-      uid: cred.user.uid,
-      email: cred.user.email,
+      uid: refreshed.uid,
+      email: refreshed.email,
       displayName,
       photoURL: '',
       emailVerified: true,
