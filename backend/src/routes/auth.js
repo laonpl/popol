@@ -44,7 +44,11 @@ router.post('/signup-request-otp', async (req, res) => {
       }
       const countInWindow = lastReq > hourAgo ? (d.requestCount || 0) : 0;
       if (countInWindow >= OTP_MAX_PER_HOUR) {
-        return res.status(429).json({ error: '잠시 후 다시 시도해주세요 (1시간 최대 5회)' });
+        const wait = Math.ceil((lastReq + 60 * 60 * 1000 - now) / 1000);
+        return res.status(429).json({
+          error: `잠시 후 다시 시도해주세요 (1시간 최대 ${OTP_MAX_PER_HOUR}회)`,
+          waitSeconds: Math.max(wait, 1),
+        });
       }
     }
 
@@ -119,13 +123,13 @@ router.post('/signup-verify-otp', async (req, res) => {
 });
 
 // OTP 재요청 최소 간격(초)
-const OTP_RESEND_COOLDOWN = 60;
+const OTP_RESEND_COOLDOWN = Number(process.env.OTP_RESEND_COOLDOWN || 60);
 // OTP 만료 시간(분)
-const OTP_EXPIRE_MINUTES = 15;
-// 시간당 최대 요청 횟수
-const OTP_MAX_PER_HOUR = 5;
+const OTP_EXPIRE_MINUTES = Number(process.env.OTP_EXPIRE_MINUTES || 15);
+// 시간당 최대 요청 횟수 (프로덕션 기본값 완화)
+const OTP_MAX_PER_HOUR = Number(process.env.OTP_MAX_PER_HOUR || (process.env.NODE_ENV === 'production' ? 10 : 5));
 // 최대 틀린 횟수
-const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
 
 // ── OTP 발급 ─────────────────────────────────────────────
 router.post('/request-otp', authMiddleware, async (req, res) => {
@@ -155,7 +159,11 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
       // 시간당 횟수 체크 — 1시간 창 기준으로 카운트 리셋
       const countInWindow = lastReq > hourAgo ? (d.requestCount || 0) : 0;
       if (countInWindow >= OTP_MAX_PER_HOUR) {
-        return res.status(429).json({ error: '잠시 후 다시 시도해주세요 (1시간 최대 5회)' });
+        const wait = Math.ceil((lastReq + 60 * 60 * 1000 - now) / 1000);
+        return res.status(429).json({
+          error: `잠시 후 다시 시도해주세요 (1시간 최대 ${OTP_MAX_PER_HOUR}회)`,
+          waitSeconds: Math.max(wait, 1),
+        });
       }
     }
 

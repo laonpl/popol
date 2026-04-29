@@ -83,7 +83,13 @@ app.use('/api', (req, res, next) => {
 });
 
 // 전체 API 일반 제한
-app.use('/api', generalRateLimiter);
+// 인증 라우트는 별도 OTP 제한을 사용하므로 전역 일반 제한에서 제외
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth')) {
+    return next();
+  }
+  return generalRateLimiter(req, res, next);
+});
 
 // AI 엔드포인트: 유저별 + 글로벌 이중 제한
 const aiLimiters = [globalAiRateLimiter, aiRateLimiter];
