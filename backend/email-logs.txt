@@ -1,0 +1,2 @@
+[2026-04-29T14:49:23.789Z] [START] OTP 발송 시작: gudrbs14@nanao.com
+[2026-04-29T14:49:26.315Z] [SUCCESS] OTP 발송 완료: gudrbs14@nanao.com (Message ID: <e8830160-7560-6fbf-3ad8-77ee0d4e811d@gmail.com>)

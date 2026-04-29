@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
@@ -12,13 +14,25 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 30000,
 });
 
+// 이메일 발송 로그 파일 경로
+const emailLogPath = path.join(process.cwd(), 'email-logs.txt');
+
+function logEmail(message) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${message}\n`;
+  fs.appendFileSync(emailLogPath, logEntry, 'utf8');
+  console.log(logEntry);
+}
+
 export async function sendOtpEmail(to, otp) {
   const from = process.env.EMAIL_FROM || `FitPoly <${process.env.EMAIL_USER}>`;
 
-  await transporter.sendMail({
-    from,
-    to,
-    subject: '[FitPoly] 이메일 인증 코드',
+  try {
+    logEmail(`[START] OTP 발송 시작: ${to}`);
+    const result = await transporter.sendMail({
+      from,
+      to,
+      subject: '[FitPoly] 이메일 인증 코드',
     html: `
 <!DOCTYPE html>
 <html lang="ko">
@@ -61,5 +75,12 @@ export async function sendOtpEmail(to, otp) {
   </table>
 </body>
 </html>`,
-  });
+    });
+    logEmail(`[SUCCESS] OTP 발송 완료: ${to} (Message ID: ${result.messageId})`);
+    return result;
+  } catch (error) {
+    logEmail(`[ERROR] OTP 발송 실패: ${to} - ${error.message}`);
+    logEmail(`[DEBUG] Email Config - HOST: ${process.env.EMAIL_HOST}, USER: ${process.env.EMAIL_USER}, PASS: ${process.env.EMAIL_PASS ? '***' : 'NOT SET'}`);
+    throw error;
+  }
 }
