@@ -38,9 +38,14 @@ function PrivateRoute({ children }) {
 }
 
 function ProfileGuard({ children }) {
-  const { profile, profileLoading } = useAuthStore();
+  const { user, profile, profileLoading } = useAuthStore();
   if (profileLoading) return <PageLoader />;
-  if (!profile) return <Navigate to="/app/profile-setup" replace />;
+  if (!profile) {
+    const skipped = user?.uid
+      ? localStorage.getItem(`profile-setup-skipped:${user.uid}`) === 'true'
+      : false;
+    if (!skipped) return <Navigate to="/app/profile-setup" replace />;
+  }
   return children;
 }
 
