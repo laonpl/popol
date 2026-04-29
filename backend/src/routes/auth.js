@@ -62,7 +62,11 @@ router.post('/signup-request-otp', async (req, res) => {
       lastRequestAt: new Date(),
     }, { merge: true });
 
-    await sendOtpEmail(email, otp);
+    // 이메일 발송을 백그라운드로 처리 (타임아웃 방지)
+    sendOtpEmail(email, otp).catch(err => {
+      console.error('[Email] OTP 발송 실패:', err.message);
+    });
+    
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
     console.error('[Auth] 회원가입 OTP 발급 실패:', err);
@@ -171,7 +175,10 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
       lastRequestAt: new Date(),
     }, { merge: true });
 
-    await sendOtpEmail(email, otp);
+    // 이메일 발송을 백그라운드로 처리 (타임아웃 방지)
+    sendOtpEmail(email, otp).catch(err => {
+      console.error('[Email] OTP 발송 실패:', err.message);
+    });
 
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
