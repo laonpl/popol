@@ -88,7 +88,7 @@ export function acquireSemaphore(timeoutMs = 120000) {
       if (idx !== -1) waitQueue.splice(idx, 1);
       reject(new Error('QUEUE_TIMEOUT'));
     }, timeoutMs);
-    
+
     waitQueue.push(entry);
     processQueue();
   });
@@ -109,11 +109,11 @@ function processQueue() {
     }
     const next = waitQueue.shift();
     clearTimeout(next.timer);
-    
+
     lastRequestTime = Date.now();
     activeCount++;
     next.resolve(); // 요청 권한 획득!
-    
+
     isProcessingQueue = false;
     processQueue(); // 큐에 남아있으면 예약 시작
   }, timeToWait);
@@ -151,7 +151,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── Pro 모델 503 에러 추적: 연속 2회 503 → Pro 일시 건너뛰기 (60초간) ──
 const modelHealthTracker = {
-  'gemini-2.5-pro':       { consecutiveErrors: 0, blockedUntil: 0 },
+  'gemini-2.5-pro': { consecutiveErrors: 0, blockedUntil: 0 },
   'gemini-2.5-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
 };
 
