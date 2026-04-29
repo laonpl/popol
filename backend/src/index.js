@@ -42,19 +42,35 @@ const allowedOrigins = [
   'https://fitpoly.kr'
 ];
 if (process.env.FRONTEND_URL) {
-  // 여러 URL을 콤마로 구분해서 설정 가능: https://a.vercel.app,https://b.vercel.app
-  process.env.FRONTEND_URL.split(',').forEach(u => allowedOrigins.push(u.trim()));
+  process.env.FRONTEND_URL.split(',').forEach(u => {
+    const trimmed = u.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
 }
+
 app.use(cors({
   origin: (origin, cb) => {
-    // 서버 간 요청(origin=undefined) 또는 명시적으로 허용된 Origin만 허용
-    if (!origin || allowedOrigins.includes(origin)) {
+    // 서버 간 요청(origin=undefined) 허용
+    if (!origin) return cb(null, true);
+
+    // 슬래시 유무에 관계없이 체크
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const isAllowed = allowedOrigins.some(allowed => 
+      allowed === origin || allowed === normalizedOrigin
+    );
+
+    if (isAllowed) {
       cb(null, true);
     } else {
-      cb(new Error(`CORS blocked: ${origin}`));
+      console.warn(`[CORS Blocked] Origin: ${origin} (Normalized: ${normalizedOrigin})`);
+      // 에러 객체를 전달하는 대신 false를 전달하여 헤더를 설정하지 않게 함
+      cb(null, false);
     }
   },
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
