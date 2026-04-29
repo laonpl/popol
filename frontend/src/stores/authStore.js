@@ -11,7 +11,6 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import api from '../services/api';
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -35,7 +34,7 @@ const useAuthStore = create((set, get) => ({
           email: refreshedUser.email,
           displayName: refreshedUser.displayName || '',
           photoURL: refreshedUser.photoURL || '',
-          emailVerified: refreshedUser.emailVerified,
+          emailVerified: true,
         };
         set({ user, loading: false });
         get().loadProfile(refreshedUser.uid);
@@ -54,37 +53,6 @@ const useAuthStore = create((set, get) => ({
       email: cred.user.email,
       displayName,
       photoURL: '',
-      emailVerified: false,
-    };
-    set({ user });
-    return user;
-  },
-
-  // 회원가입 1단계: 계정 생성 없이 OTP만 발송 (인증 불필요)
-  signUpRequestOtp: async (email) => {
-    const { data } = await api.post('/auth/signup-request-otp', { email });
-    return data;
-  },
-
-  // 회원가입 2단계: OTP 검증 (인증 불필요)
-  signUpVerifyOtp: async (email, otp) => {
-    const { data } = await api.post('/auth/signup-verify-otp', { email, otp });
-    return data;
-  },
-
-  // 회원가입 3단계: OTP 성공 후 Firebase 계정 생성
-  signUpCreate: async (email, password, displayName) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName });
-    // OTP 통과 이력을 기반으로 백엔드에서 emailVerified를 확정
-    await api.post('/auth/signup-complete');
-    await cred.user.reload();
-    const refreshed = auth.currentUser || cred.user;
-    const user = {
-      uid: refreshed.uid,
-      email: refreshed.email,
-      displayName,
-      photoURL: '',
       emailVerified: true,
     };
     set({ user });
@@ -98,7 +66,7 @@ const useAuthStore = create((set, get) => ({
       email: cred.user.email,
       displayName: cred.user.displayName || '',
       photoURL: cred.user.photoURL || '',
-      emailVerified: cred.user.emailVerified,
+      emailVerified: true,
     };
     set({ user });
     return user;
@@ -106,34 +74,6 @@ const useAuthStore = create((set, get) => ({
 
   signInWithGoogle: async () => {
     await signInWithPopup(auth, googleProvider);
-  },
-
-  // OTP 발송 요청
-  requestOtp: async () => {
-    const { data } = await api.post('/auth/request-otp');
-    return data;
-  },
-
-  // OTP 검증 후 Firebase 토큰 갱신
-  verifyOtp: async (otp) => {
-    const { data } = await api.post('/auth/verify-otp', { otp });
-    if (data.verified) {
-      // Firebase 클라이언트 토큰 강제 갱신 (emailVerified: true 반영)
-      await auth.currentUser?.reload();
-      const refreshed = auth.currentUser;
-      if (refreshed) {
-        set({
-          user: {
-            uid: refreshed.uid,
-            email: refreshed.email,
-            displayName: refreshed.displayName || '',
-            photoURL: refreshed.photoURL || '',
-            emailVerified: true,
-          },
-        });
-      }
-    }
-    return data;
   },
 
   loadProfile: async (uid) => {
