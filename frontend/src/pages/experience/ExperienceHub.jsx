@@ -308,13 +308,16 @@ export default function ExperienceHub() {
           {/* 새 경험 추가 버튼 + 말풍선 */}
           <div className="relative" style={{ overflow: 'visible' }}>
             {experiences.length === 0 && !loading && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50 pointer-events-none animate-bounce" style={{ width: 'max-content' }}>
-                {/* 삼각형 화살표: border 트릭으로 완전한 삼각형 생성 */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 0 }}>
-                  <div style={{ width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '9px solid #4f46e5' }} />
+              <div
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 pointer-events-none"
+                style={{ width: 'max-content', animation: 'tooltipFloat 2.4s ease-in-out infinite' }}
+              >
+                <div className="flex justify-center">
+                  <div className="w-0 h-0" style={{ borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderBottom: '8px solid #4f46e5' }} />
                 </div>
-                {/* 말풍선 본체 */}
-                <div style={{ background: '#4f46e5', color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 10, boxShadow: '0 4px 12px rgba(79,70,229,0.3)', whiteSpace: 'nowrap' }}>
+                <div className="bg-indigo-600 text-white text-[12.5px] font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
+                  style={{ boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
                   여기서 첫 경험을 추가해보세요!
                 </div>
               </div>

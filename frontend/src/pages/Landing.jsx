@@ -7,7 +7,7 @@ import {
   Check, Star, Users, Target,
   Building2, Search, ChevronDown, BarChart3, Award,
   Code, GraduationCap, ArrowDownUp, Calendar, List, Plus, PenTool, LayoutTemplate,
-  MapPin, Phone, Mail, Gift
+  MapPin, Phone, Mail
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import { db } from '../config/firebase';
@@ -93,6 +93,11 @@ export default function Landing() {
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistStatus, setWaitlistStatus] = useState({ type: 'idle', message: '' });
 
+  const statsRef = useRef(null);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const [count1, setCount1] = useState(0);
+  const [count3, setCount3] = useState(0);
+
   const [aiMockView, setAiMockView] = useState('experience');
   useEffect(() => {
     const interval = setInterval(() => {
@@ -167,6 +172,32 @@ export default function Landing() {
     runLoop(0);
     return () => uploadTimersRef.current.forEach(clearTimeout);
   }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
+      { threshold: 0.2 }
+    );
+    if (statsRef.current) observer.observe(statsRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!statsVisible) return;
+    let step1 = 0, step3 = 0;
+    const STEPS = 50;
+    const t1 = setInterval(() => {
+      step1++;
+      setCount1(parseFloat(((83.4 / STEPS) * step1).toFixed(1)));
+      if (step1 >= STEPS) clearInterval(t1);
+    }, 1500 / STEPS);
+    const t3 = setInterval(() => {
+      step3++;
+      setCount3(Math.round((72 / STEPS) * step3));
+      if (step3 >= STEPS) clearInterval(t3);
+    }, 1800 / STEPS);
+    return () => { clearInterval(t1); clearInterval(t3); };
+  }, [statsVisible]);
 
   return (
     <div className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden">
@@ -257,30 +288,52 @@ export default function Landing() {
             <p className="text-[14px] sm:text-[16px] text-gray-500 font-medium">데이터가 증명하는 서류 광탈의 3가지 이유</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
+          <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
             {/* Top Left Card: 평소 기록 안하는 비율 */}
             <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
-                  기억에 의존하는 스펙은<br/>결국 증발합니다
+                  열심히 했는데,<br/>막상 쓰려면 기억이 안 나요
                 </h3>
                  <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium">
-                  경험 직후 바로 기록하지 않아 자소서 작성 시 구체적인 성과나 수치를 떠올리지 못하는 취준생 비율
+                  분명 성과가 있었는데 자소서에 쓸 수치가 없어서 '성실히 임했습니다'로 끝나는 취준생 비율
                 </p>
               </div>
               <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400">평소 경험 및 성과</p>
-                    <p className="text-[13px] font-bold text-gray-900">미기록으로 인한 수치화 실패</p>
-                  </div>
+                <p className="text-[11px] font-bold text-gray-400 mb-3">취준생 10명 중 수치 없이 제출</p>
+                <div className="flex gap-1.5 mb-5">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                      <div
+                        className="w-full rounded-full transition-all duration-500"
+                        style={{
+                          aspectRatio: '1',
+                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
+                          transitionDelay: `${i * 90}ms`,
+                          transform: statsVisible && i < 8 ? 'scale(1)' : 'scale(0.7)',
+                        }}
+                      />
+                      <div
+                        className="w-[65%] rounded-t-full transition-all duration-500"
+                        style={{
+                          height: '7px',
+                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
+                          transitionDelay: `${i * 90 + 45}ms`,
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-[32px] sm:text-[40px] font-extrabold text-gray-900 leading-none">83.4<span className="text-[20px] text-gray-500">%</span></span>
-                  <span className="text-[12px] font-bold text-[#1B264F] mb-1 flex items-center gap-1">+ Danger</span>
+                <div className="flex items-end gap-2 mb-3">
+                  <span className="text-[32px] sm:text-[36px] font-extrabold text-gray-900 leading-none tabular-nums">
+                    {count1.toFixed(1)}<span className="text-[18px] text-gray-500">%</span>
+                  </span>
                 </div>
-                <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden mt-3">
-                  <div className="h-full bg-[#1B264F] rounded-full" style={{ width: '83.4%' }}></div>
+                <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#1B264F] rounded-full"
+                    style={{ width: statsVisible ? '83.4%' : '0%', transition: 'width 1.5s ease-out' }}
+                  />
                 </div>
               </div>
             </div>
@@ -289,27 +342,44 @@ export default function Landing() {
             <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
-                  기업 핏 무시,<br/>'복붙' 지원의 결말
+                  다 보내긴 했는데,<br/>왜 계속 서류에서 떨어질까요
                 </h3>
                  <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium">
-                  기업 분석 및 맞춤화 없이 동일한 포트폴리오를 여기저기 찔러넣어 서류에서 즉시 탈락하는 비율
+                  기업별 맞춤화 없이 같은 포트폴리오를 복붙해 지원했다가 서류 단계에서 바로 탈락하는 비율
                 </p>
               </div>
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[170px] flex items-end gap-3 sm:gap-6 px-4 sm:px-8 justify-center">
-                {/* Mock Bar Chart */}
+              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-3 sm:gap-6 px-4 sm:px-8 justify-center">
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
-                  <span className="text-[12px] font-extrabold text-gray-400">맞춤 지원</span>
-                  <div className="w-8 sm:w-12 bg-gray-200 transition-all duration-500" style={{ height: '35%' }}></div>
+                  <span
+                    className="text-[12px] font-extrabold text-gray-400 transition-opacity duration-500"
+                    style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.3s' }}
+                  >맞춤 지원</span>
+                  <div
+                    className="w-8 sm:w-12 bg-gray-200 rounded-t-md"
+                    style={{ height: statsVisible ? '35%' : '0%', transition: 'height 0.8s ease-out 0.2s' }}
+                  />
                   <span className="text-[11px] font-bold text-gray-400">통과율</span>
                 </div>
                 <div className="flex-[1.2] flex flex-col items-center justify-end h-full gap-2">
-                  <span className="text-[15px] font-extrabold text-[#1B264F] mb-1">92%</span>
-                  <div className="w-8 sm:w-12 bg-[#1B264F] transition-all duration-500" style={{ height: '92%' }}></div>
+                  <span
+                    className="text-[15px] font-extrabold text-[#1B264F] mb-1 transition-all duration-500"
+                    style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? 'translateY(0)' : 'translateY(8px)', transitionDelay: '0.9s' }}
+                  >92%</span>
+                  <div
+                    className="w-8 sm:w-12 bg-[#1B264F] rounded-t-md"
+                    style={{ height: statsVisible ? '92%' : '0%', transition: 'height 0.9s cubic-bezier(0.34,1.56,0.64,1) 0.5s' }}
+                  />
                   <span className="text-[11px] font-bold text-[#1B264F]">무작위 탈락</span>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
-                  <span className="text-[12px] font-extrabold text-gray-400">시간 지연</span>
-                  <div className="w-8 sm:w-12 bg-gray-300 transition-all duration-500" style={{ height: '50%' }}></div>
+                  <span
+                    className="text-[12px] font-extrabold text-gray-400 transition-opacity duration-500"
+                    style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.5s' }}
+                  >시간 지연</span>
+                  <div
+                    className="w-8 sm:w-12 bg-gray-300 rounded-t-md"
+                    style={{ height: statsVisible ? '50%' : '0%', transition: 'height 0.8s ease-out 0.35s' }}
+                  />
                   <span className="text-[11px] font-bold text-gray-400">포기율</span>
                 </div>
               </div>
@@ -319,20 +389,40 @@ export default function Landing() {
             <div className="md:col-span-2 bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
               <div className="flex-1">
                 <h3 className="text-[20px] sm:text-[26px] font-extrabold text-gray-900 mb-4 leading-snug">
-                  단 하나의 포트폴리오를 위해<br/>낭비되는 끔찍한 시간
+                  포트폴리오 하나에<br/>하루가 통째로 사라져요
                 </h3>
                  <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[460px]">
-                  노션 켜고, 템플릿 찾고, 과거 기록 뒤적이고, 여백 맞추다 하루가 끝납니다. 이 시간이면 <strong className="text-[#1B264F]">다른 기업 20곳</strong>을 더 꼼꼼히 분석하고 지원할 수 있습니다!
+                  템플릿 찾다 한 시간, 과거 기록 뒤지다 두 시간, 여백 맞추다 또 한 시간. 이 시간이면 <strong className="text-[#1B264F]">기업 20곳을 더 분석하고 지원</strong>할 수 있어요.
                 </p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-gray-200 shadow-sm">
-                  <span className="text-[12px] sm:text-[13px] font-bold text-gray-700">시간은 되돌릴 수 없습니다.</span>
-                </div>
               </div>
               <div className="w-full md:w-[320px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
-                <p className="text-[13px] font-bold text-gray-400 relative z-10">포트폴리오 1개 제작 평균 소요 시간</p>
-                <div className="flex items-baseline gap-1.5 mt-1 relative z-10">
-                  <span className="text-[46px] sm:text-[52px] font-extrabold text-gray-900 tracking-tighter leading-none">72.0</span>
+                <p className="text-[13px] font-bold text-gray-400">포트폴리오 1개 제작 평균 소요 시간</p>
+                <div className="flex items-baseline gap-1.5 mt-1 mb-5">
+                  <span className="text-[46px] sm:text-[52px] font-extrabold text-gray-900 tracking-tighter leading-none tabular-nums">
+                    {count3 >= 72 ? '72' : count3}
+                  </span>
                   <span className="text-[18px] font-bold text-gray-500">시간</span>
+                </div>
+                <p className="text-[11px] font-bold text-gray-400 mb-2">일주일 중 사라지는 날</p>
+                <div className="flex gap-1.5">
+                  {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => (
+                    <div key={day} className="flex-1 flex flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-md transition-all duration-500"
+                        style={{
+                          height: '28px',
+                          background: statsVisible && i < 3 ? '#1B264F' : '#E5E7EB',
+                          transitionDelay: `${i * 120 + 400}ms`,
+                          transform: statsVisible && i < 3 ? 'scaleY(1)' : 'scaleY(0.4)',
+                          transformOrigin: 'bottom',
+                        }}
+                      />
+                      <span
+                        className="text-[10px] font-bold transition-colors duration-500"
+                        style={{ color: statsVisible && i < 3 ? '#1B264F' : '#9CA3AF', transitionDelay: `${i * 120 + 400}ms` }}
+                      >{day}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1071,9 +1161,7 @@ export default function Landing() {
             >
               {waitlistStatus.type === 'loading' ? '등록 중...' : waitlistStatus.type === 'success' ? (
                 <><Check size={14} /> 예약 완료</>
-              ) : (
-                출시 예약하기
-              )}
+              ) : '출시 예약하기'}
             </button>
           </div>
           {waitlistStatus.message && (
@@ -1081,6 +1169,20 @@ export default function Landing() {
               {waitlistStatus.message}
             </p>
           )}
+
+          <div className="mt-6 flex items-center gap-3 w-full">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-[11px] sm:text-[12px] text-gray-400 font-medium">또는</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <button
+            onClick={() => navigate('/login')}
+            className="mt-4 w-full border-2 border-indigo-600 text-indigo-600 px-6 py-3.5 sm:py-4 rounded-xl text-[13px] sm:text-[14px] font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+          >
+            바로 체험해보기
+          </button>
+          <p className="mt-2 text-[11px] sm:text-[12px] text-gray-400 font-medium">베타 테스터로 지금 바로 이용할 수 있어요</p>
         </div>
       </section>
 
