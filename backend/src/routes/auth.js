@@ -83,7 +83,7 @@ router.post('/signup-request-otp', async (req, res) => {
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
     console.error('[Auth] 회원가입 OTP 발급 실패:', err);
-    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(err.code)) {
+    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ENETUNREACH', 'EHOSTUNREACH'].includes(err.code)) {
       return res.status(503).json({ error: '이메일 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' });
     }
     res.status(500).json({ error: err.message || '이메일 발송에 실패했습니다' });
@@ -212,7 +212,7 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
     console.error('[Auth] OTP 발급 실패:', err);
-    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(err.code)) {
+    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ENETUNREACH', 'EHOSTUNREACH'].includes(err.code)) {
       return res.status(503).json({ error: '이메일 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' });
     }
     res.status(500).json({ error: err.message || '이메일 발송에 실패했습니다' });

@@ -34,7 +34,6 @@ function PrivateRoute({ children }) {
   const { user, loading } = useAuthStore();
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!user.emailVerified) return <Navigate to="/login" replace />;
   return children;
 }
 

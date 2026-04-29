@@ -1,2 +1,10 @@
 [2026-04-29T14:49:23.789Z] [START] OTP 발송 시작: gudrbs14@nanao.com
 [2026-04-29T14:49:26.315Z] [SUCCESS] OTP 발송 완료: gudrbs14@nanao.com (Message ID: <e8830160-7560-6fbf-3ad8-77ee0d4e811d@gmail.com>)
+[2026-04-29T15:12:46.628Z] [START] OTP 발송 시작: gudrbs14@nanano.com
+[2026-04-29T15:12:48.876Z] [SUCCESS] OTP 발송 완료: gudrbs14@nanano.com (Message ID: <29311b62-6bf3-698c-c377-07d6bbdd4ca2@gmail.com>)
+[2026-04-29T15:53:03.919Z] [START] OTP 발송 시작: gudrbs14@nanao.com
+[2026-04-29T15:53:03.932Z] [TRY] SMTP 172.217.221.108:587 secure=false (servername=smtp.gmail.com)
+[2026-04-29T15:53:06.358Z] [SUCCESS] OTP 발송 완료: gudrbs14@nanao.com (Message ID: <f61c4585-e36d-5ed7-e6e3-0646192c71c3@gmail.com>)
+[2026-04-29T15:53:48.176Z] [START] OTP 발송 시작: gudrbs14@nanaoa.com
+[2026-04-29T15:53:48.185Z] [TRY] SMTP 172.217.221.108:587 secure=false (servername=smtp.gmail.com)
+[2026-04-29T15:53:50.386Z] [SUCCESS] OTP 발송 완료: gudrbs14@nanaoa.com (Message ID: <0474ae04-229d-3fbb-e057-38ee090f4fe6@gmail.com>)

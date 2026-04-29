@@ -7,33 +7,20 @@ const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const emailUser = process.env.EMAIL_USER;
 const emailPass = process.env.EMAIL_PASS;
 const resendApiKey = process.env.RESEND_API_KEY;
+const googleClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+const googleRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
 
-function makeTransporter({ port, secure }) {
-  return nodemailer.createTransport({
-    host: emailHost,
-    port,
-    secure,
-    family: 4,
-    auth: {
-      user: emailUser,
-      pass: emailPass,
-    },
-    connectionTimeout: 12000,
-    greetingTimeout: 12000,
-    socketTimeout: 12000,
-  });
-}
-
-async function resolveSmtpHost(host) {
+async function resolveSmtpHosts(host) {
   try {
     const ipv4List = await dns.resolve4(host);
     if (ipv4List && ipv4List.length > 0) {
-      return { host: ipv4List[0], servername: host };
+      return ipv4List.map(ip => ({ host: ip, servername: host }));
     }
   } catch (e) {
     logEmail(`[WARN] IPv4 DNS 조회 실패: ${host} - ${e.message}`);
   }
-  return { host, servername: host };
+  return [{ host, servername: host }];
 }
 
 function getTransportPlan() {
@@ -47,6 +34,87 @@ function getTransportPlan() {
   }
 
   return plan;
+}
+
+function hasGoogleApiConfig() {
+  return Boolean(googleClientId && googleClientSecret && googleRefreshToken && emailUser);
+}
+
+async function getGmailAccessToken() {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      refresh_token: googleRefreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const err = new Error(`Google OAuth token fetch failed: ${response.status} ${body}`);
+    err.code = 'GOOGLE_OAUTH_FAILED';
+    throw err;
+  }
+
+  const data = await response.json();
+  if (!data.access_token) {
+    const err = new Error('Google OAuth token missing access_token');
+    err.code = 'GOOGLE_OAUTH_FAILED';
+    throw err;
+  }
+
+  return data.access_token;
+}
+
+function buildRawMimeMessage({ from, to, subject, html }) {
+  const mime = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    html,
+  ].join('\r\n');
+
+  return Buffer.from(mime)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+async function sendWithGmailApi({ to, from, subject, html }) {
+  if (!hasGoogleApiConfig()) {
+    throw Object.assign(new Error('Google OAuth env is not configured'), { code: 'GOOGLE_OAUTH_NOT_CONFIGURED' });
+  }
+
+  const accessToken = await getGmailAccessToken();
+  const raw = buildRawMimeMessage({ from, to, subject, html });
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const err = new Error(`Gmail API send failed: ${response.status} ${body}`);
+    err.code = 'GMAIL_API_SEND_FAILED';
+    throw err;
+  }
+
+  const data = await response.json();
+  return { messageId: data.id };
 }
 
 async function sendWithResend({ to, from, subject, html }) {
@@ -102,6 +170,7 @@ export async function sendOtpEmail(to, otp) {
   const from = process.env.EMAIL_FROM || `FitPoly <${emailUser}>`;
   const transportPlan = getTransportPlan();
   let lastError = null;
+  const smtpHosts = Array.from(new Set([emailHost, 'smtp.googlemail.com']));
   const subject = '[FitPoly] 이메일 인증 코드';
   const html = `
 <!DOCTYPE html>
@@ -146,7 +215,18 @@ export async function sendOtpEmail(to, otp) {
 
   logEmail(`[START] OTP 발송 시작: ${to}`);
 
-  // 1) HTTP 기반 메일 API를 우선 시도해 Render SMTP 타임아웃을 우회
+  // 1) HTTP 기반 메일 API를 우선 시도해 Render SMTP 네트워크 문제를 우회
+  if (hasGoogleApiConfig()) {
+    try {
+      const result = await sendWithGmailApi({ to, from, subject, html });
+      logEmail(`[SUCCESS] OTP 발송 완료(Gmail API): ${to} (Message ID: ${result.messageId})`);
+      return result;
+    } catch (error) {
+      lastError = error;
+      logEmail(`[ERROR] Gmail API 발송 실패: ${to} - ${error.message}`);
+    }
+  }
+
   if (resendApiKey) {
     try {
       const result = await sendWithResend({ to, from, subject, html });
@@ -158,39 +238,43 @@ export async function sendOtpEmail(to, otp) {
     }
   }
 
-  for (const transport of transportPlan) {
-    try {
-      const smtpTarget = await resolveSmtpHost(emailHost);
-      const transporter = nodemailer.createTransport({
-        host: smtpTarget.host,
-        port: transport.port,
-        secure: transport.secure,
-        family: 4,
-        auth: {
-          user: emailUser,
-          pass: emailPass,
-        },
-        connectionTimeout: 12000,
-        greetingTimeout: 12000,
-        socketTimeout: 12000,
-        tls: {
-          servername: smtpTarget.servername,
-        },
-      });
-      logEmail(`[TRY] SMTP ${smtpTarget.host}:${transport.port} secure=${transport.secure} (servername=${smtpTarget.servername})`);
+  for (const hostName of smtpHosts) {
+    const smtpTargets = await resolveSmtpHosts(hostName);
+    for (const transport of transportPlan) {
+      for (const smtpTarget of smtpTargets) {
+        try {
+          const transporter = nodemailer.createTransport({
+            host: smtpTarget.host,
+            port: transport.port,
+            secure: transport.secure,
+            family: 4,
+            auth: {
+              user: emailUser,
+              pass: emailPass,
+            },
+            connectionTimeout: 12000,
+            greetingTimeout: 12000,
+            socketTimeout: 12000,
+            tls: {
+              servername: smtpTarget.servername,
+            },
+          });
+          logEmail(`[TRY] SMTP ${smtpTarget.host}:${transport.port} secure=${transport.secure} (servername=${smtpTarget.servername})`);
 
-      const result = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html,
-      });
+          const result = await transporter.sendMail({
+            from,
+            to,
+            subject,
+            html,
+          });
 
-      logEmail(`[SUCCESS] OTP 발송 완료: ${to} (Message ID: ${result.messageId})`);
-      return result;
-    } catch (error) {
-      lastError = error;
-      logEmail(`[ERROR] OTP 발송 실패: ${to} - ${error.message} (${emailHost}:${transport.port})`);
+          logEmail(`[SUCCESS] OTP 발송 완료: ${to} (Message ID: ${result.messageId})`);
+          return result;
+        } catch (error) {
+          lastError = error;
+          logEmail(`[ERROR] OTP 발송 실패: ${to} - ${error.message} (${smtpTarget.servername}:${transport.port})`);
+        }
+      }
     }
   }
 
