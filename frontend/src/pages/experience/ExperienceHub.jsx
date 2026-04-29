@@ -11,6 +11,30 @@ import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import { stripMd } from '../../utils/textUtils';
+import OnboardingOverlay, { useOnboarding } from '../../components/OnboardingOverlay';
+
+const EXPERIENCE_ONBOARDING = [
+  {
+    message: '새 경험 추가',
+    sub: '버튼을 눌러 활동, 프로젝트, 인턴 경험을 상세히 기록해보세요',
+    arrow: 'up',
+    // 컨테이너 우측 여백(max(32px, 50vw-620px))에서 버튼 중심(+65px) - 카드 절반(-94px)
+    style: { top: '150px', right: 'max(3px, calc(50vw - 649px))' },
+  },
+  {
+    message: '타임라인으로 한눈에',
+    sub: '기간별로 경험을 정렬하고 간트 차트로 시각화할 수 있어요',
+    arrow: 'up',
+    // 타임라인 토글 중심(컨테이너 우측+257px)에서 카드 절반(-94px)
+    style: { top: '150px', right: 'max(195px, calc(50vw - 457px))' },
+  },
+  {
+    message: 'AI가 핵심역량을 추출해요',
+    sub: '경험을 저장하면 AI가 분석해 자소서·포트폴리오 작성을 도와줘요',
+    arrow: 'right',
+    style: { bottom: '28%', left: '24px' },
+  },
+];
 
 function formatDate(ts) {
   if (!ts) return '';
@@ -76,6 +100,7 @@ function saveFavs(set) {
 }
 
 export default function ExperienceHub() {
+  const { visible: obVisible, dismiss: obDismiss } = useOnboarding('experience-hub');
   const { user } = useAuthStore();
   const { experiences, fetchExperiences, loading, deleteExperience, createExperience, updateExperience, reorderExperiences } = useExperienceStore();
   const navigate = useNavigate();
@@ -248,6 +273,8 @@ export default function ExperienceHub() {
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
 
   return (
+    <>
+    <OnboardingOverlay visible={obVisible} onDismiss={obDismiss} callouts={EXPERIENCE_ONBOARDING} />
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
       {/* ═══ 헤더 ═══ */}
       <div className="flex items-center justify-between mb-8">
@@ -305,23 +332,8 @@ export default function ExperienceHub() {
             </button>
           </div>
 
-          {/* 새 경험 추가 버튼 + 말풍선 */}
-          <div className="relative" style={{ overflow: 'visible' }}>
-            {experiences.length === 0 && !loading && (
-              <div
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 pointer-events-none"
-                style={{ width: 'max-content', animation: 'tooltipFloat 2.4s ease-in-out infinite' }}
-              >
-                <div className="flex justify-center">
-                  <div className="w-0 h-0" style={{ borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderBottom: '8px solid #4f46e5' }} />
-                </div>
-                <div className="bg-indigo-600 text-white text-[12.5px] font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap"
-                  style={{ boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
-                >
-                  여기서 첫 경험을 추가해보세요!
-                </div>
-              </div>
-            )}
+          {/* 새 경험 추가 버튼 */}
+          <div className="relative">
             <Link
               to="/app/experience/new"
               className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
@@ -731,6 +743,7 @@ export default function ExperienceHub() {
         );
       })()}
     </div>
+    </>
   );
 }
 

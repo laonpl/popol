@@ -345,6 +345,17 @@ export default function ProfileSetup() {
             포트폴리오 작성 시 자동으로 채워지는 기본 정보입니다.<br />
             <span className="text-red-400">*</span> 표시는 필수 항목입니다.
           </p>
+          {profile && (
+            <div className="mt-5 inline-flex flex-col items-center gap-2">
+              <p className="text-[12px] text-gray-400 font-medium">지금 당장 하지 않아도 나중에 추가할 수 있어요</p>
+              <button
+                onClick={() => navigate('/app')}
+                className="text-[13px] text-gray-400 font-semibold underline underline-offset-2 hover:text-gray-600 transition-colors"
+              >
+                건너뛰기
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">

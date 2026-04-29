@@ -7,6 +7,29 @@ import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import api from '../../services/api';
+import OnboardingOverlay, { useOnboarding } from '../../components/OnboardingOverlay';
+
+const PORTFOLIO_ONBOARDING = [
+  {
+    message: '기업별 맞춤 포트폴리오',
+    sub: '지원 기업마다 다른 포트폴리오를 만들어 합격률을 높여보세요',
+    arrow: 'up',
+    // ExperienceHub와 동일한 공식 (새 포트폴리오 버튼 위치)
+    style: { top: '150px', right: 'max(3px, calc(50vw - 649px))' },
+  },
+  {
+    message: 'AI 자동완성',
+    sub: '등록한 경험을 AI가 분석해 포트폴리오 내용을 자동으로 채워줘요',
+    arrow: 'down',
+    style: { top: '240px', left: '50%', transform: 'translateX(-50%)' },
+  },
+  {
+    message: 'PDF로 바로 내보내기',
+    sub: '완성된 포트폴리오를 PDF로 변환해 바로 제출할 수 있어요',
+    arrow: 'right',
+    style: { bottom: '28%', left: '24px' },
+  },
+];
 
 /* ── 두들링 배경 SVG ── */
 function DoodleBackground({ templateType }) {
@@ -69,6 +92,7 @@ function DoodleBackground({ templateType }) {
 }
 
 export default function PortfolioHub() {
+  const { visible: obVisible, dismiss: obDismiss } = useOnboarding('portfolio-hub');
   const { user } = useAuthStore();
   const { portfolios, fetchPortfolios, createPortfolio, deletePortfolio, loading } = usePortfolioStore();
   const navigate = useNavigate();
@@ -149,6 +173,8 @@ export default function PortfolioHub() {
     .map(([key, items]) => ({ key, items }));
 
   return (
+    <>
+    <OnboardingOverlay visible={obVisible} onDismiss={obDismiss} callouts={PORTFOLIO_ONBOARDING} />
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -268,6 +294,7 @@ export default function PortfolioHub() {
         <ExportModal type="portfolio" data={exportData} onClose={() => setExportData(null)} />
       )}
     </div>
+    </>
   );
 }
 
