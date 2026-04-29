@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, MapPin, Calendar, GraduationCap, Phone, Mail, Globe,
@@ -27,8 +27,6 @@ export default function ProfileSetup() {
   const navigate = useNavigate();
   const { user, profile, saveProfile } = useAuthStore();
   const [saving, setSaving] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const postcodeContainerRef = useRef(null);
 
   const [form, setForm] = useState({
     nameKo: '',
@@ -75,35 +73,26 @@ export default function ProfileSetup() {
 
   const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const openAddressSearch = async () => {
+  // 컴포넌트 마운트 시 스크립트 미리 로드 (클릭과 무관하게 준비)
+  useEffect(() => {
+    if (window.daum?.Postcode) return;
+    const s = document.createElement('script');
+    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    document.head.appendChild(s);
+  }, []);
+
+  // 클릭 즉시 동기 호출 → 팝업 차단기 우회
+  const openAddressSearch = () => {
     if (!window.daum?.Postcode) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      }).catch(() => null);
-    }
-    if (!window.daum?.Postcode) {
-      toast.error('주소 검색 서비스를 불러올 수 없습니다');
+      toast.error('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
-    setShowAddressModal(true);
-  };
-
-  useEffect(() => {
-    if (!showAddressModal || !postcodeContainerRef.current) return;
     new window.daum.Postcode({
       oncomplete: (data) => {
-        const addr = data.roadAddress || data.jibunAddress || data.address;
-        update('location', addr);
-        setShowAddressModal(false);
+        update('location', data.roadAddress || data.jibunAddress || data.address);
       },
-      width: '100%',
-      height: '100%',
-    }).embed(postcodeContainerRef.current);
-  }, [showAddressModal]);
+    }).open();
+  };
 
   const formatPhone = (value) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -348,7 +337,6 @@ export default function ProfileSetup() {
   };
 
   return (
-    <>
     <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
@@ -566,34 +554,6 @@ export default function ProfileSetup() {
         </div>
       </div>
     </div>
-
-    {/* 주소 검색 모달 */}
-    {showAddressModal && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-        onClick={() => setShowAddressModal(false)}
-      >
-        <div
-          className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-md mx-4"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <MapPin size={15} className="text-primary-600" />
-              <span className="text-sm font-bold text-gray-900">주소 검색</span>
-            </div>
-            <button
-              onClick={() => setShowAddressModal(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div ref={postcodeContainerRef} style={{ width: '100%', height: '420px' }} />
-        </div>
-      </div>
-    )}
-    </>
   );
 }
 
