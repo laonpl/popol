@@ -1,18 +1,92 @@
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns/promises';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT || '587'),
-  secure: process.env.EMAIL_SECURE === 'true',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 30000,
-  socketTimeout: 30000,
-});
+const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
+const emailUser = process.env.EMAIL_USER;
+const emailPass = process.env.EMAIL_PASS;
+const resendApiKey = process.env.RESEND_API_KEY;
+
+function makeTransporter({ port, secure }) {
+  return nodemailer.createTransport({
+    host: emailHost,
+    port,
+    secure,
+    family: 4,
+    auth: {
+      user: emailUser,
+      pass: emailPass,
+    },
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 12000,
+  });
+}
+
+async function resolveSmtpHost(host) {
+  try {
+    const ipv4List = await dns.resolve4(host);
+    if (ipv4List && ipv4List.length > 0) {
+      return { host: ipv4List[0], servername: host };
+    }
+  } catch (e) {
+    logEmail(`[WARN] IPv4 DNS 조회 실패: ${host} - ${e.message}`);
+  }
+  return { host, servername: host };
+}
+
+function getTransportPlan() {
+  const envPort = Number(process.env.EMAIL_PORT || 587);
+  const envSecure = process.env.EMAIL_SECURE === 'true';
+  const plan = [{ port: envPort, secure: envSecure }];
+
+  // Render 환경에서 587 타임아웃이 날 수 있어 Gmail 465 TLS를 폴백으로 시도
+  if (!(envPort === 465 && envSecure === true)) {
+    plan.push({ port: 465, secure: true });
+  }
+
+  return plan;
+}
+
+async function sendWithResend({ to, from, subject, html }) {
+  if (!resendApiKey) {
+    throw Object.assign(new Error('RESEND_API_KEY is not set'), { code: 'RESEND_NOT_CONFIGURED' });
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to, subject, html }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      const err = new Error(`Resend API ${response.status}: ${body}`);
+      err.code = 'RESEND_API_ERROR';
+      throw err;
+    }
+
+    const data = await response.json();
+    return { messageId: data.id };
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const err = new Error('Resend API timeout');
+      err.code = 'ETIMEDOUT';
+      throw err;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // 이메일 발송 로그 파일 경로
 const emailLogPath = path.join(process.cwd(), 'email-logs.txt');
@@ -25,15 +99,11 @@ function logEmail(message) {
 }
 
 export async function sendOtpEmail(to, otp) {
-  const from = process.env.EMAIL_FROM || `FitPoly <${process.env.EMAIL_USER}>`;
-
-  try {
-    logEmail(`[START] OTP 발송 시작: ${to}`);
-    const result = await transporter.sendMail({
-      from,
-      to,
-      subject: '[FitPoly] 이메일 인증 코드',
-    html: `
+  const from = process.env.EMAIL_FROM || `FitPoly <${emailUser}>`;
+  const transportPlan = getTransportPlan();
+  let lastError = null;
+  const subject = '[FitPoly] 이메일 인증 코드';
+  const html = `
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="UTF-8"></head>
@@ -53,7 +123,6 @@ export async function sendOtpEmail(to, otp) {
           <td style="padding:40px;">
             <p style="margin:0 0 8px;color:#495057;font-size:15px;">안녕하세요!</p>
             <p style="margin:0 0 32px;color:#495057;font-size:15px;line-height:1.6;">아래 <strong>6자리 인증 코드</strong>를 입력하여 이메일 인증을 완료해주세요.<br>코드는 <strong>15분 후</strong> 만료됩니다.</p>
-            <!-- OTP 코드 박스 -->
             <div style="background:#f0f4ff;border:2px solid #c5d0fc;border-radius:12px;padding:28px;text-align:center;margin-bottom:32px;">
               <p style="margin:0 0 8px;color:#748ffc;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;">인증 코드</p>
               <p style="margin:0;color:#3b5bdb;font-size:48px;font-weight:800;letter-spacing:12px;font-variant-numeric:tabular-nums;">${otp}</p>
@@ -64,7 +133,6 @@ export async function sendOtpEmail(to, otp) {
             </p>
           </td>
         </tr>
-        <!-- 푸터 -->
         <tr>
           <td style="background:#f8f9fa;padding:20px 40px;border-top:1px solid #e9ecef;text-align:center;">
             <p style="margin:0;color:#adb5bd;font-size:12px;">© 2025 FitPoly. All rights reserved.</p>
@@ -74,13 +142,62 @@ export async function sendOtpEmail(to, otp) {
     </td></tr>
   </table>
 </body>
-</html>`,
-    });
-    logEmail(`[SUCCESS] OTP 발송 완료: ${to} (Message ID: ${result.messageId})`);
-    return result;
-  } catch (error) {
-    logEmail(`[ERROR] OTP 발송 실패: ${to} - ${error.message}`);
-    logEmail(`[DEBUG] Email Config - HOST: ${process.env.EMAIL_HOST}, USER: ${process.env.EMAIL_USER}, PASS: ${process.env.EMAIL_PASS ? '***' : 'NOT SET'}`);
-    throw error;
+</html>`;
+
+  logEmail(`[START] OTP 발송 시작: ${to}`);
+
+  // 1) HTTP 기반 메일 API를 우선 시도해 Render SMTP 타임아웃을 우회
+  if (resendApiKey) {
+    try {
+      const result = await sendWithResend({ to, from, subject, html });
+      logEmail(`[SUCCESS] OTP 발송 완료(Resend): ${to} (Message ID: ${result.messageId})`);
+      return result;
+    } catch (error) {
+      lastError = error;
+      logEmail(`[ERROR] Resend 발송 실패: ${to} - ${error.message}`);
+    }
   }
+
+  for (const transport of transportPlan) {
+    try {
+      const smtpTarget = await resolveSmtpHost(emailHost);
+      const transporter = nodemailer.createTransport({
+        host: smtpTarget.host,
+        port: transport.port,
+        secure: transport.secure,
+        family: 4,
+        auth: {
+          user: emailUser,
+          pass: emailPass,
+        },
+        connectionTimeout: 12000,
+        greetingTimeout: 12000,
+        socketTimeout: 12000,
+        tls: {
+          servername: smtpTarget.servername,
+        },
+      });
+      logEmail(`[TRY] SMTP ${smtpTarget.host}:${transport.port} secure=${transport.secure} (servername=${smtpTarget.servername})`);
+
+      const result = await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+      });
+
+      logEmail(`[SUCCESS] OTP 발송 완료: ${to} (Message ID: ${result.messageId})`);
+      return result;
+    } catch (error) {
+      lastError = error;
+      logEmail(`[ERROR] OTP 발송 실패: ${to} - ${error.message} (${emailHost}:${transport.port})`);
+    }
+  }
+
+  logEmail(`[DEBUG] Email Config - HOST: ${emailHost}, USER: ${emailUser}, PASS: ${emailPass ? '***' : 'NOT SET'}`);
+
+  const wrappedError = new Error(lastError?.message || '이메일 발송에 실패했습니다');
+  wrappedError.code = lastError?.code;
+  wrappedError.responseCode = lastError?.responseCode;
+  throw wrappedError;
 }

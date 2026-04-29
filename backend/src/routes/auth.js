@@ -32,6 +32,7 @@ router.post('/signup-request-otp', async (req, res) => {
     const tempKey = 'signup_' + Buffer.from(email.toLowerCase()).toString('base64');
     const docRef = adminDb.collection('emailOtps').doc(tempKey);
     const existing = await docRef.get();
+    const prevData = existing.exists ? existing.data() : null;
 
     const hourAgo = now - 60 * 60 * 1000;
     let lastReq = 0;
@@ -54,7 +55,8 @@ router.post('/signup-request-otp', async (req, res) => {
 
     const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
-    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : FieldValue.increment(1);
+    const prevCount = existing.exists ? (existing.data()?.requestCount || 0) : 0;
+    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : (prevCount + 1);
 
     await docRef.set({
       hashedOtp,
@@ -66,12 +68,24 @@ router.post('/signup-request-otp', async (req, res) => {
       lastRequestAt: new Date(),
     }, { merge: true });
 
-    // 실제 발송 성공 시에만 성공 응답
-    await sendOtpEmail(email, otp);
+    // 발송 실패 시 OTP 상태를 롤백해 재시도 가능하도록 유지
+    try {
+      await sendOtpEmail(email, otp);
+    } catch (sendErr) {
+      if (prevData) {
+        await docRef.set(prevData, { merge: false });
+      } else {
+        await docRef.delete();
+      }
+      throw sendErr;
+    }
     
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
     console.error('[Auth] 회원가입 OTP 발급 실패:', err);
+    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(err.code)) {
+      return res.status(503).json({ error: '이메일 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' });
+    }
     res.status(500).json({ error: err.message || '이메일 발송에 실패했습니다' });
   }
 });
@@ -143,6 +157,7 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
     const now = Date.now();
     const docRef = adminDb.collection('emailOtps').doc(uid);
     const existing = await docRef.get();
+    const prevData = existing.exists ? existing.data() : null;
 
     const hourAgo = now - 60 * 60 * 1000;
     let lastReq = 0;
@@ -170,7 +185,8 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
 
     // 1시간 창이 넘었으면 카운트 리셋, 아니면 증가
-    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : FieldValue.increment(1);
+    const prevCount = existing.exists ? (existing.data()?.requestCount || 0) : 0;
+    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : (prevCount + 1);
     await docRef.set({
       hashedOtp,
       email,
@@ -181,12 +197,24 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
       lastRequestAt: new Date(),
     }, { merge: true });
 
-    // 실제 발송 성공 시에만 성공 응답
-    await sendOtpEmail(email, otp);
+    // 발송 실패 시 OTP 상태를 롤백해 재시도 가능하도록 유지
+    try {
+      await sendOtpEmail(email, otp);
+    } catch (sendErr) {
+      if (prevData) {
+        await docRef.set(prevData, { merge: false });
+      } else {
+        await docRef.delete();
+      }
+      throw sendErr;
+    }
 
     res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
   } catch (err) {
     console.error('[Auth] OTP 발급 실패:', err);
+    if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(err.code)) {
+      return res.status(503).json({ error: '이메일 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' });
+    }
     res.status(500).json({ error: err.message || '이메일 발송에 실패했습니다' });
   }
 });
