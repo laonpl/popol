@@ -58,6 +58,34 @@ const useAuthStore = create((set, get) => ({
     return user;
   },
 
+  // 회원가입 1단계: 계정 생성 없이 OTP만 발송 (인증 불필요)
+  signUpRequestOtp: async (email) => {
+    const { data } = await api.post('/auth/signup-request-otp', { email });
+    return data;
+  },
+
+  // 회원가입 2단계: OTP 검증 (인증 불필요)
+  signUpVerifyOtp: async (email, otp) => {
+    const { data } = await api.post('/auth/signup-verify-otp', { email, otp });
+    return data;
+  },
+
+  // 회원가입 3단계: OTP 성공 후 Firebase 계정 생성
+  signUpCreate: async (email, password, displayName) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName });
+    // 백엔드 Admin SDK로 emailVerified: true 설정 (이미 OTP 통과)
+    const user = {
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName,
+      photoURL: '',
+      emailVerified: true,
+    };
+    set({ user });
+    return user;
+  },
+
   signInWithEmail: async (email, password) => {
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const user = {

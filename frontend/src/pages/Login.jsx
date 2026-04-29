@@ -61,7 +61,8 @@ function OtpInput({ value, onChange, disabled }) {
 // ── 메인 로그인 페이지 ───────────────────────────────────
 export default function Login() {
   const navigate = useNavigate();
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, requestOtp, verifyOtp } = useAuthStore();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle, requestOtp, verifyOtp,
+          signUpRequestOtp, signUpVerifyOtp, signUpCreate } = useAuthStore();
   const user = useAuthStore(s => s.user);
 
   // 화면 단계: 'login' | 'signup' | 'otp'
@@ -74,6 +75,8 @@ export default function Login() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 회원가입 임시 저장 (OTP 성공 후 계정 생성에 사용)
+  const [pendingSignup, setPendingSignup] = useState(null); // { email, password, displayName }
 
   // OTP 관련
   const [otp, setOtp] = useState('');
@@ -133,15 +136,23 @@ export default function Login() {
 
   const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-  // OTP 발송 요청 (최초 또는 재발송)
+  // OTP 발송 요청 (재발송)
+  // 회원가입 컨텍스트: 인증 불필요 엔드포인트 사용 / 로그인 컨텍스트: 기존 방식
   const sendOtp = async () => {
     setLoading(true);
     try {
-      const res = await requestOtp();
-      if (res.alreadyVerified) {
-        toast.success('이미 인증된 이메일입니다');
-        navigate(otpContext === 'signup' ? '/app/profile-setup' : '/app');
-        return;
+      let res;
+      if (otpContext === 'signup' && pendingSignup) {
+        // 회원가입 재발송 — 인증 불필요
+        res = await signUpRequestOtp(pendingSignup.email);
+      } else {
+        // 로그인 미인증자 재발송 — 기존 방식
+        res = await requestOtp();
+        if (res.alreadyVerified) {
+          toast.success('이미 인증된 이메일입니다');
+          navigate('/app');
+          return;
+        }
       }
       const expiresAt = new Date(Date.now() + (res.expiresInMinutes || 15) * 60 * 1000);
       setOtpExpiresAt(expiresAt);
@@ -167,13 +178,13 @@ export default function Login() {
       if (password.length < 6) { toast.error('비밀번호는 6자 이상이어야 합니다'); return; }
       if (password !== confirmPassword) { toast.error('비밀번호가 일치하지 않습니다'); return; }
     }
+    handledAutoLogin.current = true;
     isFormSubmit.current = true;
     setLoading(true);
     try {
       if (step === 'login') {
         const user = await signInWithEmail(email, password);
         if (!user.emailVerified) {
-          // 미인증 계정 → OTP 인증 단계로
           setOtpContext('login');
           setStep('otp');
           await sendOtp();
@@ -182,10 +193,29 @@ export default function Login() {
           navigate('/app');
         }
       } else {
-        await signUpWithEmail(email, password, displayName.trim());
-        setOtpContext('signup');
-        setStep('otp');
-        await sendOtp();
+        // 회원가입: 계정 생성 없이 OTP만 발송
+        try {
+          const res = await signUpRequestOtp(email);
+          // 임시로 자격증명 저장
+          setPendingSignup({ email, password, displayName: displayName.trim() });
+          setOtpContext('signup');
+          setStep('otp');
+          const expiresAt = new Date(Date.now() + (res.expiresInMinutes || 15) * 60 * 1000);
+          setOtpExpiresAt(expiresAt);
+          setTimeLeft((res.expiresInMinutes || 15) * 60);
+          setResendCooldown(60);
+          setOtp('');
+          toast.success(`인증 코드를 ${email}로 발송했습니다`);
+        } catch (otpErr) {
+          const code = otpErr.response?.status;
+          if (code === 409) {
+            toast.error('이미 사용 중인 이메일입니다');
+          } else {
+            const wait = otpErr.response?.data?.waitSeconds;
+            if (wait) setResendCooldown(wait);
+            toast.error(otpErr.response?.data?.error || '이메일 발송에 실패했습니다');
+          }
+        }
       }
     } catch (err) {
       const code = err.code;
@@ -206,11 +236,19 @@ export default function Login() {
     if (otp.length !== 6) { toast.error('6자리 코드를 모두 입력해주세요'); return; }
     setLoading(true);
     try {
-      await verifyOtp(otp);
-      toast.success('이메일 인증 완료!');
-      if (otpContext === 'signup') {
-        navigate('/app/profile-setup');
+      if (otpContext === 'signup' && pendingSignup) {
+        // 회원가입 OTP: 인증 성공 후 계정 생성
+        const result = await signUpVerifyOtp(pendingSignup.email, otp);
+        if (result.verified) {
+          await signUpCreate(pendingSignup.email, pendingSignup.password, pendingSignup.displayName);
+          setPendingSignup(null);
+          toast.success('이메일 인증 완료! 환영합니다 🎉');
+          navigate('/app/profile-setup');
+        }
       } else {
+        // 로그인 OTP: 기존 방식 (이미 계정 있음)
+        await verifyOtp(otp);
+        toast.success('이메일 인증 완료!');
         navigate('/app');
       }
     } catch (err) {
@@ -307,7 +345,11 @@ export default function Login() {
             {/* 뒤로가기 */}
             <p className="text-center text-sm text-gray-400 mt-5">
               <button
-                onClick={() => { setStep(otpContext === 'signup' ? 'signup' : 'login'); setOtp(''); }}
+                onClick={() => {
+                  setStep(otpContext === 'signup' ? 'signup' : 'login');
+                  setOtp('');
+                  // 뒤로가기 시 pendingSignup 유지 (재시도 가능)
+                }}
                 className="text-primary-600 font-medium hover:underline"
               >
                 ← 뒤로가기

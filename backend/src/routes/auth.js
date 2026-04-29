@@ -9,6 +9,111 @@ const { FieldValue } = admin.firestore;
 
 const router = Router();
 
+// ── 회원가입 전용 OTP 발급 (인증 불필요) ───────────────────────
+router.post('/signup-request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: '올바른 이메일을 입력해주세요' });
+    }
+
+    // 이미 Firebase Auth에 존재하는 이메일인지 확인
+    try {
+      await adminAuth.getUserByEmail(email);
+      // 존재하면 이미 가입된 이메일
+      return res.status(409).json({ error: '이미 사용 중인 이메일입니다' });
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
+      // user-not-found → 새 이메일, 계속 진행
+    }
+
+    const now = Date.now();
+    // 임시 키: 이메일 기반 (uid 없으므로)
+    const tempKey = 'signup_' + Buffer.from(email.toLowerCase()).toString('base64');
+    const docRef = adminDb.collection('emailOtps').doc(tempKey);
+    const existing = await docRef.get();
+
+    const hourAgo = now - 60 * 60 * 1000;
+    let lastReq = 0;
+    if (existing.exists) {
+      const d = existing.data();
+      lastReq = d.lastRequestAt?.toMillis?.() || 0;
+      if (now - lastReq < OTP_RESEND_COOLDOWN * 1000) {
+        const wait = Math.ceil((OTP_RESEND_COOLDOWN * 1000 - (now - lastReq)) / 1000);
+        return res.status(429).json({ error: `${wait}초 후 다시 요청하세요`, waitSeconds: wait });
+      }
+      const countInWindow = lastReq > hourAgo ? (d.requestCount || 0) : 0;
+      if (countInWindow >= OTP_MAX_PER_HOUR) {
+        return res.status(429).json({ error: '잠시 후 다시 시도해주세요 (1시간 최대 5회)' });
+      }
+    }
+
+    const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : FieldValue.increment(1);
+
+    await docRef.set({
+      hashedOtp,
+      email,
+      expiresAt: new Date(now + OTP_EXPIRE_MINUTES * 60 * 1000),
+      used: false,
+      attemptCount: 0,
+      requestCount: newCount,
+      lastRequestAt: new Date(),
+    }, { merge: true });
+
+    await sendOtpEmail(email, otp);
+    res.json({ sent: true, expiresInMinutes: OTP_EXPIRE_MINUTES });
+  } catch (err) {
+    console.error('[Auth] 회원가입 OTP 발급 실패:', err);
+    res.status(500).json({ error: err.message || '이메일 발송에 실패했습니다' });
+  }
+});
+
+// ── 회원가입 전용 OTP 검증 (인증 불필요) ───────────────────────
+router.post('/signup-verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp || !/^\d{6}$/.test(String(otp))) {
+      return res.status(400).json({ error: '이메일과 6자리 코드를 입력해주세요' });
+    }
+
+    const tempKey = 'signup_' + Buffer.from(email.toLowerCase()).toString('base64');
+    const docRef = adminDb.collection('emailOtps').doc(tempKey);
+    const snap = await docRef.get();
+
+    if (!snap.exists) {
+      return res.status(400).json({ error: '인증 코드를 먼저 요청해주세요' });
+    }
+
+    const d = snap.data();
+
+    if (d.used) {
+      return res.status(400).json({ error: '이미 사용된 코드입니다. 새 코드를 요청해주세요' });
+    }
+    if (d.expiresAt.toDate() < new Date()) {
+      return res.status(400).json({ error: '만료된 코드입니다. 새 코드를 요청해주세요', expired: true });
+    }
+    if ((d.attemptCount || 0) >= OTP_MAX_ATTEMPTS) {
+      return res.status(400).json({ error: '시도 횟수를 초과했습니다. 새 코드를 요청해주세요', maxAttempts: true });
+    }
+
+    const inputHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+    if (inputHash !== d.hashedOtp) {
+      await docRef.update({ attemptCount: FieldValue.increment(1) });
+      const remaining = OTP_MAX_ATTEMPTS - (d.attemptCount || 0) - 1;
+      return res.status(400).json({ error: `잘못된 코드입니다 (남은 시도: ${remaining}회)` });
+    }
+
+    // 인증 성공 — 토큰 사용 처리
+    await docRef.update({ used: true });
+    res.json({ verified: true });
+  } catch (err) {
+    console.error('[Auth] 회원가입 OTP 검증 실패:', err);
+    res.status(500).json({ error: err.message || '인증에 실패했습니다' });
+  }
+});
+
 // OTP 재요청 최소 간격(초)
 const OTP_RESEND_COOLDOWN = 60;
 // OTP 만료 시간(분)
@@ -33,17 +138,19 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
     const docRef = adminDb.collection('emailOtps').doc(uid);
     const existing = await docRef.get();
 
+    const hourAgo = now - 60 * 60 * 1000;
+    let lastReq = 0;
     if (existing.exists) {
       const d = existing.data();
+      lastReq = d.lastRequestAt?.toMillis?.() || 0;
       // 재발송 쿨다운 체크
-      const lastReq = d.lastRequestAt?.toMillis?.() || 0;
       if (now - lastReq < OTP_RESEND_COOLDOWN * 1000) {
         const wait = Math.ceil((OTP_RESEND_COOLDOWN * 1000 - (now - lastReq)) / 1000);
         return res.status(429).json({ error: `${wait}초 후 다시 요청하세요`, waitSeconds: wait });
       }
-      // 시간당 횟수 체크
-      const hourAgo = now - 60 * 60 * 1000;
-      if ((d.requestCount || 0) >= OTP_MAX_PER_HOUR && lastReq > hourAgo) {
+      // 시간당 횟수 체크 — 1시간 창 기준으로 카운트 리셋
+      const countInWindow = lastReq > hourAgo ? (d.requestCount || 0) : 0;
+      if (countInWindow >= OTP_MAX_PER_HOUR) {
         return res.status(429).json({ error: '잠시 후 다시 시도해주세요 (1시간 최대 5회)' });
       }
     }
@@ -52,13 +159,15 @@ router.post('/request-otp', authMiddleware, async (req, res) => {
     const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
 
+    // 1시간 창이 넘었으면 카운트 리셋, 아니면 증가
+    const newCount = (!existing.exists || lastReq <= hourAgo) ? 1 : FieldValue.increment(1);
     await docRef.set({
       hashedOtp,
       email,
       expiresAt: new Date(now + OTP_EXPIRE_MINUTES * 60 * 1000),
       used: false,
       attemptCount: 0,
-      requestCount: existing.exists ? FieldValue.increment(1) : 1,
+      requestCount: newCount,
       lastRequestAt: new Date(),
     }, { merge: true });
 

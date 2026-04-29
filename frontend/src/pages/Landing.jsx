@@ -85,10 +85,9 @@ export default function Landing() {
     }
   };
 
-  const [uploadAnimStep, setUploadAnimStep] = useState(0);
-  const [uploadZoneActive, setUploadZoneActive] = useState(false);
-  const [uploadLoopKey, setUploadLoopKey] = useState(0);
-  const uploadTimersRef = useRef([]);
+  const [panelAnim, setPanelAnim] = useState(0);
+  const [panelAnimKey, setPanelAnimKey] = useState(0);
+  const panelTimers = useRef([]);
 
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistStatus, setWaitlistStatus] = useState({ type: 'idle', message: '' });
@@ -142,35 +141,21 @@ export default function Landing() {
   useEffect(() => { setHeroVisible(true); }, []);
 
   useEffect(() => {
-    const FILE_INTERVAL = 1300;
-    const ZONE_DURATION = 550;
-    const FILE_COUNT = MOCK_UPLOAD_FILES.length;
-
-    const runLoop = (loopNum) => {
-      setUploadAnimStep(0);
-      setUploadLoopKey(loopNum);
-      setUploadZoneActive(false);
-
-      for (let i = 0; i < FILE_COUNT; i++) {
-        const base = 700 + i * FILE_INTERVAL;
-        uploadTimersRef.current.push(
-          setTimeout(() => setUploadZoneActive(true), base),
-          setTimeout(() => {
-            setUploadZoneActive(false);
-            setUploadAnimStep(i + 1);
-          }, base + ZONE_DURATION),
-        );
-      }
-      uploadTimersRef.current.push(
-        setTimeout(
-          () => runLoop(loopNum + 1),
-          700 + FILE_COUNT * FILE_INTERVAL + ZONE_DURATION + 2400,
-        ),
-      );
+    const run = (k) => {
+      panelTimers.current.forEach(clearTimeout);
+      setPanelAnimKey(k);
+      setPanelAnim(0);
+      panelTimers.current = [
+        setTimeout(() => setPanelAnim(1), 700),   // 드롭다운 메뉴 표시
+        setTimeout(() => setPanelAnim(2), 1800),  // 내보내기 클릭 → 말풍선 날아감
+        setTimeout(() => setPanelAnim(3), 2600),  // 직접입력 텍스트 팝인
+        setTimeout(() => setPanelAnim(4), 4100),  // 파일 아이콘 날아감
+        setTimeout(() => setPanelAnim(5), 4900),  // 관련파일 팝인
+        setTimeout(() => run(k + 1), 6800),       // 리셋 후 반복
+      ];
     };
-
-    runLoop(0);
-    return () => uploadTimersRef.current.forEach(clearTimeout);
+    run(0);
+    return () => panelTimers.current.forEach(clearTimeout);
   }, []);
 
   useEffect(() => {
@@ -474,66 +459,380 @@ export default function Landing() {
 
           {/* 파일 업로드 */}
           <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
+            <style>{`
+              @keyframes exportBubble {
+                0%   { transform: translateX(0) scale(1); opacity: 1; }
+                45%  { transform: translateX(18px) scale(0.82); opacity: 0.55; }
+                100% { transform: translateX(64px) scale(0.28); opacity: 0; }
+              }
+              @keyframes exportFile {
+                0%   { transform: translateX(0) scale(1); opacity: 1; }
+                45%  { transform: translateX(-18px) scale(0.82); opacity: 0.55; }
+                100% { transform: translateX(-64px) scale(0.28); opacity: 0; }
+              }
+              @keyframes cardPopIn {
+                0%   { transform: scale(0.72) translateY(14px); opacity: 0; }
+                62%  { transform: scale(1.05) translateY(-3px); opacity: 1; }
+                100% { transform: scale(1) translateY(0); opacity: 1; }
+              }
+              @keyframes menuSlideIn {
+                0%   { transform: translateY(-6px) scale(0.95); opacity: 0; }
+                100% { transform: translateY(0) scale(1); opacity: 1; }
+              }
+              @keyframes dropzonePulse {
+                0%   { border-color: #cbd5e1; box-shadow: none; }
+                50%  { border-color: #002F6C; box-shadow: 0 0 0 3px rgba(0,47,108,0.12); }
+                100% { border-color: #cbd5e1; box-shadow: none; }
+              }
+            `}</style>
+            <div className="mb-6 sm:mb-8">
+              <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[11px] font-bold rounded mb-3">파일 업로드</span>
+              <h3 className="text-[20px] sm:text-[26px] font-extrabold text-bluewood-900 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
+                어떤 파일이든, <span className="text-primary-500">숨겨진 경험을 꺼냅니다</span>
+              </h3>
+            </div>
             <ResponsiveScaleWrapper minWidth={900}>
-              <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
-                <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[11px] font-bold rounded mb-4 sm:mb-6">파일 업로드</span>
-                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
-                  어떤 파일이든,<br />
-                  <span className="text-primary-500">숨겨진 경험을<br />꺼냅니다</span>
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {['HWP · PDF · DOCX', 'Notion · GitHub · Blog'].map((t, i) => (
-                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[12px] font-bold rounded-full border border-primary-100">{t}</span>
-                  ))}
-                </div>
-              </div>
+              <div className="flex flex-row gap-0 items-start w-full">
 
-              <div className="flex-1 w-full min-w-0">
-                <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden">
-                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center gap-3">
-                    <div>
-                      <p className="text-[12px] sm:text-[13px] font-bold text-bluewood-900">경험 데이터 수집</p>
-                      <p className="text-[10px] sm:text-[11px] text-bluewood-400">파일, 텍스트, URL을 추가해주세요</p>
-                    </div>
-                  </div>
-                  <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-                    <div className={`border-2 border-dashed rounded-xl p-4 sm:p-6 text-center transition-all duration-300 ${uploadZoneActive
-                        ? 'border-primary-400 bg-primary-100/60 scale-[1.015]'
-                        : 'border-primary-200 bg-primary-50/30'
-                      }`}>
-                      <div className={`w-9 h-9 sm:w-10 sm:h-10 mx-auto rounded-full flex items-center justify-center mb-2 sm:mb-3 transition-all duration-300 ${uploadZoneActive ? 'bg-primary-200 scale-110' : 'bg-primary-100'
-                        }`}>
-                        <FileUp size={16} className={`text-primary-500 transition-transform duration-300 ${uploadZoneActive ? 'animate-bounce' : ''}`} />
-                      </div>
-                      <p className="text-[12px] sm:text-[13px] font-semibold text-bluewood-700 mb-1">
-                        {uploadZoneActive ? '파일 인식 중…' : '파일을 드래그하거나 클릭하여 업로드'}
-                      </p>
-                      <p className="text-[10px] sm:text-[11px] text-bluewood-400">HWP, PDF, DOCX, TXT (최대 10개)</p>
-                    </div>
-                    <div className="space-y-2 h-[200px] sm:h-[220px] overflow-hidden">
-                      {MOCK_UPLOAD_FILES.slice(0, uploadAnimStep).map((f, i) => (
-                        <div
-                          key={`${uploadLoopKey}-${i}`}
-                          className="flex items-center px-4 sm:px-5 py-2.5 sm:py-3 bg-surface-50 rounded-lg animate-slide-in-file"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] sm:text-[12px] font-semibold text-bluewood-800 truncate">{f.name}</p>
-                            <p className="text-[9px] sm:text-[10px] text-bluewood-400">{f.size}</p>
+                {/* ── Panel 1: 카카오톡 모바일 ── */}
+                <div className="flex-1 flex flex-col items-center min-w-0">
+                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5">카카오톡 대화 내보내기</span>
+                  {/* 외부 wrapper: dropdown이 phone 밖으로 overflow */}
+                  <div className="relative" style={{ width: '210px' }}>
+                    <div className="bg-[#aec5d8] rounded-[28px] overflow-hidden shadow-xl" style={{ border: '5px solid #8db5cd' }}>
+                      {/* 상태바 */}
+                      <div className="bg-[#93aec4] px-3.5 pt-2 pb-1 flex items-center justify-between">
+                        <span style={{ fontSize: '8px', fontWeight: 700, color: '#2c4a62' }}>9:41</span>
+                        <div className="flex gap-1.5 items-center">
+                          <div className="flex items-end gap-px" style={{ height: '8px' }}>
+                            <div className="w-[2px] bg-[#2c4a62] rounded-sm" style={{ height: '40%' }} />
+                            <div className="w-[2px] bg-[#2c4a62] rounded-sm" style={{ height: '60%' }} />
+                            <div className="w-[2px] bg-[#2c4a62] rounded-sm" style={{ height: '80%' }} />
+                            <div className="w-[2px] rounded-sm" style={{ height: '100%', backgroundColor: 'rgba(44,74,98,0.35)' }} />
+                          </div>
+                          <div className="relative flex items-center" style={{ width: '22px', height: '11px' }}>
+                            <div className="w-full h-full border border-[#2c4a62] rounded-[2px] flex items-center px-[2px]">
+                              <div className="bg-[#2c4a62] rounded-[1px]" style={{ width: '70%', height: '7px' }} />
+                            </div>
+                            <div className="absolute bg-[#2c4a62] rounded-r-[1px]" style={{ right: '-3px', top: '3px', width: '2px', height: '5px' }} />
                           </div>
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-surface-50 rounded-lg border border-surface-200 overflow-hidden">
-                        <span className="text-[11px] sm:text-[12px] text-bluewood-400 truncate block">https://notion.so/my-project...</span>
                       </div>
-                      <div className="px-2.5 sm:px-3 py-2 bg-primary-50 text-primary-600 rounded-lg text-[11px] font-bold shrink-0">+ 추가</div>
+                      {/* 앱 헤더 */}
+                      <div className="bg-[#93aec4] px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(122,153,179,0.3)' }}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-[#c5dced] flex items-center justify-center" style={{ fontSize: '11px' }}>👤</div>
+                          <span style={{ fontSize: '9.5px', fontWeight: 700, color: '#2c4a62' }}>나 (나에게 쓰기)</span>
+                        </div>
+                        <div className="flex gap-1.5 items-center">
+                          <Search size={10} className="text-[#5a7a94]" />
+                          <List size={10} style={{ color: panelAnim === 1 ? '#002F6C' : '#5a7a94', transition: 'color 0.2s' }} />
+                        </div>
+                      </div>
+                      {/* 채팅 영역 */}
+                      <div className="px-2.5 py-2.5 space-y-2.5" style={{ minHeight: '290px' }}>
+                        <div className="text-center">
+                          <span style={{ fontSize: '7px', backgroundColor: 'rgba(143,174,196,0.7)', color: '#2c4a62', padding: '1px 8px', borderRadius: '999px' }}>2026년 4월 29일 수요일</span>
+                        </div>
+                        <div className="flex justify-end">
+                          <div className="bg-[#ffee00] shadow-sm" style={{ borderRadius: '14px 4px 14px 14px', maxWidth: '75%', padding: '6px 8px' }}>
+                            <p style={{ fontSize: '8.5px', fontWeight: 600, color: '#1f2937', lineHeight: 1.3 }}>로그인 화면 로딩 지연 이슈 내일 물어볼 것!!</p>
+                            <p style={{ fontSize: '7px', color: '#6b7280', textAlign: 'right', marginTop: '2px' }}>오후 2:30</p>
+                          </div>
+                        </div>
+                        {/* 애니메이션 말풍선 */}
+                        <div key={panelAnimKey} className="flex justify-end">
+                          <div
+                            className="bg-[#ffee00] shadow-sm"
+                            style={{
+                              borderRadius: '14px 4px 14px 14px',
+                              maxWidth: '80%',
+                              padding: '6px 8px',
+                              animation: panelAnim === 2 ? 'exportBubble 0.65s ease-in forwards' : 'none',
+                              opacity: panelAnim >= 3 ? 0 : 1,
+                              transition: panelAnim >= 3 ? 'opacity 0.15s' : 'none',
+                            }}
+                          >
+                            <p style={{ fontSize: '8.5px', fontWeight: 600, color: '#1f2937', lineHeight: 1.3 }}>A/B 테스트 기획안 마무리. 기존 대비 전환율 15% 상승 예상됨.</p>
+                            <p style={{ fontSize: '7px', color: '#6b7280', textAlign: 'right', marginTop: '2px' }}>오후 5:42</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 입력바 */}
+                      <div className="px-2.5 pb-2 bg-[#aec5d8]">
+                        <div className="rounded-full flex items-center gap-1.5 px-2.5 py-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.5)' }}>
+                          <span style={{ fontSize: '12px' }}>😊</span>
+                          <span style={{ fontSize: '12px' }}>📎</span>
+                        </div>
+                      </div>
+                      {/* 홈 인디케이터 */}
+                      <div className="flex justify-center pb-2.5">
+                        <div className="rounded-full" style={{ width: '52px', height: '4px', backgroundColor: 'rgba(90,122,148,0.38)' }} />
+                      </div>
+                    </div>
+                    {/* 드롭다운 — overflow-hidden 바깥에 위치해 창 밖으로 넘어감 */}
+                    {panelAnim === 1 && (
+                      <div style={{ position: 'absolute', top: '46px', left: '44px', zIndex: 30, animation: 'menuSlideIn 0.18s ease-out both' }}>
+                        {/* 메인 메뉴 */}
+                        <div style={{ width: '160px', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 6px 28px rgba(0,0,0,0.22)', paddingTop: '3px', paddingBottom: '3px' }}>
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>+ 대화상대 초대하기</span><span style={{ color: '#9ca3af', fontSize: '7px' }}>Ctrl+I</span>
+                          </div>
+                          {['채팅방 서랍', '토클캘린더', '통계사판', '브리핑 보드'].map((item, i) => (
+                            <div key={i} style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span>{item}</span>
+                              {item === '채팅방 서랍' && <span style={{ fontSize: '8px', color: '#9ca3af' }}>›</span>}
+                            </div>
+                          ))}
+                          <div style={{ height: '1px', background: '#f3f4f6', margin: '2px 0' }} />
+                          {['보이스톡', '페이스톡'].map((item, i) => (
+                            <div key={i} style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280' }}>{item}</div>
+                          ))}
+                          <div style={{ height: '1px', background: '#f3f4f6', margin: '2px 0' }} />
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>보내기</span><span style={{ fontSize: '8px', color: '#9ca3af' }}>›</span>
+                          </div>
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#374151', fontWeight: 700, background: '#f0f4ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>대화 내용</span><span style={{ fontSize: '8px', color: '#002F6C' }}>›</span>
+                          </div>
+                          <div style={{ height: '1px', background: '#f3f4f6', margin: '2px 0' }} />
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280' }}>채팅방 나가기</div>
+                        </div>
+                        {/* 서브메뉴 — 메인 메뉴 오른쪽으로 넘어감 */}
+                        <div style={{ position: 'absolute', top: '82px', left: '160px', width: '134px', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 18px rgba(0,0,0,0.18)', paddingTop: '3px', paddingBottom: '3px' }}>
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>대화 검색</span><span style={{ color: '#9ca3af', fontSize: '7px' }}>Ctrl+F</span>
+                          </div>
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#6b7280' }}>대화 캡처</div>
+                          <div style={{ padding: '3px 10px', fontSize: '7.5px', color: '#002F6C', fontWeight: 700, background: '#eff6ff', borderLeft: '2px solid #002F6C', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>대화 내보내기</span><span style={{ color: '#4a7fd4', fontSize: '7px' }}>Ctrl+S</span>
+                          </div>
+                          <div style={{ padding: '2px 10px', fontSize: '7.5px', color: '#ef4444' }}>대화 내용 모두 삭제</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Arrow: 카카오톡 → AI Canvas ── */}
+                <div style={{ flexShrink: 0, alignSelf: 'center', paddingTop: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px' }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" stroke={panelAnim === 2 || panelAnim === 3 ? '#002F6C' : '#c9d4e3'} strokeWidth="3" style={{ transition: 'stroke 0.4s' }}>
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </div>
+
+                {/* ── 가운데: 자료 수집 UI 목업 ── */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5 block text-center">AI 경험 정리 보드</span>
+                  <div
+                    className="bg-white rounded-2xl overflow-hidden shadow-md flex flex-col transition-all duration-300"
+                    style={{
+                      border: panelAnim === 3 || panelAnim === 5
+                        ? '1.5px solid rgba(0,47,108,0.28)'
+                        : '1px solid #e5e7eb',
+                      boxShadow: panelAnim === 3 || panelAnim === 5
+                        ? '0 0 0 3px rgba(0,47,108,0.08)'
+                        : undefined,
+                    }}
+                  >
+                    {/* 단계 표시 */}
+                    <div className="px-3 py-2 flex items-center gap-1 shrink-0" style={{ backgroundColor: '#f8f9fc', borderBottom: '1px solid #e5e7eb' }}>
+                      <span style={{ fontSize: '8.5px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <Check size={9} style={{ color: '#6b7280' }} /> 기본 정보
+                      </span>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: '#002F6C', margin: '0 4px' }} />
+                      <span style={{ fontSize: '8.5px', backgroundColor: '#002F6C', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>2 자료 수집</span>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: '#e5e7eb', margin: '0 4px' }} />
+                      <span style={{ fontSize: '8.5px', color: '#9ca3af' }}>3 경험 검토</span>
+                    </div>
+
+                    <div className="p-3 space-y-2.5">
+                      {/* 관련 파일 */}
+                      <div className="rounded-xl p-2.5" style={{ border: '1px solid #e5e7eb' }}>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>관련 파일</p>
+                        <div
+                          className="rounded-lg p-2.5 text-center"
+                          style={{
+                            border: '1.5px dashed #cbd5e1',
+                            backgroundColor: panelAnim >= 5 ? 'rgba(0,47,108,0.03)' : '#fafbfc',
+                            animation: panelAnim === 4 ? 'dropzonePulse 0.8s ease-in-out' : 'none',
+                          }}
+                        >
+                          {panelAnim >= 5 ? (
+                            <div key={`file-${panelAnimKey}`} className="flex items-center justify-center gap-2" style={{ animation: 'cardPopIn 0.35s ease-out both' }}>
+                              <div className="rounded flex items-center justify-center text-white" style={{ width: '22px', height: '22px', backgroundColor: '#b30b00', fontSize: '7px', fontWeight: 700 }}>PDF</div>
+                              <span style={{ fontSize: '9px', color: '#374151', fontWeight: 600 }}>경쟁사_분석.pdf</span>
+                              <Check size={10} style={{ color: '#22c55e' }} />
+                            </div>
+                          ) : (
+                            <>
+                              <p style={{ fontSize: '9px', fontWeight: 600, color: '#475569' }}>클릭하여 파일을 선택하세요</p>
+                              <p style={{ fontSize: '7.5px', color: '#94a3b8', marginTop: '2px' }}>PDF, 이미지 · 최대 25MB · HWP는 PDF 변환 후 업로드</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 직접 입력 */}
+                      <div className="rounded-xl p-2.5" style={{ border: '1px solid #e5e7eb' }}>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>직접 입력</p>
+                        <div
+                          className="rounded-lg p-2.5 transition-colors duration-300"
+                          style={{ border: '1px solid #e5e7eb', minHeight: '58px', backgroundColor: panelAnim >= 3 ? '#fff' : '#fafbfc' }}
+                        >
+                          {panelAnim >= 3 ? (
+                            <p key={`txt-${panelAnimKey}`} style={{ fontSize: '8.5px', color: '#334155', lineHeight: 1.5, animation: 'cardPopIn 0.35s ease-out both' }}>
+                              A/B 테스트 기획안 마무리.<br />
+                              기존 대비 전환율 <span style={{ color: '#002F6C', fontWeight: 700 }}>15% 상승</span> 예상됨.
+                            </p>
+                          ) : (
+                            <p style={{ fontSize: '8.5px', color: '#94a3b8', lineHeight: 1.5 }}>
+                              프로젝트나 업무에 대해 자유롭게 적어주세요.<br />
+                              <span style={{ color: '#b0bec5' }}>- 어떤 프로젝트/활동이었나요?</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 링크 */}
+                      <div className="rounded-xl p-2.5" style={{ border: '1px solid #e5e7eb' }}>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>링크</p>
+                        <div className="space-y-1.5">
+                          {[
+                            'Notion 페이지 URL',
+                            'GitHub 리포지토리 URL',
+                            '블로그 또는 기타 URL',
+                          ].map((label, i) => (
+                            <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5" style={{ border: '1px solid #e5e7eb', backgroundColor: '#fafbfc' }}>
+                              <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI 시작 버튼 */}
+                    <div className="px-3 pb-3">
+                      <button
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          backgroundColor: '#002F6C',
+                          color: '#fff',
+                          borderRadius: '10px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          boxShadow: panelAnim >= 5 ? '0 0 0 3px rgba(0,47,108,0.22)' : 'none',
+                          transform: panelAnim >= 5 ? 'scale(1.015)' : 'scale(1)',
+                          transition: 'box-shadow 0.3s, transform 0.3s',
+                        }}
+                      >
+                        AI로 경험 정리 시작
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {/* ── Arrow: 파일탐색기 → AI Canvas (왼쪽 방향) ── */}
+                <div style={{ flexShrink: 0, alignSelf: 'center', paddingTop: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px' }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" stroke={panelAnim === 4 || panelAnim === 5 ? '#002F6C' : '#c9d4e3'} strokeWidth="3" style={{ transition: 'stroke 0.4s' }}>
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </div>
+
+                {/* ── Panel 3: Windows 파일 탐색기 ── */}
+                <div className="flex-1 flex flex-col items-center min-w-0">
+                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5 block text-center">파편화된 문서 파일들</span>
+                  <div style={{ width: '340px', background: '#1e1e1e', borderRadius: '8px', overflow: 'hidden', border: '1px solid #3c3c3c', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+                    {/* 타이틀바 */}
+                    <div style={{ background: '#2b2b2b', padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '5px', borderBottom: '1px solid #3c3c3c' }}>
+                      <span style={{ fontSize: '11px' }}>📁</span>
+                      <div style={{ background: '#3a3a3a', padding: '2px 8px 0', borderRadius: '5px 5px 0 0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '8px', color: '#e2e8f0', fontWeight: 600 }}>문서</span>
+                        <span style={{ fontSize: '9px', color: '#6b7280' }}>×</span>
+                      </div>
+                      <div style={{ flex: 1 }} />
+                      {[{ c: '−', bg: '#3c3c3c', fg: '#9ca3af' }, { c: '□', bg: '#3c3c3c', fg: '#9ca3af' }, { c: '×', bg: '#c42b1c', fg: '#fff' }].map((w, i) => (
+                        <div key={i} style={{ width: '16px', height: '16px', borderRadius: '2px', background: w.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: w.fg }}>{w.c}</div>
+                      ))}
+                    </div>
+                    {/* 네비게이션 바 제거됨 */}
+                    {/* 툴바 */}
+                    <div style={{ background: '#2b2b2b', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '3px', borderBottom: '1px solid #3c3c3c' }}>
+                      {['+ 새로 만들기', '✂', '📋', '🗑', '↑↓ 정렬', '⊞ 보기', '···'].map((b, i) => (
+                        <div key={i} style={{ padding: '1.5px 4px', background: '#3c3c3c', borderRadius: '3px', fontSize: '6px', color: '#d1d5db', whiteSpace: 'nowrap' }}>{b}</div>
+                      ))}
+                      <div style={{ flex: 1 }} />
+                      <span style={{ fontSize: '6px', color: '#6b7280', whiteSpace: 'nowrap' }}>세부 정보</span>
+                    </div>
+                    {/* 메인 영역 */}
+                    <div style={{ display: 'flex', minHeight: '250px' }}>
+                      {/* 사이드바 */}
+                      <div style={{ width: '74px', background: '#1a1a1a', borderRight: '1px solid #3c3c3c', padding: '5px 0', flexShrink: 0 }}>
+                        {[['🖥', '바탕 화면'], ['🏠', '홈'], ['🖼', '갤러리'], ['📄', '문서', true], ['📷', '사진'], ['☁️', '형균-개인'], ['⬇', '다운로드'], ['🎬', '동영상'], ['🎵', '음악'], ['💻', '내 PC'], ['💾', '로컬 디스크']].map(([icon, label, active], i) => (
+                          <div key={i} style={{ padding: '2px 8px', fontSize: '6.5px', color: active ? '#e2e8f0' : '#9ca3af', background: active ? '#3c3c3c' : 'transparent', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '8px', flexShrink: 0 }}>{icon}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* 파일 그리드 */}
+                      <div style={{ flex: 1, background: '#202020', padding: '7px 6px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px 3px' }}>
+                          {[
+                            { name: '카카오톡\n받은파일',    type: 'folder' },
+                            { name: '사용자지정\n서식파일',  type: 'folder' },
+                            { name: '내문서백업',            type: 'folder' },
+                            { name: '사용자_인터뷰\n.docx',  type: 'word' },
+                            { name: 'A_B테스트\n_결과.xlsx', type: 'excel', anim: true },
+                            { name: '이력서_최종\n.hwp',     type: 'hwp' },
+                            { name: '런칭_전략\n_발표.pptx', type: 'ppt' },
+                            { name: '경쟁사_분석\n.pdf',     type: 'pdf',   anim: true },
+                            { name: 'UI_시안\n_v2.png',      type: 'image' },
+                            { name: '회의록\n_0428.txt',     type: 'txt' },
+                            { name: '제품_로드맵\n.xlsx',    type: 'excel' },
+                            { name: '채용공고\n_분석.docx',  type: 'word' },
+                          ].map((f, i) => {
+                            const clr = { word: '#185abd', excel: '#107c41', ppt: '#c43e1c', hwp: '#00978d', pdf: '#b30b00', image: '#7c3aed', txt: '#546e7a' }[f.type] || '#6b7280';
+                            const lbl = { word: 'W', excel: 'X', ppt: 'P', hwp: '한', pdf: 'PDF', image: '▣', txt: 'TXT' }[f.type] || '?';
+                            return (
+                              <div key={`${panelAnimKey}-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                <div style={{ animation: f.anim && panelAnim === 4 ? 'exportFile 0.65s ease-in forwards' : 'none', opacity: f.anim && panelAnim >= 5 ? 0 : 1, transition: f.anim && panelAnim >= 5 ? 'opacity 0.15s' : 'none' }}>
+                                  {f.type === 'folder' ? (
+                                    <div style={{ position: 'relative', width: '36px', height: '28px' }}>
+                                      <div style={{ position: 'absolute', top: 0, left: '2px', width: '13px', height: '5px', background: '#c89820', borderRadius: '2px 3px 0 0' }} />
+                                      <div style={{ position: 'absolute', top: '4px', left: 0, right: 0, bottom: 0, background: 'linear-gradient(160deg,#f2c640 0%,#e8a820 100%)', borderRadius: '0 3px 3px 3px', border: '1px solid #c08010' }} />
+                                      <div style={{ position: 'absolute', top: '8px', left: '4px', right: '4px', height: '7px', background: 'rgba(255,235,150,0.35)', borderRadius: '1px' }} />
+                                    </div>
+                                  ) : (
+                                    <div style={{ position: 'relative', width: '30px', height: '36px', background: '#f8f9fa', border: '1px solid #d1d5db', borderRadius: '2px', overflow: 'hidden' }}>
+                                      <div style={{ position: 'absolute', top: 0, right: 0, width: '9px', height: '9px', background: 'linear-gradient(225deg,#d1d5db 50%,transparent 50%)' }} />
+                                      <div style={{ position: 'absolute', top: '11px', left: '3px', right: '3px' }}>
+                                        {[0,1,2].map(j => <div key={j} style={{ height: '1.5px', background: '#e5e7eb', marginBottom: '2px', width: j === 2 ? '60%' : '100%' }} />)}
+                                      </div>
+                                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '13px', background: clr, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <span style={{ fontSize: f.type === 'pdf' ? '5px' : '7px', fontWeight: 800, color: '#fff' }}>{lbl}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: '6.5px', color: '#c0c0c0', textAlign: 'center', lineHeight: 1.2 }}>
+                                  {f.name.split('\n').map((p, j) => <span key={j}>{p}</span>)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    {/* 상태바 */}
+                    <div style={{ background: '#2b2b2b', padding: '2px 10px', borderTop: '1px solid #3c3c3c', fontSize: '7px', color: '#9ca3af' }}>
+                      32개 항목
+                    </div>
+                  </div>
+                </div>
+
               </div>
-            </div>
             </ResponsiveScaleWrapper>
           </div>
 
