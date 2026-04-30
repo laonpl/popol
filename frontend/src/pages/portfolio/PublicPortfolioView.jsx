@@ -687,7 +687,7 @@ export default function PublicPortfolioView() {
       {/* Experience Detail Modal */}
       {selectedExp && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedExp(null)}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-[800px] w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             {/* 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
               <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{selectedExp.title}</h3>
@@ -705,16 +705,23 @@ export default function PublicPortfolioView() {
               )}
 
               {/* 기본 정보 */}
-              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                {selectedExp.date && <span>📅 {selectedExp.date}</span>}
-                {selectedExp.role && <span>👤 {selectedExp.role}</span>}
-                {selectedExp.structuredResult?.projectOverview?.team && (
-                  <span>👥 {selectedExp.structuredResult.projectOverview.team}</span>
-                )}
-                {selectedExp.structuredResult?.projectOverview?.duration && (
-                  <span>⏱ {selectedExp.structuredResult.projectOverview.duration}</span>
-                )}
-              </div>
+              {(() => {
+                const team = selectedExp.structuredResult?.projectOverview?.team;
+                const duration = selectedExp.structuredResult?.projectOverview?.duration;
+                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
+                const items = [
+                  selectedExp.date && { icon: '📅', text: selectedExp.date },
+                  selectedExp.role && !isPlaceholder(selectedExp.role) && { icon: '👤', text: selectedExp.role },
+                  !isPlaceholder(team) && { icon: '👥', text: team },
+                  !isPlaceholder(duration) && { icon: '⏱', text: duration },
+                ].filter(Boolean);
+                if (items.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                    {items.map((item, i) => <span key={i}>{item.icon} {item.text}</span>)}
+                  </div>
+                );
+              })()}
 
               {/* 스킬 태그 */}
               {((selectedExp.skills?.length ? selectedExp.skills : (selectedExp.structuredResult?.projectOverview?.techStack || [])).length > 0) && (
@@ -728,16 +735,23 @@ export default function PublicPortfolioView() {
               )}
 
               {/* 설명 */}
-              {(selectedExp.description || selectedExp.structuredResult?.projectOverview?.summary) && (
-                <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-4 whitespace-pre-line">
-                  {selectedExp.description || selectedExp.structuredResult.projectOverview.summary}
-                </p>
-              )}
+              {(() => {
+                const desc = selectedExp.description || selectedExp.structuredResult?.projectOverview?.summary || '';
+                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
+                if (!desc || isPlaceholder(desc)) return null;
+                return (
+                  <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-4 whitespace-pre-line">{desc}</p>
+                );
+              })()}
 
               {/* structuredResult 상세 섹션 */}
               {(() => {
                 const structured = selectedExp.structuredResult || {};
-                const hasSections = EXP_SECTION_KEYS.some(k => (typeof structured[k] === 'string' ? structured[k] : '')?.trim());
+                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
+                const hasSections = EXP_SECTION_KEYS.some(k => {
+                  const v = typeof structured[k] === 'string' ? structured[k] : '';
+                  return v.trim() && !isPlaceholder(v);
+                });
                 if (!hasSections) return null;
                 return (
                   <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -745,7 +759,7 @@ export default function PublicPortfolioView() {
                       {EXP_SECTION_KEYS.map(key => {
                         const meta = EXP_SECTION_META[key];
                         const val = typeof structured[key] === 'string' ? structured[key] : '';
-                        if (!val?.trim()) return null;
+                        if (!val?.trim() || isPlaceholder(val)) return null;
                         return (
                           <div key={key}>
                             <div className="flex items-center gap-3 px-5 py-2.5 bg-gray-50">

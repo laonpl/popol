@@ -61,7 +61,7 @@ export default function NotionPortfolioPreview() {
               className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
               <Edit size={14} /> 편집
             </button>
-            <button onClick={() => toast('🚧 PPT 내보내기는 추후 업데이트 예정입니다', { icon: '🕐', style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
+            <button onClick={() => toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
               <FileText size={14} /> PPT 내보내기
             </button>
@@ -124,16 +124,10 @@ export default function NotionPortfolioPreview() {
         {/* Link Export Modal */}
         {showExportModal && (
           <LinkExportModal
-            portfolio={portfolio}
             portfolioId={id}
             isPublic={isPublic}
             togglingPublic={togglingPublic}
             customSlug={customSlug}
-            onSlugSave={async (slug) => {
-              await updatePortfolio(id, { customSlug: slug });
-              setCustomSlug(slug);
-              setPortfolio(prev => ({ ...prev, customSlug: slug }));
-            }}
             onToggle={async () => {
               setTogglingPublic(true);
               const newVal = !isPublic;
@@ -169,7 +163,7 @@ export default function NotionPortfolioPreview() {
             className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
             <Edit size={14} /> 편집
           </button>
-          <button onClick={() => toast('🚧 PPT 내보내기는 추후 업데이트 예정입니다', { icon: '🕐', style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
+          <button onClick={() => toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
             <FileText size={14} /> PPT 내보내기
           </button>
@@ -670,16 +664,10 @@ export default function NotionPortfolioPreview() {
       {/* Link Export Modal */}
       {showExportModal && (
         <LinkExportModal
-          portfolio={portfolio}
           portfolioId={id}
           isPublic={isPublic}
           togglingPublic={togglingPublic}
           customSlug={customSlug}
-          onSlugSave={async (slug) => {
-            await updatePortfolio(id, { customSlug: slug });
-            setCustomSlug(slug);
-            setPortfolio(prev => ({ ...prev, customSlug: slug }));
-          }}
           onToggle={async () => {
             setTogglingPublic(true);
             const newVal = !isPublic;
@@ -706,11 +694,8 @@ export default function NotionPortfolioPreview() {
 }
 
 // ── Link Export Modal ──
-function LinkExportModal({ portfolio, portfolioId, isPublic, togglingPublic, customSlug, onSlugSave, onToggle, onClose }) {
+function LinkExportModal({ portfolioId, isPublic, togglingPublic, customSlug, onToggle, onClose }) {
   const [copied, setCopied] = useState(false);
-  const [slugInput, setSlugInput] = useState(customSlug || '');
-  const [slugSaving, setSlugSaving] = useState(false);
-  const [slugError, setSlugError] = useState('');
 
   const activeSlug = customSlug || portfolioId;
   const publicUrl = `${window.location.origin}/p/${activeSlug}`;
@@ -722,148 +707,18 @@ function LinkExportModal({ portfolio, portfolioId, isPublic, togglingPublic, cus
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const validateSlug = (val) => {
-    if (!val) return '';
-    if (!/^[a-z0-9-]+$/.test(val)) return '영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다';
-    if (val.length < 2) return '2자 이상 입력해주세요';
-    if (val.length > 50) return '50자 이하로 입력해주세요';
-    if (val.startsWith('-') || val.endsWith('-')) return '하이픈으로 시작하거나 끝날 수 없습니다';
-    return '';
-  };
-
-  const handleSlugChange = (e) => {
-    const val = e.target.value.toLowerCase().replace(/\s/g, '-');
-    setSlugInput(val);
-    setSlugError(validateSlug(val));
-  };
-
-  const handleSlugSave = async () => {
-    const err = validateSlug(slugInput);
-    if (err) { setSlugError(err); return; }
-    setSlugSaving(true);
-    try {
-      await onSlugSave(slugInput.trim());
-      toast.success('커스텀 링크가 저장되었습니다!');
-    } catch {
-      toast.error('저장에 실패했습니다');
-    }
-    setSlugSaving(false);
-  };
-
-  const handleSlugRemove = async () => {
-    setSlugSaving(true);
-    try {
-      await onSlugSave('');
-      setSlugInput('');
-      setSlugError('');
-      toast.success('커스텀 링크가 제거되었습니다');
-    } catch {
-      toast.error('제거에 실패했습니다');
-    }
-    setSlugSaving(false);
-  };
-
-  // ── HTML Export: DOM 캡처 + standalone HTML 생성 ──
-  const handleHtmlExport = () => {
-    const el = document.getElementById('notion-portfolio');
-    if (!el) { toast.error('포트폴리오 요소를 찾을 수 없습니다'); return; }
-
-    // DOM 복제 후 정리: 버튼→div 변환, onClick 제거, 앱 전용 요소 제거
-    const clone = el.cloneNode(true);
-
-    // button → div 변환 (인터랙티브 요소를 정적으로)
-    clone.querySelectorAll('button').forEach(btn => {
-      const div = document.createElement('div');
-      div.className = btn.className;
-      div.innerHTML = btn.innerHTML;
-      if (btn.style.cssText) div.style.cssText = btn.style.cssText;
-      btn.parentNode.replaceChild(div, btn);
-    });
-
-    // a 태그의 내부 링크(#) → span 변환
-    clone.querySelectorAll('a[href^="#"]').forEach(a => {
-      const span = document.createElement('span');
-      span.className = a.className;
-      span.innerHTML = a.innerHTML;
-      a.parentNode.replaceChild(span, a);
-    });
-
-    // "맨 위로" 네비게이션 제거
-    clone.querySelectorAll('a').forEach(a => {
-      if (a.textContent.includes('맨 위로')) a.remove();
-    });
-
-    // onclick/data-* 속성 정리
-    clone.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
-
-    const cleanedHTML = clone.outerHTML;
-
-    const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${portfolio.headline || portfolio.title || '포트폴리오'} - FitPoly Portfolio</title>
-<script src="https://cdn.tailwindcss.com"><\/script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: {
-        primary: { 50:'#f0fdf4',100:'#dcfce7',200:'#bbf7d0',300:'#86efac',400:'#4ade80',500:'#22c55e',600:'#16a34a',700:'#15803d',800:'#166534',900:'#14532d' },
-        surface: { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1' }
-      },
-      fontFamily: { sans: ['Pretendard','-apple-system','BlinkMacSystemFont','system-ui','sans-serif'] }
-    }
-  }
-}
-<\/script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css" />
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; background:#f5f5f7; color:#1a1a1a; }
-::-webkit-scrollbar { width:6px; }
-::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:3px; }
-@media print {
-  body { background: white; }
-  @page { margin: 10mm; size: A4 landscape; }
-}
-</style>
-</head>
-<body>
-<div style="max-width:1100px;margin:40px auto;padding:0 16px;">
-${cleanedHTML}
-</div>
-</body>
-</html>`;
-
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${portfolio.headline || portfolio.title || 'portfolio'}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('HTML 파일이 다운로드되었습니다!');
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-surface-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center">
-              <Link2 size={16} className="text-primary-600" />
-            </div>
-            <h2 className="text-lg font-bold">링크 내보내기</h2>
-          </div>
+          <h2 className="text-lg font-bold">링크 내보내기</h2>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-surface-50">
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-4">
           {/* 공개 링크 토글 */}
           <div className="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-100">
             <div>
@@ -882,89 +737,33 @@ ${cleanedHTML}
           {/* 링크 표시 및 복사 */}
           {isPublic ? (
             <>
-              <div className="flex items-center gap-2 p-3 bg-primary-50 rounded-xl border border-primary-100">
-                <Globe size={14} className="text-primary-400 flex-shrink-0" />
-                <span className="text-sm text-primary-700 truncate flex-1 font-mono">{publicUrl}</span>
+              <div className="p-3 bg-primary-50 rounded-xl border border-primary-100">
+                <span className="text-sm text-primary-700 truncate block font-mono">{publicUrl}</span>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleCopy}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                  className="flex-1 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
                 >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? '복사됨!' : '링크 복사'}
                 </button>
                 <a
                   href={publicUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
+                  className="px-5 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
                 >
-                  <ExternalLink size={16} /> 열기
+                  열기
                 </a>
-              </div>
-
-              {/* 커스텀 슬러그 */}
-              <div className="pt-3 border-t border-surface-100">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-sm font-semibold text-gray-700">커스텀 링크 설정</p>
-                  {customSlug && (
-                    <span className="px-1.5 py-0.5 bg-primary-100 text-primary-700 text-[10px] font-bold rounded">적용 중</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mb-3">
-                  원하는 주소로 바꿀 수 있어요 · 영문 소문자, 숫자, 하이픈(-) 사용 가능
-                </p>
-                <div className="flex items-center gap-1.5 bg-surface-50 border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus-within:ring-2 focus-within:ring-primary-300 focus-within:border-primary-300 transition-all">
-                  <span className="text-gray-400 whitespace-nowrap flex-shrink-0">{window.location.origin}/p/</span>
-                  <input
-                    type="text"
-                    value={slugInput}
-                    onChange={handleSlugChange}
-                    placeholder={portfolioId.slice(0, 8) + '...'}
-                    className="flex-1 bg-transparent outline-none text-gray-800 font-mono min-w-0"
-                  />
-                </div>
-                {slugError && <p className="text-xs text-red-500 mt-1.5">{slugError}</p>}
-                <div className="flex gap-2 mt-2.5">
-                  <button
-                    onClick={handleSlugSave}
-                    disabled={slugSaving || !!slugError || !slugInput.trim() || slugInput === customSlug}
-                    className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-black disabled:opacity-40 transition-colors"
-                  >
-                    {slugSaving ? '저장 중...' : '저장'}
-                  </button>
-                  {customSlug && (
-                    <button
-                      onClick={handleSlugRemove}
-                      disabled={slugSaving}
-                      className="px-4 py-2.5 border border-surface-200 text-red-500 rounded-xl text-sm font-medium hover:bg-red-50 disabled:opacity-40 transition-colors"
-                    >
-                      제거
-                    </button>
-                  )}
-                </div>
               </div>
             </>
           ) : (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
               <p className="text-sm text-amber-700">
-                💡 공개 링크를 활성화하면 링크를 아는 누구나 포트폴리오를 볼 수 있습니다.
+                공개 링크를 활성화하면 링크를 아는 누구나 포트폴리오를 볼 수 있습니다.
               </p>
             </div>
           )}
-
-          {/* HTML 다운로드 */}
-          <div className="pt-3 border-t border-surface-100">
-            <p className="text-xs text-gray-400 mb-2.5">오프라인 / 자체 호스팅용 파일</p>
-            <button
-              onClick={handleHtmlExport}
-              className="w-full flex items-center justify-center gap-2 py-3 border border-surface-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors"
-            >
-              <Download size={16} /> HTML 파일 다운로드
-            </button>
-            <p className="text-xs text-gray-400 mt-2 text-center">현재 포트폴리오 레이아웃을 그대로 HTML로 내보냅니다</p>
-          </div>
         </div>
       </div>
     </div>
@@ -1587,8 +1386,8 @@ function ExperienceDetailModal({ exp, onClose }) {
   })();
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-[90vw] h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl max-w-[800px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 영역 */}
         <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
           {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
@@ -1598,7 +1397,7 @@ function ExperienceDetailModal({ exp, onClose }) {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto"><div className="max-w-[780px] mx-auto px-10 pb-14 pt-8">
+        <div className="flex-1 overflow-y-auto"><div className="px-10 pb-14 pt-8">
           {/* 제목 */}
           <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
             {exp.title || '(제목 없음)'}

@@ -47,11 +47,11 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 백엔드 서버가 실행되지 않은 경우 (ERR_CONNECTION_REFUSED / Network Error)
+    // 네트워크 오류 (ERR_CONNECTION_REFUSED / Network Error)
     if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
-      const serverError = new Error('백엔드 서버에 연결할 수 없습니다. start.ps1을 실행해 서버를 먼저 시작하세요.');
+      const serverError = new Error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
       serverError.isServerDown = true;
-      console.error('API 에러: 백엔드 서버 미실행 (ERR_CONNECTION_REFUSED)');
+      console.error('API 에러: 서버 연결 실패');
       return Promise.reject(serverError);
     }
     // 인증 토큰 만료/무효 (401) — 재로그인 유도

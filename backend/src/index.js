@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
 import experienceRoutes from './routes/experience.js';
 
 import portfolioRoutes from './routes/portfolio.js';
@@ -104,15 +103,14 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/auth', authRoutes);
 
-// 업로드된 이미지 정적 서빙 (cross-origin 허용)
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  next();
-}, express.static(path.join(process.cwd(), 'uploads')));
-
-// Health check
+// Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+  });
 });
 
 // Error handler — 프로덕션에서 내부 메시지 노출 지연
@@ -138,11 +136,17 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
-// Windows nodemon 등에서 프로세스 종료 시 Port가 점유되는(Zombie) 현상 방지
+// Graceful shutdown — 10초 내 미완료 시 강제 종료 (Render SIGTERM 대응)
 const gracefulShutdown = (signal) => {
   console.log(`\n[${signal}] 종료 신호 수신. 포트 연결을 안전하게 해제합니다...`);
+  const forceExit = setTimeout(() => {
+    console.warn('[Shutdown] 진행 중인 요청이 10초 내 완료되지 않아 강제 종료합니다.');
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
   server.close(() => {
     console.log('✅ 백엔드 서버 종료 완료. 포트 해제됨!');
+    clearTimeout(forceExit);
     process.exit(0);
   });
 };
