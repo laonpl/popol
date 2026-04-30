@@ -506,12 +506,30 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {pa.growthPath && <AnalysisCard title="성장 경로"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(pa.growthPath)}</p></AnalysisCard>}
                 {analysis.requirements?.essential?.length > 0 && (
                   <AnalysisCard title="필수 요건">
-                    {analysis.requirements.essential.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
+                    {analysis.requirements.essential.map((r, i) => {
+                      const text = typeof r === 'string' ? r : (r.requirement || r.text || r.content || JSON.stringify(r));
+                      const reason = typeof r === 'string' ? '' : r.reason;
+                      return (
+                        <div key={i} style={{ paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5 }}>
+                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{stripMd(text)}</p>
+                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{stripMd(reason)}</p>}
+                        </div>
+                      );
+                    })}
                   </AnalysisCard>
                 )}
                 {analysis.requirements?.preferred?.length > 0 && (
                   <AnalysisCard title="우대 요건">
-                    {analysis.requirements.preferred.map((r, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{r}</p>)}
+                    {analysis.requirements.preferred.map((r, i) => {
+                      const text = typeof r === 'string' ? r : (r.requirement || r.text || r.content || JSON.stringify(r));
+                      const reason = typeof r === 'string' ? '' : r.reason;
+                      return (
+                        <div key={i} style={{ paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5 }}>
+                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{stripMd(text)}</p>
+                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{stripMd(reason)}</p>}
+                        </div>
+                      );
+                    })}
                   </AnalysisCard>
                 )}
               </div>
@@ -557,18 +575,27 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {as_.appealPoints?.length > 0 && (
                   <AnalysisCard title="어필 포인트">
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {as_.appealPoints.map((p, i) => <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{p}</span>)}
+                      {as_.appealPoints.map((p, i) => {
+                        const text = typeof p === 'string' ? p : (p.point || p.text || p.content || Object.values(p)[0] || '');
+                        return <span key={i} style={{ fontSize: 12, padding: '3px 8px', border: `1px solid ${NAV}`, color: NAV }}>{stripMd(String(text))}</span>;
+                      })}
                     </div>
                   </AnalysisCard>
                 )}
                 {as_.portfolioTips?.length > 0 && (
                   <AnalysisCard title="포트폴리오 팁">
-                    {as_.portfolioTips.map((t, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{t}</p>)}
+                    {as_.portfolioTips.map((t, i) => {
+                      const text = typeof t === 'string' ? t : (t.tip || t.text || t.content || Object.values(t)[0] || '');
+                      return <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{stripMd(String(text))}</p>;
+                    })}
                   </AnalysisCard>
                 )}
                 {as_.cautionPoints?.length > 0 && (
                   <AnalysisCard title="주의 사항">
-                    {as_.cautionPoints.map((p, i) => <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #f59e0b', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{p}</p>)}
+                    {as_.cautionPoints.map((p, i) => {
+                      const text = typeof p === 'string' ? p : (p.point || p.text || p.content || Object.values(p)[0] || '');
+                      return <p key={i} style={{ color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #f59e0b', marginBottom: 5, fontSize: 13, lineHeight: 1.55 }}>{stripMd(String(text))}</p>;
+                    })}
                   </AnalysisCard>
                 )}
                 {analysis.applicationFormat?.questions?.length > 0 && (
