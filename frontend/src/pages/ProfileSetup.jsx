@@ -374,14 +374,19 @@ export default function ProfileSetup() {
           <Section title="기본 정보" icon={User}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="이름 (한글)" required value={form.nameKo}
-                onChange={v => update('nameKo', v)} placeholder="홍길동" />
+                onChange={v => update('nameKo', v)} placeholder="홍길동" maxLength={20} />
               <Field label="이름 (영문)" value={form.nameEn}
-                onChange={v => update('nameEn', v)} placeholder="Gil-dong Hong" optional />
+                onChange={v => update('nameEn', v)} placeholder="Gil-dong Hong" optional maxLength={50} />
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  거주지 <span className="text-red-400">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-500">
+                    거주지 <span className="text-red-400">*</span>
+                  </label>
+                  <span className={`text-[10px] tabular-nums ${(form.location || '').length >= 100 ? 'text-red-400 font-semibold' : (form.location || '').length >= 85 ? 'text-amber-500' : 'text-gray-300'}`}>
+                    {(form.location || '').length}/100
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -390,6 +395,7 @@ export default function ProfileSetup() {
                       value={form.location || ''}
                       onChange={e => update('location', e.target.value)}
                       placeholder="주소 검색을 눌러주세요"
+                      maxLength={100}
                       className="w-full pl-9 pr-3 py-2 text-sm border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200"
                     />
                   </div>
@@ -429,9 +435,9 @@ export default function ProfileSetup() {
               </div>
 
               <Field label="전화번호" required value={form.phone}
-                onChange={v => update('phone', v)} placeholder="010-0000-0000" icon={Phone} />
+                onChange={v => update('phone', v)} placeholder="010-0000-0000" icon={Phone} maxLength={13} />
               <Field label="이메일" required value={form.email}
-                onChange={v => update('email', v)} placeholder="example@email.com" icon={Mail} />
+                onChange={v => update('email', v)} placeholder="example@email.com" icon={Mail} maxLength={100} />
             </div>
           </Section>
 
@@ -447,9 +453,9 @@ export default function ProfileSetup() {
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="학교명" value={edu.school} required
-                      onChange={v => updateEducation(i, 'school', v)} placeholder="가천대학교" small />
+                      onChange={v => updateEducation(i, 'school', v)} placeholder="가천대학교" small maxLength={50} />
                     <Field label="전공" value={edu.major}
-                      onChange={v => updateEducation(i, 'major', v)} placeholder="컴퓨터공학과" small />
+                      onChange={v => updateEducation(i, 'major', v)} placeholder="컴퓨터공학과" small maxLength={50} />
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">학위/과정</label>
                       <select
@@ -464,7 +470,7 @@ export default function ProfileSetup() {
                       </select>
                     </div>
                     <Field label="기간" value={edu.period}
-                      onChange={v => updateEducation(i, 'period', v)} placeholder="2020.03 - 현재" small />
+                      onChange={v => updateEducation(i, 'period', v)} placeholder="2020.03 - 현재" small maxLength={30} />
                   </div>
                 </div>
               ))}
@@ -500,16 +506,22 @@ export default function ProfileSetup() {
                         <option value="__custom__">직접 입력</option>
                       </select>
                       {lang.name && !LANGUAGE_TEST_OPTIONS.includes(lang.name) && (
-                        <input
-                          value={lang.name}
-                          onChange={e => updateLang(i, 'name', e.target.value)}
-                          placeholder="시험명 직접 입력"
-                          className="w-full mt-1 px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200"
-                        />
+                        <div className="relative mt-1">
+                          <input
+                            value={lang.name}
+                            onChange={e => updateLang(i, 'name', e.target.value)}
+                            placeholder="시험명 직접 입력"
+                            maxLength={30}
+                            className="w-full px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 pr-10"
+                          />
+                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] tabular-nums pointer-events-none ${lang.name.length >= 30 ? 'text-red-400 font-semibold' : lang.name.length >= 26 ? 'text-amber-500' : 'text-gray-300'}`}>
+                            {lang.name.length}/30
+                          </span>
+                        </div>
                       )}
                     </div>
                     <Field label="점수/등급" value={lang.score}
-                      onChange={v => updateLang(i, 'score', v)} placeholder="900" small />
+                      onChange={v => updateLang(i, 'score', v)} placeholder="900" small maxLength={20} />
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">취득일</label>
                       <input
@@ -595,13 +607,22 @@ function Section({ title, icon: Icon, children, required, optional }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder, required, optional, icon: Icon, small }) {
+function Field({ label, value, onChange, placeholder, required, optional, icon: Icon, small, maxLength }) {
+  const len = (value || '').length;
+  const near = maxLength && len >= maxLength * 0.85;
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1">
-        {label} {required && <span className="text-red-400">*</span>}
-        {optional && <span className="text-gray-300">(선택)</span>}
-      </label>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-xs font-medium text-gray-500">
+          {label} {required && <span className="text-red-400">*</span>}
+          {optional && <span className="text-gray-300">(선택)</span>}
+        </label>
+        {maxLength && (
+          <span className={`text-[10px] tabular-nums ${len >= maxLength ? 'text-red-400 font-semibold' : near ? 'text-amber-500' : 'text-gray-300'}`}>
+            {len}/{maxLength}
+          </span>
+        )}
+      </div>
       <div className="relative">
         {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
         <input
@@ -609,6 +630,7 @@ function Field({ label, value, onChange, placeholder, required, optional, icon: 
           value={value || ''}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
+          maxLength={maxLength}
           className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 ${small ? 'py-1.5 text-xs' : 'py-2 text-sm'} border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200`}
         />
       </div>
