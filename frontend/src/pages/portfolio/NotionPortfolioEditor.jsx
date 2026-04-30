@@ -1179,7 +1179,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
       style={{ paddingRight: analysisMode ? '420px' : '12px' }}
       onClick={onClose}
     >
-      <div className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 w-full h-[92vh]" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 w-full max-w-[720px] h-[92vh]" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -1224,7 +1224,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto">
           {/* ── 상세보기 ── */}
-          <div className="p-8 space-y-6">
+          <div className="p-6 space-y-6">
               {/* ── 메타 인라인 편집 ── */}
               {editingMeta && metaDraft && (
                 <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">

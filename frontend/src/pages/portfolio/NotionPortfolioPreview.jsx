@@ -1387,7 +1387,7 @@ function ExperienceDetailModal({ exp, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-[800px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl max-w-[720px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 영역 */}
         <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
           {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
@@ -1397,7 +1397,7 @@ function ExperienceDetailModal({ exp, onClose }) {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto"><div className="px-10 pb-14 pt-8">
+        <div className="flex-1 overflow-y-auto"><div className="px-6 pb-10 pt-6">
           {/* 제목 */}
           <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
             {exp.title || '(제목 없음)'}
