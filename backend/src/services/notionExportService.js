@@ -123,7 +123,7 @@ const toggle = (title, children = []) => ({
 // ── Main Export Function ──
 
 export async function createNotionPortfolioPage(notionToken, parentPageId, portfolioData) {
-  const notion = new Client({ auth: notionToken });
+  const notion = new Client({ auth: notionToken, timeoutMs: 30000 });
   const p = portfolioData;
   const contact = p.contact || {};
   const skills = p.skills || {};

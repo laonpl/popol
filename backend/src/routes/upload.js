@@ -1,26 +1,14 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { randomUUID } from 'crypto';
+import path from 'path';
+import { adminStorage } from '../config/firebase.js';
 
 const router = Router();
 
-// 업로드 디렉토리 설정
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}_${randomUUID()}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -32,16 +20,23 @@ const upload = multer({
 });
 
 // POST /api/upload/image
-router.post('/image', authMiddleware, upload.single('file'), (req, res) => {
+router.post('/image', authMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 
-    // trust proxy 설정으로 req.protocol이 https를 반환하지만 안전장치 추가
-    const proto = req.get('x-forwarded-proto') || req.protocol;
-    const baseUrl = `${proto}://${req.get('host')}`;
-    const url = `${baseUrl}/uploads/${req.file.filename}`;
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
+    const storagePath = `uploads/${Date.now()}_${randomUUID()}${ext}`;
 
-    res.json({ url, filename: req.file.filename });
+    const bucket = adminStorage.bucket();
+    const fileRef = bucket.file(storagePath);
+
+    await fileRef.save(req.file.buffer, {
+      metadata: { contentType: req.file.mimetype },
+    });
+    await fileRef.makePublic();
+
+    const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    res.json({ url, filename: storagePath });
   } catch (error) {
     console.error('[Upload] 업로드 실패:', error.message);
     res.status(500).json({ error: '업로드에 실패했습니다' });
@@ -49,18 +44,18 @@ router.post('/image', authMiddleware, upload.single('file'), (req, res) => {
 });
 
 // DELETE /api/upload/image
-router.delete('/image', authMiddleware, (req, res) => {
+router.delete('/image', authMiddleware, async (req, res) => {
   try {
     const { filename } = req.body;
     if (!filename) return res.status(400).json({ error: 'filename이 필요합니다' });
 
-    // path traversal 방지: 파일명에 디렉토리 구분자 불허
-    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-      return res.status(400).json({ error: '잘못된 파일명입니다' });
-    }
+    // URL로 들어온 경우 Firebase Storage 경로 추출
+    let storagePath = filename;
+    const gsMatch = filename.match(/storage\.googleapis\.com\/[^/]+\/(.+?)(?:\?|$)/);
+    if (gsMatch) storagePath = decodeURIComponent(gsMatch[1]);
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const bucket = adminStorage.bucket();
+    await bucket.file(storagePath).delete().catch(() => {});
 
     res.json({ success: true });
   } catch (error) {

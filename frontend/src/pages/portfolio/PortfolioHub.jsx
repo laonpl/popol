@@ -291,7 +291,15 @@ export default function PortfolioHub() {
       )}
 
       {exportData && (
-        <ExportModal type="portfolio" data={exportData} onClose={() => setExportData(null)} />
+        <ExportModal
+          type="portfolio"
+          data={exportData}
+          onClose={() => setExportData(null)}
+          onTogglePublic={async (newVal) => {
+            await updatePortfolio(exportData.id, { isPublic: newVal });
+            setExportData(prev => prev ? { ...prev, isPublic: newVal } : prev);
+          }}
+        />
       )}
     </div>
     </>

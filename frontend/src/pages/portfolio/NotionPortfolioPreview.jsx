@@ -61,7 +61,7 @@ export default function NotionPortfolioPreview() {
               className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
               <Edit size={14} /> 편집
             </button>
-            <button onClick={() => toast('🚧 PPT 내보내기는 추후 업데이트 예정입니다', { icon: '🕐', style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
+            <button onClick={() => toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
               <FileText size={14} /> PPT 내보내기
             </button>
@@ -169,7 +169,7 @@ export default function NotionPortfolioPreview() {
             className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
             <Edit size={14} /> 편집
           </button>
-          <button onClick={() => toast('🚧 PPT 내보내기는 추후 업데이트 예정입니다', { icon: '🕐', style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
+          <button onClick={() => toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } })}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
             <FileText size={14} /> PPT 내보내기
           </button>
