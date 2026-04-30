@@ -8,11 +8,13 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  OAuthProvider,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
 const googleProvider = new GoogleAuthProvider();
+const kakaoProvider = new OAuthProvider('oidc.kakao');
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -74,6 +76,10 @@ const useAuthStore = create((set, get) => ({
 
   signInWithGoogle: async () => {
     await signInWithPopup(auth, googleProvider);
+  },
+
+  signInWithKakao: async () => {
+    await signInWithPopup(auth, kakaoProvider);
   },
 
   loadProfile: async (uid) => {
