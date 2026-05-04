@@ -11,23 +11,18 @@ import OnboardingOverlay, { useOnboarding } from '../../components/OnboardingOve
 
 const PORTFOLIO_ONBOARDING = [
   {
+    // "새 포트폴리오" 버튼 바로 아래에 위치, 위 화살표로 버튼 가리킴
     message: '기업별 맞춤 포트폴리오',
     sub: '지원 기업마다 다른 포트폴리오를 만들어 합격률을 높여보세요',
     arrow: 'up',
-    // ExperienceHub와 동일한 공식 (새 포트폴리오 버튼 위치)
-    style: { top: '150px', right: 'max(3px, calc(50vw - 649px))' },
+    style: { top: '162px', right: '48px' },
   },
   {
-    message: 'AI 자동완성',
-    sub: '등록한 경험을 AI가 분석해 포트폴리오 내용을 자동으로 채워줘요',
+    // 목록 위쪽 중앙-좌에 위치, 아래 화살표로 목록 가리킴
+    message: '완료된 포트폴리오는 여기에 저장돼요',
+    sub: '만든 포트폴리오를 언제든지 꺼내 수정하거나 내보낼 수 있어요',
     arrow: 'down',
-    style: { top: '240px', left: '50%', transform: 'translateX(-50%)' },
-  },
-  {
-    message: 'PDF로 바로 내보내기',
-    sub: '완성된 포트폴리오를 PDF로 변환해 바로 제출할 수 있어요',
-    arrow: 'right',
-    style: { bottom: '28%', left: '24px' },
+    style: { top: '162px', left: 'max(220px, calc(50% - 240px))' },
   },
 ];
 
