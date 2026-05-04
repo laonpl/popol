@@ -17,8 +17,8 @@ const FORMATS = [
     label: 'PPT 파일',
     icon: FileText,
     desc: '기업 제출용 프리미엄 PPT',
-    badge: '준비중',
-    info: 'PPT 내보내기 기능은 현재 개발 중입니다. 업데이트 시 알려드릴게요!',
+    badge: null,
+    info: '디자인 가이드에 맞춰 구조화된 PPT 형식으로 다운로드합니다.',
   },
 ];
 
@@ -139,8 +139,8 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
     if (!format) return;
 
     if (format === 'PPT') {
-      toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } });
-      return;
+      // toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } });
+      // return;
     }
 
     if (format === 'Link') {

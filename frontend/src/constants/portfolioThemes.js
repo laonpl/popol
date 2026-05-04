@@ -85,13 +85,13 @@ export const THEMES = {
     badge: '#eef2ff', resBg: '#eef2ff', resBd: '#b8c8f0',
     dark: false, mono: false,
   },
-  neon_cyber: {
-    label: 'Neon Cyber 디자인형',
-    bg: '#05001a', coverBg: '#0a0030', accent: '#b700ff',
-    text: '#f0e6ff', sub: '#7040a0', div: '#2a0060',
-    card: '#0e0028', step: '#16004a', tag: '#1c0056',
-    badge: '#130038', resBg: 'rgba(183,0,255,0.10)', resBd: 'rgba(183,0,255,0.35)',
-    dark: true, mono: false,
+  test_template: {
+    label: '테스트 템플릿',
+    bg: '#FAFAFA', coverBg: '#F5F5F5', accent: '#2962FF',
+    text: '#212121', sub: '#757575', div: '#E0E0E0',
+    card: '#FFFFFF', step: '#F5F5F5', tag: '#E3F2FD',
+    badge: '#E3F2FD', resBg: 'rgba(41,98,255,0.08)', resBd: 'rgba(41,98,255,0.28)',
+    dark: false, mono: false,
   },
   forest: {
     label: 'Forest 디자인형',
@@ -173,6 +173,14 @@ export const THEMES = {
     badge: '#edf4f1', resBg: '#e8f3ee', resBd: '#9bc8b4',
     dark: false, mono: false,
   },
+  design_system: {
+    label: 'Design System 템플릿',
+    bg: '#FFFFFF', coverBg: '#F8FAFC', accent: '#2962FF',
+    text: '#0F172A', sub: '#64748B', div: '#E2E8F0',
+    card: '#FFFFFF', step: '#F1F5F9', tag: '#E6EEFF',
+    badge: '#E6EEFF', resBg: 'rgba(41,98,255,0.08)', resBd: 'rgba(41,98,255,0.28)',
+    dark: false, mono: false,
+  },
 };
 
 const LAYOUT_MAP = {
@@ -185,7 +193,7 @@ const LAYOUT_MAP = {
   designer: 'design',
   t_shaped: 'tshape',
   rookie: 'growth',
-  neon_cyber: 'cyber',
+  test_template: 'cyber',
   forest: 'forest',
   aurora: 'aurora',
   sunset: 'sunset',
@@ -196,6 +204,7 @@ const LAYOUT_MAP = {
   charcoal_mint: 'charcoalmint',
   pastel_portfolio: 'pastel',
   accepted_submission: 'consult',
+  design_system: 'design_system',
 };
 
 export function getLayout(theme) {

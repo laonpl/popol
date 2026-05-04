@@ -2000,6 +2000,158 @@ function buildStrengths(prs, p, t) {
   });
 }
 
+/* ─── DESIGN SYSTEM LAYOUT ─── */
+function buildDS_Cover(prs, p, t) {
+  const slide = prs.addSlide(); addBg(slide, t.bg);
+  for(let i=1; i<10; i++) { hrLine(slide, 0, i*(SH/10), SW, t.div+'40'); rect(slide, i*(SW/10), 0, 0.01, SH, t.div+'40'); }
+  txt(slide, '01. FOUNDATION', 0.5, 0.4, 5, 0.4, { fontSize: 36, fontFace: 'Arial', color: hexClean(t.text), bold: true });
+  txt(slide, 'PORTFOLIO DESIGN SYSTEM', 0.5, 0.9, 5, 0.2, { fontSize: 11, color: hexClean(t.sub), bold: true, charSpacing: 3 });
+  
+  txt(slide, 'COLOR PALETTE', 0.5, 1.8, 3, 0.2, { fontSize: 12, bold: true, color: hexClean(t.text) });
+  roundRect(slide, 0.5, 2.1, 1.4, 1.0, t.accent, null, 0.04);
+  txt(slide, 'Primary\n'+t.accent, 0.5, 3.3, 1.4, 0.4, { fontSize: 9.5, color: hexClean(t.sub), align: 'center' });
+  roundRect(slide, 2.1, 2.1, 1.4, 1.0, t.text, null, 0.04);
+  txt(slide, 'Text\n'+t.text, 2.1, 3.3, 1.4, 0.4, { fontSize: 9.5, color: hexClean(t.sub), align: 'center' });
+  roundRect(slide, 3.7, 2.1, 1.4, 1.0, t.div, null, 0.04);
+  txt(slide, 'Divider\n'+t.div, 3.7, 3.3, 1.4, 0.4, { fontSize: 9.5, color: hexClean(t.sub), align: 'center' });
+  
+  const RX = 5.6;
+  roundRect(slide, RX, 0.5, SW-RX-0.5, SH-1.0, t.card, t.div, 0.1);
+  txt(slide, 'PROPERTIES', RX+0.4, 0.8, 3, 0.2, { fontSize: 11, bold: true, color: hexClean(t.accent), charSpacing: 2 });
+  hrLine(slide, RX+0.4, 1.15, SW-RX-1.3, t.div);
+  const props = [
+    { k: 'Name', v: p.userName || '이름 미상' },
+    { k: 'Role', v: p.targetPosition || '포지션' },
+    { k: 'Email', v: p.contact?.email || '-' },
+    { k: 'GitHub', v: p.contact?.github || '-' },
+    { k: 'Tagline', v: p.headline || '디자인 시스템 포트폴리오' }
+  ];
+  let py = 1.4;
+  props.forEach(pr => {
+    txt(slide, pr.k, RX+0.4, py, 1.2, 0.3, { fontSize: 11, color: hexClean(t.sub), bold: true });
+    txt(slide, sh(pr.v, 40), RX+1.6, py, 2.2, 0.4, { fontSize: 11, color: hexClean(t.text), wrap: true, lineSpacing: 1.2 });
+    hrLine(slide, RX+0.4, py+0.45, SW-RX-1.3, t.div+'88');
+    py += 0.6;
+  });
+}
+
+function buildDS_Profile(prs, p, t) {
+  const slide = prs.addSlide(); addBg(slide, t.bg);
+  txt(slide, '02. COMPONENTS', 0.5, 0.4, 4, 0.4, { fontSize: 32, fontFace: 'Arial', color: hexClean(t.text), bold: true });
+  txt(slide, 'PROFILE & SKILLS', 0.5, 0.9, 5, 0.2, { fontSize: 10, color: hexClean(t.sub), bold: true, charSpacing: 4 });
+  const edu = (p.education || []).slice(0,4);
+  const sk = p.skills || {};
+  const langs = [...(sk.languages||[]), ...(sk.frameworks||[]), ...(sk.tools||[])].map(s=>typeof s==='string'?s:s?.name).filter(Boolean);
+  
+  const LW = 4.4;
+  roundRect(slide, 0.5, 1.4, LW, 3.8, t.card, t.div, 0.1);
+  txt(slide, 'Education Form Elements', 0.7, 1.6, 3, 0.2, { fontSize: 11, bold: true, color: hexClean(t.accent) });
+  let ey = 1.9;
+  edu.forEach(e => {
+    roundRect(slide, 0.7, ey, LW-0.4, 0.65, t.bg, t.div, 0.06);
+    txt(slide, sh(e.name, 35), 0.8, ey+0.1, LW-0.6, 0.25, { fontSize: 11, bold: true, color: hexClean(t.text), wrap: true });
+    txt(slide, (e.degree||'')+' | '+(e.period||''), 0.8, ey+0.35, LW-0.6, 0.2, { fontSize: 9.5, color: hexClean(t.sub) });
+    ey += 0.8;
+  });
+  
+  const RX = 5.2, RW = SW-RX-0.5;
+  roundRect(slide, RX, 1.4, RW, 3.8, t.card, t.div, 0.1);
+  txt(slide, 'Skill Tags / Badges Matrix', RX+0.3, 1.6, 3, 0.2, { fontSize: 11, bold: true, color: hexClean(t.accent) });
+  let px = RX+0.3, py = 1.9;
+  langs.forEach((s, i) => {
+    const sw = Math.min(s.length*0.12 + 0.35, RW-0.6);
+    if(px + sw > RX+RW-0.3) { px = RX+0.3; py += 0.45; }
+    const isPrimary = i%4===0;
+    const isSec = i%4===1;
+    const bg = isPrimary ? t.accent : (isSec ? t.text : t.badge);
+    const border = isPrimary ? t.accent : (isSec ? t.text : t.div);
+    const tc = isPrimary||isSec ? 'ffffff' : t.text;
+    roundRect(slide, px, py, sw, 0.32, bg, border, 0.16);
+    txt(slide, s, px, py+0.04, sw, 0.24, { fontSize: 9.5, bold: true, align: 'center', color: hexClean(tc), wrap: true });
+    px += sw + 0.15;
+  });
+}
+
+function buildDS_Experience(prs, exp, idx, t, f) {
+  const slide = prs.addSlide(); addBg(slide, t.bg);
+  txt(slide, '03. USE CASES', 0.5, 0.4, 4, 0.4, { fontSize: 32, fontFace: 'Arial', color: hexClean(t.text), bold: true });
+  txt(slide, 'PROJECT EXPERIENCE ' + String(idx+1).padStart(2,'0'), 0.5, 0.9, 5, 0.2, { fontSize: 10, color: hexClean(t.sub), bold: true, charSpacing: 4 });
+  
+  roundRect(slide, 0.5, 1.3, SW-1.0, 0.7, t.accent+'15', t.accent, 0.08);
+  txt(slide, '<ProjectCard />', 0.7, 1.45, 2.0, 0.3, { fontSize: 14, fontFace: 'Courier New', bold: true, color: hexClean(t.accent) });
+  txt(slide, sh(exp.title||'', 60), 2.8, 1.4, SW-3.5, 0.3, { fontSize: 16, bold: true, color: hexClean(t.text), wrap: true });
+  if (exp.role || exp.date) {
+    txt(slide, (exp.role||'') + ' | ' + (exp.date||''), 2.8, 1.7, SW-3.5, 0.2, { fontSize: 9.5, color: hexClean(t.sub) });
+  }
+
+  const CY = 2.15, CH = SH-CY-0.3;
+  const colW = (SW-1.4)/3;
+  
+  const X1 = 0.5;
+  roundRect(slide, X1, CY, colW, CH, t.card, t.div, 0.08);
+  txt(slide, 'Props: Background', X1+0.2, CY+0.15, colW-0.4, 0.2, { fontSize: 11, bold: true, color: hexClean(t.text) });
+  hrLine(slide, X1+0.2, CY+0.4, colW-0.4, t.div);
+  const prob = smartBullets(f.task || f.overview || exp.description || '', 4, 45).slice(0,4);
+  let y1 = CY+0.5;
+  prob.forEach(item => {
+    const ih = Math.max(0.26, Math.ceil(item.length/24)*0.22+0.04);
+    txt(slide, '▪', X1+0.1, y1, 0.15, ih, { fontSize: 12, color: hexClean(t.accent), valign: 'top' });
+    txt(slide, item, X1+0.25, y1, colW-0.35, ih, { fontSize: 10, color: hexClean(t.sub), valign: 'top', wrap: true, lineSpacing: 1.3 });
+    y1 += ih+0.08;
+  });
+
+  const X2 = X1 + colW + 0.2;
+  roundRect(slide, X2, CY, colW, CH, t.card, t.div, 0.08);
+  txt(slide, 'Methods: Action', X2+0.2, CY+0.15, colW-0.4, 0.2, { fontSize: 11, bold: true, color: hexClean(t.text) });
+  hrLine(slide, X2+0.2, CY+0.4, colW-0.4, t.div);
+  const sol = smartBullets(f.process || f.intro || '', 4, 45).slice(0,4);
+  let y2 = CY+0.5;
+  sol.forEach((item, i) => {
+    const ih = Math.max(0.26, Math.ceil(item.length/24)*0.22+0.04);
+    roundRect(slide, X2+0.15, y2+0.02, 0.12, 0.12, t.accent, null, 0.06);
+    txt(slide, item, X2+0.35, y2, colW-0.45, ih, { fontSize: 10.5, color: hexClean(t.text), valign: 'top', wrap: true, lineSpacing: 1.3 });
+    y2 += ih+0.08;
+  });
+
+  const X3 = X2 + colW + 0.2;
+  roundRect(slide, X3, CY, colW, CH, t.card, t.div, 0.08);
+  txt(slide, 'Returns: Impact', X3+0.2, CY+0.15, colW-0.4, 0.2, { fontSize: 11, bold: true, color: hexClean(t.text) });
+  hrLine(slide, X3+0.2, CY+0.4, colW-0.4, t.div);
+  const kx = (f.keyExperiences||[]).slice(0,2);
+  let y3 = CY+0.5;
+  if (kx.length > 0) {
+    kx.forEach(m => {
+      roundRect(slide, X3+0.15, y3, colW-0.3, 0.6, t.accent+'15', t.div, 0.06);
+      txt(slide, sh(m.title||'Metric', 30), X3+0.25, y3+0.1, colW-0.5, 0.15, { fontSize: 9.5, color: hexClean(t.sub), bold: true, wrap: true });
+      txt(slide, sh(m.metric||'-', 20), X3+0.25, y3+0.25, colW-0.5, 0.3, { fontSize: 18, color: hexClean(t.accent), bold: true, wrap: true });
+      y3 += 0.75;
+    });
+  } else {
+    const res = smartBullets(f.output || f.growth || '', 4, 45).slice(0,4);
+    res.forEach(item => {
+      const ih = Math.max(0.26, Math.ceil(item.length/24)*0.22+0.04);
+      circle(slide, X3+0.15, y3+0.06, 0.08, t.accent);
+      txt(slide, item, X3+0.3, y3, colW-0.4, ih, { fontSize: 10.5, color: hexClean(t.text), valign: 'top', wrap: true, lineSpacing: 1.3 });
+      y3 += ih+0.08;
+    });
+  }
+}
+
+function buildDesignSystemPortfolio(prs, portfolio, themeObj) {
+  const p = portfolio, t = themeObj;
+  buildDS_Cover(prs, p, t);
+  buildDS_Profile(prs, p, t);
+  (p.experiences||[]).forEach((exp, idx) => {
+    const f = extractFields(exp);
+    buildDS_Experience(prs, exp, idx, t, f);
+  });
+  
+  const slide = prs.addSlide(); addBg(slide, t.bg);
+  txt(slide, 'THANK YOU', 0.5, SH/2-0.5, SW-1.0, 1.0, { fontSize: 48, fontFace: 'Arial', bold: true, color: hexClean(t.accent), align: 'center' });
+  txt(slide, 'Design System Portfolio Generated', 0.5, SH/2+0.6, SW-1.0, 0.3, { fontSize: 12, color: hexClean(t.sub), align: 'center', charSpacing: 2 });
+}
+/* ─── END DESIGN SYSTEM ─── */
+
 /* ─── MAIN EXPORT ─── */
 export async function generatePptx(portfolio, theme, themeObj) {
   const { default: PptxGenJS } = await import('pptxgenjs');
@@ -2014,6 +2166,13 @@ export async function generatePptx(portfolio, theme, themeObj) {
   prs.subject = 'Portfolio';
   const t = themeObj;
   const p = portfolio;
+  
+  if (getLayout(theme) === 'design_system') {
+    buildDesignSystemPortfolio(prs, portfolio, themeObj);
+    const name = (p.userName || 'portfolio').replace(/\s+/g, '_') + '_portfolio.pptx';
+    return await prs.writeFile({ fileName: name });
+  }
+
   const exps = p.experiences || [];
   const sk = p.skills || {};
   const hasSkills = [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])].length > 0;
