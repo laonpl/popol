@@ -2866,68 +2866,6 @@ export default function PdfPortfolioExport() {
             ))}
             <OutroSlide p={p} t={t} />
           </>
-        )
-      </div>
-            ) : directPreviewData ? (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm font-bold text-gray-700">슬라이드 미리보기 — {directPreviewData.length}개</div>
-                  <button type="button" onClick={() => setDirectPreviewData(null)} className="text-xs text-blue-600 hover:underline">다시 분석</button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-                  {directPreviewData.map(slide => <DirectSlidePreview key={slide.slideIndex} slide={slide} />)}
-                </div>
-                <div className="mt-4 text-[11px] text-gray-400 text-center">위 내용이 각 슬라이드 텍스트 자리에 배치됩니다. 마음에 들면 상단의 'PPT 저장'을 누르세요.</div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50 px-8 py-10 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                  <Wand2 size={22} />
-                </div>
-                <div className="text-base font-bold text-gray-800">템플릿 적용하기를 눌러 미리보기</div>
-                <div className="mt-2 text-sm leading-6 text-gray-500">
-                  {directTemplateArrayBuffer ? "위의 '템플릿 적용하기' 버튼을 눌러 AI가 슬라이드별 내용을 배치한 미리보기를 확인하세요." : 'PPTX 템플릿 파일을 먼저 업로드하세요.'}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : isTestTemplate ? (
-          <>
-            {layout === 'test2_ppt' ? <Test2CoverSlide p={p} t={t} /> : layout === 'test3_ppt' ? <Test3CoverSlide p={p} t={t} /> : <Test1CoverSlide p={p} t={t} />}
-            {layout === 'test2_ppt' ? <Test2SummarySlide p={p} t={t} /> : layout === 'test3_ppt' ? <Test3SummarySlide p={p} t={t} /> : <Test1SummarySlide p={p} t={t} />}
-            {previewT1ProjectStories(p).map((proof, idx) => {
-              const cards = previewT1SectionCards(proof.exp, proof.fields);
-              const detailSlides = [];
-              for (let i = 0; i < cards.length; i += 4) {
-                detailSlides.push(
-                  layout === 'test2_ppt'
-                    ? <Test2SectionDigestSlide key={`section-${idx}-${i}`} proof={proof} pageIdx={Math.floor(i / 4)} cards={cards.slice(i, i + 4)} t={t} />
-                    : layout === 'test3_ppt'
-                      ? <Test3SectionDigestSlide key={`section-${idx}-${i}`} proof={proof} pageIdx={Math.floor(i / 4)} cards={cards.slice(i, i + 4)} t={t} />
-                      : <Test1SectionDigestSlide key={`section-${idx}-${i}`} proof={proof} pageIdx={Math.floor(i / 4)} cards={cards.slice(i, i + 4)} t={t} />
-                );
-              }
-              return <div key={idx} style={{ display: 'contents' }}>
-                {layout === 'test2_ppt' ? <Test2CaseSlide proof={proof} idx={idx} t={t} /> : layout === 'test3_ppt' ? <Test3CaseSlide proof={proof} idx={idx} t={t} /> : <Test1CaseSlide proof={proof} idx={idx} t={t} />}
-                {detailSlides}
-              </div>;
-            })}
-            <OutroSlide p={p} t={t} />
-          </>
-        ) : (
-          <>
-            <CoverSlide p={p} t={t} theme={theme} />
-            <ProfileSlide p={p} t={t} />
-            {hasSkills && <SkillsSlide p={p} t={t} />}
-            {expSlides.map(({ exp, f, hasSit, hasRes }, idx) => (
-              <div key={idx} style={{ display: 'contents' }}>
-                <SectionDivider exp={exp} idx={idx} t={t} />
-                {hasSit && <SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
-                {hasRes && <ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
-              </div>
-            ))}
-            <OutroSlide p={p} t={t} />
-          </>
         )}
       </div>
 
