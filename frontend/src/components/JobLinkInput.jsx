@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
 import api from '../services/api';
 
@@ -208,7 +208,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
             onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
           />
           {detectedSite && (
-            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
               {detectedSite.name}
             </span>
           )}
@@ -238,8 +238,8 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             {STAGES.slice(0, 4).map((s, i) => (
-              <div key={i} className={`text-[11px] font-medium transition-colors ${progress >= s.at ? 'text-blue-600' : 'text-gray-300'}`}>
-                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[10px] ${progress >= s.at ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+              <div key={i} className={`text-[13px] font-medium transition-colors ${progress >= s.at ? 'text-blue-600' : 'text-gray-300'}`}>
+                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[12px] ${progress >= s.at ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                   {progress >= (STAGES[i + 1]?.at || 100) ? '✓' : i + 1}
                 </div>
                 {s.label.replace(' 중...', '')}

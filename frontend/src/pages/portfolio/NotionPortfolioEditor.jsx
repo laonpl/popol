@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -753,7 +753,7 @@ export default function NotionPortfolioEditor() {
               const catLabel = { required: '필수 서류', format: '포맷/형식', content: '담아야 할 내용', submission: '제출 방법' }[cat];
               return (
                 <div key={cat}>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{catLabel}</p>
+                  <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{catLabel}</p>
                   {items.map((item, i) => (
                     <div key={i} className="flex items-start gap-2 py-1">
                       <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center mt-0.5 ${
@@ -772,7 +772,7 @@ export default function NotionPortfolioEditor() {
           </div>
           {reqChecklist.some(c => !c.passed) && (
             <div className="px-4 pb-3">
-              <p className="text-[11px] text-orange-600 bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
+              <p className="text-[13px] text-orange-600 bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
                 미충족 항목을 보완하면 지원 경쟁력이 높아집니다
               </p>
             </div>
@@ -1140,7 +1140,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="text-sm font-bold text-indigo-800">AI 내용 추천</h4>
-                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
+                <p className="text-[13px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {data && !loading && (
@@ -1170,13 +1170,13 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천안</span>
-                  <span className="text-[10px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
+                  <span className="text-[12px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {data.recommendations.map((rec, i) => (
                     <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
                       <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
                         <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
                         <button
                           type="button"
@@ -1547,22 +1547,22 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   <div className="space-y-2 border-b border-surface-100 pb-4">
                     {duration && (
                       <div className="flex items-center gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
-                        <span className="text-[13px] text-gray-700">{duration}</span>
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">기간</span>
+                        <span className="text-[15px] text-gray-700">{duration}</span>
                       </div>
                     )}
                     {role && (
                       <div className="flex items-start gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
-                        <span className="text-[13px] text-gray-700 leading-relaxed">{role}</span>
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                        <span className="text-[15px] text-gray-700 leading-relaxed">{role}</span>
                       </div>
                     )}
                     {techStack.length > 0 && (
                       <div className="flex items-start gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
                         <div className="flex flex-wrap gap-1.5">
                           {techStack.map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-gray-600 rounded text-[12px]">
+                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-gray-600 rounded text-[14px]">
                               {typeof t === 'string' ? t : t?.name || ''}
                             </span>
                           ))}
@@ -1571,10 +1571,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     )}
                     {keywords.length > 0 && (
                       <div className="flex items-start gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
                         <div className="flex flex-wrap gap-1.5">
                           {keywords.slice(0, 6).map((kw, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                            <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[14px] font-medium">
                               {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
                             </span>
                           ))}
@@ -1583,14 +1583,14 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     )}
                     {goal && (
                       <div className="flex items-start gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
-                        <span className="text-[13px] text-gray-700 leading-relaxed">{goal}</span>
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                        <span className="text-[15px] text-gray-700 leading-relaxed">{goal}</span>
                       </div>
                     )}
                     {exp.link && (
                       <div className="flex items-center gap-4">
-                        <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">링크</span>
-                        <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[13px] text-primary-600 hover:underline">
+                        <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">링크</span>
+                        <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
                           <ExternalLink size={12} /> {exp.link}
                         </a>
                       </div>
@@ -1661,7 +1661,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   <div className="bg-white rounded-xl border border-surface-100 overflow-hidden">
                     {/* Notion 스타일 헤더 */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-                      <span className="text-[14px] font-bold text-gray-800">상세 내용</span>
+                      <span className="text-[16px] font-bold text-gray-800">상세 내용</span>
                       <div className="flex items-center gap-2">
                         {editingSections ? (
                           <>
@@ -1706,11 +1706,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                               {isJobType && (
                                 <span className="inline-block w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
                               )}
-                              <h3 className={`text-[13px] font-bold ${isJobType ? 'text-violet-700' : 'text-gray-500'} uppercase tracking-wide`}>
+                              <h3 className={`text-[15px] font-bold ${isJobType ? 'text-violet-700' : 'text-gray-500'} uppercase tracking-wide`}>
                                 {sect.label}
                               </h3>
                               {isJobType && (
-                                <span className="text-[10px] bg-violet-50 text-violet-500 px-1.5 py-0.5 rounded-full font-medium">직군특화</span>
+                                <span className="text-[12px] bg-violet-50 text-violet-500 px-1.5 py-0.5 rounded-full font-medium">직군특화</span>
                               )}
                             </div>
                             {/* Notion 스타일 본문 */}
@@ -1719,10 +1719,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                                 value={sectionDraft[sect.key] ?? ''}
                                 onChange={e => setSectionDraft(prev => ({ ...prev, [sect.key]: e.target.value }))}
                                 rows={4}
-                                className="w-full px-4 py-3 border border-gray-100 rounded-xl text-[14px] text-gray-800 leading-[1.9] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow bg-gray-50"
+                                className="w-full px-4 py-3 border border-gray-100 rounded-xl text-[16px] text-gray-800 leading-[1.9] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow bg-gray-50"
                               />
                             ) : (
-                              <p className={`text-[14px] leading-[1.9] whitespace-pre-wrap ${isJobType ? 'text-gray-700' : 'text-gray-600'} font-[450]`}>
+                              <p className={`text-[16px] leading-[1.9] whitespace-pre-wrap ${isJobType ? 'text-gray-700' : 'text-gray-600'} font-[450]`}>
                                 {editVal}
                               </p>
                             )}
@@ -1790,9 +1790,9 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천 핵심 경험</span>
-                        <span className="text-[10px] text-indigo-400">{Math.min(tailorResult.keyExperiences.length, 3)}개 선별됨</span>
+                        <span className="text-[12px] text-indigo-400">{Math.min(tailorResult.keyExperiences.length, 3)}개 선별됨</span>
                       </div>
-                      <p className="text-[10px] text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2 border border-indigo-100">
+                      <p className="text-[12px] text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2 border border-indigo-100">
                         기존 핵심 경험은 초기화되었습니다. 적용할 항목을 선택해 추가하세요.
                       </p>
                       {tailorResult.keyExperiences.slice(0, 3).map((ke, ki) => {
@@ -1801,12 +1801,12 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                           <div key={ki} className="rounded-xl border border-indigo-200 overflow-hidden bg-white">
                             {/* 헤더 */}
                             <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100">
-                              <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{ki + 1}</span>
+                              <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{ki + 1}</span>
                               <span className="text-xs font-bold text-gray-800 flex-1 leading-tight truncate">{ke.title}</span>
                               <button
                                 onClick={() => applyKeyExperience(ke, ki)}
                                 disabled={isApplied}
-                                className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                                className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-medium transition-colors ${
                                   isApplied
                                     ? 'bg-green-100 text-green-700 cursor-default'
                                     : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
@@ -1818,34 +1818,34 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                             {/* 적합 이유 */}
                             {ke.relevance && (
                               <div className="px-3 pt-2.5 pb-1">
-                                <p className="text-[10px] text-indigo-500 italic leading-relaxed">{ke.relevance}</p>
+                                <p className="text-[12px] text-indigo-500 italic leading-relaxed">{ke.relevance}</p>
                               </div>
                             )}
                             {/* 첨삭 내용 필드들 */}
                             <div className="divide-y divide-gray-50 px-3 pb-2">
                               {ke.title && (
                                 <div className="py-2">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">제목</p>
-                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.title)}</p>
+                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">제목</p>
+                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.title)}</p>
                                 </div>
                               )}
                               {/* 문제 상황: situation 우선, 없으면 problem */}
                               {(ke.situation || ke.problem) && (
                                 <div className="py-2">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">문제 상황</p>
-                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.situation || ke.problem)}</p>
+                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">문제 상황</p>
+                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.situation || ke.problem)}</p>
                                 </div>
                               )}
                               {ke.action && (
                                 <div className="py-2">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">핵심 행동</p>
-                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.action)}</p>
+                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">핵심 행동</p>
+                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.action)}</p>
                                 </div>
                               )}
                               {ke.result && (
                                 <div className="py-2">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">성과</p>
-                                  <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.result)}</p>
+                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">성과</p>
+                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.result)}</p>
                                 </div>
                               )}
                             </div>
@@ -1884,12 +1884,12 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     return (
                       <div key={key} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
                         <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold">{meta.num}</span>
+                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
                           <span className="text-xs font-bold text-gray-700 flex-1">{meta.label}</span>
                           <button
                             onClick={() => applySingleSection(key)}
                             disabled={isApplied}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-medium transition-colors ${
                               isApplied
                                 ? 'bg-green-100 text-green-700 cursor-default'
                                 : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
@@ -1901,7 +1901,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                         <div className="p-3">
                           <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(section.content)}</p>
                           {section.reason && (
-                            <p className="text-[10px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason)}</p>
+                            <p className="text-[12px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason)}</p>
                           )}
                         </div>
                       </div>
@@ -1911,10 +1911,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   {/* 강조 스킬 */}
                   {tailorMode === 'section' && tailorResult.highlightedSkills?.length > 0 && (
                     <div className="pt-2">
-                      <p className="text-[10px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">기업 어필 스킬</p>
+                      <p className="text-[12px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">기업 어필 스킬</p>
                       <div className="flex flex-wrap gap-1.5">
                         {tailorResult.highlightedSkills.map((s, si) => (
-                          <span key={si} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[10px] font-medium">{s}</span>
+                          <span key={si} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[12px] font-medium">{s}</span>
                         ))}
                       </div>
                     </div>
@@ -1922,7 +1922,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
                   {/* 적합도 메모 */}
                   {tailorMode === 'section' && tailorResult.relevanceNote && (
-                    <p className="text-[10px] text-gray-500 italic bg-gray-50 rounded-xl px-3 py-2">{stripMd(tailorResult.relevanceNote)}</p>
+                    <p className="text-[12px] text-gray-500 italic bg-gray-50 rounded-xl px-3 py-2">{stripMd(tailorResult.relevanceNote)}</p>
                   )}
                 </div>
               )}
@@ -2257,7 +2257,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
               <button
                 type="button"
                 onClick={() => insertImageAfter(i)}
-                className="flex items-center gap-1 mt-0.5 px-2 py-0.5 text-[11px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded border border-dashed border-gray-200 hover:border-blue-300 transition-all"
+                className="flex items-center gap-1 mt-0.5 px-2 py-0.5 text-[13px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded border border-dashed border-gray-200 hover:border-blue-300 transition-all"
                 title="이미지 삽입"
               >
                 <ImageIcon size={11} /> 이미지 삽입
@@ -2284,7 +2284,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
 
                 {/* 상단 툴바 */}
                 <div className="absolute top-2 left-2 right-2 flex items-center justify-between opacity-0 group-hover/rimg:opacity-100 transition-opacity">
-                  <label className="bg-black/60 text-white text-[10px] px-2 py-0.5 rounded cursor-pointer hover:bg-black/80">
+                  <label className="bg-black/60 text-white text-[12px] px-2 py-0.5 rounded cursor-pointer hover:bg-black/80">
                     교체
                     <input type="file" accept="image/*" className="hidden" onChange={async e => {
                       const file = e.target.files?.[0]; if (!file) return;
@@ -2324,7 +2324,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
                   style={{ background: 'rgba(99,102,241,0.5)' }} />
 
                 {/* 크기 표시 배지 */}
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover/rimg:opacity-100 transition-opacity pointer-events-none">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[11px] px-1.5 py-0.5 rounded opacity-0 group-hover/rimg:opacity-100 transition-opacity pointer-events-none">
                   {seg.width || '100%'}
                 </div>
               </div>
@@ -2668,7 +2668,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                       {(rec.matchedKeywords || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {rec.matchedKeywords.map((mk, mi) => (
-                            <span key={mi} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-medium">{mk}</span>
+                            <span key={mi} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[12px] font-medium">{mk}</span>
                           ))}
                         </div>
                       )}
@@ -2700,13 +2700,13 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     placeholder="제목" className="w-full text-sm font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
                   <input value={e.date || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { date: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
                     placeholder="날짜" className="w-full text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] mt-1" />
-                  {e.description && <p className="text-[11px] text-[#8a8578] mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
+                  {e.description && <p className="text-[13px] text-[#8a8578] mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
                   {(e.skills || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {(e.skills || []).slice(0, 3).map((sk, si) => (
-                        <span key={si} className="px-1.5 py-0.5 bg-[#f0ece4] text-[#8a6c4a] rounded text-[10px]">{typeof sk === 'string' ? sk : sk?.name}</span>
+                        <span key={si} className="px-1.5 py-0.5 bg-[#f0ece4] text-[#8a6c4a] rounded text-[12px]">{typeof sk === 'string' ? sk : sk?.name}</span>
                       ))}
-                      {(e.skills || []).length > 3 && <span className="text-[10px] text-[#8a8578]">+{(e.skills || []).length - 3}</span>}
+                      {(e.skills || []).length > 3 && <span className="text-[12px] text-[#8a8578]">+{(e.skills || []).length - 3}</span>}
                     </div>
                   )}
                 </div>
@@ -2928,7 +2928,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           </div>
                           <div className="p-3">
                             <p className="text-sm font-bold text-[#2d2a26] truncate">{card.title||'(제목 없음)'}</p>
-                            <p className="text-[11px] text-[#8a8578] mt-0.5">{card.date||''}</p>
+                            <p className="text-[13px] text-[#8a8578] mt-0.5">{card.date||''}</p>
                           </div>
                           <button onClick={ev=>{ev.stopPropagation();updateCards(cards.filter((_,j)=>j!==ci));}} className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-[#c4b89a] hover:text-red-400 shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity"><Trash2 size={11}/></button>
                         </div>
@@ -2968,7 +2968,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                                 setProjectBlockPickerIdx(null);
                               }} className="w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-[#f7f5f0] transition-colors">
                                 {exp.images?.[0]||exp.thumbnailUrl ? <img src={exp.images?.[0]||exp.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 mt-0.5" /> : <div className="w-8 h-8 rounded bg-[#f0ece4] flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-[#c4b89a]"/></div>}
-                                <div className="min-w-0"><p className="text-sm text-[#2d2a26] font-medium truncate">{exp.title}</p>{exp.date&&<p className="text-[10px] text-[#8a8578]">{exp.date}</p>}</div>
+                                <div className="min-w-0"><p className="text-sm text-[#2d2a26] font-medium truncate">{exp.title}</p>{exp.date&&<p className="text-[12px] text-[#8a8578]">{exp.date}</p>}</div>
                               </button>
                             ))}
                           </div>
@@ -2991,7 +2991,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             </button>
             {showCustomBlockMenu && (
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-20 py-2 w-60">
-                <p className="px-3 py-1 text-[10px] text-[#8a8578] font-bold uppercase tracking-wider">기본 블록</p>
+                <p className="px-3 py-1 text-[12px] text-[#8a8578] font-bold uppercase tracking-wider">기본 블록</p>
                 {[
                   { type: 'heading', icon: <Type size={14}/>, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14}/>, label: '텍스트', desc: '자유 텍스트 블록' },
@@ -3001,15 +3001,15 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowCustomBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#f7f5f0] text-left">
                     <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]">{item.icon}</span>
-                    <div><p className="text-sm font-medium text-[#2d2a26]">{item.label}</p><p className="text-[10px] text-[#8a8578]">{item.desc}</p></div>
+                    <div><p className="text-sm font-medium text-[#2d2a26]">{item.label}</p><p className="text-[12px] text-[#8a8578]">{item.desc}</p></div>
                   </button>
                 ))}
                 <div className="border-t border-[#e8e4dc] mt-1 pt-1">
-                  <p className="px-3 py-1 text-[10px] text-[#8a8578] font-bold uppercase tracking-wider">콘텐츠 블록</p>
+                  <p className="px-3 py-1 text-[12px] text-[#8a8578] font-bold uppercase tracking-wider">콘텐츠 블록</p>
                   <button onClick={() => { addToArray('customBlocks', { type: 'project', content: [] }); setShowCustomBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#f7f5f0] text-left">
                     <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]"><Briefcase size={14}/></span>
-                    <div><p className="text-sm font-medium text-[#2d2a26]">프로젝트 / 경험</p><p className="text-[10px] text-[#8a8578]">카드 갤러리, DB에서 불러오기 지원</p></div>
+                    <div><p className="text-sm font-medium text-[#2d2a26]">프로젝트 / 경험</p><p className="text-[12px] text-[#8a8578]">카드 갤러리, DB에서 불러오기 지원</p></div>
                   </button>
                 </div>
               </div>
@@ -3539,7 +3539,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                       {(rec.matchedKeywords || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {rec.matchedKeywords.map((mk, mi) => (
-                            <span key={mi} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-medium">{mk}</span>
+                            <span key={mi} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[12px] font-medium">{mk}</span>
                           ))}
                         </div>
                       )}
@@ -3567,13 +3567,13 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                     placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300" />
                   <input value={e.date || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { date: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
                     placeholder="날짜" className="w-full text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 mt-0.5" />
-                  {e.description && <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
+                  {e.description && <p className="text-[13px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
                   {(e.skills || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {(e.skills || []).slice(0, 3).map((sk, si) => (
-                        <span key={si} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">{typeof sk === 'string' ? sk : sk?.name}</span>
+                        <span key={si} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[12px]">{typeof sk === 'string' ? sk : sk?.name}</span>
                       ))}
-                      {(e.skills || []).length > 3 && <span className="text-[10px] text-gray-400">+{(e.skills || []).length - 3}</span>}
+                      {(e.skills || []).length > 3 && <span className="text-[12px] text-gray-400">+{(e.skills || []).length - 3}</span>}
                     </div>
                   )}
                 </div>
@@ -3783,7 +3783,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             </button>
             {showBlockMenu && (
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-2 w-60">
-                <p className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
+                <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
                   { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
@@ -3793,15 +3793,15 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '' }); setShowBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
                     <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500">{item.icon}</span>
-                    <div><p className="text-sm font-medium text-gray-700">{item.label}</p><p className="text-[10px] text-gray-400">{item.desc}</p></div>
+                    <div><p className="text-sm font-medium text-gray-700">{item.label}</p><p className="text-[12px] text-gray-400">{item.desc}</p></div>
                   </button>
                 ))}
                 <div className="border-t border-gray-100 mt-1 pt-1">
-                  <p className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
+                  <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
                   <button onClick={() => { addToArray('customBlocks', { type: 'project', content: [] }); setShowBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
                     <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500"><Briefcase size={14}/></span>
-                    <div><p className="text-sm font-medium text-gray-700">프로젝트/경험</p><p className="text-[10px] text-gray-400">프로젝트 카드 그리드</p></div>
+                    <div><p className="text-sm font-medium text-gray-700">프로젝트/경험</p><p className="text-[12px] text-gray-400">프로젝트 카드 그리드</p></div>
                   </button>
                 </div>
               </div>
@@ -4689,7 +4689,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
                     <div className="flex gap-1 mt-1">
                       {(rec.matchedKeywords || []).map((k, ki) => (
-                        <span key={ki} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">{k}</span>
+                        <span key={ki} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[12px] font-medium">{k}</span>
                       ))}
                     </div>
                   </div>
@@ -4725,7 +4725,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <input value={exp.title || ''} onChange={e => updateArrayItem('experiences', i, { title: e.target.value })}
                   placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded" />
                 <input value={exp.date || ''} onChange={e => updateArrayItem('experiences', i, { date: e.target.value })}
-                  placeholder="날짜" className="w-full text-[11px] text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded mt-1" />
+                  placeholder="날짜" className="w-full text-[13px] text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded mt-1" />
               </div>
               {/* Delete button */}
               <button onClick={() => removeFromArray('experiences', i)}
@@ -5174,14 +5174,14 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                         </div>
                         <div className="p-3">
                           <p className="text-sm font-bold text-gray-800 truncate">{card.title || '(제목 없음)'}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{card.date || ''}</p>
-                          {card.description && <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{card.description}</p>}
+                          <p className="text-[13px] text-gray-400 mt-0.5">{card.date || ''}</p>
+                          {card.description && <p className="text-[13px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{card.description}</p>}
                           {(card.skills || []).length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {(card.skills || []).slice(0, 3).map((sk, si) => (
-                                <span key={si} className="px-1.5 py-0.5 bg-primary-50 text-primary-700 rounded text-[10px]">{typeof sk === 'string' ? sk : sk?.name}</span>
+                                <span key={si} className="px-1.5 py-0.5 bg-primary-50 text-primary-700 rounded text-[12px]">{typeof sk === 'string' ? sk : sk?.name}</span>
                               ))}
-                              {(card.skills || []).length > 3 && <span className="text-[10px] text-gray-400">+{(card.skills || []).length - 3}</span>}
+                              {(card.skills || []).length > 3 && <span className="text-[12px] text-gray-400">+{(card.skills || []).length - 3}</span>}
                             </div>
                           )}
                         </div>
@@ -5230,7 +5230,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                                 : <div className="w-8 h-8 rounded bg-surface-100 flex items-center justify-center flex-shrink-0 mt-0.5"><Briefcase size={14} className="text-gray-400" /></div>}
                               <div className="min-w-0">
                                 <p className="text-sm text-gray-700 font-medium truncate">{exp.title}</p>
-                                {exp.date && <p className="text-[10px] text-gray-400">{exp.date}</p>}
+                                {exp.date && <p className="text-[12px] text-gray-400">{exp.date}</p>}
                               </div>
                             </button>
                           ))}
@@ -5869,7 +5869,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                           <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
                           <div className="flex gap-1 mt-1">
                             {(rec.matchedKeywords || []).map((k, ki) => (
-                              <span key={ki} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">{k}</span>
+                              <span key={ki} className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[12px] font-medium">{k}</span>
                             ))}
                           </div>
                         </div>
@@ -5913,7 +5913,7 @@ function ExperiencesSection({ portfolio, addToArray, removeFromArray, updateArra
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-gray-700 truncate">{exp.title || '(제목 없음)'}</span>
                       {exp.status && (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${(STATUS_OPTIONS.find(s => s.value === exp.status) || STATUS_OPTIONS[2]).color}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[12px] font-bold ${(STATUS_OPTIONS.find(s => s.value === exp.status) || STATUS_OPTIONS[2]).color}`}>
                           {(STATUS_OPTIONS.find(s => s.value === exp.status) || STATUS_OPTIONS[2]).label}
                         </span>
                       )}
@@ -6584,7 +6584,7 @@ function SkillCategoryInput({ category, label, placeholder, items, presets, onUp
                 </button>
                 {editingSkill === name && (
                   <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-surface-200 rounded-xl shadow-lg p-2 min-w-[160px]">
-                    <p className="text-[10px] text-gray-400 mb-1.5 px-1">수준 설정</p>
+                    <p className="text-[12px] text-gray-400 mb-1.5 px-1">수준 설정</p>
                     {SKILL_PROFICIENCY_LEVELS.map(lv => (
                       <button
                         key={lv.value}
@@ -6757,10 +6757,10 @@ function GoalsSection({ portfolio, addToArray, removeFromArray, updateArrayItem,
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-gray-700 truncate">{goal.title || '(목표 없음)'}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColor[goal.type] || typeColor.short}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[12px] font-medium ${typeColor[goal.type] || typeColor.short}`}>
                         {typeLabel[goal.type] || '단기'}
                       </span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor[goal.status] || statusColor.planned}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[12px] font-medium ${statusColor[goal.status] || statusColor.planned}`}>
                         {statusLabel[goal.status] || '예정'}
                       </span>
                     </div>
@@ -6922,7 +6922,7 @@ function BooksSection({ portfolio, addToArray, removeFromArray, updateArrayItem,
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-gray-700 truncate">{item.title || '(제목 없음)'}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      {item.type && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColorMap[item.type] || typeColorMap['기타']}`}>{item.type}</span>}
+                      {item.type && <span className={`px-1.5 py-0.5 rounded text-[12px] font-medium ${typeColorMap[item.type] || typeColorMap['기타']}`}>{item.type}</span>}
                       {item.year && <span className="text-xs text-gray-400">{item.year}</span>}
                     </div>
                   </div>

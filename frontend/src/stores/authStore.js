@@ -9,6 +9,10 @@ import {
   onAuthStateChanged,
   updateProfile,
   OAuthProvider,
+  sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -76,6 +80,20 @@ const useAuthStore = create((set, get) => ({
 
   signInWithGoogle: async () => {
     await signInWithPopup(auth, googleProvider);
+  },
+
+  sendPasswordReset: async (email) => {
+    await sendPasswordResetEmail(auth, email, {
+      url: window.location.origin + '/login',
+    });
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.email) throw new Error('no-email');
+    const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+    await reauthenticateWithCredential(currentUser, credential);
+    await updatePassword(currentUser, newPassword);
   },
 
   signInWithKakao: async () => {

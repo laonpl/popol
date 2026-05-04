@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
@@ -35,39 +35,39 @@ function PreviewKeySlides({ keyExperiences }) {
   const ke = keyExperiences[Math.min(slideIdx, keyExperiences.length - 1)];
   return (
     <div className="mb-8">
-      <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+      <h2 className="text-[20px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
       <div className="bg-surface-50 border border-surface-200 rounded-xl overflow-hidden">
         <div className="p-5">
-          {ke.title && <p className="text-[14px] font-bold text-bluewood-900 mb-3">{ke.title}</p>}
+          {ke.title && <p className="text-[20px] font-bold text-bluewood-900 mb-3">{ke.title}</p>}
           {(ke.metric || ke.afterMetric) && (
-            <div className="flex items-center gap-3 mb-3 p-3 bg-primary-50 rounded-lg border border-primary-100">
+            <div className="flex items-center gap-3 mb-3 p-3 bg-surface-100 rounded-lg border border-surface-200">
               {ke.beforeMetric && (
                 <>
-                  <span className="text-[13px] text-bluewood-400">{ke.metricLabel || ''}</span>
-                  <span className="text-[18px] font-bold text-bluewood-500">{ke.beforeMetric}</span>
+                  <span className="text-[19px] text-bluewood-400">{ke.metricLabel || ''}</span>
+                  <span className="text-[20px] font-bold text-bluewood-500">{ke.beforeMetric}</span>
                   <span className="text-bluewood-300 text-sm">→</span>
                 </>
               )}
-              <span className="text-[22px] font-extrabold text-primary-600">{ke.afterMetric || ke.metric}</span>
-              {!ke.beforeMetric && ke.metricLabel && <span className="text-[12px] text-bluewood-400">{ke.metricLabel}</span>}
+              <span className="text-[22px] font-extrabold text-bluewood-900">{ke.afterMetric || ke.metric}</span>
+              {!ke.beforeMetric && ke.metricLabel && <span className="text-[20px] text-bluewood-400">{ke.metricLabel}</span>}
             </div>
           )}
-          {ke.situation && <p className="text-[13px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">상황 </span>{ke.situation}</p>}
-          {ke.action && <p className="text-[13px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">액션 </span>{ke.action}</p>}
-          {ke.result && <p className="text-[13px] text-bluewood-500 leading-relaxed"><span className="font-semibold text-bluewood-600">결과 </span>{ke.result}</p>}
+          {ke.situation && <p className="text-[19px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">상황 </span>{ke.situation}</p>}
+          {ke.action && <p className="text-[19px] text-bluewood-500 leading-relaxed mb-1"><span className="font-semibold text-bluewood-600">액션 </span>{ke.action}</p>}
+          {ke.result && <p className="text-[19px] text-bluewood-500 leading-relaxed"><span className="font-semibold text-bluewood-600">결과 </span>{ke.result}</p>}
           {ke.keywords?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-3">
-              {ke.keywords.map((kw, i) => <span key={i} className="px-2 py-0.5 bg-primary-100 text-primary-600 rounded text-[11px] font-medium">{kw}</span>)}
+              {ke.keywords.map((kw, i) => <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[19px] font-medium">{kw}</span>)}
             </div>
           )}
         </div>
         {keyExperiences.length > 1 && (
           <div className="flex items-center justify-between px-5 py-2.5 border-t border-surface-200 bg-white">
             <button onClick={() => setSlideIdx(i => Math.max(0, i - 1))} disabled={slideIdx === 0}
-              className="text-[12px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">◀ 이전</button>
-            <span className="text-[11px] text-bluewood-300">{slideIdx + 1} / {keyExperiences.length}</span>
+              className="text-[20px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">◀ 이전</button>
+            <span className="text-[19px] text-bluewood-300">{slideIdx + 1} / {keyExperiences.length}</span>
             <button onClick={() => setSlideIdx(i => Math.min(keyExperiences.length - 1, i + 1))} disabled={slideIdx === keyExperiences.length - 1}
-              className="text-[12px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">다음 ▶</button>
+              className="text-[20px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-30 px-2 py-1">다음 ▶</button>
           </div>
         )}
       </div>
@@ -95,7 +95,7 @@ const SECTION_META = {
 };
 
 const ACCENT_STYLES = {
-  primary:   { num: 'bg-primary-500 text-white', border: 'border-primary-200', bg: 'bg-primary-50/40', label: 'text-primary-700', ring: 'focus:ring-primary-200' },
+  primary:   { num: 'bg-bluewood-900 text-white', border: 'border-bluewood-200', bg: 'bg-surface-50/40', label: 'text-bluewood-700', ring: 'focus:ring-bluewood-200' },
   indigo:    { num: 'bg-indigo-500 text-white', border: 'border-indigo-200', bg: 'bg-indigo-50/40', label: 'text-indigo-700', ring: 'focus:ring-indigo-200' },
   purple:    { num: 'bg-purple-500 text-white', border: 'border-purple-200', bg: 'bg-purple-50/40', label: 'text-purple-700', ring: 'focus:ring-purple-200' },
   violet:    { num: 'bg-violet-500 text-white', border: 'border-violet-200', bg: 'bg-violet-50/40', label: 'text-violet-700', ring: 'focus:ring-violet-200' },
@@ -110,7 +110,7 @@ const KW_CATEGORY_STYLES = {
   soft:       { dot: '#059669', bg: 'bg-emerald-50',  text: 'text-emerald-700',  border: 'border-emerald-200', label: '소통'   },
   leadership: { dot: '#7c3aed', bg: 'bg-violet-50',   text: 'text-violet-700',   border: 'border-violet-200',  label: '리더십' },
   planning:   { dot: '#d97706', bg: 'bg-amber-50',    text: 'text-amber-700',    border: 'border-amber-200',   label: '기획'   },
-  default:    { dot: '#4f46e5', bg: 'bg-primary-50',  text: 'text-primary-700',  border: 'border-primary-100', label: '역량'   },
+  default:    { dot: '#314157', bg: 'bg-surface-50',  text: 'text-bluewood-700',  border: 'border-surface-200', label: '역량'   },
 };
 const KW_CATEGORY_ORDER = ['tech', 'soft', 'leadership', 'planning', 'default'];
 
@@ -745,7 +745,7 @@ export default function StructuredResult() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bluewood-600" />
       </div>
     );
   }
@@ -762,7 +762,7 @@ export default function StructuredResult() {
 
   return (
     <>
-    <div style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%' }}>
+    <div style={{ transform: 'scale(0.8)', transformOrigin: 'top left', width: '125%' }}>
     <div className="animate-fadeIn max-w-[1400px] mx-auto px-6 pb-12">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between mb-5">
@@ -772,7 +772,7 @@ export default function StructuredResult() {
         {viewOnly ? (
           <button
             onClick={() => navigate(`/app/experience/structured/${id}`)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-sm font-medium hover:bg-surface-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[19px] font-medium hover:bg-surface-50 transition-colors"
           >
             <PenLine size={14} />
             수정하기
@@ -781,11 +781,11 @@ export default function StructuredResult() {
           <div className="flex items-center gap-2">
             {/* 텍스트 히스토리 undo/redo */}
             <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-lg text-[19px] hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               <RotateCcw size={14} />
             </button>
             <button onClick={handleRedo} disabled={!canRedo(id)} title="다시 실행 (Ctrl+Y)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-sm hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shadow-sm">
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-lg text-[19px] hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               <RotateCw size={14} />
             </button>
 
@@ -838,7 +838,7 @@ export default function StructuredResult() {
                       <X size={13} /> 취소
                     </button>
                     <button onClick={() => sliderRef.current?.saveEditing()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-primary-500 text-white border-primary-500 shadow-sm hover:bg-primary-600 transition-all">
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-bluewood-900 text-white border-bluewood-900 hover:bg-bluewood-800 transition-all">
                       <Check size={13} /> 저장
                     </button>
                   </>
@@ -848,13 +848,13 @@ export default function StructuredResult() {
             )}
 
             <button onClick={handleSave} disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-card">
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-bluewood-900 text-white rounded-lg text-[19px] font-medium hover:bg-bluewood-800 disabled:opacity-50 transition-colors">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
             </button>
             <button
               onClick={() => setShowExportPanel(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-card">
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[19px] font-medium hover:bg-surface-50 transition-colors">
               포트폴리오 미리보기
             </button>
           </div>
@@ -872,9 +872,9 @@ export default function StructuredResult() {
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-5 mb-5">
 
         {/* ── 좌: 프로젝트 Overview (편집 가능) ── */}
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 flex flex-col">
+        <div className="border border-surface-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[15px] font-extrabold text-bluewood-900">Overview</h2>
+            <h2 className="text-[19px] font-extrabold text-bluewood-900">Overview</h2>
           </div>
 
           {/* 프로젝트 타이틀 (편집) */}
@@ -882,7 +882,7 @@ export default function StructuredResult() {
             value={editedTitle}
             onChange={e => setEditedTitle(e.target.value)}
             readOnly={viewOnly}
-            className={`text-lg font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
+            className={`text-[20px] font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
             placeholder="프로젝트 제목"
           />
 
@@ -892,7 +892,7 @@ export default function StructuredResult() {
             value={editedOverview.background || editedOverview.summary || ''}
             onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
             readOnly={viewOnly}
-            className={`text-[12.5px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full overflow-hidden`}
+            className={`text-[19px] text-bluewood-400 leading-relaxed mb-5 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full overflow-hidden`}
             style={{ minHeight: '4.5rem' }}
             placeholder="프로젝트 배경 설명"
           />
@@ -906,16 +906,16 @@ export default function StructuredResult() {
               { key: 'duration', label: '기간',   placeholder: '2024.01 ~ 2024.06' },
             ].map((item, i) => (
               <div key={item.key} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-5 text-[12px] font-bold text-bluewood-300 mt-2">{i + 1}</span>
+                <span className="flex-shrink-0 w-5 text-[20px] font-bold text-bluewood-300 mt-2">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[12px] font-semibold text-bluewood-700">{item.label}</span>
+                  <span className="text-[20px] font-semibold text-bluewood-700">{item.label}</span>
                   <textarea
                     ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
                     value={editedOverview[item.key] || ''}
                     onChange={e => { setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                     readOnly={viewOnly}
                     rows={1}
-                    className={`w-full text-[12px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-primary-300'} focus:outline-none transition-colors py-0.5 resize-none overflow-hidden`}
+                    className={`w-full text-[19px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none transition-colors py-0.5 resize-none overflow-hidden`}
                     placeholder={item.placeholder}
                   />
                 </div>
@@ -927,11 +927,11 @@ export default function StructuredResult() {
           <div className="mb-4">
             <div className="flex flex-wrap gap-1.5 mb-2">
               {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium border border-surface-200 group/tech">
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[19px] font-medium border border-surface-200 group/tech">
                   {tech}
                   {!viewOnly && (
                     <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
-                      className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[10px]">×</button>
+                      className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[20px]">×</button>
                   )}
                 </span>
               ))}
@@ -948,7 +948,7 @@ export default function StructuredResult() {
                     setNewTechInput('');
                   }
                 }}
-                className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
+                className="flex-1 text-[20px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
                 placeholder="기술 추가 후 Enter"
               />
             </div>
@@ -965,7 +965,7 @@ export default function StructuredResult() {
                   const count = editedKeywords.filter(k => (keywordCategories[k] || 'default') === cat).length;
                   if (count === 0) return null;
                   return (
-                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
+                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[19px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cs.dot }} />
                       {cs.label} {count}
                     </span>
@@ -990,12 +990,12 @@ export default function StructuredResult() {
                     onClick={() => !viewOnly && cycleKwCategory(k)}
                     title={!viewOnly ? `${cs.label} — 클릭: 분류 변경 / 드래그: 순서 변경` : cs.label}
                     className={[
-                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all duration-200 select-none',
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[19px] font-medium border transition-all duration-200 select-none',
                       cs.bg, cs.text, cs.border,
                       !viewOnly ? 'cursor-grab active:cursor-grabbing' : '',
                       isNew ? 'animate-pop-in animate-skill-shimmer' : '',
                       isDragging ? 'opacity-40 scale-95' : '',
-                      isOver ? 'ring-2 ring-offset-1 ring-primary-400 scale-[1.04]' : '',
+                      isOver ? 'ring-2 ring-offset-1 ring-bluewood-400 scale-[1.04]' : '',
                     ].filter(Boolean).join(' ')}
                   >
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cs.dot }} />
@@ -1007,7 +1007,7 @@ export default function StructuredResult() {
                           setEditedKeywords(prev => prev.filter((_, j) => j !== i));
                           setKeywordCategories(prev => { const n = { ...prev }; delete n[k]; return n; });
                         }}
-                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[10px]"
+                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[20px]"
                       >×</button>
                     )}
                   </span>
@@ -1030,12 +1030,12 @@ export default function StructuredResult() {
                       setNewKeywordInput('');
                     }
                   }}
-                  className="flex-1 text-[11px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-primary-300 transition-colors"
+                  className="flex-1 text-[20px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
                   placeholder="스킬 추가 후 Enter"
                 />
               </div>
               {editedKeywords.length > 0 && (
-                <p className="text-[9.5px] text-bluewood-300 mt-1.5 leading-relaxed">
+                <p className="text-[20px] text-bluewood-300 mt-1.5 leading-relaxed">
                   클릭해서 분류 변경 · 드래그해서 순서 변경
                 </p>
               )}
@@ -1064,15 +1064,15 @@ export default function StructuredResult() {
          ╚══════════════════════════════════════════════╝ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* 작성 완성도 — 페이지 전체 품질 체크리스트 */}
-        <div className="bg-white rounded-2xl border border-surface-200 p-6">
+        <div className="border border-surface-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-extrabold text-bluewood-900">작성 완성도</h3>
-            <span className="text-[12px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
+            <h3 className="text-[20px] font-bold text-bluewood-900">작성 완성도</h3>
+            <span className="text-[20px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
           </div>
           {/* 프로그레스 바 */}
           <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
             <div
-              className="h-full bg-caribbean-400 rounded-full transition-all duration-500"
+              className="h-full bg-bluewood-900 rounded-full transition-all duration-500"
               style={{ width: `${qualityPct}%` }}
             />
           </div>
@@ -1082,14 +1082,14 @@ export default function StructuredResult() {
               const passed = item.check();
               return (
                 <li key={item.id} className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-caribbean-400' : 'bg-surface-100 border border-surface-200'}`}>
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-bluewood-900' : 'bg-surface-100 border border-surface-200'}`}>
                     {passed && (
                       <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                         <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
-                  <span className={`text-[12px] font-medium leading-none ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
+                  <span className={`text-[20px] font-medium leading-none ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
                     {item.label}
                   </span>
                 </li>
@@ -1100,17 +1100,17 @@ export default function StructuredResult() {
 
         {/* 사진 */}
         <div 
-          className={`bg-white rounded-2xl border border-surface-200 p-6 transition-colors ${dragInfo && dropTarget === '_unassigned' ? 'ring-2 ring-primary-200' : ''}`}
+          className={`border border-surface-100 p-6 transition-colors ${dragInfo && dropTarget === '_unassigned' ? 'ring-2 ring-bluewood-200' : ''}`}
           onDragOver={(e) => { if (dragInfo) { e.preventDefault(); setDropTarget('_unassigned'); } }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { if (dropTarget === '_unassigned') setDropTarget(null); } }}
           onDrop={(e) => handleSectionDrop(e, '_unassigned')}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-extrabold text-bluewood-900">사진</h3>
+            <h3 className="text-[20px] font-bold text-bluewood-900">사진</h3>
             <button
               onClick={() => imageInputRef.current?.click()}
               disabled={uploadingImage}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-primary-600 hover:bg-primary-50 rounded-lg transition-colors border border-primary-200"
+              className="flex items-center gap-1 px-2.5 py-1 text-[20px] text-bluewood-500 hover:bg-surface-50 rounded-lg transition-colors border border-surface-200"
             >
               {uploadingImage ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
               {uploadingImage ? '업로드중' : '추가'}
@@ -1147,18 +1147,18 @@ export default function StructuredResult() {
             )
           ) : (
             <button onClick={() => imageInputRef.current?.click()}
-              className="w-full py-4 border-2 border-dashed border-surface-200 rounded-xl text-xs text-bluewood-300 hover:border-primary-200 hover:text-primary-400 transition-colors">
+              className="w-full py-4 border-2 border-dashed border-surface-200 rounded-xl text-[20px] text-bluewood-300 hover:border-bluewood-300 hover:text-bluewood-400 transition-colors">
               사진을 추가하세요
             </button>
           )}
         </div>
 
         {/* 힌트 & 가이드 */}
-        <div className="bg-white rounded-2xl border border-surface-200 p-6">
-          <h3 className="text-[14px] font-extrabold text-bluewood-900 mb-3">작성 가이드</h3>
-          <ul className="space-y-2.5 text-[12px] text-bluewood-500 leading-relaxed">
+        <div className="border border-surface-100 p-6">
+          <h3 className="text-[20px] font-bold text-bluewood-900 mb-3">작성 가이드</h3>
+          <ul className="space-y-2.5 text-[20px] text-bluewood-500 leading-relaxed">
             <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 mt-1.5 flex-shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-bluewood-400 mt-1.5 flex-shrink-0" />
               AI는 입력된 내용만 정리합니다.
             </li>
             <li className="flex items-start gap-2">
@@ -1172,9 +1172,9 @@ export default function StructuredResult() {
           </ul>
           {followUpQuestions.length > 0 && (
             <div className="mt-4 pt-3 border-t border-surface-100 space-y-2">
-              <p className="text-[11px] font-bold text-amber-500">빈칸 채우기 힌트</p>
+              <p className="text-[19px] font-bold text-amber-500">빈칸 채우기 힌트</p>
               {followUpQuestions.map((q, i) => (
-                <p key={i} className="text-[11px] text-bluewood-500 leading-relaxed">{q}</p>
+                <p key={i} className="text-[19px] text-bluewood-500 leading-relaxed">{q}</p>
               ))}
             </div>
           )}
@@ -1192,12 +1192,12 @@ export default function StructuredResult() {
         const jobLabel = jobMeta?.label || jobCategory;
 
         return (
-          <div className="bg-white border border-surface-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="border border-surface-100 overflow-hidden">
             {/* 직군 특화 헤더 */}
-            <div className="flex items-center gap-3 px-6 py-4 bg-primary-50/40 border-b border-primary-100">
-              <span className="px-2.5 py-1 bg-primary-100 text-primary-700 rounded-lg text-[11px] font-bold tracking-wide uppercase">직군 특화</span>
-              <span className="text-[14px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
-              <span className="text-[12px] text-bluewood-400 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
+              <span className="px-2.5 py-1 bg-bluewood-900 text-white rounded-md text-[19px] font-bold tracking-wide uppercase">직군 특화</span>
+              <span className="text-[20px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
+              <span className="text-[20px] text-bluewood-300 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
             </div>
 
             <div className="divide-y divide-surface-100">
@@ -1210,26 +1210,26 @@ export default function StructuredResult() {
                 return (
                   <div key={field.key} className="group">
                     {/* 섹션 헤더 */}
-                    <div className="flex items-center gap-4 px-6 py-3 bg-primary-50/20">
-                      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-[11px] font-bold">
+                    <div className="flex items-center gap-4 px-6 py-3 bg-surface-50/30">
+                      <span className="flex-shrink-0 w-7 h-7 bg-bluewood-100 text-bluewood-700 flex items-center justify-center text-[19px] font-bold">
                         {idx + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <span className="text-[13px] font-bold text-primary-700">{field.label}</span>
-                        {field.subtitle && <span className="text-[11px] text-bluewood-300 ml-2">{field.subtitle}</span>}
+                        <span className="text-[19px] font-bold text-bluewood-800">{field.label}</span>
+                        {field.subtitle && <span className="text-[19px] text-bluewood-300 ml-2">{field.subtitle}</span>}
                       </div>
                       <div className="flex items-center gap-2">
                         {isTrulyEmpty ? (
-                          <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[20px] font-semibold">빈칸</span>
                         ) : isDraft ? (
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[20px] font-semibold">초안</span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold">완료</span>
+                          <span className="px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[20px] font-semibold">완료</span>
                         )}
                         {!isEditing && !isTrulyEmpty && !viewOnly && (
                           <button
                             onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
-                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-bluewood-400 hover:text-primary-600 bg-white rounded-md border border-surface-200 transition-all">
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[19px] text-bluewood-400 hover:text-bluewood-700 bg-white rounded-md border border-surface-200 transition-all">
                             <PenLine size={11} /> 수정
                           </button>
                         )}
@@ -1240,7 +1240,7 @@ export default function StructuredResult() {
                     <div className="px-6 py-4 pl-[60px]">
                       {isEditing ? (
                         <div>
-                          <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                          <p className="text-[19px] text-bluewood-400 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 mb-3 leading-relaxed">
                             <strong>{field.subtitle}</strong><br />{field.placeholder}
                           </p>
                           <textarea
@@ -1251,13 +1251,13 @@ export default function StructuredResult() {
                               const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
                             }}
                             placeholder={field.placeholder || '내용을 입력하세요'}
-                            className="w-full bg-white rounded-xl border border-primary-200 p-4 text-[13px] outline-none focus:ring-2 focus:ring-primary-300 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300"
+                            className="w-full bg-white border border-surface-200 p-4 text-[19px] outline-none focus:ring-2 focus:ring-bluewood-200 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300"
                             style={{ minHeight: '7rem' }}
                           />
                           <div className="flex justify-end mt-2">
                             <button
                               onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: false }))}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-primary-700 hover:bg-primary-50 transition-colors">
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-bluewood-700 hover:bg-surface-50 transition-colors">
                               <Check size={13} /> 완료
                             </button>
                           </div>
@@ -1265,22 +1265,22 @@ export default function StructuredResult() {
                       ) : isTrulyEmpty ? (
                         <button
                           onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
-                          className="w-full py-3 border-2 border-dashed border-primary-200 rounded-xl text-[13px] font-medium text-primary-500 hover:bg-primary-50/60 transition-colors flex items-center justify-center gap-2">
+                          className="w-full py-3 border-2 border-dashed border-surface-200 text-[19px] font-medium text-bluewood-500 hover:bg-surface-50 transition-colors flex items-center justify-center gap-2">
                           <PenLine size={14} /> 빈칸 채우기
                         </button>
                       ) : isDraft ? (
-                        <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
-                          <p className="text-[11px] text-blue-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
-                          <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{val.replace(/^\[작성 필요\]\s*/,'').trim()}</p>
+                        <div className="border-l-2 border-surface-200 bg-surface-50/40 px-4 py-3">
+                          <p className="text-[19px] text-bluewood-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
+                          <p className="text-[19px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{val.replace(/^\[작성 필요\]\s*/,'').trim()}</p>
                           {!viewOnly && (
                             <button onClick={() => setEditingJobSections(p => ({ ...p, [field.key]: true }))}
-                              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[19px] font-medium text-bluewood-600 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors">
                               <PenLine size={11} /> 수정하기
                             </button>
                           )}
                         </div>
                       ) : (
-                        <p className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                        <p className="text-[19px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
                       )}
                     </div>
                   </div>
@@ -1294,12 +1294,12 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  하단: 상세 경험 정리 — 항상 펼쳐진 편집모드  ║
          ╚══════════════════════════════════════════════╝ */}
-      <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
+      <div className="border border-surface-100 overflow-hidden">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
-            <h2 className="text-[15px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
-            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
+            <h2 className="text-[19px] font-bold text-bluewood-900">상세 경험 정리</h2>
+            <span className="text-[20px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
           </div>
           <div className="flex items-center gap-2">
           </div>
@@ -1309,7 +1309,7 @@ export default function StructuredResult() {
         {(structured.highlights || []).length > 0 && (
           <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
             {Object.entries(highlightColors).map(([key, color]) => (
-              <div key={key} className="flex items-center gap-2 text-[11px] text-bluewood-500">
+              <div key={key} className="flex items-center gap-2 text-[19px] text-bluewood-500">
                 <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
                 {color.label}
               </div>
@@ -1336,20 +1336,20 @@ export default function StructuredResult() {
                 <div className={`flex items-center gap-4 px-6 py-3 transition-colors duration-300 ${
                   flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50/30'
                 }`}>
-                  <span className={`flex-shrink-0 w-7 h-7 rounded-lg ${style.num} flex items-center justify-center text-[11px] font-bold`}>
+                  <span className={`flex-shrink-0 w-7 h-7 ${style.num} flex items-center justify-center text-[19px] font-bold`}>
                     {meta.num}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className={`text-[13px] font-bold ${style.label}`}>{meta.label}</span>
-                    <span className="text-[11px] text-bluewood-300 ml-2">{meta.subtitle}</span>
+                    <span className={`text-[19px] font-bold ${style.label}`}>{meta.label}</span>
+                    <span className="text-[19px] text-bluewood-300 ml-2">{meta.subtitle}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {isEmpty ? (
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[20px] font-semibold">빈칸</span>
                     ) : isDraft ? (
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[10px] font-semibold">초안</span>
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[20px] font-semibold">초안</span>
                     ) : (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[10px] font-semibold transition-transform duration-300 ${flashedSection === key ? 'scale-110' : 'scale-100'}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[20px] font-semibold transition-transform duration-300 ${flashedSection === key ? 'scale-110' : 'scale-100'}`}>
                         {flashedSection === key && (
                           <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="animate-pop-in">
                             <path d="M1 3.5L3.5 6L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1360,7 +1360,7 @@ export default function StructuredResult() {
                     )}
                     {!isEditing && !isEmpty && !viewOnly && (
                       <button onClick={() => handleStartEditing(key)}
-                        className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-bluewood-400 hover:text-primary-600 bg-white rounded-md border border-surface-200 transition-all">
+                        className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[19px] text-bluewood-400 hover:text-bluewood-700 bg-white rounded-md border border-surface-200 transition-all">
                         <PenLine size={11} /> 수정
                       </button>
                     )}
@@ -1377,7 +1377,7 @@ export default function StructuredResult() {
 
                   {isEditing ? (
                     <div>
-                      <p className="text-[11px] text-primary-400 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                      <p className="text-[19px] text-bluewood-400 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 mb-3 leading-relaxed">
                         <strong>{meta.subtitle}</strong><br />{field?.placeholder}
                       </p>
                       <textarea
@@ -1385,7 +1385,7 @@ export default function StructuredResult() {
                         value={editedContent[key] || ''}
                         onChange={e => { handleFieldChange(key, e.target.value); const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
                         placeholder={field?.placeholder || '내용을 입력하세요'}
-                        className={`w-full bg-white rounded-xl border border-surface-200 p-4 text-[13px] outline-none ${style.ring} focus:ring-2 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300`}
+                        className={`w-full bg-white border border-surface-200 p-4 text-[19px] outline-none focus:ring-2 focus:ring-bluewood-200 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300`}
                         style={{ minHeight: key === 'intro' ? '3rem' : '7rem' }}
                       />
                       {!(!editedContent[key]?.trim()) && (
@@ -1399,22 +1399,22 @@ export default function StructuredResult() {
                     </div>
                   ) : isEmpty ? (
                     <button onClick={() => handleStartEditing(key)}
-                      className={`w-full py-3 border-2 border-dashed ${style.border} rounded-xl text-[13px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
+                      className={`w-full py-3 border-2 border-dashed ${style.border} text-[19px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
                       <PenLine size={14} /> 빈칸 채우기
                     </button>
                   ) : isDraft ? (
-                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
-                      <p className="text-[11px] text-blue-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
-                      <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{draftText}</p>
+                    <div className="border-l-2 border-surface-200 bg-surface-50/40 px-4 py-3">
+                      <p className="text-[19px] text-bluewood-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
+                      <p className="text-[19px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{draftText}</p>
                       {!viewOnly && (
                         <button onClick={() => handleStartEditing(key)}
-                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[19px] font-medium text-bluewood-600 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors">
                           <PenLine size={11} /> 수정하기
                         </button>
                       )}
                     </div>
                   ) : (
-                    <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
+                    <div className="text-[19px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
                       <HighlightedText
                         text={value}
                         highlights={(structured.highlights || []).filter(h => h.field === key)}
@@ -1435,8 +1435,8 @@ export default function StructuredResult() {
                       onDragOver={(e) => { e.preventDefault(); setDropTarget(key); }}
                       onDragLeave={() => { if (dropTarget === key) setDropTarget(null); }}
                       onDrop={(e) => handleSectionDrop(e, key)}
-                      className={`mt-2 py-3 border-2 border-dashed rounded-xl text-center text-xs font-medium transition-colors ${
-                        dropTarget === key ? 'border-primary-400 bg-primary-50/60 text-primary-500' : 'border-surface-200 text-bluewood-300'
+                      className={`mt-2 py-3 border-2 border-dashed rounded-lg text-center text-[20px] font-medium transition-colors ${
+                        dropTarget === key ? 'border-bluewood-400 bg-bluewood-50/60 text-bluewood-500' : 'border-surface-200 text-bluewood-300'
                       }`}>
                       {dragInfo.fromSection === key ? '끝으로 이동' : '여기로 이미지 이동'}
                     </div>
@@ -1467,7 +1467,7 @@ export default function StructuredResult() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-blue-900">기업 분석</p>
-                      <p className="text-[11px] text-blue-400">채용공고 URL을 입력하세요</p>
+                      <p className="text-[19px] text-blue-400">채용공고 URL을 입력하세요</p>
                     </div>
                   </div>
 
@@ -1485,7 +1485,7 @@ export default function StructuredResult() {
                         />
                       </div>
                       {jobError && (
-                        <p className="text-[11px] text-red-500 flex items-center gap-1">
+                        <p className="text-[19px] text-red-500 flex items-center gap-1">
                           <X size={11} /> {jobError}
                         </p>
                       )}
@@ -1525,14 +1525,14 @@ export default function StructuredResult() {
             {jobAnalysis && !showJobInput && (
               <button
                 onClick={() => setShowJobInput(true)}
-                className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] text-blue-500 hover:text-blue-700 border border-blue-200 rounded-xl bg-white hover:bg-blue-50 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-[19px] text-blue-500 hover:text-blue-700 border border-blue-200 rounded-xl bg-white hover:bg-blue-50 transition-colors"
               >
                 <Globe size={11} /> 다른 공고로 변경
               </button>
             )}
             {jobAnalysis && showJobInput && (
               <div className="bg-white border border-blue-200 rounded-2xl p-4 space-y-2">
-                <p className="text-[11px] font-semibold text-blue-700">새 채용공고로 변경</p>
+                <p className="text-[19px] font-semibold text-blue-700">새 채용공고로 변경</p>
                 <div className="relative">
                   <Globe size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -1545,7 +1545,7 @@ export default function StructuredResult() {
                   />
                 </div>
                 {jobError && (
-                  <p className="text-[11px] text-red-500 flex items-center gap-1">
+                  <p className="text-[19px] text-red-500 flex items-center gap-1">
                     <X size={11} /> {jobError}
                   </p>
                 )}
@@ -1589,14 +1589,14 @@ export default function StructuredResult() {
             {/* 헤더 */}
             <div className="flex items-center justify-between px-7 py-4 border-b border-surface-200 flex-shrink-0">
               <div>
-                <h3 className="text-[15px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
-                <p className="text-[12px] text-bluewood-400 mt-0.5">섹션을 구성하고 저장하면 포트폴리오에서 불러올 수 있어요</p>
+                <h3 className="text-[19px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
+                <p className="text-[20px] text-bluewood-400 mt-0.5">섹션을 구성하고 저장하면 포트폴리오에서 불러올 수 있어요</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[12px] text-bluewood-400">{exportOrder.filter(k => exportEnabled[k] !== false).length}개 섹션 선택됨</span>
+                <span className="text-[20px] text-bluewood-400">{exportOrder.filter(k => exportEnabled[k] !== false).length}개 섹션 선택됨</span>
                 <button
                   onClick={() => setShowExportPanel(false)}
-                  className="text-[13px] text-bluewood-400 hover:text-bluewood-700 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
+                  className="text-[19px] text-bluewood-400 hover:text-bluewood-700 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
                 >
                   닫기
                 </button>
@@ -1609,7 +1609,7 @@ export default function StructuredResult() {
               {/* 왼쪽: 섹션 구성 */}
               <div className="w-[300px] flex-shrink-0 bg-surface-50 border-r border-surface-200 flex flex-col">
                 <div className="px-5 pt-4 pb-2 flex-shrink-0">
-                  <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-widest">섹션 구성</p>
+                  <p className="text-[19px] font-bold text-bluewood-400 uppercase tracking-widest">섹션 구성</p>
                 </div>
                 <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5">
                   {exportOrder.map((key) => {
@@ -1631,7 +1631,7 @@ export default function StructuredResult() {
                           enabled
                             ? isJob
                               ? 'bg-caribbean-50 border-caribbean-200'
-                              : 'bg-white border-surface-200 hover:border-primary-300'
+                              : 'bg-white border-surface-200 hover:border-bluewood-300'
                             : 'bg-transparent border-transparent opacity-40'
                         }`}
                       >
@@ -1640,28 +1640,28 @@ export default function StructuredResult() {
                           onClick={() => setExportEnabled(p => ({ ...p, [key]: !enabled }))}
                           className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                             enabled
-                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-primary-500 border-primary-500'
+                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-bluewood-900 border-bluewood-900'
                               : 'bg-white border-surface-300'
                           }`}
                         >
-                          {enabled && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                          {enabled && <span className="text-white text-[20px] font-bold leading-none">✓</span>}
                         </button>
 
                         {/* 번호 / 직군 마커 */}
                         {num ? (
-                          <span className="flex-shrink-0 text-[11px] font-bold text-bluewood-400 w-5 text-right">{num}</span>
+                          <span className="flex-shrink-0 text-[19px] font-bold text-bluewood-400 w-5 text-right">{num}</span>
                         ) : (
                           <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-caribbean-400" />
                         )}
 
                         {/* 라벨 */}
-                        <span className={`flex-1 text-[13px] font-medium leading-tight ${
+                        <span className={`flex-1 text-[19px] font-medium leading-tight ${
                           enabled ? 'text-bluewood-800' : 'text-bluewood-300'
                         }`}>{label}</span>
 
                         {/* 빈칸 경고 */}
                         {!hasContent && enabled && (
-                          <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">빈칸</span>
+                          <span className="text-[20px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">빈칸</span>
                         )}
 
                         {/* 순서 버튼 */}
@@ -1669,12 +1669,12 @@ export default function StructuredResult() {
                           <button
                             onClick={() => moveExportSection(globalIdx, -1)}
                             disabled={globalIdx === 0}
-                            className="text-[11px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
+                            className="text-[19px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
                           >▲</button>
                           <button
                             onClick={() => moveExportSection(globalIdx, 1)}
                             disabled={globalIdx === exportOrder.length - 1}
-                            className="text-[11px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
+                            className="text-[19px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
                           >▼</button>
                         </div>
                       </div>
@@ -1686,13 +1686,13 @@ export default function StructuredResult() {
                 <div className="px-4 py-4 border-t border-surface-200 flex-shrink-0 space-y-2">
                   <button
                     onClick={handleSaveExportConfig}
-                    className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl text-[14px] font-bold transition-colors"
+                    className="w-full py-2.5 bg-bluewood-900 hover:bg-bluewood-800 text-white rounded-xl text-[20px] font-bold transition-colors"
                   >
                     구성 저장하기
                   </button>
                   <button
                     onClick={() => setShowExportPanel(false)}
-                    className="w-full py-2 text-[13px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+                    className="w-full py-2 text-[19px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
                   >
                     취소
                   </button>
@@ -1708,7 +1708,7 @@ export default function StructuredResult() {
                     <>
                       <img src={exportCoverImg} alt="cover" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                        <label className="cursor-pointer px-3 py-1.5 bg-white/90 text-[12px] font-semibold text-bluewood-700 rounded-lg hover:bg-white transition-colors">
+                        <label className="cursor-pointer px-3 py-1.5 bg-white/90 text-[20px] font-semibold text-bluewood-700 rounded-lg hover:bg-white transition-colors">
                           변경
                           <input type="file" accept="image/*" className="hidden" onChange={e => {
                             const file = e.target.files?.[0];
@@ -1720,7 +1720,7 @@ export default function StructuredResult() {
                         </label>
                         <button
                           onClick={() => setExportCoverImg(null)}
-                          className="px-3 py-1.5 bg-white/90 text-[12px] font-semibold text-red-600 rounded-lg hover:bg-white transition-colors"
+                          className="px-3 py-1.5 bg-white/90 text-[20px] font-semibold text-red-600 rounded-lg hover:bg-white transition-colors"
                         >
                           제거
                         </button>
@@ -1728,7 +1728,7 @@ export default function StructuredResult() {
                     </>
                   ) : (
                     <div className="h-full flex items-center px-14">
-                      <label className="cursor-pointer text-[12px] text-bluewood-300 hover:text-bluewood-500 transition-colors">
+                      <label className="cursor-pointer text-[20px] text-bluewood-300 hover:text-bluewood-500 transition-colors">
                         + 커버 이미지 추가
                         <input type="file" accept="image/*" className="hidden" onChange={e => {
                           const file = e.target.files?.[0];
@@ -1753,32 +1753,32 @@ export default function StructuredResult() {
                   <div className="mb-8 space-y-2.5 border-b border-surface-200 pb-6">
                     {editedOverview.duration && (
                       <div className="flex items-center gap-4">
-                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0">기간</span>
-                        <span className="text-[13px] text-bluewood-700">{editedOverview.duration}</span>
+                        <span className="w-16 text-[20px] text-bluewood-400 flex-shrink-0">기간</span>
+                        <span className="text-[19px] text-bluewood-700">{editedOverview.duration}</span>
                       </div>
                     )}
                     {editedOverview.role && (
                       <div className="flex items-center gap-4">
-                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0">역할</span>
-                        <span className="text-[13px] text-bluewood-700">{editedOverview.role}</span>
+                        <span className="w-16 text-[20px] text-bluewood-400 flex-shrink-0">역할</span>
+                        <span className="text-[19px] text-bluewood-700">{editedOverview.role}</span>
                       </div>
                     )}
                     {editedOverview.techStack?.length > 0 && (
                       <div className="flex items-start gap-4">
-                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                        <span className="w-16 text-[20px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
                         <div className="flex flex-wrap gap-1.5">
                           {editedOverview.techStack.map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[12px]">{t}</span>
+                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[20px]">{t}</span>
                           ))}
                         </div>
                       </div>
                     )}
                     {editedKeywords.length > 0 && (
                       <div className="flex items-start gap-4">
-                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                        <span className="w-16 text-[20px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
                         <div className="flex flex-wrap gap-1.5">
                           {editedKeywords.slice(0, 6).map((kw, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[20px] font-medium">
                               {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
                             </span>
                           ))}
@@ -1787,8 +1787,8 @@ export default function StructuredResult() {
                     )}
                     {editedOverview.goal && (
                       <div className="flex items-start gap-4">
-                        <span className="w-16 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
-                        <span className="text-[13px] text-bluewood-700 leading-relaxed">{editedOverview.goal}</span>
+                        <span className="w-16 text-[20px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                        <span className="text-[19px] text-bluewood-700 leading-relaxed">{editedOverview.goal}</span>
                       </div>
                     )}
                   </div>
@@ -1814,14 +1814,14 @@ export default function StructuredResult() {
 
                         return (
                           <div key={key}>
-                            <h2 className={`text-[12px] font-bold uppercase tracking-widest mb-3 pb-2 border-b ${
+                            <h2 className={`text-[20px] font-bold uppercase tracking-widest mb-3 pb-2 border-b ${
                               isJob
-                                ? 'text-primary-600 border-primary-100'
+                                ? 'text-bluewood-600 border-bluewood-100'
                                 : 'text-bluewood-400 border-surface-200'
                             }`}>
                               {label}{isJob ? ' · 직군특화' : ''}
                             </h2>
-                            <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
+                            <p className="text-[20px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
                               {displayContent}
                             </p>
                           </div>
@@ -1833,7 +1833,7 @@ export default function StructuredResult() {
                       const content = isJob ? (editedJobSpecific[k] || '') : (editedContent[k] || '');
                       return !content.trim();
                     }) && (
-                      <p className="text-center text-bluewood-300 text-[14px] py-16">선택된 섹션에 내용이 없습니다</p>
+                      <p className="text-center text-bluewood-300 text-[20px] py-16">선택된 섹션에 내용이 없습니다</p>
                     )}
                   </div>
                 </div>
@@ -1876,8 +1876,8 @@ function ProjectTimeline({ experiences, currentId }) {
         {/* 토글 버튼 */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className={`w-full flex items-center justify-center mb-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
-            expanded ? 'text-primary-600 hover:bg-primary-50' : 'text-bluewood-400 hover:bg-surface-100'
+          className={`w-full flex items-center justify-center mb-3 py-1.5 rounded-lg text-[20px] font-bold uppercase tracking-wider transition-colors ${
+            expanded ? 'text-bluewood-700 hover:bg-surface-100' : 'text-bluewood-400 hover:bg-surface-100'
           }`}
         >
           {expanded ? '▶' : '◀'}
@@ -1901,18 +1901,18 @@ function ProjectTimeline({ experiences, currentId }) {
                     expanded ? 'px-2 py-3' : 'px-0 py-2 justify-center'
                   } ${
                     isCurrent
-                      ? expanded ? 'bg-primary-50/80' : ''
+                      ? expanded ? 'bg-bluewood-50/80' : ''
                       : 'hover:bg-surface-50 cursor-pointer'
                   }`}
                 >
                   {/* 활성 바 */}
                   {isCurrent && expanded && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary-500 rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-bluewood-900 rounded-r-full" />
                   )}
                   {/* 번호 원 */}
-                  <span className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-200 ${
+                  <span className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[19px] font-bold transition-all duration-200 ${
                     isCurrent
-                      ? 'bg-primary-500 text-white shadow-md shadow-primary-200/50'
+                      ? 'bg-bluewood-900 text-white shadow-md shadow-bluewood-200/50'
                       : 'bg-surface-100 border-2 border-surface-200 text-bluewood-400'
                   }`}>
                     {String(idx + 1).padStart(2, '0')}
@@ -1920,13 +1920,13 @@ function ProjectTimeline({ experiences, currentId }) {
                   {/* 텍스트 (펼쳐진 상태에만) */}
                   {expanded && (
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[12px] leading-tight truncate transition-colors duration-200 ${
-                        isCurrent ? 'text-primary-700 font-bold' : 'text-bluewood-600 font-medium'
+                      <p className={`text-[20px] leading-tight truncate transition-colors duration-200 ${
+                        isCurrent ? 'text-bluewood-900 font-bold' : 'text-bluewood-600 font-medium'
                       }`}>
                         {title}
                       </p>
                       {periodLabel && (
-                        <p className={`text-[9px] mt-0.5 ${isCurrent ? 'text-primary-400' : 'text-bluewood-300'}`}>
+                        <p className={`text-[19px] mt-0.5 ${isCurrent ? 'text-bluewood-400' : 'text-bluewood-300'}`}>
                           {periodLabel}
                         </p>
                       )}
@@ -2014,11 +2014,11 @@ function SentenceKwSpan({ text, color, keywords }) {
           className="fixed z-[9999] whitespace-normal max-w-[240px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
           style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
         >
-          <span className="text-[11px] font-semibold text-gray-100">역량 키워드</span>
-          <span className="text-[10px] text-gray-400 leading-relaxed">이 경험 서술 전체를 AI가 분석해 도출한 역량 키워드예요. 밑줄 친 문장에서 해당 역량이 드러납니다.</span>
+          <span className="text-[19px] font-semibold text-gray-100">역량 키워드</span>
+          <span className="text-[20px] text-gray-400 leading-relaxed">이 경험 서술 전체를 AI가 분석해 도출한 역량 키워드예요. 밑줄 친 문장에서 해당 역량이 드러납니다.</span>
           <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
             {keywords.map(k => (
-              <span key={k} className="px-1.5 py-0.5 rounded-md text-[10px] leading-tight bg-white/20">{k}</span>
+              <span key={k} className="px-1.5 py-0.5 rounded-md text-[20px] leading-tight bg-white/20">{k}</span>
             ))}
           </span>
           <span className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
@@ -2061,15 +2061,15 @@ function HighlightSpan({ text, type, keywords }) {
           className="fixed z-[9999] whitespace-normal max-w-[260px] bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none flex flex-col gap-2"
           style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)' }}
         >
-          <span className="flex items-center gap-1.5 font-bold text-[12px]">
+          <span className="flex items-center gap-1.5 font-bold text-[20px]">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
             {color.label}
           </span>
-          <span className="text-gray-300 text-[11px] leading-relaxed">{color.desc}</span>
+          <span className="text-gray-300 text-[19px] leading-relaxed">{color.desc}</span>
           {keywords.length > 0 && (
             <span className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
               {keywords.map(k => (
-                <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
+                <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[20px] leading-tight">{k}</span>
               ))}
             </span>
           )}
@@ -2273,7 +2273,7 @@ function SectionImageGroup({ sectionKey, position, sectionImages, allImages, ima
             onDrop={(e) => { e.stopPropagation(); handleImageDrop(e, sectionKey, pos); }}
           >
             {dropTarget === `${sectionKey}:${pos}` && dragInfo && !(dragInfo.fromSection === sectionKey && dragInfo.position === pos) && (
-              <div className="absolute -left-1.5 top-0 bottom-0 w-1 bg-primary-400 rounded-full z-10" />
+              <div className="absolute -left-1.5 top-0 bottom-0 w-1 bg-bluewood-400 rounded-full z-10" />
             )}
             <div
               draggable
@@ -2291,14 +2291,14 @@ function SectionImageGroup({ sectionKey, position, sectionImages, allImages, ima
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                 <button
                   onClick={(e) => { e.stopPropagation(); togglePosition(); }}
-                  className="bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md hover:bg-black/80"
+                  className="bg-black/60 text-white text-[19px] font-bold px-1.5 py-0.5 rounded-md hover:bg-black/80"
                   title={position === 'above' ? '글 아래로' : '글 위로'}
                 >
                   {position === 'above' ? '↓' : '↑'}
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); cycleSize(); }}
-                  className="bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md hover:bg-black/80"
+                  className="bg-black/60 text-white text-[19px] font-bold px-1.5 py-0.5 rounded-md hover:bg-black/80"
                   title="크기 변경"
                 >
                   {sizeOpt.label}

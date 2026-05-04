@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
@@ -401,7 +401,7 @@ export default function NotionPortfolioPreview() {
                         </div>
                       )}
                       {e.date && (
-                        <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">{e.date}</span>
+                        <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[12px] px-1.5 py-0.5 rounded">{e.date}</span>
                       )}
                     </div>
                     {/* Card body */}
@@ -409,12 +409,12 @@ export default function NotionPortfolioPreview() {
                       <h4 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 mb-1.5">{e.title || '(제목 없음)'}</h4>
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className={`w-2 h-2 rounded-full ${st.cls}`} />
-                        <span className="text-[11px] text-gray-500">{st.label}</span>
+                        <span className="text-[13px] text-gray-500">{st.label}</span>
                       </div>
                       {(e.classify || []).length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {e.classify.map((tag, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[10px]">{tag}</span>
+                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[12px]">{tag}</span>
                           ))}
                         </div>
                       )}
@@ -941,7 +941,7 @@ function AcademicLayout({ p, setSelectedExp }) {
                       <p className="text-xs text-gray-400">{e.date || ''}</p>
                       {(e.classify || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">{e.classify.slice(0, 3).map((t, ti) => (
-                          <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px]">{t}</span>
+                          <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[12px]">{t}</span>
                         ))}</div>
                       )}
                     </div>
@@ -1188,7 +1188,7 @@ function AshleyLayout({ p, setSelectedExp }) {
                     <p className="text-xs text-[#8a8578]">{e.date || ''}</p>
                     {(e.classify || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">{e.classify.slice(0, 2).map((t, ti) => (
-                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
+                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[12px]">{t}</span>
                       ))}</div>
                     )}
                   </div>
@@ -1407,22 +1407,22 @@ function ExperienceDetailModal({ exp, onClose }) {
           <div className="mb-7 space-y-2 border-b border-surface-200 pb-5">
             {duration && (
               <div className="flex items-center gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">기간</span>
-                <span className="text-[13px] text-bluewood-700">{duration}</span>
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">기간</span>
+                <span className="text-[15px] text-bluewood-700">{duration}</span>
               </div>
             )}
             {role && (
               <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
-                <span className="text-[13px] text-bluewood-700 leading-relaxed">{role}</span>
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
+                <span className="text-[15px] text-bluewood-700 leading-relaxed">{role}</span>
               </div>
             )}
             {techStack.length > 0 && (
               <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
                 <div className="flex flex-wrap gap-1.5">
                   {techStack.map((t, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[12px]">
+                    <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[14px]">
                       {typeof t === 'string' ? t : t?.name || ''}
                     </span>
                   ))}
@@ -1431,10 +1431,10 @@ function ExperienceDetailModal({ exp, onClose }) {
             )}
             {keywords.length > 0 && (
               <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
                 <div className="flex flex-wrap gap-1.5">
                   {keywords.slice(0, 6).map((kw, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[12px] font-medium">
+                    <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[14px] font-medium">
                       {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
                     </span>
                   ))}
@@ -1443,14 +1443,14 @@ function ExperienceDetailModal({ exp, onClose }) {
             )}
             {goal && (
               <div className="flex items-start gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
-                <span className="text-[13px] text-bluewood-700 leading-relaxed">{goal}</span>
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                <span className="text-[15px] text-bluewood-700 leading-relaxed">{goal}</span>
               </div>
             )}
             {exp.link && (
               <div className="flex items-center gap-4">
-                <span className="w-14 text-[12px] text-bluewood-400 flex-shrink-0">링크</span>
-                <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[13px] text-primary-600 hover:underline">
+                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">링크</span>
+                <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
                   <ExternalLink size={12} /> {exp.link}
                 </a>
               </div>
@@ -1460,7 +1460,7 @@ function ExperienceDetailModal({ exp, onClose }) {
           {/* 핵심 경험 슬라이드 */}
           {keyExperiences.length > 0 && (
             <div className="mb-7">
-              <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+              <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
               <KeyExperienceSlider keyExperiences={keyExperiences} />
             </div>
           )}
@@ -1470,11 +1470,11 @@ function ExperienceDetailModal({ exp, onClose }) {
             <div className="space-y-7">
               {sectionsToRender.map((sec, i) => (
                 <div key={i}>
-                  <h2 className="text-[12px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
+                  <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
                     {sec.label}
                   </h2>
                   {imagesLoaded && renderSectionImages(sec.key, 'above')}
-                  <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                  <p className="text-[16px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
                   {imagesLoaded && renderSectionImages(sec.key, 'below')}
                 </div>
               ))}
@@ -1490,7 +1490,7 @@ function ExperienceDetailModal({ exp, onClose }) {
                 return (
                   <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
                     <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
-                    <p className="text-[14px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                    <p className="text-[16px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
                   </div>
                 );
               })}
@@ -1618,7 +1618,7 @@ function TimelineLayout({ p, setSelectedExp }) {
                       <p className="text-xs text-gray-400">{exp.period} {exp.role ? `· ${exp.role}` : ''}</p>
                       {exp.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{exp.description}</p>}
                     </div>
-                    {exp.framework && <span className="px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">{exp.framework}</span>}
+                    {exp.framework && <span className="px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500">{exp.framework}</span>}
                   </div>
                 ))}
               </div>

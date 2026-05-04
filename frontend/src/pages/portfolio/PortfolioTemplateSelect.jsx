@@ -577,22 +577,22 @@ function NotionFullPreview() {
             <div className="space-y-1.5">
               <div className="p-2 bg-white rounded border border-gray-100 text-xs">
                 <p className="font-medium">스마트 포트폴리오 플랫폼</p>
-                <p className="text-gray-400 text-[10px]">2025.03 ~ 진행중</p>
+                <p className="text-gray-400 text-[12px]">2025.03 ~ 진행중</p>
               </div>
             </div>
           </div>
           <div>
             <h3 className="font-bold text-xs mb-2">🛠 Skills</h3>
             <div className="flex flex-wrap gap-1">
-              <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px]">React</span>
-              <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px]">Node.js</span>
-              <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px]">Python</span>
-              <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px]">Figma</span>
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-[12px]">React</span>
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-[12px]">Node.js</span>
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-[12px]">Python</span>
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-[12px]">Figma</span>
             </div>
           </div>
           <div>
             <h3 className="font-bold text-xs mb-2">📞 Contact</h3>
-            <div className="space-y-1 text-[10px] text-gray-600">
+            <div className="space-y-1 text-[12px] text-gray-600">
               <p>010-0000-0000</p>
               <p>example@email.com</p>
               <p>github.com/username</p>
@@ -608,7 +608,7 @@ function NotionFullPreview() {
               <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center text-2xl">{['💻','📱','🎨','📊'][i-1]}</div>
               <div className="p-2">
                 <p className="text-xs font-medium text-gray-700">프로젝트 {i}</p>
-                <p className="text-[10px] text-gray-400">2025.0{i}</p>
+                <p className="text-[12px] text-gray-400">2025.0{i}</p>
               </div>
             </div>
           ))}
@@ -684,7 +684,7 @@ function AshleyFullPreview() {
               <div className="aspect-[4/3] bg-[#f0ece4] flex items-center justify-center text-xs text-[#8a8578]">콜렉션 {i}</div>
               <div className="p-3">
                 <p className="text-xs font-bold text-[#2d2a26] mb-0.5">캠페인 {i}</p>
-                <p className="text-[10px] text-[#8a8578]">마케팅 프로젝트 설명</p>
+                <p className="text-[12px] text-[#8a8578]">마케팅 프로젝트 설명</p>
               </div>
             </div>
           ))}
@@ -699,7 +699,7 @@ function AshleyFullPreview() {
           ))}
         </div>
       </div>
-      <div className="px-8 py-4 border-t border-[#e8e4dc] flex items-center justify-between text-[10px] text-[#8a8578]">
+      <div className="px-8 py-4 border-t border-[#e8e4dc] flex items-center justify-between text-[12px] text-[#8a8578]">
         <span>FitPoly Portfolio · 홍길동</span><span>맨 위로 ↑</span>
       </div>
     </div>
@@ -739,11 +739,11 @@ function AcademicFullPreview() {
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
               <p className="text-xs font-bold text-blue-900 mb-1">성장 마인드셋</p>
-              <p className="text-[10px] text-blue-700/70">끊임없이 배우고 성장합니다</p>
+              <p className="text-[12px] text-blue-700/70">끊임없이 배우고 성장합니다</p>
             </div>
             <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
               <p className="text-xs font-bold text-blue-900 mb-1">팀워크</p>
-              <p className="text-[10px] text-blue-700/70">협업으로 더 큰 가치를 만듭니다</p>
+              <p className="text-[12px] text-blue-700/70">협업으로 더 큰 가치를 만듭니다</p>
             </div>
           </div>
         </div>
@@ -758,11 +758,11 @@ function AcademicFullPreview() {
                 <div className="absolute left-[5px] top-1 bottom-1 w-0.5 bg-emerald-100" />
                 <div className="flex items-start gap-2.5 relative">
                   <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
-                  <div><p className="text-xs font-medium">가천대학교 · 컴퓨터공학과</p><p className="text-[10px] text-gray-400">학사 재학 · 2020.03 - 현재</p></div>
+                  <div><p className="text-xs font-medium">가천대학교 · 컴퓨터공학과</p><p className="text-[12px] text-gray-400">학사 재학 · 2020.03 - 현재</p></div>
                 </div>
                 <div className="flex items-start gap-2.5 relative">
                   <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
-                  <div><p className="text-xs font-medium">OO고등학교</p><p className="text-[10px] text-gray-400">졸업 · 2017.03 - 2020.02</p></div>
+                  <div><p className="text-xs font-medium">OO고등학교</p><p className="text-[12px] text-gray-400">졸업 · 2017.03 - 2020.02</p></div>
                 </div>
               </div>
             </div>
@@ -771,8 +771,8 @@ function AcademicFullPreview() {
                 <span className="w-1.5 h-5 bg-amber-500 rounded-full inline-block" /> 수상
               </h2>
               <div className="space-y-2">
-                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">해커톤 최우수상</p><p className="text-[10px] text-gray-400">2025.06</p></div></div>
-                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">프로그래밍 경진대회 장려상</p><p className="text-[10px] text-gray-400">2024.12</p></div></div>
+                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">해커톤 최우수상</p><p className="text-[12px] text-gray-400">2025.06</p></div></div>
+                <div className="flex items-start gap-2"><span className="text-sm">🏆</span><div><p className="text-xs font-medium">프로그래밍 경진대회 장려상</p><p className="text-[12px] text-gray-400">2024.12</p></div></div>
               </div>
             </div>
           </div>
@@ -784,7 +784,7 @@ function AcademicFullPreview() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-gray-50 rounded-xl">
-              <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase">도구</h4>
+              <h4 className="text-[12px] font-bold text-gray-500 mb-2 uppercase">도구</h4>
               <div className="space-y-1.5">
                 {[['React', 4], ['Node.js', 3], ['Figma', 5]].map(([name, lvl]) => (
                   <div key={name} className="flex items-center justify-between">
@@ -795,7 +795,7 @@ function AcademicFullPreview() {
               </div>
             </div>
             <div className="p-3 bg-gray-50 rounded-xl">
-              <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase">언어</h4>
+              <h4 className="text-[12px] font-bold text-gray-500 mb-2 uppercase">언어</h4>
               <div className="space-y-1.5">
                 {[['Python', 5], ['JavaScript', 4]].map(([name, lvl]) => (
                   <div key={name} className="flex items-center justify-between">
@@ -807,7 +807,7 @@ function AcademicFullPreview() {
             </div>
           </div>
         </div>
-        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
+        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[12px] text-gray-400 rounded-b-xl">
           <span>FitPoly Portfolio · 홍길동</span><span>맨 위로 ↑</span>
         </div>
       </div>
@@ -846,9 +846,9 @@ function TimelineFullPreview() {
         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
           <p className="text-xs text-white/50 mb-2 text-center font-medium">2025년 4월</p>
           <div className="grid grid-cols-7 gap-1 text-center">
-            {days.map(d => <div key={d} className="text-[10px] text-white/30 font-medium">{d}</div>)}
+            {days.map(d => <div key={d} className="text-[12px] text-white/30 font-medium">{d}</div>)}
             {Array.from({length: 30}, (_, i) => (
-              <div key={i} className={`text-[10px] py-1 rounded ${i === 14 ? 'bg-purple-500 text-white font-bold' : i === 7 || i === 22 ? 'bg-blue-500/30 text-blue-200' : 'text-white/40'}`}>{i+1}</div>
+              <div key={i} className={`text-[12px] py-1 rounded ${i === 14 ? 'bg-purple-500 text-white font-bold' : i === 7 || i === 22 ? 'bg-blue-500/30 text-blue-200' : 'text-white/40'}`}>{i+1}</div>
             ))}
           </div>
         </div>
@@ -873,7 +873,7 @@ function TimelineFullPreview() {
               <div key={s.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-gray-700">{s.label}</span>
-                  <span className="text-[10px] text-gray-400">{s.period}</span>
+                  <span className="text-[12px] text-gray-400">{s.period}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {s.courses.map(c => (
@@ -898,9 +898,9 @@ function TimelineFullPreview() {
                   <div className={`w-4 h-4 rounded-full ${a.color} border-2 border-white z-10 mt-0.5 flex-shrink-0`} />
                   <div>
                     <p className="text-xs font-medium text-gray-800">{a.title}</p>
-                    <p className="text-[10px] text-gray-400">{a.date}</p>
+                    <p className="text-[12px] text-gray-400">{a.date}</p>
                   </div>
-                  <span className="ml-auto px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">{a.category}</span>
+                  <span className="ml-auto px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500">{a.category}</span>
                 </div>
               ))}
             </div>
@@ -915,16 +915,16 @@ function TimelineFullPreview() {
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
               <p className="text-xs font-bold text-emerald-800 mb-1">2025년 3~6월</p>
-              <p className="text-[10px] text-emerald-600">알고리즘 문제풀이, 네트워크 보안 스터디</p>
+              <p className="text-[12px] text-emerald-600">알고리즘 문제풀이, 네트워크 보안 스터디</p>
             </div>
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
               <p className="text-xs font-bold text-emerald-800 mb-1">2025년 7~8월</p>
-              <p className="text-[10px] text-emerald-600">인턴십 준비, 포트폴리오 완성</p>
+              <p className="text-[12px] text-emerald-600">인턴십 준비, 포트폴리오 완성</p>
             </div>
           </div>
         </div>
 
-        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[10px] text-gray-400 rounded-b-xl">
+        <div className="px-8 py-3 bg-gray-50 flex items-center justify-between text-[12px] text-gray-400 rounded-b-xl">
           <span>FitPoly Dashboard · 홍길동</span><span>맨 위로 ↑</span>
         </div>
       </div>
@@ -1068,7 +1068,7 @@ export default function PortfolioTemplateSelect() {
                 }`}
               >
                 {cat.label}
-                <span className="ml-1.5 text-[11px] opacity-70">
+                <span className="ml-1.5 text-[13px] opacity-70">
                   ({activeCategory === cat.id || cat.id === 'all'
                     ? PORTFOLIO_TEMPLATES.filter(t => cat.id === 'all' || t.category === cat.id).length
                     : PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length})
@@ -1122,7 +1122,7 @@ export default function PortfolioTemplateSelect() {
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap gap-1.5">
                         {template.tags.map(tag => (
-                          <span key={tag} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-primary-50 text-primary-600 border border-primary-100">
+                          <span key={tag} className="px-2 py-0.5 rounded-md text-[12px] font-medium bg-primary-50 text-primary-600 border border-primary-100">
                             {tag}
                           </span>
                         ))}

@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+﻿import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import YooptaEditor, { createYooptaEditor, Blocks, Marks as MarksAPI, useYooptaEditor } from '@yoopta/editor';
 import Paragraph from '@yoopta/paragraph';
 import { HeadingOne, HeadingTwo, HeadingThree } from '@yoopta/headings';
@@ -284,7 +284,7 @@ export default function YooptaPortfolioEditor({
               {title}
             </h1>
             {hasChanges && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+              <span className="text-[12px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full">
                 수정됨
               </span>
             )}

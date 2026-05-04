@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
@@ -279,30 +279,30 @@ export default function ExperienceHub() {
       {/* ═══ 헤더 ═══ */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">경험 정리</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            <span className="text-primary-600 font-semibold">{experiences.length}</span>개의 경험이 타임라인에 정리되어 있습니다
+          <h1 className="text-[28px] font-bold text-bluewood-900 tracking-[-0.02em]">경험 정리</h1>
+          <p className="text-[15px] text-bluewood-400 mt-1">
+            <span className="text-bluewood-900 font-bold">{experiences.length}</span>개의 경험이 정리되어 있습니다
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* 정렬 드롭다운 */}
           <div className="relative" ref={sortDropRef}>
             <button
               onClick={() => setSortDropOpen(v => !v)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:border-gray-300 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-600 hover:border-surface-300 transition-colors"
             >
               <ArrowUpDown size={13} />
               {currentSortLabel}
               <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
             </button>
             {sortDropOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1 min-w-[120px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-30 py-1 min-w-[120px]">
                 {SORT_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
-                      sortBy === opt.value ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+                    className={`w-full text-left px-3 py-2 text-[13px] font-medium transition-colors ${
+                      sortBy === opt.value ? 'text-bluewood-900 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
                     }`}
                   >
                     {opt.label}
@@ -313,41 +313,39 @@ export default function ExperienceHub() {
           </div>
 
           {/* 뷰 전환 */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="flex items-center gap-0.5 border border-surface-200 rounded-lg p-1 bg-white">
             <button
               onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'timeline' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
+                viewMode === 'timeline' ? 'bg-bluewood-900 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
               }`}
             >
-              <CalendarDays size={14} />타임라인
+              <CalendarDays size={13} />타임라인
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
+                viewMode === 'table' ? 'bg-bluewood-900 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
               }`}
             >
-              <List size={14} />표
+              <List size={13} />표
             </button>
           </div>
 
           {/* 새 경험 추가 버튼 */}
-          <div className="relative">
-            <Link
-              to="/app/experience/new"
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
-            >
-              <Plus size={18} />
-              새 경험 추가
-            </Link>
-          </div>
+          <Link
+            to="/app/experience/new"
+            className="flex items-center gap-2 px-5 py-2.5 bg-bluewood-900 text-white rounded-lg text-[15px] font-semibold hover:bg-bluewood-800 transition-colors"
+          >
+            <Plus size={16} />
+            새 경험 추가
+          </Link>
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bluewood-600" />
         </div>
       ) : experiences.length === 0 ? (
         <EmptyState />
@@ -355,27 +353,27 @@ export default function ExperienceHub() {
         <>
           {/* ═══ 간트 타임라인 ═══ */}
           {viewMode === 'timeline' && ganttData && (
-            <div className="bg-gray-100 rounded-2xl overflow-hidden">
+            <div className="bg-white border border-surface-100 rounded-xl overflow-hidden">
               {/* 타임라인 헤더 */}
-              <div className="px-6 py-4 flex items-center justify-between">
+              <div className="px-6 py-4 flex items-center justify-between border-b border-surface-100">
                 <div className="flex items-center gap-3">
                   {/* 년도 드롭다운 */}
                   <div className="relative" ref={yearDropdownRef}>
                     <button
                       onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white px-3 py-1.5 rounded-md border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-1.5 text-[13px] font-medium text-bluewood-600 bg-surface-50 px-3 py-1.5 rounded-md border border-surface-200 hover:border-surface-300 transition-colors"
                     >
                       {selectedYear}년
                       <ChevronDown size={12} className={`transition-transform ${yearDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {yearDropdownOpen && (
-                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[80px]">
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-20 py-1 min-w-[80px]">
                         {availableYears.map(y => (
                           <button
                             key={y}
                             onClick={() => { setSelectedYear(y); setYearDropdownOpen(false); }}
-                            className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${
-                              y === selectedYear ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'
+                            className={`w-full text-left px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                              y === selectedYear ? 'text-bluewood-900 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
                             }`}
                           >
                             {y}년
@@ -384,7 +382,7 @@ export default function ExperienceHub() {
                       </div>
                     )}
                   </div>
-                  <span className="text-sm font-bold text-gray-700">경험 타임라인</span>
+                  <span className="text-[15px] font-bold text-bluewood-700">경험 타임라인</span>
                 </div>
                 {/* 팔레트 선택 */}
                 <div className="flex items-center gap-1.5">
@@ -397,7 +395,7 @@ export default function ExperienceHub() {
                       key={p.key}
                       onClick={() => setColorPalette(p.key)}
                       className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
-                        colorPalette === p.key ? 'border-white shadow-md scale-110' : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'
+                        colorPalette === p.key ? 'border-bluewood-900 shadow-sm scale-110' : 'border-transparent hover:border-surface-300 opacity-60 hover:opacity-100'
                       }`}
                     >
                       {p.colors.map((c, i) => (
@@ -413,10 +411,10 @@ export default function ExperienceHub() {
                 <div>
                   <div className="relative">
                     {/* 월 헤더 */}
-                    <div className="flex border-b border-gray-200/60">
+                    <div className="flex border-b border-surface-100">
                       {ganttData.months.map((m, i) => (
-                        <div key={`${m.year}-${m.month}`} className="flex-1 border-r border-gray-200/40 px-2 pt-1 pb-2">
-                          <span className="text-[10px] font-medium text-gray-400">{MONTH_NAMES[m.month]}</span>
+                        <div key={`${m.year}-${m.month}`} className="flex-1 border-r border-surface-100 px-2 pt-1 pb-2">
+                          <span className="text-[12px] font-medium text-bluewood-300">{MONTH_NAMES[m.month]}</span>
                         </div>
                       ))}
                     </div>
@@ -426,7 +424,7 @@ export default function ExperienceHub() {
                       {/* 수직 격자선 */}
                       <div className="absolute inset-0 flex pointer-events-none">
                         {ganttData.months.map((m, i) => (
-                          <div key={i} className="flex-1 border-r border-gray-200/40" />
+                          <div key={i} className="flex-1 border-r border-surface-100" />
                         ))}
                       </div>
 
@@ -455,19 +453,19 @@ export default function ExperienceHub() {
                                   value={editTitle}
                                   onChange={e => setEditTitle(e.target.value)}
                                   onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                                  className="w-full text-[12px] font-semibold text-gray-800 bg-transparent outline-none border-b border-gray-200 pb-1 mb-2"
+                                  className="w-full text-[14px] font-semibold text-gray-800 bg-transparent outline-none border-b border-gray-200 pb-1 mb-2"
                                   autoFocus
                                 />
                                 <div className="flex flex-col gap-1.5 mb-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[9px] text-gray-400 w-6 flex-shrink-0">시작</span>
+                                    <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">시작</span>
                                     <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
-                                      className="flex-1 text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                      className="flex-1 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[9px] text-gray-400 w-6 flex-shrink-0">종료</span>
+                                    <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">종료</span>
                                     <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
-                                      className="flex-1 text-[9px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                      className="flex-1 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
                                   </div>
                                 </div>
                                 <div className="flex justify-end gap-1">
@@ -489,7 +487,7 @@ export default function ExperienceHub() {
                                   onClick={() => setSelectedId(isSelected ? null : exp.id)}
                                   onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
                                 >
-                                  <span className={`text-[13px] font-semibold ${theme.barText} truncate block pr-12`}>
+                                  <span className={`text-[15px] font-semibold ${theme.barText} truncate block pr-12`}>
                                     {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
                                     {stripMd(exp.title)}
                                   </span>
@@ -525,21 +523,21 @@ export default function ExperienceHub() {
 
           {/* ═══ 경험 목록 (테이블) ═══ */}
           {viewMode === 'table' && (
-            <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
+            <div className="border border-surface-100 rounded-xl overflow-hidden bg-white">
               {/* 테이블 헤더 */}
-              <div className="grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+              <div className="grid grid-cols-[24px_24px_44px_1fr_150px_130px_110px_80px] items-center gap-3 px-5 py-3 border-b border-surface-100 bg-surface-50/40">
                 <span></span>
                 <span></span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">순서</span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">프로젝트</span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">키워드</span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">기간</span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">성과</span>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider text-right">관리</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">순서</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">프로젝트</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">키워드</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">기간</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">성과</span>
+                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em] text-right">관리</span>
               </div>
 
               {/* 테이블 바디 */}
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-surface-100">
                 {sortedExperiences.map((exp, idx) => {
                   const theme = COLOR_PALETTES[colorPalette][idx % 3];
                   const overview = exp.structuredResult?.projectOverview || {};
@@ -557,39 +555,39 @@ export default function ExperienceHub() {
                   /* ── 편집 상태: 그리드를 무너뜨리고 풀 너비 form 패널 ── */
                   if (isEditing) {
                     return (
-                      <div key={exp.id} className="bg-blue-50 border-y border-blue-200 px-5 py-4">
-                        <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-3">경험 수정</p>
+                      <div key={exp.id} className="bg-surface-50/60 border-y border-surface-200 px-5 py-5">
+                        <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.14em] mb-4">경험 수정</p>
                         <div className="flex flex-col gap-3">
                           {/* 제목 */}
                           <div>
-                            <label className="block text-[10px] text-gray-500 mb-1">제목</label>
+                            <label className="block text-[13px] text-bluewood-400 mb-1">제목</label>
                             <input
                               value={editTitle}
                               onChange={e => setEditTitle(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                              className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200 transition-colors"
+                              className="w-full text-[15px] font-semibold text-bluewood-900 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
                               autoFocus
                             />
                           </div>
                           {/* 기간 */}
                           <div className="flex items-center gap-3">
                             <div className="flex-1">
-                              <label className="block text-[10px] text-gray-500 mb-1">시작</label>
+                              <label className="block text-[13px] text-bluewood-400 mb-1">시작</label>
                               <input
                                 type="month"
                                 value={editStart}
                                 onChange={e => setEditStart(e.target.value)}
-                                className="w-full text-sm text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-colors"
+                                className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
                               />
                             </div>
-                            <span className="text-gray-400 mt-5">–</span>
+                            <span className="text-bluewood-300 mt-5">–</span>
                             <div className="flex-1">
-                              <label className="block text-[10px] text-gray-500 mb-1">종료</label>
+                              <label className="block text-[13px] text-bluewood-400 mb-1">종료</label>
                               <input
                                 type="month"
                                 value={editEnd}
                                 onChange={e => setEditEnd(e.target.value)}
-                                className="w-full text-sm text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition-colors"
+                                className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
                               />
                             </div>
                           </div>
@@ -597,13 +595,13 @@ export default function ExperienceHub() {
                           <div className="flex gap-2 justify-end">
                             <button
                               onClick={cancelEditing}
-                              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-500 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
                             >
                               <X size={13} /> 취소
                             </button>
                             <button
                               onClick={saveEditing}
-                              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-bluewood-900 rounded-lg hover:bg-bluewood-800 transition-colors"
                             >
                               <Check size={13} /> 저장
                             </button>
@@ -622,15 +620,15 @@ export default function ExperienceHub() {
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
                       onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
-                      className={`group grid grid-cols-[24px_24px_40px_1fr_140px_120px_100px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
+                      className={`group grid grid-cols-[24px_24px_44px_1fr_150px_130px_110px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
                         isDragging ? 'opacity-40' : ''
-                      } ${isOver && !isDragging ? 'border-t-2 border-t-blue-400' : ''
-                      } ${isSelected ? `${theme.light}` : 'hover:bg-gray-50/60'}`}
+                      } ${isOver && !isDragging ? 'border-t-2 border-t-bluewood-400' : ''
+                      } ${isSelected ? `${theme.light}` : 'hover:bg-surface-50/40'}`}
                       onClick={() => setSelectedId(isSelected ? null : exp.id)}
                     >
                       {/* 드래그 핸들 — 모든 모드에서 활성화 */}
                       <div
-                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
+                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-bluewood-200 hover:text-bluewood-500"
                         onMouseDown={e => e.stopPropagation()}
                       >
                         <GripVertical size={14} />
@@ -649,13 +647,13 @@ export default function ExperienceHub() {
 
                       {/* # */}
                       <div className={`w-7 h-7 rounded-lg ${theme.bar} ${theme.border || ''} flex items-center justify-center flex-shrink-0`}>
-                        <span className={`text-[11px] font-bold ${theme.barText}`}>{idx + 1}</span>
+                        <span className={`text-[13px] font-bold ${theme.barText}`}>{idx + 1}</span>
                       </div>
 
                       {/* 프로젝트 */}
                       <div className="min-w-0 overflow-hidden">
-                        <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5 block w-full">
+                        <p className="text-[15px] font-semibold text-bluewood-800 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
+                        <p className="text-[13px] text-bluewood-400 truncate mt-0.5 block w-full">
                           {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
                         </p>
                       </div>
@@ -663,15 +661,15 @@ export default function ExperienceHub() {
                       {/* 키워드 */}
                       <div className="flex flex-wrap gap-1 overflow-hidden max-h-[36px]">
                         {displayKeywords.slice(0, 2).map((k, i) => (
-                          <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-medium truncate max-w-[60px]">{k}</span>
+                          <span key={i} className="px-1.5 py-0.5 bg-surface-100 text-bluewood-500 rounded text-[12px] font-medium truncate max-w-[60px]">{k}</span>
                         ))}
                       </div>
 
                       {/* 기간 */}
-                      <span className="text-[11px] text-gray-500 font-medium truncate">{periodStr}</span>
+                      <span className="text-[13px] text-bluewood-500 font-medium truncate">{periodStr}</span>
 
                       {/* 성과 */}
-                      <span className="text-[11px] font-semibold text-gray-600 truncate">
+                      <span className="text-[13px] font-semibold text-bluewood-600 truncate">
                         {metric ? stripMd(metric) : '–'}
                       </span>
 
@@ -679,14 +677,14 @@ export default function ExperienceHub() {
                       <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={(e) => startEditing(exp, e)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          className="p-1.5 text-bluewood-300 hover:text-bluewood-700 hover:bg-surface-100 rounded-md transition-colors"
                           title="이름/기간 수정"
                         >
                           <Pencil size={13} />
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id); }}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          className="p-1.5 text-bluewood-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                           title="삭제"
                         >
                           <Trash2 size={13} />
@@ -727,14 +725,14 @@ export default function ExperienceHub() {
             style={{ position: 'fixed', left: rect.left, top, width: 280, zIndex: 9999 }}
             className="bg-gray-900 text-white rounded-xl px-4 py-3 shadow-xl pointer-events-none"
           >
-            <p className="text-[12px] font-bold mb-1 truncate">{stripMd(exp.title)}</p>
+            <p className="text-[14px] font-bold mb-1 truncate">{stripMd(exp.title)}</p>
             {tooltipSummary && (
-              <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-2 mb-1.5">{stripMd(tooltipSummary)}</p>
+              <p className="text-[13px] text-gray-300 leading-relaxed line-clamp-2 mb-1.5">{stripMd(tooltipSummary)}</p>
             )}
             {tooltipLines.length > 0 && (
               <div className="border-t border-gray-700 pt-1.5 space-y-0.5">
                 {tooltipLines.map((line, i) => (
-                  <p key={i} className="text-[10px] text-gray-400 truncate">• {line}</p>
+                  <p key={i} className="text-[12px] text-gray-400 truncate">• {line}</p>
                 ))}
               </div>
             )}

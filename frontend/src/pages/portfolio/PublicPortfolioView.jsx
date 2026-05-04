@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
@@ -231,13 +231,13 @@ export default function PublicPortfolioView() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-50"><span className="text-4xl opacity-50">📋</span></div>
                       )}
-                      {e.date && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">{e.date}</span>}
+                      {e.date && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[12px] px-1.5 py-0.5 rounded">{e.date}</span>}
                     </div>
                     <div className="p-3">
                       <h4 className="text-sm font-bold text-gray-800 line-clamp-2 mb-1.5">{e.title || '(제목 없음)'}</h4>
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className={`w-2 h-2 rounded-full ${st.cls}`} />
-                        <span className="text-[11px] text-gray-500">{st.label}</span>
+                        <span className="text-[13px] text-gray-500">{st.label}</span>
                       </div>
                     </div>
                   </button>
@@ -763,13 +763,13 @@ export default function PublicPortfolioView() {
                         return (
                           <div key={key}>
                             <div className="flex items-center gap-3 px-5 py-2.5 bg-gray-50">
-                              <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-500 text-white flex items-center justify-center text-[11px] font-bold">
+                              <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-500 text-white flex items-center justify-center text-[13px] font-bold">
                                 {meta.num}
                               </span>
-                              <span className="text-[13px] font-bold text-blue-700">{meta.label}</span>
+                              <span className="text-[15px] font-bold text-blue-700">{meta.label}</span>
                             </div>
                             <div className="px-5 py-3 pl-[60px]">
-                              <p className="text-[13px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
+                              <p className="text-[15px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
                             </div>
                           </div>
                         );

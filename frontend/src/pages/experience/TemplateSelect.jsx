@@ -104,20 +104,20 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
   };
 
   return (
-    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-3 space-y-2">
-      <p className="text-[12.5px] text-blue-800 leading-relaxed font-medium">{question}</p>
-      {reason && <p className="text-[11px] text-blue-500 leading-relaxed">{reason}</p>}
+    <div className="mt-3 border-l-2 border-surface-100 pl-3 py-1 space-y-2">
+      <p className="text-[20px] text-bluewood-700 leading-relaxed font-medium">{question}</p>
+      {reason && <p className="text-[19px] text-bluewood-400 leading-relaxed">{reason}</p>}
 
       {mode === 'intro' && (
         <div className="space-y-2">
-          <p className="text-[11px] text-blue-600">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
+          <p className="text-[19px] text-bluewood-400">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setMode('guided')}
-              className="flex-1 py-2 rounded-xl bg-blue-500 text-white text-[12px] font-medium hover:bg-blue-600 transition-colors">
+              className="flex-1 py-2 rounded-lg bg-bluewood-900 text-white text-[20px] font-medium hover:bg-bluewood-800 transition-colors">
               수치로 간단히 채우기
             </button>
             <button type="button" onClick={() => setMode('free')}
-              className="px-3 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-[12px] hover:bg-blue-50 transition-colors">
+              className="px-3 py-2 rounded-lg border border-surface-200 text-bluewood-600 text-[20px] hover:bg-surface-50 transition-colors">
               직접 쓰기
             </button>
           </div>
@@ -130,52 +130,52 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             {suggestions.map((sg, si) => (
               <button key={si} type="button"
                 onClick={() => { setDraft(sg); setMode('free'); }}
-                className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10.5px] text-blue-700 hover:bg-blue-50 transition-colors">
+                className="px-2 py-0.5 rounded-md border border-surface-200 text-[10.5px] text-bluewood-600 hover:bg-surface-50 transition-colors">
                 {sg}
               </button>
             ))}
           </div>
-          <div className="bg-white rounded-xl border border-blue-100 px-3 py-2.5 space-y-2.5">
+          <div className="border border-surface-100 rounded-lg px-3 py-2.5 space-y-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-[10.5px] text-gray-400 w-16 shrink-0">이전 (선택)</span>
+              <span className="text-[10.5px] text-bluewood-300 w-16 shrink-0">이전 (선택)</span>
               <input value={beforeVal} onChange={e => setBeforeVal(e.target.value)}
                 placeholder="ex. 800"
-                className="flex-1 text-[12px] text-gray-600 border-b border-gray-200 px-1 py-0.5 focus:outline-none focus:border-blue-300 bg-transparent" />
+                className="flex-1 text-[20px] text-bluewood-600 border-b border-surface-200 px-1 py-0.5 focus:outline-none focus:border-bluewood-300 bg-transparent" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10.5px] text-blue-600 w-16 shrink-0 font-medium">이후 *</span>
+              <span className="text-[10.5px] text-bluewood-700 w-16 shrink-0 font-medium">이후 *</span>
               <input value={afterVal} onChange={e => setAfterVal(e.target.value)}
                 placeholder="ex. 480"
-                className="flex-1 text-[12px] text-blue-700 border-b border-blue-300 px-1 py-0.5 focus:outline-none focus:border-blue-500 bg-transparent" />
+                className="flex-1 text-[20px] text-bluewood-800 border-b border-surface-200 px-1 py-0.5 focus:outline-none focus:border-bluewood-400 bg-transparent" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10.5px] text-gray-400 w-16 shrink-0">단위</span>
+              <span className="text-[10.5px] text-bluewood-300 w-16 shrink-0">단위</span>
               <div className="flex gap-1 flex-wrap">
                 {unitOptions.map(u => (
                   <button key={u} type="button" onClick={() => setUnit(u)}
                     className={`px-2 py-0.5 rounded-full text-[10.5px] border transition-colors ${
                       unit === u
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'border-gray-200 text-gray-500 hover:border-blue-200'
+                        ? 'bg-bluewood-900 text-white border-bluewood-900'
+                        : 'border-surface-200 text-bluewood-400 hover:border-bluewood-300'
                     }`}>{u}</button>
                 ))}
               </div>
             </div>
           </div>
           {afterVal && (
-            <p className="text-[11.5px] text-blue-700 bg-white rounded-lg px-2.5 py-1.5 border border-blue-100">
+            <p className="text-[11.5px] text-bluewood-700 bg-surface-50 rounded-lg px-2.5 py-1.5 border border-surface-100">
               ✦ {buildPreview()}
             </p>
           )}
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => setMode('free')}
-              className="text-[10.5px] text-blue-500 hover:underline">
+              className="text-[10.5px] text-bluewood-400 hover:underline">
               직접 입력으로 전환
             </button>
             <button type="button"
               onClick={() => handleApply(buildPreview())}
               disabled={!afterVal.trim()}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-bluewood-900 text-white hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
@@ -188,7 +188,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             {suggestions.map((sg, si) => (
               <button key={si} type="button"
                 onClick={() => setDraft(sg)}
-                className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10.5px] text-blue-700 hover:bg-blue-50 transition-colors">
+                className="px-2 py-0.5 rounded-md border border-surface-200 text-[10.5px] text-bluewood-600 hover:bg-surface-50 transition-colors">
                 {sg}
               </button>
             ))}
@@ -199,17 +199,17 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
               onChange={e => setDraft(e.target.value)}
               rows={2}
               placeholder="기억나는 내용을 자유롭게 입력해주세요 (선택)"
-              className="flex-1 text-[12px] text-gray-700 bg-white border border-blue-100 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-blue-300 leading-relaxed"
+              className="flex-1 text-[20px] text-bluewood-700 bg-transparent border border-surface-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-bluewood-300 leading-relaxed"
             />
             <button type="button"
               onClick={() => handleApply(draft)}
               disabled={!draft.trim()}
-              className="self-end px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="self-end px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-bluewood-900 text-white hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
           <button type="button" onClick={() => setMode('guided')}
-            className="text-[10.5px] text-blue-500 hover:underline">
+            className="text-[10.5px] text-bluewood-400 hover:underline">
             수치 입력으로 전환
           </button>
         </div>
@@ -248,7 +248,7 @@ function InlineCarlEdit({ description, onChange }) {
       <AutoSizeTextarea
         value={description || ''}
         onChange={onChange}
-        className="w-full bg-transparent text-[12.5px] text-bluewood-600 leading-relaxed outline-none resize-none border-b border-transparent focus:border-surface-200 transition-colors"
+        className="w-full bg-transparent text-[20px] text-bluewood-600 leading-relaxed outline-none resize-none border-b border-transparent focus:border-surface-200 transition-colors"
         placeholder="내용을 입력하세요"
       />
     );
@@ -278,11 +278,11 @@ function InlineCarlEdit({ description, onChange }) {
     <div className="mt-1 space-y-1.5">
       {mainSections.map((s, i) => (
         <div key={s.key} className="relative flex">
-          {i > 0 && <span className="flex-shrink-0 text-bluewood-200 mr-1.5 text-[12.5px] leading-relaxed pt-[1px] select-none">&bull;</span>}
+          {i > 0 && <span className="flex-shrink-0 text-bluewood-200 mr-1.5 text-[20px] leading-relaxed pt-[1px] select-none">&bull;</span>}
           <AutoSizeTextarea
             value={s.text}
             onChange={v => updateSection(s.key, v)}
-            className={`flex-1 bg-transparent outline-none resize-none leading-relaxed text-[12.5px] border-b border-transparent focus:border-surface-200 transition-colors ${styleMap[s.key] || 'text-bluewood-600'}`}
+            className={`flex-1 bg-transparent outline-none resize-none leading-relaxed text-[20px] border-b border-transparent focus:border-surface-200 transition-colors ${styleMap[s.key] || 'text-bluewood-600'}`}
             placeholder={s.key === 'context' ? '배경을 입력하세요' : s.key === 'action' ? '행동을 입력하세요' : s.key === 'result' ? '결과를 입력하세요' : '배운 점을 입력하세요'}
           />
         </div>
@@ -315,7 +315,7 @@ function InlineKeywordInput({ onAdd }) {
 function CarlDescription({ description, onUpdateMissing }) {
   const sections = parseCarlDescription(description);
   if (!sections) {
-    return <p className="text-[12.5px] text-bluewood-600 leading-relaxed">{description}</p>;
+    return <p className="text-[20px] text-bluewood-600 leading-relaxed">{description}</p>;
   }
 
   const mainSections = sections.filter(s => s.key !== 'missing');
@@ -324,7 +324,7 @@ function CarlDescription({ description, onUpdateMissing }) {
   return (
     <div className="mt-1 space-y-1.5">
       {mainSections.map((s, i) => (
-        <p key={i} className={`text-[12.5px] leading-relaxed ${
+        <p key={i} className={`text-[20px] leading-relaxed ${
           s.key === 'context'  ? 'text-bluewood-500' :
           s.key === 'action'   ? 'text-bluewood-700' :
           s.key === 'result'   ? 'text-bluewood-700 font-medium' :
@@ -433,6 +433,7 @@ export default function TemplateSelect() {
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [isOngoing, setIsOngoing] = useState(false);
   const [field, setField] = useState('');
   const [jobCategory, setJobCategory] = useState('');
   const [files, setFiles] = useState([]);
@@ -893,51 +894,57 @@ export default function TemplateSelect() {
   if (step === 3) {
     const doneCount = loadingSteps.filter(s => s.status === 'done').length;
     const progress = loadingSteps.length > 0 ? Math.round((doneCount / loadingSteps.length) * 100) : 0;
+    const activeStep = loadingSteps.find(s => s.status === 'loading');
 
     return (
-      <div className="animate-fadeIn max-w-lg mx-auto pt-16">
-        <div className="bg-white rounded-2xl border border-surface-200 p-8 shadow-sm">
-          {/* 진행률 헤더 */}
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-50 flex items-center justify-center">
-              <Loader2 size={28} className="text-primary-500 animate-spin" />
-            </div>
-            <h2 className="text-lg font-bold text-bluewood-900 mb-1">핵심 경험을 추출하고 있습니다</h2>
-            <p className="text-sm text-bluewood-400">{progress}% 완료</p>
-          </div>
+      <div className="animate-fadeIn mx-auto max-w-3xl pt-24 px-8">
+        {/* 상단 메타 */}
+        <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-200 mb-8">AI Analysis · Processing</p>
 
-          {/* 프로그레스 바 */}
-          <div className="w-full h-2 bg-surface-100 rounded-full mb-8 overflow-hidden">
-            <div
-              className="h-full bg-primary-500 rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          {/* 단계별 상태 */}
-          <div className="space-y-3">
-            {loadingSteps.map((s, i) => (
-              <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                s.status === 'loading' ? 'bg-primary-50 border border-primary-100' :
-                s.status === 'done' ? 'bg-surface-50' : ''
-              }`}>
-                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                  {s.status === 'done' && <Check size={16} className="text-green-500" />}
-                  {s.status === 'loading' && <Loader2 size={16} className="text-primary-500 animate-spin" />}
-                  {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300" />}
-                </div>
-                <span className={`text-sm ${
-                  s.status === 'loading' ? 'text-primary-700 font-medium' :
-                  s.status === 'done' ? 'text-bluewood-500' : 'text-bluewood-300'
-                }`}>{s.label}</span>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-bluewood-300 text-center mt-8">
-            AI가 자료를 분석하여 핵심 경험을 추출합니다.<br/>자료량에 따라 최대 5분까지 소요될 수 있어요 — 페이지를 벗어나지 말아주세요.
-          </p>
+        {/* 제목 + 진행률 */}
+        <div className="flex items-end justify-between mb-3">
+          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">핵심 경험 추출 중</h2>
+          <span className="text-[32px] font-bold tabular-nums text-bluewood-900">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
         </div>
+
+        {/* 진행 바 */}
+        <div className="w-full h-[3px] bg-surface-100 mb-12 overflow-hidden">
+          <div
+            className="h-full bg-bluewood-900 transition-all duration-700 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* 현재 작업 */}
+        {activeStep && (
+          <div className="flex items-center gap-2 mb-10">
+            <Loader2 size={16} className="text-bluewood-400 animate-spin flex-shrink-0" />
+            <span className="text-[19px] font-semibold text-bluewood-700">{activeStep.label}</span>
+          </div>
+        )}
+
+        {/* 단계 목록 */}
+        <div className="divide-y divide-surface-100">
+          {loadingSteps.map((s, i) => (
+            <div key={i} className="flex items-center gap-4 py-4 transition-all duration-300">
+              <div className="w-5 flex-shrink-0 flex items-center justify-center">
+                {s.status === 'done' && <Check size={15} className="text-emerald-500" strokeWidth={2.5} />}
+                {s.status === 'loading' && <Loader2 size={15} className="text-bluewood-400 animate-spin" />}
+                {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
+              </div>
+              <span className={`text-[19px] transition-all ${
+                s.status === 'loading' ? 'font-semibold text-bluewood-900' :
+                s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
+                'text-bluewood-200'
+              }`}>{s.label}</span>
+              {s.status === 'done' && <span className="ml-auto text-[19px] font-bold text-emerald-500">완료</span>}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[19px] text-bluewood-200 mt-12 leading-relaxed">
+          자료량에 따라 최대 5분 소요 · 페이지 이탈 시 분석이 중단됩니다
+        </p>
       </div>
     );
   }
@@ -946,45 +953,57 @@ export default function TemplateSelect() {
   if (step === 5) {
     const doneCount = loadingSteps.filter(s => s.status === 'done').length;
     const progress = loadingSteps.length > 0 ? Math.round((doneCount / loadingSteps.length) * 100) : 0;
+    const activeStep = loadingSteps.find(s => s.status === 'loading');
 
     return (
-      <div className="animate-fadeIn max-w-lg mx-auto pt-16">
-        <div className="bg-white rounded-2xl border border-surface-200 p-8 shadow-sm">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-50 flex items-center justify-center">
-              <Loader2 size={28} className="text-primary-500 animate-spin" />
-            </div>
-            <h2 className="text-lg font-bold text-bluewood-900 mb-1">경험을 구조화하고 있습니다</h2>
-            <p className="text-sm text-bluewood-400">{progress}% 완료</p>
-          </div>
-          <div className="w-full h-2 bg-surface-100 rounded-full mb-8 overflow-hidden">
-            <div
-              className="h-full bg-primary-500 rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="space-y-3">
-            {loadingSteps.map((s, i) => (
-              <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                s.status === 'loading' ? 'bg-primary-50 border border-primary-100' :
-                s.status === 'done' ? 'bg-surface-50' : ''
-              }`}>
-                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                  {s.status === 'done' && <Check size={16} className="text-green-500" />}
-                  {s.status === 'loading' && <Loader2 size={16} className="text-primary-500 animate-spin" />}
-                  {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300" />}
-                </div>
-                <span className={`text-sm ${
-                  s.status === 'loading' ? 'text-primary-700 font-medium' :
-                  s.status === 'done' ? 'text-bluewood-500' : 'text-bluewood-300'
-                }`}>{s.label}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-bluewood-300 text-center mt-8">
-            선택한 경험을 바탕으로 7가지 섹션으로 구조화합니다.<br/>최대 5분까지 소요될 수 있어요 — 페이지를 벗어나지 말아주세요.
-          </p>
+      <div className="animate-fadeIn mx-auto max-w-3xl pt-24 px-8">
+        {/* 상단 메타 */}
+        <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-200 mb-8">AI Analysis · Structuring</p>
+
+        {/* 제목 + 진행률 */}
+        <div className="flex items-end justify-between mb-3">
+          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">경험 구조화 중</h2>
+          <span className="text-[32px] font-bold tabular-nums text-bluewood-900">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
         </div>
+
+        {/* 진행 바 */}
+        <div className="w-full h-[3px] bg-surface-100 mb-12 overflow-hidden">
+          <div
+            className="h-full bg-bluewood-900 transition-all duration-700 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* 현재 작업 */}
+        {activeStep && (
+          <div className="flex items-center gap-2 mb-10">
+            <Loader2 size={16} className="text-bluewood-400 animate-spin flex-shrink-0" />
+            <span className="text-[19px] font-semibold text-bluewood-700">{activeStep.label}</span>
+          </div>
+        )}
+
+        {/* 단계 목록 */}
+        <div className="divide-y divide-surface-100">
+          {loadingSteps.map((s, i) => (
+            <div key={i} className="flex items-center gap-4 py-4 transition-all duration-300">
+              <div className="w-5 flex-shrink-0 flex items-center justify-center">
+                {s.status === 'done' && <Check size={15} className="text-emerald-500" strokeWidth={2.5} />}
+                {s.status === 'loading' && <Loader2 size={15} className="text-bluewood-400 animate-spin" />}
+                {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
+              </div>
+              <span className={`text-[19px] transition-all ${
+                s.status === 'loading' ? 'font-semibold text-bluewood-900' :
+                s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
+                'text-bluewood-200'
+              }`}>{s.label}</span>
+              {s.status === 'done' && <span className="ml-auto text-[19px] font-bold text-emerald-500">완료</span>}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[19px] text-bluewood-200 mt-12 leading-relaxed">
+          7가지 섹션으로 구조화합니다 · 최대 5분 소요 · 페이지 이탈 시 작업이 중단됩니다
+        </p>
       </div>
     );
   }
@@ -1018,41 +1037,48 @@ export default function TemplateSelect() {
     };
 
     return (
-      <div className="animate-fadeIn max-w-[1180px] mx-auto">
+      <div className="animate-fadeIn max-w-[1180px] mx-auto" style={{ zoom: '0.75' }}>
         {/* 뒤로가기 */}
         <button
           onClick={() => setStep(2)}
-          className="inline-flex items-center gap-1.5 text-sm text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
+          className="inline-flex items-center gap-1.5 text-[19px] text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
         >
-          <ArrowLeft size={14} /> 자료 수집으로 돌아가기
+          <ArrowLeft size={14} /> 자료 수집으로
         </button>
 
-        {/* 스텝 인디케이터 */}
-        <div className="flex items-center gap-2 mb-8">
-          {[
-            { label: '기본 정보', done: true },
-            { label: '자료 수집', done: true },
-            { label: '경험 검토', done: false, active: true },
-          ].map((s, i, arr) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                s.active ? 'bg-bluewood-900 text-white' :
-                s.done   ? 'text-bluewood-400' : 'text-bluewood-300'
-              }`}>
-                {s.done && <Check size={11} strokeWidth={2.5} />}
-                {s.label}
-              </div>
-              {i < arr.length - 1 && <span className="text-bluewood-200 text-xs">/</span>}
+        {/* 헤더 */}
+        <div className="mb-8 pb-6 border-b border-surface-100">
+          <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-2">Experience Review · Step 3 of 3</p>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">경험 검토</h1>
+              <p className="mt-1.5 text-[19px] text-bluewood-400">추출된 경험을 확인하고 수정한 뒤 포트폴리오 정리를 시작하세요.</p>
             </div>
-          ))}
-          <span className="ml-auto text-xs text-bluewood-400 tabular-nums">
-            {moments.length === 0 ? '0' : isCreatingNew ? '새 경험' : safeIdx + 1} / {moments.length}{isCreatingNew ? '+1' : ''}
-          </span>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-[19px] text-bluewood-300 tabular-nums">
+                {moments.length === 0 ? '0' : isCreatingNew ? '새 경험' : safeIdx + 1} / {moments.length}{isCreatingNew ? '+1' : ''}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {[
+                  { label: '기본 정보', done: true },
+                  { label: '자료 수집', done: true },
+                  { label: '경험 검토', active: true },
+                ].map((s, idx, arr) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <span className={`text-[19px] font-semibold ${s.active ? 'text-bluewood-900' : 'text-bluewood-300'}`}>
+                      {s.done && <Check size={10} className="inline mr-0.5" strokeWidth={3} />}{s.label}
+                    </span>
+                    {idx < arr.length - 1 && <span className="text-bluewood-200 text-[20px]">/</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* 빈 상태 */}
         {moments.length === 0 && !isCreatingNew ? (
-          <div className="bg-white rounded-xl border border-surface-200 p-12 text-center text-bluewood-300 text-sm mb-5">
+          <div className="border border-surface-100 p-12 text-center text-bluewood-300 text-sm mb-5">
             추출된 경험이 없습니다. 자료 수집 단계로 돌아가거나 아래에서 직접 경험을 추가해주세요.
           </div>
         ) : (
@@ -1061,7 +1087,7 @@ export default function TemplateSelect() {
 
             {/* 사이드바 */}
             <div className="w-[196px] flex-shrink-0">
-              <p className="text-[11px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
+              <p className="text-[19px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
               <div className="flex flex-col gap-px mb-2">
                 {moments.map((m, idx) => {
                   const isMissing = m.description?.includes('(미확인');
@@ -1070,21 +1096,21 @@ export default function TemplateSelect() {
                     <button
                       key={m.id}
                       onClick={() => { setCurrentMomentIdx(idx); setEditingMomentId(null); setIsCreatingNew(false); }}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-[12.5px] leading-snug transition-colors ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-[20px] leading-snug transition-colors ${
                         isActive
                           ? 'bg-bluewood-900 text-white font-medium'
                           : 'text-bluewood-600 hover:bg-surface-100'
                       }`}
                     >
-                      <span className={`text-[10px] font-semibold mr-1.5 ${isActive ? 'text-white/50' : 'text-bluewood-300'}`}>{idx + 1}.</span>
+                      <span className={`text-[20px] font-semibold mr-1.5 ${isActive ? 'text-white/50' : 'text-bluewood-300'}`}>{idx + 1}.</span>
                       <span className="line-clamp-2">{m.title}</span>
                       {m._git && (
-                        <span className={`block mt-1 text-[10px] font-medium ${isActive ? 'text-blue-300' : 'text-blue-500'}`}>
+                        <span className={`block mt-1 text-[20px] font-medium ${isActive ? 'text-blue-300' : 'text-blue-500'}`}>
                           GitHub 커밋 분석
                         </span>
                       )}
                       {isMissing && (
-                        <span className={`block mt-1 text-[10px] font-medium ${isActive ? 'text-amber-300' : 'text-amber-500'}`}>
+                        <span className={`block mt-1 text-[20px] font-medium ${isActive ? 'text-amber-300' : 'text-amber-500'}`}>
                           성과 보완 가능
                         </span>
                       )}
@@ -1095,7 +1121,7 @@ export default function TemplateSelect() {
               {/* 새 경험 추가 버튼 */}
               <button
                 onClick={() => { setIsCreatingNew(true); setEditingMomentId(null); setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] }); }}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-[12px] border border-dashed transition-colors ${
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-[20px] border border-dashed transition-colors ${
                   isCreatingNew
                     ? 'border-bluewood-400 bg-surface-50 text-bluewood-700 font-medium'
                     : 'border-surface-300 text-bluewood-400 hover:border-bluewood-300 hover:bg-surface-50'
@@ -1110,10 +1136,10 @@ export default function TemplateSelect() {
 
               {/* ── 새 경험 직접 작성 폼 ── */}
               {isCreatingNew && (
-                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                <div className="border border-surface-100 overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-[14px] font-semibold text-bluewood-900">새 경험 직접 작성</h3>
+                      <h3 className="text-[20px] font-semibold text-bluewood-900">새 경험 직접 작성</h3>
                       <span className="text-[10.5px] text-bluewood-400 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200">CARL 구조</span>
                     </div>
                     <button onClick={() => setIsCreatingNew(false)} className="text-xs text-bluewood-400 hover:text-bluewood-700 border border-surface-200 px-2.5 py-1 rounded-lg hover:bg-surface-50 transition-colors">
@@ -1124,18 +1150,18 @@ export default function TemplateSelect() {
                   <div className="px-5 py-4 space-y-4">
                     {/* 제목 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 제목 <span className="text-red-400">*</span></label>
+                      <label className="block text-[19px] font-semibold text-bluewood-600 mb-1.5">경험 제목 <span className="text-red-400">*</span></label>
                       <input
                         value={newExp.title}
                         onChange={e => setNewExp(p => ({ ...p, title: e.target.value }))}
                         placeholder="예: 실시간 이상 감지 파이프라인 개발"
-                        className="w-full px-3 py-2.5 border border-surface-200 rounded-lg text-sm text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 placeholder-bluewood-300"
+                        className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 pt-1 text-sm text-bluewood-900 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
                       />
                     </div>
 
                     {/* 유형 선택 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">경험 유형</label>
+                      <label className="block text-[19px] font-semibold text-bluewood-600 mb-1.5">경험 유형</label>
                       <div className="flex flex-wrap gap-1.5">
                         {Object.entries(MOMENT_TYPE_DESC).map(([key, desc]) => (
                           <button
@@ -1143,7 +1169,7 @@ export default function TemplateSelect() {
                             type="button"
                             onClick={() => setNewExp(p => ({ ...p, type: p.type === key ? '' : key }))}
                             title={desc}
-                            className={`px-2 py-1 text-[11px] rounded-md border transition-colors ${
+                            className={`px-2 py-1 text-[19px] rounded-md border transition-colors ${
                               newExp.type === key
                                 ? 'bg-bluewood-900 text-white border-bluewood-900'
                                 : 'border-surface-200 text-bluewood-500 hover:border-bluewood-300 hover:bg-surface-50'
@@ -1161,7 +1187,7 @@ export default function TemplateSelect() {
                       { key: 'learning', label: '배운 점 Learning', placeholder: '이 경험에서 무엇을 배웠고 어떻게 성장했나요?', required: false, rows: 2 },
                     ].map(f => (
                       <div key={f.key}>
-                        <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">
+                        <label className="block text-[19px] font-semibold text-bluewood-600 mb-1.5">
                           {f.label}
                           {f.required && <span className="text-red-400 ml-1">*</span>}
                         </label>
@@ -1170,14 +1196,14 @@ export default function TemplateSelect() {
                           onChange={e => setNewExp(p => ({ ...p, [f.key]: e.target.value }))}
                           rows={f.rows}
                           placeholder={f.placeholder}
-                          className="w-full px-3 py-2.5 border border-surface-200 rounded-lg text-[12.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 resize-none placeholder-bluewood-300 leading-relaxed"
+                          className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 text-[20px] text-bluewood-700 outline-none focus:border-bluewood-400 resize-none placeholder-bluewood-300 leading-relaxed"
                         />
                       </div>
                     ))}
 
                     {/* 키워드 */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-bluewood-600 mb-1.5">역량 키워드</label>
+                      <label className="block text-[19px] font-semibold text-bluewood-600 mb-1.5">역량 키워드</label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(newExp.keywords || []).map((kw, ki) => (
                           <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11.5px] rounded-md border border-surface-200">
@@ -1200,7 +1226,7 @@ export default function TemplateSelect() {
                             }
                           }}
                           placeholder="키워드 입력 후 Enter"
-                          className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-[11.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-200"
+                          className="flex-1 border-b border-surface-200 bg-transparent py-2 text-[11.5px] text-bluewood-700 outline-none focus:border-bluewood-400"
                         />
                       </div>
                     </div>
@@ -1226,17 +1252,17 @@ export default function TemplateSelect() {
                 <>
                 {/* 힌트 바 */}
                 {hint && (
-                  <div className={`px-4 py-3 rounded-lg border-l-2 text-[12.5px] leading-relaxed ${
+                  <div className={`px-4 py-2.5 border-l-2 text-[20px] leading-relaxed ${
                     hint.level === 'warn'
-                      ? 'bg-amber-50 border-amber-400 text-amber-800'
-                      : 'bg-surface-50 border-bluewood-300 text-bluewood-500'
+                      ? 'border-bluewood-400 text-bluewood-600'
+                      : 'border-surface-200 text-bluewood-400'
                   }`}>
                     {hint.text}
                   </div>
                 )}
 
                 {/* 경험 카드 */}
-                <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
+                <div className="border border-surface-100 overflow-hidden">
 
                   {/* 헤더 */}
                   <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-surface-100">
@@ -1245,11 +1271,11 @@ export default function TemplateSelect() {
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           {currentM.type.split(',').map(t => t.trim()).filter(Boolean).map((typeKey, ti) => (
                             <span key={ti} className="relative group">
-                              <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-surface-100 text-bluewood-500 border border-surface-200 cursor-default">
+                              <span className="px-2 py-0.5 text-[20px] font-semibold rounded bg-surface-100 text-bluewood-500 border border-surface-200 cursor-default">
                                 {typeKey}
                               </span>
                               {MOMENT_TYPE_DESC[typeKey] && (
-                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-bluewood-900 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-bluewood-900 text-white text-[19px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
                                   {MOMENT_TYPE_DESC[typeKey]}
                                   <span className="absolute top-full left-3 border-4 border-transparent border-t-bluewood-900" />
                                 </span>
@@ -1262,7 +1288,7 @@ export default function TemplateSelect() {
                         value={currentM.title}
                         onChange={e => editingMomentId === currentM.id && updateMoment(currentM.id, 'title', e.target.value)}
                         readOnly={editingMomentId !== currentM.id}
-                        className={`w-full text-[15px] font-semibold text-bluewood-900 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
+                        className={`w-full text-[19px] font-semibold text-bluewood-900 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
                       />
                     </div>
                     {editingMomentId === currentM.id ? (
@@ -1286,10 +1312,10 @@ export default function TemplateSelect() {
                   <div className="px-5 py-4">
                     {/* GitHub 커밋 분석 결과 전용 뷰 */}
                     {currentM._git ? (
-                      <div className="space-y-3 text-[12.5px]">
+                      <div className="space-y-3 text-[20px]">
                         {currentM._git.problem_definition?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-red-500 mb-1.5 flex items-center gap-1">🔴 문제 상황 (AS-IS)</p>
+                            <p className="text-[19px] font-bold text-red-500 mb-1.5 flex items-center gap-1">🔴 문제 상황 (AS-IS)</p>
                             <ul className="space-y-1">
                               {currentM._git.problem_definition.map((p, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-red-400 flex-shrink-0">•</span>{p}</li>
@@ -1299,7 +1325,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.code_changes?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-purple-600 mb-1.5 flex items-center gap-1">🟣 코드 변경 내용</p>
+                            <p className="text-[19px] font-bold text-purple-600 mb-1.5 flex items-center gap-1">🟣 코드 변경 내용</p>
                             <ul className="space-y-1">
                               {currentM._git.code_changes.map((c, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-purple-400 flex-shrink-0 font-mono">±</span>{c}</li>
@@ -1309,7 +1335,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.troubleshooting?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">🟠 트러블슈팅</p>
+                            <p className="text-[19px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">🟠 트러블슈팅</p>
                             <ul className="space-y-1">
                               {currentM._git.troubleshooting.map((t, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-orange-400 flex-shrink-0">→</span>{t}</li>
@@ -1319,7 +1345,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.action_and_solution?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">🔵 실행 전략</p>
+                            <p className="text-[19px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">🔵 실행 전략</p>
                             <ul className="space-y-1">
                               {currentM._git.action_and_solution.map((a, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-blue-400 flex-shrink-0">→</span>{a}</li>
@@ -1329,7 +1355,7 @@ export default function TemplateSelect() {
                         )}
                         {currentM._git.learning_items?.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-bold text-emerald-600 mb-1.5 flex items-center gap-1">🟢 인사이트 & 성장</p>
+                            <p className="text-[19px] font-bold text-emerald-600 mb-1.5 flex items-center gap-1">🟢 인사이트 & 성장</p>
                             <ul className="space-y-1">
                               {currentM._git.learning_items.map((l, i) => (
                                 <li key={i} className="text-bluewood-600 flex gap-2"><span className="text-emerald-400 flex-shrink-0">✓</span>{l}</li>
@@ -1337,7 +1363,7 @@ export default function TemplateSelect() {
                             </ul>
                           </div>
                         )}
-                        <div className="pt-2 border-t border-surface-100 flex items-center gap-3 text-[11px] text-bluewood-400">
+                        <div className="pt-2 border-t border-surface-100 flex items-center gap-3 text-[19px] text-bluewood-400">
                           <span>기술스택: <span className="font-medium text-bluewood-600">{currentM._git.core_tech_stack}</span></span>
                           {currentM._git.period && <span>기간: {currentM._git.period}</span>}
                           <span>커밋 {currentM._git.totalCommits}개 분석</span>
@@ -1359,7 +1385,7 @@ export default function TemplateSelect() {
                   {/* 키워드 */}
                   {(currentM.keywords || []).length > 0 && (
                     <div className="px-5 pb-5 pt-2 border-t border-surface-100">
-                      <p className="text-[11px] text-bluewood-400 font-medium mb-2">역량 키워드</p>
+                      <p className="text-[19px] text-bluewood-400 font-medium mb-2">역량 키워드</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(currentM.keywords || []).map((kw, ki) => (
                           <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11.5px] rounded-md border border-surface-200">
@@ -1367,7 +1393,7 @@ export default function TemplateSelect() {
                             {editingMomentId === currentM.id && (
                               <button
                                 onClick={() => updateMoment(currentM.id, 'keywords', (currentM.keywords || []).filter((_, j) => j !== ki))}
-                                className="text-bluewood-300 hover:text-red-400 transition-colors ml-0.5 text-[10px]"
+                                className="text-bluewood-300 hover:text-red-400 transition-colors ml-0.5 text-[20px]"
                               >&times;</button>
                             )}
                           </span>
@@ -1382,7 +1408,7 @@ export default function TemplateSelect() {
                   )}
 
                   {/* 하단 네비게이션 */}
-                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-surface-100 bg-surface-50/50">
+                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-surface-100">
                     <button
                       onClick={() => handleDeleteAndMove(currentM.id)}
                       className="text-xs text-red-400 hover:text-red-600 hover:underline transition-colors"
@@ -1425,7 +1451,7 @@ export default function TemplateSelect() {
               <div className="w-[268px] flex-shrink-0 sticky top-6">
                 <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">
-                    <span className="text-[12.5px] font-semibold text-bluewood-800">내용 심화하기</span>
+                    <span className="text-[20px] font-semibold text-bluewood-800">내용 심화하기</span>
                     <span className="text-[10.5px] text-bluewood-500 bg-surface-100 border border-surface-200 px-1.5 py-0.5 rounded font-medium">
                       {deepQuestions.filter(dq => !deepQAnswers[`${currentM.id}-${dq.id}`]).length}개 질문
                     </span>
@@ -1439,8 +1465,8 @@ export default function TemplateSelect() {
                       return (
                         <div key={dq.id} className="pt-4">
                           <div className="mb-2">
-                            <p className="text-[11px] font-semibold text-bluewood-400 mb-0.5">{qi + 1}. {dq.label}</p>
-                            <p className="text-[12.5px] font-semibold text-bluewood-800 leading-snug">{dq.q}</p>
+                            <p className="text-[19px] font-semibold text-bluewood-400 mb-0.5">{qi + 1}. {dq.label}</p>
+                            <p className="text-[20px] font-semibold text-bluewood-800 leading-snug">{dq.q}</p>
                             {dq.hint && <p className="text-[10.5px] text-bluewood-400 mt-0.5 leading-relaxed">{dq.hint}</p>}
                           </div>
 
@@ -1449,7 +1475,7 @@ export default function TemplateSelect() {
                               <span className="text-[11.5px] text-bluewood-600 flex-1">{deepQAnswers[ansKey]}</span>
                               <button
                                 onClick={() => setDeepQAnswers(prev => { const n = { ...prev }; delete n[ansKey]; return n; })}
-                                className="text-[10px] text-bluewood-400 hover:text-red-400 transition-colors flex-shrink-0"
+                                className="text-[20px] text-bluewood-400 hover:text-red-400 transition-colors flex-shrink-0"
                               >수정</button>
                             </div>
                           ) : (
@@ -1460,7 +1486,7 @@ export default function TemplateSelect() {
                                     key={ci}
                                     type="button"
                                     onClick={() => setDeepQDraft(prev => ({ ...prev, [ansKey]: chip }))}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${
+                                    className={`px-2.5 py-1 rounded-md text-[19px] border transition-colors ${
                                       draft === chip
                                         ? 'bg-bluewood-900 border-bluewood-900 text-white font-medium'
                                         : 'bg-white border-surface-200 text-bluewood-500 hover:bg-surface-50'
@@ -1474,7 +1500,7 @@ export default function TemplateSelect() {
                                   onChange={e => setDeepQDraft(prev => ({ ...prev, [ansKey]: e.target.value }))}
                                   onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) handleApplyDeepQ(currentM.id, dq.id, draft); }}
                                   placeholder="직접 입력 또는 위에서 선택 후 추가"
-                                  className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-[11.5px] text-bluewood-700 outline-none focus:ring-2 focus:ring-bluewood-200 focus:border-bluewood-300 placeholder-bluewood-300"
+                                  className="flex-1 border-b border-surface-200 bg-transparent py-2 text-[11.5px] text-bluewood-700 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
                                 />
                                 <button
                                   onClick={() => handleApplyDeepQ(currentM.id, dq.id, draft)}
@@ -1494,42 +1520,42 @@ export default function TemplateSelect() {
           </div>
         )}
 
-        {/* 요약 바 */}
-        <div className="flex items-center gap-5 px-4 py-3 bg-surface-50 border border-surface-200 rounded-lg mb-4 text-xs text-bluewood-500">
-          <span><span className="font-semibold text-bluewood-800">{moments.length}</span>개 경험</span>
-          <span className="text-surface-300">|</span>
-          <span><span className="font-semibold text-bluewood-800">{totalKeywords}</span>개 역량 키워드</span>
-          {missingCount > 0 && (
-            <>
-              <span className="text-surface-300">|</span>
-              <span className="text-amber-600">{missingCount}개 성과 보완 가능</span>
-            </>
-          )}
-          <span className="ml-auto text-bluewood-300">최종 분석은 최대 5분 소요됩니다</span>
-        </div>
-
-        {/* 하단 버튼 */}
-        <div className="flex gap-3 pb-8">
-          <button
-            onClick={() => setStep(2)}
-            className="flex items-center justify-center gap-1.5 px-5 py-3 border border-surface-200 text-bluewood-600 text-sm font-medium rounded-lg hover:bg-surface-50 transition-colors"
-          >
-            <ChevronLeft size={14} /> 이전
-          </button>
-          <button
-            id="final-submit-btn"
-            onClick={handleFinalSubmit}
-            disabled={moments.length === 0}
-            className="flex-1 flex items-center justify-center py-3 bg-bluewood-900 text-white text-sm font-semibold rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {moments.length}개 경험으로 포트폴리오 정리 시작
-          </button>
+        {/* 요약 + 하단 액션 */}
+        <div className="mt-8 pt-6 border-t border-surface-100 flex items-center justify-between gap-4 pb-8">
+          <div className="flex items-center gap-4 text-[19px] text-bluewood-400">
+            <span><span className="font-bold text-bluewood-700">{moments.length}</span>개 경험</span>
+            <span className="text-surface-200">·</span>
+            <span><span className="font-bold text-bluewood-700">{totalKeywords}</span>개 역량 키워드</span>
+            {missingCount > 0 && (
+              <>
+                <span className="text-surface-200">·</span>
+                <span className="text-amber-500 font-medium">{missingCount}개 성과 보완 가능</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={() => setStep(2)}
+              className="inline-flex items-center gap-1.5 text-[19px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+            >
+              <ChevronLeft size={14} /> 자료 수집으로
+            </button>
+            <button
+              id="final-submit-btn"
+              onClick={handleFinalSubmit}
+              disabled={moments.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              {moments.length}개 경험으로 포트폴리오 정리
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
       </div>
     );
   }
   return (
-    <div className="animate-fadeIn mx-auto max-w-5xl px-1 pb-8">
+    <div className="animate-fadeIn mx-auto max-w-5xl px-1 pb-8" style={{ zoom: '0.75' }}>
       <Link to="/app/experience" className="mb-8 inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600">
         <ArrowLeft size={16} /> 경험 정리로 돌아가기
       </Link>
@@ -1562,320 +1588,399 @@ export default function TemplateSelect() {
 
       {/* ===== Step 1: 기본 정보 ===== */}
       {step === 1 && (
-        <div className="space-y-8">
-          <div className="border-b border-surface-200 pb-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Basic Information</p>
-            <h1 className="text-[34px] font-bold tracking-[-0.03em] text-bluewood-900">프로젝트 기본 정보를 입력해주세요</h1>
-            <p className="mt-3 text-sm leading-6 text-bluewood-400">
-              프로젝트명과 기간, <span className="font-medium text-bluewood-600">직군</span>을 먼저 정리하면 직군에 맞춘 특화 섹션이 자동으로 추가됩니다.
+        <div>
+          {/* 헤더 */}
+          <div className="mb-10">
+            <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Project Registration · Step 1 of 3</p>
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">프로젝트 기본 정보</h1>
+            <p className="mt-2 text-[19px] text-bluewood-400 leading-relaxed">
+              직군을 선택하면 해당 직군에 최적화된 분석 섹션이 자동으로 구성됩니다.
             </p>
           </div>
 
-          <div className="rounded-[28px] border border-surface-200 bg-white px-6 py-7 shadow-[0_24px_60px_-50px_rgba(49,65,87,0.28)] md:px-10 md:py-9">
-            <div className="space-y-8">
-              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-center">
-                <label className="text-sm font-semibold text-bluewood-700">
-                  프로젝트명 <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="프로젝트 이름을 입력하세요"
-                  className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-                />
-              </div>
+          {/* 폼 테이블 */}
+          <div className="divide-y divide-surface-100">
 
-              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
-                <label className="pt-4 text-sm font-semibold text-bluewood-700">
-                  <Calendar size={14} className="mr-1 inline" />
-                  기간 <span className="text-red-400">*</span>
-                </label>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={e => setStartDate(e.target.value)}
-                    className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-                  />
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
-                    className="w-full rounded-2xl border border-surface-200 bg-white px-5 py-4 text-sm text-bluewood-900 outline-none transition-all focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-                  />
+            {/* 01 프로젝트명 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-4 py-6">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">01</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">프로젝트명 <span className="text-red-400">*</span></p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">서비스 또는 프로젝트 이름</p>
                 </div>
               </div>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="예) 커머스 앱 리뉴얼, 데이터 파이프라인 구축"
+                className="w-full border-0 border-b-2 border-surface-200 bg-transparent pb-2 pt-1 text-[19px] font-medium text-bluewood-900 outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+              />
+            </div>
 
-              <div className="grid gap-3 md:grid-cols-[132px_minmax(0,1fr)] md:items-start">
-                <label className="pt-3 text-sm font-semibold text-bluewood-700">
-                  직군 선택 <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-4">
-                  {JOB_CATEGORIES.map(group => (
-                    <div key={group.group}>
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-bluewood-300">{group.group}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {group.items.map(opt => {
-                          const selected = jobCategory === opt.value;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setJobCategory(selected ? '' : opt.value)}
-                              title={opt.description}
-                              className={`group relative inline-flex flex-col items-start gap-0.5 rounded-2xl border px-4 py-3 text-left transition-all ${
-                                selected
-                                  ? 'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200/70'
-                                  : 'border-surface-200 bg-white text-bluewood-600 hover:border-primary-300 hover:bg-primary-50/50'
-                              }`}
-                            >
-                              <span className="text-sm font-semibold leading-tight">{opt.label}</span>
-                              <span className={`text-[10px] leading-snug ${selected ? 'text-primary-100' : 'text-bluewood-300'}`}>{opt.description}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+            {/* 02 기간 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-4 py-6">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">02</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">프로젝트 기간 <span className="text-red-400">*</span></p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">시작 ~ 종료 연월</p>
                 </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  {/* 시작 */}
+                  <select
+                    value={startDate ? startDate.split('-')[0] : ''}
+                    onChange={e => {
+                      const y = e.target.value;
+                      const m = startDate ? (startDate.split('-')[1] || '') : '';
+                      setStartDate(y && m ? `${y}-${m}` : y);
+                    }}
+                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                  >
+                    <option value="">연도</option>
+                    {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                      <option key={y} value={String(y)}>{y}년</option>
+                    ))}
+                  </select>
+                  <select
+                    value={startDate && startDate.split('-')[1] ? startDate.split('-')[1] : ''}
+                    onChange={e => {
+                      const m = e.target.value;
+                      const y = startDate ? (startDate.split('-')[0] || '') : '';
+                      setStartDate(y && m ? `${y}-${m}` : y);
+                    }}
+                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                  >
+                    <option value="">월</option>
+                    {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+                      <option key={m} value={m}>{i + 1}월</option>
+                    ))}
+                  </select>
+
+                  <span className="text-bluewood-200 text-xs px-2 font-light">—</span>
+
+                  {/* 종료 */}
+                  {isOngoing ? (
+                    <div className="flex-[2] py-2 text-[19px] font-semibold text-primary-500 border-b-2 border-primary-200">진행 중</div>
+                  ) : (
+                    <>
+                      <select
+                        value={endDate ? endDate.split('-')[0] : ''}
+                        onChange={e => {
+                          const y = e.target.value;
+                          const m = endDate ? (endDate.split('-')[1] || '') : '';
+                          setEndDate(y && m ? `${y}-${m}` : y);
+                        }}
+                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                      >
+                        <option value="">연도</option>
+                        {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                          <option key={y} value={String(y)}>{y}년</option>
+                        ))}
+                      </select>
+                      <select
+                        value={endDate && endDate.split('-')[1] ? endDate.split('-')[1] : ''}
+                        onChange={e => {
+                          const m = e.target.value;
+                          const y = endDate ? (endDate.split('-')[0] || '') : '';
+                          setEndDate(y && m ? `${y}-${m}` : y);
+                        }}
+                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                      >
+                        <option value="">월</option>
+                        {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+                          <option key={m} value={m}>{i + 1}월</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isOngoing}
+                    onChange={e => { setIsOngoing(e.target.checked); if (e.target.checked) setEndDate(''); }}
+                    className="w-3.5 h-3.5 rounded accent-primary-500"
+                  />
+                  <span className="text-[19px] text-bluewood-400">현재 진행 중인 프로젝트</span>
+                </label>
               </div>
             </div>
-          </div>
 
-        <div className="flex flex-col items-center gap-3 pt-6 md:pt-8">
-          <button
-            onClick={() => setStep(2)}
-            disabled={!canNext1}
-            className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-primary-200/60 transition-all hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            다음 단계
-            <ChevronRight size={18} />
-          </button>
-          <p className="text-center text-xs text-bluewood-400">프로젝트명·기간·직군 모두 선택해야 다음 단계로 이동할 수 있어요</p>
+            {/* 03 직군 선택 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-4 py-6">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">03</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">직군 선택 <span className="text-red-400">*</span></p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">1개 선택</p>
+                </div>
+              </div>
+              <div>
+                {JOB_CATEGORIES.map((group, gi) => (
+                  <div key={group.group} className={gi > 0 ? 'mt-7' : ''}>
+                    <p className="text-[12px] font-bold uppercase tracking-[0.20em] text-bluewood-200 pb-2 border-b border-surface-100 mb-1">{group.group}</p>
+                    <div className="divide-y divide-surface-50">
+                      {group.items.map(opt => {
+                        const selected = jobCategory === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setJobCategory(selected ? '' : opt.value)}
+                            className={`w-full flex items-center gap-4 py-3 text-left transition-all group ${
+                              selected ? '' : ''
+                            }`}
+                          >
+                            <div className={`w-[18px] h-[18px] rounded-full border-2 flex-shrink-0 transition-all flex items-center justify-center ${
+                              selected ? 'border-bluewood-900 bg-bluewood-900' : 'border-surface-300 group-hover:border-bluewood-400'
+                            }`}>
+                              {selected && <div className="w-[7px] h-[7px] rounded-full bg-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className={`block text-[17px] font-semibold leading-tight ${selected ? 'text-bluewood-900' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
+                              <span className={`block text-[14px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>{/* end divide-y */}
+
+          {/* 하단 액션 */}
+          <div className="mt-10 flex items-center justify-between border-t border-surface-100 pt-8">
+            <p className="text-[19px] text-bluewood-300">
+              {[title.trim() && '프로젝트명', startDate && '기간', jobCategory && '직군'].filter(Boolean).join(' · ') || '필수 항목을 입력해주세요'}
+              {canNext1 && <span className="ml-2 text-primary-400 font-medium">✓ 모두 입력됨</span>}
+            </p>
+            <button
+              onClick={() => setStep(2)}
+              disabled={!canNext1}
+              className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              자료 수집으로
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
       {/* ===== Step 2: 자료 수집 ===== */}
       {step === 2 && (
-        <div className="space-y-5">
-
-          {/* 파일 업로드 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-bluewood-900 mb-4">관련 파일</h2>
-            <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
-
-            {/* Drop Zone */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-2 cursor-pointer transition-all select-none ${
-                isDragging
-                  ? 'border-primary-400 bg-primary-50 text-primary-500'
-                  : 'border-surface-300 text-bluewood-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/30'
-              }`}
-            >
-              <p className="font-medium text-sm">클릭하여 파일을 선택하세요</p>
-              <p className="text-xs text-bluewood-300">PDF, 이미지 (JPG/PNG/WEBP) · 최대 25MB · 최대 10개 · HWP는 PDF 변환 후 업로드</p>
-            </div>
-
-            {/* File List */}
-            {files.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {files.map((f, i) => {
-                  const typeInfo = getFileTypeInfo(f.name);
-                  return (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3 border border-gray-100 rounded-xl bg-white shadow-sm">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-bluewood-900 truncate">{f.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-xs text-bluewood-400">{(f.size / 1024).toFixed(1)} KB</span>
-                          <span className="text-gray-300">·</span>
-                          <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium">
-                            <CheckCircle2 size={11} />
-                            준비 완료
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-400 rounded-full w-full" />
-                        </div>
-                      </div>
-                      <button onClick={() => removeFile(i)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
-                        <X size={14} className="text-bluewood-300 hover:text-red-400" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+        <div>
+          {/* 헤더 */}
+          <div className="mb-10">
+            <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Data Collection · Step 2 of 3</p>
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">자료 수집</h1>
+            <p className="mt-2 text-[19px] text-bluewood-400 leading-relaxed">
+              파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출합니다.
+            </p>
           </div>
 
-          {/* 직접 입력 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-bluewood-900 mb-4">직접 입력</h2>
-            <textarea
-              value={textInput}
-              onChange={e => setTextInput(e.target.value)}
-              placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예시:\n- 어떤 프로젝트/활동이었나요?\n- 왜 시작하게 되었나요?\n- 어떤 문제를 해결했나요?`}
-              rows={5}
-              className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-            />
-            {textInput && (
-              <p className="text-xs text-bluewood-400 text-right mt-1">{textInput.length}자</p>
-            )}
-          </div>
+          <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
 
-          {/* 링크 입력 */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-bluewood-900 mb-4">링크</h2>
-            <div className="space-y-3">
-              {/* Notion */}
-              <div className="relative">
-                <Globe size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                <input
-                  type="url"
-                  value={notionUrl}
-                  onChange={e => setNotionUrl(e.target.value)}
-                  placeholder="Notion 페이지 URL"
-                  className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                />
-              </div>
-              {/* GitHub */}
-              <div className="space-y-2">
-                <div className="relative">
-                  <Github size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                  <input
-                    type="url"
-                    value={githubUrl}
-                    onChange={e => setGithubUrl(e.target.value)}
-                    placeholder="GitHub 리포지토리 URL"
-                    className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                  />
+          {/* 폼 테이블 */}
+          <div className="divide-y divide-surface-100">
+
+            {/* 01 파일 업로드 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">01</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">파일 첨부</p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">PDF · 이미지 · 최대 10개</p>
                 </div>
-                {githubUrl.trim() && (
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300 text-sm font-medium">@</span>
-                    <input
-                      type="text"
-                      value={githubUsername}
-                      onChange={e => setGithubUsername(e.target.value)}
-                      placeholder="내 GitHub 아이디 (커밋 필터용)"
-                      className="w-full pl-8 pr-4 py-3 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all bg-gray-50"
-                    />
+              </div>
+              <div>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full border border-dashed rounded-lg py-6 flex flex-col items-center gap-1.5 cursor-pointer transition-all select-none ${
+                    isDragging
+                      ? 'border-bluewood-400 bg-bluewood-50 text-bluewood-600'
+                      : 'border-surface-300 text-bluewood-300 hover:border-bluewood-300 hover:text-bluewood-500 hover:bg-surface-50'
+                  }`}
+                >
+                  <p className="text-[19px] font-medium">클릭하거나 파일을 여기에 끌어오세요</p>
+                  <p className="text-[19px] text-bluewood-200">PDF, JPG, PNG, WEBP · 최대 25MB · HWP는 PDF 변환 후 업로드</p>
+                </div>
+                {files.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center gap-3 py-2 border-b border-surface-100">
+                        <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />
+                        <p className="flex-1 text-[19px] text-bluewood-700 truncate">{f.name}</p>
+                        <span className="text-[19px] text-bluewood-300">{(f.size / 1024).toFixed(0)} KB</span>
+                        <button onClick={() => removeFile(i)} className="p-1 text-bluewood-200 hover:text-red-400 transition-colors flex-shrink-0">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-              {/* 블로그 */}
-              <div className="relative">
-                <Globe size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                <input
-                  type="url"
-                  value={blogUrl}
-                  onChange={e => setBlogUrl(e.target.value)}
-                  placeholder="블로그 또는 기타 URL"
-                  className="w-full pl-10 pr-4 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                />
-              </div>
-              {/* 추가 링크들 */}
-              {linkInputs.map((link, i) => (
-                <div key={i} className="relative">
-                  <Link2 size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bluewood-300" />
-                  <input
-                    type="url"
-                    value={link}
-                    onChange={e => updateLink(i, e.target.value)}
-                    placeholder="추가 링크 URL"
-                    className="w-full pl-10 pr-10 py-3.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 text-bluewood-900 placeholder-bluewood-300 transition-all"
-                  />
-                  <button onClick={() => removeLink(i)} className="absolute right-3 top-1/2 -translate-y-1/2 text-bluewood-300 hover:text-red-500">
-                    <X size={16} />
-                  </button>
+            </div>
+
+            {/* 02 직접 입력 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">02</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">직접 입력</p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">자유 형식 텍스트</p>
                 </div>
-              ))}
-              <button
-                onClick={addLinkInput}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary-500 hover:text-primary-600 transition-colors mt-1"
-              >
-                <Plus size={14} /> 링크 추가
-              </button>
-            </div>
-            <p className="text-xs text-bluewood-300 mt-3">공개된 페이지/리포지토리만 가져올 수 있습니다.</p>
-          </div>
-
-          {/* 추가된 자료 요약 */}
-          {hasInput && (
-            <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
-              <p className="text-sm font-medium text-primary-700 mb-2">추가된 자료</p>
-              <div className="flex flex-wrap gap-2">
-                {files.length > 0 && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> 파일 {files.length}개
-                  </span>
-                )}
-                {textInput.trim() && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> 텍스트 입력
-                  </span>
-                )}
-                {notionUrl.trim() && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> Notion
-                  </span>
-                )}
-                {githubUrl.trim() && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> GitHub
-                  </span>
-                )}
-                {blogUrl.trim() && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> 블로그
-                  </span>
-                )}
-                {linkInputs.filter(l => l.trim()).length > 0 && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white text-primary-600 rounded-lg text-xs font-medium">
-                    <CheckCircle2 size={12} /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개
-                  </span>
+              </div>
+              <div>
+                <textarea
+                  value={textInput}
+                  onChange={e => setTextInput(e.target.value)}
+                  placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예) 어떤 문제를 해결했나요? 내가 맡은 역할은? 어떤 성과가 있었나요?`}
+                  rows={5}
+                  className="w-full border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 resize-none outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+                />
+                {textInput && (
+                  <p className="text-[19px] text-bluewood-300 text-right mt-1">{textInput.length}자</p>
                 )}
               </div>
             </div>
-          )}
 
-          {/* 처음 작업 안내 */}
-          {hasInput && (
-            <div className="flex items-start gap-2.5 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[11px] font-bold mt-0.5">!</div>
-              <div className="flex-1 text-[12.5px] text-blue-700 leading-relaxed">
-                <span className="font-semibold">자료량에 따라 최대 5분 정도 소요될 수 있어요.</span>
-                <span className="block text-blue-600 mt-0.5">페이지를 벗어나지 말고 잠시만 기다려 주세요 — 완료 후 자동으로 이동합니다.</span>
+            {/* 03 링크 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="text-[20px] font-bold text-bluewood-200 tabular-nums mt-0.5">03</span>
+                <div>
+                  <p className="text-[19px] font-semibold text-bluewood-700">링크 연결</p>
+                  <p className="text-[19px] text-bluewood-300 mt-0.5">Notion · GitHub · 블로그</p>
+                </div>
               </div>
+              <div className="space-y-4">
+                {/* Notion */}
+                <div>
+                  <p className="text-[20px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">Notion</p>
+                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
+                    <Globe size={13} className="text-bluewood-200 flex-shrink-0" />
+                    <input
+                      type="url"
+                      value={notionUrl}
+                      onChange={e => setNotionUrl(e.target.value)}
+                      placeholder="https://notion.so/..."
+                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                    />
+                  </div>
+                </div>
+                {/* GitHub */}
+                <div>
+                  <p className="text-[20px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">GitHub</p>
+                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
+                    <Github size={13} className="text-bluewood-200 flex-shrink-0" />
+                    <input
+                      type="url"
+                      value={githubUrl}
+                      onChange={e => setGithubUrl(e.target.value)}
+                      placeholder="https://github.com/user/repo"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                    />
+                  </div>
+                  {githubUrl.trim() && (
+                    <div className="flex items-center gap-2 border-b border-surface-100 focus-within:border-primary-300 transition-all pb-1 mt-2">
+                      <span className="text-[19px] font-medium text-bluewood-200">@</span>
+                      <input
+                        type="text"
+                        value={githubUsername}
+                        onChange={e => setGithubUsername(e.target.value)}
+                        placeholder="내 GitHub 아이디 (커밋 필터용)"
+                        className="flex-1 bg-transparent py-1 text-[19px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* 블로그 */}
+                <div>
+                  <p className="text-[20px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">블로그 / 기타</p>
+                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
+                    <Globe size={13} className="text-bluewood-200 flex-shrink-0" />
+                    <input
+                      type="url"
+                      value={blogUrl}
+                      onChange={e => setBlogUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                    />
+                  </div>
+                </div>
+                {/* 추가 링크 */}
+                {linkInputs.map((link, i) => (
+                  <div key={i} className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
+                    <Link2 size={13} className="text-bluewood-200 flex-shrink-0" />
+                    <input
+                      type="url"
+                      value={link}
+                      onChange={e => updateLink(i, e.target.value)}
+                      placeholder="추가 링크 URL"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                    />
+                    <button onClick={() => removeLink(i)} className="text-bluewood-200 hover:text-red-400 transition-colors">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={addLinkInput}
+                  className="flex items-center gap-1.5 text-[19px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors"
+                >
+                  <Plus size={13} /> 링크 추가
+                </button>
+                <p className="text-[19px] text-bluewood-200">공개된 페이지·리포지토리만 가져올 수 있습니다.</p>
+              </div>
+            </div>
+
+          </div>{/* end divide-y */}
+
+          {/* 수집 현황 + 안내 */}
+          {hasInput && (
+            <div className="mt-6 flex items-start gap-4 py-4 border-t border-surface-100">
+              <div className="flex flex-wrap gap-2 flex-1">
+                {files.length > 0 && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 파일 {files.length}개</span>}
+                {textInput.trim() && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 텍스트</span>}
+                {notionUrl.trim() && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> Notion</span>}
+                {githubUrl.trim() && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> GitHub</span>}
+                {blogUrl.trim() && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 블로그</span>}
+                {linkInputs.filter(l => l.trim()).length > 0 && <span className="inline-flex items-center gap-1 text-[19px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개</span>}
+              </div>
+              <p className="text-[19px] text-bluewood-300 leading-relaxed text-right flex-shrink-0">자료량에 따라 최대 5분 소요<br/>분석 중 페이지 이탈 금지</p>
             </div>
           )}
 
-          {/* 하단 버튼 */}
-          <div className="flex gap-3">
+          {/* 하단 액션 */}
+          <div className="mt-8 flex items-center justify-between border-t border-surface-100 pt-8">
             <button
               onClick={() => setStep(1)}
-              className="flex items-center justify-center gap-2 px-6 py-4 bg-white border border-surface-200 text-bluewood-600 rounded-2xl text-sm font-semibold hover:bg-surface-50 transition-all"
+              className="inline-flex items-center gap-1.5 text-[19px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
             >
-              <ChevronLeft size={16} />
-              이전
+              <ChevronLeft size={14} /> 기본 정보로
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!hasInput}
-              className="flex-1 flex items-center justify-center gap-2 py-4 bg-primary-500 text-white rounded-2xl text-base font-semibold hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-200/50"
-            >
-              AI로 경험 정리 시작
-            </button>
+            <div className="flex items-center gap-4">
+              <p className="text-[19px] text-bluewood-300">AI는 입력 자료만으로 정리합니다</p>
+              <button
+                onClick={handleSubmit}
+                disabled={!hasInput}
+                className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                AI 경험 추출
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
-
-          <p className="text-center text-xs text-bluewood-300 pb-4">
-            AI는 입력된 자료만으로 정리하며, 새로운 내용을 만들어내지 않습니다.
-          </p>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 
 const STORAGE_KEY = (key) => `fitpoly_onboarding_${key}`;
@@ -88,7 +88,7 @@ function Callout({ data }) {
         {icon && <div className="text-[22px] mb-2 leading-none">{icon}</div>}
         <p className="text-[12.5px] font-extrabold text-gray-900 leading-[1.45]">{message}</p>
         {sub && (
-          <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed font-medium">{sub}</p>
+          <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed font-medium">{sub}</p>
         )}
       </div>
 
@@ -136,13 +136,13 @@ export default function OnboardingOverlay({ visible, onDismiss, callouts }) {
           >
             {neverShow && <Check size={11} className="text-gray-800" strokeWidth={3.5} />}
           </div>
-          <span className="text-white/90 text-[13px] sm:text-sm font-medium">다시보지않기</span>
+          <span className="text-white/90 text-[15px] sm:text-sm font-medium">다시보지않기</span>
         </button>
 
         {/* 닫기 */}
         <button
           onClick={handleClose}
-          className="px-6 sm:px-8 py-2.5 rounded-xl text-[13px] sm:text-sm font-bold border-2 border-white/80 text-white hover:bg-white hover:text-gray-900 transition-all"
+          className="px-6 sm:px-8 py-2.5 rounded-xl text-[15px] sm:text-sm font-bold border-2 border-white/80 text-white hover:bg-white hover:text-gray-900 transition-all"
         >
           닫기
         </button>

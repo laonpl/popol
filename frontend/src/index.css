@@ -12,6 +12,8 @@ body {
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background-color: #f0f4f8;
   color: #314157;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 /* Custom scrollbar - hidden but functional */
