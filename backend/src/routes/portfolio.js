@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { validatePortfolioWithAI, matchSectionsToRequirements } from '../services/geminiService.js';
+import { validatePortfolioWithAI, matchSectionsToRequirements, mapDirectPptxTemplateWithAI, generateAiPptDeck, reviseAiPptSlide } from '../services/geminiService.js';
 
 const router = Router();
 
@@ -224,6 +224,65 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
     }
     const results = await matchSectionsToRequirements(sections, targetCompany, targetPosition);
     res.json({ success: true, results });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/portfolio/direct-pptx-map - 업로드 PPTX 템플릿에 맞는 내용 배치 AI 분석
+router.post('/direct-pptx-map', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { templateTitle, slides, portfolio } = req.body;
+    if (!Array.isArray(slides) || slides.length === 0) {
+      return res.status(400).json({ error: 'PPTX 슬라이드 정보가 필요합니다' });
+    }
+    if (!portfolio || typeof portfolio !== 'object') {
+      return res.status(400).json({ error: '포트폴리오 데이터가 필요합니다' });
+    }
+
+    const mappings = await mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio });
+    res.json({ success: true, mappings });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/portfolio/ai-ppt-analyze - 링크형 포트폴리오 → AI PPT 슬라이드 JSON 생성
+router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { portfolioId, templateHint, customTemplate } = req.body;
+    if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다' });
+
+    const docSnap = await adminDb.collection('portfolios').doc(portfolioId).get();
+    if (!docSnap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다' });
+
+    const portfolio = { id: docSnap.id, ...docSnap.data() };
+    if (portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
+
+    const deck = await generateAiPptDeck({ portfolio, templateHint, customTemplate });
+    res.json({ success: true, deck });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/portfolio/ai-ppt-revise - 단일 슬라이드 AI 수정
+router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { portfolioId, slide, instruction } = req.body;
+    if (!slide || !instruction) return res.status(400).json({ error: 'slide, instruction이 필요합니다' });
+
+    let portfolio = {};
+    if (portfolioId) {
+      const docSnap = await adminDb.collection('portfolios').doc(portfolioId).get();
+      if (docSnap.exists) {
+        portfolio = { id: docSnap.id, ...docSnap.data() };
+        if (portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
+      }
+    }
+
+    const updated = await reviseAiPptSlide({ slide, instruction, portfolio });
+    res.json({ success: true, slide: updated });
   } catch (error) {
     next(error);
   }

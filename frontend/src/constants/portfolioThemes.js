@@ -181,6 +181,38 @@ export const THEMES = {
     badge: '#E6EEFF', resBg: 'rgba(41,98,255,0.08)', resBd: 'rgba(41,98,255,0.28)',
     dark: false, mono: false,
   },
+  test1_template: {
+    label: '테스트1템플릿',
+    bg: '#FAFAFA', coverBg: '#F5F5F5', accent: '#2962FF',
+    text: '#212121', sub: '#757575', div: '#E0E0E0',
+    card: '#FFFFFF', step: '#F5F5F5', tag: '#E3F2FD',
+    badge: '#E3F2FD', resBg: 'rgba(41,98,255,0.08)', resBd: 'rgba(41,98,255,0.28)',
+    dark: false, mono: false,
+  },
+  test2_template: {
+    label: '테스트2템플릿',
+    bg: '#FFFFFF', coverBg: '#F8FAFC', accent: '#0F766E',
+    text: '#111827', sub: '#6B7280', div: '#D1D5DB',
+    card: '#FFFFFF', step: '#F0FDFA', tag: '#CCFBF1',
+    badge: '#CCFBF1', resBg: 'rgba(15,118,110,0.08)', resBd: 'rgba(15,118,110,0.26)',
+    dark: false, mono: false,
+  },
+  test3_template: {
+    label: '테스트3템플릿',
+    bg: '#FBFBF9', coverBg: '#F3F4F6', accent: '#B45309',
+    text: '#1F2937', sub: '#6B7280', div: '#D6D3D1',
+    card: '#FFFFFF', step: '#FFFBEB', tag: '#FEF3C7',
+    badge: '#FEF3C7', resBg: 'rgba(180,83,9,0.09)', resBd: 'rgba(180,83,9,0.28)',
+    dark: false, mono: false,
+  },
+  direct_template: {
+    label: '직접넣기',
+    bg: '#F8FAFC', coverBg: '#FFFFFF', accent: '#2563EB',
+    text: '#0F172A', sub: '#64748B', div: '#CBD5E1',
+    card: '#FFFFFF', step: '#EFF6FF', tag: '#DBEAFE',
+    badge: '#DBEAFE', resBg: 'rgba(37,99,235,0.08)', resBd: 'rgba(37,99,235,0.28)',
+    dark: false, mono: false,
+  },
 };
 
 const LAYOUT_MAP = {
@@ -205,6 +237,10 @@ const LAYOUT_MAP = {
   pastel_portfolio: 'pastel',
   accepted_submission: 'consult',
   design_system: 'design_system',
+  test1_template: 'test1_ppt',
+  test2_template: 'test2_ppt',
+  test3_template: 'test3_ppt',
+  direct_template: 'direct_ppt',
 };
 
 export function getLayout(theme) {
