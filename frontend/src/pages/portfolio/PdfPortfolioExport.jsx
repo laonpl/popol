@@ -5,13 +5,14 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, ChevronDown, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, ChevronDown, UploadCloud, FileText, Wand2 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import toast from 'react-hot-toast';
 import { generatePptx } from './generatePptx';
 import { THEMES, getLayout } from '../../constants/portfolioThemes';
-import { strip, extractFields, toBullets, shorten, nameSpaced } from '../../utils/textUtils';
+import { strip, extractFields, toBullets, smartBullets, shorten, nameSpaced } from '../../utils/textUtils';
+import { analyzeAndPreviewTemplate, directTemplatePlaceholder, directTemplateSpecToText, extractDirectTemplateFromFile } from '../../utils/directTemplate';
 
 const SW = 1200;
 const SH = 675;
@@ -2516,6 +2517,67 @@ function OutroSlide({ p, t }) {
   );
 }
 
+/* ─── DirectSlidePreview ─── */
+const DIRECT_INTENT_LABELS = {
+  cover: '표지', profile: '프로필', skills: '역량/기술', project: '프로젝트',
+  process: '문제해결 과정', result: '성과/지표', details: '상세 내용',
+  education: '학력/수상', contact: '연락처/마무리',
+};
+const SLIDE_THEMES_DIRECT = {
+  cover:     { bg: 'linear-gradient(135deg,#0f2044 0%,#1a3a6b 100%)',   bar: '#60A5FA', tc: '#fff',    bc: '#93C5FD', nb: 'rgba(59,130,246,0.25)',   nt: '#93C5FD' },
+  profile:   { bg: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)',   bar: '#22C55E', tc: '#14532d', bc: '#166534', nb: 'rgba(34,197,94,0.15)',    nt: '#15803d' },
+  skills:    { bg: 'linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)',   bar: '#F59E0B', tc: '#78350f', bc: '#92400e', nb: 'rgba(245,158,11,0.15)',   nt: '#92400e' },
+  project:   { bg: 'linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)',   bar: '#3B82F6', tc: '#1e3a8a', bc: '#1d4ed8', nb: 'rgba(59,130,246,0.12)',   nt: '#1d4ed8' },
+  process:   { bg: 'linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%)',   bar: '#8B5CF6', tc: '#3b0764', bc: '#5b21b6', nb: 'rgba(139,92,246,0.12)',   nt: '#5b21b6' },
+  result:    { bg: 'linear-gradient(135deg,#ecfdf5 0%,#bbf7d0 100%)',   bar: '#10B981', tc: '#064e3b', bc: '#065f46', nb: 'rgba(16,185,129,0.12)',   nt: '#065f46' },
+  details:   { bg: 'linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%)',  bar: '#64748B', tc: '#0f172a', bc: '#334155', nb: 'rgba(100,116,139,0.1)',    nt: '#334155' },
+  education: { bg: 'linear-gradient(135deg,#fdf4ff 0%,#fae8ff 100%)',   bar: '#A855F7', tc: '#3b0764', bc: '#7e22ce', nb: 'rgba(168,85,247,0.12)',   nt: '#7e22ce' },
+  contact:   { bg: 'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',   bar: '#94A3B8', tc: '#f1f5f9', bc: '#cbd5e1', nb: 'rgba(148,163,184,0.15)',  nt: '#cbd5e1' },
+};
+const BASE_W = 720, BASE_H = 405;
+function DirectSlidePreview({ slide }) {
+  const th = SLIDE_THEMES_DIRECT[slide.intent] || SLIDE_THEMES_DIRECT.project;
+  const label = DIRECT_INTENT_LABELS[slide.intent] || '슬라이드';
+  const lines = (slide.lines || []).filter(Boolean);
+  const title = lines[0] || '(내용 없음)';
+  const bodyLines = lines.slice(1, 7);
+  return (
+    <div style={{ position: 'relative', width: '100%', paddingBottom: `${100 * BASE_H / BASE_W}%`, borderRadius: 10, overflow: 'hidden', boxShadow: '0 6px 28px rgba(0,0,0,0.18)' }}>
+      <div style={{ position: 'absolute', inset: 0, background: th.bg, display: 'flex', flexDirection: 'column' }}>
+        {/* 상단 색상 바 */}
+        <div style={{ height: '1%', background: th.bar, flexShrink: 0 }} />
+        {/* 본문 */}
+        <div style={{ flex: 1, padding: '5.5% 6% 4.5%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+          {/* 헤더: 슬라이드 타입 배지 + 번호 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4.5%' }}>
+            <span style={{ fontSize: '1.9%', fontWeight: 700, background: th.nb, color: th.nt, padding: '0.6% 2%', borderRadius: 99, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{label}</span>
+            <span style={{ fontSize: '2.2%', fontWeight: 800, color: th.bar, opacity: 0.9 }}>{String(slide.slideIndex + 1).padStart(2, '0')}</span>
+          </div>
+          {/* 제목 */}
+          <div style={{ fontSize: '3.8%', fontWeight: 800, color: th.tc, lineHeight: 1.25, marginBottom: '3.5%', wordBreak: 'keep-all', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+            {title}
+          </div>
+          {/* 본문 줄 */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2%', overflow: 'hidden' }}>
+            {bodyLines.map((line, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: '2%' }}>
+                <span style={{ flexShrink: 0, width: '1.2%', height: '1.2%', borderRadius: '50%', background: th.bar, marginTop: '1%', opacity: 0.7 }} />
+                <span style={{ fontSize: '2.4%', color: th.bc, lineHeight: 1.4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1 }}>{line}</span>
+              </div>
+            ))}
+          </div>
+          {/* 더 있음 표시 */}
+          {lines.length > 7 && (
+            <div style={{ marginTop: '2%', fontSize: '1.8%', color: th.bar, opacity: 0.6 }}>+{lines.length - 7}줄 더...</div>
+          )}
+        </div>
+        {/* 왼쪽 세로 액센트 */}
+        <div style={{ position: 'absolute', left: 0, top: '8%', bottom: '8%', width: '0.6%', background: th.bar, borderRadius: '0 2px 2px 0' }} />
+      </div>
+    </div>
+  );
+}
+
 /* ─── MAIN ─── */
 export default function PdfPortfolioExport() {
   const { id } = useParams();
@@ -2523,6 +2585,14 @@ export default function PdfPortfolioExport() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [theme, setTheme] = useState('marketer_light');
+  const [customTemplateText, setCustomTemplateText] = useState('');
+  const [directTemplateFileName, setDirectTemplateFileName] = useState('');
+  const [directTemplateArrayBuffer, setDirectTemplateArrayBuffer] = useState(null);
+  const [directTemplateSlideCount, setDirectTemplateSlideCount] = useState(0);
+  const [parsingTemplate, setParsingTemplate] = useState(false);
+  const [directPreviewData, setDirectPreviewData] = useState(null);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const directTemplateInputRef = useRef(null);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -2532,6 +2602,7 @@ export default function PdfPortfolioExport() {
       if (snap.exists()) {
         const p = { id: snap.id, ...snap.data() };
         setPortfolio(p);
+        setCustomTemplateText(sessionStorage.getItem(`direct-template:${snap.id}`) || '');
         const pos = (p.targetPosition || p.headline || '').toLowerCase();
         if (/개발|developer|engineer|frontend|backend|node|react|ios|android/.test(pos)) setTheme('developer');
         else if (/데이터|data|analyst|분석|sql|bi/.test(pos)) setTheme('data_dashboard');
@@ -2545,19 +2616,75 @@ export default function PdfPortfolioExport() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (id) sessionStorage.setItem(`direct-template:${id}`, customTemplateText);
+  }, [customTemplateText, id]);
+
+  const handleDirectTemplateFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setParsingTemplate(true);
+    const tid = toast.loading('템플릿 파일 구조 분석 중...');
+    try {
+      const spec = await extractDirectTemplateFromFile(file);
+      setCustomTemplateText(directTemplateSpecToText(spec));
+      setDirectTemplateFileName(file.name);
+      setDirectTemplateArrayBuffer(spec.arrayBuffer || null);
+      setDirectTemplateSlideCount(spec.slideCount || 0);
+      setDirectPreviewData(null);
+      toast.success(spec.arrayBuffer ? '템플릿 디자인을 읽었습니다.' : '템플릿 구조를 읽었습니다.', { id: tid });
+    } catch (error) {
+      console.error(error);
+      setDirectTemplateArrayBuffer(null);
+      setDirectTemplateFileName('');
+      setDirectTemplateSlideCount(0);
+      toast.error(error?.message || '템플릿 파일 분석 실패', { id: tid });
+    } finally {
+      setParsingTemplate(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!directTemplateArrayBuffer) { toast.error('PPTX 템플릿 파일을 먼저 업로드해 주세요.'); return; }
+    setApplyingTemplate(true);
+    const tid = toast.loading('AI가 템플릿 슬라이드를 분석 중...');
+    try {
+      const previewSlides = await analyzeAndPreviewTemplate(
+        directTemplateArrayBuffer,
+        portfolio,
+        customTemplateText.trim() || directTemplatePlaceholder()
+      );
+      setDirectPreviewData(previewSlides);
+      toast.success(`${previewSlides.length}개 슬라이드 분석 완료!`, { id: tid });
+    } catch (e) {
+      console.error(e);
+      toast.error('템플릿 분석 실패: ' + (e?.message || '알 수 없는 오류'), { id: tid });
+    }
+    setApplyingTemplate(false);
+  };
+
   const handleDownload = useCallback(async () => {
     if (!portfolio) return;
     setGenerating(true);
-    const tid = toast.loading('PPT 생성 중...');
+    const tid = toast.loading(getLayout(theme) === 'direct_ppt' ? 'AI가 PPT 템플릿을 분석 중...' : 'PPT 생성 중...');
     try {
-      await generatePptx(portfolio, theme, THEMES[theme]);
+      if (getLayout(theme) === 'direct_ppt' && !directTemplateArrayBuffer) {
+        toast.error('디자인을 채울 PPTX 템플릿 파일을 먼저 업로드해 주세요.', { id: tid });
+        setGenerating(false);
+        return;
+      }
+      const exportPortfolio = getLayout(theme) === 'direct_ppt'
+        ? { ...portfolio, customTemplateText: customTemplateText.trim() || directTemplatePlaceholder(), customTemplateArrayBuffer: directTemplateArrayBuffer, directPreviewSlides: directPreviewData }
+        : portfolio;
+      await generatePptx(exportPortfolio, theme, THEMES[theme]);
       toast.success('PPT 다운로드 완료!', { id: tid });
     } catch (e) {
       console.error(e);
       toast.error('생성 실패: ' + (e?.message || '알 수 없는 오류'), { id: tid });
     }
     setGenerating(false);
-  }, [portfolio, theme]);
+  }, [portfolio, theme, customTemplateText, directTemplateArrayBuffer, directPreviewData]);
 
   const handlePrintPdf = useCallback(() => {
     window.print();
@@ -2569,7 +2696,10 @@ export default function PdfPortfolioExport() {
   const t = THEMES[theme];
   const p = portfolio;
   const exps = p.experiences || [];
+  const layout = getLayout(theme);
   const isSubmissionTheme = theme === 'accepted_submission';
+  const isTestTemplate = ['test1_ppt', 'test2_ppt', 'test3_ppt'].includes(layout);
+  const isDirectTemplate = layout === 'direct_ppt';
   const sk = p.skills || {};
   const hasSkills = [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])].length > 0;
 
@@ -2580,7 +2710,11 @@ export default function PdfPortfolioExport() {
     return { exp, f, hasSit, hasRes };
   });
 
-  const totalSlides = 2 + (hasSkills ? 1 : 0) + expSlides.reduce((a, d) => a + 1 + (d.hasSit ? 1 : 0) + (d.hasRes ? 1 : 0), 0) + 1;
+  const totalSlides = isDirectTemplate
+    ? directPreviewData ? directPreviewData.length : (directTemplateSlideCount || 0)
+    : isTestTemplate
+    ? 3 + previewT1ProjectStories(p).reduce((sum, proof) => sum + 1 + Math.ceil(previewT1SectionCards(proof.exp, proof.fields).length / 4), 0)
+    : 2 + (hasSkills ? 1 : 0) + expSlides.reduce((a, d) => a + 1 + (d.hasSit ? 1 : 0) + (d.hasRes ? 1 : 0), 0) + 1;
 
   return (
     <div className="animate-fadeIn">
@@ -2612,21 +2746,127 @@ export default function PdfPortfolioExport() {
             </button>
           </div>
         </div>
+        {isDirectTemplate && (
+          <div style={{ maxWidth: 1040, margin: '0 auto' }} className="px-4 pb-3">
+            <input
+              ref={directTemplateInputRef}
+              type="file"
+              accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              className="hidden"
+              onChange={handleDirectTemplateFile}
+            />
+            <button
+              type="button"
+              onClick={() => directTemplateInputRef.current?.click()}
+              disabled={parsingTemplate}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-left text-xs text-gray-700 outline-none transition-colors hover:bg-white disabled:opacity-60"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                {parsingTemplate ? <Loader2 size={15} className="animate-spin text-blue-600" /> : directTemplateFileName ? <FileText size={15} className="text-blue-600" /> : <UploadCloud size={15} className="text-gray-500" />}
+                <span className="truncate">{directTemplateFileName || 'PPTX 템플릿 파일 업로드'}</span>
+              </span>
+              <span className="shrink-0 text-[11px] text-gray-500">.pptx</span>
+            </button>
+            <div className="mt-1 text-[11px] text-gray-500">업로드한 PPTX의 문구와 텍스트 자리 수를 AI가 분석해, 배경·이미지·도형·색상·레이아웃은 유지한 채 내용만 채웁니다.</div>
+            {directTemplateSlideCount > 0 && <div className="mt-1 text-[11px] text-blue-600">{directTemplateSlideCount}개 슬라이드를 읽었습니다. 저장하면 AI가 템플릿 맥락에 맞춰 포트폴리오 내용을 배치합니다.</div>}
+            {directTemplateArrayBuffer && !parsingTemplate && (
+              <button
+                type="button"
+                onClick={handleApplyTemplate}
+                disabled={applyingTemplate}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+              >
+                {applyingTemplate ? <><Loader2 size={14} className="animate-spin" />{'  분석 중...'}</> : <><Wand2 size={14} />{'  템플릿 적용하기'}</>}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, padding: '32px 24px 72px' }}
         className="print:gap-0 print:p-0">
-        {isSubmissionTheme ? <SubmissionCoverSlide p={p} t={t} /> : <CoverSlide p={p} t={t} theme={theme} />}
-        {isSubmissionTheme ? <SubmissionProfileSlide p={p} t={t} /> : <ProfileSlide p={p} t={t} />}
-        {hasSkills && (isSubmissionTheme ? <SubmissionSkillsSlide p={p} t={t} /> : <SkillsSlide p={p} t={t} />)}
-        {expSlides.map(({ exp, f, hasSit, hasRes }, idx) => (
-          <div key={idx} style={{ display: 'contents' }}>
-            {isSubmissionTheme ? <SubmissionSectionDivider exp={exp} idx={idx} t={t} /> : <SectionDivider exp={exp} idx={idx} t={t} />}
-            {hasSit && <SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
-            {hasRes && <ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
+        {isDirectTemplate ? (
+          <div style={{ maxWidth: 1040, width: '100%' }} className="print:hidden px-4">
+            {applyingTemplate ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4">
+                <Loader2 size={32} className="animate-spin text-blue-600" />
+                <div className="text-sm text-gray-500">AI가 슬라이드 콘텐츠를 분석 중입니다...</div>
+              </div>
+            ) : directPreviewData ? (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold text-gray-700">슬라이드 미리보기 — {directPreviewData.length}개</div>
+                  <button type="button" onClick={() => setDirectPreviewData(null)} className="text-xs text-blue-600 hover:underline">다시 분석</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                  {directPreviewData.map(slide => <DirectSlidePreview key={slide.slideIndex} slide={slide} />)}
+                </div>
+                <div className="mt-4 text-[11px] text-gray-400 text-center">위 내용이 각 슬라이드 텍스트 자리에 배치됩니다. 마음에 들면 상단의 'PPT 저장'을 누르세요.</div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50 px-8 py-10 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                  <Wand2 size={22} />
+                </div>
+                <div className="text-base font-bold text-gray-800">템플릿 적용하기를 눌러 미리보기</div>
+                <div className="mt-2 text-sm leading-6 text-gray-500">
+                  {directTemplateArrayBuffer ? "위의 '템플릿 적용하기' 버튼을 눌러 AI가 슬라이드별 내용을 배치한 미리보기를 확인하세요." : 'PPTX 템플릿 파일을 먼저 업로드하세요.'}
+                </div>
+              </div>
+            )}
           </div>
-        ))}
-        <OutroSlide p={p} t={t} />
+        ) : isTestTemplate ? (
+          <>
+            {layout === 'test2_ppt' ? <Test2CoverSlide p={p} t={t} /> : layout === 'test3_ppt' ? <Test3CoverSlide p={p} t={t} /> : <Test1CoverSlide p={p} t={t} />}
+            {layout === 'test2_ppt' ? <Test2SummarySlide p={p} t={t} /> : layout === 'test3_ppt' ? <Test3SummarySlide p={p} t={t} /> : <Test1SummarySlide p={p} t={t} />}
+            {previewT1ProjectStories(p).map((proof, idx) => {
+              const cards = previewT1SectionCards(proof.exp, proof.fields);
+              const detailSlides = [];
+              for (let j = 0; j < cards.length; j += 4) {
+                detailSlides.push(
+                  layout === 'test2_ppt'
+                    ? <Test2SectionDigestSlide key={`section-${idx}-${j}`} proof={proof} pageIdx={Math.floor(j / 4)} cards={cards.slice(j, j + 4)} t={t} />
+                    : layout === 'test3_ppt'
+                      ? <Test3SectionDigestSlide key={`section-${idx}-${j}`} proof={proof} pageIdx={Math.floor(j / 4)} cards={cards.slice(j, j + 4)} t={t} />
+                      : <Test1SectionDigestSlide key={`section-${idx}-${j}`} proof={proof} pageIdx={Math.floor(j / 4)} cards={cards.slice(j, j + 4)} t={t} />
+                );
+              }
+              return <div key={idx} style={{ display: 'contents' }}>
+                {layout === 'test2_ppt' ? <Test2CaseSlide proof={proof} idx={idx} t={t} /> : layout === 'test3_ppt' ? <Test3CaseSlide proof={proof} idx={idx} t={t} /> : <Test1CaseSlide proof={proof} idx={idx} t={t} />}
+                {detailSlides}
+              </div>;
+            })}
+            <OutroSlide p={p} t={t} />
+          </>
+        ) : isSubmissionTheme ? (
+          <>
+            <SubmissionCoverSlide p={p} t={t} />
+            <SubmissionProfileSlide p={p} t={t} />
+            {hasSkills && <SubmissionSkillsSlide p={p} t={t} />}
+            {expSlides.map(({ exp, f, hasSit, hasRes }, idx) => (
+              <div key={idx} style={{ display: 'contents' }}>
+                <SubmissionSectionDivider exp={exp} idx={idx} t={t} />
+                {hasSit && <SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
+                {hasRes && <ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
+              </div>
+            ))}
+            <OutroSlide p={p} t={t} />
+          </>
+        ) : (
+          <>
+            <CoverSlide p={p} t={t} theme={theme} />
+            <ProfileSlide p={p} t={t} />
+            {hasSkills && <SkillsSlide p={p} t={t} />}
+            {expSlides.map(({ exp, f, hasSit, hasRes }, idx) => (
+              <div key={idx} style={{ display: 'contents' }}>
+                <SectionDivider exp={exp} idx={idx} t={t} />
+                {hasSit && <SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
+                {hasRes && <ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
+              </div>
+            ))}
+            <OutroSlide p={p} t={t} />
+          </>
+        )}
       </div>
 
       <style>{`
@@ -2798,3 +3038,490 @@ function SubmissionSectionDivider({ exp, idx, t }) {
     </Slide>
   );
 }
+function previewSkillNames(p, max = 10) {
+  const sk = p.skills || {};
+  return [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])]
+    .map(s => typeof s === 'string' ? s : s?.name)
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function previewContacts(p) {
+  const c = p.contact || {};
+  return [c.email, c.phone, c.github, c.website || c.linkedin || c.instagram].filter(Boolean);
+}
+
+function previewExpTitle(exp, idx) {
+  return exp.title || exp.company || exp.name || exp.organization || `프로젝트 ${idx + 1}`;
+}
+
+function previewImpactText(exp, f) {
+  const kx = (f.keyExperiences || []).find(item => item?.metric || item?.result);
+  return kx?.metric || kx?.result || f.output || f.growth || f.competency || exp.description || f.aiSummary || '';
+}
+
+function previewTechStack(exp, f) {
+  const stack = f.projectOverview?.techStack || exp.techStack || exp.skills || [];
+  return stack.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean);
+}
+
+function previewExperienceScore(exp) {
+  const f = extractFields(exp);
+  const sr = exp.structuredResult || exp.frameworkContent || {};
+  const techCount = previewTechStack(exp, f).length;
+  return [
+    f.keyExperiences?.length ? f.keyExperiences.length * 8 : 0,
+    previewImpactText(exp, f) ? 12 : 0,
+    f.output ? 8 : 0,
+    f.process ? 6 : 0,
+    f.competency || f.growth ? 5 : 0,
+    sr.projectOverview?.summary || f.overview || f.description ? 4 : 0,
+    Math.min(techCount, 6),
+  ].reduce((sum, value) => sum + value, 0);
+}
+
+function previewT1FeaturedExperiences(p, max = 5) {
+  return (p.experiences || [])
+    .map((exp, originalIdx) => ({ exp, originalIdx, score: previewExperienceScore(exp) }))
+    .filter(item => item.exp)
+    .sort((a, b) => b.score - a.score || a.originalIdx - b.originalIdx)
+    .slice(0, max);
+}
+
+function previewProofMetric(proof) {
+  const item = proof.item || {};
+  const f = proof.fields || extractFields(proof.exp);
+  return item.metric || item.afterMetric || previewImpactText(proof.exp, f) || f.output || '';
+}
+
+function previewProofTitle(proof, idx) {
+  return proof.item?.title || previewExpTitle(proof.exp, idx);
+}
+
+function previewT1Proofs(p, max = 5) {
+  const proofs = [];
+  (p.experiences || []).forEach((exp, expIdx) => {
+    const fields = extractFields(exp);
+    const keyItems = fields.keyExperiences?.length ? fields.keyExperiences : [];
+    if (keyItems.length) {
+      keyItems.forEach((item, itemIdx) => {
+        const score = [
+          item.metric || item.afterMetric ? 24 : 0,
+          item.beforeMetric && item.afterMetric ? 20 : 0,
+          item.result ? 12 : 0,
+          item.action ? 8 : 0,
+          item.situation ? 6 : 0,
+          item.keywords?.length ? Math.min(item.keywords.length, 5) : 0,
+        ].reduce((sum, value) => sum + value, 0);
+        proofs.push({ exp, fields, item, expIdx, itemIdx, score });
+      });
+      return;
+    }
+    proofs.push({
+      exp,
+      fields,
+      item: {
+        title: previewExpTitle(exp, expIdx),
+        metric: previewImpactText(exp, fields),
+        situation: fields.overview || fields.description || fields.intro,
+        action: [fields.task, fields.process].filter(Boolean).join('\n'),
+        result: [fields.output, fields.growth || fields.competency].filter(Boolean).join('\n'),
+        keywords: previewTechStack(exp, fields).slice(0, 5),
+      },
+      expIdx,
+      itemIdx: 0,
+      score: previewExperienceScore(exp),
+    });
+  });
+  return proofs.sort((a, b) => b.score - a.score || a.expIdx - b.expIdx || a.itemIdx - b.itemIdx).slice(0, max);
+}
+
+function previewPrimaryProof(exp, expIdx) {
+  const fields = extractFields(exp);
+  const keyItems = fields.keyExperiences?.length ? fields.keyExperiences : [];
+  const item = keyItems
+    .map((keyItem, itemIdx) => ({
+      item: keyItem,
+      itemIdx,
+      score: [
+        keyItem.metric || keyItem.afterMetric ? 24 : 0,
+        keyItem.beforeMetric && keyItem.afterMetric ? 20 : 0,
+        keyItem.result ? 12 : 0,
+        keyItem.action ? 8 : 0,
+        keyItem.situation ? 6 : 0,
+      ].reduce((sum, value) => sum + value, 0),
+    }))
+    .sort((a, b) => b.score - a.score || a.itemIdx - b.itemIdx)[0]?.item;
+  return {
+    exp,
+    fields,
+    expIdx,
+    item: item || {
+      title: previewExpTitle(exp, expIdx),
+      metric: previewImpactText(exp, fields),
+      situation: fields.overview || fields.description || fields.intro,
+      action: [fields.task, fields.process].filter(Boolean).join('\n'),
+      result: [fields.output, fields.growth || fields.competency].filter(Boolean).join('\n'),
+      keywords: previewTechStack(exp, fields).slice(0, 5),
+    },
+  };
+}
+
+function previewT1ProjectStories(p) {
+  return (p.experiences || []).map((exp, idx) => previewPrimaryProof(exp, idx));
+}
+
+function previewSectionCards(exp, fields = extractFields(exp)) {
+  const cards = [];
+  const seen = new Set();
+  const add = (label, content) => {
+    const text = strip(Array.isArray(content) ? content.filter(Boolean).join('\n') : content);
+    const key = text.replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    cards.push({ label, content: smartBullets(text, 2, 58).join('\n') || shorten(text, 110) });
+  };
+  add('개요', [fields.intro, fields.overview, fields.description, fields.aiSummary]);
+  add('문제/목표', fields.task);
+  add('과정', fields.process);
+  add('결과', fields.output);
+  add('성장/역량', [fields.growth, fields.competency]);
+  (exp.sections || []).forEach((section, idx) => add(section.title || `섹션 ${idx + 1}`, section.content));
+  if (Array.isArray(exp.details)) exp.details.forEach((detail, idx) => add(`상세 ${idx + 1}`, detail));
+  if (Array.isArray(exp.bullets)) exp.bullets.forEach((bullet, idx) => add(`포인트 ${idx + 1}`, bullet));
+  return cards;
+}
+
+const previewT1SectionCards = previewSectionCards;
+
+function previewMetricDisplay(proof) {
+  const raw = previewProofMetric(proof);
+  const hasNumber = /\d/.test(String(raw || ''));
+  if (!raw) return '핵심 성과';
+  return hasNumber || String(raw).length <= 34 ? raw : '핵심 성과';
+}
+
+function previewNumber(value) {
+  if (!value) return null;
+  const match = String(value).replace(/,/g, '').match(/([\d.]+)/);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function Test1MetricVisual({ proof, t }) {
+  const item = proof.item || {};
+  const metric = previewMetricDisplay(proof);
+  const before = previewNumber(item.beforeMetric);
+  const after = previewNumber(item.afterMetric || metric);
+  const max = Math.max(before || 0, after || 0, 1);
+  return <div style={{ background: t.resBg || t.step, border: `1px solid ${t.resBd || t.div}`, borderRadius: 8, padding: 26, height: 352 }}>
+    <div style={{ fontSize: 11, fontWeight: 900, color: t.sub, marginBottom: 14, textTransform: 'uppercase' }}>{item.metricLabel || 'Impact Metric'}</div>
+    <div style={{ fontSize: 30, fontWeight: 900, color: t.accent, lineHeight: 1.12, marginBottom: 24 }}>{shorten(metric || '핵심 성과', 26)}</div>
+    {(item.beforeMetric || item.afterMetric) ? <div style={{ display: 'grid', gap: 14, marginTop: 8 }}>
+      <MetricBar label="Before" value={item.beforeMetric || '기존'} pct={Math.max(((before || max) / max) * 100, 6)} color={t.sub} t={t} />
+      <MetricBar label="After" value={item.afterMetric || metric || '개선 후'} pct={Math.max(((after || max) / max) * 100, 6)} color={t.accent} t={t} />
+    </div> : <div style={{ marginTop: 20 }}>
+      <div style={{ height: 12, background: `${t.div}66`, borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.min(previewNumber(metric) || 72, 100)}%`, background: t.accent, borderRadius: 6 }} />
+      </div>
+      <div style={{ fontSize: 12, color: t.sub, marginTop: 14 }}>성과 지표 기반 하이라이트</div>
+    </div>}
+    <div style={{ fontSize: 13, lineHeight: 1.55, color: t.text, marginTop: 24 }}>{shorten(item.result || proof.fields.output || proof.fields.growth || proof.fields.competency, 120)}</div>
+  </div>;
+}
+
+function MetricBar({ label, value, pct, color, t }) {
+  return <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+      <span style={{ fontSize: 11, fontWeight: 900, color }}>{label}</span>
+      <span style={{ fontSize: 11, color: t.text, fontWeight: 700 }}>{shorten(value, 22)}</span>
+    </div>
+    <div style={{ height: 10, background: `${t.div}66`, borderRadius: 5, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, borderRadius: 5 }} />
+    </div>
+  </div>;
+}
+
+function Test1PointCard({ label, children, t, accent = false }) {
+  return <div style={{ background: t.card, border: `1px solid ${accent ? t.resBd : t.div}`, borderRadius: 8, padding: 22, minHeight: 156 }}>
+    <div style={{ fontSize: 12, fontWeight: 900, color: accent ? t.accent : t.sub, marginBottom: 12, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ fontSize: 13, lineHeight: 1.65, color: t.text, whiteSpace: 'pre-line' }}>{smartBullets(children, 2, 58).join('\n') || shorten(children, 120)}</div>
+  </div>;
+}
+
+function Test1Label({ num, children, t }) {
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
+    <span style={{ fontSize: 13, fontWeight: 900, color: t.accent }}>{String(num).padStart(2, '0')}</span>
+    <span style={{ fontSize: 12, fontWeight: 800, color: t.sub }}>{children}</span>
+    <div style={{ flex: 1, height: 1, background: t.div }} />
+  </div>;
+}
+
+function Test1CoverSlide({ p, t }) {
+  const proofs = previewT1ProjectStories(p);
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 14, background: t.accent }} />
+    <div style={{ margin: 66, height: 520, background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 42, display: 'grid', gridTemplateColumns: '1fr 280px', gap: 36 }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: t.accent, marginBottom: 22 }}>TEST1 TEMPLATE</div>
+        <div style={{ fontSize: 17, color: t.sub, marginBottom: 28 }}>합격자 포트폴리오 구조로 재정리한 커리어노트형 PPT</div>
+        <div style={{ fontSize: 54, fontWeight: 900, color: t.text, lineHeight: 1.1, marginBottom: 24 }}>{nameSpaced(p.userName || '이름')}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: t.text, lineHeight: 1.35 }}>{shorten(p.headline || p.targetPosition || 'Portfolio', 72)}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 42, maxWidth: 560 }}>
+          {previewContacts(p).slice(0, 4).map((line, idx) => <div key={idx} style={{ background: t.step, border: `1px solid ${t.div}`, borderRadius: 4, padding: '8px 10px', fontSize: 10, color: t.sub }}>{shorten(line, 32)}</div>)}
+        </div>
+      </div>
+      <div style={{ background: t.step, border: `1px solid ${t.div}`, borderRadius: 8, padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 900, color: t.text, marginBottom: 20 }}>Project Flow</div>
+        {proofs.slice(0, 5).map((proof, idx) => <div key={idx} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+          <span style={{ fontSize: 12, fontWeight: 900, color: t.accent }}>{String(idx + 1).padStart(2, '0')}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: t.text, lineHeight: 1.35 }}>{shorten(previewExpTitle(proof.exp, proof.expIdx), 26)}</span>
+        </div>)}
+        {proofs.length > 5 && <div style={{ fontSize: 11, color: t.sub, marginTop: 8 }}>{`+ ${proofs.length - 5} more projects`}</div>}
+      </div>
+    </div>
+  </Slide>;
+}
+
+
+
+
+function Test1SummarySlide({ p, t }) {
+  const skills = previewSkillNames(p, 99);
+  const featured = previewT1ProjectStories(p);
+  const metrics = [
+    ['Projects', `${featured.length}건`],
+    ['Skills', `${skills.length}개`],
+    ['Awards', `${(p.awards || []).length}건`],
+    ['Links', `${previewContacts(p).length}개`],
+  ];
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={1} t={t}>PORTFOLIO SUMMARY</Test1Label>
+      <div style={{ fontSize: 30, fontWeight: 900, color: t.text, marginBottom: 30 }}>핵심 경험만 압축한 합격자형 포트폴리오 요약</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, marginBottom: 38 }}>
+        {metrics.map(([label, value]) => <MetricCard key={label} label={label} value={value} t={t} />)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 34 }}>
+        <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 28 }}>
+          <SectionBold t={t}>Candidate Narrative</SectionBold>
+          <div style={{ fontSize: 15, lineHeight: 1.75, color: t.text }}>{shorten(p.about || p.valuesEssay || p.headline || '모든 프로젝트 경험과 링크형 섹션을 흐름에 맞게 압축해 정리했습니다.', 190)}</div>
+        </div>
+        <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 28 }}>
+          <SectionBold t={t}>Core Keywords</SectionBold>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {skills.slice(0, 18).map((skill, idx) => <span key={idx} style={{ background: idx % 3 === 0 ? t.accent : t.badge, color: idx % 3 === 0 ? '#fff' : t.text, border: `1px solid ${idx % 3 === 0 ? t.accent : t.div}`, borderRadius: 16, padding: '7px 14px', fontSize: 12, fontWeight: 800 }}>{skill}</span>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test1CaseSlide({ proof, idx, t }) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>PROJECT STORY</Test1Label>
+      <div style={{ fontSize: 30, fontWeight: 900, color: t.text, marginBottom: 8 }}>{shorten(previewExpTitle(exp, proof.expIdx), 72)}</div>
+      <div style={{ fontSize: 12, color: t.sub, marginBottom: 28 }}>{[f.projectOverview?.duration || exp.period || exp.date, f.projectOverview?.role || exp.role].filter(Boolean).join(' · ')}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24 }}>
+        <Test1MetricVisual proof={proof} t={t} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          <Test1PointCard label="Problem" t={t}>{item.situation || f.overview || f.description || f.intro}</Test1PointCard>
+          <Test1PointCard label="Action" t={t}>{item.action || [f.task, f.process].filter(Boolean).join('\n')}</Test1PointCard>
+          <div style={{ gridColumn: '1 / span 2' }}>
+            <Test1PointCard label="Impact" t={t} accent>{item.result || [f.output, f.growth || f.competency].filter(Boolean).join('\n')}</Test1PointCard>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+        {[...(item.keywords || []), ...previewTechStack(exp, f)].filter(Boolean).slice(0, 8).map((skill, skillIdx) => <span key={skillIdx} style={{ background: t.badge, border: `1px solid ${t.div}`, borderRadius: 14, padding: '5px 10px', fontSize: 10, color: t.text }}>{shorten(skill, 12)}</span>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test1SectionDigestSlide({ proof, pageIdx, cards, t }) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>{`PROJECT SECTIONS ${pageIdx + 1}`}</Test1Label>
+      <div style={{ fontSize: 27, fontWeight: 900, color: t.text, marginBottom: 8 }}>{shorten(previewExpTitle(exp, proof.expIdx), 74)}</div>
+      <div style={{ fontSize: 12, color: t.sub, marginBottom: 24 }}>{[f.projectOverview?.duration || exp.period || exp.date, f.projectOverview?.role || exp.role].filter(Boolean).join(' · ')}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        {cards.map((card, cardIdx) => <Test1PointCard key={cardIdx} label={card.label} t={t} accent={cardIdx === 0}>{card.content}</Test1PointCard>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test2CoverSlide({ p, t }) {
+  const stories = previewT1ProjectStories(p);
+  return <Slide t={t} bg={t.coverBg}>
+    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: t.accent }} />
+    <div style={{ padding: 72, display: 'grid', gridTemplateColumns: '1fr 440px', gap: 54, height: '100%' }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: t.accent, marginBottom: 34 }}>TEST2 TEMPLATE</div>
+        <div style={{ fontSize: 54, fontWeight: 900, color: t.text, lineHeight: 1.08, marginBottom: 28 }}>{nameSpaced(p.userName || '이름')}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text, lineHeight: 1.38 }}>{shorten(p.headline || p.targetPosition || 'Portfolio', 90)}</div>
+        <div style={{ fontSize: 14, color: t.sub, marginTop: 170 }}>Casebook Timeline Portfolio</div>
+      </div>
+      <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 32 }}>
+        <div style={{ fontSize: 14, fontWeight: 900, color: t.sub, marginBottom: 24 }}>PROJECT SEQUENCE</div>
+        {stories.slice(0, 6).map((story, idx) => <div key={idx} style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 18 }}>
+          <span style={{ width: 18, height: 18, borderRadius: 9, background: idx === 0 ? t.accent : t.div, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{shorten(previewExpTitle(story.exp, story.expIdx), 36)}</span>
+        </div>)}
+        {stories.length > 6 && <div style={{ fontSize: 12, color: t.sub }}>{`+ ${stories.length - 6} more`}</div>}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test2SummarySlide({ p, t }) {
+  const stories = previewT1ProjectStories(p);
+  const sectionCount = stories.reduce((sum, proof) => sum + previewT1SectionCards(proof.exp, proof.fields).length, 0);
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={1} t={t}>CASEBOOK OVERVIEW</Test1Label>
+      <div style={{ fontSize: 30, fontWeight: 900, color: t.text, marginBottom: 30 }}>경험 흐름을 한눈에 읽는 케이스북 구성</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, marginBottom: 36 }}>
+        <MetricCard label="Projects" value={`${stories.length}건`} t={t} />
+        <MetricCard label="Sections" value={`${sectionCount}개`} t={t} />
+        <MetricCard label="Skills" value={`${previewSkillNames(p, 99).length}개`} t={t} />
+        <MetricCard label="Evidence" value={`${stories.filter(proof => previewProofMetric(proof)).length}건`} t={t} />
+      </div>
+      <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 26 }}>
+        {stories.slice(0, 6).map((proof, idx) => <div key={idx} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 260px', gap: 14, alignItems: 'center', padding: '10px 0', borderBottom: idx === Math.min(stories.length, 6) - 1 ? 'none' : `1px solid ${t.div}` }}>
+          <span style={{ fontSize: 13, fontWeight: 900, color: t.accent }}>{String(idx + 1).padStart(2, '0')}</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{shorten(previewExpTitle(proof.exp, proof.expIdx), 50)}</span>
+          <span style={{ fontSize: 12, color: t.sub }}>{shorten(previewMetricDisplay(proof), 42)}</span>
+        </div>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test2CaseSlide({ proof, t }) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  const steps = [
+    ['01', 'Problem', item.situation || f.overview || f.description || f.intro],
+    ['02', 'Action', item.action || [f.task, f.process].filter(Boolean).join('\n')],
+    ['03', 'Impact', item.result || [f.output, f.growth || f.competency].filter(Boolean).join('\n')],
+  ];
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>CASEBOOK PROJECT</Test1Label>
+      <div style={{ fontSize: 28, fontWeight: 900, color: t.text, marginBottom: 8 }}>{shorten(previewExpTitle(exp, proof.expIdx), 76)}</div>
+      <div style={{ fontSize: 12, color: t.sub, marginBottom: 28 }}>{[f.projectOverview?.duration || exp.period || exp.date, f.projectOverview?.role || exp.role].filter(Boolean).join(' · ')}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 330px', gap: 28 }}>
+        <div>
+          {steps.map(([num, label, content], idx) => <div key={label} style={{ display: 'grid', gridTemplateColumns: '42px 1fr', gap: 18, alignItems: 'center', marginBottom: 22 }}>
+            <span style={{ width: 28, height: 28, borderRadius: 14, background: idx === 2 ? t.accent : t.step, color: idx === 2 ? '#fff' : t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>{num}</span>
+            <Test1PointCard label={label} t={t} accent={idx === 2}>{content}</Test1PointCard>
+          </div>)}
+        </div>
+        <Test1MetricVisual proof={proof} t={t} />
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test2SectionDigestSlide({ proof, pageIdx, cards, t }) {
+  const exp = proof.exp;
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>{`CASEBOOK NOTES ${pageIdx + 1}`}</Test1Label>
+      <div style={{ fontSize: 27, fontWeight: 900, color: t.text, marginBottom: 26 }}>{shorten(previewExpTitle(exp, proof.expIdx), 72)}</div>
+      {cards.map((card, idx) => <div key={idx} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 18, alignItems: 'center', marginBottom: 18 }}>
+        <span style={{ fontSize: 13, fontWeight: 900, color: t.accent }}>{String(idx + 1 + pageIdx * 4).padStart(2, '0')}</span>
+        <Test1PointCard label={card.label} t={t}>{card.content}</Test1PointCard>
+      </div>)}
+    </div>
+  </Slide>;
+}
+
+function Test3CoverSlide({ p, t }) {
+  const skills = previewSkillNames(p, 12);
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 50, background: t.accent }} />
+    <div style={{ padding: 72, display: 'grid', gridTemplateColumns: '1fr 360px', gap: 54 }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: t.accent, marginBottom: 34 }}>TEST3 TEMPLATE / PORTFOLIO REPORT</div>
+        <div style={{ fontSize: 54, fontWeight: 900, color: t.text, lineHeight: 1.08, marginBottom: 28 }}>{nameSpaced(p.userName || '이름')}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text, lineHeight: 1.38 }}>{shorten(p.headline || p.targetPosition || 'Portfolio', 90)}</div>
+        <div style={{ fontSize: 14, color: t.sub, marginTop: 170 }}>Evidence Dashboard</div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignContent: 'flex-start', marginTop: 54 }}>
+        {skills.slice(0, 8).map((skill, idx) => <span key={idx} style={{ background: t.badge, border: `1px solid ${t.div}`, borderRadius: 16, padding: '8px 14px', fontSize: 12, color: t.text, fontWeight: 800 }}>{shorten(skill, 15)}</span>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test3SummarySlide({ p, t }) {
+  const stories = previewT1ProjectStories(p);
+  const sectionCount = stories.reduce((sum, proof) => sum + previewT1SectionCards(proof.exp, proof.fields).length, 0);
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={1} t={t}>REPORT SNAPSHOT</Test1Label>
+      <div style={{ fontSize: 30, fontWeight: 900, color: t.text, marginBottom: 30 }}>성과와 섹션을 대시보드처럼 정리한 리포트 구성</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, marginBottom: 34 }}>
+        <MetricCard label="Projects" value={`${stories.length}`} t={t} />
+        <MetricCard label="Sections" value={`${sectionCount}`} t={t} />
+        <MetricCard label="Skills" value={`${previewSkillNames(p, 99).length}`} t={t} />
+        <MetricCard label="Awards" value={`${(p.awards || []).length}`} t={t} />
+      </div>
+      <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 8, padding: 30 }}>
+        <SectionBold t={t}>Portfolio Positioning</SectionBold>
+        <div style={{ fontSize: 16, lineHeight: 1.75, color: t.text }}>{shorten(p.about || p.valuesEssay || p.headline || '지원 직무와 연결되는 경험, 성과 지표, 프로젝트 섹션을 리포트 형태로 압축했습니다.', 210)}</div>
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test3CaseSlide({ proof, t }) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  const cards = [
+    ['Problem', item.situation || f.overview || f.description || f.intro],
+    ['Action', item.action || [f.task, f.process].filter(Boolean).join('\n')],
+    ['Result', item.result || f.output],
+    ['Growth', f.growth || f.competency],
+  ];
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>PROJECT DASHBOARD</Test1Label>
+      <div style={{ fontSize: 28, fontWeight: 900, color: t.text, marginBottom: 8 }}>{shorten(previewExpTitle(exp, proof.expIdx), 74)}</div>
+      <div style={{ fontSize: 12, color: t.sub, marginBottom: 24 }}>{[f.projectOverview?.duration || exp.period || exp.date, f.projectOverview?.role || exp.role].filter(Boolean).join(' · ')}</div>
+      <div style={{ background: t.resBg, border: `1px solid ${t.resBd}`, borderRadius: 8, padding: 22, marginBottom: 22 }}>
+        <div style={{ fontSize: 11, fontWeight: 900, color: t.sub, marginBottom: 8 }}>{item.metricLabel || 'Impact Metric'}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: t.accent }}>{shorten(previewMetricDisplay(proof), 46)}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        {cards.map(([label, content], idx) => <Test1PointCard key={label} label={label} t={t} accent={idx === 2}>{content}</Test1PointCard>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+function Test3SectionDigestSlide({ proof, pageIdx, cards, t }) {
+  const exp = proof.exp;
+  return <Slide t={t} bg={t.bg}>
+    <div style={{ padding: 54 }}>
+      <Test1Label num={proof.expIdx + 2} t={t}>{`REPORT DETAILS ${pageIdx + 1}`}</Test1Label>
+      <div style={{ fontSize: 27, fontWeight: 900, color: t.text, marginBottom: 24 }}>{shorten(previewExpTitle(exp, proof.expIdx), 72)}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        {cards.map((card, idx) => <Test1PointCard key={idx} label={card.label} t={t} accent={idx === 0}>{card.content}</Test1PointCard>)}
+      </div>
+    </div>
+  </Slide>;
+}
+
+

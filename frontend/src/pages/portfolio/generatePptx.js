@@ -5,6 +5,7 @@
  */
 import { THEMES, getLayout } from '../../constants/portfolioThemes';
 import { strip, extractFields, toBullets, smartBullets, shorten, nameSpaced } from '../../utils/textUtils';
+import { buildDirectTemplateSlides, fillUploadedPptxTemplate, parseDirectTemplate } from '../../utils/directTemplate';
 
 /* ─── Local helpers (kept: differ in default/wrap) ─── */
 const hexClean = (color) => color ? color.replace('#', '') : '000000';
@@ -2152,6 +2153,561 @@ function buildDesignSystemPortfolio(prs, portfolio, themeObj) {
 }
 /* ─── END DESIGN SYSTEM ─── */
 
+function getSkillNames(p, max = 12) {
+  const sk = p.skills || {};
+  return [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])]
+    .map(s => typeof s === 'string' ? s : s?.name)
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function getContactLines(p) {
+  const c = p.contact || {};
+  return [c.email, c.phone, c.github, c.website || c.linkedin || c.instagram].filter(Boolean);
+}
+
+function getExpTitle(exp, idx) {
+  return exp.title || exp.company || exp.name || exp.organization || `프로젝트 ${idx + 1}`;
+}
+
+function getExpMeta(exp, f) {
+  const ov = f.projectOverview || {};
+  return [ov.duration || exp.period || exp.date, ov.role || exp.role].filter(Boolean).join(' · ');
+}
+
+function getImpactText(exp, f) {
+  const kx = (f.keyExperiences || []).find(item => item?.metric || item?.result);
+  return kx?.metric || kx?.result || f.output || f.growth || f.competency || exp.description || f.aiSummary || '';
+}
+
+function getT1TechStack(exp, f) {
+  const stack = f.projectOverview?.techStack || exp.techStack || exp.skills || [];
+  return stack.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean);
+}
+
+function getT1ExperienceScore(exp) {
+  const f = extractFields(exp);
+  const sr = exp.structuredResult || exp.frameworkContent || {};
+  const techCount = getT1TechStack(exp, f).length;
+  return [
+    f.keyExperiences?.length ? f.keyExperiences.length * 8 : 0,
+    getImpactText(exp, f) ? 12 : 0,
+    f.output ? 8 : 0,
+    f.process ? 6 : 0,
+    f.competency || f.growth ? 5 : 0,
+    sr.projectOverview?.summary || f.overview || f.description ? 4 : 0,
+    Math.min(techCount, 6),
+  ].reduce((sum, value) => sum + value, 0);
+}
+
+function getT1FeaturedExperiences(p, max = 5) {
+  return (p.experiences || [])
+    .map((exp, originalIdx) => ({ exp, originalIdx, score: getT1ExperienceScore(exp) }))
+    .filter(item => item.exp)
+    .sort((a, b) => b.score - a.score || a.originalIdx - b.originalIdx)
+    .slice(0, max);
+}
+
+function getT1ProofMetric(proof) {
+  const item = proof.item || {};
+  const f = proof.fields || extractFields(proof.exp);
+  return item.metric || item.afterMetric || getImpactText(proof.exp, f) || f.output || '';
+}
+
+function getT1ProofTitle(proof, idx) {
+  return proof.item?.title || getExpTitle(proof.exp, idx);
+}
+
+function getT1Proofs(p, max = 5) {
+  const proofs = [];
+  (p.experiences || []).forEach((exp, expIdx) => {
+    const fields = extractFields(exp);
+    const keyItems = fields.keyExperiences?.length ? fields.keyExperiences : [];
+    if (keyItems.length) {
+      keyItems.forEach((item, itemIdx) => {
+        const score = [
+          item.metric || item.afterMetric ? 24 : 0,
+          item.beforeMetric && item.afterMetric ? 20 : 0,
+          item.result ? 12 : 0,
+          item.action ? 8 : 0,
+          item.situation ? 6 : 0,
+          item.keywords?.length ? Math.min(item.keywords.length, 5) : 0,
+        ].reduce((sum, value) => sum + value, 0);
+        proofs.push({ exp, fields, item, expIdx, itemIdx, score });
+      });
+      return;
+    }
+    proofs.push({
+      exp,
+      fields,
+      item: {
+        title: getExpTitle(exp, expIdx),
+        metric: getImpactText(exp, fields),
+        situation: fields.overview || fields.description || fields.intro,
+        action: [fields.task, fields.process].filter(Boolean).join('\n'),
+        result: [fields.output, fields.growth || fields.competency].filter(Boolean).join('\n'),
+        keywords: getT1TechStack(exp, fields).slice(0, 5),
+      },
+      expIdx,
+      itemIdx: 0,
+      score: getT1ExperienceScore(exp),
+    });
+  });
+  return proofs.sort((a, b) => b.score - a.score || a.expIdx - b.expIdx || a.itemIdx - b.itemIdx).slice(0, max);
+}
+
+function getT1PrimaryProof(exp, expIdx) {
+  const fields = extractFields(exp);
+  const keyItems = fields.keyExperiences?.length ? fields.keyExperiences : [];
+  const item = keyItems
+    .map((keyItem, itemIdx) => ({
+      item: keyItem,
+      itemIdx,
+      score: [
+        keyItem.metric || keyItem.afterMetric ? 24 : 0,
+        keyItem.beforeMetric && keyItem.afterMetric ? 20 : 0,
+        keyItem.result ? 12 : 0,
+        keyItem.action ? 8 : 0,
+        keyItem.situation ? 6 : 0,
+      ].reduce((sum, value) => sum + value, 0),
+    }))
+    .sort((a, b) => b.score - a.score || a.itemIdx - b.itemIdx)[0]?.item;
+  return {
+    exp,
+    fields,
+    expIdx,
+    item: item || {
+      title: getExpTitle(exp, expIdx),
+      metric: getImpactText(exp, fields),
+      situation: fields.overview || fields.description || fields.intro,
+      action: [fields.task, fields.process].filter(Boolean).join('\n'),
+      result: [fields.output, fields.growth || fields.competency].filter(Boolean).join('\n'),
+      keywords: getT1TechStack(exp, fields).slice(0, 5),
+    },
+  };
+}
+
+function getT1ProjectStories(p) {
+  return (p.experiences || []).map((exp, idx) => getT1PrimaryProof(exp, idx));
+}
+
+function getT1SectionCards(exp, fields = extractFields(exp)) {
+  const cards = [];
+  const seen = new Set();
+  const add = (label, content) => {
+    const text = strip(Array.isArray(content) ? content.filter(Boolean).join('\n') : content);
+    const key = text.replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    cards.push({ label, content: smartBullets(text, 2, 58).join('\n') || sh(text, 110) });
+  };
+  add('개요', [fields.intro, fields.overview, fields.description, fields.aiSummary]);
+  add('문제/목표', fields.task);
+  add('과정', fields.process);
+  add('결과', fields.output);
+  add('성장/역량', [fields.growth, fields.competency]);
+  (exp.sections || []).forEach((section, idx) => add(section.title || `섹션 ${idx + 1}`, section.content));
+  (exp.details || exp.bullets || []).forEach?.((detail, idx) => add(`상세 ${idx + 1}`, detail));
+  return cards;
+}
+
+function getT1MetricDisplay(proof) {
+  const raw = getT1ProofMetric(proof);
+  const hasNumber = /\d/.test(String(raw || ''));
+  if (!raw) return '핵심 성과';
+  return hasNumber || String(raw).length <= 34 ? raw : '핵심 성과';
+}
+
+function t1Number(value) {
+  if (!value) return null;
+  const match = String(value).replace(/,/g, '').match(/([\d.]+)/);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function addT1MetricVisual(slide, proof, x, y, w, t) {
+  const item = proof.item || {};
+  const metric = getT1MetricDisplay(proof);
+  const label = item.metricLabel || 'Impact Metric';
+  roundRect(slide, x, y, w, 2.95, t.resBg || t.step, t.resBd || t.div, 0.08);
+  txt(slide, label, x + 0.24, y + 0.28, w - 0.48, 0.2, { fontSize: 8, bold: true, color: hexClean(t.sub), charSpacing: 1.5, isTextBox: true });
+  txt(slide, sh(metric || '핵심 성과', 26), x + 0.24, y + 0.62, w - 0.48, 0.58, { fontSize: 19, bold: true, color: hexClean(t.accent), isTextBox: true, valign: 'mid' });
+  if (item.beforeMetric || item.afterMetric) {
+    barPair(slide, x + 0.24, y + 1.38, w - 0.48, item.beforeMetric || 'Before', item.afterMetric || metric || 'After', t);
+  } else {
+    const value = t1Number(metric);
+    roundRect(slide, x + 0.24, y + 1.5, w - 0.48, 0.12, t.div, null, 0.06);
+    roundRect(slide, x + 0.24, y + 1.5, Math.max(0.55, (w - 0.48) * Math.min((value || 72) / 100, 1)), 0.12, t.accent, null, 0.06);
+    txt(slide, '성과 지표 기반 하이라이트', x + 0.24, y + 1.78, w - 0.48, 0.18, { fontSize: 8, color: hexClean(t.sub), isTextBox: true });
+  }
+  txt(slide, sh(item.result || proof.fields.output || proof.fields.growth || proof.fields.competency, 120), x + 0.24, y + 2.28, w - 0.48, 0.38, { fontSize: 8.8, color: hexClean(t.text), isTextBox: true, wrap: true, valign: 'top' });
+}
+
+function addT1PointCard(slide, label, content, x, y, w, h, t, accent = false) {
+  roundRect(slide, x, y, w, h, t.card, accent ? t.resBd : t.div, 0.08);
+  txt(slide, label, x + 0.2, y + 0.18, w - 0.4, 0.18, { fontSize: 8, bold: true, color: hexClean(accent ? t.accent : t.sub), charSpacing: 1.2, isTextBox: true });
+  txt(slide, smartBullets(content, 2, 58).join('\n') || sh(content, 120), x + 0.2, y + 0.48, w - 0.4, h - 0.68, { fontSize: 8.9, color: hexClean(t.text), isTextBox: true, wrap: true, valign: 'mid', lineSpacing: 1.08 });
+}
+
+function buildT1_SectionDigest(prs, proof, pageIdx, cards, t) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, `PROJECT SECTIONS ${pageIdx + 1}`, t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 74), 0.55, 0.82, 6.8, 0.34, { fontSize: 20, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, getExpMeta(exp, f), 0.58, 1.18, 5.3, 0.18, { fontSize: 8.5, color: hexClean(t.sub), isTextBox: true });
+  cards.forEach((card, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    addT1PointCard(slide, card.label, card.content, 0.55 + col * 4.6, 1.62 + row * 1.68, 4.25, 1.42, t, idx === 0);
+  });
+}
+
+function t1Label(slide, num, label, t) {
+  txt(slide, String(num).padStart(2, '0'), 0.55, 0.42, 0.38, 0.24, { fontSize: 10, bold: true, color: hexClean(t.accent), isTextBox: true });
+  txt(slide, label, 0.98, 0.42, 2.8, 0.24, { fontSize: 10, bold: true, color: hexClean(t.sub), isTextBox: true });
+  hrLine(slide, 3.25, 0.52, 6.2, t.div);
+}
+
+function buildT1_Cover(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  rect(slide, 0, 0, SW, 0.12, t.accent);
+  roundRect(slide, 0.55, 0.55, 8.9, 4.35, t.card, t.div, 0.08);
+  txt(slide, 'TEST1 TEMPLATE', 0.9, 0.9, 2.4, 0.22, { fontSize: 9, bold: true, color: hexClean(t.accent), isTextBox: true });
+  txt(slide, '합격자 포트폴리오 구조로 재정리한 커리어노트형 PPT', 0.9, 1.2, 4.7, 0.28, { fontSize: 12, color: hexClean(t.sub), isTextBox: true });
+  txt(slide, nameSpaced(p.userName || '이름'), 0.9, 1.72, 5.6, 0.72, { fontSize: 38, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, sh(p.headline || p.targetPosition || 'Portfolio', 90), 0.9, 2.5, 5.5, 0.48, { fontSize: 16, bold: true, color: hexClean(t.text), isTextBox: true, valign: 'top' });
+
+  const contacts = getContactLines(p).slice(0, 4);
+  contacts.forEach((line, i) => {
+    roundRect(slide, 0.9 + (i % 2) * 2.75, 3.42 + Math.floor(i / 2) * 0.42, 2.45, 0.28, t.step, t.div, 0.04);
+    txt(slide, sh(line, 32), 1.02 + (i % 2) * 2.75, 3.48 + Math.floor(i / 2) * 0.42, 2.22, 0.15, { fontSize: 7.5, color: hexClean(t.sub), isTextBox: true });
+  });
+
+  const proofs = getT1ProjectStories(p);
+  roundRect(slide, 6.7, 1.02, 2.18, 2.95, t.step, t.div, 0.08);
+  txt(slide, 'Project Flow', 6.92, 1.25, 1.7, 0.2, { fontSize: 10, bold: true, color: hexClean(t.text), isTextBox: true });
+  proofs.slice(0, 5).forEach((proof, idx) => {
+    txt(slide, String(idx + 1).padStart(2, '0'), 6.92, 1.68 + idx * 0.43, 0.28, 0.18, { fontSize: 8, bold: true, color: hexClean(t.accent), isTextBox: true });
+    txt(slide, sh(getExpTitle(proof.exp, proof.expIdx), 25), 7.28, 1.64 + idx * 0.43, 1.35, 0.28, { fontSize: 8, bold: true, color: hexClean(t.text), isTextBox: true });
+  });
+  if (proofs.length > 5) txt(slide, `+ ${proofs.length - 5} more projects`, 6.92, 3.98, 1.6, 0.18, { fontSize: 7.5, color: hexClean(t.sub), isTextBox: true });
+}
+
+function buildT1_Summary(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, 1, 'PORTFOLIO SUMMARY', t);
+  txt(slide, '핵심 경험만 압축한 합격자형 포트폴리오 요약', 0.55, 0.82, 6.6, 0.36, { fontSize: 22, bold: true, color: hexClean(t.text), isTextBox: true });
+
+  const exps = p.experiences || [];
+  const featured = getT1ProjectStories(p);
+  const skills = getSkillNames(p, 99);
+  const awards = p.awards || [];
+  const metrics = [
+    ['Projects', `${featured.length}건`],
+    ['Skills', `${skills.length}개`],
+    ['Awards', `${awards.length}건`],
+    ['Links', `${getContactLines(p).length}개`],
+  ];
+  metrics.forEach(([label, value], idx) => metricBox(slide, 0.55 + idx * 2.2, 1.42, 1.9, 0.76, label, value, t));
+
+  roundRect(slide, 0.55, 2.52, 4.28, 2.35, t.card, t.div, 0.08);
+  sectionBold(slide, 'Candidate Narrative', t, 0.78, 2.78, 2.3);
+  txt(slide, sh(p.about || p.valuesEssay || p.headline || '모든 프로젝트 경험과 링크형 섹션을 흐름에 맞게 압축해 정리했습니다.', 190), 0.78, 3.12, 3.82, 1.35, { fontSize: 11, color: hexClean(t.text), isTextBox: true, valign: 'top', wrap: true, lineSpacing: 1.15 });
+
+  roundRect(slide, 5.12, 2.52, 4.33, 2.35, t.card, t.div, 0.08);
+  sectionBold(slide, 'Core Keywords', t, 5.35, 2.78, 2.0);
+  let x = 5.35, y = 3.13;
+  skills.slice(0, 10).forEach((skill, idx) => {
+    const w = Math.min(1.65, Math.max(0.62, skill.length * 0.1 + 0.34));
+    if (x + w > 9.1) { x = 5.35; y += 0.42; }
+    roundRect(slide, x, y, w, 0.28, idx % 3 === 0 ? t.accent : t.badge, idx % 3 === 0 ? t.accent : t.div, 0.14);
+    txt(slide, sh(skill, 16), x + 0.08, y + 0.06, w - 0.16, 0.14, { fontSize: 7.5, bold: true, color: idx % 3 === 0 ? 'FFFFFF' : hexClean(t.text), align: 'center', isTextBox: true });
+    x += w + 0.12;
+  });
+}
+
+function buildT1_Case(prs, proof, idx, t) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, 'PROJECT STORY', t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 70), 0.55, 0.82, 6.3, 0.36, { fontSize: 22, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, getExpMeta(exp, f), 0.58, 1.22, 5.3, 0.2, { fontSize: 9, color: hexClean(t.sub), isTextBox: true });
+
+  addT1MetricVisual(slide, proof, 0.55, 1.65, 3.08, t);
+  addT1PointCard(slide, 'Problem', item.situation || f.overview || f.description || f.intro, 3.9, 1.65, 2.55, 1.33, t);
+  addT1PointCard(slide, 'Action', item.action || [f.task, f.process].filter(Boolean).join('\n'), 6.68, 1.65, 2.77, 1.33, t);
+  addT1PointCard(slide, 'Impact', item.result || [f.output, f.growth || f.competency].filter(Boolean).join('\n'), 3.9, 3.28, 5.55, 1.32, t, true);
+
+  const cleanStack = [...(item.keywords || []), ...getT1TechStack(exp, f)].filter(Boolean).slice(0, 8);
+  cleanStack.forEach((skill, skillIdx) => {
+    roundRect(slide, 0.55 + skillIdx * 1.1, 4.92, 0.95, 0.24, t.badge, t.div, 0.12);
+    txt(slide, sh(skill, 12), 0.62 + skillIdx * 1.1, 4.97, 0.82, 0.12, { fontSize: 6.8, color: hexClean(t.text), align: 'center', isTextBox: true });
+  });
+}
+
+function buildT1_Outro(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.coverBg);
+  roundRect(slide, 0.75, 0.75, 8.5, 4.1, t.card, t.div, 0.08);
+  txt(slide, 'THANK YOU', 0.95, 1.55, 4.6, 0.72, { fontSize: 42, bold: true, color: hexClean(t.accent), isTextBox: true });
+  txt(slide, sh(p.headline || p.targetPosition || 'Portfolio', 90), 0.98, 2.42, 5.0, 0.28, { fontSize: 12, color: hexClean(t.text), isTextBox: true });
+  getContactLines(p).slice(0, 4).forEach((line, idx) => {
+    txt(slide, line, 1.0, 3.18 + idx * 0.28, 4.5, 0.18, { fontSize: 8.5, color: hexClean(t.sub), isTextBox: true });
+  });
+  rect(slide, 7.5, 1.2, 0.06, 3.2, t.accent);
+  txt(slide, nameSpaced(p.userName || '이름'), 7.75, 2.35, 1.1, 0.52, { fontSize: 24, bold: true, color: hexClean(t.text), align: 'center', isTextBox: true });
+}
+
+function buildT2_Cover(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.coverBg);
+  rect(slide, 0, 0, 0.18, SH, t.accent);
+  txt(slide, 'TEST2 TEMPLATE', 0.65, 0.74, 2.2, 0.18, { fontSize: 8.5, bold: true, color: hexClean(t.accent), charSpacing: 2, isTextBox: true });
+  txt(slide, nameSpaced(p.userName || '이름'), 0.62, 1.18, 4.8, 0.62, { fontSize: 34, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, sh(p.headline || p.targetPosition || 'Portfolio', 110), 0.65, 2.0, 4.5, 0.44, { fontSize: 13, bold: true, color: hexClean(t.text), isTextBox: true, wrap: true });
+  txt(slide, 'Casebook Timeline Portfolio', 0.66, 4.75, 3.0, 0.22, { fontSize: 10, color: hexClean(t.sub), isTextBox: true });
+  const stories = getT1ProjectStories(p).slice(0, 6);
+  roundRect(slide, 5.75, 0.72, 3.65, 4.28, t.card, t.div, 0.08);
+  txt(slide, 'PROJECT SEQUENCE', 6.05, 1.0, 2.2, 0.18, { fontSize: 8.5, bold: true, color: hexClean(t.sub), charSpacing: 1.5, isTextBox: true });
+  stories.forEach((story, idx) => {
+    const y = 1.45 + idx * 0.52;
+    circle(slide, 6.08, y + 0.04, 0.11, idx === 0 ? t.accent : t.div);
+    txt(slide, sh(getExpTitle(story.exp, story.expIdx), 34), 6.3, y, 2.7, 0.2, { fontSize: 8.2, bold: true, color: hexClean(t.text), isTextBox: true });
+  });
+  if ((p.experiences || []).length > 6) txt(slide, `+ ${(p.experiences || []).length - 6} more`, 6.08, 4.62, 1.4, 0.16, { fontSize: 7.2, color: hexClean(t.sub), isTextBox: true });
+}
+
+function buildT2_Summary(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, 1, 'CASEBOOK OVERVIEW', t);
+  txt(slide, '경험 흐름을 한눈에 읽는 케이스북 구성', 0.55, 0.82, 6.6, 0.36, { fontSize: 22, bold: true, color: hexClean(t.text), isTextBox: true });
+  const stories = getT1ProjectStories(p);
+  metricBox(slide, 0.55, 1.45, 1.78, 0.74, 'Projects', `${stories.length}건`, t);
+  metricBox(slide, 2.55, 1.45, 1.78, 0.74, 'Sections', `${stories.reduce((sum, proof) => sum + getT1SectionCards(proof.exp, proof.fields).length, 0)}개`, t);
+  metricBox(slide, 4.55, 1.45, 1.78, 0.74, 'Skills', `${getSkillNames(p, 99).length}개`, t);
+  metricBox(slide, 6.55, 1.45, 1.78, 0.74, 'Evidence', `${stories.filter(proof => getT1ProofMetric(proof)).length}건`, t);
+  stories.slice(0, 6).forEach((proof, idx) => {
+    const y = 2.65 + idx * 0.38;
+    txt(slide, String(idx + 1).padStart(2, '0'), 0.65, y, 0.28, 0.14, { fontSize: 7.5, bold: true, color: hexClean(t.accent), isTextBox: true });
+    hrLine(slide, 0.98, y + 0.07, 0.52, idx === stories.length - 1 ? t.div : t.accent);
+    txt(slide, sh(getExpTitle(proof.exp, proof.expIdx), 48), 1.62, y - 0.02, 3.6, 0.18, { fontSize: 8.4, bold: true, color: hexClean(t.text), isTextBox: true });
+    txt(slide, sh(getT1MetricDisplay(proof), 42), 5.45, y - 0.02, 2.6, 0.18, { fontSize: 8.0, color: hexClean(t.sub), isTextBox: true });
+  });
+}
+
+function buildT2_Project(prs, proof, t) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, 'CASEBOOK PROJECT', t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 76), 0.55, 0.78, 6.8, 0.34, { fontSize: 21, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, getExpMeta(exp, f), 0.58, 1.16, 5.4, 0.18, { fontSize: 8.5, color: hexClean(t.sub), isTextBox: true });
+  addT1MetricVisual(slide, proof, 6.65, 0.88, 2.75, t);
+  const steps = [
+    ['01', 'Problem', item.situation || f.overview || f.description || f.intro],
+    ['02', 'Action', item.action || [f.task, f.process].filter(Boolean).join('\n')],
+    ['03', 'Impact', item.result || [f.output, f.growth || f.competency].filter(Boolean).join('\n')],
+  ];
+  steps.forEach(([num, label, content], idx) => {
+    const y = 1.72 + idx * 0.98;
+    circle(slide, 0.68, y + 0.05, 0.18, idx === 2 ? t.accent : t.step);
+    txt(slide, num, 0.63, y + 0.07, 0.28, 0.12, { fontSize: 5.8, bold: true, color: idx === 2 ? 'FFFFFF' : hexClean(t.accent), align: 'center', isTextBox: true });
+    roundRect(slide, 1.08, y - 0.07, 4.92, 0.72, t.card, idx === 2 ? t.resBd : t.div, 0.08);
+    txt(slide, label, 1.28, y + 0.08, 0.95, 0.14, { fontSize: 8, bold: true, color: hexClean(idx === 2 ? t.accent : t.sub), isTextBox: true });
+    txt(slide, smartBullets(content, 1, 72).join('\n') || sh(content, 96), 2.25, y, 3.48, 0.32, { fontSize: 8.2, color: hexClean(t.text), isTextBox: true, wrap: true, valign: 'mid' });
+  });
+  const tags = [...(item.keywords || []), ...getT1TechStack(exp, f)].filter(Boolean).slice(0, 8);
+  tags.forEach((tag, idx) => {
+    roundRect(slide, 0.62 + idx * 1.06, 4.88, 0.9, 0.22, t.badge, t.div, 0.11);
+    txt(slide, sh(tag, 12), 0.68 + idx * 1.06, 4.92, 0.78, 0.12, { fontSize: 6.5, color: hexClean(t.text), align: 'center', isTextBox: true });
+  });
+}
+
+function buildT2_SectionDigest(prs, proof, pageIdx, cards, t) {
+  const exp = proof.exp;
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, `CASEBOOK NOTES ${pageIdx + 1}`, t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 72), 0.55, 0.82, 6.8, 0.34, { fontSize: 20, bold: true, color: hexClean(t.text), isTextBox: true });
+  cards.forEach((card, idx) => {
+    const y = 1.55 + idx * 0.82;
+    txt(slide, String(idx + 1 + pageIdx * 4).padStart(2, '0'), 0.68, y + 0.1, 0.28, 0.12, { fontSize: 7, bold: true, color: hexClean(t.accent), isTextBox: true });
+    roundRect(slide, 1.12, y, 8.05, 0.62, t.card, t.div, 0.08);
+    txt(slide, card.label, 1.35, y + 0.12, 1.15, 0.14, { fontSize: 7.8, bold: true, color: hexClean(t.accent), isTextBox: true });
+    txt(slide, sh(card.content, 140), 2.6, y + 0.08, 6.1, 0.22, { fontSize: 8.1, color: hexClean(t.text), isTextBox: true, wrap: true });
+  });
+}
+
+function buildTest2TemplatePortfolio(prs, portfolio, themeObj) {
+  const p = portfolio, t = themeObj;
+  buildT2_Cover(prs, p, t);
+  buildT2_Summary(prs, p, t);
+  getT1ProjectStories(p).forEach(proof => {
+    buildT2_Project(prs, proof, t);
+    const sectionCards = getT1SectionCards(proof.exp, proof.fields);
+    for (let i = 0; i < sectionCards.length; i += 4) buildT2_SectionDigest(prs, proof, Math.floor(i / 4), sectionCards.slice(i, i + 4), t);
+  });
+  buildT1_Outro(prs, p, t);
+}
+
+function buildT3_Cover(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  rect(slide, 0, 0, SW, 0.42, t.accent);
+  txt(slide, 'TEST3 TEMPLATE / PORTFOLIO REPORT', 0.62, 0.74, 4.2, 0.2, { fontSize: 8.5, bold: true, color: hexClean(t.accent), charSpacing: 1.8, isTextBox: true });
+  txt(slide, nameSpaced(p.userName || '이름'), 0.62, 1.2, 4.4, 0.62, { fontSize: 34, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, sh(p.headline || p.targetPosition || 'Portfolio', 92), 0.66, 2.02, 4.35, 0.38, { fontSize: 12.5, bold: true, color: hexClean(t.text), isTextBox: true, wrap: true });
+  const skills = getSkillNames(p, 12);
+  skills.slice(0, 8).forEach((skill, idx) => {
+    const x = 5.6 + (idx % 2) * 1.75;
+    const y = 1.05 + Math.floor(idx / 2) * 0.48;
+    roundRect(slide, x, y, 1.45, 0.28, t.badge, t.div, 0.12);
+    txt(slide, sh(skill, 15), x + 0.1, y + 0.06, 1.25, 0.12, { fontSize: 6.8, color: hexClean(t.text), align: 'center', isTextBox: true });
+  });
+  txt(slide, 'Evidence Dashboard', 0.66, 4.74, 2.2, 0.22, { fontSize: 10, color: hexClean(t.sub), isTextBox: true });
+}
+
+function buildT3_Summary(prs, p, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, 1, 'REPORT SNAPSHOT', t);
+  txt(slide, '성과와 섹션을 대시보드처럼 정리한 리포트 구성', 0.55, 0.82, 7.2, 0.36, { fontSize: 22, bold: true, color: hexClean(t.text), isTextBox: true });
+  const stories = getT1ProjectStories(p);
+  const sectionCount = stories.reduce((sum, proof) => sum + getT1SectionCards(proof.exp, proof.fields).length, 0);
+  [['Projects', stories.length], ['Sections', sectionCount], ['Skills', getSkillNames(p, 99).length], ['Awards', (p.awards || []).length]].forEach(([label, value], idx) => {
+    metricBox(slide, 0.7 + idx * 2.15, 1.5, 1.78, 0.74, label, `${value}`, t);
+  });
+  roundRect(slide, 0.7, 2.65, 8.55, 1.72, t.card, t.div, 0.08);
+  txt(slide, 'Portfolio Positioning', 1.0, 2.92, 2.2, 0.2, { fontSize: 10, bold: true, color: hexClean(t.accent), isTextBox: true });
+  txt(slide, sh(p.about || p.valuesEssay || p.headline || '지원 직무와 연결되는 경험, 성과 지표, 프로젝트 섹션을 리포트 형태로 압축했습니다.', 210), 1.0, 3.3, 7.7, 0.45, { fontSize: 10, color: hexClean(t.text), isTextBox: true, wrap: true, valign: 'top' });
+}
+
+function buildT3_Project(prs, proof, t) {
+  const exp = proof.exp;
+  const f = proof.fields || extractFields(exp);
+  const item = proof.item || {};
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, 'PROJECT DASHBOARD', t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 74), 0.55, 0.82, 6.7, 0.34, { fontSize: 21, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, getExpMeta(exp, f), 0.58, 1.18, 5.3, 0.18, { fontSize: 8.5, color: hexClean(t.sub), isTextBox: true });
+  roundRect(slide, 0.65, 1.62, 8.78, 0.92, t.resBg, t.resBd, 0.08);
+  txt(slide, item.metricLabel || 'Impact Metric', 0.92, 1.82, 1.55, 0.14, { fontSize: 7.2, bold: true, color: hexClean(t.sub), isTextBox: true });
+  txt(slide, sh(getT1MetricDisplay(proof), 46), 2.55, 1.76, 3.2, 0.26, { fontSize: 15, bold: true, color: hexClean(t.accent), isTextBox: true });
+  if (item.beforeMetric || item.afterMetric) barPair(slide, 6.02, 1.74, 2.8, item.beforeMetric || 'Before', item.afterMetric || getT1MetricDisplay(proof), t);
+  const cards = [
+    ['Problem', item.situation || f.overview || f.description || f.intro],
+    ['Action', item.action || [f.task, f.process].filter(Boolean).join('\n')],
+    ['Result', item.result || f.output],
+    ['Growth', f.growth || f.competency],
+  ];
+  cards.forEach(([label, content], idx) => {
+    const x = 0.65 + (idx % 2) * 4.45;
+    const y = 2.88 + Math.floor(idx / 2) * 1.02;
+    addT1PointCard(slide, label, content, x, y, 4.06, 0.78, t, idx === 2);
+  });
+}
+
+function buildT3_SectionDigest(prs, proof, pageIdx, cards, t) {
+  const exp = proof.exp;
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, proof.expIdx + 2, `REPORT DETAILS ${pageIdx + 1}`, t);
+  txt(slide, sh(getExpTitle(exp, proof.expIdx), 72), 0.55, 0.82, 6.8, 0.34, { fontSize: 20, bold: true, color: hexClean(t.text), isTextBox: true });
+  cards.forEach((card, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    roundRect(slide, 0.65 + col * 4.42, 1.55 + row * 1.52, 4.05, 1.24, t.card, idx === 0 ? t.resBd : t.div, 0.08);
+    txt(slide, card.label, 0.88 + col * 4.42, 1.76 + row * 1.52, 1.4, 0.14, { fontSize: 7.8, bold: true, color: hexClean(idx === 0 ? t.accent : t.sub), isTextBox: true });
+    txt(slide, sh(card.content, 118), 0.88 + col * 4.42, 2.02 + row * 1.52, 3.45, 0.34, { fontSize: 8.0, color: hexClean(t.text), isTextBox: true, wrap: true });
+  });
+}
+
+function buildTest3TemplatePortfolio(prs, portfolio, themeObj) {
+  const p = portfolio, t = themeObj;
+  buildT3_Cover(prs, p, t);
+  buildT3_Summary(prs, p, t);
+  getT1ProjectStories(p).forEach(proof => {
+    buildT3_Project(prs, proof, t);
+    const sectionCards = getT1SectionCards(proof.exp, proof.fields);
+    for (let i = 0; i < sectionCards.length; i += 4) buildT3_SectionDigest(prs, proof, Math.floor(i / 4), sectionCards.slice(i, i + 4), t);
+  });
+  buildT1_Outro(prs, p, t);
+}
+
+function buildTest1TemplatePortfolio(prs, portfolio, themeObj) {
+  const p = portfolio, t = themeObj;
+  buildT1_Cover(prs, p, t);
+  buildT1_Summary(prs, p, t);
+  getT1ProjectStories(p).forEach((proof, idx) => {
+    buildT1_Case(prs, proof, idx, t);
+    const sectionCards = getT1SectionCards(proof.exp, proof.fields);
+    for (let i = 0; i < sectionCards.length; i += 4) {
+      buildT1_SectionDigest(prs, proof, Math.floor(i / 4), sectionCards.slice(i, i + 4), t);
+    }
+  });
+  buildT1_Outro(prs, p, t);
+}
+
+function buildDirect_Cover(prs, p, t, spec) {
+  const slide = prs.addSlide();
+  addBg(slide, t.coverBg);
+  rect(slide, 0, 0, SW, 0.16, t.accent);
+  txt(slide, 'DIRECT TEMPLATE', 0.7, 0.74, 2.2, 0.2, { fontSize: 9, bold: true, color: hexClean(t.accent), charSpacing: 2, isTextBox: true });
+  txt(slide, sh(spec.title, 62), 0.7, 1.12, 5.25, 0.52, { fontSize: 28, bold: true, color: hexClean(t.text), isTextBox: true, valign: 'mid' });
+  txt(slide, sh(p.headline || p.targetPosition || 'Portfolio', 105), 0.72, 1.86, 4.85, 0.42, { fontSize: 13, bold: true, color: hexClean(t.text), isTextBox: true, wrap: true });
+  txt(slide, nameSpaced(p.userName || '이름'), 0.72, 4.54, 3.3, 0.38, { fontSize: 22, bold: true, color: hexClean(t.text), isTextBox: true });
+  roundRect(slide, 6.25, 0.86, 2.9, 3.92, t.step, t.div, 0.08);
+  txt(slide, 'TEMPLATE FLOW', 6.52, 1.15, 1.7, 0.16, { fontSize: 8, bold: true, color: hexClean(t.sub), charSpacing: 1.5, isTextBox: true });
+  spec.sections.slice(0, 7).forEach((section, idx) => {
+    const y = 1.55 + idx * 0.42;
+    txt(slide, String(idx + 1).padStart(2, '0'), 6.52, y, 0.28, 0.14, { fontSize: 7, bold: true, color: hexClean(t.accent), isTextBox: true });
+    txt(slide, sh(section, 28), 6.92, y - 0.02, 1.85, 0.18, { fontSize: 8, bold: true, color: hexClean(t.text), isTextBox: true });
+  });
+}
+
+function buildDirect_Content(prs, slideData, slideIdx, t) {
+  const slide = prs.addSlide();
+  addBg(slide, t.bg);
+  t1Label(slide, slideIdx + 1, 'DIRECT TEMPLATE', t);
+  txt(slide, sh(slideData.title, 64), 0.55, 0.82, 6.8, 0.34, { fontSize: 21, bold: true, color: hexClean(t.text), isTextBox: true });
+  txt(slide, sh(slideData.subtitle, 92), 0.58, 1.18, 5.8, 0.18, { fontSize: 8.5, color: hexClean(t.sub), isTextBox: true });
+  const cards = slideData.cards.length ? slideData.cards : [{ label: '내용', text: '입력한 템플릿 섹션에 맞는 포트폴리오 내용이 없습니다.', badge: '' }];
+  cards.slice(0, 4).forEach((cardData, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = 0.65 + col * 4.42;
+    const y = 1.64 + row * 1.62;
+    roundRect(slide, x, y, 4.05, 1.32, t.card, idx === 0 ? t.resBd : t.div, 0.08);
+    txt(slide, cardData.label, x + 0.22, y + 0.2, 2.9, 0.18, { fontSize: 8, bold: true, color: hexClean(idx === 0 ? t.accent : t.sub), isTextBox: true });
+    if (cardData.badge) {
+      roundRect(slide, x + 2.98, y + 0.17, 0.78, 0.2, t.badge, t.div, 0.1);
+      txt(slide, sh(cardData.badge, 11), x + 3.04, y + 0.21, 0.66, 0.1, { fontSize: 5.8, color: hexClean(t.text), align: 'center', isTextBox: true });
+    }
+    txt(slide, sh(cardData.text, 145), x + 0.22, y + 0.54, 3.56, 0.46, { fontSize: 8.4, color: hexClean(t.text), isTextBox: true, wrap: true, valign: 'top', lineSpacing: 1.08 });
+  });
+}
+
+function buildDirectTemplatePortfolio(prs, portfolio, themeObj) {
+  const p = portfolio, t = themeObj;
+  const templateText = p.customTemplateText || p.directTemplateText || '';
+  const spec = parseDirectTemplate(templateText);
+  const slides = buildDirectTemplateSlides(p, templateText);
+  buildDirect_Cover(prs, p, t, spec);
+  slides.forEach((slideData, idx) => buildDirect_Content(prs, slideData, idx + 1, t));
+  buildT1_Outro(prs, p, t);
+}
+/* ─── END TEST1 PPT TEMPLATE ─── */
+
 /* ─── MAIN EXPORT ─── */
 export async function generatePptx(portfolio, theme, themeObj) {
   const { default: PptxGenJS } = await import('pptxgenjs');
@@ -2171,6 +2727,29 @@ export async function generatePptx(portfolio, theme, themeObj) {
     buildDesignSystemPortfolio(prs, portfolio, themeObj);
     const name = (p.userName || 'portfolio').replace(/\s+/g, '_') + '_portfolio.pptx';
     return await prs.writeFile({ fileName: name });
+  }
+
+  if (getLayout(theme) === 'test1_ppt') {
+    buildTest1TemplatePortfolio(prs, portfolio, themeObj);
+    const name = (p.userName || 'portfolio').replace(/\s+/g, '_') + '_test1_template.pptx';
+    return await prs.writeFile({ fileName: name });
+  }
+
+  if (getLayout(theme) === 'test2_ppt') {
+    buildTest2TemplatePortfolio(prs, portfolio, themeObj);
+    const name = (p.userName || 'portfolio').replace(/\s+/g, '_') + '_test2_template.pptx';
+    return await prs.writeFile({ fileName: name });
+  }
+
+  if (getLayout(theme) === 'test3_ppt') {
+    buildTest3TemplatePortfolio(prs, portfolio, themeObj);
+    const name = (p.userName || 'portfolio').replace(/\s+/g, '_') + '_test3_template.pptx';
+    return await prs.writeFile({ fileName: name });
+  }
+
+  if (getLayout(theme) === 'direct_ppt') {
+    if (!portfolio.customTemplateArrayBuffer) throw new Error('AI가 분석할 PPTX 템플릿 파일을 먼저 업로드해 주세요.');
+    return await fillUploadedPptxTemplate(portfolio.customTemplateArrayBuffer, portfolio, portfolio.customTemplateText || portfolio.directTemplateText || '', portfolio.directPreviewSlides || null);
   }
 
   const exps = p.experiences || [];
