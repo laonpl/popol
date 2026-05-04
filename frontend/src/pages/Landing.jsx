@@ -185,7 +185,7 @@ export default function Landing() {
   }, [statsVisible]);
 
   return (
-    <div className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden" style={{ zoom: 0.8 }}>
 
       {/* ── FLOATING HEADER ── */}
       <div className="fixed top-4 sm:top-6 inset-x-0 z-50 px-3 sm:px-4 flex justify-center">

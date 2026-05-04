@@ -1,19 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
+import { callGeminiModel, callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
-
-// 키 변경 시 자동 재생성
-let _genAIClient = null;
-let _cachedImportKey = null;
-function getGenAI() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
-  if (!_genAIClient || _cachedImportKey !== key) {
-    _genAIClient = new GoogleGenerativeAI(key);
-    _cachedImportKey = key;
-  }
-  return _genAIClient;
-}
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -33,11 +19,9 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
   try {
     let lastError;
     for (const modelName of MODEL_FALLBACKS) {
-      const model = getGenAI().getGenerativeModel({ model: modelName });
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await model.generateContent(parts);
-          return result.response.text();
+          return await callGeminiModel(modelName, parts);
         } catch (err) {
           lastError = err;
           const status = err?.status ?? err?.response?.status ?? err?.httpStatusCode;
@@ -81,6 +65,61 @@ async function geminiGenerate(parts, retries = 2, delayMs = 1500) {
     throw lastError;
   } finally {
     releaseSemaphore();
+  }
+}
+
+function escapeJsonStringControlChars(jsonText) {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (const char of jsonText) {
+    if (escaped) {
+      output += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      output += char;
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      output += char;
+      continue;
+    }
+
+    if (inString) {
+      if (char === '\n') output += '\\n';
+      else if (char === '\r') output += '\\r';
+      else if (char === '\t') output += '\\t';
+      else if (char.charCodeAt(0) < 32) output += `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+      else output += char;
+      continue;
+    }
+
+    output += char;
+  }
+
+  return output;
+}
+
+function parseGeminiJson(text, errorMessage = 'AI 응답 JSON 파싱 실패') {
+  const jsonMatch = String(text).match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error(errorMessage);
+
+  const jsonText = jsonMatch[0];
+  try {
+    return JSON.parse(jsonText);
+  } catch (err) {
+    try {
+      return JSON.parse(escapeJsonStringControlChars(jsonText));
+    } catch {
+      throw err;
+    }
   }
 }
 
@@ -615,9 +654,7 @@ ${rawText}`,
 
   try {
     const text = await geminiGenerate(prompt);
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI 구조화 응답 파싱 실패');
-    return JSON.parse(jsonMatch[0]);
+    return parseGeminiJson(text, 'AI 구조화 응답 파싱 실패');
   } catch (err) {
     console.error('Gemini 구조화 실패:', err.message?.substring(0, 100));
     console.warn('Gemini 실패, 템플릿 폴백 사용');

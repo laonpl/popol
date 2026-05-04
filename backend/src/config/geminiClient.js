@@ -1,16 +1,70 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 
-// 키 변경 시 자동 재생성 — .env 변경 후 서버 재시작 시 새 키 반영 보장
 let genAIClient = null;
-let _cachedGeminiKey = null;
+let _cachedGeminiConfig = null;
+
+function getVertexProjectId() {
+  return process.env.VERTEX_AI_PROJECT_ID
+    || process.env.GOOGLE_CLOUD_PROJECT
+    || process.env.GCLOUD_PROJECT
+    || process.env.GEMINI_PROJECT_ID;
+}
+
+function getVertexLocation() {
+  return process.env.VERTEX_AI_LOCATION
+    || process.env.GOOGLE_CLOUD_LOCATION
+    || process.env.GEMINI_LOCATION
+    || 'asia-northeast3';
+}
+
+function getGeminiClientConfig() {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const project = getVertexProjectId();
+  const location = getVertexLocation();
+  const authMode = (process.env.VERTEX_AI_AUTH_MODE || '').toLowerCase();
+  const useStandardVertex = ['adc', 'service_account', 'service-account'].includes(authMode)
+    || (!apiKey && project && location);
+
+  if (useStandardVertex) {
+    if (!project) throw new Error('VERTEX_AI_PROJECT_ID가 설정되지 않았습니다. .env 파일을 확인하세요.');
+    if (!location) throw new Error('VERTEX_AI_LOCATION이 설정되지 않았습니다. .env 파일을 확인하세요.');
+    return {
+      cacheKey: `vertex:${project}:${location}:v1`,
+      logLabel: `Vertex AI 표준 모드 (${project}/${location})`,
+      options: {
+        vertexai: true,
+        project,
+        location,
+        httpOptions: { apiVersion: 'v1' },
+      },
+    };
+  }
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+  }
+
+  return {
+    cacheKey: `vertex-express:${apiKey}:v1`,
+    logLabel: project
+      ? `Vertex AI Express API 키 모드 (project=${project}, location=${location})`
+      : 'Vertex AI Express API 키 모드',
+    options: {
+      vertexai: true,
+      apiKey,
+      httpOptions: { apiVersion: 'v1' },
+    },
+  };
+}
+
+// 키/프로젝트/리전 변경 시 자동 재생성 — .env 변경 후 서버 재시작 시 새 설정 반영 보장
 function getGenAI() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
-  if (!genAIClient || _cachedGeminiKey !== key) {
-    genAIClient = new GoogleGenerativeAI(key);
-    _cachedGeminiKey = key;
-    console.log('[Gemini] API 클라이언트 초기화 완료');
+  const config = getGeminiClientConfig();
+  if (!genAIClient || _cachedGeminiConfig !== config.cacheKey) {
+    genAIClient = new GoogleGenAI(config.options);
+    _cachedGeminiConfig = config.cacheKey;
+    console.log(`[Gemini] ${config.logLabel} 클라이언트 초기화 완료`);
   }
   return genAIClient;
 }
@@ -191,11 +245,20 @@ function recordModelSuccess(modelName) {
   tracker.blockedUntil = 0;
 }
 
-function callModelWithTimeout(model, prompt, timeoutMs = 90000) {
+function extractGeminiText(response) {
+  if (typeof response?.text === 'string') return response.text;
+  const text = response?.candidates?.[0]?.content?.parts
+    ?.map(part => part?.text || '')
+    .join('');
+  if (text) return text;
+  throw new Error('Gemini 응답에 텍스트가 없습니다.');
+}
+
+export function callGeminiModel(modelName, contents, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
-    model.generateContent(prompt).then(
-      r => { clearTimeout(timer); resolve(r.response.text()); },
+    getGenAI().models.generateContent({ model: modelName, contents }).then(
+      r => { clearTimeout(timer); resolve(extractGeminiText(r)); },
       e => { clearTimeout(timer); reject(e); },
     );
   });
@@ -247,11 +310,9 @@ export async function generateWithRetry(prompt, options = {}) {
         continue;
       }
 
-      const model = getGenAI().getGenerativeModel({ model: modelName });
-
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await callModelWithTimeout(model, prompt);
+          const result = await callGeminiModel(modelName, prompt);
           recordModelSuccess(modelName);
           return result;
         } catch (err) {

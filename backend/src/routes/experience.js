@@ -53,7 +53,7 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
       }
       // API 키 에러 구분
       if (errMsg.includes('API key') || errMsg.includes('API Key')) {
-        return res.status(502).json({ error: 'Gemini API 키가 유효하지 않습니다. 서버 .env 파일의 GEMINI_API_KEY를 확인해주세요.', detail: errMsg });
+        return res.status(502).json({ error: 'Vertex AI/Gemini API 키가 유효하지 않습니다. 서버 .env 파일의 GEMINI_API_KEY를 확인해주세요.', detail: errMsg });
       }
       // Gemini 모델 미지원 에러
       const isModelError = errMsg.includes('no longer available') || errMsg.includes('404') || errMsg.includes('deprecated');

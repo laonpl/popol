@@ -165,6 +165,14 @@ export const THEMES = {
     badge: '#f0e4ff', resBg: '#f4ecff', resBd: '#d8b8f8',
     dark: false, mono: false,
   },
+  accepted_submission: {
+    label: '템플릿 22 · 합격자 제출형',
+    bg: '#fbfaf7', coverBg: '#f1efe8', accent: '#1f5f4a',
+    text: '#151515', sub: '#6f746d', div: '#d7d2c4',
+    card: '#ffffff', step: '#f5f3ee', tag: '#e9f3ef',
+    badge: '#edf4f1', resBg: '#e8f3ee', resBd: '#9bc8b4',
+    dark: false, mono: false,
+  },
 };
 
 const LAYOUT_MAP = {
@@ -187,6 +195,7 @@ const LAYOUT_MAP = {
   cherry_blossom: 'cherry',
   charcoal_mint: 'charcoalmint',
   pastel_portfolio: 'pastel',
+  accepted_submission: 'consult',
 };
 
 export function getLayout(theme) {

@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, ChevronDown, FileText } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import toast from 'react-hot-toast';
@@ -1428,8 +1428,51 @@ function SituationPastelSlide({ exp, idx, t, f }) {
   );
 }
 
+function SituationSubmissionSlide({ exp, idx, t, f }) {
+  const problemBullets = toBullets(f.task || f.overview || f.description, 3).slice(0, 3);
+  const actionBullets = toBullets(f.process || f.intro, 3).slice(0, 3);
+  const context = shorten(f.aiSummary || exp.description || exp.role || '', 140);
+  const rowStyle = { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 16, alignItems: 'start', padding: '14px 0', borderBottom: `1px solid ${t.div}` };
+  return (
+    <Slide t={t}>
+      <div style={{ padding: '40px 58px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+        <SubmissionHeader
+          t={t}
+          label={`Case ${String(idx + 1).padStart(2, '0')} / Problem Solving`}
+          title={shorten(exp.title || '프로젝트', 48)}
+          meta={exp.role ? `${exp.role}${exp.date ? ' · ' + exp.date : ''}` : '문제 정의와 실행 근거'}
+        />
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: 24, minHeight: 0 }}>
+          <div style={{ background: t.step, border: `1px solid ${t.div}`, borderRadius: 6, padding: '24px 26px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2.8, color: t.accent, textTransform: 'uppercase', marginBottom: 14 }}>Why This Matters</div>
+            <p style={{ fontSize: 17, fontWeight: 800, color: t.text, lineHeight: 1.55, letterSpacing: 0, margin: 0 }}>{context || '기업 관점의 문제를 정의하고, 실행 과정과 결과를 연결해 설명합니다.'}</p>
+            <div style={{ marginTop: 'auto', paddingTop: 22 }}>
+              <SubmissionBadge t={t}>Role Fit Evidence</SubmissionBadge>
+            </div>
+          </div>
+          <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '22px 28px', overflow: 'hidden' }}>
+            <div style={rowStyle}>
+              <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2.2, color: t.accent, textTransform: 'uppercase' }}>Problem</div>
+              <div>{problemBullets.map((b, i) => <div key={i} style={{ fontSize: 13.5, color: t.text, lineHeight: 1.62, marginBottom: 8 }}>{b}</div>)}</div>
+            </div>
+            <div style={rowStyle}>
+              <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2.2, color: t.accent, textTransform: 'uppercase' }}>Action</div>
+              <div>{actionBullets.map((b, i) => <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8 }}><span style={{ fontSize: 12, fontWeight: 900, color: t.accent, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</span><span style={{ fontSize: 13.5, color: t.text, lineHeight: 1.62 }}>{b}</span></div>)}</div>
+            </div>
+            <div style={{ ...rowStyle, borderBottom: 'none' }}>
+              <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2.2, color: t.accent, textTransform: 'uppercase' }}>Decision</div>
+              <div style={{ fontSize: 13.5, color: t.text, lineHeight: 1.62 }}>{shorten(f.competency || f.growth || f.output || '지원 직무에 재사용 가능한 판단 기준과 실행 역량을 남겼습니다.', 170)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
 /* 5. SITUATION — Dispatcher */
 function SituationSlide({ exp, idx, t, f, theme }) {
+  if (theme === 'accepted_submission') return <SituationSubmissionSlide exp={exp} idx={idx} t={t} f={f} />;
   const layout = getLayout(theme);
   if (layout === 'story') return <SituationStorySlide exp={exp} idx={idx} t={t} f={f} />;
   if (layout === 'consult') return <SituationConsultSlide exp={exp} idx={idx} t={t} f={f} />;
@@ -2338,8 +2381,64 @@ function ResultPastelSlide({ exp, idx, t, f }) {
   );
 }
 
+function ResultSubmissionSlide({ exp, idx, t, f }) {
+  const metrics = f.keyExperiences?.length
+    ? f.keyExperiences.slice(0, 3)
+    : [
+        { title: 'Outcome', metric: shorten(f.output || '산출물 완성', 18) },
+        { title: 'Learning', metric: shorten(f.growth || '역량 확장', 18) },
+        { title: 'Fit', metric: shorten(f.competency || '직무 적합성', 18) },
+      ];
+  const resultBullets = toBullets(f.output || f.growth || f.aiSummary, 3).slice(0, 3);
+  const growthBullets = toBullets(f.growth || f.competency || f.process, 3).slice(0, 3);
+  return (
+    <Slide t={t}>
+      <div style={{ padding: '40px 58px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+        <SubmissionHeader
+          t={t}
+          label={`Case ${String(idx + 1).padStart(2, '0')} / Impact`}
+          title="결과와 재현 가능한 역량"
+          meta={shorten(exp.title || '프로젝트', 44)}
+        />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          {metrics.map((metric, i) => (
+            <div key={i} style={{ background: t.resBg, border: `1px solid ${t.resBd}`, borderRadius: 6, padding: '16px 18px', minHeight: 92 }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: t.sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 9 }}>{shorten(metric.title || metric.keyword || 'Metric', 20)}</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: t.accent, lineHeight: 1.15, letterSpacing: 0 }}>{shorten(String(metric.metric || metric.afterMetric || metric.beforeMetric || '-'), 18)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, minHeight: 0 }}>
+          <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '24px 26px' }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, letterSpacing: 2.4, textTransform: 'uppercase', marginBottom: 18 }}>Delivered Result</div>
+            {resultBullets.map((b, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr', gap: 12, marginBottom: 16 }}>
+                <span style={{ width: 26, height: 26, borderRadius: 13, background: t.accent, color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                <span style={{ fontSize: 14, color: t.text, lineHeight: 1.65 }}>{b}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: t.step, border: `1px solid ${t.div}`, borderRadius: 6, padding: '24px 26px' }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, letterSpacing: 2.4, textTransform: 'uppercase', marginBottom: 18 }}>Transferable Value</div>
+            {growthBullets.map((b, i) => (
+              <div key={i} style={{ padding: '0 0 14px', marginBottom: 14, borderBottom: i < growthBullets.length - 1 ? `1px solid ${t.div}` : 'none' }}>
+                <div style={{ fontSize: 14, fontWeight: 850, color: t.text, lineHeight: 1.55 }}>{b}</div>
+              </div>
+            ))}
+            <div style={{ marginTop: 8, padding: '14px 16px', background: t.card, border: `1px solid ${t.div}`, borderRadius: 6 }}>
+              <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, color: t.sub, textTransform: 'uppercase', marginBottom: 6 }}>Hiring Signal</div>
+              <div style={{ fontSize: 12.5, color: t.text, lineHeight: 1.55 }}>{shorten(f.competency || '입사 후 유사한 문제를 구조화하고 실행까지 끌고 갈 수 있는 근거를 제시합니다.', 120)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
 /* 6. RESULT — Dispatcher */
 function ResultSlide({ exp, idx, t, f, theme }) {
+  if (theme === 'accepted_submission') return <ResultSubmissionSlide exp={exp} idx={idx} t={t} f={f} />;
   const layout = getLayout(theme);
   if (layout === 'story') return <ResultStorySlide exp={exp} idx={idx} t={t} f={f} />;
   if (layout === 'dashboard') return <ResultDashboardSlide exp={exp} idx={idx} t={t} f={f} />;
@@ -2460,12 +2559,17 @@ export default function PdfPortfolioExport() {
     setGenerating(false);
   }, [portfolio, theme]);
 
+  const handlePrintPdf = useCallback(() => {
+    window.print();
+  }, []);
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
   const t = THEMES[theme];
   const p = portfolio;
   const exps = p.experiences || [];
+  const isSubmissionTheme = theme === 'accepted_submission';
   const sk = p.skills || {};
   const hasSkills = [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])].length > 0;
 
@@ -2502,18 +2606,22 @@ export default function PdfPortfolioExport() {
               className="flex items-center gap-1.5 px-5 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {generating ? <><Loader2 size={14} className="animate-spin" />{'  생성 중...'}</> : <><Download size={14} />{' PPT 저장 (.pptx)'}</>}
             </button>
+            <button onClick={handlePrintPdf}
+              className="flex items-center gap-1.5 px-5 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors">
+              <FileText size={14} />{' PDF 저장'}
+            </button>
           </div>
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, padding: '32px 24px 72px' }}
         className="print:gap-0 print:p-0">
-        <CoverSlide p={p} t={t} theme={theme} />
-        <ProfileSlide p={p} t={t} />
-        {hasSkills && <SkillsSlide p={p} t={t} />}
+        {isSubmissionTheme ? <SubmissionCoverSlide p={p} t={t} /> : <CoverSlide p={p} t={t} theme={theme} />}
+        {isSubmissionTheme ? <SubmissionProfileSlide p={p} t={t} /> : <ProfileSlide p={p} t={t} />}
+        {hasSkills && (isSubmissionTheme ? <SubmissionSkillsSlide p={p} t={t} /> : <SkillsSlide p={p} t={t} />)}
         {expSlides.map(({ exp, f, hasSit, hasRes }, idx) => (
           <div key={idx} style={{ display: 'contents' }}>
-            <SectionDivider exp={exp} idx={idx} t={t} />
+            {isSubmissionTheme ? <SubmissionSectionDivider exp={exp} idx={idx} t={t} /> : <SectionDivider exp={exp} idx={idx} t={t} />}
             {hasSit && <SituationSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
             {hasRes && <ResultSlide exp={exp} idx={idx} t={t} f={f} theme={theme} />}
           </div>
@@ -2526,5 +2634,167 @@ export default function PdfPortfolioExport() {
         .ppt-slide{box-shadow:0 8px 40px rgba(0,0,0,0.22);border-radius:8px;}
       `}</style>
     </div>
+  );
+}
+
+function SubmissionBadge({ children, t }) {
+  return <span style={{
+    fontSize: 10, fontWeight: 800, letterSpacing: 1.4, color: t.accent,
+    padding: '5px 10px', border: `1px solid ${t.resBd || t.div}`, borderRadius: 999,
+    background: t.badge, whiteSpace: 'nowrap', textTransform: 'uppercase'
+  }}>{children}</span>;
+}
+
+function SubmissionHeader({ label, title, t, meta }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, marginBottom: 22 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 3.2, color: t.accent, textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: t.text, letterSpacing: 0, lineHeight: 1.15 }}>{title}</div>
+      </div>
+      {meta && <div style={{ flexShrink: 0, fontSize: 10.5, color: t.sub, lineHeight: 1.55, textAlign: 'right', maxWidth: 260 }}>{meta}</div>}
+    </div>
+  );
+}
+
+function SubmissionCoverSlide({ p, t }) {
+  const c = p.contact || {};
+  const contacts = [c.email, c.phone, c.github || c.website].filter(Boolean);
+  const values = (p.values || []).slice(0, 3).map(v => v.keyword || String(v));
+  const experiences = (p.experiences || []).slice(0, 3);
+  const summary = shorten(p.headline || `${p.targetPosition || '지원 직무'}에 바로 연결되는 문제 해결 경험을 정리했습니다.`, 130);
+  return (
+    <Slide t={t} bg={t.coverBg}>
+      <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: 9, background: t.accent }} />
+      <div style={{ height: '100%', padding: '58px 70px 50px', boxSizing: 'border-box', display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 46 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <SubmissionBadge t={t}>Template 22 / Submission Portfolio</SubmissionBadge>
+            <div style={{ marginTop: 34, fontSize: 16, fontWeight: 800, color: t.accent }}>{p.targetCompany || '지원 기업'} · {p.targetPosition || '지원 직무'}</div>
+            <div style={{ marginTop: 14, fontSize: 54, fontWeight: 900, color: t.text, lineHeight: 1.02, letterSpacing: 0 }}>
+              {p.userName || '지원자'}<br />Portfolio
+            </div>
+            <p style={{ marginTop: 26, fontSize: 16, lineHeight: 1.72, color: t.text, fontWeight: 600, maxWidth: 560 }}>{summary}</p>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[p.targetPosition, ...values].filter(Boolean).slice(0, 4).map((item, i) => <Pill key={i} t={t}>{item}</Pill>)}
+          </div>
+        </div>
+        <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '30px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 3, color: t.sub, textTransform: 'uppercase', marginBottom: 16 }}>Evidence Summary</div>
+            {experiences.length > 0 ? experiences.map((exp, i) => {
+              const f = extractFields(exp);
+              const metric = f.keyExperiences?.[0]?.metric || shorten(f.output || f.growth || '검증된 산출물', 18);
+              return <div key={i} style={{ padding: '13px 0', borderBottom: i < experiences.length - 1 ? `1px solid ${t.div}` : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 13, fontWeight: 850, color: t.text, lineHeight: 1.35 }}>{shorten(exp.title || '프로젝트', 32)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 900, color: t.accent, whiteSpace: 'nowrap' }}>{shorten(String(metric), 16)}</span>
+                </div>
+                <div style={{ marginTop: 5, fontSize: 10.5, color: t.sub, lineHeight: 1.45 }}>{shorten(exp.role || f.aiSummary || exp.description || '', 70)}</div>
+              </div>;
+            }) : <div style={{ fontSize: 12, color: t.sub, lineHeight: 1.7 }}>대표 프로젝트 2~3개와 정량 성과를 입력하면 제출용 요약이 자동 구성됩니다.</div>}
+          </div>
+          <div style={{ borderTop: `1px solid ${t.div}`, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {contacts.map((contact, i) => <span key={i} style={{ fontSize: 11, color: t.sub }}>{contact}</span>)}
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+function SubmissionProfileSlide({ p, t }) {
+  const sk = p.skills || {};
+  const stack = [...(sk.languages || []), ...(sk.frameworks || []), ...(sk.tools || []), ...(sk.others || [])]
+    .map(s => typeof s === 'string' ? s : s?.name).filter(Boolean).slice(0, 12);
+  const education = (p.education || []).slice(0, 3);
+  const awards = (p.awards || []).slice(0, 3);
+  const values = (p.values || []).slice(0, 3);
+  return (
+    <Slide t={t}>
+      <div style={{ padding: '44px 60px', height: '100%', boxSizing: 'border-box' }}>
+        <SubmissionHeader t={t} label="Candidate Fit" title="직무 적합성을 먼저 증명하는 요약" meta={`${p.userName || ''}${p.targetPosition ? ' · ' + p.targetPosition : ''}`} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 28, height: 520 }}>
+          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 16 }}>
+            <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '22px 24px' }}>
+              <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, letterSpacing: 2.4, textTransform: 'uppercase', marginBottom: 14 }}>Positioning Statement</div>
+              <div style={{ fontSize: 20, fontWeight: 850, color: t.text, lineHeight: 1.45, letterSpacing: 0 }}>{shorten(p.headline || '문제를 구조화하고 끝까지 실행해 결과를 만드는 지원자입니다.', 135)}</div>
+              {values.length > 0 && <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>{values.map((v, i) => <Pill key={i} t={t}>{v.keyword || String(v)}</Pill>)}</div>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '18px 20px' }}>
+                <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, marginBottom: 12 }}>Education</div>
+                {education.map((edu, i) => <div key={i} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{edu.name}</div>
+                  <div style={{ fontSize: 10.5, color: t.sub, lineHeight: 1.45 }}>{[edu.degree, edu.period].filter(Boolean).join(' · ')}</div>
+                </div>)}
+              </div>
+              <div style={{ background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '18px 20px' }}>
+                <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, marginBottom: 12 }}>Recognition</div>
+                {awards.length > 0 ? awards.map((award, i) => <div key={i} style={{ marginBottom: 11 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: t.text }}>{award.title}</div>
+                  <div style={{ fontSize: 10.5, color: t.sub }}>{award.date || award.organization || ''}</div>
+                </div>) : <div style={{ fontSize: 11.5, color: t.sub, lineHeight: 1.6 }}>수상, 자격증, 외부 검증 이력을 배치합니다.</div>}
+              </div>
+            </div>
+          </div>
+          <div style={{ background: t.step, border: `1px solid ${t.div}`, borderRadius: 6, padding: '24px 24px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: t.accent, letterSpacing: 2.4, textTransform: 'uppercase', marginBottom: 16 }}>Capability Stack</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignContent: 'flex-start' }}>
+              {stack.map((item, i) => <Pill key={i} t={t}>{item}</Pill>)}
+            </div>
+            <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${t.div}` }}>
+              <div style={{ fontSize: 10, fontWeight: 900, color: t.sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Submission Rule</div>
+              <div style={{ fontSize: 12.5, color: t.text, lineHeight: 1.65 }}>핵심 경험은 문제, 행동, 성과, 배운 점 순서로 배치하여 채용 담당자가 1분 안에 판단할 수 있게 구성합니다.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+function SubmissionSkillsSlide({ p, t }) {
+  const sk = p.skills || {};
+  const groups = [
+    { title: 'Core Tools', items: sk.tools || [] },
+    { title: 'Languages', items: sk.languages || [] },
+    { title: 'Frameworks', items: sk.frameworks || [] },
+    { title: 'Other Strengths', items: sk.others || [] },
+  ].map(g => ({ ...g, items: g.items.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean).slice(0, 8) })).filter(g => g.items.length);
+  if (!groups.length) return null;
+  return (
+    <Slide t={t}>
+      <div style={{ padding: '44px 60px', height: '100%', boxSizing: 'border-box' }}>
+        <SubmissionHeader t={t} label="Capability Evidence" title="업무에 바로 투입 가능한 역량" meta="도구 나열보다 활용 가능한 범위를 명확히 보여주는 구성" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 18 }}>
+          {groups.slice(0, 4).map((group, i) => (
+            <div key={i} style={{ minHeight: 190, background: t.card, border: `1px solid ${t.div}`, borderRadius: 6, padding: '22px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 18 }}>
+                <div style={{ fontSize: 14, fontWeight: 900, color: t.text }}>{group.title}</div>
+                <div style={{ fontSize: 34, fontWeight: 900, color: t.accent, opacity: 0.18 }}>{String(i + 1).padStart(2, '0')}</div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{group.items.map((item, j) => <Pill key={j} t={t}>{item}</Pill>)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
+function SubmissionSectionDivider({ exp, idx, t }) {
+  return (
+    <Slide t={t} bg={t.coverBg}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 9, height: '100%', background: t.accent }} />
+      <div style={{ height: '100%', padding: '62px 84px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 4, color: t.accent, textTransform: 'uppercase', marginBottom: 20 }}>CASE STUDY {String(idx + 1).padStart(2, '0')}</div>
+        <div style={{ fontSize: 52, fontWeight: 900, color: t.text, lineHeight: 1.08, letterSpacing: 0, maxWidth: 820 }}>{exp.title || '프로젝트'}</div>
+        <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 12, color: t.sub, fontSize: 14, fontWeight: 650 }}>
+          <span>{exp.role || '역할'}</span>{exp.date && <><span style={{ width: 4, height: 4, borderRadius: '50%', background: t.sub }} /><span>{exp.date}</span></>}
+        </div>
+      </div>
+    </Slide>
   );
 }

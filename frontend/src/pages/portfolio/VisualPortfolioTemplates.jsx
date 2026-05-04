@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FileText, Briefcase, Mail, Folder, ChevronRight,
@@ -6,20 +6,50 @@ import {
   Filter, ArrowUpDown, MoreHorizontal, Plus, ChevronDown,
   Phone, MapPin, Instagram, Star, Lightbulb, CheckCircle2,
   ExternalLink, Target, X, UserCircle2, Database, Trash2, GripVertical, Loader2,
-  Upload, GraduationCap, Award, Globe, Sparkles, Camera
+  Upload, GraduationCap, Award, Globe, Sparkles, Camera, Copy
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+
+const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
+
+function stripMd(s) {
+  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
+function recommendationToText(rec) {
+  return [rec?.title, rec?.content].filter(Boolean).map(stripMd).join('\n\n');
+}
 
 // ── 섹션별 AI 내용 추천 버튼 (visual 템플릿 공용) ──
 export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [show, setShow] = useState(false);
-  const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
-  const [panelMaxH, setPanelMaxH] = useState('60vh');
-  const btnRef = useRef(null);
+  const [appliedRecommendations, setAppliedRecommendations] = useState({});
+  const buttonWrapRef = useRef(null);
+  const [portalNode, setPortalNode] = useState(null);
+
+  // 패널이 열리면 섹션 내부(헤더 바로 아래)에 인라인 블록으로 끼워넣음
+  useEffect(() => {
+    if (!show || !buttonWrapRef.current) { setPortalNode(null); return; }
+    let header = buttonWrapRef.current.parentElement;
+    while (header && header !== document.body) {
+      const cls = header.className || '';
+      if (typeof cls === 'string' && (cls.includes('justify-between') || cls.includes('flex-between'))) break;
+      header = header.parentElement;
+    }
+    const sectionParent = header?.parentElement;
+    if (!header || !sectionParent) return;
+    const portal = document.createElement('div');
+    portal.setAttribute('data-recommend-portal', sectionType);
+    portal.style.marginBottom = '16px';
+    portal.style.marginTop = '8px';
+    sectionParent.insertBefore(portal, header.nextSibling);
+    setPortalNode(portal);
+    return () => { portal.remove(); setPortalNode(null); };
+  }, [show, sectionType]);
 
   const SECTION_LABELS = {
     education: '교육', awards: '수상', skills: '기술',
@@ -27,37 +57,15 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     interviews: '인터뷰', experiences: '프로젝트/경험',
     profile: '프로필/소개', projects: '프로젝트',
     curricular: '교내 활동', extracurricular: '교외 활동',
-    contact: '연락처',
+    contact: '연락처', introduce: '자기소개', career: '경력', resume: '이력 요약',
   };
 
   if (!jobAnalysis || !sectionType) return null;
 
-  const handleClick = async (e) => {
-    e?.stopPropagation?.();
-    if (show && data) { setShow(false); return; }
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const PANEL_W = 280;
-      const PANEL_H = 340;
-      const viewH = window.innerHeight;
-      const viewW = window.innerWidth;
-
-      let x = rect.left - PANEL_W - 12;
-      if (x < 8) x = Math.min(rect.right + 12, viewW - PANEL_W - 8);
-
-      const available = viewH - rect.top - 24;
-      let y = rect.top;
-      if (available < PANEL_H) {
-        y = Math.max(80, viewH - PANEL_H - 24);
-        setPanelMaxH(`${Math.min(PANEL_H, viewH - 104)}px`);
-      } else {
-        setPanelMaxH(`${available - 24}px`);
-      }
-
-      setPanelPos({ x, y });
-    }
+  const fetchRecommendations = async () => {
     setLoading(true);
     setShow(true);
+    setAppliedRecommendations({});
     try {
       const { data: resp } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
       setData(resp);
@@ -65,102 +73,119 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     setLoading(false);
   };
 
-  const handleDragStart = (e) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startPosX = panelPos.x;
-    const startPosY = panelPos.y;
-
-    const onMove = (ev) => {
-      setPanelPos({
-        x: startPosX + ev.clientX - startX,
-        y: startPosY + ev.clientY - startY,
-      });
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+  const handleClick = (e) => {
+    e?.stopPropagation?.();
+    if (show && data) { setShow(false); return; }
+    fetchRecommendations();
   };
 
-  const handlePanelMouseDown = (e) => {
-    if (e.target.closest('button') || e.target.closest('.rec-scroll')) return;
-    handleDragStart(e);
+  const applyRecommendation = (rec, idx) => {
+    window.dispatchEvent(new CustomEvent(SECTION_RECOMMEND_APPLY_EVENT, { detail: { sectionType, recommendation: rec } }));
+    setAppliedRecommendations(prev => ({ ...prev, [idx]: true }));
+  };
+
+  const copyRecommendation = async (rec) => {
+    try {
+      await navigator.clipboard.writeText(recommendationToText(rec));
+      toast.success('추천 내용을 복사했습니다');
+    } catch {
+      toast.error('복사에 실패했습니다');
+    }
   };
 
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={handleClick}
-        disabled={loading}
-        type="button"
-        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
-          show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-        } disabled:opacity-50`}
-      >
-        {loading && <Loader2 size={11} className="animate-spin" />}
-        내용 추천
-      </button>
-      {show && createPortal(
-        <div
-          onMouseDown={handlePanelMouseDown}
-          style={{ position: 'fixed', left: panelPos.x, top: panelPos.y, width: 300, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
-          className="bg-white rounded-2xl border border-indigo-200 shadow-xl overflow-hidden cursor-grab active:cursor-grabbing"
+      <div ref={buttonWrapRef} className="inline-flex items-center">
+        <button
+          onClick={handleClick}
+          disabled={loading}
+          type="button"
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+            show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+          } disabled:opacity-50`}
         >
-          <div
-            className="flex items-center justify-between px-4 py-3 select-none border-b border-indigo-100 bg-indigo-50/60"
-          >
-            <div className="flex items-center gap-1.5">
-              <GripVertical size={13} className="text-indigo-300" />
-              <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
-              <span className="text-[10px] text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
+          {loading && <Loader2 size={11} className="animate-spin" />}
+          내용 추천
+        </button>
+      </div>
+      {show && portalNode && createPortal(
+        <div className="w-full rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50/40 to-white shadow-sm overflow-hidden">
+          <div className="p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-indigo-800">AI 내용 추천</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {data && !loading && (
+                  <button type="button" onClick={fetchRecommendations} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                    다시 추천
+                  </button>
+                )}
+                <button type="button" onClick={() => setShow(false)} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white cursor-pointer"><X size={14} /></button>
+              </div>
             </div>
-            <button type="button" onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X size={14} /></button>
-          </div>
-          <div className="px-3 pt-2 pb-1">
-            <p className="text-[10px] text-indigo-400 flex items-center gap-1">
-              <GripVertical size={10} /> 카드를 드래그해서 편집 필드에 놓으세요
-            </p>
-          </div>
-          <div className="p-3 flex flex-col flex-1 min-h-0 overflow-hidden">
+
+            {jobAnalysis?.company && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                <Target size={14} className="text-blue-600" />
+                <span className="text-xs font-medium text-blue-800 truncate">{jobAnalysis.company}</span>
+                {jobAnalysis.position && <span className="text-xs text-blue-500 flex-shrink-0">· {jobAnalysis.position}</span>}
+              </div>
+            )}
+
             {loading ? (
-              <div className="flex flex-col items-center py-6">
-                <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
-                <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
+              <div className="flex flex-col items-center py-10">
+                <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
+                <p className="text-sm text-gray-500">AI가 추천 내용을 구성 중입니다...</p>
+                <p className="text-xs text-gray-400 mt-1">기업 분석과 현재 섹션 목적을 기준으로 정리합니다</p>
               </div>
             ) : data?.recommendations ? (
-              <div className="rec-scroll space-y-2 overflow-y-auto flex-1 min-h-0 cursor-default" onMouseDown={e => e.stopPropagation()}>
-                {data.recommendations.map((rec, i) => (
-                  <div
-                    key={i}
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation();
-                      e.dataTransfer.effectAllowed = 'copy';
-                      e.dataTransfer.setData('text/plain', rec.content);
-                      e.currentTarget.style.opacity = '0.4';
-                    }}
-                    onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
-                    className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-grab active:cursor-grabbing group/rec"
-                  >
-                    <div className="flex items-start justify-between gap-1 mb-1">
-                      <p className="text-xs font-bold text-indigo-700 leading-tight">{rec.title}</p>
-                      <GripVertical size={11} className="text-indigo-300 flex-shrink-0 mt-0.5 opacity-0 group-hover/rec:opacity-100 transition-opacity" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천안</span>
+                  <span className="text-[10px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {data.recommendations.map((rec, i) => (
+                    <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => copyRecommendation(rec)}
+                          className="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-white transition-colors"
+                          title="추천 내용 복사"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap select-text mb-3">{rec.content}</p>
+                        <button
+                          type="button"
+                          onClick={() => applyRecommendation(rec, i)}
+                          disabled={appliedRecommendations[i]}
+                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                            appliedRecommendations[i]
+                              ? 'bg-green-100 text-green-700 cursor-default'
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          }`}
+                        >
+                          {appliedRecommendations[i] ? <><CheckCircle2 size={12} />적용됨</> : <><CheckCircle2 size={12} />섹션에 적용</>}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
             )}
           </div>
         </div>,
-        document.body
+        portalNode
       )}
     </>
   );
@@ -1254,7 +1279,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <div className="mb-12 group/section">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <div className="flex items-center gap-2"><Mail className="w-6 h-6" /><h2 className="text-2xl font-bold">Contact</h2></div>
-                <div className="flex items-center gap-1">{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
+                <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
@@ -1350,7 +1375,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         {!isHidden2('resume') && <div className="py-10 group/section" id="t2-resume" {...dp('resume')}>
           <div className="flex items-center justify-between gap-3 mb-8">
             <h2 className="text-2xl font-bold border-b border-black inline-block pb-1"><EH ec={ec} value="RESUME" sectionKey="resume" /></h2>
-            <div className="flex items-center gap-1">{ec && <span {...gp('resume')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="resume" /></div>
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="resume" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('resume')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="resume" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 font-sans">
             <div>
@@ -1485,7 +1510,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         {!isHidden2('contact') && <div className="py-10 border-t border-gray-100 font-serif pb-20 group/section" id="t2-contact" {...dp('contact')}>
           <div className="flex items-center justify-between gap-3 mb-8">
             <h2 className="text-2xl font-bold border-b border-black inline-block pb-1">Contact</h2>
-            <div className="flex items-center gap-1">{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
           </div>
           <div className="border-l-2 border-black pl-4 mb-6 font-sans space-y-2">
             {ec ? (
@@ -1556,7 +1581,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
               <div className="w-32 h-32 bg-pink-100 rounded-full flex items-center justify-center shadow-sm"><UserCircle2 className="w-16 h-16 text-pink-300" /></div>
             </ImageUploadSlot>
             {!isHidden3('contact') && <div className="text-left border border-gray-200 p-6 rounded-lg shadow-sm w-full md:w-[400px] relative group/section" {...(ec ? dp('contact') : {})}>
-              {ec && <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-400 cursor-grab" /></span><SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
+              {ec && <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-400 cursor-grab" /></span>{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
               {ec
                 ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다.`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold text-lg mb-2 block" />
                 : <h3 className="font-bold text-lg mb-2">{data.greeting || `안녕하세요! ${data.name}입니다.`}</h3>
@@ -1796,7 +1821,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             {!isHidden4('contact') && <section className="group/section" {...dp('contact')}>
               <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
                 <h2 className="text-lg font-bold flex items-center gap-2"><Mail className="w-5 h-5 text-gray-400" /> Contact</h2>
-                <div className="flex items-center gap-1">{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
+                <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
@@ -1979,7 +2004,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-gray-500 font-medium" /> : data.title}
         </p>
         {!isHidden5('contact') && <div className="w-full grid grid-cols-3 gap-3 mb-10 group/section relative">
-          {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
+          {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
           {ec ? (
             <>
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -2302,7 +2327,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
             {!isHidden6('contact') && <div className="group/section" {...dp6('contact')}>
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h2 className="text-xl font-bold">Contact</h2>
-                <div className="flex items-center gap-1">{ec && <span {...gp6('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
+                <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp6('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
@@ -2379,7 +2404,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-[#EBEBEB] font-medium" /> : data.title}
           </p>
           {!isHidden('contact') && <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3 group/section relative" {...(ec ? dp('contact') : {})}>
-            {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-500 cursor-grab" /></span><SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>}
+            {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-500 cursor-grab" /></span>{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>}
             {ec ? (
               <>
                 <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">phone</span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
@@ -2400,7 +2425,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
         {!isHidden('introduce') && <div {...dp('introduce')}><div className="mb-14 group/section">
           <div className={`flex items-center border-b ${borderColor} pb-2 mb-6`}>
             <h3 className={`text-lg font-bold ${accentColor} uppercase tracking-wider flex-1`}><EH ec={ec} value="Introduce" sectionKey="introduce" /></h3>
-            {ec && <span {...gp('introduce')}><GripVertical size={14} /></span>}
+            {ec?.jobAnalysis && <VisualSectionRecommend sectionType="introduce" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('introduce')}><GripVertical size={14} /></span>}
             <SectionDeleteBtn ec={ec} sectionKey="introduce" dark />
           </div>
           {ec
@@ -2767,7 +2792,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         {!isHidden8('contact') && <div className="mb-16 group/section" {...dp('contact')}>
           <div className="flex items-center justify-between gap-2 bg-[#1E2A3A] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#2A3A4A]">
             <span><Mail className="w-4 h-4 text-[#EBEBEB] inline" /> CONTACT</span>
-            <div className="flex items-center gap-1">{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>
+            <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>
           </div>
           <div className="space-y-3 pl-2 text-sm">
             {ec ? (

@@ -7,7 +7,7 @@ import {
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronRight, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
-  Mic, Users, Zap, Check, Building2, ExternalLink, PenLine, Database
+  Mic, Users, Zap, Check, Building2, ExternalLink, PenLine, Database, Copy
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -23,6 +23,152 @@ import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioT
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
+function recommendationToText(rec) {
+  return [rec?.title, rec?.content].filter(Boolean).map(stripMd).join('\n\n');
+}
+
+const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
+
+function toRichTextBlocks(existing, text) {
+  const cleanText = stripMd(text);
+  if (!cleanText) return Array.isArray(existing) ? existing : [];
+  const textBlock = { type: 'text', content: cleanText };
+  if (Array.isArray(existing)) {
+    const filled = existing.filter(block => block?.type !== 'text' || String(block.content || '').trim());
+    return [...filled, textBlock];
+  }
+  const current = typeof existing === 'string' ? stripMd(existing) : '';
+  return current ? [{ type: 'text', content: current }, textBlock] : [textBlock];
+}
+
+function appendUniqueItems(items, nextItems) {
+  const seen = new Set((items || []).map(item => String(typeof item === 'string' ? item : item?.name || '').trim()).filter(Boolean));
+  const additions = nextItems.map(stripMd).filter(Boolean).filter(item => {
+    if (seen.has(item)) return false;
+    seen.add(item);
+    return true;
+  });
+  return [...(items || []), ...additions];
+}
+
+function applySectionRecommendationToPortfolio(portfolio, sectionType, rec) {
+  if (!portfolio || !sectionType || !rec) return portfolio;
+  const title = stripMd(rec.title) || '추천 항목';
+  const content = stripMd(rec.content) || title;
+  const text = recommendationToText(rec);
+
+  switch (sectionType) {
+    case 'education':
+      return { ...portfolio, education: [...(portfolio.education || []), { name: title, major: '', degree: '', period: '', detail: content }] };
+    case 'awards':
+      return { ...portfolio, awards: [...(portfolio.awards || []), { date: '', title, organization: '', detail: content }] };
+    case 'skills': {
+      const skills = portfolio.skills || {};
+      return { ...portfolio, skills: { ...skills, others: appendUniqueItems(skills.others || [], [title]) } };
+    }
+    case 'goals':
+      return { ...portfolio, goals: [...(portfolio.goals || []), { title, description: content, blocks: [{ type: 'text', content }], type: 'short', status: 'planned' }] };
+    case 'values':
+    case 'profile':
+      return {
+        ...portfolio,
+        valuesEssay: [portfolio.valuesEssay, text].filter(Boolean).join('\n\n'),
+        valuesEssayBlocks: toRichTextBlocks(portfolio.valuesEssayBlocks || portfolio.valuesEssay, text),
+      };
+    case 'interviews':
+    case 'experiences':
+    case 'projects':
+      return {
+        ...portfolio,
+        experiences: [...(portfolio.experiences || []), {
+          date: '',
+          title,
+          description: content,
+          status: 'finished',
+          classify: [],
+          skills: [],
+          role: '',
+          link: '',
+          thumbnailUrl: '',
+          sections: [{ title, content }],
+          structuredResult: { intro: content, projectOverview: { summary: content } },
+        }],
+      };
+    case 'extracurricular': {
+      const extra = portfolio.extracurricular || {};
+      return { ...portfolio, extracurricular: { ...extra, details: [...(extra.details || []), { title, period: '', description: content, descriptionBlocks: [{ type: 'text', content }] }] } };
+    }
+    case 'curricular': {
+      const curr = portfolio.curricular || {};
+      return { ...portfolio, curricular: { ...curr, summary: { ...(curr.summary || {}), note: [curr.summary?.note, text].filter(Boolean).join('\n\n') } } };
+    }
+    case 'career':
+      return {
+        ...portfolio,
+        experiences: [...(portfolio.experiences || []), {
+          date: '', title, description: content, status: 'finished', classify: ['career'], skills: [], role: '', link: '', thumbnailUrl: '',
+          sections: [{ title, content }],
+          structuredResult: { intro: content, projectOverview: { summary: content } },
+        }],
+      };
+    case 'introduce':
+    case 'resume':
+      return {
+        ...portfolio,
+        valuesEssay: [portfolio.valuesEssay, text].filter(Boolean).join('\n\n'),
+        valuesEssayBlocks: toRichTextBlocks(portfolio.valuesEssayBlocks || portfolio.valuesEssay, text),
+      };
+    case 'contact': {
+      const contact = portfolio.contact || {};
+      return { ...portfolio, contact: { ...contact, note: [contact.note, text].filter(Boolean).join('\n\n') } };
+    }
+    default:
+      return { ...portfolio, valuesEssayBlocks: toRichTextBlocks(portfolio.valuesEssayBlocks || portfolio.valuesEssay, text) };
+  }
+}
+
+function getEditableDropTarget(target) {
+  if (!(target instanceof Element)) return null;
+  return target.closest('textarea,input,[contenteditable="true"]');
+}
+
+function insertTextIntoEditable(target, text) {
+  if (!target || !text) return false;
+  if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    const nextValue = `${target.value.slice(0, start)}${text}${target.value.slice(end)}`;
+    const setter = Object.getOwnPropertyDescriptor(target.constructor.prototype, 'value')?.set;
+    setter ? setter.call(target, nextValue) : (target.value = nextValue);
+    const cursor = start + text.length;
+    target.setSelectionRange?.(cursor, cursor);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+  if (target.isContentEditable) {
+    target.focus();
+    const selection = window.getSelection();
+    const rangeIsInsideTarget = selection?.rangeCount && target.contains(selection.getRangeAt(0).commonAncestorContainer);
+    if (rangeIsInsideTarget) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      const prefix = target.textContent?.trim() ? '\n' : '';
+      target.textContent = `${target.textContent || ''}${prefix}${text}`;
+    }
+    target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+    target.dispatchEvent(new Event('blur', { bubbles: true }));
+    target.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    return true;
+  }
+  return false;
 }
 
 const EMPTY_PORTFOLIO = {
@@ -338,6 +484,17 @@ export default function NotionPortfolioEditor() {
       return { ...prev, [field]: arr };
     });
   };
+
+  useEffect(() => {
+    const applyRecommendation = (event) => {
+      const { sectionType, recommendation } = event.detail || {};
+      if (!sectionType || !recommendation) return;
+      setPortfolio(prev => applySectionRecommendationToPortfolio(prev, sectionType, recommendation));
+      toast.success('추천 내용을 적용했습니다');
+    };
+    window.addEventListener(SECTION_RECOMMEND_APPLY_EVENT, applyRecommendation);
+    return () => window.removeEventListener(SECTION_RECOMMEND_APPLY_EVENT, applyRecommendation);
+  }, []);
 
   // 포트폴리오 요건 체크리스트
   const [reqChecklist, setReqChecklist] = useState(null);
@@ -859,9 +1016,59 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [show, setShow] = useState(false);
-  const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
-  const [panelMaxH, setPanelMaxH] = useState('60vh');
-  const btnRef = useRef(null);
+  const [appliedRecommendations, setAppliedRecommendations] = useState({});
+  const buttonWrapRef = useRef(null);
+  const [portalNode, setPortalNode] = useState(null);
+
+  // show 가 켜지면 섹션 내부(헤더 바로 아래)에 패널을 인라인으로 끼워넣어
+  // 기존 섹션 UI는 그대로 유지하면서 섹션이 자연스럽게 늘어나도록 처리
+  useEffect(() => {
+    if (!show || !buttonWrapRef.current) { setPortalNode(null); return; }
+    // 헤더(가까운 justify-between 또는 flex 컨테이너) 찾기
+    let header = buttonWrapRef.current.parentElement;
+    while (header && header !== document.body) {
+      const cls = header.className || '';
+      if (typeof cls === 'string' && cls.includes('justify-between')) break;
+      header = header.parentElement;
+    }
+    const sectionParent = header?.parentElement;
+    if (!header || !sectionParent) return;
+    const portal = document.createElement('div');
+    portal.setAttribute('data-recommend-portal', sectionType);
+    portal.style.marginBottom = '16px';
+    sectionParent.insertBefore(portal, header.nextSibling);
+    setPortalNode(portal);
+    return () => { portal.remove(); setPortalNode(null); };
+  }, [show, sectionType]);
+
+  useEffect(() => {
+    if (!show) return;
+    const hasRecommendation = (e) => Array.from(e.dataTransfer?.types || []).includes('application/x-fitpoly-recommendation');
+    const onDragOver = (e) => {
+      if (!hasRecommendation(e)) return;
+      if (!getEditableDropTarget(e.target)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    };
+    const onDrop = (e) => {
+      if (!hasRecommendation(e)) return;
+      const editable = getEditableDropTarget(e.target);
+      if (!editable) return;
+      const raw = e.dataTransfer.getData('application/x-fitpoly-recommendation');
+      const fallback = e.dataTransfer.getData('text/plain');
+      let text = fallback;
+      try { text = JSON.parse(raw)?.text || fallback; } catch { /* use fallback */ }
+      if (!text) return;
+      e.preventDefault();
+      if (insertTextIntoEditable(editable, text)) toast.success('추천 내용을 적용했습니다');
+    };
+    document.addEventListener('dragover', onDragOver, true);
+    document.addEventListener('drop', onDrop, true);
+    return () => {
+      document.removeEventListener('dragover', onDragOver, true);
+      document.removeEventListener('drop', onDrop, true);
+    };
+  }, [show]);
 
   const SECTION_LABELS = {
     education: '교육', awards: '수상', skills: '기술',
@@ -869,37 +1076,15 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     interviews: '인터뷰', experiences: '프로젝트/경험',
     profile: '프로필/소개', projects: '프로젝트',
     curricular: '교내 활동', extracurricular: '교외 활동',
-    contact: '연락처',
+    contact: '연락처', introduce: '자기소개', career: '경력', resume: '이력 요약',
   };
 
   if (!jobAnalysis || !sectionType) return null;
 
-  const handleClick = async () => {
-    if (show && data) { setShow(false); return; }
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const PANEL_W = 280;
-      const PANEL_H = 340;
-      const viewH = window.innerHeight;
-      const viewW = window.innerWidth;
-
-      // 버튼 왼쪽에 패널 표시, 공간 없으면 오른쪽
-      let x = rect.left - PANEL_W - 12;
-      if (x < 8) x = Math.min(rect.right + 12, viewW - PANEL_W - 8);
-
-      const available = viewH - rect.top - 24;
-      let y = rect.top;
-      if (available < PANEL_H) {
-        y = Math.max(80, viewH - PANEL_H - 24);
-        setPanelMaxH(`${Math.min(PANEL_H, viewH - 104)}px`);
-      } else {
-        setPanelMaxH(`${available - 24}px`);
-      }
-
-      setPanelPos({ x, y });
-    }
+  const fetchRecommendations = async () => {
     setLoading(true);
     setShow(true);
+    setAppliedRecommendations({});
     try {
       const { data: resp } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
       setData(resp);
@@ -907,77 +1092,135 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     setLoading(false);
   };
 
-  const handleDragStart = (e) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startPosX = panelPos.x;
-    const startPosY = panelPos.y;
+  const handleClick = () => {
+    if (show && data) { setShow(false); return; }
+    fetchRecommendations();
+  };
 
-    const onMove = (ev) => {
-      setPanelPos({
-        x: startPosX + ev.clientX - startX,
-        y: startPosY + ev.clientY - startY,
-      });
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+  const applyRecommendation = (rec, idx) => {
+    window.dispatchEvent(new CustomEvent(SECTION_RECOMMEND_APPLY_EVENT, { detail: { sectionType, recommendation: rec } }));
+    setAppliedRecommendations(prev => ({ ...prev, [idx]: true }));
+  };
+
+  const startRecommendationDrag = (e, rec) => {
+    const text = recommendationToText(rec);
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', text);
+    e.dataTransfer.setData('application/x-fitpoly-recommendation', JSON.stringify({ sectionType, text, title: rec.title || '' }));
+  };
+
+  const copyRecommendation = async (rec) => {
+    const text = recommendationToText(rec);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('추천 내용을 복사했습니다');
+    } catch {
+      toast.error('복사에 실패했습니다');
+    }
   };
 
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={handleClick}
-        disabled={loading}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-          show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-        } disabled:opacity-50`}
-      >
-        {loading && <Loader2 size={12} className="animate-spin" />}
-        내용 추천
-      </button>
-      {show && createPortal(
-        <div
-          style={{ position: 'fixed', left: panelPos.x, top: panelPos.y, width: 280, zIndex: 1000, maxHeight: panelMaxH, display: 'flex', flexDirection: 'column' }}
-          className="bg-white rounded-2xl border border-indigo-200 shadow-xl overflow-hidden"
+      <div ref={buttonWrapRef} className="inline-flex items-center">
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={loading}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+          } disabled:opacity-50`}
         >
-          {/* 드래그 핸들 헤더 */}
-          <div
-            onMouseDown={handleDragStart}
-            className="flex items-center justify-between px-4 py-3 cursor-grab active:cursor-grabbing select-none border-b border-indigo-100 bg-indigo-50/60"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-indigo-700">AI 내용 추천</span>
-              <span className="text-[10px] text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded-full">{SECTION_LABELS[sectionType] || sectionType}</span>
+          {loading && <Loader2 size={12} className="animate-spin" />}
+          내용 추천
+        </button>
+      </div>
+      {show && portalNode && createPortal(
+        <div className="w-full rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50/40 to-white shadow-sm overflow-hidden">
+          <div className="p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-indigo-800">AI 내용 추천</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {data && !loading && (
+                  <button type="button" onClick={fetchRecommendations} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                    다시 추천
+                  </button>
+                )}
+                <button type="button" onClick={() => setShow(false)} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white"><X size={14} /></button>
+              </div>
             </div>
-            <button onClick={() => setShow(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
-          </div>
-          <div className="p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+
+            {jobAnalysis?.company && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                <Building2 size={14} className="text-blue-600" />
+                <span className="text-xs font-medium text-blue-800 truncate">{jobAnalysis.company}</span>
+                {jobAnalysis.position && <span className="text-xs text-blue-500 flex-shrink-0">· {jobAnalysis.position}</span>}
+              </div>
+            )}
+
             {loading ? (
-              <div className="flex flex-col items-center py-6">
-                <Loader2 size={20} className="animate-spin text-indigo-400 mb-2" />
-                <p className="text-xs text-gray-400">추천 내용 생성 중...</p>
+              <div className="flex flex-col items-center py-10">
+                <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
+                <p className="text-sm text-gray-500">AI가 추천 내용을 구성 중입니다...</p>
+                <p className="text-xs text-gray-400 mt-1">기업 분석과 현재 섹션 목적을 기준으로 정리합니다</p>
               </div>
             ) : data?.recommendations ? (
-              <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
-                {data.recommendations.map((rec, i) => (
-                  <div key={i} className="p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                    <p className="text-xs font-bold text-indigo-700 mb-1">{rec.title}</p>
-                    <p className="text-xs text-gray-600 leading-relaxed">{rec.content}</p>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천안</span>
+                  <span className="text-[10px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {data.recommendations.map((rec, i) => (
+                    <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(e) => startRecommendationDrag(e, rec)}
+                          className="mt-0.5 p-1 rounded-md text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 cursor-grab active:cursor-grabbing transition-colors"
+                          title="입력칸으로 드래그해 적용"
+                        >
+                          <GripVertical size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => copyRecommendation(rec)}
+                          className="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-white transition-colors"
+                          title="추천 내용 복사"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap select-text cursor-text mb-3">{rec.content}</p>
+                        <button
+                          type="button"
+                          onClick={() => applyRecommendation(rec, i)}
+                          disabled={appliedRecommendations[i]}
+                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                            appliedRecommendations[i]
+                              ? 'bg-green-100 text-green-700 cursor-default'
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          }`}
+                        >
+                          {appliedRecommendations[i] ? <><Check size={12} />적용됨</> : <><Check size={12} />섹션에 적용</>}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
             )}
           </div>
         </div>,
-        document.body
+        portalNode
       )}
     </>
   );
@@ -1175,11 +1418,14 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3"
-      style={{ paddingRight: analysisMode ? '420px' : '12px' }}
+      className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-3"
       onClick={onClose}
     >
-      <div className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 w-full max-w-[720px] h-[92vh]" onClick={e => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 h-[92vh]"
+        style={{ width: tailorMode ? 'min(1120px, calc(100vw - 24px))' : 'min(720px, calc(100vw - 24px))' }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -1222,7 +1468,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         </div>
 
         <div className="flex-1 overflow-hidden flex">
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto">
           {/* ── 상세보기 ── */}
           <div className="p-6 space-y-6">
               {/* ── 메타 인라인 편집 ── */}
@@ -1492,7 +1738,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
         {/* ── 우측 첨삭 패널 ── */}
         {tailorMode && (
-          <div className="w-[400px] flex-shrink-0 border-l border-gray-100 overflow-y-auto bg-gradient-to-b from-indigo-50/30 to-white">
+          <div className="flex-shrink-0 border-l border-gray-100 overflow-y-auto bg-gradient-to-b from-indigo-50/30 to-white" style={{ width: 'clamp(320px, 38vw, 400px)' }}>
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-indigo-800">
@@ -2776,7 +3022,10 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <div className="px-10 pb-8">
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="interests" defaultLabel="관심사" className="font-bold text-lg text-[#2d2a26]" />
-            <button onClick={() => hideSection('interests')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            <div className="flex items-center gap-2">
+              <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
+              <button onClick={() => hideSection('interests')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {(p.interests || []).map((interest, i) => (
@@ -4384,6 +4633,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <div className="flex items-center justify-between mb-4">
           <EditableTitle sectionKey="experiences" defaultLabel="프로젝트 / 경험" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
           <div className="flex items-center gap-2">
+            <VisualSectionRecommend sectionType="experiences" jobAnalysis={portfolio.jobAnalysis} />
             {/* 기업 맞춤 경험 추천 */}
             {portfolio.jobAnalysis && (
               <button onClick={fetchVisualRecommendations} disabled={recLoading}
@@ -4569,6 +4819,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="curricular" defaultLabel="📝 교과 활동 | Curricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-1">
+              <VisualSectionRecommend sectionType="curricular" jobAnalysis={portfolio.jobAnalysis} />
               <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'curricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'curricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
@@ -4632,6 +4883,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="extracurricular" defaultLabel="💡 비교과 활동 | Extracurricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-1">
+              <VisualSectionRecommend sectionType="extracurricular" jobAnalysis={portfolio.jobAnalysis} />
               <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'extracurricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'extracurricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
