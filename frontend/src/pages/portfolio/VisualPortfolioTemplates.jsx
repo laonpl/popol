@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FileText, Briefcase, Mail, Folder, ChevronRight,
@@ -100,7 +100,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           onClick={handleClick}
           disabled={loading}
           type="button"
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px] font-medium transition-all ${
             show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
           } disabled:opacity-50`}
         >
@@ -114,7 +114,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="text-sm font-bold text-indigo-800">AI 내용 추천</h4>
-                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
+                <p className="text-[13px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {data && !loading && (
@@ -144,13 +144,13 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천안</span>
-                  <span className="text-[10px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
+                  <span className="text-[12px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {data.recommendations.map((rec, i) => (
                     <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
                       <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
                         <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
                         <button
                           type="button"
@@ -238,8 +238,8 @@ function SkillLevelBadge({ skill, ec, dark = false }) {
         onChange={e => ec.updateSkillLevel(skill.name, parseInt(e.target.value))}
         className="w-20 h-1.5 accent-indigo-500 cursor-pointer"
       />
-      <span className={`text-[10px] font-bold w-8 text-right ${dark ? 'text-[#EBEBEB]' : 'text-gray-600'}`}>{pct}%</span>
-      <button type="button" onClick={() => setEditing(false)} className={`text-[10px] ${dark ? 'text-[#A0A0A0] hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}>✓</button>
+      <span className={`text-[12px] font-bold w-8 text-right ${dark ? 'text-[#EBEBEB]' : 'text-gray-600'}`}>{pct}%</span>
+      <button type="button" onClick={() => setEditing(false)} className={`text-[12px] ${dark ? 'text-[#A0A0A0] hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}>✓</button>
     </div>
   ) : (
     <span onClick={() => setEditing(true)} title="클릭하여 레벨 조절"
@@ -266,7 +266,7 @@ function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badg
       {/* Speech bubble tooltip */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 pointer-events-none opacity-0 group-hover/skill:opacity-100 transition-opacity duration-150 min-w-[100px]">
         <div className={`rounded-lg px-3 py-2 shadow-lg text-center ${dark ? 'bg-[#1A1A1A] border border-[#3A3A3A]' : 'bg-white border border-gray-200'}`}>
-          <div className={`text-[10px] font-bold mb-1.5 ${dark ? 'text-[#EBEBEB]' : 'text-gray-700'}`}>{skill.name}</div>
+          <div className={`text-[12px] font-bold mb-1.5 ${dark ? 'text-[#EBEBEB]' : 'text-gray-700'}`}>{skill.name}</div>
           {levelMode === 'blocks' ? (
             <div className="flex items-center justify-center gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -278,7 +278,7 @@ function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badg
               <div className={`w-full h-1.5 rounded-full ${dark ? 'bg-[#3A3A3A]' : 'bg-gray-200'} overflow-hidden`}>
                 <div className={`h-full rounded-full ${dark ? 'bg-[#5C7CFA]' : 'bg-primary-500'} transition-all`} style={{ width: `${pct}%` }} />
               </div>
-              <div className={`text-[9px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'}`}>{pct}%</div>
+              <div className={`text-[11px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'}`}>{pct}%</div>
             </div>
           )}
           {ec?.updateSkillLevel && (
@@ -289,10 +289,10 @@ function SkillTooltipBadge({ skill, ec, dark = false, levelMode = 'blocks', badg
                     onChange={e => ec.updateSkillLevel(skill.name, parseInt(e.target.value))}
                     className="w-16 h-1.5 accent-indigo-500 cursor-pointer"
                   />
-                  <button type="button" onClick={() => setEditing(false)} className={`text-[9px] ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>✓</button>
+                  <button type="button" onClick={() => setEditing(false)} className={`text-[11px] ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>✓</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setEditing(true)} className={`text-[9px] hover:underline ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>레벨 조절</button>
+                <button type="button" onClick={() => setEditing(true)} className={`text-[11px] hover:underline ${dark ? 'text-[#5C7CFA]' : 'text-indigo-500'}`}>레벨 조절</button>
               )}
             </div>
           )}
@@ -311,7 +311,7 @@ function ExpDetailBtn({ exp, idx, ec, dark = false }) {
     <button
       type="button"
       onClick={e => { e.stopPropagation(); ec.onOpenExpDetail(exp, idx); }}
-      className={`absolute bottom-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-all shadow-sm ${
+      className={`absolute bottom-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-medium opacity-0 group-hover:opacity-100 transition-all shadow-sm ${
         dark
           ? 'bg-[#2A2A2A] text-[#A0A0A0] hover:text-white border border-[#3A3A3A] hover:border-[#5C7CFA]'
           : 'bg-white/90 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:border-indigo-300'
@@ -512,7 +512,7 @@ function ExpControls({ ec, dark = false }) {
           {(recPanel.keywords || []).length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
               {recPanel.keywords.map((kw, i) => (
-                <span key={i} className={`px-2 py-0.5 rounded-lg border text-[10px] ${dark ? 'bg-[#2A2A2A] border-[#3A3A3A] text-indigo-300' : 'bg-white border-indigo-200'}`}>
+                <span key={i} className={`px-2 py-0.5 rounded-lg border text-[12px] ${dark ? 'bg-[#2A2A2A] border-[#3A3A3A] text-indigo-300' : 'bg-white border-indigo-200'}`}>
                   <span className={`font-bold ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{kw.keyword}</span>
                   <span className={`ml-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{kw.description}</span>
                 </span>
@@ -524,11 +524,11 @@ function ExpControls({ ec, dark = false }) {
               <div key={i} className={`flex items-center gap-2 p-2 rounded-lg border ${dark ? 'bg-[#2A2A2A] border-[#3A3A3A]' : 'bg-white border-indigo-100'}`}>
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-bold truncate ${dark ? 'text-[#EBEBEB]' : 'text-gray-800'}`}>{rec.experience?.title}</p>
-                  <p className={`text-[10px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-500'}`}>{rec.reason}</p>
+                  <p className={`text-[12px] mt-0.5 ${dark ? 'text-[#A0A0A0]' : 'text-gray-500'}`}>{rec.reason}</p>
                   {(rec.matchedKeywords || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {rec.matchedKeywords.map((mk, mi) => (
-                        <span key={mi} className={`px-1 py-0.5 rounded text-[9px] font-medium ${dark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{mk}</span>
+                        <span key={mi} className={`px-1 py-0.5 rounded text-[11px] font-medium ${dark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{mk}</span>
                       ))}
                     </div>
                   )}
@@ -536,7 +536,7 @@ function ExpControls({ ec, dark = false }) {
                 <button
                   type="button"
                   onClick={() => ec.onImportRecommendedExp?.(rec)}
-                  className="flex-shrink-0 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-medium hover:bg-indigo-700 transition-colors"
+                  className="flex-shrink-0 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[12px] font-medium hover:bg-indigo-700 transition-colors"
                 >
                   추가
                 </button>
@@ -605,9 +605,9 @@ function ExperienceTimeline({ expList, ec, dark = false, accentDot = '' }) {
                 <span className={`text-xs ${subtitleColor}`}>{exp.role || exp.subtitle}</span>
               )}
             </div>
-            <div className={`text-[11px] ${periodColor} mt-0.5`}>
+            <div className={`text-[13px] ${periodColor} mt-0.5`}>
               {ec
-                ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className={`text-[11px] ${periodColor}`} placeholder="기간 (예: 2024.03 - 2024.06)" />
+                ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className={`text-[13px] ${periodColor}`} placeholder="기간 (예: 2024.03 - 2024.06)" />
                 : exp.period
               }
             </div>
@@ -825,22 +825,22 @@ const ProjectModal = ({ project, onClose }) => {
               <div className="mb-7 space-y-2.5 border-b border-gray-100 pb-6">
                 {duration && (
                   <div className="flex items-center gap-4">
-                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0">기간</span>
-                    <span className="text-[13px] text-gray-700">{duration}</span>
+                    <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">기간</span>
+                    <span className="text-[15px] text-gray-700">{duration}</span>
                   </div>
                 )}
                 {role && (
                   <div className="flex items-start gap-4">
-                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
-                    <span className="text-[13px] text-gray-700 leading-relaxed">{role}</span>
+                    <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                    <span className="text-[15px] text-gray-700 leading-relaxed">{role}</span>
                   </div>
                 )}
                 {techStack.length > 0 && (
                   <div className="flex items-start gap-4">
-                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                    <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
                     <div className="flex flex-wrap gap-1.5">
                       {techStack.map((t, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[12px]">
+                        <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[14px]">
                           {typeof t === 'string' ? t : t?.name || ''}
                         </span>
                       ))}
@@ -849,10 +849,10 @@ const ProjectModal = ({ project, onClose }) => {
                 )}
                 {keywords.length > 0 && (
                   <div className="flex items-start gap-4">
-                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                    <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
                     <div className="flex flex-wrap gap-1.5">
                       {keywords.slice(0, 6).map((kw, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[12px] font-medium">
+                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[14px] font-medium">
                           {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
                         </span>
                       ))}
@@ -861,8 +861,8 @@ const ProjectModal = ({ project, onClose }) => {
                 )}
                 {goal && (
                   <div className="flex items-start gap-4">
-                    <span className="w-14 text-[12px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
-                    <span className="text-[13px] text-gray-700 leading-relaxed">{goal}</span>
+                    <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                    <span className="text-[15px] text-gray-700 leading-relaxed">{goal}</span>
                   </div>
                 )}
               </div>
@@ -876,7 +876,7 @@ const ProjectModal = ({ project, onClose }) => {
             {/* 핵심 경험 슬라이드 */}
             {keyExperiences.length > 0 && (
               <div className="mb-7">
-                <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+                <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
                 <KeyExperienceSlider keyExperiences={keyExperiences} />
               </div>
             )}
@@ -886,10 +886,10 @@ const ProjectModal = ({ project, onClose }) => {
               <div className="space-y-7">
                 {sectionsToRender.map((sec, i) => (
                   <div key={i}>
-                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
+                    <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
                       {sec.label}
                     </h2>
-                    <p className="text-[14px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                    <p className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
                   </div>
                 ))}
               </div>
@@ -968,7 +968,7 @@ function SkillVTCategoryInput({ category, portfolio, ec }) {
 
   return (
     <div className="mb-4">
-      <p className="text-[11px] font-semibold text-gray-400 mb-1.5">{SKILL_VT_CATEGORY_LABELS[category]}</p>
+      <p className="text-[13px] font-semibold text-gray-400 mb-1.5">{SKILL_VT_CATEGORY_LABELS[category]}</p>
       {items.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {items.map((item, i) => {
@@ -995,7 +995,7 @@ function SkillVTCategoryInput({ category, portfolio, ec }) {
                 </button>
                 {editingSkill === name && (
                   <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[140px]">
-                    <p className="text-[10px] text-gray-400 mb-1 px-1">숙련도</p>
+                    <p className="text-[12px] text-gray-400 mb-1 px-1">숙련도</p>
                     {SKILL_VT_PROFICIENCY_LEVELS.map(lv => (
                       <button key={lv.value} type="button" onClick={() => setProficiency(name, lv.value)}
                         className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-gray-50 ${prof === lv.value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600'}`}>
@@ -1017,7 +1017,7 @@ function SkillVTCategoryInput({ category, portfolio, ec }) {
           const isSelected = selectedNames.includes(name);
           return (
             <button key={name} type="button" onClick={() => toggleSkill(name)}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all ${
+              className={`px-2 py-0.5 rounded-full text-[13px] font-medium border transition-all ${
                 isSelected
                   ? 'bg-blue-100 text-blue-700 border-blue-300'
                   : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600'
@@ -1208,7 +1208,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                     ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-[#787774] mb-3 block" placeholder="설명" />
                     : <p className="text-sm text-[#787774] mb-3 line-clamp-2">{proj.desc}</p>
                   }
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
+                  <span className={`text-[12px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                 </div>
               </div>
             ))}
@@ -1675,7 +1675,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                     : <h3 className="font-bold mb-1">{proj.name}</h3>
                   }
                   <p className="text-xs text-gray-400 mb-2">{proj.period}</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
+                  <span className={`text-[12px] px-1.5 py-0.5 rounded ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                   {ec
                     ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-xs text-gray-500 mt-2 block" placeholder="설명" />
                     : <p className="text-xs text-gray-500 mt-2 line-clamp-1">{proj.desc || proj.description}</p>
@@ -1948,7 +1948,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                         ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-gray-600 mb-4 flex-1 block" placeholder="설명" />
                         : <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{proj.desc}</p>
                       }
-                      <span className={`text-[10px] px-2 py-1 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
+                      <span className={`text-[12px] px-2 py-1 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                     </div>
                   </div>
                 ))}
@@ -2059,7 +2059,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
                     : <h3 className="font-bold text-gray-900 truncate">{proj.name}</h3>
                   }
                   <p className="text-xs text-gray-400 mb-1">{proj.period}</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
+                  <span className={`text-[12px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-300" />
               </div>
@@ -2608,7 +2608,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
   const Checkboxes = ({ level }) => (
     <div className="flex gap-1 mb-2">
       {[...Array(5)].map((_, i) => (
-        <div key={i} className={`w-[14px] h-[14px] rounded-[2px] flex items-center justify-center text-[10px] font-extrabold ${i < level ? 'bg-[#51A15F] text-white' : 'bg-[#D1D1D1]'}`}>
+        <div key={i} className={`w-[14px] h-[14px] rounded-[2px] flex items-center justify-center text-[12px] font-extrabold ${i < level ? 'bg-[#51A15F] text-white' : 'bg-[#D1D1D1]'}`}>
           {i < level ? '✓' : ''}
         </div>
       ))}
@@ -2685,7 +2685,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                 <div className="p-4">
                   <p className="text-xs font-bold text-white mb-3">{proj.period}</p>
                   <div className="flex gap-2 flex-wrap">
-                    <span className="bg-[#4B3B4B] text-[#D19ED1] text-[10px] px-2 py-0.5 rounded font-bold">{proj.tag || 'Project'}</span>
+                    <span className="bg-[#4B3B4B] text-[#D19ED1] text-[12px] px-2 py-0.5 rounded font-bold">{proj.tag || 'Project'}</span>
                   </div>
                 </div>
               </div>

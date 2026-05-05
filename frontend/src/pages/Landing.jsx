@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
@@ -192,14 +192,14 @@ export default function Landing() {
         <div className="bg-[#f3f4f6]/95 backdrop-blur-md rounded-full px-2 py-1.5 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 shadow-sm border border-gray-200/50 w-full max-w-[min(100%,400px)] md:max-w-none md:w-auto">
           <button onClick={() => navigate('/')} className="flex items-center gap-1.5 px-2 sm:px-3 shrink-0">
             <img src="/logo.png" alt="FitPoly" className="h-5 w-auto" />
-            <span className="font-extrabold text-[14px] sm:text-[15px] text-gray-900 tracking-tight">FitPoly</span>
+            <span className="font-extrabold text-[16px] sm:text-[17px] text-gray-900 tracking-tight">FitPoly</span>
           </button>
-          <nav className="hidden md:flex items-center gap-5 text-[13px] font-medium text-gray-600 px-2">
+          <nav className="hidden md:flex items-center gap-5 text-[15px] font-medium text-gray-600 px-2">
             <a href="#feature-experience" className="hover:text-black transition-colors">경험정리</a>
             <a href="#feature-portfolio" className="hover:text-black transition-colors">포트폴리오</a>
             <button onClick={go} className="hover:text-black transition-colors">로그인</button>
           </nav>
-          <button onClick={go} className="bg-gray-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-[12px] sm:text-[13px] font-bold hover:bg-black transition-colors shrink-0 whitespace-nowrap">
+          <button onClick={go} className="bg-gray-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-[14px] sm:text-[15px] font-bold hover:bg-black transition-colors shrink-0 whitespace-nowrap">
             무료로 시작
           </button>
         </div>
@@ -254,7 +254,7 @@ export default function Landing() {
 
         {/* Center Text */}
         <div className={`relative z-10 text-center flex flex-col items-center justify-center transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} px-4 sm:px-6 -mt-6 sm:-mt-8 md:-mt-16`}>
-          <p className="text-[13px] sm:text-[16px] md:text-[20px] font-bold text-indigo-500 mb-3 sm:mb-4 md:mb-6">끝없이 쌓여가는 취업 준비 자료들</p>
+          <p className="text-[15px] sm:text-[18px] md:text-[20px] font-bold text-indigo-500 mb-3 sm:mb-4 md:mb-6">끝없이 쌓여가는 취업 준비 자료들</p>
           <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1">
             <span>여기저기 흩어진 경험들,</span>
             <span>어떻게 관리하고 계시나요?</span>
@@ -270,7 +270,7 @@ export default function Landing() {
               합격하는 취준생은 다릅니다.<br className="sm:hidden" />
               <span className="text-indigo-600"> 당신의 포트폴리오는 안전한가요?</span>
             </h2>
-            <p className="text-[14px] sm:text-[16px] text-gray-500 font-medium">데이터가 증명하는 서류 광탈의 3가지 이유</p>
+            <p className="text-[16px] sm:text-[18px] text-gray-500 font-medium">데이터가 증명하는 서류 광탈의 3가지 이유</p>
           </div>
 
           <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
@@ -280,12 +280,12 @@ export default function Landing() {
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
                   열심히 했는데,<br/>막상 쓰려면 기억이 안 나요
                 </h3>
-                 <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium">
+                 <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium">
                   분명 성과가 있었는데 자소서에 쓸 수치가 없어서 '성실히 임했습니다'로 끝나는 취준생 비율
                 </p>
               </div>
               <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100">
-                <p className="text-[11px] font-bold text-gray-400 mb-3">취준생 10명 중 수치 없이 제출</p>
+                <p className="text-[13px] font-bold text-gray-400 mb-3">취준생 10명 중 수치 없이 제출</p>
                 <div className="flex gap-1.5 mb-5">
                   {Array.from({ length: 10 }, (_, i) => (
                     <div key={i} className="flex flex-col items-center gap-1 flex-1">
@@ -311,7 +311,7 @@ export default function Landing() {
                 </div>
                 <div className="flex items-end gap-2 mb-3">
                   <span className="text-[32px] sm:text-[36px] font-extrabold text-gray-900 leading-none tabular-nums">
-                    {count1.toFixed(1)}<span className="text-[18px] text-gray-500">%</span>
+                    {count1.toFixed(1)}<span className="text-[20px] text-gray-500">%</span>
                   </span>
                 </div>
                 <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -329,43 +329,43 @@ export default function Landing() {
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
                   다 보내긴 했는데,<br/>왜 계속 서류에서 떨어질까요
                 </h3>
-                 <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium">
+                 <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium">
                   기업별 맞춤화 없이 같은 포트폴리오를 복붙해 지원했다가 서류 단계에서 바로 탈락하는 비율
                 </p>
               </div>
               <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-3 sm:gap-6 px-4 sm:px-8 justify-center">
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                   <span
-                    className="text-[12px] font-extrabold text-gray-400 transition-opacity duration-500"
+                    className="text-[14px] font-extrabold text-gray-400 transition-opacity duration-500"
                     style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.3s' }}
                   >맞춤 지원</span>
                   <div
                     className="w-8 sm:w-12 bg-gray-200 rounded-t-md"
                     style={{ height: statsVisible ? '35%' : '0%', transition: 'height 0.8s ease-out 0.2s' }}
                   />
-                  <span className="text-[11px] font-bold text-gray-400">통과율</span>
+                  <span className="text-[13px] font-bold text-gray-400">통과율</span>
                 </div>
                 <div className="flex-[1.2] flex flex-col items-center justify-end h-full gap-2">
                   <span
-                    className="text-[15px] font-extrabold text-[#1B264F] mb-1 transition-all duration-500"
+                    className="text-[17px] font-extrabold text-[#1B264F] mb-1 transition-all duration-500"
                     style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? 'translateY(0)' : 'translateY(8px)', transitionDelay: '0.9s' }}
                   >92%</span>
                   <div
                     className="w-8 sm:w-12 bg-[#1B264F] rounded-t-md"
                     style={{ height: statsVisible ? '92%' : '0%', transition: 'height 0.9s cubic-bezier(0.34,1.56,0.64,1) 0.5s' }}
                   />
-                  <span className="text-[11px] font-bold text-[#1B264F]">무작위 탈락</span>
+                  <span className="text-[13px] font-bold text-[#1B264F]">무작위 탈락</span>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                   <span
-                    className="text-[12px] font-extrabold text-gray-400 transition-opacity duration-500"
+                    className="text-[14px] font-extrabold text-gray-400 transition-opacity duration-500"
                     style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.5s' }}
                   >시간 지연</span>
                   <div
                     className="w-8 sm:w-12 bg-gray-300 rounded-t-md"
                     style={{ height: statsVisible ? '50%' : '0%', transition: 'height 0.8s ease-out 0.35s' }}
                   />
-                  <span className="text-[11px] font-bold text-gray-400">포기율</span>
+                  <span className="text-[13px] font-bold text-gray-400">포기율</span>
                 </div>
               </div>
             </div>
@@ -376,19 +376,19 @@ export default function Landing() {
                 <h3 className="text-[20px] sm:text-[26px] font-extrabold text-gray-900 mb-4 leading-snug">
                   포트폴리오 하나에<br/>하루가 통째로 사라져요
                 </h3>
-                 <p className="text-[13px] sm:text-[15px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[460px]">
+                 <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[460px]">
                   템플릿 찾다 한 시간, 과거 기록 뒤지다 두 시간, 여백 맞추다 또 한 시간. 이 시간이면 <strong className="text-[#1B264F]">기업 20곳을 더 분석하고 지원</strong>할 수 있어요.
                 </p>
               </div>
               <div className="w-full md:w-[320px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
-                <p className="text-[13px] font-bold text-gray-400">포트폴리오 1개 제작 평균 소요 시간</p>
+                <p className="text-[15px] font-bold text-gray-400">포트폴리오 1개 제작 평균 소요 시간</p>
                 <div className="flex items-baseline gap-1.5 mt-1 mb-5">
                   <span className="text-[46px] sm:text-[52px] font-extrabold text-gray-900 tracking-tighter leading-none tabular-nums">
                     {count3 >= 72 ? '72' : count3}
                   </span>
-                  <span className="text-[18px] font-bold text-gray-500">시간</span>
+                  <span className="text-[20px] font-bold text-gray-500">시간</span>
                 </div>
-                <p className="text-[11px] font-bold text-gray-400 mb-2">일주일 중 사라지는 날</p>
+                <p className="text-[13px] font-bold text-gray-400 mb-2">일주일 중 사라지는 날</p>
                 <div className="flex gap-1.5">
                   {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => (
                     <div key={day} className="flex-1 flex flex-col items-center gap-1">
@@ -403,7 +403,7 @@ export default function Landing() {
                         }}
                       />
                       <span
-                        className="text-[10px] font-bold transition-colors duration-500"
+                        className="text-[12px] font-bold transition-colors duration-500"
                         style={{ color: statsVisible && i < 3 ? '#1B264F' : '#9CA3AF', transitionDelay: `${i * 120 + 400}ms` }}
                       >{day}</span>
                     </div>
@@ -415,11 +415,11 @@ export default function Landing() {
 
           {/* Gray Box */}
           <div className="bg-[#f8f9fa] rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
-            <h3 className="text-[18px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900 leading-[1.4] mb-3 sm:mb-4">
+            <h3 className="text-[20px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900 leading-[1.4] mb-3 sm:mb-4">
               여기저기 흩어진 채널들,<br />
               정리하지 않은 자료들이 쌓여가고 있진 않나요?
             </h3>
-            <p className="text-[13px] sm:text-[15px] text-gray-500 leading-[1.6] mb-8 sm:mb-12 font-medium">
+            <p className="text-[15px] sm:text-[17px] text-gray-500 leading-[1.6] mb-8 sm:mb-12 font-medium">
               중요한 경험은 흩어진 채널 어딘가에서 잠들어 있어요.<br />
               혹시 나도 잠든 자료의 무게를 안고 다니는 건 아닐까요?
             </p>
@@ -450,7 +450,7 @@ export default function Landing() {
       <section id="feature-experience" className="py-16 sm:py-20 md:py-24 bg-white">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
-            <span className="inline-block px-3 py-1 bg-primary-500 text-white text-[11px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 1. 경험 정리</span>
+            <span className="inline-block px-3 py-1 bg-primary-500 text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 1. 경험 정리</span>
             <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-bluewood-900 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
               파편화된 다양한 파일을,<br />
               <span className="text-primary-500">체계적인 경험 아카이브</span>로 정리해요
@@ -486,7 +486,7 @@ export default function Landing() {
               }
             `}</style>
             <div className="mb-6 sm:mb-8">
-              <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[11px] font-bold rounded mb-3">파일 업로드</span>
+              <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-3">파일 업로드</span>
               <h3 className="text-[20px] sm:text-[26px] font-extrabold text-bluewood-900 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
                 어떤 파일이든, <span className="text-primary-500">숨겨진 경험을 꺼냅니다</span>
               </h3>
@@ -496,7 +496,7 @@ export default function Landing() {
 
                 {/* ── Panel 1: 카카오톡 모바일 ── */}
                 <div className="flex-1 flex flex-col items-center min-w-0">
-                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5">카카오톡 대화 내보내기</span>
+                  <span className="text-[13px] font-bold text-bluewood-500 mb-2.5">카카오톡 대화 내보내기</span>
                   {/* 외부 wrapper: dropdown이 phone 밖으로 overflow */}
                   <div className="relative" style={{ width: '210px' }}>
                     <div className="bg-[#aec5d8] rounded-[28px] overflow-hidden shadow-xl" style={{ border: '5px solid #8db5cd' }}>
@@ -623,7 +623,7 @@ export default function Landing() {
 
                 {/* ── 가운데: 자료 수집 UI 목업 ── */}
                 <div className="flex-1 flex flex-col min-w-0">
-                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5 block text-center">AI 경험 정리 보드</span>
+                  <span className="text-[13px] font-bold text-bluewood-500 mb-2.5 block text-center">AI 경험 정리 보드</span>
                   <div
                     className="bg-white rounded-2xl overflow-hidden shadow-md flex flex-col transition-all duration-300"
                     style={{
@@ -742,7 +742,7 @@ export default function Landing() {
 
                 {/* ── Panel 3: Windows 파일 탐색기 ── */}
                 <div className="flex-1 flex flex-col items-center min-w-0">
-                  <span className="text-[11px] font-bold text-bluewood-500 mb-2.5 block text-center">파편화된 문서 파일들</span>
+                  <span className="text-[13px] font-bold text-bluewood-500 mb-2.5 block text-center">파편화된 문서 파일들</span>
                   <div style={{ width: '340px', background: '#1e1e1e', borderRadius: '8px', overflow: 'hidden', border: '1px solid #3c3c3c', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
                     {/* 타이틀바 */}
                     <div style={{ background: '#2b2b2b', padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '5px', borderBottom: '1px solid #3c3c3c' }}>
@@ -841,14 +841,14 @@ export default function Landing() {
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[11px] font-bold rounded mb-4 sm:mb-6">AI 포트폴리오 에디터</span>
+                  <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[13px] font-bold rounded mb-4 sm:mb-6">AI 포트폴리오 에디터</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   흩어진 경험들이,<br />
                   <span className="text-primary-500">하나의 서사로<br />재탄생합니다</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {['핵심 역량 자동 추출', '블록형 포트폴리오'].map((t, i) => (
-                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[12px] font-bold rounded-full border border-primary-100">{t}</span>
+                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
                   ))}
                 </div>
               </div>
@@ -858,52 +858,52 @@ export default function Landing() {
                 <div className={`col-start-1 row-start-1 w-full transition-opacity duration-1000 ${aiMockView === 'experience' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
                   <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 h-full flex flex-col text-left">
                     <div className="border-b border-surface-100 px-4 sm:px-5 py-3 flex items-center justify-between bg-surface-50/50">
-                      <div className="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px] text-bluewood-400 font-medium overflow-hidden">
+                      <div className="flex items-center gap-2 sm:gap-4 text-[12px] sm:text-[13px] text-bluewood-400 font-medium overflow-hidden">
                         <span className="shrink-0">✓ 기본 정보</span>
                         <span className="shrink-0 hidden sm:inline">✓ 자료 수집</span>
                         <span className="text-bluewood-900 font-bold shrink-0">경험 검토</span>
                       </div>
-                      <span className="text-[10px] text-bluewood-300 font-bold tracking-widest shrink-0">1/4</span>
+                      <span className="text-[12px] text-bluewood-300 font-bold tracking-widest shrink-0">1/4</span>
                     </div>
 
                     <div className="flex flex-1 overflow-hidden">
                       <div className="hidden sm:block w-[160px] md:w-[180px] border-r border-surface-100 bg-surface-50/30 p-3 sm:p-4 shrink-0">
-                        <p className="text-[10px] font-bold text-bluewood-300 mb-3">경험 목록</p>
+                        <p className="text-[12px] font-bold text-bluewood-300 mb-3">경험 목록</p>
                         <div className="space-y-3">
                           <div className="bg-bluewood-900 text-white rounded-lg p-2.5 shadow-sm">
-                            <p className="text-[9px] text-white/70 mb-0.5 font-bold">1.</p>
-                            <p className="text-[10px] sm:text-[11px] font-bold leading-tight">AI 챗봇 서비스 도입을 통한 CS 효율화</p>
+                            <p className="text-[11px] text-white/70 mb-0.5 font-bold">1.</p>
+                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight">AI 챗봇 서비스 도입을 통한 CS 효율화</p>
                           </div>
                           <div className="p-2.5 opacity-40">
-                            <p className="text-[9px] mb-0.5 font-bold text-bluewood-900">2.</p>
-                            <p className="text-[10px] sm:text-[11px] font-bold leading-tight text-bluewood-900">고객 여정 지도 설계를 통한 전환율 향상</p>
+                            <p className="text-[11px] mb-0.5 font-bold text-bluewood-900">2.</p>
+                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight text-bluewood-900">고객 여정 지도 설계를 통한 전환율 향상</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex-1 p-4 sm:p-6 bg-white overflow-hidden">
-                        <div className="bg-primary-50 text-primary-600 text-[11px] px-3 py-2 rounded-lg mb-3 sm:mb-4 font-medium flex items-center gap-2">
+                        <div className="bg-primary-50 text-primary-600 text-[13px] px-3 py-2 rounded-lg mb-3 sm:mb-4 font-medium flex items-center gap-2">
                           <Check size={12} /> "문제 정의", "데이터 분석" 역량이 확인됩니다.
                         </div>
 
                         <div className="border border-surface-200 rounded-xl p-4 sm:p-5 bg-white shadow-sm relative">
-                          <button className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 sm:px-3 py-1 bg-white border border-surface-200 rounded-md text-[10px] font-bold text-bluewood-400 shadow-sm">
+                          <button className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 sm:px-3 py-1 bg-white border border-surface-200 rounded-md text-[12px] font-bold text-bluewood-400 shadow-sm">
                             수정
                           </button>
-                          <div className="inline-block px-2 py-0.5 bg-surface-100 text-bluewood-500 text-[10px] font-bold rounded mb-2">문제 상황 (Background)</div>
-                          <h4 className="text-[13px] sm:text-[15px] font-extrabold text-bluewood-900 mb-2 sm:mb-3 pr-12">기존 CS 프로세스 병목 현상 분석</h4>
-                          <p className="text-[11px] sm:text-[12px] text-bluewood-500 leading-relaxed mb-3 sm:mb-4">
+                          <div className="inline-block px-2 py-0.5 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded mb-2">문제 상황 (Background)</div>
+                          <h4 className="text-[15px] sm:text-[17px] font-extrabold text-bluewood-900 mb-2 sm:mb-3 pr-12">기존 CS 프로세스 병목 현상 분석</h4>
+                          <p className="text-[13px] sm:text-[14px] text-bluewood-500 leading-relaxed mb-3 sm:mb-4">
                             서비스 성장과 함께 일평균 고객 문의량이 급증하였으며, 기존 인력만으로는 대응 지연 현상이 발생하고 있었습니다. 특히 단순 반복 문의가 전체의 65%를 차지하여 심각한 병목 현상을 파악했습니다.
                           </p>
-                          <ul className="text-[10px] sm:text-[11px] text-bluewood-400 space-y-1.5 list-disc pl-4 mb-4 sm:mb-5 leading-relaxed">
+                          <ul className="text-[12px] sm:text-[13px] text-bluewood-400 space-y-1.5 list-disc pl-4 mb-4 sm:mb-5 leading-relaxed">
                             <li>VOC 데이터를 주간 단위로 수집하여 문의 유형을 분석했습니다.</li>
                             <li>챗봇으로 자동화 가능한 '단순 정보성 문의' 비율(65%)을 정량적으로 도출했습니다.</li>
                           </ul>
                           <div className="border-t border-surface-100 pt-3 sm:pt-4">
-                            <p className="text-[10px] font-bold text-bluewood-300 mb-2">역량 키워드</p>
+                            <p className="text-[12px] font-bold text-bluewood-300 mb-2">역량 키워드</p>
                             <div className="flex gap-2 flex-wrap">
-                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[10px] font-bold rounded-md">데이터 분석</span>
-                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[10px] font-bold rounded-md">문제 정의</span>
+                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded-md">데이터 분석</span>
+                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded-md">문제 정의</span>
                             </div>
                           </div>
                         </div>
@@ -911,10 +911,10 @@ export default function Landing() {
                     </div>
 
                     <div className="border-t border-surface-100 bg-white px-4 sm:px-5 py-3 flex items-center justify-between shrink-0">
-                      <span className="text-[11px] font-bold text-red-400 cursor-pointer">이 경험 제외</span>
+                      <span className="text-[13px] font-bold text-red-400 cursor-pointer">이 경험 제외</span>
                       <div className="flex gap-2">
-                        <button className="px-3 sm:px-4 py-1.5 text-[11px] font-bold text-bluewood-400 rounded-md">이전</button>
-                        <button className="px-3 sm:px-4 py-1.5 bg-bluewood-900 text-white text-[11px] font-bold rounded-md shadow-sm">다음 &gt;</button>
+                        <button className="px-3 sm:px-4 py-1.5 text-[13px] font-bold text-bluewood-400 rounded-md">이전</button>
+                        <button className="px-3 sm:px-4 py-1.5 bg-bluewood-900 text-white text-[13px] font-bold rounded-md shadow-sm">다음 &gt;</button>
                       </div>
                     </div>
                   </div>
@@ -924,7 +924,7 @@ export default function Landing() {
                 <div className={`col-start-1 row-start-1 w-full transition-opacity duration-1000 ${aiMockView === 'portfolio' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
                   <div className="bg-surface-50 rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 h-full flex flex-col text-left">
                     <div className="bg-white border-b border-surface-100 px-4 sm:px-5 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
-                      <div className="flex items-center gap-2 text-[11px] sm:text-[12px] font-bold text-bluewood-500">
+                      <div className="flex items-center gap-2 text-[13px] sm:text-[14px] font-bold text-bluewood-500">
                         <ArrowRight size={14} className="rotate-180" /> 경험 목록으로
                       </div>
                       <div className="flex items-center gap-1.5 sm:gap-2">
@@ -932,12 +932,12 @@ export default function Landing() {
                           <div className="w-4 h-1 rounded-full bg-red-400" />
                           <div className="w-1.5 h-1.5 rounded-full bg-surface-300" />
                           <div className="w-1.5 h-1.5 rounded-full bg-surface-300" />
-                          <span className="text-[9px] font-bold text-bluewood-400 ml-1">1/4</span>
+                          <span className="text-[11px] font-bold text-bluewood-400 ml-1">1/4</span>
                         </div>
-                        <button className="px-2 sm:px-3 py-1.5 border border-surface-200 bg-white text-[10px] font-bold text-bluewood-500 rounded-md shadow-sm flex items-center gap-1">
+                        <button className="px-2 sm:px-3 py-1.5 border border-surface-200 bg-white text-[12px] font-bold text-bluewood-500 rounded-md shadow-sm flex items-center gap-1">
                           <PenTool size={10} /> 수정
                         </button>
-                        <button className="px-2 sm:px-3 py-1.5 bg-bluewood-900 text-white text-[10px] font-bold rounded-md shadow-sm flex items-center gap-1">
+                        <button className="px-2 sm:px-3 py-1.5 bg-bluewood-900 text-white text-[12px] font-bold rounded-md shadow-sm flex items-center gap-1">
                           <LayoutTemplate size={10} /> <span className="hidden sm:inline">템플릿 변경</span><span className="sm:hidden">템플릿</span>
                         </button>
                       </div>
@@ -945,38 +945,38 @@ export default function Landing() {
 
                     <div className="flex flex-1 rounded-b-2xl overflow-hidden">
                       <div className="hidden md:block w-[160px] lg:w-[180px] bg-white border-r border-surface-100 p-4 sm:p-5 shrink-0">
-                        <h4 className="text-[13px] font-extrabold text-bluewood-900 mb-4">Overview</h4>
+                        <h4 className="text-[15px] font-extrabold text-bluewood-900 mb-4">Overview</h4>
                         <div className="space-y-4">
                           <div>
-                            <p className="text-[10px] text-bluewood-300 font-bold mb-1">1. 목표</p>
-                            <p className="text-[10px] text-bluewood-500 leading-relaxed font-medium">단순 반복 문의 처리율 향상을 통한 업무 부하 감소</p>
+                            <p className="text-[12px] text-bluewood-300 font-bold mb-1">1. 목표</p>
+                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">단순 반복 문의 처리율 향상을 통한 업무 부하 감소</p>
                           </div>
                           <div>
-                            <p className="text-[10px] text-bluewood-300 font-bold mb-1">2. 역할</p>
-                            <p className="text-[10px] text-bluewood-500 leading-relaxed font-medium">서비스 기획 (100%) - 문제 정의, 시나리오 설계</p>
+                            <p className="text-[12px] text-bluewood-300 font-bold mb-1">2. 역할</p>
+                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">서비스 기획 (100%) - 문제 정의, 시나리오 설계</p>
                           </div>
                           <div>
-                            <p className="text-[10px] text-bluewood-300 font-bold mb-1">3. 기간</p>
-                            <p className="text-[10px] text-bluewood-500 leading-relaxed font-medium">2025.03 - 2025.05 (2개월)</p>
+                            <p className="text-[12px] text-bluewood-300 font-bold mb-1">3. 기간</p>
+                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">2025.03 - 2025.05 (2개월)</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex-1 p-4 sm:p-5 bg-surface-50 overflow-auto">
                         <div className="bg-white rounded-xl shadow-sm border border-surface-100 p-4 sm:p-6 mb-4">
-                          <p className="text-[10px] font-extrabold text-primary-500 tracking-wider mb-2">BACKGROUND & PROBLEM</p>
-                          <h3 className="text-[15px] sm:text-[18px] font-extrabold text-bluewood-900 mb-4 sm:mb-5">기존 CS 프로세스 병목 현상 분석</h3>
+                          <p className="text-[12px] font-extrabold text-primary-500 tracking-wider mb-2">BACKGROUND & PROBLEM</p>
+                          <h3 className="text-[17px] sm:text-[20px] font-extrabold text-bluewood-900 mb-4 sm:mb-5">기존 CS 프로세스 병목 현상 분석</h3>
 
                           <div className="flex flex-col gap-4">
                             <div className="flex-1 bg-surface-50 rounded-xl p-4 sm:p-5 border border-surface-100">
-                              <p className="text-[11px] font-bold text-bluewood-500 mb-1">단순 반복 문의가 차지하는 비중</p>
+                              <p className="text-[13px] font-bold text-bluewood-500 mb-1">단순 반복 문의가 차지하는 비중</p>
                               <p className="text-[28px] sm:text-[32px] font-extrabold text-primary-600 mb-3 leading-none">65.0%</p>
-                              <p className="text-[10px] text-bluewood-400 leading-relaxed mb-4">
+                              <p className="text-[12px] text-bluewood-400 leading-relaxed mb-4">
                                 전체 문의의 65%가 배송 조회 등 단순 정보성 문의로 파악되었습니다.
                               </p>
                               <div className="space-y-3">
                                 <div>
-                                  <div className="flex justify-between text-[9px] font-bold text-bluewood-400 mb-1">
+                                  <div className="flex justify-between text-[11px] font-bold text-bluewood-400 mb-1">
                                     <span>수동 처리 비중 (개선 전)</span><span>100%</span>
                                   </div>
                                   <div className="h-4 w-full bg-surface-200 rounded-md overflow-hidden">
@@ -984,7 +984,7 @@ export default function Landing() {
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="flex justify-between text-[9px] font-bold text-bluewood-400 mb-1">
+                                  <div className="flex justify-between text-[11px] font-bold text-bluewood-400 mb-1">
                                     <span>수동 처리 비중 (개선 후)</span><span className="text-primary-600">35.0%</span>
                                   </div>
                                   <div className="h-4 w-full bg-surface-200 rounded-md overflow-hidden relative">
@@ -999,11 +999,11 @@ export default function Landing() {
                         <div className="flex gap-2 overflow-x-auto pb-2">
                           <div className="bg-white border-2 border-primary-200 rounded-lg p-3 min-w-[130px] shadow-sm">
                             <p className="text-[8px] font-bold text-primary-500 uppercase mb-1">Background & Problem</p>
-                            <p className="text-[10px] font-bold text-primary-900 truncate">CS 병목 현상 분석</p>
+                            <p className="text-[12px] font-bold text-primary-900 truncate">CS 병목 현상 분석</p>
                           </div>
                           <div className="bg-white border border-surface-100 rounded-lg p-3 min-w-[130px] opacity-60">
                             <p className="text-[8px] font-bold text-bluewood-300 uppercase mb-1">Analysis & Action</p>
-                            <p className="text-[10px] font-bold text-bluewood-500 truncate">AI 시나리오 설계</p>
+                            <p className="text-[12px] font-bold text-bluewood-500 truncate">AI 시나리오 설계</p>
                           </div>
                         </div>
                       </div>
@@ -1020,18 +1020,18 @@ export default function Landing() {
             <ResponsiveScaleWrapper minWidth={900}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded mb-3 sm:mb-4">타임라인 관리</span>
-                <h3 className="text-[18px] sm:text-[22px] font-extrabold text-bluewood-900 leading-[1.4] mb-2 sm:mb-3" style={{ wordBreak: 'keep-all' }}>
+                  <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[13px] font-bold rounded mb-3 sm:mb-4">타임라인 관리</span>
+                <h3 className="text-[20px] sm:text-[22px] font-extrabold text-bluewood-900 leading-[1.4] mb-2 sm:mb-3" style={{ wordBreak: 'keep-all' }}>
                   모든 경험을 한눈에,<br />
                   <span className="text-primary-500">타임라인으로 관리</span>해요
                 </h3>
-                <p className="text-[12px] sm:text-[13px] text-bluewood-400 leading-relaxed mb-4 sm:mb-6">
+                <p className="text-[14px] sm:text-[15px] text-bluewood-400 leading-relaxed mb-4 sm:mb-6">
                   정리된 경험들을 12개월 타임라인에서 한눈에 확인하고,<br />
                   드래그로 순서를 바꾸거나 기간을 수정할 수 있어요.
                 </p>
                 <div className="space-y-2">
                   {['12개월 Gantt 차트 뷰', '3가지 컬러 테마 선택', '드래그 앤 드롭 정렬'].map((t, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[12px] sm:text-[12.5px] text-bluewood-500">
+                    <div key={i} className="flex items-center gap-2 text-[14px] sm:text-[12.5px] text-bluewood-500">
                       <div className="w-4 h-4 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                         <Check size={10} className="text-indigo-600" />
                       </div>
@@ -1045,17 +1045,17 @@ export default function Landing() {
                 <div className="bg-[#f8f9fa] rounded-2xl border border-gray-200 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden p-4 sm:p-5 md:p-7 relative">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
                     <div>
-                      <h4 className="text-[18px] sm:text-[20px] font-extrabold text-[#1B264F] mb-1 tracking-tight">경험 정리</h4>
-                      <p className="text-[11px] sm:text-[12px] text-gray-400 font-semibold">6개의 경험이 타임라인에 정리되어 있습니다</p>
+                      <h4 className="text-[20px] sm:text-[20px] font-extrabold text-[#1B264F] mb-1 tracking-tight">경험 정리</h4>
+                      <p className="text-[13px] sm:text-[14px] text-gray-400 font-semibold">6개의 경험이 타임라인에 정리되어 있습니다</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[10px] sm:text-[11px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
+                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
                         <ArrowDownUp size={11} /> 정렬 <ChevronDown size={11} />
                       </button>
-                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[10px] sm:text-[11px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
+                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
                         <Calendar size={11} /> 타임라인
                       </button>
-                      <button className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B264F] text-white rounded-lg text-[10px] sm:text-[11px] font-bold flex items-center gap-1 sm:gap-1.5 shadow-sm">
+                      <button className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B264F] text-white rounded-lg text-[12px] sm:text-[13px] font-bold flex items-center gap-1 sm:gap-1.5 shadow-sm">
                         <Plus size={13} /> 새 경험
                       </button>
                     </div>
@@ -1063,10 +1063,10 @@ export default function Landing() {
 
                   <div className="flex justify-between items-center mb-4 sm:mb-6">
                     <div className="flex items-center gap-3">
-                      <button className="px-2.5 sm:px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[10px] sm:text-[11px] font-bold text-gray-600 flex items-center gap-1 shadow-sm">
+                      <button className="px-2.5 sm:px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 shadow-sm">
                         2026년 <ChevronDown size={11} />
                       </button>
-                      <span className="text-[12px] sm:text-[13px] font-extrabold text-[#1B264F]">경험 타임라인</span>
+                      <span className="text-[14px] sm:text-[15px] font-extrabold text-[#1B264F]">경험 타임라인</span>
                     </div>
                     <div className="hidden sm:flex items-center gap-3">
                       <div className="bg-white border border-gray-100 rounded-lg px-2 py-1.5 flex gap-1 shadow-sm">
@@ -1082,7 +1082,7 @@ export default function Landing() {
                     <div className="min-w-[480px]">
                       <div className="flex mb-5 pl-[2%]">
                         {['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'].map(m => (
-                          <div key={m} className="flex-1 text-[10px] sm:text-[11px] text-gray-400 font-bold">{m}</div>
+                          <div key={m} className="flex-1 text-[12px] sm:text-[13px] text-gray-400 font-bold">{m}</div>
                         ))}
                       </div>
                       <div className="absolute top-[48px] bottom-0 left-0 right-0 flex pointer-events-none">
@@ -1111,7 +1111,7 @@ export default function Landing() {
                                 className={`absolute top-0 h-full rounded-[7px] sm:rounded-[8px] flex items-center px-3 sm:px-4 shadow-sm ${themeClasses} cursor-default`}
                                 style={{ left: `${(bar.start / 12) * 100}%`, width: `${(bar.span / 12) * 100}%` }}
                               >
-                                <span className="text-[11px] sm:text-[13px] font-bold tracking-tight truncate">{bar.title}</span>
+                                <span className="text-[13px] sm:text-[15px] font-bold tracking-tight truncate">{bar.title}</span>
                               </div>
                             </div>
                           );
@@ -1131,12 +1131,12 @@ export default function Landing() {
       <section id="feature-portfolio" className="py-16 sm:py-20 md:py-24 bg-[#f8f9fc]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
-            <span className="inline-block px-3 py-1 bg-[#1B264F] text-white text-[11px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 2. 기업 맞춤 포트폴리오</span>
+            <span className="inline-block px-3 py-1 bg-[#1B264F] text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 2. 기업 맞춤 포트폴리오</span>
             <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-bluewood-900 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
               기업을 분석하고,<br />
               <span className="text-[#1B264F]">알맞는 포트폴리오를 자동 생성</span>해요
             </h2>
-            <p className="text-[12px] sm:text-[14px] text-bluewood-400 leading-relaxed">
+            <p className="text-[14px] sm:text-[16px] text-bluewood-400 leading-relaxed">
               We analyze job postings and generate tailored portfolios that match company requirements.
             </p>
           </div>
@@ -1146,14 +1146,14 @@ export default function Landing() {
             <ResponsiveScaleWrapper minWidth={900}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[11px] font-bold rounded mb-4 sm:mb-6">채용공고 분석</span>
+                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">채용공고 분석</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   링크 하나면,<br />
                   <span className="text-primary-600">기업이 원하는 것을<br />알아냅니다</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {['기업·직무 자동 분석', '지원 전략 생성'].map((t, i) => (
-                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[12px] font-bold rounded-full border border-primary-100">{t}</span>
+                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
                   ))}
                 </div>
               </div>
@@ -1163,28 +1163,28 @@ export default function Landing() {
                   <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2 mb-3">
                       <Search size={14} className="text-bluewood-300" />
-                      <p className="text-[12px] sm:text-[13px] font-bold text-bluewood-900">채용공고 분석</p>
+                      <p className="text-[14px] sm:text-[15px] font-bold text-bluewood-900">채용공고 분석</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 bg-surface-50 rounded-lg border border-surface-200 overflow-hidden">
-                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[9px] font-bold rounded shrink-0">자소설</span>
-                        <span className="text-[11px] sm:text-[12px] text-bluewood-500 truncate">https://jasoseol.com/posting/291234</span>
+                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[11px] font-bold rounded shrink-0">자소설</span>
+                        <span className="text-[13px] sm:text-[14px] text-bluewood-500 truncate">https://jasoseol.com/posting/291234</span>
                       </div>
-                      <div className="px-3 sm:px-4 py-2 bg-[#1B264F] text-white rounded-lg text-[11px] sm:text-[12px] font-bold shrink-0">분석하기</div>
+                      <div className="px-3 sm:px-4 py-2 bg-[#1B264F] text-white rounded-lg text-[13px] sm:text-[14px] font-bold shrink-0">분석하기</div>
                     </div>
                   </div>
 
                   <div className="p-4 sm:p-5">
                     <div className="flex items-center gap-3 mb-4 pb-4 border-b border-surface-100">
                       <div>
-                        <p className="text-[13px] sm:text-[14px] font-bold text-bluewood-900">카카오 · UX 디자이너</p>
-                        <p className="text-[10px] sm:text-[11px] text-bluewood-400 mt-0.5">IT/플랫폼 · 경력 1~3년</p>
+                        <p className="text-[15px] sm:text-[16px] font-bold text-bluewood-900">카카오 · UX 디자이너</p>
+                        <p className="text-[12px] sm:text-[13px] text-bluewood-400 mt-0.5">IT/플랫폼 · 경력 1~3년</p>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-4">
                       {['Figma', 'Prototyping', 'User Research', 'Design System', 'Data Analysis', 'Communication'].map((tag, i) => (
-                        <span key={i} className={`px-2 py-1 rounded-md text-[10px] font-semibold ${i < 3 ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-500'}`}>
+                        <span key={i} className={`px-2 py-1 rounded-md text-[12px] font-semibold ${i < 3 ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-500'}`}>
                           {tag}
                         </span>
                       ))}
@@ -1192,7 +1192,7 @@ export default function Landing() {
 
                     <div className="flex items-center gap-1 p-1 bg-surface-50 rounded-lg mb-4 overflow-x-auto">
                       {['기업 분석', '직무 분석', '지원 전략', '산업 트렌드'].map((tab, i) => (
-                        <button key={i} className={`flex-1 min-w-fit py-1.5 px-2 rounded-md text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap ${i === 0 ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400'}`}>
+                        <button key={i} className={`flex-1 min-w-fit py-1.5 px-2 rounded-md text-[12px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${i === 0 ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400'}`}>
                           {tab}
                         </button>
                       ))}
@@ -1207,8 +1207,8 @@ export default function Landing() {
                         <div key={i} className="flex items-start gap-3 p-3 bg-surface-50 rounded-xl">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary-400 mt-1.5 shrink-0" />
                           <div>
-                            <p className="text-[11px] font-bold text-bluewood-700 mb-0.5">{item.label}</p>
-                            <p className="text-[11px] text-bluewood-400 leading-relaxed">{item.value}</p>
+                            <p className="text-[13px] font-bold text-bluewood-700 mb-0.5">{item.label}</p>
+                            <p className="text-[13px] text-bluewood-400 leading-relaxed">{item.value}</p>
                           </div>
                         </div>
                       ))}
@@ -1225,14 +1225,14 @@ export default function Landing() {
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[11px] font-bold rounded mb-4 sm:mb-6">포트폴리오 에디터</span>
+                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">포트폴리오 에디터</span>
                 <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   당신의 경험이,<br />
                   <span className="text-primary-600">기업 맞춤으로<br />자동 완성됩니다</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {['4가지 템플릿', 'PDF · 공유 링크 출력'].map((t, i) => (
-                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[12px] font-bold rounded-full border border-primary-100">{t}</span>
+                    <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
                   ))}
                 </div>
               </div>
@@ -1242,12 +1242,12 @@ export default function Landing() {
                 <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden p-4 sm:p-6 md:p-8">
                   <div className="mb-4 sm:mb-6">
                     <h4 className="text-[22px] sm:text-[28px] font-extrabold text-bluewood-900 mb-1 tracking-tight">XX기업 포트폴리오</h4>
-                    <p className="text-[11px] sm:text-[12px] text-bluewood-400">본 포트폴리오는 PC 환경에 최적화되어 있습니다.</p>
+                    <p className="text-[13px] sm:text-[14px] text-bluewood-400">본 포트폴리오는 PC 환경에 최적화되어 있습니다.</p>
                   </div>
 
                   <div className="flex gap-2 mb-6 sm:mb-8 overflow-x-auto pb-2 border-b border-surface-100">
                     {['교과 활동', '비교과 활동', '기술', '목표와 계획', '가치관'].map((tab, i) => (
-                      <span key={i} className="px-3 sm:px-4 py-1.5 bg-surface-50 text-bluewood-600 text-[11px] sm:text-[12px] font-bold rounded-lg shrink-0 cursor-pointer">
+                      <span key={i} className="px-3 sm:px-4 py-1.5 bg-surface-50 text-bluewood-600 text-[13px] sm:text-[14px] font-bold rounded-lg shrink-0 cursor-pointer">
                         {tab}
                       </span>
                     ))}
@@ -1257,32 +1257,32 @@ export default function Landing() {
 
                     {/* Profile */}
                     <div className="sm:col-span-1 lg:col-span-3 lg:border-r border-surface-100 lg:pr-4">
-                      <p className="text-[10px] font-bold text-bluewood-300 tracking-widest mb-3 border-l-2 border-surface-300 pl-2">PROFILE</p>
+                      <p className="text-[12px] font-bold text-bluewood-300 tracking-widest mb-3 border-l-2 border-surface-300 pl-2">PROFILE</p>
                       <div className="bg-surface-100 rounded-xl aspect-square max-w-[120px] sm:max-w-none mb-4 flex items-center justify-center">
                         <Users size={36} className="text-bluewood-300" />
                       </div>
-                      <h5 className="text-[16px] sm:text-[18px] font-extrabold text-bluewood-900 mb-0.5">김XX</h5>
-                      <p className="text-[11px] text-bluewood-400 mb-4">(KIM XX XXX)</p>
+                      <h5 className="text-[18px] sm:text-[20px] font-extrabold text-bluewood-900 mb-0.5">김XX</h5>
+                      <p className="text-[13px] text-bluewood-400 mb-4">(KIM XX XXX)</p>
 
                       <div className="space-y-2 mb-4 sm:mb-6">
-                        <div className="flex items-center gap-2 text-[11px] text-bluewood-500">
+                        <div className="flex items-center gap-2 text-[13px] text-bluewood-500">
                           <MapPin size={12} /> 경기도 XX시
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-bluewood-500">
+                        <div className="flex items-center gap-2 text-[13px] text-bluewood-500">
                           <Calendar size={12} /> XXXX.XX.XX
                         </div>
                       </div>
 
-                      <p className="text-[12px] font-bold italic text-bluewood-900 mb-3">My Own Values</p>
+                      <p className="text-[14px] font-bold italic text-bluewood-900 mb-3">My Own Values</p>
                       <div className="space-y-2">
-                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[11px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
-                          <span className="text-primary-500 font-extrabold text-[14px] leading-none">+</span> 경험
+                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[13px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
+                          <span className="text-primary-500 font-extrabold text-[16px] leading-none">+</span> 경험
                         </div>
-                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[11px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
-                          <span className="text-purple-500 font-extrabold text-[14px] leading-none">-</span> 추억
+                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[13px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
+                          <span className="text-purple-500 font-extrabold text-[16px] leading-none">-</span> 추억
                         </div>
-                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[11px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
-                          <span className="text-blue-500 font-extrabold text-[14px] leading-none">×</span> 리더십
+                        <div className="px-3 py-2 border border-surface-100 rounded-lg text-[13px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
+                          <span className="text-blue-500 font-extrabold text-[16px] leading-none">×</span> 리더십
                         </div>
                       </div>
                     </div>
@@ -1290,19 +1290,19 @@ export default function Landing() {
                     {/* Middle */}
                     <div className="sm:col-span-1 lg:col-span-4 space-y-6 sm:space-y-8">
                       <div>
-                        <p className="text-[13px] sm:text-[14px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
                           Education
                         </p>
-                        <p className="text-[12px] sm:text-[13px] font-bold text-bluewood-800 mb-1">XX대학교</p>
-                        <p className="text-[11px] text-bluewood-400 mb-1">2021.03 - 2027.03</p>
-                        <p className="text-[11px] text-bluewood-500">재학 경영학과</p>
+                        <p className="text-[14px] sm:text-[15px] font-bold text-bluewood-800 mb-1">XX대학교</p>
+                        <p className="text-[13px] text-bluewood-400 mb-1">2021.03 - 2027.03</p>
+                        <p className="text-[13px] text-bluewood-500">재학 경영학과</p>
                       </div>
 
                       <div>
-                        <p className="text-[13px] sm:text-[14px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
                           Interest
                         </p>
-                        <ul className="text-[12px] text-bluewood-600 space-y-2 pl-2">
+                        <ul className="text-[14px] text-bluewood-600 space-y-2 pl-2">
                           <li className="flex items-center gap-2 before:content-[''] before:w-1 before:h-1 before:bg-bluewood-400 before:rounded-full">독서</li>
                           <li className="flex items-center gap-2 before:content-[''] before:w-1 before:h-1 before:bg-bluewood-400 before:rounded-full">코딩</li>
                           <li className="flex items-center gap-2 before:content-[''] before:w-1 before:h-1 before:bg-bluewood-400 before:rounded-full">여행</li>
@@ -1310,10 +1310,10 @@ export default function Landing() {
                       </div>
 
                       <div>
-                        <p className="text-[13px] sm:text-[14px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
                           Contact
                         </p>
-                        <div className="space-y-2.5 text-[11px] text-bluewood-600">
+                        <div className="space-y-2.5 text-[13px] text-bluewood-600">
                           <div className="flex items-center gap-2"><Phone size={12} className="text-bluewood-400 shrink-0" /> 010-XXXX-XXXX</div>
                           <div className="flex items-center gap-2"><Mail size={12} className="text-bluewood-400 shrink-0" /> XXXX@naver.com</div>
                           <div className="flex items-center gap-2 min-w-0"><LinkIcon size={12} className="text-bluewood-400 shrink-0" /><span className="truncate">https://linkedin.com/in</span></div>
@@ -1325,7 +1325,7 @@ export default function Landing() {
                     {/* Right */}
                     <div className="sm:col-span-2 lg:col-span-5 space-y-6 sm:space-y-8 bg-surface-50/50 p-4 sm:p-5 rounded-xl border border-surface-100">
                       <div>
-                        <p className="text-[12px] sm:text-[13px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[14px] sm:text-[15px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
                           Scholarship and Awards
                         </p>
                         <div className="space-y-3">
@@ -1334,7 +1334,7 @@ export default function Landing() {
                             { date: '2025.05.11', title: 'ESG 캠페인 기획 장려상' },
                             { date: '2026.02.03', title: 'XX 영상 제작 최우수상' },
                           ].map((item, i) => (
-                            <div key={i} className="flex gap-2 items-start text-[11px]">
+                            <div key={i} className="flex gap-2 items-start text-[13px]">
                               <span className="text-primary-500 font-bold shrink-0">{item.date}</span>
                               <span className="text-bluewood-600 font-medium leading-tight">{item.title}</span>
                             </div>
@@ -1343,7 +1343,7 @@ export default function Landing() {
                       </div>
 
                       <div>
-                        <p className="text-[12px] sm:text-[13px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[14px] sm:text-[15px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
                           Experience
                         </p>
                         <div className="space-y-3">
@@ -1354,12 +1354,12 @@ export default function Landing() {
                             '대규모 트래픽 처리를 위한 MSA 전환 프로젝트',
                             'AI 기반 개인화 추천 알고리즘 고도화',
                           ].map((title, i) => (
-                            <div key={i} className="flex gap-2 items-start text-[11px]">
+                            <div key={i} className="flex gap-2 items-start text-[13px]">
                               <span className="text-bluewood-500 font-bold shrink-0 underline decoration-surface-300 underline-offset-2">2026-04</span>
                               <span className="text-bluewood-600 font-medium line-clamp-1">{title}</span>
                             </div>
                           ))}
-                          <p className="text-[10px] text-bluewood-400 mt-2 pt-2 border-t border-surface-200">외 2건 — 아래 갤러리에서 확인</p>
+                          <p className="text-[12px] text-bluewood-400 mt-2 pt-2 border-t border-surface-200">외 2건 — 아래 갤러리에서 확인</p>
                         </div>
                       </div>
                     </div>
@@ -1377,7 +1377,7 @@ export default function Landing() {
       <section className="py-20 sm:py-24 md:py-32 bg-[#f8f9fa]">
         <div className="max-w-[900px] mx-auto px-4 sm:px-8 flex flex-col md:flex-row gap-8 sm:gap-12 md:gap-20 lg:gap-32">
           <div className="md:w-[200px] lg:w-[240px] shrink-0 pt-2">
-            <p className="text-[11px] tracking-[0.15em] text-gray-400 font-bold mb-3 sm:mb-4">FAQ</p>
+            <p className="text-[13px] tracking-[0.15em] text-gray-400 font-bold mb-3 sm:mb-4">FAQ</p>
             <h2 className="text-[26px] sm:text-[32px] md:text-[36px] font-extrabold text-gray-900 leading-[1.3] tracking-tight">
               궁금하신 게<br />있나요?
             </h2>
@@ -1403,7 +1403,7 @@ export default function Landing() {
                     onClick={() => toggleFaq(i)}
                     className="w-full flex items-center justify-between py-5 sm:py-6 text-left focus:outline-none group"
                   >
-                    <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 group-hover:text-[#4F46E5] transition-colors pr-4">{faq.q}</span>
+                    <span className="text-[16px] sm:text-[17px] font-bold text-gray-900 group-hover:text-[#4F46E5] transition-colors pr-4">{faq.q}</span>
                     <span
                       className="text-gray-400 text-[22px] sm:text-[24px] font-light leading-none shrink-0 transition-transform duration-300 inline-block"
                       style={{ transform: openFaqs.includes(i) ? 'rotate(45deg)' : 'none' }}
@@ -1415,7 +1415,7 @@ export default function Landing() {
                     className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaqs.includes(i) ? 'max-h-40 pb-5 sm:pb-6 opacity-100' : 'max-h-0 opacity-0'
                       }`}
                   >
-                    <p className="text-[13px] sm:text-[14px] text-gray-500 leading-relaxed pr-4 sm:pr-8">
+                    <p className="text-[15px] sm:text-[16px] text-gray-500 leading-relaxed pr-4 sm:pr-8">
                       {faq.a}
                     </p>
                   </div>
@@ -1434,11 +1434,11 @@ export default function Landing() {
           지금 예약하면,<br />
           <span className="text-[#4F46E5]">3건 생성</span> 무료 쿠폰을 드려요.
         </h2>
-        <p className="text-[13px] sm:text-[15px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
+        <p className="text-[15px] sm:text-[17px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
           이메일을 등록하시면 정식 출시 알림과 함께<br />
           포트폴리오 <strong className="text-gray-700">3건을 무료로 생성</strong>할 수 있는 쿠폰을 보내드립니다.
         </p>
-        <p className="text-[11px] sm:text-[12px] text-gray-400 mb-8 sm:mb-10 font-medium">
+        <p className="text-[13px] sm:text-[14px] text-gray-400 mb-8 sm:mb-10 font-medium">
           선착순 한정 · 평균 제작 시간 12분
         </p>
 
@@ -1450,13 +1450,13 @@ export default function Landing() {
               onChange={(e) => { setWaitlistEmail(e.target.value); if (waitlistStatus.type !== 'idle') setWaitlistStatus({ type: 'idle', message: '' }); }}
               onKeyDown={(e) => e.key === 'Enter' && handleWaitlistSubmit()}
               placeholder="이메일 주소를 입력해주세요"
-              className="flex-1 px-4 sm:px-5 py-3.5 sm:py-4 bg-[#f8f9fa] border border-gray-200 rounded-xl text-[13px] sm:text-[14px] font-medium focus:outline-none focus:border-indigo-300 transition-all placeholder:text-gray-400 disabled:opacity-50"
+              className="flex-1 px-4 sm:px-5 py-3.5 sm:py-4 bg-[#f8f9fa] border border-gray-200 rounded-xl text-[15px] sm:text-[16px] font-medium focus:outline-none focus:border-indigo-300 transition-all placeholder:text-gray-400 disabled:opacity-50"
               disabled={waitlistStatus.type === 'loading' || waitlistStatus.type === 'success'}
             />
             <button
               onClick={handleWaitlistSubmit}
               disabled={waitlistStatus.type === 'loading' || !waitlistEmail || waitlistStatus.type === 'success'}
-              className="bg-indigo-600 text-white px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl text-[13px] sm:text-[14px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+              className="bg-indigo-600 text-white px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
             >
               {waitlistStatus.type === 'loading' ? '등록 중...' : waitlistStatus.type === 'success' ? (
                 <><Check size={14} /> 예약 완료</>
@@ -1464,24 +1464,24 @@ export default function Landing() {
             </button>
           </div>
           {waitlistStatus.message && (
-            <p className={`mt-3 text-[13px] font-bold ${waitlistStatus.type === 'success' ? 'text-indigo-600' : 'text-red-500'}`}>
+            <p className={`mt-3 text-[15px] font-bold ${waitlistStatus.type === 'success' ? 'text-indigo-600' : 'text-red-500'}`}>
               {waitlistStatus.message}
             </p>
           )}
 
           <div className="mt-6 flex items-center gap-3 w-full">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[11px] sm:text-[12px] text-gray-400 font-medium">또는</span>
+            <span className="text-[13px] sm:text-[14px] text-gray-400 font-medium">또는</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
           <button
             onClick={() => navigate('/login')}
-            className="mt-4 w-full border-2 border-indigo-600 text-indigo-600 px-6 py-3.5 sm:py-4 rounded-xl text-[13px] sm:text-[14px] font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+            className="mt-4 w-full border-2 border-indigo-600 text-indigo-600 px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
           >
             바로 체험해보기
           </button>
-          <p className="mt-2 text-[11px] sm:text-[12px] text-gray-400 font-medium">베타 테스터로 지금 바로 이용할 수 있어요</p>
+          <p className="mt-2 text-[13px] sm:text-[14px] text-gray-400 font-medium">베타 테스터로 지금 바로 이용할 수 있어요</p>
         </div>
       </section>
 
@@ -1490,31 +1490,31 @@ export default function Landing() {
         <div className="max-w-[1140px] mx-auto px-4 sm:px-6 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-10 sm:mb-12">
             <div>
-              <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">서비스</h4>
-              <ul className="space-y-2 sm:space-y-2.5 text-[12px] sm:text-[13px] text-bluewood-500">
+              <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">서비스</h4>
+              <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">경험 정리</a></li>
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">포트폴리오</a></li>
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">AI 분석</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">지원</h4>
-              <ul className="space-y-2 sm:space-y-2.5 text-[12px] sm:text-[13px] text-bluewood-500">
+              <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">지원</h4>
+              <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">이용 가이드</a></li>
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">자주 묻는 질문</a></li>
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">문의하기</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">법적 고지</h4>
-              <ul className="space-y-2 sm:space-y-2.5 text-[12px] sm:text-[13px] text-bluewood-500">
+              <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">법적 고지</h4>
+              <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">이용약관</a></li>
                 <li><a href="#" className="hover:text-bluewood-900 transition-colors">개인정보처리방침</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">연락처</h4>
-              <ul className="space-y-2 sm:space-y-2.5 text-[12px] sm:text-[13px] text-bluewood-500">
+              <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">연락처</h4>
+              <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li>이메일: gudrbs14@naver.com</li>
                 <li>운영시간: 평일 09:00 – 18:00</li>
               </ul>
@@ -1524,9 +1524,9 @@ export default function Landing() {
           <div className="border-t border-surface-200 pt-5 sm:pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="FitPoly" className="h-5 w-auto opacity-40" />
-              <span className="text-[13px] font-bold text-bluewood-300">FitPoly</span>
+              <span className="text-[15px] font-bold text-bluewood-300">FitPoly</span>
             </div>
-            <p className="text-[11px] text-bluewood-300 text-center sm:text-right">COPYRIGHT © 2025 FitPoly. ALL RIGHTS RESERVED.</p>
+            <p className="text-[13px] text-bluewood-300 text-center sm:text-right">COPYRIGHT © 2025 FitPoly. ALL RIGHTS RESERVED.</p>
           </div>
         </div>
       </footer>

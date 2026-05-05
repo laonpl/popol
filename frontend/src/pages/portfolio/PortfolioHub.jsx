@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Plus, FileText, Trash2, Edit, Download, Camera, Search, Star, Clock, ExternalLink, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
@@ -11,23 +11,18 @@ import OnboardingOverlay, { useOnboarding } from '../../components/OnboardingOve
 
 const PORTFOLIO_ONBOARDING = [
   {
+    // "새 포트폴리오" 버튼 바로 아래에 위치, 위 화살표로 버튼 가리킴
     message: '기업별 맞춤 포트폴리오',
     sub: '지원 기업마다 다른 포트폴리오를 만들어 합격률을 높여보세요',
     arrow: 'up',
-    // ExperienceHub와 동일한 공식 (새 포트폴리오 버튼 위치)
-    style: { top: '150px', right: 'max(3px, calc(50vw - 649px))' },
+    style: { top: '162px', right: '48px' },
   },
   {
-    message: 'AI 자동완성',
-    sub: '등록한 경험을 AI가 분석해 포트폴리오 내용을 자동으로 채워줘요',
+    // 목록 위쪽 중앙-좌에 위치, 아래 화살표로 목록 가리킴
+    message: '완료된 포트폴리오는 여기에 저장돼요',
+    sub: '만든 포트폴리오를 언제든지 꺼내 수정하거나 내보낼 수 있어요',
     arrow: 'down',
-    style: { top: '240px', left: '50%', transform: 'translateX(-50%)' },
-  },
-  {
-    message: 'PDF로 바로 내보내기',
-    sub: '완성된 포트폴리오를 PDF로 변환해 바로 제출할 수 있어요',
-    arrow: 'right',
-    style: { bottom: '28%', left: '24px' },
+    style: { top: '162px', left: 'max(220px, calc(50% - 240px))' },
   },
 ];
 
@@ -200,7 +195,7 @@ export default function PortfolioHub() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-emerald-800">"{exportConfig.title}" 경험을 포트폴리오에 추가합니다</p>
-            <p className="text-[12px] text-emerald-600 mt-0.5">아래에서 포트폴리오를 선택하면 {exportConfig.sectionOrder?.length || 0}개 섹션이 자동으로 추가됩니다.</p>
+            <p className="text-[14px] text-emerald-600 mt-0.5">아래에서 포트폴리오를 선택하면 {exportConfig.sectionOrder?.length || 0}개 섹션이 자동으로 추가됩니다.</p>
           </div>
           <button onClick={() => { setExportConfig(null); window.history.replaceState({}, '', window.location.pathname); }}
             className="text-emerald-400 hover:text-emerald-600 transition-colors text-xs px-2 py-1">
@@ -335,7 +330,7 @@ function PositionGroup({ positionKey, items, isLast, exportMode, onSelect, onDet
           <span className="font-medium text-gray-800 text-sm">
             {positionKey === '미설정' ? '회사 미설정' : positionKey}
           </span>
-          <span className="ml-2 text-[12px] text-gray-400">{items.length}</span>
+          <span className="ml-2 text-[14px] text-gray-400">{items.length}</span>
         </div>
 
         {/* 미리보기 썸네일 스택 */}
@@ -352,7 +347,7 @@ function PositionGroup({ positionKey, items, isLast, exportMode, onSelect, onDet
             </div>
           ))}
           {items.length > 3 && (
-            <div className="w-6 h-6 rounded-full border border-white bg-surface-200 flex items-center justify-center text-[9px] font-bold text-gray-500 flex-shrink-0">
+            <div className="w-6 h-6 rounded-full border border-white bg-surface-200 flex items-center justify-center text-[11px] font-bold text-gray-500 flex-shrink-0">
               +{items.length - 3}
             </div>
           )}
@@ -496,7 +491,7 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
         {/* 사진 업로드 — 호버시 노출 */}
         <button
           onClick={e => { e.stopPropagation(); handleThumbnailClick(); }}
-          className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-black/25 backdrop-blur-sm hover:bg-black/40 text-white/90 text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-all"
+          className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-black/25 backdrop-blur-sm hover:bg-black/40 text-white/90 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-all"
         >
           {uploading
             ? <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
@@ -507,12 +502,12 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
         {/* 하단 오버레이: 제목 + 열기 버튼 */}
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-3 px-4 pb-4 pt-8">
           <div className="min-w-0">
-            <p className="text-white font-bold text-[15px] leading-tight line-clamp-1 drop-shadow">{displayTitle}</p>
-            <p className="text-white/65 text-[11px] mt-0.5 truncate">{subtitle}</p>
+            <p className="text-white font-bold text-[17px] leading-tight line-clamp-1 drop-shadow">{displayTitle}</p>
+            <p className="text-white/65 text-[13px] mt-0.5 truncate">{subtitle}</p>
           </div>
           <button
             onClick={e => { e.stopPropagation(); handleOpen(); }}
-            className="flex-shrink-0 px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[12px] font-semibold rounded-full hover:bg-white/30 transition-all shadow-sm"
+            className="flex-shrink-0 px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[14px] font-semibold rounded-full hover:bg-white/30 transition-all shadow-sm"
           >
             {exportMode ? '추가' : '열기'}
           </button>
@@ -525,8 +520,8 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
       {expanded && (
         <div className="px-5 pt-5 pb-3">
           {/* 제목 + 작성자 */}
-          <h3 className="font-bold text-gray-900 text-[15px] leading-snug">{displayTitle}</h3>
-          <p className="text-[11px] text-gray-400 mt-1">
+          <h3 className="font-bold text-gray-900 text-[17px] leading-snug">{displayTitle}</h3>
+          <p className="text-[13px] text-gray-400 mt-1">
             by {user?.displayName || '사용자'}
             {date && <span> &middot; {date}</span>}
           </p>
@@ -535,20 +530,20 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
           <div className="flex items-start gap-6 mt-4">
             <div>
               <p className="text-sm font-bold text-gray-900">{sectionCount || '-'}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">섹션</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">섹션</p>
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">{s.label}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">상태</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">상태</p>
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900 truncate max-w-[80px]">{targetCompany || '-'}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">지원사</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">지원사</p>
             </div>
           </div>
 
           {/* 설명 */}
-          <p className="text-[12px] text-gray-500 leading-relaxed mt-4">{descText}</p>
+          <p className="text-[14px] text-gray-500 leading-relaxed mt-4">{descText}</p>
 
           {/* 액션 버튼 */}
           {!exportMode && (
@@ -556,19 +551,19 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
               <Link
                 to={`/app/portfolio/edit-notion/${id}`}
                 onClick={e => e.stopPropagation()}
-                className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-[14px] text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
               >
                 <Edit size={13} /> 편집
               </Link>
               <button
                 onClick={e => { e.stopPropagation(); onExport(); }}
-                className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-[14px] text-gray-500 hover:bg-surface-100 rounded-lg transition-colors"
               >
                 <Download size={13} /> 내보내기
               </button>
               <button
                 onClick={e => { e.stopPropagation(); onDelete(); }}
-                className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-red-400 hover:bg-red-50 rounded-lg transition-colors ml-auto"
+                className="flex items-center gap-1 px-3 py-1.5 text-[14px] text-red-400 hover:bg-red-50 rounded-lg transition-colors ml-auto"
               >
                 <Trash2 size={13} /> 삭제
               </button>

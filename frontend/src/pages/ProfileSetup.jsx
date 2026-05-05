@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, MapPin, Calendar, GraduationCap, Phone, Mail, Globe,
-  Code, Wrench, BookOpen, Check, X, Plus, Loader2, Search
+  Code, Wrench, BookOpen, Check, X, Plus, Loader2, Search, Lock, Eye, EyeOff
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
@@ -25,8 +25,37 @@ const PROFICIENCY_LEVELS = [
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
-  const { user, profile, saveProfile } = useAuthStore();
+  const { user, profile, saveProfile, changePassword } = useAuthStore();
   const [saving, setSaving] = useState(false);
+
+  // 비밀번호 변경
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const isEmailUser = user?.providerData?.[0]?.providerId === 'password';
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!pwForm.current) { toast.error('현재 비밀번호를 입력해주세요'); return; }
+    if (pwForm.next.length < 6) { toast.error('새 비밀번호는 6자 이상이어야 합니다'); return; }
+    if (pwForm.next !== pwForm.confirm) { toast.error('비밀번호가 일치하지 않습니다'); return; }
+    setPwSaving(true);
+    try {
+      await changePassword(pwForm.current, pwForm.next);
+      toast.success('비밀번호가 변경됐습니다');
+      setPwForm({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        toast.error('현재 비밀번호가 올바르지 않습니다');
+      } else if (err.message === 'no-email') {
+        toast.error('소셜 로그인 계정은 비밀번호를 변경할 수 없습니다');
+      } else {
+        toast.error('비밀번호 변경에 실패했습니다');
+      }
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   const getSkipKey = () => user?.uid ? `profile-setup-skipped:${user.uid}` : null;
   const markProfileSetupSkipped = () => {
@@ -248,8 +277,8 @@ export default function ProfileSetup() {
 
     return (
       <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-2">
-          <Icon size={13} /> {label} <span className="text-gray-300">(선택)</span>
+        <label className="flex items-center gap-1.5 text-[19px] font-semibold text-bluewood-500 mb-2 uppercase tracking-wide">
+          <Icon size={13} /> {label} <span className="text-bluewood-200 font-normal normal-case tracking-normal">(\uc120\ud0dd)</span>
         </label>
 
         {selectedItems.length > 0 && (
@@ -262,7 +291,7 @@ export default function ProfileSetup() {
                   <button
                     type="button"
                     onClick={() => setShowProficiency(showProficiency === name ? null : name)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-xs font-medium border border-primary-200 hover:bg-primary-100 transition-colors"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-medium border border-surface-200 text-bluewood-700 rounded-md hover:bg-surface-50 transition-colors"
                   >
                     {name}
                     {prof > 0 && (
@@ -281,14 +310,14 @@ export default function ProfileSetup() {
                     </span>
                   </button>
                   {showProficiency === name && (
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-surface-200 rounded-xl shadow-lg p-2 min-w-[160px]">
-                      <p className="text-[10px] text-gray-400 mb-1.5 px-1">수준 설정</p>
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-surface-100 shadow-md p-1.5 min-w-[140px]">
+                      <p className="text-[20px] text-bluewood-300 mb-1.5 px-1">수준 설정</p>
                       {PROFICIENCY_LEVELS.map(lv => (
                         <button
                           key={lv.value}
                           type="button"
                           onClick={() => setProficiency(name, lv.value)}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:bg-surface-50 transition-colors ${prof === lv.value ? 'bg-primary-50 text-primary-700' : 'text-gray-600'}`}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11.5px] hover:bg-surface-50 transition-colors ${prof === lv.value ? 'bg-bluewood-50 text-bluewood-800 font-semibold' : 'text-bluewood-500'}`}
                         >
                           <span className="flex gap-0.5">
                             {[1,2,3,4,5].map(l => (
@@ -316,8 +345,8 @@ export default function ProfileSetup() {
                 onClick={() => toggleSkill(name)}
                 className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
                   isSelected
-                    ? 'bg-primary-100 text-primary-700 border-primary-300'
-                    : 'bg-surface-50 text-gray-500 border-surface-200 hover:border-primary-300 hover:text-primary-600'
+                    ? 'bg-bluewood-900 text-white border-bluewood-900'
+                    : 'bg-white text-bluewood-400 border-surface-200 hover:border-bluewood-300 hover:text-bluewood-600'
                 }`}
               >
                 {isSelected && <Check size={10} className="inline mr-0.5 -mt-0.5" />}
@@ -332,13 +361,13 @@ export default function ProfileSetup() {
             value={customInput}
             onChange={e => setCustomInput(e.target.value)}
             placeholder={placeholder}
-            className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200"
+            className="flex-1 border-b border-surface-200 bg-transparent py-2 text-[19px] outline-none focus:border-bluewood-400 placeholder-bluewood-200 transition-colors text-bluewood-800"
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
           />
           <button
             type="button"
             onClick={addCustom}
-            className="px-3 py-2 bg-surface-100 text-gray-500 rounded-lg text-sm hover:bg-surface-200 transition-colors"
+            className="px-3 py-2 text-[20px] text-bluewood-500 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
           >
             추가
           </button>
@@ -348,29 +377,31 @@ export default function ProfileSetup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 py-10 px-4">
+    <div className="min-h-screen bg-white py-16 px-6">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-bluewood-900 mb-2">기초 정보 설정</h1>
-          <p className="text-sm text-gray-500">
-            포트폴리오 작성 시 자동으로 채워지는 기본 정보입니다.<br />
-            <span className="text-red-400">*</span> 표시는 필수 항목입니다.
-          </p>
-          <div className="mt-5 inline-flex flex-col items-center gap-2">
-            <p className="text-[12px] text-gray-400 font-medium">지금 당장 하지 않아도 나중에 추가할 수 있어요</p>
+        {/* 헤더 */}
+        <div className="mb-12 pb-8 border-b border-surface-100">
+          <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-200 mb-4">Profile Setup</p>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">기초 정보 설정</h1>
+              <p className="mt-1.5 text-[19px] text-bluewood-400">
+                포트폴리오 작성 시 자동으로 채워지는 기본 정보입니다. <span className="text-red-400">*</span>는 필수 항목입니다.
+              </p>
+            </div>
             <button
               onClick={() => {
                 markProfileSetupSkipped();
                 navigate('/app');
               }}
-              className="text-[13px] text-gray-400 font-semibold underline underline-offset-2 hover:text-gray-600 transition-colors"
+              className="flex-shrink-0 text-[20px] text-bluewood-300 hover:text-bluewood-600 transition-colors underline underline-offset-2"
             >
               건너뛰기
             </button>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-0">
           <Section title="기본 정보" icon={User}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="이름 (한글)" required value={form.nameKo}
@@ -380,29 +411,29 @@ export default function ProfileSetup() {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-gray-500">
+                  <label className="block text-[19px] font-semibold text-bluewood-500">
                     거주지 <span className="text-red-400">*</span>
                   </label>
-                  <span className={`text-[10px] tabular-nums ${(form.location || '').length >= 100 ? 'text-red-400 font-semibold' : (form.location || '').length >= 85 ? 'text-amber-500' : 'text-gray-300'}`}>
+                  <span className={`text-[20px] tabular-nums ${(form.location || '').length >= 100 ? 'text-red-400 font-semibold' : (form.location || '').length >= 85 ? 'text-amber-500' : 'text-gray-300'}`}>
                     {(form.location || '').length}/100
                   </span>
                 </div>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <MapPin size={13} className="absolute left-0 top-1/2 -translate-y-1/2 text-bluewood-300" />
                     <input
                       type="text"
                       value={form.location || ''}
                       onChange={e => update('location', e.target.value)}
                       placeholder="주소 검색을 눌러주세요"
                       maxLength={100}
-                      className="w-full pl-9 pr-3 py-2 text-sm border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200"
+                      className="w-full pl-5 pr-0 py-2 text-[19px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 placeholder-bluewood-200 transition-colors text-bluewood-800"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={openAddressSearch}
-                    className="flex items-center gap-1 px-3 py-2 bg-primary-50 text-primary-600 border border-primary-200 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors whitespace-nowrap"
+                    className="flex items-center gap-1 px-3 py-2 border border-surface-200 text-bluewood-600 rounded-lg text-xs font-medium hover:bg-surface-50 transition-colors whitespace-nowrap"
                   >
                     <Search size={13} /> 주소 검색
                   </button>
@@ -410,27 +441,55 @@ export default function ProfileSetup() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
+                <label className="block text-[19px] font-semibold text-bluewood-500 mb-1">
                   생년월일 <span className="text-red-400">*</span>
                 </label>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  <input
-                    type="date"
-                    value={form.birthDate ? form.birthDate.replace(/\./g, '-') : ''}
+                <div className="flex gap-1.5">
+                  <select
+                    value={form.birthDate ? form.birthDate.split('.')[0] : ''}
                     onChange={e => {
-                      const val = e.target.value;
-                      if (val) {
-                        const [y, m, d] = val.split('-');
-                        update('birthDate', `${y}.${m}.${d}`);
-                      } else {
-                        update('birthDate', '');
-                      }
+                      const y = e.target.value;
+                      const parts = (form.birthDate || '').split('.');
+                      const m = parts[1] || '01'; const d = parts[2] || '01';
+                      update('birthDate', y ? `${y}.${m}.${d}` : '');
                     }}
-                    max={new Date().toISOString().split('T')[0]}
-                    min="1950-01-01"
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200"
-                  />
+                    className="flex-[3] px-0 py-2 text-[19px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors appearance-none cursor-pointer text-bluewood-800"
+                  >
+                    <option value="">연도</option>
+                    {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                      <option key={y} value={String(y)}>{y}년</option>
+                    ))}
+                  </select>
+                  <select
+                    value={form.birthDate ? (form.birthDate.split('.')[1] || '') : ''}
+                    onChange={e => {
+                      const m = e.target.value;
+                      const parts = (form.birthDate || '').split('.');
+                      const y = parts[0] || ''; const d = parts[2] || '01';
+                      update('birthDate', y && m ? `${y}.${m}.${d}` : '');
+                    }}
+                    className="flex-[2] px-0 py-2 text-[19px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors appearance-none cursor-pointer text-bluewood-800"
+                  >
+                    <option value="">월</option>
+                    {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+                      <option key={m} value={m}>{i+1}월</option>
+                    ))}
+                  </select>
+                  <select
+                    value={form.birthDate ? (form.birthDate.split('.')[2] || '') : ''}
+                    onChange={e => {
+                      const d = e.target.value;
+                      const parts = (form.birthDate || '').split('.');
+                      const y = parts[0] || ''; const m = parts[1] || '01';
+                      update('birthDate', y && m ? `${y}.${m}.${d || '01'}` : '');
+                    }}
+                    className="flex-[2] px-0 py-2 text-[19px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors appearance-none cursor-pointer text-bluewood-800"
+                  >
+                    <option value="">일</option>
+                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                      <option key={d} value={d}>{parseInt(d)}일</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -444,7 +503,7 @@ export default function ProfileSetup() {
           <Section title="학력" icon={GraduationCap} required>
             <div className="space-y-4">
               {form.education.map((edu, i) => (
-                <div key={i} className="relative p-4 bg-surface-50 rounded-xl border border-surface-100">
+                <div key={i} className="relative py-4 border-b border-surface-100 last:border-b-0">
                   {form.education.length > 1 && (
                     <button type="button" onClick={() => removeEducation(i)}
                       className="absolute top-3 right-3 p-1 text-gray-300 hover:text-red-400">
@@ -457,11 +516,11 @@ export default function ProfileSetup() {
                     <Field label="전공" value={edu.major}
                       onChange={v => updateEducation(i, 'major', v)} placeholder="컴퓨터공학과" small maxLength={50} />
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">학위/과정</label>
+                      <label className="block text-[19px] font-semibold text-bluewood-500 mb-1">학위/과정</label>
                       <select
                         value={edu.degree || ''}
                         onChange={e => updateEducation(i, 'degree', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 bg-white"
+                        className="w-full px-0 py-1.5 text-[20px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors appearance-none cursor-pointer text-bluewood-800"
                       >
                         <option value="">선택해주세요</option>
                         {DEGREE_OPTIONS.map(opt => (
@@ -475,7 +534,7 @@ export default function ProfileSetup() {
                 </div>
               ))}
               <button type="button" onClick={addEducation}
-                className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+                className="flex items-center gap-1.5 px-0 py-2 text-[20px] text-bluewood-400 hover:text-bluewood-700 transition-colors">
                 <Plus size={13} /> 학력 추가
               </button>
             </div>
@@ -484,10 +543,10 @@ export default function ProfileSetup() {
           <Section title="어학 성적" icon={Globe} optional>
             <div className="space-y-3">
               {form.languageScores.map((lang, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-surface-50 rounded-xl">
+                <div key={i} className="flex items-center gap-3 py-3 border-b border-surface-100">
                   <div className="grid grid-cols-3 gap-3 flex-1">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">시험명</label>
+                      <label className="block text-[19px] font-semibold text-bluewood-500 mb-1">시험명</label>
                       <select
                         value={LANGUAGE_TEST_OPTIONS.includes(lang.name) ? lang.name : (lang.name ? '__custom__' : '')}
                         onChange={e => {
@@ -497,7 +556,7 @@ export default function ProfileSetup() {
                             updateLang(i, 'name', e.target.value);
                           }
                         }}
-                        className="w-full px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 bg-white"
+                        className="w-full px-0 py-1.5 text-[20px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors appearance-none cursor-pointer text-bluewood-800"
                       >
                         <option value="">선택</option>
                         {LANGUAGE_TEST_OPTIONS.map(opt => (
@@ -512,9 +571,9 @@ export default function ProfileSetup() {
                             onChange={e => updateLang(i, 'name', e.target.value)}
                             placeholder="시험명 직접 입력"
                             maxLength={30}
-                            className="w-full px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 pr-10"
+                            className="w-full px-0 py-1.5 text-[20px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors pr-8 text-bluewood-800"
                           />
-                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] tabular-nums pointer-events-none ${lang.name.length >= 30 ? 'text-red-400 font-semibold' : lang.name.length >= 26 ? 'text-amber-500' : 'text-gray-300'}`}>
+                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[20px] tabular-nums pointer-events-none ${lang.name.length >= 30 ? 'text-red-400 font-semibold' : lang.name.length >= 26 ? 'text-amber-500' : 'text-gray-300'}`}>
                             {lang.name.length}/30
                           </span>
                         </div>
@@ -523,7 +582,7 @@ export default function ProfileSetup() {
                     <Field label="점수/등급" value={lang.score}
                       onChange={v => updateLang(i, 'score', v)} placeholder="900" small maxLength={20} />
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">취득일</label>
+                      <label className="block text-[19px] font-semibold text-bluewood-500 mb-1">취득일</label>
                       <input
                         type="month"
                         value={lang.date ? lang.date.replace(/\./g, '-').replace(/-$/, '') : ''}
@@ -536,7 +595,7 @@ export default function ProfileSetup() {
                             updateLang(i, 'date', '');
                           }
                         }}
-                        className="w-full px-3 py-1.5 text-xs border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200"
+                        className="w-full px-0 py-1.5 text-[20px] border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 transition-colors text-bluewood-800"
                       />
                     </div>
                   </div>
@@ -547,7 +606,7 @@ export default function ProfileSetup() {
                 </div>
               ))}
               <button type="button" onClick={addLang}
-                className="flex items-center gap-1.5 px-4 py-2 border border-dashed border-surface-300 rounded-xl text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-all">
+                className="flex items-center gap-1.5 px-0 py-2 text-[20px] text-bluewood-400 hover:text-bluewood-700 transition-colors">
                 <Plus size={13} /> 어학 성적 추가
               </button>
             </div>
@@ -566,10 +625,59 @@ export default function ProfileSetup() {
             </div>
           </Section>
 
+          {/* 비밀번호 변경 — 이메일 가입 유저만 표시 */}
+          {isEmailUser && (
+            <Section title="비밀번호 변경" icon={Lock}>
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div className="relative">
+                  <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={pwForm.current}
+                    onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
+                    placeholder="현재 비밀번호"
+                    className="w-full pl-9 pr-10 py-2.5 border border-surface-200 rounded-lg text-[15px] outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
+                  />
+                  <button type="button" onClick={() => setShowPw(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-bluewood-300 hover:text-bluewood-600">
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={pwForm.next}
+                    onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
+                    placeholder="새 비밀번호 (6자 이상)"
+                    className="w-full pl-9 pr-4 py-2.5 border border-surface-200 rounded-lg text-[15px] outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
+                  />
+                </div>
+                <div className="relative">
+                  <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-bluewood-300" />
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={pwForm.confirm}
+                    onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
+                    placeholder="새 비밀번호 확인"
+                    className="w-full pl-9 pr-4 py-2.5 border border-surface-200 rounded-lg text-[15px] outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={pwSaving}
+                  className="w-full py-2.5 bg-bluewood-900 text-white rounded-lg text-[15px] font-semibold hover:bg-bluewood-800 disabled:opacity-50 transition-colors"
+                >
+                  {pwSaving ? '변경 중...' : '비밀번호 변경'}
+                </button>
+              </form>
+            </Section>
+          )}
+
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-2xl text-base font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-200"
+            className="w-full flex items-center justify-center gap-2 py-4 bg-bluewood-900 text-white rounded-lg text-[20px] font-semibold hover:bg-bluewood-800 disabled:opacity-50 transition-colors mt-10"
           >
             {saving ? (
               <><Loader2 size={18} className="animate-spin" /> 저장 중...</>
@@ -583,7 +691,7 @@ export default function ProfileSetup() {
               markProfileSetupSkipped();
               navigate('/app');
             }}
-            className="w-full py-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-full py-3 text-[20px] text-bluewood-300 hover:text-bluewood-600 transition-colors"
           >
             건너뛰기
           </button>
@@ -595,12 +703,12 @@ export default function ProfileSetup() {
 
 function Section({ title, icon: Icon, children, required, optional }) {
   return (
-    <div className="bg-white rounded-2xl border border-surface-200 p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Icon size={16} className="text-primary-600" />
-        <h2 className="text-sm font-bold text-bluewood-900">{title}</h2>
-        {required && <span className="text-red-400 text-xs">*필수</span>}
-        {optional && <span className="text-gray-300 text-xs">(선택)</span>}
+    <div className="pt-8 pb-2 border-t border-surface-100">
+      <div className="flex items-center gap-2 mb-5">
+        <Icon size={14} className="text-bluewood-300" />
+        <h2 className="text-[19px] font-bold text-bluewood-700">{title}</h2>
+        {required && <span className="text-red-400 text-[20px] font-semibold">*필수</span>}
+        {optional && <span className="text-bluewood-200 text-[20px]">(선택)</span>}
       </div>
       {children}
     </div>
@@ -613,25 +721,25 @@ function Field({ label, value, onChange, placeholder, required, optional, icon: 
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="block text-xs font-medium text-gray-500">
+        <label className="block text-[19px] font-semibold text-bluewood-500">
           {label} {required && <span className="text-red-400">*</span>}
-          {optional && <span className="text-gray-300">(선택)</span>}
+          {optional && <span className="text-bluewood-200">(\uc120\ud0dd)</span>}
         </label>
         {maxLength && (
-          <span className={`text-[10px] tabular-nums ${len >= maxLength ? 'text-red-400 font-semibold' : near ? 'text-amber-500' : 'text-gray-300'}`}>
+          <span className={`text-[20px] tabular-nums ${len >= maxLength ? 'text-red-400 font-semibold' : near ? 'text-amber-500' : 'text-bluewood-200'}`}>
             {len}/{maxLength}
           </span>
         )}
       </div>
       <div className="relative">
-        {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
+        {Icon && <Icon size={13} className="absolute left-0 top-1/2 -translate-y-1/2 text-bluewood-300" />}
         <input
           type="text"
           value={value || ''}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           maxLength={maxLength}
-          className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 ${small ? 'py-1.5 text-xs' : 'py-2 text-sm'} border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200`}
+          className={`w-full ${Icon ? 'pl-5' : 'pl-0'} pr-0 ${small ? 'py-1.5 text-[20px]' : 'py-2 text-[19px]'} border-0 border-b border-surface-200 bg-transparent outline-none focus:border-bluewood-400 placeholder-bluewood-200 transition-colors text-bluewood-800`}
         />
       </div>
     </div>

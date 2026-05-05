@@ -1,4 +1,4 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+﻿import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 
@@ -19,7 +19,7 @@ function HintText({ value, onEdit, className = '' }) {
   return (
     <button
       onClick={onEdit}
-      className={`inline-flex items-start gap-1.5 text-left w-full px-3 py-2 rounded-lg border border-dashed border-orange-300 bg-orange-50 text-orange-600 text-[12px] leading-relaxed hover:bg-orange-100 transition-colors ${className}`}
+      className={`inline-flex items-start gap-1.5 text-left w-full px-3 py-2 rounded-lg border border-dashed border-orange-300 bg-orange-50 text-orange-600 text-[14px] leading-relaxed hover:bg-orange-100 transition-colors ${className}`}
     >
       <span className="flex-shrink-0 mt-0.5 font-bold">✎</span>
       <span>{hint || '내용을 직접 입력해주세요'}</span>
@@ -30,7 +30,7 @@ function HintText({ value, onEdit, className = '' }) {
 /* ── 뷰 모드 텍스트: 힌트면 HintText, 아니면 일반 텍스트 ── */
 function ViewText({ value, onEdit, className = '' }) {
   if (isHint(value)) return <HintText value={value} onEdit={onEdit} />;
-  return <p className={`text-[13px] text-gray-500 leading-[1.7] ${className}`}>{stripMd(value)}</p>;
+  return <p className={`text-[15px] text-gray-500 leading-[1.7] ${className}`}>{stripMd(value)}</p>;
 }
 
 const THEMES = [
@@ -174,8 +174,8 @@ function CompareBarPair({ beforeLabel, afterLabel, beforePct, afterPct, accent, 
     <div className="space-y-3">
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[12px] text-gray-500 font-semibold">개선 전</span>
-          <span className="text-[13px] font-bold text-gray-500">{beforeLabel}</span>
+          <span className="text-[14px] text-gray-500 font-semibold">개선 전</span>
+          <span className="text-[15px] font-bold text-gray-500">{beforeLabel}</span>
         </div>
         <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
           <div className="h-full bg-[#bcc5d1] rounded-lg transition-all duration-[1200ms] ease-out"
@@ -184,8 +184,8 @@ function CompareBarPair({ beforeLabel, afterLabel, beforePct, afterPct, accent, 
       </div>
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[12px] font-bold" style={{ color: accent }}>개선 후</span>
-          <span className="text-[13px] font-black" style={{ color: accent }}>{afterLabel}</span>
+          <span className="text-[14px] font-bold" style={{ color: accent }}>개선 후</span>
+          <span className="text-[15px] font-black" style={{ color: accent }}>{afterLabel}</span>
         </div>
         <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
           <div className="h-full rounded-lg transition-all duration-[1200ms] ease-out"
@@ -216,8 +216,8 @@ function ChartHorizontalBar({ beforeLabel, afterLabel, beforePct, afterPct, acce
     <div className="space-y-3">
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[12px] text-gray-500 font-semibold">개선 전</span>
-          <span className="text-[13px] font-bold text-gray-500">{beforeLabel}</span>
+          <span className="text-[14px] text-gray-500 font-semibold">개선 전</span>
+          <span className="text-[15px] font-bold text-gray-500">{beforeLabel}</span>
         </div>
         <div className="h-10 bg-gray-100 rounded-lg overflow-hidden">
           <div className="h-full bg-[#bcc5d1] rounded-lg transition-all duration-[1200ms]" style={{ width: `${normBefore}%` }} />
@@ -225,8 +225,8 @@ function ChartHorizontalBar({ beforeLabel, afterLabel, beforePct, afterPct, acce
       </div>
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[12px] font-bold" style={{ color: accent }}>개선 후</span>
-          <span className="text-[13px] font-black" style={{ color: accent }}>{afterLabel}</span>
+          <span className="text-[14px] font-bold" style={{ color: accent }}>개선 후</span>
+          <span className="text-[15px] font-black" style={{ color: accent }}>{afterLabel}</span>
         </div>
         <div className="h-10 bg-gray-100 rounded-lg overflow-hidden">
           <div className="h-full rounded-lg transition-all duration-[1200ms]" style={{ width: `${normAfter}%`, backgroundColor: accent }} />
@@ -242,18 +242,18 @@ function ChartVerticalBar({ beforeLabel, afterLabel, beforePct, afterPct, accent
   return (
     <div className="flex items-end justify-center gap-8 h-[170px]">
       <div className="flex flex-col items-center gap-2">
-        <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">{beforeLabel}</span>
+        <span className="text-[13px] font-bold text-gray-500 whitespace-nowrap">{beforeLabel}</span>
         <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '120px' }}>
           <div className="w-full bg-[#bcc5d1] rounded-t-lg transition-all duration-[1200ms]" style={{ height: `${normBefore}%` }} />
         </div>
-        <span className="text-[10px] text-gray-400 font-semibold">개선 전</span>
+        <span className="text-[12px] text-gray-400 font-semibold">개선 전</span>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <span className="text-[11px] font-black whitespace-nowrap" style={{ color: accent }}>{afterLabel}</span>
+        <span className="text-[13px] font-black whitespace-nowrap" style={{ color: accent }}>{afterLabel}</span>
         <div className="w-14 bg-gray-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: '120px' }}>
           <div className="w-full rounded-t-lg transition-all duration-[1200ms]" style={{ height: `${normAfter}%`, backgroundColor: accent }} />
         </div>
-        <span className="text-[10px] font-bold" style={{ color: accent }}>개선 후</span>
+        <span className="text-[12px] font-bold" style={{ color: accent }}>개선 후</span>
       </div>
     </div>
   );
@@ -280,8 +280,8 @@ function ChartLine({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
         <circle cx="40" cy={y1} r="5" fill="#bcc5d1" stroke="white" strokeWidth="2" />
         <circle cx="160" cy={y2} r="5" fill={accent} stroke="white" strokeWidth="2" />
       </svg>
-      <div className="absolute bottom-1 left-4 text-[10px] text-gray-500 font-semibold">개선 전<br/><span className="text-[11px] font-bold">{beforeLabel}</span></div>
-      <div className="absolute bottom-1 right-4 text-right text-[10px] font-bold" style={{ color: accent }}>개선 후<br/><span className="text-[11px] font-black">{afterLabel}</span></div>
+      <div className="absolute bottom-1 left-4 text-[12px] text-gray-500 font-semibold">개선 전<br/><span className="text-[13px] font-bold">{beforeLabel}</span></div>
+      <div className="absolute bottom-1 right-4 text-right text-[12px] font-bold" style={{ color: accent }}>개선 후<br/><span className="text-[13px] font-black">{afterLabel}</span></div>
     </div>
   );
 }
@@ -302,10 +302,10 @@ function ChartDonut({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
             className="transition-all duration-[1200ms]" />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[18px] font-black" style={{ color: accent }}>{Math.round(normAfter)}%</span>
+          <span className="text-[20px] font-black" style={{ color: accent }}>{Math.round(normAfter)}%</span>
         </div>
       </div>
-      <div className="space-y-2 text-[11px]">
+      <div className="space-y-2 text-[13px]">
         <div><span className="text-gray-400 font-semibold block">개선 전</span><span className="font-bold text-gray-600">{beforeLabel}</span></div>
         <div><span className="font-semibold block" style={{ color: accent }}>개선 후</span><span className="font-black" style={{ color: accent }}>{afterLabel}</span></div>
       </div>
@@ -331,7 +331,7 @@ function ChartGauge({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
           <span className="text-[20px] font-black" style={{ color: accent }}>{Math.round(normAfter)}%</span>
         </div>
       </div>
-      <div className="flex items-center gap-6 mt-2 text-[11px]">
+      <div className="flex items-center gap-6 mt-2 text-[13px]">
         <span className="text-gray-500 font-semibold">개선 전: <span className="font-bold">{beforeLabel}</span></span>
         <span className="font-bold" style={{ color: accent }}>개선 후: <span className="font-black">{afterLabel}</span></span>
       </div>
@@ -359,7 +359,7 @@ function ChartRadialBar({ beforeLabel, afterLabel, beforePct, afterPct, accent }
             className="transition-all duration-[1200ms]" />
         </svg>
       </div>
-      <div className="space-y-2 text-[11px]">
+      <div className="space-y-2 text-[13px]">
         <div className="flex items-center gap-2"><span className="w-3 h-1.5 rounded-full bg-[#bcc5d1]" /><span className="text-gray-500">개선 전: <span className="font-bold">{beforeLabel}</span></span></div>
         <div className="flex items-center gap-2"><span className="w-3 h-1.5 rounded-full" style={{ backgroundColor: accent }} /><span style={{ color: accent }}>개선 후: <span className="font-black">{afterLabel}</span></span></div>
       </div>
@@ -389,8 +389,8 @@ function ChartArea({ beforeLabel, afterLabel, beforePct, afterPct, accent }) {
         <circle cx="180" cy={y2} r="4" fill={accent} stroke="white" strokeWidth="2" />
         <line x1="20" y1="95" x2="180" y2="95" stroke="#e5e7eb" strokeWidth="0.5" />
       </svg>
-      <div className="absolute bottom-1 left-2 text-[10px] text-gray-500 font-semibold">{beforeLabel}</div>
-      <div className="absolute bottom-1 right-2 text-[11px] font-black text-right" style={{ color: accent }}>{afterLabel}</div>
+      <div className="absolute bottom-1 left-2 text-[12px] text-gray-500 font-semibold">{beforeLabel}</div>
+      <div className="absolute bottom-1 right-2 text-[13px] font-black text-right" style={{ color: accent }}>{afterLabel}</div>
     </div>
   );
 }
@@ -405,13 +405,13 @@ function ChartStacked({ beforeLabel, afterLabel, beforePct, afterPct, accent }) 
     <div className="space-y-3">
       <div className="h-12 bg-gray-100 rounded-xl overflow-hidden flex">
         <div className="h-full bg-[#bcc5d1] flex items-center justify-center transition-all duration-[1200ms]" style={{ width: `${bPct}%` }}>
-          <span className="text-[10px] font-bold text-white px-1 truncate">개선 전</span>
+          <span className="text-[12px] font-bold text-white px-1 truncate">개선 전</span>
         </div>
         <div className="h-full flex items-center justify-center transition-all duration-[1200ms]" style={{ width: `${aPct}%`, backgroundColor: accent }}>
-          <span className="text-[10px] font-bold text-white px-1 truncate">개선 후</span>
+          <span className="text-[12px] font-bold text-white px-1 truncate">개선 후</span>
         </div>
       </div>
-      <div className="flex justify-between text-[11px]">
+      <div className="flex justify-between text-[13px]">
         <span className="text-gray-500 font-semibold">{beforeLabel}</span>
         <span className="font-black" style={{ color: accent }}>{afterLabel}</span>
       </div>
@@ -424,14 +424,14 @@ function ChartBigNumber({ beforeLabel, afterLabel, accent, direction }) {
   return (
     <div className="flex items-center gap-4">
       <div className="flex-1 bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
-        <span className="text-[10px] text-gray-400 font-semibold block mb-1">개선 전</span>
+        <span className="text-[12px] text-gray-400 font-semibold block mb-1">개선 전</span>
         <span className="text-[20px] font-black text-gray-400 block leading-none">{beforeLabel}</span>
       </div>
       <div className="flex-shrink-0 text-[22px] font-black" style={{ color: accent }}>
         {direction === 'down' ? '↓' : '↑'}
       </div>
       <div className="flex-1 rounded-xl p-4 text-center border-2" style={{ borderColor: `${accent}40`, backgroundColor: `${accent}08` }}>
-        <span className="text-[10px] font-semibold block mb-1" style={{ color: accent }}>개선 후</span>
+        <span className="text-[12px] font-semibold block mb-1" style={{ color: accent }}>개선 후</span>
         <span className="text-[20px] font-black block leading-none" style={{ color: accent }}>{afterLabel}</span>
       </div>
     </div>
@@ -453,11 +453,11 @@ function ChartProgressCircle({ beforeLabel, afterLabel, beforePct, afterPct, acc
             className="transition-all duration-[1200ms]" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[9px] text-gray-400">개선 전</span>
-          <span className="text-[13px] font-bold text-gray-500">{beforeLabel}</span>
+          <span className="text-[11px] text-gray-400">개선 전</span>
+          <span className="text-[15px] font-bold text-gray-500">{beforeLabel}</span>
         </div>
       </div>
-      <div className="text-[18px] font-black" style={{ color: accent }}>→</div>
+      <div className="text-[20px] font-black" style={{ color: accent }}>→</div>
       <div className="relative w-[80px] h-[80px]">
         <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
           <circle cx="40" cy="40" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" />
@@ -466,8 +466,8 @@ function ChartProgressCircle({ beforeLabel, afterLabel, beforePct, afterPct, acc
             className="transition-all duration-[1200ms]" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[9px] font-bold" style={{ color: accent }}>개선 후</span>
-          <span className="text-[13px] font-black" style={{ color: accent }}>{afterLabel}</span>
+          <span className="text-[11px] font-bold" style={{ color: accent }}>개선 후</span>
+          <span className="text-[15px] font-black" style={{ color: accent }}>{afterLabel}</span>
         </div>
       </div>
     </div>
@@ -544,7 +544,7 @@ function EditableArea({ value, field, placeholder, rows = 3, editing, onChange }
         onChange={e => onChange(field, e.target.value)}
         placeholder={displayPlaceholder}
         rows={rows}
-        className={`text-[13px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
+        className={`text-[15px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
       />
     );
   }
@@ -560,7 +560,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
   return (
     <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
       {/* 섹션 라벨 + 헤딩 */}
-      <span className="text-[12px] font-extrabold tracking-wider" style={{ color: theme.color }}>
+      <span className="text-[14px] font-extrabold tracking-wider" style={{ color: theme.color }}>
         {theme.label}
       </span>
       <EditableText
@@ -576,7 +576,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6 flex flex-col gap-2">
           <EditableText
             value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
-            className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug"
+            className="text-[18px] sm:text-[20px] font-bold text-gray-800 leading-snug"
             editing={editing} onChange={onChange}
           />
 
@@ -606,7 +606,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
             <div className="border-t border-gray-200 mt-2 pt-2">
               <button
                 onClick={() => setChartOpen(o => !o)}
-                className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                className="text-[13px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
               >
                 차트 설정 {chartOpen ? '▲' : '▼'}
               </button>
@@ -617,13 +617,13 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                       value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
                       onChange={e => onChange('beforeMetric', e.target.value)}
                       placeholder={isHint(exp.beforeMetric) ? exp.beforeMetric.replace(/\[작성 필요\]\s*/, '') : "개선 전 (예: 800ms)"}
-                      className={`flex-1 text-[12px] text-gray-600 px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[14px] text-gray-600 px-2 py-1 ${inlineBase}`}
                     />
                     <input
                       value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
                       onChange={e => onChange('afterMetric', e.target.value)}
                       placeholder={isHint(exp.afterMetric) ? exp.afterMetric.replace(/\[작성 필요\]\s*/, '') : "개선 후 (예: 480ms)"}
-                      className={`flex-1 text-[12px] px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[14px] px-2 py-1 ${inlineBase}`}
                       style={{ color: theme.accent }}
                     />
                   </div>
@@ -631,7 +631,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                     {CHART_TYPES.map(ct => (
                       <button key={ct.id}
                         onClick={() => onChange('chartType', ct.id)}
-                        className={`px-2 py-0.5 rounded-md border text-[10px] font-medium transition-all ${
+                        className={`px-2 py-0.5 rounded-md border text-[12px] font-medium transition-all ${
                           (exp.chartType || 'horizontalBar') === ct.id
                             ? 'border-blue-400 bg-blue-50 text-blue-700'
                             : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
@@ -650,13 +650,13 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         <div className="lg:flex-[0.8] flex flex-col gap-5">
           {/* 문제 상황 */}
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
+            <p className="text-[17px] sm:text-[18px] font-bold text-gray-800 mb-2">문제 상황</p>
             <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 핵심 행동 */}
           <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
+            <p className="text-[17px] sm:text-[18px] font-bold text-gray-800 mb-2">핵심 행동</p>
             <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
         </div>
@@ -666,7 +666,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
       {(exp.keywords || []).length > 0 && (
         <div className="flex flex-wrap gap-2 mt-5">
           {exp.keywords.map((k, i) => (
-            <span key={i} className="px-3 py-1 rounded-full text-[11px] font-semibold border"
+            <span key={i} className="px-3 py-1 rounded-full text-[13px] font-semibold border"
               style={{
                 color: theme.accent,
                 borderColor: `${theme.accent}30`,
@@ -813,7 +813,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
           {!viewOnly && onUpdate && deletedStack.length > 0 && (
             <button
               onClick={handleUndo}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all"
             >
               <Undo2 size={12} /> 되돌리기 ({deletedStack.length})
             </button>
@@ -906,16 +906,16 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
                     : 'border-transparent bg-surface-50 hover:bg-surface-100 opacity-50 hover:opacity-70'
                 }`}
                 style={active ? { borderColor: t.color } : {}}>
-                <span className="text-[9px] font-bold uppercase tracking-widest block mb-0.5"
+                <span className="text-[11px] font-bold uppercase tracking-widest block mb-0.5"
                   style={{ color: t.color }}>
                   {t.label}
                 </span>
-                <span className={`text-[11px] font-semibold line-clamp-1 ${
+                <span className={`text-[13px] font-semibold line-clamp-1 ${
                   active ? 'text-bluewood-800' : 'text-bluewood-500'
                 }`} style={{ wordBreak: 'keep-all' }}>
                   {stripMd(e.title)?.slice(0, 30)}{(stripMd(e.title)?.length || 0) > 30 ? '...' : ''}
                 </span>
-                <span className="text-[10px] text-bluewood-400 font-medium">{stripMd(e.metric) || ''}</span>
+                <span className="text-[12px] text-bluewood-400 font-medium">{stripMd(e.metric) || ''}</span>
               </button>
             );
           })}
@@ -925,7 +925,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       {!viewOnly && onUpdate && (
         <button
           onClick={handleAdd}
-          className="mt-3 w-full py-2.5 border-2 border-dashed border-surface-200 rounded-xl text-[12px] font-medium text-bluewood-400 hover:border-primary-300 hover:text-primary-500 transition-colors flex items-center justify-center gap-1.5"
+          className="mt-3 w-full py-2.5 border-2 border-dashed border-surface-200 rounded-xl text-[14px] font-medium text-bluewood-400 hover:border-primary-300 hover:text-primary-500 transition-colors flex items-center justify-center gap-1.5"
         >
           <Plus size={14} /> 핵심 경험 추가
         </button>

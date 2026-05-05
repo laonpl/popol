@@ -10,7 +10,7 @@ export default function Login() {
   const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithKakao } = useAuthStore();
   const user = useAuthStore(s => s.user);
 
-  // 화면 단계: 'login' | 'signup'
+  // 화면 단계: 'login' | 'signup' | 'forgot'
   const [step, setStep] = useState('login');
 
   const [email, setEmail] = useState('');
@@ -19,6 +19,10 @@ export default function Login() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetName, setResetName] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
 
   const isFormSubmit = useRef(false);
   const handledAutoLogin = useRef(false);
@@ -86,6 +90,122 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) { toast.error('이메일을 입력해주세요'); return; }
+    if (!resetName.trim()) { toast.error('이름을 입력해주세요'); return; }
+    setLoading(true);
+    try {
+      const baseURL = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${baseURL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail.trim(), name: resetName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || '오류가 발생했습니다');
+        return;
+      }
+      setTempPassword(data.tempPassword);
+      setResetSent(true);
+    } catch {
+      toast.error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 비밀번호 찾기 화면
+  if (step === 'forgot') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2.5 mb-4">
+              <img src="/logo.png" alt="FitPoly" className="h-10 w-auto" />
+              <h1 className="text-2xl font-bold text-bluewood-900">FitPoly</h1>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-surface-200 shadow-card p-8">
+            <h2 className="text-xl font-bold text-center mb-2 text-bluewood-900">비밀번호 찾기</h2>
+
+            {resetSent ? (
+              <div className="text-center py-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+                  <Lock size={26} className="text-emerald-500" />
+                </div>
+                <p className="text-[15px] font-semibold text-bluewood-800 mb-2">임시 비밀번호가 발급됐습니다</p>
+                <p className="text-[13px] text-bluewood-400 mb-3">아래 비밀번호로 로그인한 뒤 비밀번호를 변경해주세요.</p>
+                <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-xl px-4 py-3 mb-6">
+                  <span className="flex-1 text-[17px] font-mono font-bold tracking-widest text-bluewood-900 select-all">{tempPassword}</span>
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(tempPassword); toast.success('복사됐습니다'); }}
+                    className="text-[12px] text-bluewood-400 hover:text-bluewood-700 border border-surface-200 rounded-lg px-2 py-1 transition-colors"
+                  >복사</button>
+                </div>
+                <button
+                  onClick={() => { setStep('login'); setResetSent(false); setResetEmail(''); setResetName(''); setTempPassword(''); }}
+                  className="w-full py-3 bg-bluewood-900 text-white rounded-xl text-[15px] font-semibold hover:bg-bluewood-800 transition-colors"
+                >
+                  로그인하러 가기
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-[14px] text-bluewood-400 text-center mb-6">
+                  가입 시 사용한 이메일과 이름을 입력하면<br />
+                  임시 비밀번호를 발급해드립니다.
+                </p>
+                <form onSubmit={handlePasswordReset} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">이메일</label>
+                    <div className="relative">
+                      <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={e => setResetEmail(e.target.value)}
+                        placeholder="example@email.com"
+                        autoFocus
+                        className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">이름</label>
+                    <div className="relative">
+                      <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={resetName}
+                        onChange={e => setResetName(e.target.value)}
+                        placeholder="가입 시 입력한 이름"
+                        className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 bg-bluewood-900 text-white rounded-xl text-[15px] font-semibold hover:bg-bluewood-800 disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? '확인 중...' : '임시 비밀번호 발급'}
+                  </button>
+                </form>
+                <p className="text-center text-sm text-gray-400 mt-5">
+                  <button onClick={() => setStep('login')} className="text-primary-600 font-medium hover:underline">← 로그인으로 돌아가기</button>
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── 로그인 / 회원가입 화면 ────────────────────────────
   return (
@@ -201,7 +321,11 @@ export default function Login() {
 
           <p className="text-center text-sm text-gray-400 mt-5">
             {step === 'login' ? (
-              <>계정이 없으신가요? <button onClick={() => setStep('signup')} className="text-primary-600 font-medium hover:underline">회원가입</button></>
+              <>
+                <button onClick={() => setStep('forgot')} className="text-gray-400 hover:text-primary-600 transition-colors">비밀번호를 잊으셨나요?</button>
+                <span className="mx-2 text-gray-200">|</span>
+                계정이 없으신가요? <button onClick={() => setStep('signup')} className="text-primary-600 font-medium hover:underline">회원가입</button>
+              </>
             ) : (
               <>이미 계정이 있으신가요? <button onClick={() => setStep('login')} className="text-primary-600 font-medium hover:underline">로그인</button></>
             )}

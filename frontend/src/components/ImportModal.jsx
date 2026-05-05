@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import { X, Loader2, Sparkles, Link as LinkIcon, Info, Trash2, CheckCircle2, UploadCloud } from 'lucide-react';
 import { importFileUpload, importFromUrl, structureImportedData } from '../services/importAI';
 import toast from 'react-hot-toast';
@@ -278,14 +278,14 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                     return (
                       <div key={f.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl bg-white shadow-sm">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${icon.color}`}>
-                          <span className="text-white text-[9px] font-bold tracking-wide">{icon.label}</span>
+                          <span className="text-white text-[11px] font-bold tracking-wide">{icon.label}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[11px] text-gray-400">{formatSize(f.size)}</span>
+                            <span className="text-[13px] text-gray-400">{formatSize(f.size)}</span>
                             <span className="text-gray-300">·</span>
-                            <span className="flex items-center gap-1 text-[11px] text-emerald-500 font-medium">
+                            <span className="flex items-center gap-1 text-[13px] text-emerald-500 font-medium">
                               <CheckCircle2 size={11} />
                               준비 완료
                             </span>
@@ -319,7 +319,7 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                   <p className="text-xs font-semibold text-gray-700">URL에서 가져오기</p>
                   <div className="group relative">
                     <Info size={13} className="text-gray-400 cursor-help" />
-                    <div className="absolute left-5 -top-1 w-52 bg-gray-800 text-white text-[11px] rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
+                    <div className="absolute left-5 -top-1 w-52 bg-gray-800 text-white text-[13px] rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
                       Notion, GitHub(프로필/레포/Gist), 블로그 URL을 AI로 자동 분석합니다
                     </div>
                   </div>
@@ -361,12 +361,12 @@ export default function ImportModal({ targetType, onClose, onImport }) {
                   />
                 </div>
                 {urlType === 'github' && (
-                  <p className="text-[11px] text-gray-400 mt-1.5">
+                  <p className="text-[13px] text-gray-400 mt-1.5">
                     프로필(github.com/username), 리포지토리, Gist 모두 지원합니다.
                   </p>
                 )}
                 {urlType === 'blog' && (
-                  <p className="text-[11px] text-gray-400 mt-1.5">
+                  <p className="text-[13px] text-gray-400 mt-1.5">
                     Velog · Tistory · 네이버블로그 · Medium · Brunch · dev.to 지원
                   </p>
                 )}

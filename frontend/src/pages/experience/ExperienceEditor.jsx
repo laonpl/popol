@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Sparkles, Loader2, ImagePlus, X, Image } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
@@ -304,7 +304,7 @@ export default function ExperienceEditor() {
                       }`}
                     >
                       <span className="text-xs font-semibold leading-tight">{opt.label}</span>
-                      <span className={`text-[10px] leading-snug line-clamp-1 ${selected ? 'text-primary-100' : 'text-gray-400'}`}>{opt.description}</span>
+                      <span className={`text-[12px] leading-snug line-clamp-1 ${selected ? 'text-primary-100' : 'text-gray-400'}`}>{opt.description}</span>
                     </button>
                   );
                 })}
@@ -457,7 +457,7 @@ export default function ExperienceEditor() {
                     style={{ background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.7))' }}
                     title="우측으로 드래그해서 크기 조정"
                   />
-                  <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-black/40 text-white text-[10px] truncate">
+                  <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-black/40 text-white text-[12px] truncate">
                     {img.name}
                   </p>
                 </div>

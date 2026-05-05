@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { X, Loader2, Copy, Download, FileText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -207,10 +207,10 @@ ${htmlContent}
             {/* 타이틀 + 설명 */}
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-[17px] font-bold text-gray-900 tracking-tight">내보내기</h2>
+                <h2 className="text-[19px] font-bold text-gray-900 tracking-tight">내보내기</h2>
                 <Info size={14} className="text-gray-400 flex-shrink-0" />
               </div>
-              <p className="text-[13px] text-gray-400 leading-snug">
+              <p className="text-[15px] text-gray-400 leading-snug">
                 {data.title || '포트폴리오'}를 원하는 형식으로 내보냅니다.
               </p>
             </div>
@@ -224,7 +224,7 @@ ${htmlContent}
                     style={{ width: `${(step / totalSteps) * 100}%` }}
                   />
                 </div>
-                <span className="text-[12px] text-gray-400 whitespace-nowrap">{step}/{totalSteps} 완료</span>
+                <span className="text-[14px] text-gray-400 whitespace-nowrap">{step}/{totalSteps} 완료</span>
               </div>
               <button
                 onClick={onClose}
@@ -245,7 +245,7 @@ ${htmlContent}
             <div className="space-y-5">
               {/* 형식 선택 */}
               <div>
-                <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
                   내보내기 형식 선택
                 </p>
                 <div className="grid grid-cols-2 gap-3">
@@ -262,7 +262,7 @@ ${htmlContent}
                         }`}
                       >
                         {badge && (
-                          <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md">
+                          <span className="absolute top-3 right-3 text-[12px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md">
                             {badge}
                           </span>
                         )}
@@ -276,7 +276,7 @@ ${htmlContent}
                         }`}>
                           <Icon size={16} />
                         </div>
-                        <p className={`text-[13px] font-semibold mb-0.5 ${selected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        <p className={`text-[15px] font-semibold mb-0.5 ${selected ? 'text-blue-700' : 'text-gray-800'}`}>
                           {label}
                         </p>
                         <p className="text-[11.5px] text-gray-400 leading-snug">{desc}</p>
@@ -311,7 +311,7 @@ ${htmlContent}
             <div className="space-y-4">
               <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-green-200 bg-green-50">
                 <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
-                <p className="text-[13px] font-medium text-green-700">
+                <p className="text-[15px] font-medium text-green-700">
                   {format === 'Link' ? '공개 링크가 생성되었습니다' : `${format} 형식으로 변환이 완료되었습니다`}
                 </p>
               </div>
@@ -332,7 +332,7 @@ ${htmlContent}
                           : <Lock size={15} className="text-gray-400 flex-shrink-0" />
                         }
                         <div>
-                          <p className={`text-[13px] font-semibold ${isPublic ? 'text-blue-700' : 'text-gray-600'}`}>
+                          <p className={`text-[15px] font-semibold ${isPublic ? 'text-blue-700' : 'text-gray-600'}`}>
                             {isPublic ? '링크 공개 중' : '링크 비공개'}
                           </p>
                           <p className="text-[11.5px] text-gray-400 mt-0.5">
@@ -367,7 +367,7 @@ ${htmlContent}
 
                   {/* 링크 표시 + 복사 */}
                   <div>
-                    <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2">공유 링크</p>
+                    <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">공유 링크</p>
                     <div className="flex items-center gap-2 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
                       <Globe size={14} className="text-blue-400 flex-shrink-0" />
                       <span className="text-[12.5px] text-gray-700 truncate font-mono flex-1">{result}</span>
@@ -380,7 +380,7 @@ ${htmlContent}
                           toast.success('링크가 복사되었습니다!');
                           setTimeout(() => setLinkCopied(false), 2000);
                         }}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[13px] font-medium transition-colors"
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[15px] font-medium transition-colors"
                       >
                         {linkCopied ? <Check size={15} /> : <Copy size={15} />}
                         {linkCopied ? '복사됨!' : '링크 복사'}
@@ -389,7 +389,7 @@ ${htmlContent}
                         href={result}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-[13px] font-medium transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-[15px] font-medium transition-colors"
                       >
                         <ExternalLink size={15} /> 미리보기
                       </a>
@@ -400,13 +400,13 @@ ${htmlContent}
 
               {format !== 'Link' && (
                 <div>
-                  <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2">미리보기</p>
+                  <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">미리보기</p>
                   <pre className="whitespace-pre-wrap text-[11.5px] text-gray-600 bg-gray-50 rounded-xl p-4 max-h-56 overflow-auto border border-gray-200">
                     {result}
                   </pre>
                   <button
                     onClick={handleDownloadPDF}
-                    className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-[13px] font-medium transition-colors"
+                    className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-[15px] font-medium transition-colors"
                   >
                     <Download size={15} /> 다운로드
                   </button>
@@ -434,14 +434,14 @@ ${htmlContent}
             {result ? (
               <button
                 onClick={() => { setResult(null); setFormat(null); }}
-                className="px-4 py-2 text-[13px] text-gray-500 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
+                className="px-4 py-2 text-[15px] text-gray-500 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
               >
                 다시 선택
               </button>
             ) : (
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-[13px] text-gray-500 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
+                className="px-4 py-2 text-[15px] text-gray-500 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
               >
                 취소
               </button>
@@ -449,7 +449,7 @@ ${htmlContent}
             <button
               onClick={handleExport}
               disabled={!format || exporting}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-xl transition-colors shadow-sm"
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[15px] font-semibold rounded-xl transition-colors shadow-sm"
             >
               {exporting ? (
                 <><Loader2 size={14} className="animate-spin" /> 처리 중...</>

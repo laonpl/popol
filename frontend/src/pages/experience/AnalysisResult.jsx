@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Pencil, Target } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
@@ -170,7 +170,7 @@ export default function AnalysisResult() {
         {/* ── 좌: 프로젝트 Overview ── */}
         <div className="bg-white rounded-2xl border border-surface-200 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[15px] font-extrabold text-bluewood-900">Overview</h2>
+            <h2 className="text-[17px] font-extrabold text-bluewood-900">Overview</h2>
             <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center">
               <Target size={14} className="text-bluewood-400" />
             </div>
@@ -187,10 +187,10 @@ export default function AnalysisResult() {
             <div className="space-y-3 mb-5">
               {overviewMeta.map((m, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-5 text-[12px] font-bold text-bluewood-300 mt-px">{i + 1}</span>
+                  <span className="flex-shrink-0 w-5 text-[14px] font-bold text-bluewood-300 mt-px">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[12px] font-semibold text-bluewood-700">{m.label}</span>
-                    <p className="text-[12px] text-bluewood-400 leading-relaxed">{m.value}</p>
+                    <span className="text-[14px] font-semibold text-bluewood-700">{m.label}</span>
+                    <p className="text-[14px] text-bluewood-400 leading-relaxed">{m.value}</p>
                   </div>
                 </div>
               ))}
@@ -200,7 +200,7 @@ export default function AnalysisResult() {
           {(projectOverview.techStack || []).length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {projectOverview.techStack.map((tech, i) => (
-                <span key={i} className="px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[11px] font-medium">{tech}</span>
+                <span key={i} className="px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[13px] font-medium">{tech}</span>
               ))}
             </div>
           )}
@@ -209,7 +209,7 @@ export default function AnalysisResult() {
             <div className="mt-auto pt-4 border-t border-surface-100">
               <div className="flex flex-wrap gap-1.5">
                 {keywords.map(k => (
-                  <span key={k} className="px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[11px] font-medium border border-primary-100">{k}</span>
+                  <span key={k} className="px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[13px] font-medium border border-primary-100">{k}</span>
                 ))}
               </div>
             </div>
@@ -230,8 +230,8 @@ export default function AnalysisResult() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
             <Sparkles size={16} className="text-primary-600" />
-            <h2 className="text-[15px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
-            <span className="text-[12px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
+            <h2 className="text-[17px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
+            <span className="text-[14px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
           </div>
         </div>
 
@@ -239,7 +239,7 @@ export default function AnalysisResult() {
         {highlights.length > 0 && (
           <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
             {Object.entries(highlightColors).map(([key, color]) => (
-              <div key={key} className="flex items-center gap-2 text-[11px] text-bluewood-500">
+              <div key={key} className="flex items-center gap-2 text-[13px] text-bluewood-500">
                 <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
                 {color.label}
               </div>
@@ -259,13 +259,13 @@ export default function AnalysisResult() {
               <div key={sectionKey}>
                 {/* 섹션 헤더 */}
                 <div className="flex items-center gap-4 px-6 py-3 bg-surface-50/30">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white"
+                  <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold text-white"
                     style={{ backgroundColor: meta.accent }}>
                     {meta.num}
                   </span>
-                  <span className="text-[13px] font-bold" style={{ color: meta.accent }}>{meta.label}</span>
+                  <span className="text-[15px] font-bold" style={{ color: meta.accent }}>{meta.label}</span>
                   {isEmpty && (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[10px] font-semibold">빈칸</span>
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[12px] font-semibold">빈칸</span>
                   )}
                 </div>
 
@@ -274,9 +274,9 @@ export default function AnalysisResult() {
                   {renderSectionImages(sectionKey, 'above')}
 
                   {isEmpty ? (
-                    <p className="text-[13px] text-bluewood-300 italic">편집 모드에서 내용을 작성해 주세요</p>
+                    <p className="text-[15px] text-bluewood-300 italic">편집 모드에서 내용을 작성해 주세요</p>
                   ) : (
-                    <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
+                    <div className="text-[15px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
                       <HighlightedText text={text} highlights={fieldHighlights} keywords={keywords} />
                     </div>
                   )}
@@ -394,7 +394,7 @@ function HighlightSpan({ text, type, keywords }) {
           </span>
           <span className="flex flex-wrap gap-1">
             {keywords.map(k => (
-              <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] leading-tight">{k}</span>
+              <span key={k} className="px-1.5 py-0.5 bg-white/20 rounded-md text-[12px] leading-tight">{k}</span>
             ))}
           </span>
           <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
