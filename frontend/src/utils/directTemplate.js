@@ -141,8 +141,8 @@ function extractReplaceableShapes(xml) {
 
   for (const m of xmlStr.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)) {
     const text = extractSlideText(m[0]);
-    if (!text || isStructuralText(text)) continue;
     const phMatch = m[0].match(/<p:ph([^>]*?)\/?>/);
+    if ((!text || isStructuralText(text)) && !phMatch) continue;
     const phAttrs = phMatch ? phMatch[1] : '';
     const phType = (phAttrs.match(/type="([^"]+)"/)?.[1] || '').toLowerCase();
     const phIdx = Number(phAttrs.match(/idx="([^"]+)"/)?.[1] || 99);
@@ -237,10 +237,13 @@ function buildSlideLayoutMap(xml, slideIndex) {
   const sps = Array.from(xmlDoc.getElementsByTagNameNS(NS_P, 'sp'));
   for (const sp of sps) {
     const text = collectText(sp);
-    if (!text || isStructuralText(text)) continue;
-    shapeId += 1;
     const ph = sp.getElementsByTagNameNS(NS_P, 'ph')[0];
     const phType = (ph?.getAttribute('type') || '').toLowerCase();
+    
+    // placeholder가 있으면 텍스트가 없거나 기본 텍스트여도 레이아웃 맵에 포함
+    if ((!text || isStructuralText(text)) && !ph) continue;
+    
+    shapeId += 1;
     const geom = readGeometry(sp);
     const sz = firstRPrSize(sp);
     shapesOut.push({
@@ -475,13 +478,31 @@ async function extractPptxTemplate(file) {
     sections.push(pickSectionTitle(text, `슬라이드 ${slideNumber}`));
   }
   const designTokens = await extractPptxDesignTokens(zip);
+  
+  // 썸네일(docProps/thumbnail.jpeg) 추출 시도
+  let thumbnailBase64 = null;
+  const thumbFile = Object.keys(zip.files).find(p => /^docProps\/thumbnail\.jpeg$/i.test(p));
+  if (thumbFile) {
+    try {
+      const buffer = await zip.files[thumbFile].async('uint8array');
+      let binary = '';
+      for (let i = 0; i < buffer.byteLength; i++) binary += String.fromCharCode(buffer[i]);
+      thumbnailBase64 = 'data:image/jpeg;base64,' + btoa(binary);
+    } catch (e) {
+      console.warn('썸네일 추출 실패', e);
+    }
+  }
+  
   return {
     title: file.name.replace(/\.pptx$/i, ''),
     sections: sections.length ? sections : DEFAULT_SECTIONS,
     slideCount: slideFiles.length,
     sourceType: 'pptx',
     arrayBuffer,
-    designTokens,
+    designTokens: {
+      ...designTokens,
+      thumbnailBase64
+    },
   };
 }
 
@@ -498,18 +519,23 @@ async function extractPptxDesignTokens(zip) {
   let majorFont = 'Pretendard';
   let minorFont = 'Pretendard';
 
+  const themeColors = {};
   if (themePath) {
     const xml = await zip.files[themePath].async('text');
-    const grab = (tag) => {
+    const tags = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink', 'bg1', 'bg2', 'tx1', 'tx2'];
+    tags.forEach(tag => {
       const m = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:srgbClr val="([0-9A-Fa-f]{6})"`));
-      if (m) return `#${m[1].toUpperCase()}`;
-      const sysM = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:sysClr [^>]*lastClr="([0-9A-Fa-f]{6})"`));
-      return sysM ? `#${sysM[1].toUpperCase()}` : null;
-    };
-    accent = grab('accent1') || accent;
-    accent2 = grab('accent2');
-    dk = grab('dk2') || grab('dk1') || dk;
-    lt = grab('lt1') || lt;
+      if (m) themeColors[tag] = `#${m[1].toUpperCase()}`;
+      else {
+        const sysM = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:sysClr [^>]*lastClr="([0-9A-Fa-f]{6})"`));
+        if (sysM) themeColors[tag] = `#${sysM[1].toUpperCase()}`;
+      }
+    });
+    
+    accent = themeColors.accent1 || accent;
+    accent2 = themeColors.accent2 || accent2;
+    dk = themeColors.dk2 || themeColors.dk1 || dk;
+    lt = themeColors.lt1 || lt;
 
     const majorM = xml.match(/<a:majorFont>[\s\S]*?<a:latin typeface="([^"]+)"/);
     const minorM = xml.match(/<a:minorFont>[\s\S]*?<a:latin typeface="([^"]+)"/);
@@ -525,13 +551,29 @@ async function extractPptxDesignTokens(zip) {
   ].filter(Boolean);
 
   const allFills = [];
+  let bg = '#FFFFFF';
   for (const path of candidatePaths) {
     const sx = await zip.files[path].async('text');
     const fills = Array.from(sx.matchAll(/<a:srgbClr val="([0-9A-Fa-f]{6})"/g))
       .map(m => `#${m[1].toUpperCase()}`)
       .filter(c => c !== '#FFFFFF' && c !== '#000000' && c !== '#FFFFFE' && c !== '#F2F2F2');
     allFills.push(...fills);
+
+    // 배경색 시도
+    const bgMatch = sx.match(/<p:bg>[\s\S]*?<a:srgbClr val="([0-9A-Fa-f]{6})"/);
+    const bgSchemeMatch = sx.match(/<p:bg>[\s\S]*?<a:schemeClr val="([^"]+)"/);
+    if (bgMatch) { bg = `#${bgMatch[1].toUpperCase()}`; }
+    else if (bgSchemeMatch) {
+      const scheme = bgSchemeMatch[1];
+      if (themeColors[scheme]) bg = themeColors[scheme];
+      else if (scheme === 'bg1') bg = themeColors.lt1 || '#FFFFFF';
+      else if (scheme === 'bg2') bg = themeColors.lt2 || '#FFFFFF';
+    }
   }
+  
+  // 만약 못 찾았는데 테마에 lt1이 있으면 (기본 배경) 사용
+  if (bg === '#FFFFFF' && themeColors.lt1 && !isLight(themeColors.lt1)) bg = themeColors.lt1;
+  else if (bg === '#FFFFFF' && themeColors.bg1) bg = themeColors.bg1;
   if (allFills.length) {
     const scored = allFills.map(c => ({ c, score: colorVibrancy(c) })).sort((a, b) => b.score - a.score);
     const best = scored.find(({ c }) => colorVibrancy(c) > 30);
@@ -549,7 +591,7 @@ async function extractPptxDesignTokens(zip) {
     accent2: accent2 || accent,
     side: sidebarColor,
     sideFg,
-    bg: '#FFFFFF',
+    bg,
     sub: dk,
     fontHeading: majorFont,
     fontBody: minorFont,
@@ -1177,10 +1219,12 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
         const lines = Array.isArray(m.lines) && m.lines.length ? m.lines.filter(Boolean) : linesFromShapes;
         return {
           slideIndex: Number(m.slideIndex),
+          title: `슬라이드 ${Number(m.slideIndex) + 1}`,
           intent: m.intent || 'project',
           lines,
           shapeMap,
           fontMap,
+          layoutShapes: slideAnalyses[m.slideIndex]?.shapes || [],
         };
       });
     }

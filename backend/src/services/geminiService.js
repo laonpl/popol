@@ -558,15 +558,28 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
   }).filter(Boolean);
 }
 
-// ── AI PPT 포트폴리오 ── 결정적 빌더로 deck를 완성한 뒤 AI가 문구만 다듬음
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {
+  // customTemplate이 제공된 경우 템플릿의 슬라이드 흐름을 100% 따르기 위해 baseDeck 병합 없이 AI에 전적으로 위임
+  if (customTemplate) {
+    try {
+      const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate }); // baseDeck 미제공
+      const text = await withTimeout(callProFirst(prompt, 'AiPptDeckCustom'), 90000, 'AiPptDeckCustom');
+      const customDeck = parseJSON(text);
+      if (customDeck && Array.isArray(customDeck.slides) && customDeck.slides.length > 0) {
+        return customDeck;
+      }
+    } catch (err) {
+      console.warn('[AiPptDeck] 커스텀 템플릿 기반 생성 실패 — 결정적 deck으로 폴백:', err.message);
+    }
+  }
+
   // 1단계: 포트폴리오 데이터로 슬라이드를 결정적으로 구축 (내용 100% 보장)
   const baseDeck = buildDeckFromPortfolio(portfolio);
 
   // 2단계: AI에게 문구 다듬기 부탁. 실패해도 baseDeck는 그대로 보존.
   let polished = null;
   try {
-    const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck });
+    const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, baseDeck });
     const text = await withTimeout(callProFirst(prompt, 'AiPptDeck'), 90000, 'AiPptDeck');
     polished = parseJSON(text);
   } catch (err) {

@@ -45,6 +45,7 @@ export default function AiPptExport() {
         outline: directTemplateSpecToText(spec),
         sections: spec.sections || [],
         designTokens: spec.designTokens || null, // 색상/폰트
+        arrayBuffer: spec.arrayBuffer, // 원본 파일 유지
       });
       setCustomFileName(file.name);
       setTemplateId('custom');
@@ -60,16 +61,26 @@ export default function AiPptExport() {
     if (!portfolio) return;
     setStage(STAGE.ANALYZING);
     try {
-      // 'custom'은 AI가 모르는 값이므로 'modern'으로 대체. 디자인은 토큰으로 별도 적용.
-      const aiTemplateHint = templateId === 'custom' ? 'modern' : templateId;
-      const { data } = await api.post('/portfolio/ai-ppt-analyze', {
-        portfolioId: id,
-        templateHint: aiTemplateHint,
-        customTemplate: templateId === 'custom' ? customTemplate : null,
-      });
-      if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
-      setDeck(data.deck);
-      setStage(STAGE.PREVIEW);
+      if (templateId === 'custom' && customTemplate?.arrayBuffer) {
+        // 커스텀 템플릿: 업로드한 색/폰트만 적용한 풍부한 포트폴리오 deck 생성
+        const { data } = await api.post('/portfolio/ai-ppt-analyze', {
+          portfolioId: id,
+          templateHint: 'custom',
+          customTemplate: { title: customTemplate.title, outline: customTemplate.outline },
+        });
+        if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
+        setDeck(data.deck);
+        setStage(STAGE.PREVIEW);
+      } else {
+        const { data } = await api.post('/portfolio/ai-ppt-analyze', {
+          portfolioId: id,
+          templateHint: templateId,
+          customTemplate: null,
+        });
+        if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
+        setDeck(data.deck);
+        setStage(STAGE.PREVIEW);
+      }
     } catch (e) {
       toast.error(e?.response?.data?.error || e.message || 'AI 분석 실패');
       setStage(STAGE.CHOOSE);
@@ -116,7 +127,7 @@ export default function AiPptExport() {
     if (!deck) return;
     setExporting(true);
     try {
-      const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId === 'custom' ? 'custom' : templateId}.pptx`;
+      const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId}.pptx`;
       await exportDeckToPptx(deck, activeTemplate, fileName);
       toast.success('PPT 다운로드를 시작합니다');
     } catch (e) {
@@ -132,13 +143,10 @@ export default function AiPptExport() {
 
   return (
     <div className="animate-fadeIn max-w-[1200px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center mb-6">
         <button onClick={() => navigate(`/app/portfolio/preview/${id}`)} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
           <ArrowLeft size={16} /> 뒤로
         </button>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Sparkles size={14} className="text-primary-500" /> AI 포트폴리오 PPT 내보내기
-        </div>
       </div>
 
       {stage === STAGE.CHOOSE && (
@@ -258,7 +266,7 @@ function ChooseStage({ templateId, setTemplateId, customTemplate, customFileName
           onClick={onStart}
           className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-medium hover:from-primary-700 hover:to-primary-800 shadow-sm"
         >
-          <Wand2 size={16} /> AI로 PPT 생성하기
+          해당 템플릿으로 PPT 제작하기
         </button>
       </div>
     </div>
@@ -272,14 +280,8 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">생성된 슬라이드 미리보기 ({slides.length}장)</h2>
-          <p className="text-sm text-gray-500 mt-1">슬라이드를 클릭하면 수정 요청을 보낼 수 있습니다.</p>
-          {isCustom && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              <span className="font-semibold">업로드 템플릿 적용 중:</span>
-              <span><b>{customFileName}</b>의 색상·폰트를 합격자 레이아웃에 적용했습니다. 미리보기와 추출 결과가 동일합니다.</span>
-            </div>
-          )}
+          <h2 className="text-xl font-semibold text-gray-800">생성된 내용 확인 ({slides.length}장)</h2>
+          <p className="text-sm text-gray-500 mt-1">AI가 추천하는 내용 구성을 확인하세요. 슬라이드를 클릭하면 수정을 요청할 수 있습니다.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onRegenerate} className="inline-flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
@@ -288,12 +290,20 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
           <button
             onClick={onExport}
             disabled={exporting}
-            className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-bold hover:from-red-600 hover:to-red-700 disabled:opacity-50 shadow-md shadow-red-500/20 transform hover:-translate-y-0.5 transition-all"
           >
-            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PPT로 추출하기
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            PPT로 추출하기
           </button>
         </div>
       </div>
+
+      {isCustom && (
+        <div className="mt-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center gap-2">
+          <Sparkles size={16} className="text-amber-600 shrink-0" />
+          업로드하신 템플릿의 색상과 폰트가 적용된 슬라이드입니다. 다운로드 결과도 미리보기와 동일하게 출력됩니다.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-5">
         {slides.map((slide, i) => (
