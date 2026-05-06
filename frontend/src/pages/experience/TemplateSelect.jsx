@@ -113,7 +113,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
           <p className="text-[19px] text-bluewood-400">정확한 수치가 기억 안 나도 괜찮아요, 대략적으로만 채워도 충분해요</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setMode('guided')}
-              className="flex-1 py-2 rounded-lg bg-bluewood-900 text-white text-[20px] font-medium hover:bg-bluewood-800 transition-colors">
+              className="flex-1 py-2 rounded-lg bg-primary-600 text-white text-[20px] font-medium hover:bg-primary-700 transition-colors">
               수치로 간단히 채우기
             </button>
             <button type="button" onClick={() => setMode('free')}
@@ -155,7 +155,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
                   <button key={u} type="button" onClick={() => setUnit(u)}
                     className={`px-2 py-0.5 rounded-full text-[10.5px] border transition-colors ${
                       unit === u
-                        ? 'bg-bluewood-900 text-white border-bluewood-900'
+                        ? 'bg-primary-600 text-white border-primary-600'
                         : 'border-surface-200 text-bluewood-400 hover:border-bluewood-300'
                     }`}>{u}</button>
                 ))}
@@ -175,7 +175,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             <button type="button"
               onClick={() => handleApply(buildPreview())}
               disabled={!afterVal.trim()}
-              className="px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-bluewood-900 text-white hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
@@ -204,7 +204,7 @@ function MissingSection({ sectionText, description, onUpdateMissing }) {
             <button type="button"
               onClick={() => handleApply(draft)}
               disabled={!draft.trim()}
-              className="self-end px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-bluewood-900 text-white hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="self-end px-3 py-1.5 rounded-lg text-[19px] font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               추가
             </button>
           </div>
@@ -903,14 +903,14 @@ export default function TemplateSelect() {
 
         {/* 제목 + 진행률 */}
         <div className="flex items-end justify-between mb-3">
-          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">핵심 경험 추출 중</h2>
-          <span className="text-[32px] font-bold tabular-nums text-bluewood-900">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
+          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">핵심 경험 추출 중</h2>
+          <span className="text-[32px] font-bold tabular-nums text-primary-600">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
         </div>
 
         {/* 진행 바 */}
         <div className="w-full h-[3px] bg-surface-100 mb-12 overflow-hidden">
           <div
-            className="h-full bg-bluewood-900 transition-all duration-700 ease-out"
+            className="h-full bg-primary-600 transition-all duration-700 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -933,7 +933,7 @@ export default function TemplateSelect() {
                 {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
               </div>
               <span className={`text-[19px] transition-all ${
-                s.status === 'loading' ? 'font-semibold text-bluewood-900' :
+                s.status === 'loading' ? 'font-semibold text-primary-600' :
                 s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
                 'text-bluewood-200'
               }`}>{s.label}</span>
@@ -962,14 +962,14 @@ export default function TemplateSelect() {
 
         {/* 제목 + 진행률 */}
         <div className="flex items-end justify-between mb-3">
-          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">경험 구조화 중</h2>
-          <span className="text-[32px] font-bold tabular-nums text-bluewood-900">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
+          <h2 className="text-[40px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">경험 구조화 중</h2>
+          <span className="text-[32px] font-bold tabular-nums text-primary-600">{progress}<span className="text-[20px] font-normal text-bluewood-300 ml-1">%</span></span>
         </div>
 
         {/* 진행 바 */}
         <div className="w-full h-[3px] bg-surface-100 mb-12 overflow-hidden">
           <div
-            className="h-full bg-bluewood-900 transition-all duration-700 ease-out"
+            className="h-full bg-primary-600 transition-all duration-700 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -992,7 +992,7 @@ export default function TemplateSelect() {
                 {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-surface-300 mx-auto" />}
               </div>
               <span className={`text-[19px] transition-all ${
-                s.status === 'loading' ? 'font-semibold text-bluewood-900' :
+                s.status === 'loading' ? 'font-semibold text-primary-600' :
                 s.status === 'done'    ? 'text-bluewood-400 line-through decoration-surface-300' :
                 'text-bluewood-200'
               }`}>{s.label}</span>
@@ -1051,7 +1051,7 @@ export default function TemplateSelect() {
           <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-2">Experience Review · Step 3 of 3</p>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">경험 검토</h1>
+              <h1 className="text-[28px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">경험 검토</h1>
               <p className="mt-1.5 text-[19px] text-bluewood-400">추출된 경험을 확인하고 수정한 뒤 포트폴리오 정리를 시작하세요.</p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -1065,7 +1065,7 @@ export default function TemplateSelect() {
                   { label: '경험 검토', active: true },
                 ].map((s, idx, arr) => (
                   <div key={idx} className="flex items-center gap-1.5">
-                    <span className={`text-[19px] font-semibold ${s.active ? 'text-bluewood-900' : 'text-bluewood-300'}`}>
+                    <span className={`text-[19px] font-semibold ${s.active ? 'text-primary-600' : 'text-bluewood-300'}`}>
                       {s.done && <Check size={10} className="inline mr-0.5" strokeWidth={3} />}{s.label}
                     </span>
                     {idx < arr.length - 1 && <span className="text-bluewood-200 text-[20px]">/</span>}
@@ -1098,7 +1098,7 @@ export default function TemplateSelect() {
                       onClick={() => { setCurrentMomentIdx(idx); setEditingMomentId(null); setIsCreatingNew(false); }}
                       className={`w-full text-left px-3 py-2.5 rounded-lg text-[20px] leading-snug transition-colors ${
                         isActive
-                          ? 'bg-bluewood-900 text-white font-medium'
+                          ? 'bg-primary-600 text-white font-medium'
                           : 'text-bluewood-600 hover:bg-surface-100'
                       }`}
                     >
@@ -1139,7 +1139,7 @@ export default function TemplateSelect() {
                 <div className="border border-surface-100 overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-[20px] font-semibold text-bluewood-900">새 경험 직접 작성</h3>
+                      <h3 className="text-[20px] font-semibold text-primary-600">새 경험 직접 작성</h3>
                       <span className="text-[10.5px] text-bluewood-400 bg-surface-100 px-1.5 py-0.5 rounded border border-surface-200">CARL 구조</span>
                     </div>
                     <button onClick={() => setIsCreatingNew(false)} className="text-xs text-bluewood-400 hover:text-bluewood-700 border border-surface-200 px-2.5 py-1 rounded-lg hover:bg-surface-50 transition-colors">
@@ -1155,7 +1155,7 @@ export default function TemplateSelect() {
                         value={newExp.title}
                         onChange={e => setNewExp(p => ({ ...p, title: e.target.value }))}
                         placeholder="예: 실시간 이상 감지 파이프라인 개발"
-                        className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 pt-1 text-sm text-bluewood-900 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
+                        className="w-full border-0 border-b border-surface-200 bg-transparent pb-2 pt-1 text-sm text-primary-600 outline-none focus:border-bluewood-400 placeholder-bluewood-300"
                       />
                     </div>
 
@@ -1171,7 +1171,7 @@ export default function TemplateSelect() {
                             title={desc}
                             className={`px-2 py-1 text-[19px] rounded-md border transition-colors ${
                               newExp.type === key
-                                ? 'bg-bluewood-900 text-white border-bluewood-900'
+                                ? 'bg-primary-600 text-white border-primary-600'
                                 : 'border-surface-200 text-bluewood-500 hover:border-bluewood-300 hover:bg-surface-50'
                             }`}
                           >{key}</button>
@@ -1240,7 +1240,7 @@ export default function TemplateSelect() {
                       <button
                         onClick={handleAddNewExp}
                         disabled={!newExp.title.trim() || !newExp.action.trim()}
-                        className="px-5 py-2 text-xs font-semibold bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-5 py-2 text-xs font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >경험 추가하기</button>
                     </div>
                   </div>
@@ -1275,7 +1275,7 @@ export default function TemplateSelect() {
                                 {typeKey}
                               </span>
                               {MOMENT_TYPE_DESC[typeKey] && (
-                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-bluewood-900 text-white text-[19px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-primary-600 text-white text-[19px] leading-relaxed px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-normal">
                                   {MOMENT_TYPE_DESC[typeKey]}
                                   <span className="absolute top-full left-3 border-4 border-transparent border-t-bluewood-900" />
                                 </span>
@@ -1288,13 +1288,13 @@ export default function TemplateSelect() {
                         value={currentM.title}
                         onChange={e => editingMomentId === currentM.id && updateMoment(currentM.id, 'title', e.target.value)}
                         readOnly={editingMomentId !== currentM.id}
-                        className={`w-full text-[19px] font-semibold text-bluewood-900 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
+                        className={`w-full text-[19px] font-semibold text-primary-600 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
                       />
                     </div>
                     {editingMomentId === currentM.id ? (
                       <button
                         onClick={() => setEditingMomentId(null)}
-                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                       >
                         완료
                       </button>
@@ -1426,14 +1426,14 @@ export default function TemplateSelect() {
                       {safeIdx < moments.length - 1 ? (
                         <button
                           onClick={() => { setCurrentMomentIdx(i => i + 1); setEditingMomentId(null); }}
-                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                         >
                           다음 <ChevronRight size={13} />
                         </button>
                       ) : (
                         <button
                           onClick={() => document.getElementById('final-submit-btn')?.scrollIntoView({ behavior: 'smooth' })}
-                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 transition-colors"
+                          className="flex items-center gap-1 px-3.5 py-2 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                         >
                           검토 완료
                         </button>
@@ -1488,7 +1488,7 @@ export default function TemplateSelect() {
                                     onClick={() => setDeepQDraft(prev => ({ ...prev, [ansKey]: chip }))}
                                     className={`px-2.5 py-1 rounded-md text-[19px] border transition-colors ${
                                       draft === chip
-                                        ? 'bg-bluewood-900 border-bluewood-900 text-white font-medium'
+                                        ? 'bg-primary-600 border-primary-600 text-white font-medium'
                                         : 'bg-white border-surface-200 text-bluewood-500 hover:bg-surface-50'
                                     }`}
                                   >{chip}</button>
@@ -1505,7 +1505,7 @@ export default function TemplateSelect() {
                                 <button
                                   onClick={() => handleApplyDeepQ(currentM.id, dq.id, draft)}
                                   disabled={!draft.trim()}
-                                  className="px-3.5 py-2 text-[11.5px] font-semibold bg-bluewood-900 text-white rounded-lg hover:bg-bluewood-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                  className="px-3.5 py-2 text-[11.5px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                                 >추가</button>
                               </div>
                             </div>
@@ -1544,7 +1544,7 @@ export default function TemplateSelect() {
               id="final-submit-btn"
               onClick={handleFinalSubmit}
               disabled={moments.length === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {moments.length}개 경험으로 포트폴리오 정리
               <ChevronRight size={15} />
@@ -1592,7 +1592,7 @@ export default function TemplateSelect() {
           {/* 헤더 */}
           <div className="mb-10">
             <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Project Registration · Step 1 of 3</p>
-            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">프로젝트 기본 정보</h1>
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">프로젝트 기본 정보</h1>
             <p className="mt-2 text-[19px] text-bluewood-400 leading-relaxed">
               직군을 선택하면 해당 직군에 최적화된 분석 섹션이 자동으로 구성됩니다.
             </p>
@@ -1615,7 +1615,7 @@ export default function TemplateSelect() {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="예) 커머스 앱 리뉴얼, 데이터 파이프라인 구축"
-                className="w-full border-0 border-b-2 border-surface-200 bg-transparent pb-2 pt-1 text-[19px] font-medium text-bluewood-900 outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+                className="w-full border-0 border-b-2 border-surface-200 bg-transparent pb-2 pt-1 text-[19px] font-medium text-primary-600 outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
               />
             </div>
 
@@ -1638,7 +1638,7 @@ export default function TemplateSelect() {
                       const m = startDate ? (startDate.split('-')[1] || '') : '';
                       setStartDate(y && m ? `${y}-${m}` : y);
                     }}
-                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-primary-600 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
                   >
                     <option value="">연도</option>
                     {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(y => (
@@ -1652,7 +1652,7 @@ export default function TemplateSelect() {
                       const y = startDate ? (startDate.split('-')[0] || '') : '';
                       setStartDate(y && m ? `${y}-${m}` : y);
                     }}
-                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                    className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-primary-600 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
                   >
                     <option value="">월</option>
                     {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
@@ -1674,7 +1674,7 @@ export default function TemplateSelect() {
                           const m = endDate ? (endDate.split('-')[1] || '') : '';
                           setEndDate(y && m ? `${y}-${m}` : y);
                         }}
-                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-primary-600 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
                       >
                         <option value="">연도</option>
                         {Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => new Date().getFullYear() - i).map(y => (
@@ -1688,7 +1688,7 @@ export default function TemplateSelect() {
                           const y = endDate ? (endDate.split('-')[0] || '') : '';
                           setEndDate(y && m ? `${y}-${m}` : y);
                         }}
-                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
+                        className="flex-1 border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-primary-600 outline-none transition-all focus:border-primary-400 appearance-none cursor-pointer"
                       >
                         <option value="">월</option>
                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
@@ -1736,12 +1736,12 @@ export default function TemplateSelect() {
                             }`}
                           >
                             <div className={`w-[18px] h-[18px] rounded-full border-2 flex-shrink-0 transition-all flex items-center justify-center ${
-                              selected ? 'border-bluewood-900 bg-bluewood-900' : 'border-surface-300 group-hover:border-bluewood-400'
+                              selected ? 'border-primary-600 bg-primary-600' : 'border-surface-300 group-hover:border-bluewood-400'
                             }`}>
                               {selected && <div className="w-[7px] h-[7px] rounded-full bg-white" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className={`block text-[17px] font-semibold leading-tight ${selected ? 'text-bluewood-900' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
+                              <span className={`block text-[17px] font-semibold leading-tight ${selected ? 'text-primary-600' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
                               <span className={`block text-[14px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
                             </div>
                           </button>
@@ -1764,7 +1764,7 @@ export default function TemplateSelect() {
             <button
               onClick={() => setStep(2)}
               disabled={!canNext1}
-              className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
               자료 수집으로
               <ChevronRight size={15} />
@@ -1779,7 +1779,7 @@ export default function TemplateSelect() {
           {/* 헤더 */}
           <div className="mb-10">
             <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Data Collection · Step 2 of 3</p>
-            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-bluewood-900 leading-tight">자료 수집</h1>
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">자료 수집</h1>
             <p className="mt-2 text-[19px] text-bluewood-400 leading-relaxed">
               파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출합니다.
             </p>
@@ -1846,7 +1846,7 @@ export default function TemplateSelect() {
                   onChange={e => setTextInput(e.target.value)}
                   placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예) 어떤 문제를 해결했나요? 내가 맡은 역할은? 어떤 성과가 있었나요?`}
                   rows={5}
-                  className="w-full border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-bluewood-900 resize-none outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+                  className="w-full border-0 border-b-2 border-surface-200 bg-transparent py-2 text-[20px] text-primary-600 resize-none outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
                 />
                 {textInput && (
                   <p className="text-[19px] text-bluewood-300 text-right mt-1">{textInput.length}자</p>
@@ -1874,7 +1874,7 @@ export default function TemplateSelect() {
                       value={notionUrl}
                       onChange={e => setNotionUrl(e.target.value)}
                       placeholder="https://notion.so/..."
-                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-primary-600 outline-none placeholder:text-bluewood-200"
                     />
                   </div>
                 </div>
@@ -1888,7 +1888,7 @@ export default function TemplateSelect() {
                       value={githubUrl}
                       onChange={e => setGithubUrl(e.target.value)}
                       placeholder="https://github.com/user/repo"
-                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-primary-600 outline-none placeholder:text-bluewood-200"
                     />
                   </div>
                   {githubUrl.trim() && (
@@ -1914,7 +1914,7 @@ export default function TemplateSelect() {
                       value={blogUrl}
                       onChange={e => setBlogUrl(e.target.value)}
                       placeholder="https://..."
-                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-primary-600 outline-none placeholder:text-bluewood-200"
                     />
                   </div>
                 </div>
@@ -1927,7 +1927,7 @@ export default function TemplateSelect() {
                       value={link}
                       onChange={e => updateLink(i, e.target.value)}
                       placeholder="추가 링크 URL"
-                      className="flex-1 bg-transparent py-1 text-[20px] text-bluewood-900 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent py-1 text-[20px] text-primary-600 outline-none placeholder:text-bluewood-200"
                     />
                     <button onClick={() => removeLink(i)} className="text-bluewood-200 hover:text-red-400 transition-colors">
                       <X size={14} />
@@ -1974,7 +1974,7 @@ export default function TemplateSelect() {
               <button
                 onClick={handleSubmit}
                 disabled={!hasInput}
-                className="inline-flex items-center gap-2 rounded-lg bg-bluewood-900 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-30"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 AI 경험 추출
                 <ChevronRight size={15} />

@@ -148,48 +148,48 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* 모드 탭 */}
-      <div className="flex bg-gray-100 rounded-xl p-1">
+      <div className="flex border border-surface-200 rounded-lg overflow-hidden">
         <button
           onClick={() => setMode('url')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors
-            ${mode === 'url' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold transition-colors
+            ${mode === 'url' ? 'bg-primary-600 text-white' : 'bg-white text-bluewood-400 hover:text-bluewood-700 hover:bg-surface-50'}`}
         >
           URL 입력
         </button>
         <button
           onClick={() => setMode('text')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors
-            ${mode === 'text' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold border-l border-surface-200 transition-colors
+            ${mode === 'text' ? 'bg-primary-600 text-white border-l-primary-600' : 'bg-white text-bluewood-400 hover:text-bluewood-700 hover:bg-surface-50'}`}
         >
           직접 입력
         </button>
       </div>
 
-      {/* 사이트 바로가기 - 중앙 정렬 */}
+      {/* 사이트 바로가기 */}
       <div className="relative flex justify-center">
         <button
           onClick={() => setShowSites(!showSites)}
-          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-400 border border-surface-200 rounded-lg hover:border-bluewood-300 hover:text-bluewood-700 bg-white transition-colors"
         >
-          <Search size={14} />
+          <Search size={13} />
           지원할 공고 찾기
-          {showSites ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {showSites ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
         {showSites && (
-          <div className="absolute top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1">
+          <div className="absolute top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 min-w-[200px]">
             {JOB_SITES.map(site => (
               <a
                 key={site.name}
                 href={site.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-50 text-[13px] text-bluewood-700 transition-colors"
               >
                 <span className={`w-2 h-2 rounded-full ${site.color}`} />
                 {site.name} 공채달력
-                <ExternalLink size={12} className="text-gray-400 ml-auto" />
+                <ExternalLink size={12} className="text-bluewood-300 ml-auto" />
               </a>
             ))}
           </div>
@@ -204,11 +204,11 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder="https:// 공고 링크를 입력하세요"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 pr-28"
+            className="w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 pr-28 transition-colors"
             onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
           />
           {detectedSite && (
-            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-white px-2.5 py-0.5 rounded-md font-medium ${detectedSite.color}`}>
               {detectedSite.name}
             </span>
           )}
@@ -219,27 +219,27 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
           onChange={e => setText(e.target.value)}
           placeholder="채용공고 내용을 붙여넣으세요"
           rows={6}
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-300"
+          className="w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 resize-none focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors"
         />
       )}
 
       {/* 로딩 프로그레스 */}
       {loading && (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 space-y-4">
+        <div className="bg-primary-50 border border-primary-100 rounded-xl p-6 space-y-4">
           <div className="text-center">
-            <div className="text-4xl font-black text-blue-600 mb-1">{progress}%</div>
-            <p className="text-sm font-medium text-blue-700">{progressStage}</p>
+            <div className="text-4xl font-black text-primary-600 mb-1">{progress}%</div>
+            <p className="text-[13px] font-semibold text-primary-700">{progressStage}</p>
           </div>
-          <div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-primary-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 ease-out"
+              className="h-2 rounded-full bg-primary-600 transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             {STAGES.slice(0, 4).map((s, i) => (
-              <div key={i} className={`text-[13px] font-medium transition-colors ${progress >= s.at ? 'text-blue-600' : 'text-gray-300'}`}>
-                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[12px] ${progress >= s.at ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+              <div key={i} className={`text-[12px] font-medium transition-colors ${progress >= s.at ? 'text-primary-600' : 'text-bluewood-200'}`}>
+                <div className={`w-6 h-6 mx-auto mb-1 rounded-full flex items-center justify-center text-[11px] font-bold ${progress >= s.at ? 'bg-primary-600 text-white' : 'bg-surface-200 text-bluewood-300'}`}>
                   {progress >= (STAGES[i + 1]?.at || 100) ? '✓' : i + 1}
                 </div>
                 {s.label.replace(' 중...', '')}
@@ -250,8 +250,8 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
       )}
 
       {error && (
-        <p className="text-sm text-red-500 flex items-center gap-1">
-          <X size={14} /> {error}
+        <p className="text-[13px] text-red-500 flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
+          <X size={13} /> {error}
         </p>
       )}
 
@@ -261,14 +261,14 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
           <button
             onClick={handleAnalyze}
             disabled={mode === 'url' ? !url.trim() : !text.trim()}
-            className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary-100"
           >
             공고 분석하기
           </button>
           {onSkip && (
             <button
               onClick={onSkip}
-              className="px-6 py-3 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors"
+              className="px-5 py-3 text-[14px] font-medium text-bluewood-400 hover:text-bluewood-700 rounded-lg hover:bg-surface-100 border border-surface-200 transition-colors"
             >
               건너뛰기
             </button>
@@ -348,16 +348,17 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
       {expanded && (
         <div>
           {/* 탭 */}
-          <div style={{ display: 'flex', borderBottom: '1px dotted #d1d5db', marginBottom: 16 }}>
+          <div style={{ display: 'flex', borderBottom: '1px dotted #d1d5db', marginBottom: 16, overflowX: 'auto' }}>
             {tabs.map((tab) => (
               <button key={tab.key} onClick={() => handleTabChange(tab.key)}
                 style={{
-                  flex: 1, padding: '8px 2px', fontSize: 13,
+                  flex: 1, padding: '8px 2px', fontSize: 12,
                   fontWeight: activeTab === tab.key ? 700 : 500,
                   color: activeTab === tab.key ? NAV : '#94a3b8',
                   background: 'none', border: 'none',
                   borderBottom: activeTab === tab.key ? `2px solid ${NAV}` : '2px solid transparent',
                   cursor: 'pointer', transition: 'all 0.15s', marginBottom: -1, whiteSpace: 'nowrap',
+                  flexShrink: 0, minWidth: 0,
                 }}>
                 {tab.label}
               </button>
@@ -400,25 +401,25 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                         {pr.required?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: NAV, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>필수 서류</p>
-                            {pr.required.map((r, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 4, lineHeight: 1.6 }}>{r}</p>)}
+                            {pr.required.map((r, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 4, lineHeight: 1.6 }}>{stripMd(r)}</p>)}
                           </div>
                         )}
                         {pr.format?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>포맷 조건</p>
-                            {pr.format.map((f, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{f}</p>)}
+                            {pr.format.map((f, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{stripMd(f)}</p>)}
                           </div>
                         )}
                         {pr.content?.length > 0 && (
                           <div>
                             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>담아야 할 내용</p>
-                            {pr.content.map((c, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{c}</p>)}
+                            {pr.content.map((c, i) => <p key={i} style={{ fontSize: 13, color: '#374151', paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 4, lineHeight: 1.6 }}>{stripMd(c)}</p>)}
                           </div>
                         )}
                         {pr.submission && (
                           <div style={{ borderTop: '1px dotted #e2e8f0', paddingTop: 10 }}>
                             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>제출 방법</p>
-                            <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{pr.submission}</p>
+                            <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{stripMd(pr.submission)}</p>
                           </div>
                         )}
                       </div>

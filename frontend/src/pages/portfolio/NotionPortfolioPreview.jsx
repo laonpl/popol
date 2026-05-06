@@ -53,32 +53,32 @@ export default function NotionPortfolioPreview() {
       <div className="animate-fadeIn">
         {/* Admin bar */}
         <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
-          <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
-            <ArrowLeft size={16} /> 목록으로
+          <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
+            <ArrowLeft size={14} /> 목록으로
           </Link>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-              className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
-              <Edit size={14} /> 편집
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors">
+              <Edit size={13} /> 편집
             </button>
             <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
-              <FileText size={14} /> PPT 내보내기
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors">
+              <FileText size={13} /> PPT 내보내기
             </button>
             <button onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-medium hover:from-primary-700 hover:to-primary-800">
-              <Link2 size={14} /> 링크 내보내기
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100">
+              <Link2 size={13} /> 링크 내보내기
             </button>
           </div>
         </div>
 
         {/* 공유 링크 */}
         <div className="max-w-[1100px] mx-auto mb-4">
-          <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
-            <Share2 size={16} className="text-gray-400 flex-shrink-0" />
+          <div className="flex items-center gap-4 bg-white rounded-lg border border-surface-200 px-5 py-3">
+            <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">공개 링크</span>
+                <span className="text-[13px] font-semibold text-bluewood-700">공개 링크</span>
                 <button
                   onClick={async () => {
                     setTogglingPublic(true);
@@ -91,13 +91,13 @@ export default function NotionPortfolioPreview() {
                     setTogglingPublic(false);
                   }}
                   disabled={togglingPublic}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-600' : 'bg-surface-300'} ${togglingPublic ? 'opacity-50' : ''}`}
                 >
                   <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </button>
               </div>
               {isPublic && (
-                <p className="text-xs text-gray-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+                <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
               )}
             </div>
             {isPublic && (
@@ -108,7 +108,7 @@ export default function NotionPortfolioPreview() {
                   toast.success('링크가 복사되었습니다!');
                   setTimeout(() => setLinkCopied(false), 2000);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors flex-shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-colors flex-shrink-0"
               >
                 {linkCopied ? <Check size={12} /> : <Copy size={12} />}
                 {linkCopied ? '복사됨' : '링크 복사'}
@@ -155,32 +155,32 @@ export default function NotionPortfolioPreview() {
     <div className="animate-fadeIn">
       {/* Admin bar */}
       <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
-        <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
-          <ArrowLeft size={16} /> 목록으로
+        <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
+          <ArrowLeft size={14} /> 목록으로
         </Link>
         <div className="flex items-center gap-2">
           <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-            className="flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
-            <Edit size={14} /> 편집
+            className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors">
+            <Edit size={13} /> 편집
           </button>
           <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700">
-            <FileText size={14} /> PPT 내보내기
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors">
+            <FileText size={13} /> PPT 내보내기
           </button>
           <button onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-medium hover:from-primary-700 hover:to-primary-800">
-            <Link2 size={14} /> 링크 내보내기
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100">
+            <Link2 size={13} /> 링크 내보내기
           </button>
         </div>
       </div>
 
       {/* 공유 링크 */}
       <div className="max-w-[1100px] mx-auto mb-4">
-        <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
-          <Share2 size={16} className="text-gray-400 flex-shrink-0" />
+        <div className="flex items-center gap-4 bg-white rounded-lg border border-surface-200 px-5 py-3">
+          <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">공개 링크</span>
+              <span className="text-[13px] font-semibold text-bluewood-700">공개 링크</span>
               <button
                 onClick={async () => {
                   setTogglingPublic(true);
@@ -193,13 +193,13 @@ export default function NotionPortfolioPreview() {
                   setTogglingPublic(false);
                 }}
                 disabled={togglingPublic}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-600' : 'bg-surface-300'} ${togglingPublic ? 'opacity-50' : ''}`}
               >
                 <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </button>
             </div>
             {isPublic && (
-              <p className="text-xs text-gray-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+              <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
             )}
           </div>
           {isPublic && (
@@ -210,7 +210,7 @@ export default function NotionPortfolioPreview() {
                 toast.success('링크가 복사되었습니다!');
                 setTimeout(() => setLinkCopied(false), 2000);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors flex-shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-colors flex-shrink-0"
             >
               {linkCopied ? <Check size={12} /> : <Copy size={12} />}
               {linkCopied ? '복사됨' : '링크 복사'}
@@ -1399,7 +1399,7 @@ function ExperienceDetailModal({ exp, onClose }) {
         {/* 문서 본문 */}
         <div className="flex-1 overflow-y-auto"><div className="px-6 pb-10 pt-6">
           {/* 제목 */}
-          <h1 className="text-[32px] font-extrabold text-bluewood-900 leading-tight mb-7">
+          <h1 className="text-[32px] font-extrabold text-primary-600 leading-tight mb-7">
             {exp.title || '(제목 없음)'}
           </h1>
 

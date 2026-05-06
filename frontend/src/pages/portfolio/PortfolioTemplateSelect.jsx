@@ -1029,19 +1029,19 @@ export default function PortfolioTemplateSelect() {
 
   return (
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-6">
-        <ArrowLeft size={16} /> 포트폴리오 목록으로
+      <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 mb-6 transition-colors">
+        <ArrowLeft size={14} /> 포트폴리오 목록으로
       </Link>
 
       {/* 스텝 인디케이터 */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${step === 'template' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-          <span className="w-5 h-5 rounded-full bg-primary-500 text-white text-xs flex items-center justify-center">1</span>
+      <div className="flex items-center gap-2 mb-8">
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'template' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
+          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
           템플릿 선택
         </div>
-        <ArrowRight size={14} className="text-gray-300" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${step === 'joblink' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-400'}`}>
-          <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${step === 'joblink' ? 'bg-primary-500 text-white' : 'bg-gray-300 text-white'}`}>2</span>
+        <ArrowRight size={13} className="text-bluewood-200" />
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'joblink' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
+          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
           기업 공고 연결 (선택)
         </div>
       </div>
@@ -1049,36 +1049,37 @@ export default function PortfolioTemplateSelect() {
       {step === 'template' && (
         <>
           <div className="mb-8">
-            <h1 className="text-2xl font-bold mb-2">포트폴리오 템플릿 선택</h1>
-            <p className="text-gray-500 text-sm">
+            <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">포트폴리오 템플릿 선택</h1>
+            <p className="text-[15px] text-bluewood-400">
               원하는 디자인을 미리보기로 확인 후 선택하세요. 프로필 정보가 자동으로 채워집니다.
             </p>
           </div>
 
           {/* 카테고리 탭 */}
-          <div className="flex items-center gap-2 mb-6 flex-wrap">
-            {TEMPLATE_CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  activeCategory === cat.id
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-surface-100 text-gray-600 hover:bg-surface-200'
-                }`}
-              >
-                {cat.label}
-                <span className="ml-1.5 text-[13px] opacity-70">
-                  ({activeCategory === cat.id || cat.id === 'all'
-                    ? PORTFOLIO_TEMPLATES.filter(t => cat.id === 'all' || t.category === cat.id).length
-                    : PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length})
-                </span>
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 mb-6 flex-wrap">
+            {TEMPLATE_CATEGORIES.map(cat => {
+              const count = cat.id === 'all'
+                ? PORTFOLIO_TEMPLATES.length
+                : PORTFOLIO_TEMPLATES.filter(t => t.category === cat.id).length;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${
+                    activeCategory === cat.id
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'bg-white text-bluewood-500 border-surface-200 hover:border-bluewood-300 hover:text-bluewood-700'
+                  }`}
+                >
+                  {cat.label}
+                  <span className={`ml-1.5 text-[12px] ${activeCategory === cat.id ? 'opacity-70' : 'opacity-50'}`}>({count})</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Template Cards with Preview */}
-          <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          {/* Template Cards */}
+          <div className="grid lg:grid-cols-3 gap-5 mb-8">
             {PORTFOLIO_TEMPLATES.filter(t => activeCategory === 'all' || t.category === activeCategory).map(template => {
               const isSelected = selected === template.id;
               return (
@@ -1088,17 +1089,17 @@ export default function PortfolioTemplateSelect() {
                   tabIndex={0}
                   onClick={() => setSelected(template.id)}
                   onKeyDown={e => e.key === 'Enter' && setSelected(template.id)}
-                  className={`text-left rounded-2xl border-2 overflow-hidden transition-all hover:shadow-xl cursor-pointer ${
+                  className={`text-left rounded-xl border-2 overflow-hidden transition-all cursor-pointer group ${
                     isSelected
-                      ? 'border-primary-500 shadow-lg ring-2 ring-primary-200'
-                      : 'border-surface-200 bg-white hover:border-gray-300'
+                      ? 'border-primary-600 shadow-lg shadow-primary-100'
+                      : 'border-surface-200 bg-white hover:border-primary-300 hover:shadow-md'
                   }`}
                 >
-                  {/* Preview Area — 실제 프리뷰 컴포넌트를 0.42 배율로 축소 표시 */}
-                  <div className={`h-52 ${template.previewBg} overflow-hidden relative`}>
+                  {/* Preview Area */}
+                  <div className={`h-48 ${template.previewBg} overflow-hidden relative`}>
                     {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center z-10 shadow">
-                        <Check size={14} className="text-white" />
+                      <div className="absolute top-2.5 right-2.5 w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center z-10 shadow-md">
+                        <Check size={13} className="text-white" />
                       </div>
                     )}
                     <div
@@ -1115,25 +1116,30 @@ export default function PortfolioTemplateSelect() {
                       {template.id?.startsWith('visual-') && <VisualFullPreview templateId={template.id} />}
                     </div>
                   </div>
+
                   {/* Info */}
-                  <div className="p-5 bg-white">
-                    <h3 className="font-bold text-base mb-1">{template.name}</h3>
-                    <p className="text-xs text-gray-400 mb-3 leading-relaxed">{template.description}</p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-wrap gap-1.5">
-                        {template.tags.map(tag => (
-                          <span key={tag} className="px-2 py-0.5 rounded-md text-[12px] font-medium bg-primary-50 text-primary-600 border border-primary-100">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                  <div className={`px-5 py-4 border-t ${isSelected ? 'border-primary-200 bg-primary-50/30' : 'border-surface-100 bg-white'}`}>
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <h3 className={`font-bold text-[15px] leading-snug ${isSelected ? 'text-primary-700' : 'text-bluewood-800'}`}>{template.name}</h3>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setPreviewTemplate(template.id); }}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 border border-surface-200 rounded-lg hover:bg-surface-50 hover:text-primary-600 transition-colors"
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-bluewood-400 border border-surface-200 rounded-md hover:border-primary-300 hover:text-primary-600 transition-colors"
                       >
-                        <Eye size={12} /> 미리보기
+                        <Eye size={11} /> 미리보기
                       </button>
+                    </div>
+                    <p className="text-[13px] text-bluewood-400 mb-3 leading-relaxed line-clamp-2">{template.description}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {template.tags.map(tag => (
+                        <span key={tag} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                          isSelected
+                            ? 'bg-primary-100 text-primary-600 border-primary-200'
+                            : 'bg-surface-50 text-bluewood-500 border-surface-200'
+                        }`}>
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1141,14 +1147,17 @@ export default function PortfolioTemplateSelect() {
             })}
           </div>
 
-          {/* Next Button */}
+          {/* 다음 버튼 */}
           <div className="sticky bottom-6">
             <button
               onClick={handleNext}
               disabled={!selected}
-              className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-200"
             >
-              <ArrowRight size={18} /> {selected ? '다음: 기업 공고 연결' : '템플릿을 선택해주세요'}
+              <ArrowRight size={17} />
+              {selected
+                ? `"${PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.name}" 선택 — 다음 단계`
+                : '템플릿을 선택해주세요'}
             </button>
           </div>
         </>
@@ -1156,12 +1165,12 @@ export default function PortfolioTemplateSelect() {
 
       {step === 'joblink' && (
         <>
-          <div className="mb-6">
-            <button onClick={() => setStep('template')} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 mb-4">
+          <div className="mb-8">
+            <button onClick={() => setStep('template')} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 mb-4 transition-colors">
               <ArrowLeft size={14} /> 템플릿 다시 선택
             </button>
-            <h1 className="text-2xl font-bold mb-2">기업 공고 연결</h1>
-            <p className="text-gray-500 text-sm">
+            <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">기업 공고 연결</h1>
+            <p className="text-[15px] text-bluewood-400">
               지원할 기업의 채용공고 링크를 넣으면 기업 맞춤형 포트폴리오가 생성됩니다 (선택사항)
             </p>
           </div>
@@ -1172,17 +1181,17 @@ export default function PortfolioTemplateSelect() {
               <button
                 onClick={() => handleCreate(jobAnalysis)}
                 disabled={creating}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-200"
               >
                 {creating ? (
-                  <><Loader2 size={18} className="animate-spin" /> 생성 중...</>
+                  <><Loader2 size={17} className="animate-spin" /> 생성 중...</>
                 ) : (
-                  <><Building2 size={18} /> {jobAnalysis.company} 맞춤 포트폴리오 만들기</>
+                  <><Building2 size={17} /> {jobAnalysis.company} 맞춤 포트폴리오 만들기</>
                 )}
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <div className="bg-white rounded-xl border border-surface-200 p-6">
               <JobLinkInput
                 onAnalysisComplete={(analysis) => setJobAnalysis(analysis)}
                 onSkip={() => handleCreate(null)}
@@ -1192,26 +1201,46 @@ export default function PortfolioTemplateSelect() {
         </>
       )}
 
-      {/* Template Preview Modal */}
+      {/* 템플릿 미리보기 모달 */}
       {previewTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPreviewTemplate(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setPreviewTemplate(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[88vh] overflow-hidden border border-surface-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 bg-surface-50/60">
               <div>
-                <h3 className="font-bold text-lg">{PORTFOLIO_TEMPLATES.find(t => t.id === previewTemplate)?.name} 미리보기</h3>
-                <p className="text-xs text-gray-400 mt-0.5">실제 포트폴리오 레이아웃 예시입니다</p>
+                <h3 className="font-bold text-[17px] text-primary-600">
+                  {PORTFOLIO_TEMPLATES.find(t => t.id === previewTemplate)?.name}
+                </h3>
+                <p className="text-[12px] text-bluewood-400 mt-0.5">실제 포트폴리오 레이아웃 예시입니다</p>
               </div>
-              <button onClick={() => setPreviewTemplate(null)} className="p-2 hover:bg-surface-100 rounded-lg transition-colors">
-                <X size={18} className="text-gray-400" />
+              <button
+                onClick={() => setPreviewTemplate(null)}
+                className="p-2 hover:bg-surface-100 rounded-lg transition-colors"
+              >
+                <X size={17} className="text-bluewood-400" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+            <div className="p-6 overflow-y-auto max-h-[calc(88vh-73px)]">
               <div className="border border-surface-200 rounded-xl overflow-hidden" style={{ minHeight: '500px' }}>
                 {previewTemplate === 'notion' && <NotionFullPreview />}
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
                 {previewTemplate === 'timeline' && <TimelineFullPreview />}
                 {previewTemplate?.startsWith('visual-') && <VisualFullPreview templateId={previewTemplate} />}
               </div>
+            </div>
+            <div className="px-6 py-4 border-t border-surface-200 bg-surface-50/60 flex items-center justify-between gap-3">
+              <p className="text-[13px] text-bluewood-400">이 템플릿을 선택하면 프로필 정보가 자동으로 채워집니다</p>
+              <button
+                onClick={() => { setSelected(previewTemplate); setPreviewTemplate(null); }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 transition-colors"
+              >
+                <Check size={15} /> 이 템플릿 선택
+              </button>
             </div>
           </div>
         </div>
