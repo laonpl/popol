@@ -79,17 +79,21 @@ function extractGeometry(fragment) {
 }
 
 // shape 크기 + 원본 폰트 크기로 실제 적정 글자수 한도 추정
-// 한글 1자 폭 ≈ font_size * 1.0pt, 줄높이 ≈ font_size * 1.35pt
+// Safe Zone: 미리보기(웹폰트)와 PPT 렌더 엔진(MS Office)의 글자 폭 오차를 흡수하기 위해
+// 박스 폭의 ~70%까지만 글자가 들어가도록 보수적으로 산정한다.
+// 한글 1자 폭 ≈ font_size * 1.05pt, 줄높이 ≈ font_size * 1.4pt
 function estimateCharBudget(geom, fontSizeHundredths) {
   const w = geom?.width_pt;
   const h = geom?.height_pt;
-  if (!w || !h) return 28;
+  if (!w || !h) return 24;
   const fs = fontSizeHundredths ? fontSizeHundredths / 100 : 18; // 기본 18pt 가정
-  const charWidth = Math.max(6, fs * 1.0);
-  const lineHeight = Math.max(8, fs * 1.35);
-  const perLine = Math.max(2, Math.floor((w - 4) / charWidth));
+  const charWidth = Math.max(6, fs * 1.05);
+  const lineHeight = Math.max(8, fs * 1.4);
+  // 박스 폭의 85%만 안전 영역으로 사용
+  const safeW = (w - 4) * 0.85;
+  const perLine = Math.max(2, Math.floor(safeW / charWidth));
   const lines = Math.max(1, Math.floor(h / lineHeight));
-  // 박스에 어느 정도 여백을 두기 위해 0.85배 적용
+  // 추가 면적 마진 0.85 (폰트 다이버전스 + 줄 끝 흘림 방지)
   return Math.max(6, Math.min(Math.floor(perLine * lines * 0.85), 200));
 }
 
@@ -995,6 +999,25 @@ function applyFontSizeToRPr(rPrXml, hundredths) {
   return rPrXml.replace(/^<a:rPr\b/, `<a:rPr sz="${hundredths}"`);
 }
 
+// [WYSIWYG] rPr XML 문자열에서 latin/ea/cs typeface 를 강제로 통일된 폰트로 교체.
+// DOM 경로(safelyReplaceSlideTextDom)와 동일한 효과를 정규식 fallback 경로(fillTxBody)에서도 보장.
+function applyTypefaceToRPr(rPrXml, typeface) {
+  if (!rPrXml) return `<a:rPr lang="ko-KR" dirty="0"><a:latin typeface="${typeface}"/><a:ea typeface="${typeface}"/><a:cs typeface="${typeface}"/></a:rPr>`;
+  // 기존 latin/ea/cs 자식 제거
+  let cleaned = rPrXml
+    .replace(/<a:latin\b[^>]*\/?>/g, '')
+    .replace(/<a:ea\b[^>]*\/?>/g, '')
+    .replace(/<a:cs\b[^>]*\/?>/g, '');
+  const inject = `<a:latin typeface="${typeface}"/><a:ea typeface="${typeface}"/><a:cs typeface="${typeface}"/>`;
+  // self-closing → 컨테이너로 펼친 뒤 주입
+  if (/\/>\s*$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\/>\s*$/, `>${inject}</a:rPr>`);
+  } else {
+    cleaned = cleaned.replace(/<\/a:rPr>\s*$/, `${inject}</a:rPr>`);
+  }
+  return cleaned;
+}
+
 // 한 shape의 단락 채우기 — \n 단위로 a:p 분리, 원본 rPr/pPr 보존, 옵션으로 폰트 크기 조정
 function fillTxBody(txBodyXml, replacement, opts = {}) {
   const { rPrTemplate = null, pPrTemplate = null, fontSizePt = null } = opts;
@@ -1012,6 +1035,8 @@ function fillTxBody(txBodyXml, replacement, opts = {}) {
   if (fontSizePt && Number.isFinite(fontSizePt)) {
     rPr = applyFontSizeToRPr(rPr, Math.round(Number(fontSizePt) * 100));
   }
+  // [WYSIWYG] PPTX 출력 폰트를 미리보기와 동일하게 Pretendard 로 통일
+  rPr = applyTypefaceToRPr(rPr, 'Pretendard');
   const pPrTag = pPrTemplate || '';
 
   const paras = lines
@@ -1103,6 +1128,18 @@ function replaceSlideText(xml, replacements) {
 const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
+// rPr 의 latin/ea/cs typeface 를 강제로 통일된 폰트로 교체.
+// PPTX 는 latin(라틴) / ea(동아시아) / cs(복합문자) 3개의 typeface 를 가진다 — 모두 덮어써야 한글까지 적용됨.
+function forceTypeface(rPr, xmlDoc, typeface) {
+  if (!rPr || !xmlDoc) return;
+  ['latin', 'ea', 'cs'].forEach(tag => {
+    Array.from(rPr.getElementsByTagNameNS(NS_A, tag)).forEach(el => el.parentNode.removeChild(el));
+    const el = xmlDoc.createElementNS(NS_A, `a:${tag}`);
+    el.setAttribute('typeface', typeface);
+    rPr.appendChild(el);
+  });
+}
+
 // shape_id 와 일치하는 순서로 DOM 요소를 순회해 새 텍스트를 주입한다.
 // extractReplaceableShapes 와 동일한 필터(빈/구조 텍스트 제외) + 같은 순서(p:sp → a:tc).
 function safelyReplaceSlideTextDom(xmlString, byShapeId, byShapeFontPt = null) {
@@ -1158,6 +1195,10 @@ function safelyReplaceSlideTextDom(xmlString, byShapeId, byShapeFontPt = null) {
     if (rPrCloneBase && fontSizePt && Number.isFinite(fontSizePt)) {
       rPrCloneBase.setAttribute('sz', String(Math.round(Number(fontSizePt) * 100)));
     }
+    // [WYSIWYG] 폰트 통일: 미리보기(웹)와 PPTX(출력) 모두 Pretendard 로 강제.
+    // 원본 PPT 의 typeface 는 시스템에 없을 수 있어 글자 폭이 어긋남 → 미리보기와 다르게 보임.
+    // typeface 만 교체하고 색/굵기 등 디자인은 그대로 유지.
+    if (rPrCloneBase) forceTypeface(rPrCloneBase, xmlDoc, 'Pretendard');
 
     if (!lines.length) {
       const p = xmlDoc.createElementNS(NS_A, 'a:p');

@@ -382,13 +382,36 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
   );
 }
 
+// 미리보기에서 텍스트가 도형 박스를 넘치지 않도록 글자 수/박스 크기에 맞춰 폰트 크기를 줄여주는 헬퍼
+// (실제 PPT 다운로드는 원본 폰트 크기 그대로 — 미리보기 가독성만 개선)
+function fitFontSize(text, baseFs, w, h) {
+  if (!text || !w || !h || !baseFs) return baseFs || 12;
+  const lineHeight = 1.3;
+  // 한글/영문 혼합 평균 글자 폭 비율 (대략 fontSize * 0.58)
+  const charWidthRatio = 0.58;
+  const lines = String(text).split(/\r?\n/);
+  let fs = baseFs;
+  for (let i = 0; i < 12; i++) {
+    const charsPerLine = Math.max(1, Math.floor(w / (fs * charWidthRatio)));
+    const totalLines = lines.reduce((acc, ln) => acc + Math.max(1, Math.ceil((ln.length || 1) / charsPerLine)), 0);
+    const needH = totalLines * fs * lineHeight;
+    if (needH <= h) break;
+    fs *= 0.9;
+    if (fs < 6) { fs = 6; break; }
+  }
+  return fs;
+}
+
 function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
   const SLIDE_W = slide.slideW || 960;
   const SLIDE_H = slide.slideH || 540;
   const containerW = 540;
   const scale = containerW / SLIDE_W;
   const c = template?.colors || {};
-  const fonts = template?.fonts || {};
+  // [WYSIWYG] 미리보기와 PPTX 출력의 글자 폭을 일치시키기 위해 폰트를 Pretendard 로 통일.
+  // 원본 템플릿 폰트(fonts.heading/body)는 시스템에 없을 수 있어 글자 폭이 달라짐 → 의도적으로 무시.
+  const PREVIEW_FONT = 'Pretendard, "Pretendard Variable", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif';
+  const fonts = { heading: PREVIEW_FONT, body: PREVIEW_FONT };
   // 마스터/레이아웃/슬라이드 모든 데코를 그대로 사용 (큰/작은 모두) — 원본 PPT와 시각적 일치 우선
   const decorShapes = slide.decorShapes || [];
   const pics = slide.pics || [];
@@ -443,32 +466,45 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
             />
           ))}
           {/* 3) 마스터/레이아웃의 정적 텍스트 (페이지 번호, 로고 텍스트 등) */}
-          {staticTexts.map((st, si) => (
-            <div
-              key={`st-${si}`}
-              style={{
-                position: 'absolute',
-                left: st.x_pt,
-                top: st.y_pt,
-                width: st.width_pt,
-                height: st.height_pt,
-                fontSize: st.fontSize,
-                color: st.color,
-                lineHeight: 1.2,
-                overflow: 'hidden',
-                padding: 2,
-                fontFamily: fonts.body || 'Pretendard',
-                fontWeight: 600,
-              }}
-            >
-              {st.text}
-            </div>
-          ))}
+          {staticTexts.map((st, si) => {
+            const innerW = Math.max(1, (st.width_pt || 100) - 4);
+            const innerH = Math.max(1, (st.height_pt || 20) - 4);
+            const fs = fitFontSize(st.text, st.fontSize || 12, innerW, innerH);
+            return (
+              <div
+                key={`st-${si}`}
+                style={{
+                  position: 'absolute',
+                  left: st.x_pt,
+                  top: st.y_pt,
+                  width: st.width_pt,
+                  height: st.height_pt,
+                  fontSize: fs,
+                  color: st.color,
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  padding: 2,
+                  fontFamily: fonts.body || 'Pretendard',
+                  fontWeight: 600,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {st.text}
+              </div>
+            );
+          })}
           {/* 4) AI 매핑된 슬라이드 텍스트 (없으면 원본 fallback) */}
           {textShapes.map(sh => {
             const text = sh.displayText;
-            const fontSize = (slide.fontMap?.[sh.shape_id]) || sh.original_font_size_pt || (isTitle(sh.role_hint) ? 28 : 14);
+            const baseFontSize = (slide.fontMap?.[sh.shape_id]) || sh.original_font_size_pt || (isTitle(sh.role_hint) ? 28 : 14);
             const isT = isTitle(sh.role_hint);
+            const boxW = sh.width_pt || 200;
+            const boxH = sh.height_pt || 30;
+            const innerW = Math.max(1, boxW - 8);
+            const innerH = Math.max(1, boxH - 8);
+            const fontSize = fitFontSize(text, baseFontSize, innerW, innerH);
             return (
               <div
                 key={sh.shape_id}
@@ -476,14 +512,16 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                   position: 'absolute',
                   left: sh.x_pt || 0,
                   top: sh.y_pt || 0,
-                  width: sh.width_pt || 200,
-                  height: sh.height_pt || 30,
+                  width: boxW,
+                  height: boxH,
                   fontSize,
                   fontFamily: isT ? (fonts.heading || 'Pretendard') : (fonts.body || 'Pretendard'),
                   fontWeight: isT ? 800 : 500,
                   color: isT ? (c.titleColor || c.accent || '#111827') : (c.sub || '#1F2937'),
                   lineHeight: 1.3,
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                   overflow: 'hidden',
                   letterSpacing: '-0.01em',
                   padding: 4,
