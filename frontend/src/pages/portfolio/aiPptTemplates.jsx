@@ -53,20 +53,23 @@ export function buildCustomTemplateFromTokens(tokens, fileName, presenter = {}) 
   const t = tokens || {};
   const accent = t.accent || '#1D4ED8';
   const titleColor = t.title || '#D6202B'; // 제목용 강조색(없으면 기본 레드)
+  const hint = t.layoutHint || 'minimal';
   return {
     id: 'custom',
     name: `내 템플릿 (${fileName || 'custom'})`,
-    description: '업로드 템플릿의 색상·폰트로 합격자 도큐먼트 레이아웃 구성',
+    description: '업로드 템플릿의 색상·폰트·구조 추론으로 레이아웃 구성',
     style: 'document',
+    layoutHint: hint,
     colors: {
-      bg: '#FFFFFF',
+      bg: t.bg || '#FFFFFF',
+      titleColor: t.title || '#D6202B',
       accent,
-      titleColor,
-      sub: '#374151',
+      accent2: t.accent2 || accent,
+      side: t.side || accent,
+      sideFg: t.sideFg || '#FFFFFF',
+      sub: t.sub || '#1F2937',
       muted: '#9CA3AF',
       line: hexLighten(accent, 0.85),
-      side: accent,
-      sideFg: '#FFFFFF',
       kpi: accent,
       footerBg: hexLighten(accent, 0.92),
       footerFg: '#374151',
@@ -76,6 +79,7 @@ export function buildCustomTemplateFromTokens(tokens, fileName, presenter = {}) 
       body: t.fontBody || 'Pretendard',
     },
     presenter, // { name, affiliation } 하단 바에 표시
+    thumbnailBase64: t.thumbnailBase64 || null,
   };
 }
 
@@ -103,6 +107,8 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
   const t = template || TEMPLATES[0];
   const W = 960, H = 540;
 
+
+
   const wrap = {
     width: W, height: H, background: t.colors.bg, color: t.colors.accent,
     fontFamily: t.fonts.body, transform: `scale(${scale})`, transformOrigin: 'top left',
@@ -110,6 +116,7 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
   };
 
   if (slide.layout === 'cover' || slide.layout === 'section') {
+    if (t.style === 'document') return <div style={wrap}>{renderDocumentCover(slide, t)}</div>;
     return <div style={wrap}>{renderCover(slide, t)}</div>;
   }
 
@@ -118,6 +125,8 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
   if (t.style === 'document') return <div style={wrap}>{renderDocument(slide, t, index)}</div>;
   return <div style={wrap}>{renderCreative(slide, t, index)}</div>;
 }
+
+
 
 function renderCover(slide, t) {
   const c = t.colors;
@@ -201,51 +210,132 @@ function renderCover(slide, t) {
   );
 }
 
-// ── Document: 흰 배경 + 상단 라인 + 좌측 반원 + 하단 발표자 바 ──
+// ── Document: layoutHint에 따라 sidebar / header / minimal 분기 ──
 function renderDocument(slide, t, index) {
   const c = t.colors;
-  const sectionLabel = (slide.layout || 'SECTION').toUpperCase();
-  return (
-    <>
-      {/* 상단 가는 라인 */}
-      <div style={{ position: 'absolute', left: 80, right: 80, top: 70, height: 1, background: c.line }} />
-      {/* 좌측 액센트 반원 */}
-      <div style={{ position: 'absolute', left: -38, top: 220, width: 90, height: 90, borderRadius: '50%', background: c.accent }} />
-      {/* 헤더: 섹션 라벨 + 타이틀 */}
-      <div style={{ position: 'absolute', left: 100, top: 90, right: 100 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, letterSpacing: '0.18em', marginBottom: 8 }}>
-          {String(index + 1).padStart(2, '0')} · {sectionLabel}
+  const hint = t.layoutHint || 'header-top';
+  const sideColor = c.side || c.accent;
+  const sideFg = c.sideFg || '#FFFFFF';
+
+  if (hint === 'sidebar-left' || hint === 'sidebar-right') {
+    const isLeft = hint === 'sidebar-left';
+    const SIDE_W = 240;
+    return (
+      <>
+        <div style={{ position: 'absolute', top: 0, bottom: 0, [isLeft ? 'left' : 'right']: 0, width: SIDE_W, background: sideColor, color: sideFg, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: '0.2em' }}>{String(index + 1).padStart(2, '0')}</div>
+            <div style={{ width: 32, height: 3, background: c.accent2 || sideFg, opacity: 0.85, margin: '14px 0 18px' }} />
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 24, fontWeight: 800, lineHeight: 1.25 }}>{slide.title || ' '}</div>
+            {slide.subtitle && <div style={{ marginTop: 12, fontSize: 13, opacity: 0.85, lineHeight: 1.4 }}>{slide.subtitle}</div>}
+          </div>
+          <div style={{ fontSize: 10, opacity: 0.5, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{slide.layout}</div>
         </div>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 34, fontWeight: 900, color: c.titleColor || c.accent, lineHeight: 1.15 }}>
-          {slide.title || ' '}
+        <div style={{ position: 'absolute', top: 50, bottom: 50, [isLeft ? 'left' : 'right']: SIDE_W + 50, [isLeft ? 'right' : 'left']: 50 }}>
+          {renderBody(slide, t, 'document')}
+        </div>
+      </>
+    );
+  }
+
+  if (hint === 'header-top' || hint === 'block') {
+    return (
+      <>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 110, background: sideColor, display: 'flex', alignItems: 'center', padding: '0 56px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: sideFg, opacity: 0.7, letterSpacing: '0.18em', marginBottom: 4 }}>{String(index + 1).padStart(2, '0')}</div>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 800, color: sideFg, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{slide.title || ' '}</div>
+          </div>
+          <div style={{ width: 4, height: 60, background: c.accent2 || c.accent, opacity: 0.9, marginLeft: 24 }} />
         </div>
         {slide.subtitle && (
-          <div style={{ marginTop: 8, fontSize: 16, color: c.sub }}>{slide.subtitle}</div>
+          <div style={{ position: 'absolute', left: 56, right: 56, top: 130, fontSize: 16, color: c.sub, lineHeight: 1.4, fontFamily: t.fonts.body }}>{slide.subtitle}</div>
         )}
+        <div style={{ position: 'absolute', left: 56, right: 56, top: slide.subtitle ? 175 : 140, bottom: 40 }}>
+          {renderBody(slide, t, 'document')}
+        </div>
+      </>
+    );
+  }
+
+  // minimal: 색 도형 없는 깔끔한 텍스트 중심 레이아웃
+  return (
+    <>
+      <div style={{ position: 'absolute', left: 64, right: 64, top: 60 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: '0.2em', marginBottom: 10 }}>{String(index + 1).padStart(2, '0')}</div>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 36, fontWeight: 800, color: c.titleColor || c.accent, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{slide.title || ' '}</div>
+        {slide.subtitle && <div style={{ marginTop: 10, fontSize: 17, color: c.sub, lineHeight: 1.4 }}>{slide.subtitle}</div>}
+        <div style={{ marginTop: 16, width: 56, height: 3, background: c.accent }} />
       </div>
-      {/* 본문 */}
-      <div style={{ position: 'absolute', left: 100, right: 80, top: 230, bottom: 110 }}>
+      <div style={{ position: 'absolute', left: 64, right: 64, top: 180, bottom: 50 }}>
         {renderBody(slide, t, 'document')}
       </div>
-      {/* 하단 발표자 바 */}
-      <div style={{ position: 'absolute', left: 80, right: 80, bottom: 35, padding: '10px 16px', background: c.footerBg, display: 'flex', alignItems: 'center', gap: 22, fontSize: 11, color: c.footerFg }}>
-        {t.presenter?.name && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ width: 2, height: 12, background: c.accent }} />
-            <span style={{ fontWeight: 700 }}>발표자 ·</span>
-            <span>{t.presenter.name}</span>
-          </div>
-        )}
-        {t.presenter?.affiliation && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ width: 2, height: 12, background: c.accent }} />
-            <span style={{ fontWeight: 700 }}>학과 및 학번 ·</span>
-            <span>{t.presenter.affiliation}</span>
-          </div>
-        )}
-        <div style={{ marginLeft: 'auto', color: c.muted }}>{index + 1}</div>
-      </div>
     </>
+  );
+}
+
+function renderDocumentCover(slide, t) {
+  const c = t.colors;
+  const hint = t.layoutHint || 'block';
+  const sideColor = c.side || c.accent;
+  const sideFg = c.sideFg || '#FFFFFF';
+
+  if (hint === 'sidebar-right') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: c.bg, display: 'flex' }}>
+        <div style={{ flex: 1, padding: '60px 50px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ width: 60, height: 5, background: c.accent, marginBottom: 24 }} />
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 50, fontWeight: 900, color: c.titleColor || c.accent, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{slide.title || ' '}</div>
+          {slide.subtitle && <div style={{ marginTop: 18, fontSize: 20, color: c.sub, lineHeight: 1.45 }}>{slide.subtitle}</div>}
+        </div>
+        <div style={{ width: '38%', background: sideColor }} />
+      </div>
+    );
+  }
+
+  if (hint === 'header-top' || hint === 'footer-bottom') {
+    const isTop = hint !== 'footer-bottom';
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: c.bg, display: 'flex', flexDirection: 'column' }}>
+        {isTop && <div style={{ height: 90, background: sideColor }} />}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 80px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, letterSpacing: '0.25em', marginBottom: 14 }}>PORTFOLIO</div>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 56, fontWeight: 900, color: c.titleColor || c.accent, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{slide.title || ' '}</div>
+          {slide.subtitle && <div style={{ marginTop: 22, fontSize: 22, color: c.sub, lineHeight: 1.45 }}>{slide.subtitle}</div>}
+          <div style={{ marginTop: 28, width: 80, height: 4, background: c.accent }} />
+        </div>
+        {!isTop && <div style={{ height: 90, background: sideColor }} />}
+      </div>
+    );
+  }
+
+  if (hint === 'minimal') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: c.bg, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 90px' }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 64, fontWeight: 900, color: c.titleColor || c.accent, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{slide.title || ' '}</div>
+        {slide.subtitle && <div style={{ marginTop: 24, fontSize: 24, color: c.sub, lineHeight: 1.4 }}>{slide.subtitle}</div>}
+        <div style={{ marginTop: 28, width: 80, height: 4, background: c.accent }} />
+      </div>
+    );
+  }
+
+  // sidebar-left / block 기본
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: c.bg, display: 'flex' }}>
+      <div style={{ width: '42%', background: sideColor, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 60 }}>
+        <div style={{ position: 'absolute', top: 50, left: 60, fontSize: 14, fontWeight: 700, color: sideFg, opacity: 0.7, letterSpacing: '0.25em' }}>PORTFOLIO</div>
+        <div style={{ width: 60, height: 5, background: c.accent2 || sideFg, opacity: 0.9, marginBottom: 24 }} />
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 44, fontWeight: 900, color: sideFg, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{slide.title || ' '}</div>
+      </div>
+      <div style={{ flex: 1, padding: '60px 50px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        {slide.subtitle && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, letterSpacing: '0.2em', marginBottom: 12 }}>SUBTITLE</div>
+            <div style={{ fontSize: 22, color: c.sub, lineHeight: 1.45, fontFamily: t.fonts.body }}>{slide.subtitle}</div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -336,9 +426,9 @@ function renderBody(slide, t, variant) {
       );
     } else if (variant === 'document') {
       header = (
-        <div style={{ background: c.accent, color: '#fff', padding: '10px 18px', borderRadius: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontFamily: t.fonts.heading, fontSize: 17, fontWeight: 800 }}>{it.heading || ''}</div>
-          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>{it.period || ''}</div>
+        <div style={{ borderLeft: `4px solid ${c.accent}`, paddingLeft: 16, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 20, fontWeight: 800, color: c.titleColor || c.accent, lineHeight: 1.25 }}>{it.heading || ''}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.sub, whiteSpace: 'nowrap' }}>{it.period || ''}</div>
         </div>
       );
     } else {
@@ -382,13 +472,14 @@ function renderBody(slide, t, variant) {
   if (bullets.length > 0) {
     if (variant === 'document') {
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {bullets.slice(0, 7).map((b, i) => (
-            <div key={i} style={{ background: c.line, padding: '10px 16px', borderRadius: 4, fontSize: 14, color: c.sub, fontWeight: 500 }}>
+            <li key={i} style={{ fontSize: 17, color: c.sub, lineHeight: 1.55, paddingLeft: 22, position: 'relative', fontFamily: t.fonts.body }}>
+              <span style={{ position: 'absolute', left: 0, top: 9, width: 8, height: 8, background: c.accent, borderRadius: '50%' }} />
               {b}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       );
     }
     return (
@@ -481,25 +572,42 @@ function drawCover(s, slide, t, W, H) {
   const c = t.colors;
   const isCover = slide.layout === 'cover';
   if (t.style === 'document') {
+    const hint = t.layoutHint || 'block';
+    const sideColor = c.side || c.accent;
+    const sideFg = c.sideFg || '#FFFFFF';
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.bg) }, line: { color: hex(c.bg) } });
-    // 상단 가는 라인
-    s.addShape('rect', { x: 0.9, y: 0.85, w: W - 1.8, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-    // 좌측 액센트 원(반원처럼 보이게 화면 밖까지 확장)
-    s.addShape('ellipse', { x: -0.7, y: H / 2 - 0.95, w: 1.9, h: 1.9, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-    // 타이틀
-    s.addText(slide.title || '', {
-      x: 1.3, y: 1.7, w: W - 2.5, h: 1.6,
-      fontFace: t.fonts.heading, fontSize: isCover ? 60 : 44, bold: true,
-      color: hex(c.titleColor || c.accent),
-    });
-    if (slide.subtitle) {
-      s.addText(slide.subtitle, {
-        x: 1.3, y: 3.4, w: W - 2.5, h: 1.0,
-        fontFace: t.fonts.heading, fontSize: 28, bold: true, color: '1F2937',
-      });
+
+    if (hint === 'sidebar-right') {
+      s.addShape('rect', { x: W * 0.62, y: 0, w: W * 0.38, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
+      s.addShape('rect', { x: 0.7, y: H / 2 - 1.0, w: 0.7, h: 0.07, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+      s.addText(slide.title || '', { x: 0.7, y: H / 2 - 0.8, w: W * 0.6 - 1.0, h: 2.0, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 34, bold: true, color: hex(c.titleColor || c.accent) });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 1.0, w: W * 0.6 - 1.0, h: 1.0, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub) });
+      return;
     }
-    if (isCover && (t.presenter?.name || t.presenter?.affiliation)) {
-      drawPresenterBar(s, t, 0.9, H - 1.0, W - 1.8);
+    if (hint === 'header-top' || hint === 'footer-bottom') {
+      const isTop = hint !== 'footer-bottom';
+      s.addShape('rect', { x: 0, y: isTop ? 0 : H - 1.2, w: W, h: 1.2, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
+      const cy = H / 2 - 1.0;
+      s.addText('PORTFOLIO', { x: 1.0, y: cy, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
+      s.addText(slide.title || '', { x: 1.0, y: cy + 0.4, w: W - 2.0, h: 1.4, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent) });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.0, y: cy + 1.9, w: W - 2.0, h: 1.0, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub) });
+      s.addShape('rect', { x: 1.0, y: cy + 2.85, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+      return;
+    }
+    if (hint === 'minimal') {
+      s.addText(slide.title || '', { x: 1.1, y: H / 2 - 1.2, w: W - 2.2, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent) });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.1, y: H / 2 + 0.4, w: W - 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub) });
+      s.addShape('rect', { x: 1.1, y: H / 2 + 1.3, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+      return;
+    }
+    // sidebar-left / block (기본)
+    s.addShape('rect', { x: 0, y: 0, w: W * 0.42, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
+    s.addText('PORTFOLIO', { x: 0.7, y: 0.7, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 30, charSpacing: 6 });
+    s.addShape('rect', { x: 0.7, y: H - 3.4, w: 0.7, h: 0.07, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
+    s.addText(slide.title || '', { x: 0.7, y: H - 3.2, w: W * 0.42 - 1.0, h: 2.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(sideFg), valign: 'top' });
+    if (slide.subtitle) {
+      s.addText('SUBTITLE', { x: W * 0.42 + 0.6, y: H / 2 - 0.8, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
+      s.addText(slide.subtitle, { x: W * 0.42 + 0.6, y: H / 2 - 0.4, w: W * 0.58 - 1.2, h: 1.6, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub) });
     }
     return;
   }
@@ -545,38 +653,54 @@ function drawPresenterBar(s, t, x, y, w) {
   }
 }
 
-// ── Document PPTX ──
+// ── Document PPTX (layoutHint 분기) ──
 function drawDocument(s, slide, t, i, W, H, M) {
   const c = t.colors;
-  const sectionLabel = (slide.layout || 'SECTION').toUpperCase();
-  // 흰 배경
+  const hint = t.layoutHint || 'header-top';
+  const sideColor = c.side || c.accent;
+  const sideFg = c.sideFg || '#FFFFFF';
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.bg) }, line: { color: hex(c.bg) } });
-  // 상단 가는 라인
-  s.addShape('rect', { x: 0.9, y: 0.85, w: W - 1.8, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-  // 좌측 반원
-  s.addShape('ellipse', { x: -0.55, y: 2.6, w: 1.3, h: 1.3, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-  // 섹션 라벨
-  s.addText(`${String(i + 1).padStart(2, '0')} · ${sectionLabel}`, {
-    x: 1.1, y: 1.0, w: W - 2.0, h: 0.3,
-    fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 4,
-  });
-  // 타이틀
-  s.addText(slide.title || '', {
-    x: 1.1, y: 1.35, w: W - 2.0, h: 0.7,
-    fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(c.titleColor || c.accent),
-  });
-  if (slide.subtitle) {
-    s.addText(slide.subtitle, {
-      x: 1.1, y: 2.05, w: W - 2.0, h: 0.4,
-      fontFace: t.fonts.body, fontSize: 13, color: hex(c.sub),
-    });
+
+  if (hint === 'sidebar-left' || hint === 'sidebar-right') {
+    const isLeft = hint === 'sidebar-left';
+    const SIDE_W = 3.4;
+    const sideX = isLeft ? 0 : W - SIDE_W;
+    const bodyX = isLeft ? SIDE_W + 0.5 : 0.5;
+    const bodyW = W - SIDE_W - 1.0;
+    s.addShape('rect', { x: sideX, y: 0, w: SIDE_W, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
+    s.addText(String(i + 1).padStart(2, '0'), { x: sideX + 0.4, y: 0.5, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), charSpacing: 4 });
+    s.addShape('rect', { x: sideX + 0.4, y: 0.95, w: 0.4, h: 0.04, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
+    s.addText(slide.title || '', { x: sideX + 0.4, y: 1.1, w: SIDE_W - 0.8, h: 1.6, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(sideFg), valign: 'top' });
+    if (slide.subtitle) s.addText(slide.subtitle, { x: sideX + 0.4, y: 2.7, w: SIDE_W - 0.8, h: 0.8, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg) });
+    drawBody(s, slide, t, bodyX, M, bodyW, H - M * 2, 'document');
+    return;
   }
-  // 본문 영역
-  const bodyTop = 2.6;
-  drawBody(s, slide, t, 1.1, bodyTop, W - 2.0, H - bodyTop - 1.2, 'document');
-  // 하단 발표자 바
-  drawPresenterBar(s, t, 0.9, H - 0.95, W - 1.8);
-  s.addText(String(i + 1), { x: W - 0.7, y: H - 0.95, w: 0.5, h: 0.55, fontFace: t.fonts.body, fontSize: 11, color: hex(c.muted), align: 'right', valign: 'middle' });
+
+  if (hint === 'header-top' || hint === 'block' || hint === 'footer-bottom') {
+    const isFooter = hint === 'footer-bottom';
+    const headerH = 1.3;
+    const headerY = isFooter ? H - headerH : 0;
+    s.addShape('rect', { x: 0, y: headerY, w: W, h: headerH, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
+    s.addText(String(i + 1).padStart(2, '0'), { x: 0.7, y: headerY + 0.2, w: 1.5, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 40, charSpacing: 4 });
+    s.addText(slide.title || '', { x: 0.7, y: headerY + 0.45, w: W - 1.6, h: 0.8, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(sideFg), valign: 'middle' });
+    s.addShape('rect', { x: W - 0.85, y: headerY + 0.35, w: 0.06, h: 0.6, fill: { color: hex(c.accent2 || c.accent) }, line: { color: hex(c.accent2 || c.accent) } });
+    const bodyTop = isFooter ? 0.6 : headerH + 0.3;
+    let by = bodyTop;
+    if (slide.subtitle) {
+      s.addText(slide.subtitle, { x: 0.7, y: by, w: W - 1.4, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), italic: true });
+      by += 0.55;
+    }
+    const bodyBottom = isFooter ? H - headerH - 0.3 : H - 0.4;
+    drawBody(s, slide, t, 0.7, by, W - 1.4, bodyBottom - by, 'document');
+    return;
+  }
+
+  // minimal
+  s.addText(String(i + 1).padStart(2, '0'), { x: 0.9, y: 0.7, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 4 });
+  s.addText(slide.title || '', { x: 0.9, y: 1.0, w: W - 1.8, h: 0.9, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(c.titleColor || c.accent) });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.9, y: 1.95, w: W - 1.8, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub) });
+  s.addShape('rect', { x: 0.9, y: 2.5, w: 0.5, h: 0.04, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+  drawBody(s, slide, t, 0.9, 2.75, W - 1.8, H - 3.15, 'document');
 }
 
 // ── Modern PPTX ──
@@ -641,9 +765,9 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
         s.addText(it.heading || '', { x: x0 + 0.15, y: y, w: w * 0.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), valign: 'middle' });
         s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3 - 0.15, h: 0.42, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), valign: 'middle', align: 'right' });
       } else if (variant === 'document') {
-        s.addShape('rect', { x: x0, y, w, h: 0.5, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-        s.addText(it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.65, h: 0.5, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: 'FFFFFF', valign: 'middle' });
-        s.addText(it.period || '', { x: x0 + w * 0.65, y: y, w: w * 0.35 - 0.2, h: 0.5, fontFace: t.fonts.body, fontSize: 11, bold: true, color: 'FFFFFF', valign: 'middle', align: 'right' });
+        s.addShape('rect', { x: x0, y, w: 0.06, h: 0.5, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+        s.addText(it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.7, h: 0.5, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: hex(c.titleColor || c.accent), valign: 'middle' });
+        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3, h: 0.5, fontFace: t.fonts.body, fontSize: 12, color: hex(c.sub), valign: 'middle', align: 'right' });
       } else {
         s.addShape('rect', { x: x0, y, w: 0.04, h: 0.42, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
         s.addText(it.heading || '', { x: innerX, y, w: innerW * 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent) });
@@ -691,14 +815,8 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
 
   if (bullets.length > 0) {
     if (variant === 'document') {
-      const visible = bullets.slice(0, 6);
-      const gap = 0.12;
-      const rowH = Math.min(0.55, (h - gap * (visible.length - 1)) / visible.length);
-      visible.forEach((b, idx) => {
-        const y = y0 + idx * (rowH + gap);
-        s.addShape('rect', { x: x0, y, w, h: rowH, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-        s.addText(b, { x: x0 + 0.2, y, w: w - 0.4, h: rowH, fontFace: t.fonts.body, fontSize: 13, color: hex(c.sub), valign: 'middle' });
-      });
+      const bulletObjs = bullets.slice(0, 7).map(b => ({ text: b, options: { bullet: { code: '25CF' } } }));
+      s.addText(bulletObjs, { x: x0 + 0.1, y: y0, w: w - 0.1, h, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sub), paraSpaceAfter: 10 });
       return;
     }
     const bulletObjs = bullets.slice(0, 7).map(b => ({ text: b, options: { bullet: { code: variant === 'classic' ? '2014' : '25CF' } } }));

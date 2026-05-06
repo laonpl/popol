@@ -79,17 +79,21 @@ function extractGeometry(fragment) {
 }
 
 // shape 크기 + 원본 폰트 크기로 실제 적정 글자수 한도 추정
-// 한글 1자 폭 ≈ font_size * 1.0pt, 줄높이 ≈ font_size * 1.35pt
+// Safe Zone: 미리보기(웹폰트)와 PPT 렌더 엔진(MS Office)의 글자 폭 오차를 흡수하기 위해
+// 박스 폭의 ~70%까지만 글자가 들어가도록 보수적으로 산정한다.
+// 한글 1자 폭 ≈ font_size * 1.05pt, 줄높이 ≈ font_size * 1.4pt
 function estimateCharBudget(geom, fontSizeHundredths) {
   const w = geom?.width_pt;
   const h = geom?.height_pt;
-  if (!w || !h) return 28;
+  if (!w || !h) return 24;
   const fs = fontSizeHundredths ? fontSizeHundredths / 100 : 18; // 기본 18pt 가정
-  const charWidth = Math.max(6, fs * 1.0);
-  const lineHeight = Math.max(8, fs * 1.35);
-  const perLine = Math.max(2, Math.floor((w - 4) / charWidth));
+  const charWidth = Math.max(6, fs * 1.05);
+  const lineHeight = Math.max(8, fs * 1.4);
+  // 박스 폭의 85%만 안전 영역으로 사용
+  const safeW = (w - 4) * 0.85;
+  const perLine = Math.max(2, Math.floor(safeW / charWidth));
   const lines = Math.max(1, Math.floor(h / lineHeight));
-  // 박스에 어느 정도 여백을 두기 위해 0.85배 적용
+  // 추가 면적 마진 0.85 (폰트 다이버전스 + 줄 끝 흘림 방지)
   return Math.max(6, Math.min(Math.floor(perLine * lines * 0.85), 200));
 }
 
@@ -141,8 +145,8 @@ function extractReplaceableShapes(xml) {
 
   for (const m of xmlStr.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)) {
     const text = extractSlideText(m[0]);
-    if (!text || isStructuralText(text)) continue;
     const phMatch = m[0].match(/<p:ph([^>]*?)\/?>/);
+    if ((!text || isStructuralText(text)) && !phMatch) continue;
     const phAttrs = phMatch ? phMatch[1] : '';
     const phType = (phAttrs.match(/type="([^"]+)"/)?.[1] || '').toLowerCase();
     const phIdx = Number(phAttrs.match(/idx="([^"]+)"/)?.[1] || 99);
@@ -237,10 +241,13 @@ function buildSlideLayoutMap(xml, slideIndex) {
   const sps = Array.from(xmlDoc.getElementsByTagNameNS(NS_P, 'sp'));
   for (const sp of sps) {
     const text = collectText(sp);
-    if (!text || isStructuralText(text)) continue;
-    shapeId += 1;
     const ph = sp.getElementsByTagNameNS(NS_P, 'ph')[0];
     const phType = (ph?.getAttribute('type') || '').toLowerCase();
+    
+    // placeholder가 있으면 텍스트가 없거나 기본 텍스트여도 레이아웃 맵에 포함
+    if ((!text || isStructuralText(text)) && !ph) continue;
+    
+    shapeId += 1;
     const geom = readGeometry(sp);
     const sz = firstRPrSize(sp);
     shapesOut.push({
@@ -252,6 +259,7 @@ function buildSlideLayoutMap(xml, slideIndex) {
       y_pt: geom.y_pt,
       char_budget: estimateCharBudget(geom, sz),
       original_font_size_pt: sz ? Math.round(sz / 100) : null,
+      original_text: text || '', // 미리보기 fallback용 (AI에는 전달되지 않음 - safePortfolioForAI가 spread하지 않음)
     });
   }
 
@@ -273,7 +281,42 @@ function buildSlideLayoutMap(xml, slideIndex) {
     });
   }
 
-  return { slideIndex, textBoxCount: shapesOut.length || 1, shapes: shapesOut };
+  // 데코 도형(색칠된 박스/라인) — 텍스트 없거나 구조 텍스트만 있는 도형의 fill/line 추출
+  const decorShapes = [];
+  const getFillColor = (sp) => {
+    const sf = sp.getElementsByTagNameNS(NS_A, 'solidFill')[0];
+    if (!sf) return null;
+    const srgb = sf.getElementsByTagNameNS(NS_A, 'srgbClr')[0];
+    if (srgb) return `#${srgb.getAttribute('val').toUpperCase()}`;
+    return null;
+  };
+  for (const sp of sps) {
+    const text = collectText(sp);
+    const hasMeaningfulText = text && !isStructuralText(text);
+    if (hasMeaningfulText) continue; // 텍스트 도형은 layoutShapes로 처리됨
+    const geom = readGeometry(sp);
+    if (geom.width_pt == null || geom.height_pt == null) continue;
+    const fill = getFillColor(sp);
+    if (!fill) continue;
+    if (geom.width_pt < 5 || geom.height_pt < 1) continue;
+    decorShapes.push({
+      x_pt: geom.x_pt || 0,
+      y_pt: geom.y_pt || 0,
+      width_pt: geom.width_pt,
+      height_pt: geom.height_pt,
+      fill,
+    });
+  }
+
+  // 슬라이드 배경색 (있으면)
+  let bg = null;
+  const bgEl = xmlDoc.getElementsByTagNameNS(NS_P, 'bg')[0];
+  if (bgEl) {
+    const srgb = bgEl.getElementsByTagNameNS(NS_A, 'srgbClr')[0];
+    if (srgb) bg = `#${srgb.getAttribute('val').toUpperCase()}`;
+  }
+
+  return { slideIndex, textBoxCount: shapesOut.length || 1, shapes: shapesOut, decorShapes, bg };
 }
 
 // 교체 대상 shape 수 카운트 (p:sp 도형 + a:tc 테이블 셀)
@@ -475,13 +518,31 @@ async function extractPptxTemplate(file) {
     sections.push(pickSectionTitle(text, `슬라이드 ${slideNumber}`));
   }
   const designTokens = await extractPptxDesignTokens(zip);
+  
+  // 썸네일(docProps/thumbnail.jpeg) 추출 시도
+  let thumbnailBase64 = null;
+  const thumbFile = Object.keys(zip.files).find(p => /^docProps\/thumbnail\.jpeg$/i.test(p));
+  if (thumbFile) {
+    try {
+      const buffer = await zip.files[thumbFile].async('uint8array');
+      let binary = '';
+      for (let i = 0; i < buffer.byteLength; i++) binary += String.fromCharCode(buffer[i]);
+      thumbnailBase64 = 'data:image/jpeg;base64,' + btoa(binary);
+    } catch (e) {
+      console.warn('썸네일 추출 실패', e);
+    }
+  }
+  
   return {
     title: file.name.replace(/\.pptx$/i, ''),
     sections: sections.length ? sections : DEFAULT_SECTIONS,
     slideCount: slideFiles.length,
     sourceType: 'pptx',
     arrayBuffer,
-    designTokens,
+    designTokens: {
+      ...designTokens,
+      thumbnailBase64
+    },
   };
 }
 
@@ -498,18 +559,23 @@ async function extractPptxDesignTokens(zip) {
   let majorFont = 'Pretendard';
   let minorFont = 'Pretendard';
 
+  const themeColors = {};
   if (themePath) {
     const xml = await zip.files[themePath].async('text');
-    const grab = (tag) => {
+    const tags = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink', 'bg1', 'bg2', 'tx1', 'tx2'];
+    tags.forEach(tag => {
       const m = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:srgbClr val="([0-9A-Fa-f]{6})"`));
-      if (m) return `#${m[1].toUpperCase()}`;
-      const sysM = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:sysClr [^>]*lastClr="([0-9A-Fa-f]{6})"`));
-      return sysM ? `#${sysM[1].toUpperCase()}` : null;
-    };
-    accent = grab('accent1') || accent;
-    accent2 = grab('accent2');
-    dk = grab('dk2') || grab('dk1') || dk;
-    lt = grab('lt1') || lt;
+      if (m) themeColors[tag] = `#${m[1].toUpperCase()}`;
+      else {
+        const sysM = xml.match(new RegExp(`<a:${tag}>[\\s\\S]*?<a:sysClr [^>]*lastClr="([0-9A-Fa-f]{6})"`));
+        if (sysM) themeColors[tag] = `#${sysM[1].toUpperCase()}`;
+      }
+    });
+    
+    accent = themeColors.accent1 || accent;
+    accent2 = themeColors.accent2 || accent2;
+    dk = themeColors.dk2 || themeColors.dk1 || dk;
+    lt = themeColors.lt1 || lt;
 
     const majorM = xml.match(/<a:majorFont>[\s\S]*?<a:latin typeface="([^"]+)"/);
     const minorM = xml.match(/<a:minorFont>[\s\S]*?<a:latin typeface="([^"]+)"/);
@@ -525,13 +591,29 @@ async function extractPptxDesignTokens(zip) {
   ].filter(Boolean);
 
   const allFills = [];
+  let bg = '#FFFFFF';
   for (const path of candidatePaths) {
     const sx = await zip.files[path].async('text');
     const fills = Array.from(sx.matchAll(/<a:srgbClr val="([0-9A-Fa-f]{6})"/g))
       .map(m => `#${m[1].toUpperCase()}`)
       .filter(c => c !== '#FFFFFF' && c !== '#000000' && c !== '#FFFFFE' && c !== '#F2F2F2');
     allFills.push(...fills);
+
+    // 배경색 시도
+    const bgMatch = sx.match(/<p:bg>[\s\S]*?<a:srgbClr val="([0-9A-Fa-f]{6})"/);
+    const bgSchemeMatch = sx.match(/<p:bg>[\s\S]*?<a:schemeClr val="([^"]+)"/);
+    if (bgMatch) { bg = `#${bgMatch[1].toUpperCase()}`; }
+    else if (bgSchemeMatch) {
+      const scheme = bgSchemeMatch[1];
+      if (themeColors[scheme]) bg = themeColors[scheme];
+      else if (scheme === 'bg1') bg = themeColors.lt1 || '#FFFFFF';
+      else if (scheme === 'bg2') bg = themeColors.lt2 || '#FFFFFF';
+    }
   }
+  
+  // 만약 못 찾았는데 테마에 lt1이 있으면 (기본 배경) 사용
+  if (bg === '#FFFFFF' && themeColors.lt1 && !isLight(themeColors.lt1)) bg = themeColors.lt1;
+  else if (bg === '#FFFFFF' && themeColors.bg1) bg = themeColors.bg1;
   if (allFills.length) {
     const scored = allFills.map(c => ({ c, score: colorVibrancy(c) })).sort((a, b) => b.score - a.score);
     const best = scored.find(({ c }) => colorVibrancy(c) > 30);
@@ -544,15 +626,59 @@ async function extractPptxDesignTokens(zip) {
   // 가독성: 사이드바 위에 흰/검정 중 무엇을 올릴지 결정
   const sideFg = isLight(sidebarColor) ? '#1F2937' : '#FFFFFF';
 
+  // 슬라이드 1의 큰 채움 도형 위치를 보고 레이아웃 구조 추론 (sidebar | header | block | minimal)
+  let layoutHint = 'minimal';
+  const slide1Path = Object.keys(zip.files).find(p => /^ppt\/slides\/slide1\.xml$/.test(p));
+  if (slide1Path) {
+    try {
+      const sx = await zip.files[slide1Path].async('text');
+      const SLIDE_W_EMU = 12192000; // 13.333"
+      const SLIDE_H_EMU = 6858000;  // 7.5"
+      const spRegex = /<p:sp\b[\s\S]*?<\/p:sp>/g;
+      let bestArea = 0;
+      let bestBox = null;
+      let m;
+      while ((m = spRegex.exec(sx))) {
+        const sp = m[0];
+        // 채움색이 있어야 함 (텍스트 박스 제외)
+        if (!/<a:solidFill>[\s\S]*?<a:srgbClr/.test(sp) && !/<a:solidFill>[\s\S]*?<a:schemeClr/.test(sp)) continue;
+        const off = sp.match(/<a:off\s+x="(-?\d+)"\s+y="(-?\d+)"/);
+        const ext = sp.match(/<a:ext\s+cx="(\d+)"\s+cy="(\d+)"/);
+        if (!off || !ext) continue;
+        const x = Number(off[1]), y = Number(off[2]);
+        const cx = Number(ext[1]), cy = Number(ext[2]);
+        const area = cx * cy;
+        if (area < SLIDE_W_EMU * SLIDE_H_EMU * 0.12) continue; // 너무 작으면 무시
+        if (area > bestArea) {
+          bestArea = area;
+          bestBox = { x, y, cx, cy };
+        }
+      }
+      if (bestBox) {
+        const { x, y, cx, cy } = bestBox;
+        const wRatio = cx / SLIDE_W_EMU;
+        const hRatio = cy / SLIDE_H_EMU;
+        const xRatio = x / SLIDE_W_EMU;
+        const yRatio = y / SLIDE_H_EMU;
+        if (hRatio > 0.7 && wRatio < 0.55 && xRatio < 0.05) layoutHint = 'sidebar-left';
+        else if (hRatio > 0.7 && wRatio < 0.55 && xRatio > 0.45) layoutHint = 'sidebar-right';
+        else if (wRatio > 0.85 && hRatio < 0.35 && yRatio < 0.05) layoutHint = 'header-top';
+        else if (wRatio > 0.85 && hRatio < 0.35 && yRatio > 0.6) layoutHint = 'footer-bottom';
+        else if (wRatio > 0.6 && hRatio > 0.6) layoutHint = 'block';
+      }
+    } catch {}
+  }
+
   return {
     accent,
     accent2: accent2 || accent,
     side: sidebarColor,
     sideFg,
-    bg: '#FFFFFF',
+    bg,
     sub: dk,
     fontHeading: majorFont,
     fontBody: minorFont,
+    layoutHint,
   };
 }
 
@@ -873,6 +999,25 @@ function applyFontSizeToRPr(rPrXml, hundredths) {
   return rPrXml.replace(/^<a:rPr\b/, `<a:rPr sz="${hundredths}"`);
 }
 
+// [WYSIWYG] rPr XML 문자열에서 latin/ea/cs typeface 를 강제로 통일된 폰트로 교체.
+// DOM 경로(safelyReplaceSlideTextDom)와 동일한 효과를 정규식 fallback 경로(fillTxBody)에서도 보장.
+function applyTypefaceToRPr(rPrXml, typeface) {
+  if (!rPrXml) return `<a:rPr lang="ko-KR" dirty="0"><a:latin typeface="${typeface}"/><a:ea typeface="${typeface}"/><a:cs typeface="${typeface}"/></a:rPr>`;
+  // 기존 latin/ea/cs 자식 제거
+  let cleaned = rPrXml
+    .replace(/<a:latin\b[^>]*\/?>/g, '')
+    .replace(/<a:ea\b[^>]*\/?>/g, '')
+    .replace(/<a:cs\b[^>]*\/?>/g, '');
+  const inject = `<a:latin typeface="${typeface}"/><a:ea typeface="${typeface}"/><a:cs typeface="${typeface}"/>`;
+  // self-closing → 컨테이너로 펼친 뒤 주입
+  if (/\/>\s*$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\/>\s*$/, `>${inject}</a:rPr>`);
+  } else {
+    cleaned = cleaned.replace(/<\/a:rPr>\s*$/, `${inject}</a:rPr>`);
+  }
+  return cleaned;
+}
+
 // 한 shape의 단락 채우기 — \n 단위로 a:p 분리, 원본 rPr/pPr 보존, 옵션으로 폰트 크기 조정
 function fillTxBody(txBodyXml, replacement, opts = {}) {
   const { rPrTemplate = null, pPrTemplate = null, fontSizePt = null } = opts;
@@ -890,6 +1035,8 @@ function fillTxBody(txBodyXml, replacement, opts = {}) {
   if (fontSizePt && Number.isFinite(fontSizePt)) {
     rPr = applyFontSizeToRPr(rPr, Math.round(Number(fontSizePt) * 100));
   }
+  // [WYSIWYG] PPTX 출력 폰트를 미리보기와 동일하게 Pretendard 로 통일
+  rPr = applyTypefaceToRPr(rPr, 'Pretendard');
   const pPrTag = pPrTemplate || '';
 
   const paras = lines
@@ -981,10 +1128,24 @@ function replaceSlideText(xml, replacements) {
 const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
+// rPr 의 latin/ea/cs typeface 를 강제로 통일된 폰트로 교체.
+// PPTX 는 latin(라틴) / ea(동아시아) / cs(복합문자) 3개의 typeface 를 가진다 — 모두 덮어써야 한글까지 적용됨.
+function forceTypeface(rPr, xmlDoc, typeface) {
+  if (!rPr || !xmlDoc) return;
+  ['latin', 'ea', 'cs'].forEach(tag => {
+    Array.from(rPr.getElementsByTagNameNS(NS_A, tag)).forEach(el => el.parentNode.removeChild(el));
+    const el = xmlDoc.createElementNS(NS_A, `a:${tag}`);
+    el.setAttribute('typeface', typeface);
+    rPr.appendChild(el);
+  });
+}
+
 // shape_id 와 일치하는 순서로 DOM 요소를 순회해 새 텍스트를 주입한다.
 // extractReplaceableShapes 와 동일한 필터(빈/구조 텍스트 제외) + 같은 순서(p:sp → a:tc).
 function safelyReplaceSlideTextDom(xmlString, byShapeId, byShapeFontPt = null) {
-  if (!byShapeId || !byShapeId.size) return xmlString;
+  if (!byShapeId) return xmlString;
+  // size 0 허용 — 빈 매핑이어도 처리 (모든 텍스트 제거 케이스)
+  if (byShapeId.size === 0 && !(byShapeId instanceof Map)) return xmlString;
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
   if (xmlDoc.getElementsByTagName('parsererror').length) {
@@ -1034,6 +1195,10 @@ function safelyReplaceSlideTextDom(xmlString, byShapeId, byShapeFontPt = null) {
     if (rPrCloneBase && fontSizePt && Number.isFinite(fontSizePt)) {
       rPrCloneBase.setAttribute('sz', String(Math.round(Number(fontSizePt) * 100)));
     }
+    // [WYSIWYG] 폰트 통일: 미리보기(웹)와 PPTX(출력) 모두 Pretendard 로 강제.
+    // 원본 PPT 의 typeface 는 시스템에 없을 수 있어 글자 폭이 어긋남 → 미리보기와 다르게 보임.
+    // typeface 만 교체하고 색/굵기 등 디자인은 그대로 유지.
+    if (rPrCloneBase) forceTypeface(rPrCloneBase, xmlDoc, 'Pretendard');
 
     if (!lines.length) {
       const p = xmlDoc.createElementNS(NS_A, 'a:p');
@@ -1132,6 +1297,191 @@ function addNormAutofit(xml) {
     });
 }
 
+// ── PPTX 슬라이드 상속 시각화 헬퍼 ──
+async function _readRels(zip, xmlPath) {
+  const dir = xmlPath.replace(/[^/]+$/, '_rels/');
+  const file = xmlPath.split('/').pop() + '.rels';
+  const fullPath = dir + file;
+  const xml = await zip.file(fullPath)?.async('text');
+  if (!xml) return [];
+  const out = [];
+  // Relationship 태그 단위로 추출한 뒤 속성을 개별로 파싱 (속성 순서 무관)
+  const tagRe = /<Relationship\b([^>]*)\/?>/g;
+  let mt;
+  while ((mt = tagRe.exec(xml))) {
+    const attrs = mt[1];
+    const id = (attrs.match(/\bId="([^"]+)"/) || [])[1];
+    const type = (attrs.match(/\bType="([^"]+)"/) || [])[1];
+    const target = (attrs.match(/\bTarget="([^"]+)"/) || [])[1];
+    if (id && type && target) out.push({ id, type, target });
+  }
+  return out;
+}
+
+function _resolveRelPath(sourcePath, target) {
+  if (target.startsWith('/')) return target.replace(/^\//, '');
+  const parts = sourcePath.replace(/[^/]+$/, '').split('/').filter(Boolean);
+  for (const piece of target.split('/')) {
+    if (piece === '..') parts.pop();
+    else if (piece !== '.') parts.push(piece);
+  }
+  return parts.join('/');
+}
+
+const _IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml' };
+
+async function _mediaToDataUrl(zip, mediaPath) {
+  const file = zip.file(mediaPath);
+  if (!file) return null;
+  const bytes = await file.async('uint8array');
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const ext = (mediaPath.match(/\.([a-zA-Z]+)$/) || [])[1]?.toLowerCase() || 'png';
+  const mime = _IMG_MIME[ext] || 'image/png';
+  return `data:${mime};base64,${btoa(bin)}`;
+}
+
+const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+// 한 XML(slide/layout/master)에서 시각 요소 추출: 이미지(pic), 데코 도형(solidFill 박스), 라인
+async function _extractVisuals(zip, xmlPath, rels) {
+  const xml = await zip.file(xmlPath)?.async('text');
+  if (!xml) return { decorShapes: [], pics: [], staticTexts: [] };
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) return { decorShapes: [], pics: [], staticTexts: [] };
+
+  const collectText = (el) => {
+    const ts = el.getElementsByTagNameNS(NS_A, 't');
+    let s = '';
+    for (let i = 0; i < ts.length; i++) s += ts[i].textContent || '';
+    return s.replace(/\s+/g, ' ').trim();
+  };
+  const readGeom = (el) => {
+    const off = el.getElementsByTagNameNS(NS_A, 'off')[0];
+    const ext = el.getElementsByTagNameNS(NS_A, 'ext')[0];
+    return {
+      x_pt: off ? emuToPt(off.getAttribute('x')) : null,
+      y_pt: off ? emuToPt(off.getAttribute('y')) : null,
+      width_pt: ext ? emuToPt(ext.getAttribute('cx')) : null,
+      height_pt: ext ? emuToPt(ext.getAttribute('cy')) : null,
+    };
+  };
+  const getFill = (el) => {
+    const sf = el.getElementsByTagNameNS(NS_A, 'solidFill')[0];
+    if (!sf) return null;
+    const srgb = sf.getElementsByTagNameNS(NS_A, 'srgbClr')[0];
+    if (srgb) return `#${srgb.getAttribute('val').toUpperCase()}`;
+    return null;
+  };
+  const firstSize = (el) => {
+    const rPrs = el.getElementsByTagNameNS(NS_A, 'rPr');
+    for (let i = 0; i < rPrs.length; i++) {
+      const sz = rPrs[i].getAttribute('sz');
+      if (sz) return Number(sz) / 100;
+    }
+    return null;
+  };
+  const firstColor = (el) => {
+    const rPrs = el.getElementsByTagNameNS(NS_A, 'rPr');
+    for (let i = 0; i < rPrs.length; i++) {
+      const sf = rPrs[i].getElementsByTagNameNS(NS_A, 'solidFill')[0];
+      if (sf) {
+        const srgb = sf.getElementsByTagNameNS(NS_A, 'srgbClr')[0];
+        if (srgb) return `#${srgb.getAttribute('val').toUpperCase()}`;
+      }
+    }
+    return null;
+  };
+
+  // 데코 도형 (텍스트 없는 채움 도형)
+  const decorShapes = [];
+  const staticTexts = [];
+  const sps = Array.from(doc.getElementsByTagNameNS(NS_P, 'sp'));
+  for (const sp of sps) {
+    const geom = readGeom(sp);
+    if (geom.width_pt == null || geom.height_pt == null) continue;
+    const text = collectText(sp);
+    const fill = getFill(sp);
+    if (text && !isStructuralText(text)) {
+      // 마스터/레이아웃에 있는 정적 텍스트 (페이지 번호, 로고 텍스트 등)
+      // 단, placeholder 타입이면 슬라이드 텍스트로 간주해 제외
+      const ph = sp.getElementsByTagNameNS(NS_P, 'ph')[0];
+      if (ph) continue;
+      staticTexts.push({
+        ...geom,
+        text,
+        fontSize: firstSize(sp) || 12,
+        color: firstColor(sp) || '#1F2937',
+        fill,
+      });
+      // 채움 색이 있으면 데코로도 추가 (배경)
+      if (fill && (geom.width_pt > 5 && geom.height_pt > 1)) {
+        decorShapes.push({ ...geom, fill });
+      }
+    } else {
+      if (!fill) continue;
+      if (geom.width_pt < 5 || geom.height_pt < 1) continue;
+      decorShapes.push({ ...geom, fill });
+    }
+  }
+
+  // 이미지(p:pic) — getAttributeNS 가 prefix 미선언 시 실패하므로 모든 속성을 순회해 r:embed 찾기
+  const pics = [];
+  const picEls = Array.from(doc.getElementsByTagNameNS(NS_P, 'pic'));
+  for (const pic of picEls) {
+    const geom = readGeom(pic);
+    if (geom.width_pt == null || geom.height_pt == null) continue;
+    const blip = pic.getElementsByTagNameNS(NS_A, 'blip')[0];
+    if (!blip) continue;
+    let rEmbed = null;
+    for (let ai = 0; ai < blip.attributes.length; ai++) {
+      const a = blip.attributes[ai];
+      if (a.localName === 'embed') { rEmbed = a.value; break; }
+    }
+    if (!rEmbed) continue;
+    const rel = rels.find(r => r.id === rEmbed);
+    if (!rel) continue;
+    const mediaPath = _resolveRelPath(xmlPath, rel.target);
+    const dataUrl = await _mediaToDataUrl(zip, mediaPath);
+    if (!dataUrl) continue;
+    pics.push({ ...geom, dataUrl });
+  }
+
+  // 슬라이드 자체 배경
+  let bg = null;
+  const bgEl = doc.getElementsByTagNameNS(NS_P, 'bg')[0];
+  if (bgEl) {
+    const srgb = bgEl.getElementsByTagNameNS(NS_A, 'srgbClr')[0];
+    if (srgb) bg = `#${srgb.getAttribute('val').toUpperCase()}`;
+  }
+
+  return { decorShapes, pics, staticTexts, bg };
+}
+
+// 슬라이드 → slideLayout → slideMaster 체인의 모든 시각 요소를 합쳐 반환
+async function buildSlideVisualContext(zip, slidePath) {
+  const slideRels = await _readRels(zip, slidePath);
+  const layoutRel = slideRels.find(r => /slideLayout$/i.test(r.type));
+  const layoutPath = layoutRel ? _resolveRelPath(slidePath, layoutRel.target) : null;
+  const layoutRels = layoutPath ? await _readRels(zip, layoutPath) : [];
+  const masterRel = layoutRels.find(r => /slideMaster$/i.test(r.type));
+  const masterPath = masterRel ? _resolveRelPath(layoutPath, masterRel.target) : null;
+  const masterRels = masterPath ? await _readRels(zip, masterPath) : [];
+
+  const masterV = masterPath ? await _extractVisuals(zip, masterPath, masterRels) : { decorShapes: [], pics: [], staticTexts: [] };
+  const layoutV = layoutPath ? await _extractVisuals(zip, layoutPath, layoutRels) : { decorShapes: [], pics: [], staticTexts: [] };
+  const slideV = await _extractVisuals(zip, slidePath, slideRels);
+
+  // 그릴 순서: master → layout → slide (위로 갈수록 앞에 그려짐)
+  return {
+    decorShapes: [...masterV.decorShapes, ...layoutV.decorShapes, ...slideV.decorShapes],
+    pics: [...masterV.pics, ...layoutV.pics, ...slideV.pics],
+    staticTexts: [...masterV.staticTexts, ...layoutV.staticTexts, ...slideV.staticTexts],
+    bg: slideV.bg || layoutV.bg || masterV.bg || null,
+  };
+}
+
 export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText) {
   if (!templateArrayBuffer) throw new Error('먼저 PPTX 템플릿 파일을 업로드해 주세요.');
   const { default: JSZip } = await import('jszip');
@@ -1139,19 +1489,39 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
   const slideFiles = getSlideFiles(zip);
   if (!slideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
 
-  // Step 1: 각 슬라이드의 shape-level 레이아웃 지도 추출 (디자인만, 기존 텍스트는 제외)
+  // 슬라이드 사이즈(pt) — presentation.xml의 sldSz cx/cy(EMU) → pt
+  let slideW = 960, slideH = 540;
+  try {
+    const presXml = await zip.file('ppt/presentation.xml')?.async('text');
+    const m = presXml?.match(/<p:sldSz\s+cx="(\d+)"\s+cy="(\d+)"/);
+    if (m) { slideW = emuToPt(m[1]); slideH = emuToPt(m[2]); }
+  } catch {}
+
+  // Step 1: 각 슬라이드의 shape-level 레이아웃 지도 + 시각 컨텍스트(이미지/마스터·레이아웃 도형) 추출
   const spec = parseDirectTemplate(templateText || '');
   const slideAnalyses = [];
+  const slideVisuals = [];
   for (let i = 0; i < slideFiles.length; i++) {
     const xml = await zip.file(slideFiles[i]).async('text');
     slideAnalyses.push(buildSlideLayoutMap(xml, i));
+    try {
+      slideVisuals.push(await buildSlideVisualContext(zip, slideFiles[i]));
+    } catch (e) {
+      console.warn(`[VisualContext] slide ${i} 추출 실패:`, e?.message);
+      slideVisuals.push({ decorShapes: [], pics: [], staticTexts: [], bg: null });
+    }
   }
 
   // Step 2: AI가 레이아웃 지도 + 포트폴리오 내용 분석 → shape_id 별 텍스트 배치
   try {
+    // AI에는 original_text 를 전달하지 않음 (원본 PPT 텍스트 노출 방지)
+    const slidesForAI = slideAnalyses.map(s => ({
+      ...s,
+      shapes: (s.shapes || []).map(({ original_text, ...rest }) => rest),
+    }));
     const { data } = await api.post('/portfolio/direct-pptx-map', {
       templateTitle: spec.title,
-      slides: slideAnalyses,
+      slides: slidesForAI,
       portfolio: safePortfolioForAI(portfolio),
     }, {
       // 2-stage Gemini Pro 호출 (distill + layout-fit) + 재시도 → 기본 120s 로는 부족
@@ -1170,17 +1540,34 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
           const sz = Number(s.font_size_pt);
           if (Number.isFinite(sz) && sz >= 6 && sz <= 96) fontMap[id] = sz;
         });
+        // AI가 한 슬라이드에 최소 1개 이상 도형을 매핑한 경우에만 나머지 도형의 원본 텍스트를 비움.
+        // (AI가 통째로 매핑을 빠뜨린 슬라이드는 원본 그대로 보존해서 빈 슬라이드 다운로드를 방지)
+        const allShapes = slideAnalyses[m.slideIndex]?.shapes || [];
+        if (Object.keys(shapeMap).length > 0) {
+          allShapes.forEach(sh => {
+            if (!(sh.shape_id in shapeMap)) shapeMap[sh.shape_id] = '';
+          });
+        }
         const linesFromShapes = orderedShapes
           .flatMap(s => String(s.new_text || '').split(/\r?\n/))
           .map(l => l.trim())
           .filter(Boolean);
         const lines = Array.isArray(m.lines) && m.lines.length ? m.lines.filter(Boolean) : linesFromShapes;
+        const idx = Number(m.slideIndex);
+        const visuals = slideVisuals[idx] || { decorShapes: [], pics: [], staticTexts: [], bg: null };
         return {
-          slideIndex: Number(m.slideIndex),
+          slideIndex: idx,
+          title: `슬라이드 ${idx + 1}`,
           intent: m.intent || 'project',
           lines,
           shapeMap,
           fontMap,
+          layoutShapes: allShapes,
+          decorShapes: visuals.decorShapes,
+          pics: visuals.pics,
+          staticTexts: visuals.staticTexts,
+          slideBg: visuals.bg || slideAnalyses[idx]?.bg || null,
+          slideW, slideH,
         };
       });
     }

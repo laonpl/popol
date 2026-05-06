@@ -463,6 +463,85 @@ async function distillPortfolioContentPack({ portfolio, slideCount }) {
   return { contentPack: ensureContentPackSafety(raw, portfolio, slideCount), portfolioText };
 }
 
+/**
+ * Gemini 2.5 Pro Vision으로 업로드 PPTX 썸네일 분석 → 디자인 토큰 추출.
+ * 색상 추출 알고리즘이 schemeClr를 못 읽어 잘못된 색을 폴백하는 문제를 해결.
+ */
+export async function analyzeTemplateDesignWithVision({ thumbnailBase64, mimeType = 'image/jpeg' }) {
+  if (!thumbnailBase64) throw new Error('썸네일 이미지가 필요합니다');
+  // data URL prefix 제거
+  const data = thumbnailBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+
+  const promptText = `당신은 PPT 디자인 분석 전문가입니다. 첨부된 PPT 첫 슬라이드 이미지를 자세히 보고 다음을 추출해 주세요.
+
+반드시 아래 JSON 스키마를 그대로 출력하세요. 다른 텍스트, 설명, 마크다운 코드블록 금지. JSON만.
+
+{
+  "bg": "#RRGGBB",            // 슬라이드의 메인 배경색 (가장 넓은 면적)
+  "accent": "#RRGGBB",        // 강조색(제목/포인트에 쓰이는 메인 컬러)
+  "accent2": "#RRGGBB",       // 보조 강조색 (없으면 accent와 동일)
+  "side": "#RRGGBB",          // 사이드바/헤더/푸터 등 큰 컬러 블록의 색 (없으면 accent)
+  "sideFg": "#RRGGBB",        // side 위에 올라가는 텍스트 색 (#FFFFFF 또는 어두운 색)
+  "sub": "#RRGGBB",           // 본문 텍스트 색 (보통 #1F2937 같은 어두운 회색/검정)
+  "titleColor": "#RRGGBB",    // 슬라이드 큰 제목의 색
+  "fontHeading": "Pretendard",// 제목용 폰트 (한글이면 Pretendard, 영문 sans면 Inter, 세리프면 Noto Serif KR)
+  "fontBody": "Pretendard",   // 본문용 폰트
+  "layoutHint": "header-top"  // 다음 중 하나만: "sidebar-left" | "sidebar-right" | "header-top" | "footer-bottom" | "block" | "minimal"
+}
+
+layoutHint 판단 기준:
+- sidebar-left: 슬라이드 좌측에 세로로 긴 큰 컬러 블록이 있음
+- sidebar-right: 우측에 세로 긴 컬러 블록
+- header-top: 상단에 가로로 긴 컬러 띠
+- footer-bottom: 하단에 가로 컬러 띠 (이미지 1번 같은 다크브라운 푸터 바)
+- block: 큰 컬러 블록이 좌/우/상/하 어디 있다고 단정하기 애매할 때
+- minimal: 색 도형 없이 흰/연한 배경에 텍스트만
+
+매우 중요:
+- 색상은 반드시 이미지에서 실제로 보이는 색을 추출하세요. 짐작 금지.
+- 베이지/크림 톤 배경이면 bg를 정확히 그 색상으로 (#E8DCC8 같은).
+- 이미지 영역이나 사진은 무시하고 색 도형/배경만 분석.
+- JSON 외 다른 출력 절대 금지.`;
+
+  const contents = [{
+    role: 'user',
+    parts: [
+      { text: promptText },
+      { inlineData: { mimeType, data } },
+    ],
+  }];
+
+  const text = await withTimeout(
+    generateWithRetry(contents, { ...PRO_FIRST_OPTIONS, retries: 3 }),
+    60000,
+    'TemplateVision'
+  );
+
+  let parsed;
+  try {
+    parsed = parseJSON(text);
+  } catch {
+    throw new Error('Gemini 비전 분석 응답 파싱 실패');
+  }
+
+  const isHex = (v) => typeof v === 'string' && /^#[0-9A-Fa-f]{6}$/.test(v.trim());
+  const norm = (v, fallback) => isHex(v) ? v.toUpperCase() : fallback;
+  const validHints = ['sidebar-left', 'sidebar-right', 'header-top', 'footer-bottom', 'block', 'minimal'];
+
+  return {
+    bg: norm(parsed.bg, '#FFFFFF'),
+    accent: norm(parsed.accent, '#0F172A'),
+    accent2: norm(parsed.accent2, norm(parsed.accent, '#0F172A')),
+    side: norm(parsed.side, norm(parsed.accent, '#0F172A')),
+    sideFg: norm(parsed.sideFg, '#FFFFFF'),
+    sub: norm(parsed.sub, '#1F2937'),
+    titleColor: norm(parsed.titleColor, norm(parsed.accent, '#0F172A')),
+    fontHeading: typeof parsed.fontHeading === 'string' ? parsed.fontHeading.slice(0, 40) : 'Pretendard',
+    fontBody: typeof parsed.fontBody === 'string' ? parsed.fontBody.slice(0, 40) : 'Pretendard',
+    layoutHint: validHints.includes(parsed.layoutHint) ? parsed.layoutHint : 'header-top',
+  };
+}
+
 export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio }) {
   const safeSlides = (slides || []).slice(0, 40).map((slide, idx) => {
     const shapesIn = Array.isArray(slide.shapes) ? slide.shapes.slice(0, 30) : [];
@@ -558,15 +637,28 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
   }).filter(Boolean);
 }
 
-// ── AI PPT 포트폴리오 ── 결정적 빌더로 deck를 완성한 뒤 AI가 문구만 다듬음
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {
+  // customTemplate이 제공된 경우 템플릿의 슬라이드 흐름을 100% 따르기 위해 baseDeck 병합 없이 AI에 전적으로 위임
+  if (customTemplate) {
+    try {
+      const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate }); // baseDeck 미제공
+      const text = await withTimeout(callProFirst(prompt, 'AiPptDeckCustom'), 90000, 'AiPptDeckCustom');
+      const customDeck = parseJSON(text);
+      if (customDeck && Array.isArray(customDeck.slides) && customDeck.slides.length > 0) {
+        return customDeck;
+      }
+    } catch (err) {
+      console.warn('[AiPptDeck] 커스텀 템플릿 기반 생성 실패 — 결정적 deck으로 폴백:', err.message);
+    }
+  }
+
   // 1단계: 포트폴리오 데이터로 슬라이드를 결정적으로 구축 (내용 100% 보장)
   const baseDeck = buildDeckFromPortfolio(portfolio);
 
   // 2단계: AI에게 문구 다듬기 부탁. 실패해도 baseDeck는 그대로 보존.
   let polished = null;
   try {
-    const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck });
+    const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, baseDeck });
     const text = await withTimeout(callProFirst(prompt, 'AiPptDeck'), 90000, 'AiPptDeck');
     polished = parseJSON(text);
   } catch (err) {

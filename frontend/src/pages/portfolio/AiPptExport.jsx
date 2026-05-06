@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
 import { TEMPLATES, getTemplate, SlidePreview, exportDeckToPptx, buildCustomTemplateFromTokens } from './aiPptTemplates';
-import { extractDirectTemplateFromFile, directTemplateSpecToText } from '../../utils/directTemplate';
+import { extractDirectTemplateFromFile, directTemplateSpecToText, analyzeAndPreviewTemplate, fillUploadedPptxTemplate } from '../../utils/directTemplate';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 
@@ -38,20 +38,42 @@ export default function AiPptExport() {
 
   const handleCustomUpload = async (file) => {
     if (!file) return;
+    const loadingId = toast.loading('템플릿 분석 중...');
     try {
       const spec = await extractDirectTemplateFromFile(file);
+      let designTokens = spec.designTokens || null;
+
+      // Gemini 2.5 Pro Vision으로 썸네일 직접 분석 — 색상/레이아웃 정확도 ↑
+      if (designTokens?.thumbnailBase64) {
+        try {
+          const { data } = await api.post('/portfolio/analyze-template-design', {
+            thumbnailBase64: designTokens.thumbnailBase64,
+            mimeType: 'image/jpeg',
+          });
+          if (data?.tokens) {
+            designTokens = { ...designTokens, ...data.tokens };
+            console.log('[Vision] 토큰', data.tokens);
+          }
+        } catch (visionErr) {
+          console.warn('[Vision] 분석 실패, XML 추출 토큰 사용:', visionErr?.message);
+        }
+      }
+
       setCustomTemplate({
         title: spec.title || file.name,
         outline: directTemplateSpecToText(spec),
         sections: spec.sections || [],
-        designTokens: spec.designTokens || null, // 색상/폰트
+        designTokens,
+        arrayBuffer: spec.arrayBuffer,
       });
       setCustomFileName(file.name);
       setTemplateId('custom');
-      toast.success(spec.designTokens
-        ? `템플릿 분석 완료 (액센트 ${spec.designTokens.accent})`
+      toast.dismiss(loadingId);
+      toast.success(designTokens
+        ? `템플릿 분석 완료 (액센트 ${designTokens.accent}, ${designTokens.layoutHint || '?'})`
         : '템플릿 분석 완료');
     } catch (e) {
+      toast.dismiss(loadingId);
       toast.error(e.message || '템플릿 분석 실패');
     }
   };
@@ -60,16 +82,21 @@ export default function AiPptExport() {
     if (!portfolio) return;
     setStage(STAGE.ANALYZING);
     try {
-      // 'custom'은 AI가 모르는 값이므로 'modern'으로 대체. 디자인은 토큰으로 별도 적용.
-      const aiTemplateHint = templateId === 'custom' ? 'modern' : templateId;
-      const { data } = await api.post('/portfolio/ai-ppt-analyze', {
-        portfolioId: id,
-        templateHint: aiTemplateHint,
-        customTemplate: templateId === 'custom' ? customTemplate : null,
-      });
-      if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
-      setDeck(data.deck);
-      setStage(STAGE.PREVIEW);
+      if (templateId === 'custom' && customTemplate?.arrayBuffer) {
+        // 커스텀 템플릿: 원본 PPTX 도형에 AI가 내용을 채움 (디자인 100% 보존)
+        const mappedSlides = await analyzeAndPreviewTemplate(customTemplate.arrayBuffer, portfolio, customTemplate.outline);
+        setDeck({ isCustomMapped: true, slides: mappedSlides });
+        setStage(STAGE.PREVIEW);
+      } else {
+        const { data } = await api.post('/portfolio/ai-ppt-analyze', {
+          portfolioId: id,
+          templateHint: templateId,
+          customTemplate: null,
+        });
+        if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
+        setDeck(data.deck);
+        setStage(STAGE.PREVIEW);
+      }
     } catch (e) {
       toast.error(e?.response?.data?.error || e.message || 'AI 분석 실패');
       setStage(STAGE.CHOOSE);
@@ -116,9 +143,14 @@ export default function AiPptExport() {
     if (!deck) return;
     setExporting(true);
     try {
-      const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId === 'custom' ? 'custom' : templateId}.pptx`;
-      await exportDeckToPptx(deck, activeTemplate, fileName);
-      toast.success('PPT 다운로드를 시작합니다');
+      if (templateId === 'custom' && customTemplate?.arrayBuffer && deck.isCustomMapped) {
+        await fillUploadedPptxTemplate(customTemplate.arrayBuffer, portfolio, customTemplate.outline, deck.slides);
+        toast.success('PPT 다운로드를 시작합니다');
+      } else {
+        const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId}.pptx`;
+        await exportDeckToPptx(deck, activeTemplate, fileName);
+        toast.success('PPT 다운로드를 시작합니다');
+      }
     } catch (e) {
       toast.error(e?.response?.data?.error || e.message || '내보내기 실패');
     }
@@ -132,13 +164,10 @@ export default function AiPptExport() {
 
   return (
     <div className="animate-fadeIn max-w-[1200px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center mb-6">
         <button onClick={() => navigate(`/app/portfolio/preview/${id}`)} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
           <ArrowLeft size={16} /> 뒤로
         </button>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Sparkles size={14} className="text-primary-500" /> AI 포트폴리오 PPT 내보내기
-        </div>
       </div>
 
       {stage === STAGE.CHOOSE && (
@@ -258,7 +287,7 @@ function ChooseStage({ templateId, setTemplateId, customTemplate, customFileName
           onClick={onStart}
           className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-medium hover:from-primary-700 hover:to-primary-800 shadow-sm"
         >
-          <Wand2 size={16} /> AI로 PPT 생성하기
+          해당 템플릿으로 PPT 제작하기
         </button>
       </div>
     </div>
@@ -272,14 +301,8 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">생성된 슬라이드 미리보기 ({slides.length}장)</h2>
-          <p className="text-sm text-gray-500 mt-1">슬라이드를 클릭하면 수정 요청을 보낼 수 있습니다.</p>
-          {isCustom && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              <span className="font-semibold">업로드 템플릿 적용 중:</span>
-              <span><b>{customFileName}</b>의 색상·폰트를 합격자 레이아웃에 적용했습니다. 미리보기와 추출 결과가 동일합니다.</span>
-            </div>
-          )}
+          <h2 className="text-xl font-semibold text-gray-800">생성된 내용 확인 ({slides.length}장)</h2>
+          <p className="text-sm text-gray-500 mt-1">AI가 추천하는 내용 구성을 확인하세요. 슬라이드를 클릭하면 수정을 요청할 수 있습니다.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onRegenerate} className="inline-flex items-center gap-2 px-4 py-2 border border-surface-200 rounded-xl text-sm text-gray-600 hover:bg-surface-50">
@@ -288,23 +311,42 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
           <button
             onClick={onExport}
             disabled={exporting}
-            className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-medium hover:from-red-600 hover:to-red-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-bold hover:from-red-600 hover:to-red-700 disabled:opacity-50 shadow-md shadow-red-500/20 transform hover:-translate-y-0.5 transition-all"
           >
-            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} PPT로 추출하기
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            {isCustom ? '내 원본 템플릿으로 PPT 다운로드' : 'PPT로 추출하기'}
           </button>
         </div>
       </div>
 
+      {isCustom && (
+        <div className="mt-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 flex items-center gap-2">
+          <Sparkles size={16} className="text-emerald-600 shrink-0" />
+          <b>{customFileName}</b> 원본 디자인이 100% 보존된 채 AI가 도형 위치에 맞춰 내용을 채웁니다. 미리보기는 도형 위치/텍스트 매핑을 보여주며, 다운로드는 원본 PPT 디자인 그대로입니다.
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-5">
         {slides.map((slide, i) => (
-          <SlideCard
-            key={slide.id || i}
-            slide={slide}
-            template={template}
-            index={i}
-            selected={selectedIdx === i}
-            onClick={() => setSelectedIdx(selectedIdx === i ? null : i)}
-          />
+          isCustom ? (
+            <CustomSlideVisualCard
+              key={i}
+              slide={slide}
+              template={template}
+              index={i}
+              selected={selectedIdx === i}
+              onClick={() => setSelectedIdx(selectedIdx === i ? null : i)}
+            />
+          ) : (
+            <SlideCard
+              key={slide.id || i}
+              slide={slide}
+              template={template}
+              index={i}
+              selected={selectedIdx === i}
+              onClick={() => setSelectedIdx(selectedIdx === i ? null : i)}
+            />
+          )
         ))}
       </div>
 
@@ -337,6 +379,165 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
         </div>
       )}
     </div>
+  );
+}
+
+// 미리보기에서 텍스트가 도형 박스를 넘치지 않도록 글자 수/박스 크기에 맞춰 폰트 크기를 줄여주는 헬퍼
+// (실제 PPT 다운로드는 원본 폰트 크기 그대로 — 미리보기 가독성만 개선)
+function fitFontSize(text, baseFs, w, h) {
+  if (!text || !w || !h || !baseFs) return baseFs || 12;
+  const lineHeight = 1.3;
+  // 한글/영문 혼합 평균 글자 폭 비율 (대략 fontSize * 0.58)
+  const charWidthRatio = 0.58;
+  const lines = String(text).split(/\r?\n/);
+  let fs = baseFs;
+  for (let i = 0; i < 12; i++) {
+    const charsPerLine = Math.max(1, Math.floor(w / (fs * charWidthRatio)));
+    const totalLines = lines.reduce((acc, ln) => acc + Math.max(1, Math.ceil((ln.length || 1) / charsPerLine)), 0);
+    const needH = totalLines * fs * lineHeight;
+    if (needH <= h) break;
+    fs *= 0.9;
+    if (fs < 6) { fs = 6; break; }
+  }
+  return fs;
+}
+
+function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
+  const SLIDE_W = slide.slideW || 960;
+  const SLIDE_H = slide.slideH || 540;
+  const containerW = 540;
+  const scale = containerW / SLIDE_W;
+  const c = template?.colors || {};
+  // [WYSIWYG] 미리보기와 PPTX 출력의 글자 폭을 일치시키기 위해 폰트를 Pretendard 로 통일.
+  // 원본 템플릿 폰트(fonts.heading/body)는 시스템에 없을 수 있어 글자 폭이 달라짐 → 의도적으로 무시.
+  const PREVIEW_FONT = 'Pretendard, "Pretendard Variable", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif';
+  const fonts = { heading: PREVIEW_FONT, body: PREVIEW_FONT };
+  // 마스터/레이아웃/슬라이드 모든 데코를 그대로 사용 (큰/작은 모두) — 원본 PPT와 시각적 일치 우선
+  const decorShapes = slide.decorShapes || [];
+  const pics = slide.pics || [];
+  const staticTexts = slide.staticTexts || [];
+  // AI 매핑된 텍스트가 있으면 그것을, 없으면 원본 템플릿 텍스트를 fallback
+  const textShapes = (slide.layoutShapes || []).map(sh => {
+    const aiText = (slide.shapeMap?.[sh.shape_id] || '').trim();
+    const originalText = (sh.original_text || '').trim();
+    const text = aiText || originalText;
+    return { ...sh, displayText: text };
+  }).filter(sh => sh.displayText);
+  const isTitle = (h = '') => /title|heading|제목|타이틀/i.test(h);
+  const slideBg = slide.slideBg || c.bg || '#FFFFFF';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`block text-left bg-white rounded-xl border-2 overflow-hidden transition-all hover:-translate-y-0.5 ${selected ? 'border-primary-500 ring-2 ring-primary-200' : 'border-surface-200'}`}
+      style={{ width: '100%' }}
+    >
+      <div style={{ width: '100%', height: SLIDE_H * scale, position: 'relative', overflow: 'hidden', background: slideBg }}>
+        <div style={{ width: SLIDE_W, height: SLIDE_H, position: 'relative', transform: `scale(${scale})`, transformOrigin: 'top left', background: slideBg }}>
+          {/* 1) 데코 도형 (마스터→레이아웃→슬라이드 순으로 누적) */}
+          {decorShapes.map((d, di) => (
+            <div
+              key={`d-${di}`}
+              style={{
+                position: 'absolute',
+                left: d.x_pt,
+                top: d.y_pt,
+                width: d.width_pt,
+                height: d.height_pt,
+                background: d.fill,
+              }}
+            />
+          ))}
+          {/* 2) 이미지(p:pic) — 사진/로고 */}
+          {pics.map((p, pi) => (
+            <img
+              key={`pic-${pi}`}
+              src={p.dataUrl}
+              alt=""
+              style={{
+                position: 'absolute',
+                left: p.x_pt,
+                top: p.y_pt,
+                width: p.width_pt,
+                height: p.height_pt,
+                objectFit: 'cover',
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
+          {/* 3) 마스터/레이아웃의 정적 텍스트 (페이지 번호, 로고 텍스트 등) */}
+          {staticTexts.map((st, si) => {
+            const innerW = Math.max(1, (st.width_pt || 100) - 4);
+            const innerH = Math.max(1, (st.height_pt || 20) - 4);
+            const fs = fitFontSize(st.text, st.fontSize || 12, innerW, innerH);
+            return (
+              <div
+                key={`st-${si}`}
+                style={{
+                  position: 'absolute',
+                  left: st.x_pt,
+                  top: st.y_pt,
+                  width: st.width_pt,
+                  height: st.height_pt,
+                  fontSize: fs,
+                  color: st.color,
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  padding: 2,
+                  fontFamily: fonts.body || 'Pretendard',
+                  fontWeight: 600,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {st.text}
+              </div>
+            );
+          })}
+          {/* 4) AI 매핑된 슬라이드 텍스트 (없으면 원본 fallback) */}
+          {textShapes.map(sh => {
+            const text = sh.displayText;
+            const baseFontSize = (slide.fontMap?.[sh.shape_id]) || sh.original_font_size_pt || (isTitle(sh.role_hint) ? 28 : 14);
+            const isT = isTitle(sh.role_hint);
+            const boxW = sh.width_pt || 200;
+            const boxH = sh.height_pt || 30;
+            const innerW = Math.max(1, boxW - 8);
+            const innerH = Math.max(1, boxH - 8);
+            const fontSize = fitFontSize(text, baseFontSize, innerW, innerH);
+            return (
+              <div
+                key={sh.shape_id}
+                style={{
+                  position: 'absolute',
+                  left: sh.x_pt || 0,
+                  top: sh.y_pt || 0,
+                  width: boxW,
+                  height: boxH,
+                  fontSize,
+                  fontFamily: isT ? (fonts.heading || 'Pretendard') : (fonts.body || 'Pretendard'),
+                  fontWeight: isT ? 800 : 500,
+                  color: isT ? (c.titleColor || c.accent || '#111827') : (c.sub || '#1F2937'),
+                  lineHeight: 1.3,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
+                  overflow: 'hidden',
+                  letterSpacing: '-0.01em',
+                  padding: 4,
+                }}
+              >
+                {text}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="px-4 py-2 border-t border-surface-100 flex items-center justify-between text-xs">
+        <span className="font-medium text-gray-600">{index + 1}. 슬라이드 {index + 1}</span>
+        <span className="text-gray-400">{textShapes.length}개 텍스트 · {pics.length}개 이미지</span>
+      </div>
+    </button>
   );
 }
 
