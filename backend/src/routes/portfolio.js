@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { validatePortfolioWithAI, matchSectionsToRequirements, mapDirectPptxTemplateWithAI, generateAiPptDeck, reviseAiPptSlide } from '../services/geminiService.js';
+import { validatePortfolioWithAI, matchSectionsToRequirements, mapDirectPptxTemplateWithAI, generateAiPptDeck, reviseAiPptSlide, analyzeTemplateDesignWithVision } from '../services/geminiService.js';
 
 const router = Router();
 
@@ -224,6 +224,20 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
     }
     const results = await matchSectionsToRequirements(sections, targetCompany, targetPosition);
     res.json({ success: true, results });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/portfolio/analyze-template-design - 업로드 PPTX 첫 슬라이드 썸네일을 비전 분석해 디자인 토큰 추출
+router.post('/analyze-template-design', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { thumbnailBase64, mimeType } = req.body;
+    if (!thumbnailBase64 || typeof thumbnailBase64 !== 'string') {
+      return res.status(400).json({ error: '썸네일 이미지가 필요합니다' });
+    }
+    const tokens = await analyzeTemplateDesignWithVision({ thumbnailBase64, mimeType });
+    res.json({ success: true, tokens });
   } catch (error) {
     next(error);
   }
