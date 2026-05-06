@@ -808,7 +808,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       {!hideHeader && (
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-extrabold text-bluewood-900">핵심 경험</h2>
+          <h2 className="text-lg font-extrabold text-primary-600">핵심 경험</h2>
           <span className="text-xs text-bluewood-300 hidden sm:inline">포트폴리오용 시각화 자료</span>
           {!viewOnly && onUpdate && deletedStack.length > 0 && (
             <button

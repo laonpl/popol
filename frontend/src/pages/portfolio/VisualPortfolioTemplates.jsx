@@ -44,8 +44,8 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
     if (!header || !sectionParent) return;
     const portal = document.createElement('div');
     portal.setAttribute('data-recommend-portal', sectionType);
-    portal.style.marginBottom = '16px';
-    portal.style.marginTop = '8px';
+    portal.style.marginBottom = '20px';
+    portal.style.marginTop = '10px';
     sectionParent.insertBefore(portal, header.nextSibling);
     setPortalNode(portal);
     return () => { portal.remove(); setPortalNode(null); };
@@ -82,12 +82,13 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const applyRecommendation = (rec, idx) => {
     window.dispatchEvent(new CustomEvent(SECTION_RECOMMEND_APPLY_EVENT, { detail: { sectionType, recommendation: rec } }));
     setAppliedRecommendations(prev => ({ ...prev, [idx]: true }));
+    toast.success('추천 내용이 섹션에 적용되었습니다');
   };
 
   const copyRecommendation = async (rec) => {
     try {
       await navigator.clipboard.writeText(recommendationToText(rec));
-      toast.success('추천 내용을 복사했습니다');
+      toast.success('복사했습니다');
     } catch {
       toast.error('복사에 실패했습니다');
     }
@@ -100,80 +101,108 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
           onClick={handleClick}
           disabled={loading}
           type="button"
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px] font-medium transition-all ${
-            show ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all border ${
+            show
+              ? 'bg-primary-600 text-white border-primary-600'
+              : 'bg-white text-primary-600 border-primary-200 hover:bg-primary-50'
           } disabled:opacity-50`}
         >
-          {loading && <Loader2 size={11} className="animate-spin" />}
+          {loading && <Loader2 size={10} className="animate-spin" />}
           내용 추천
         </button>
       </div>
+
       {show && portalNode && createPortal(
-        <div className="w-full rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50/40 to-white shadow-sm overflow-hidden">
-          <div className="p-5 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-indigo-800">AI 내용 추천</h4>
-                <p className="text-[13px] text-gray-400 mt-0.5 truncate">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용할 수 있습니다</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {data && !loading && (
-                  <button type="button" onClick={fetchRecommendations} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
-                    다시 추천
-                  </button>
-                )}
-                <button type="button" onClick={() => setShow(false)} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white cursor-pointer"><X size={14} /></button>
-              </div>
+        <div className="w-full rounded-xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-bluewood-800">AI 내용 추천</p>
+              <p className="text-[11px] text-bluewood-300">{SECTION_LABELS[sectionType] || sectionType} 섹션에 바로 적용</p>
             </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {data && !loading && (
+                <button
+                  type="button"
+                  onClick={fetchRecommendations}
+                  className="text-[11px] text-bluewood-400 hover:text-bluewood-700 px-2 py-1 rounded hover:bg-surface-100 transition-colors"
+                >
+                  다시 추천
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShow(false)}
+                className="p-1 rounded text-bluewood-300 hover:text-bluewood-600 hover:bg-surface-100 transition-colors"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
 
-            {jobAnalysis?.company && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                <Target size={14} className="text-blue-600" />
-                <span className="text-xs font-medium text-blue-800 truncate">{jobAnalysis.company}</span>
-                {jobAnalysis.position && <span className="text-xs text-blue-500 flex-shrink-0">· {jobAnalysis.position}</span>}
-              </div>
-            )}
+          {/* 기업 정보 */}
+          {jobAnalysis?.company && (
+            <div className="px-4 pt-3">
+              <p className="text-[11px] text-bluewood-300">
+                <span className="font-semibold text-bluewood-600">{jobAnalysis.company}</span>
+                {jobAnalysis.position && <span> · {jobAnalysis.position}</span>}
+              </p>
+            </div>
+          )}
 
+          {/* 본문 */}
+          <div className="p-4">
             {loading ? (
-              <div className="flex flex-col items-center py-10">
-                <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
-                <p className="text-sm text-gray-500">AI가 추천 내용을 구성 중입니다...</p>
-                <p className="text-xs text-gray-400 mt-1">기업 분석과 현재 섹션 목적을 기준으로 정리합니다</p>
+              /* ── 로딩 상태 ── */
+              <div className="flex flex-col items-center py-8">
+                <Loader2 size={20} className="animate-spin text-primary-400 mb-3" />
+                <p className="text-[13px] text-bluewood-600 mb-1">AI가 맞춤 내용을 생성 중입니다</p>
+                <p className="text-[11px] text-bluewood-300">기업 분석을 바탕으로 최적의 내용을 추천합니다</p>
               </div>
             ) : data?.recommendations ? (
+              /* ── 추천 결과 ── */
               <div className="space-y-3">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천안</span>
-                  <span className="text-[12px] text-indigo-400">{data.recommendations.length}개 생성됨</span>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-bluewood-400">기업 맞춤 추천안</p>
+                  <span className="text-[11px] text-bluewood-300">{data.recommendations.length}개</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {data.recommendations.map((rec, i) => (
-                    <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
-                        <span className="text-xs font-bold text-gray-700 flex-1 leading-tight truncate select-text">{rec.title}</span>
+                    <div
+                      key={i}
+                      className={`group rounded-lg border transition-all ${
+                        appliedRecommendations[i]
+                          ? 'border-green-200 bg-green-50/30'
+                          : 'border-surface-200 hover:border-surface-300'
+                      }`}
+                    >
+                      {/* 카드 헤더 */}
+                      <div className="flex items-start gap-2 px-3 pt-3 pb-2">
+                        <span className="flex-shrink-0 text-[10px] font-bold text-bluewood-300 w-4 pt-px">{i + 1}.</span>
+                        <p className="text-[12px] font-semibold text-bluewood-800 flex-1 leading-snug">{rec.title}</p>
                         <button
                           type="button"
                           onClick={() => copyRecommendation(rec)}
-                          className="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-white transition-colors"
-                          title="추천 내용 복사"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 text-bluewood-300 hover:text-bluewood-600 transition-all flex-shrink-0"
+                          title="복사"
                         >
-                          <Copy size={12} />
+                          <Copy size={11} />
                         </button>
                       </div>
-                      <div className="p-3">
-                        <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap select-text mb-3">{rec.content}</p>
+                      {/* 카드 본문 */}
+                      <div className="px-3 pb-3">
+                        <p className="text-[11px] text-bluewood-500 leading-relaxed mb-2.5">{rec.content}</p>
                         <button
                           type="button"
                           onClick={() => applyRecommendation(rec, i)}
                           disabled={appliedRecommendations[i]}
-                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                          className={`w-full py-1.5 rounded text-[11px] font-medium transition-colors ${
                             appliedRecommendations[i]
-                              ? 'bg-green-100 text-green-700 cursor-default'
-                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                              ? 'bg-surface-100 text-bluewood-400 cursor-default'
+                              : 'bg-primary-600 text-white hover:bg-primary-700'
                           }`}
                         >
-                          {appliedRecommendations[i] ? <><CheckCircle2 size={12} />적용됨</> : <><CheckCircle2 size={12} />섹션에 적용</>}
+                          {appliedRecommendations[i] ? '적용됨' : '섹션에 적용'}
                         </button>
                       </div>
                     </div>
@@ -181,7 +210,7 @@ export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-4">추천을 불러올 수 없습니다</p>
+              <p className="text-[11px] text-bluewood-300 text-center py-4">추천을 불러올 수 없습니다</p>
             )}
           </div>
         </div>,
@@ -1183,13 +1212,13 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white relative">
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg hover:shadow-md transition-shadow bg-white relative">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                <div className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
+                <div className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
                   <ImageUploadSlot
                     src={proj.thumbnailUrl}
                     onUpload={null}
-                    className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden`}
+                    className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`}
                     imgClassName="w-full h-full object-cover"
                     rounded=""
                   >
@@ -1454,10 +1483,10 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md overflow-hidden cursor-pointer hover:shadow-md transition group relative">
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md cursor-pointer hover:shadow-md transition group relative">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
+                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-md`}>
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-md`} imgClassName="w-full h-40 object-cover" rounded="">
                     <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center font-bold text-lg text-gray-800`}>
                       {ec
                         ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-800" placeholder="프로젝트명" />
@@ -1661,10 +1690,10 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <DatabaseHeader />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
+              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
                 {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden`} imgClassName="w-full h-40 object-cover" rounded="">
+                <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
+                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`} imgClassName="w-full h-40 object-cover" rounded="">
                     <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{proj.name || proj.company || proj.title}</div>
                   </ImageUploadSlot>
                   <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
@@ -1928,9 +1957,9 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {projList.map((proj, idx) => (
-                  <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
+                  <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
                     {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
-                    <div className="h-32 w-full overflow-hidden bg-blue-50 relative">
+                    <div className="h-32 w-full overflow-hidden bg-blue-50 relative rounded-t-lg">
                       <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
                         <div className={`h-32 ${proj.img || 'bg-blue-50'} w-full flex items-center justify-center overflow-hidden`}>
                           <div className="text-gray-400 text-sm font-bold opacity-50">{proj.name || proj.company || '프로젝트'}</div>
@@ -2102,7 +2131,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
               <h2 className="text-xl font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Education" sectionKey="education" /></h2>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="education" /></div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
               {eduList.map((edu, idx) => (
                 <div key={idx} className="p-4 border-b border-gray-100 last:border-0 relative group">
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
@@ -2126,7 +2155,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
               <h2 className="text-xl font-bold flex items-center gap-2"><Award className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Awards" sectionKey="awards" /></h2>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="awards" /></div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
               {awardList.map((award, idx) => (
                 <div key={idx} className="p-4 border-b border-gray-100 last:border-0 relative group">
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
@@ -2471,7 +2500,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#2A2A2A] rounded-xl overflow-hidden shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#2A2A2A] rounded-xl shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
                 <div className="p-5 pb-10">
                   {ec
@@ -2674,9 +2703,9 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#252525] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#252525] rounded-xl shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
-                <div className="w-full h-36 overflow-hidden relative">
+                <div className="w-full h-36 overflow-hidden relative rounded-t-xl">
                   <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
                     <div className={`w-full h-36 ${proj.img || 'bg-blue-50'} flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity`}></div>
                   </ImageUploadSlot>

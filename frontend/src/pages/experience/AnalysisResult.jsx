@@ -170,13 +170,13 @@ export default function AnalysisResult() {
         {/* ── 좌: 프로젝트 Overview ── */}
         <div className="bg-white rounded-2xl border border-surface-200 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[17px] font-extrabold text-bluewood-900">Overview</h2>
+            <h2 className="text-[17px] font-extrabold text-primary-600">Overview</h2>
             <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center">
               <Target size={14} className="text-bluewood-400" />
             </div>
           </div>
 
-          <h3 className="text-lg font-bold text-bluewood-900 leading-snug mb-2">{title}</h3>
+          <h3 className="text-lg font-bold text-primary-600 leading-snug mb-2">{title}</h3>
           {(projectOverview.background || projectOverview.summary) && (
             <p className="text-[12.5px] text-bluewood-400 leading-relaxed mb-5">
               {projectOverview.background || projectOverview.summary}
@@ -230,7 +230,7 @@ export default function AnalysisResult() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
             <Sparkles size={16} className="text-primary-600" />
-            <h2 className="text-[17px] font-extrabold text-bluewood-900">상세 경험 정리</h2>
+            <h2 className="text-[17px] font-extrabold text-primary-600">상세 경험 정리</h2>
             <span className="text-[14px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
           </div>
         </div>

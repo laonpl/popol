@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
@@ -125,12 +125,12 @@ export default function Login() {
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2.5 mb-4">
               <img src="/logo.png" alt="FitPoly" className="h-10 w-auto" />
-              <h1 className="text-2xl font-bold text-bluewood-900">FitPoly</h1>
+              <h1 className="text-2xl font-bold text-primary-600">FitPoly</h1>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-surface-200 shadow-card p-8">
-            <h2 className="text-xl font-bold text-center mb-2 text-bluewood-900">비밀번호 찾기</h2>
+            <h2 className="text-xl font-bold text-center mb-2 text-primary-600">비밀번호 찾기</h2>
 
             {resetSent ? (
               <div className="text-center py-4">
@@ -140,7 +140,7 @@ export default function Login() {
                 <p className="text-[15px] font-semibold text-bluewood-800 mb-2">임시 비밀번호가 발급됐습니다</p>
                 <p className="text-[13px] text-bluewood-400 mb-3">아래 비밀번호로 로그인한 뒤 비밀번호를 변경해주세요.</p>
                 <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-xl px-4 py-3 mb-6">
-                  <span className="flex-1 text-[17px] font-mono font-bold tracking-widest text-bluewood-900 select-all">{tempPassword}</span>
+                  <span className="flex-1 text-[17px] font-mono font-bold tracking-widest text-primary-600 select-all">{tempPassword}</span>
                   <button
                     type="button"
                     onClick={() => { navigator.clipboard.writeText(tempPassword); toast.success('복사됐습니다'); }}
@@ -149,7 +149,7 @@ export default function Login() {
                 </div>
                 <button
                   onClick={() => { setStep('login'); setResetSent(false); setResetEmail(''); setResetName(''); setTempPassword(''); }}
-                  className="w-full py-3 bg-bluewood-900 text-white rounded-xl text-[15px] font-semibold hover:bg-bluewood-800 transition-colors"
+                  className="w-full py-3 bg-primary-600 text-white rounded-xl text-[15px] font-semibold hover:bg-primary-700 transition-colors"
                 >
                   로그인하러 가기
                 </button>
@@ -191,7 +191,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 bg-bluewood-900 text-white rounded-xl text-[15px] font-semibold hover:bg-bluewood-800 disabled:opacity-50 transition-colors"
+                    className="w-full py-3 bg-primary-600 text-white rounded-xl text-[15px] font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors"
                   >
                     {loading ? '확인 중...' : '임시 비밀번호 발급'}
                   </button>
@@ -214,12 +214,12 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-4">
             <img src="/logo.png" alt="FitPoly" className="h-10 w-auto" />
-            <h1 className="text-2xl font-bold text-bluewood-900">FitPoly</h1>
+            <h1 className="text-2xl font-bold text-primary-600">FitPoly</h1>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-surface-200 shadow-card p-8">
-          <h2 className="text-xl font-bold text-center mb-6 text-bluewood-900">
+          <h2 className="text-xl font-bold text-center mb-6 text-primary-600">
             {step === 'login' ? '로그인' : '회원가입'}
           </h2>
 

@@ -451,7 +451,7 @@ export default function Landing() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
             <span className="inline-block px-3 py-1 bg-primary-500 text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 1. 경험 정리</span>
-            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-bluewood-900 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
+            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-primary-600 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
               파편화된 다양한 파일을,<br />
               <span className="text-primary-500">체계적인 경험 아카이브</span>로 정리해요
             </h2>
@@ -487,7 +487,7 @@ export default function Landing() {
             `}</style>
             <div className="mb-6 sm:mb-8">
               <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-3">파일 업로드</span>
-              <h3 className="text-[20px] sm:text-[26px] font-extrabold text-bluewood-900 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
+              <h3 className="text-[20px] sm:text-[26px] font-extrabold text-primary-600 leading-[1.3]" style={{ wordBreak: 'keep-all' }}>
                 어떤 파일이든, <span className="text-primary-500">숨겨진 경험을 꺼냅니다</span>
               </h3>
             </div>
@@ -842,7 +842,7 @@ export default function Landing() {
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[13px] font-bold rounded mb-4 sm:mb-6">AI 포트폴리오 에디터</span>
-                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
+                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   흩어진 경험들이,<br />
                   <span className="text-primary-500">하나의 서사로<br />재탄생합니다</span>
                 </h3>
@@ -861,7 +861,7 @@ export default function Landing() {
                       <div className="flex items-center gap-2 sm:gap-4 text-[12px] sm:text-[13px] text-bluewood-400 font-medium overflow-hidden">
                         <span className="shrink-0">✓ 기본 정보</span>
                         <span className="shrink-0 hidden sm:inline">✓ 자료 수집</span>
-                        <span className="text-bluewood-900 font-bold shrink-0">경험 검토</span>
+                        <span className="text-primary-600 font-bold shrink-0">경험 검토</span>
                       </div>
                       <span className="text-[12px] text-bluewood-300 font-bold tracking-widest shrink-0">1/4</span>
                     </div>
@@ -870,13 +870,13 @@ export default function Landing() {
                       <div className="hidden sm:block w-[160px] md:w-[180px] border-r border-surface-100 bg-surface-50/30 p-3 sm:p-4 shrink-0">
                         <p className="text-[12px] font-bold text-bluewood-300 mb-3">경험 목록</p>
                         <div className="space-y-3">
-                          <div className="bg-bluewood-900 text-white rounded-lg p-2.5 shadow-sm">
+                          <div className="bg-primary-600 text-white rounded-lg p-2.5 shadow-sm">
                             <p className="text-[11px] text-white/70 mb-0.5 font-bold">1.</p>
                             <p className="text-[12px] sm:text-[13px] font-bold leading-tight">AI 챗봇 서비스 도입을 통한 CS 효율화</p>
                           </div>
                           <div className="p-2.5 opacity-40">
-                            <p className="text-[11px] mb-0.5 font-bold text-bluewood-900">2.</p>
-                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight text-bluewood-900">고객 여정 지도 설계를 통한 전환율 향상</p>
+                            <p className="text-[11px] mb-0.5 font-bold text-primary-600">2.</p>
+                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight text-primary-600">고객 여정 지도 설계를 통한 전환율 향상</p>
                           </div>
                         </div>
                       </div>
@@ -891,7 +891,7 @@ export default function Landing() {
                             수정
                           </button>
                           <div className="inline-block px-2 py-0.5 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded mb-2">문제 상황 (Background)</div>
-                          <h4 className="text-[15px] sm:text-[17px] font-extrabold text-bluewood-900 mb-2 sm:mb-3 pr-12">기존 CS 프로세스 병목 현상 분석</h4>
+                          <h4 className="text-[15px] sm:text-[17px] font-extrabold text-primary-600 mb-2 sm:mb-3 pr-12">기존 CS 프로세스 병목 현상 분석</h4>
                           <p className="text-[13px] sm:text-[14px] text-bluewood-500 leading-relaxed mb-3 sm:mb-4">
                             서비스 성장과 함께 일평균 고객 문의량이 급증하였으며, 기존 인력만으로는 대응 지연 현상이 발생하고 있었습니다. 특히 단순 반복 문의가 전체의 65%를 차지하여 심각한 병목 현상을 파악했습니다.
                           </p>
@@ -914,7 +914,7 @@ export default function Landing() {
                       <span className="text-[13px] font-bold text-red-400 cursor-pointer">이 경험 제외</span>
                       <div className="flex gap-2">
                         <button className="px-3 sm:px-4 py-1.5 text-[13px] font-bold text-bluewood-400 rounded-md">이전</button>
-                        <button className="px-3 sm:px-4 py-1.5 bg-bluewood-900 text-white text-[13px] font-bold rounded-md shadow-sm">다음 &gt;</button>
+                        <button className="px-3 sm:px-4 py-1.5 bg-primary-600 text-white text-[13px] font-bold rounded-md shadow-sm">다음 &gt;</button>
                       </div>
                     </div>
                   </div>
@@ -937,7 +937,7 @@ export default function Landing() {
                         <button className="px-2 sm:px-3 py-1.5 border border-surface-200 bg-white text-[12px] font-bold text-bluewood-500 rounded-md shadow-sm flex items-center gap-1">
                           <PenTool size={10} /> 수정
                         </button>
-                        <button className="px-2 sm:px-3 py-1.5 bg-bluewood-900 text-white text-[12px] font-bold rounded-md shadow-sm flex items-center gap-1">
+                        <button className="px-2 sm:px-3 py-1.5 bg-primary-600 text-white text-[12px] font-bold rounded-md shadow-sm flex items-center gap-1">
                           <LayoutTemplate size={10} /> <span className="hidden sm:inline">템플릿 변경</span><span className="sm:hidden">템플릿</span>
                         </button>
                       </div>
@@ -945,7 +945,7 @@ export default function Landing() {
 
                     <div className="flex flex-1 rounded-b-2xl overflow-hidden">
                       <div className="hidden md:block w-[160px] lg:w-[180px] bg-white border-r border-surface-100 p-4 sm:p-5 shrink-0">
-                        <h4 className="text-[15px] font-extrabold text-bluewood-900 mb-4">Overview</h4>
+                        <h4 className="text-[15px] font-extrabold text-primary-600 mb-4">Overview</h4>
                         <div className="space-y-4">
                           <div>
                             <p className="text-[12px] text-bluewood-300 font-bold mb-1">1. 목표</p>
@@ -965,7 +965,7 @@ export default function Landing() {
                       <div className="flex-1 p-4 sm:p-5 bg-surface-50 overflow-auto">
                         <div className="bg-white rounded-xl shadow-sm border border-surface-100 p-4 sm:p-6 mb-4">
                           <p className="text-[12px] font-extrabold text-primary-500 tracking-wider mb-2">BACKGROUND & PROBLEM</p>
-                          <h3 className="text-[17px] sm:text-[20px] font-extrabold text-bluewood-900 mb-4 sm:mb-5">기존 CS 프로세스 병목 현상 분석</h3>
+                          <h3 className="text-[17px] sm:text-[20px] font-extrabold text-primary-600 mb-4 sm:mb-5">기존 CS 프로세스 병목 현상 분석</h3>
 
                           <div className="flex flex-col gap-4">
                             <div className="flex-1 bg-surface-50 rounded-xl p-4 sm:p-5 border border-surface-100">
@@ -988,7 +988,7 @@ export default function Landing() {
                                     <span>수동 처리 비중 (개선 후)</span><span className="text-primary-600">35.0%</span>
                                   </div>
                                   <div className="h-4 w-full bg-surface-200 rounded-md overflow-hidden relative">
-                                    <div className="absolute top-0 left-0 h-full bg-bluewood-900 transition-all duration-1000 ease-in-out" style={{ width: aiMockView === 'portfolio' ? '35%' : '0%' }} />
+                                    <div className="absolute top-0 left-0 h-full bg-primary-600 transition-all duration-1000 ease-in-out" style={{ width: aiMockView === 'portfolio' ? '35%' : '0%' }} />
                                   </div>
                                 </div>
                               </div>
@@ -1021,7 +1021,7 @@ export default function Landing() {
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[13px] font-bold rounded mb-3 sm:mb-4">타임라인 관리</span>
-                <h3 className="text-[20px] sm:text-[22px] font-extrabold text-bluewood-900 leading-[1.4] mb-2 sm:mb-3" style={{ wordBreak: 'keep-all' }}>
+                <h3 className="text-[20px] sm:text-[22px] font-extrabold text-primary-600 leading-[1.4] mb-2 sm:mb-3" style={{ wordBreak: 'keep-all' }}>
                   모든 경험을 한눈에,<br />
                   <span className="text-primary-500">타임라인으로 관리</span>해요
                 </h3>
@@ -1132,7 +1132,7 @@ export default function Landing() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
             <span className="inline-block px-3 py-1 bg-[#1B264F] text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 2. 기업 맞춤 포트폴리오</span>
-            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-bluewood-900 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
+            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-primary-600 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
               기업을 분석하고,<br />
               <span className="text-[#1B264F]">알맞는 포트폴리오를 자동 생성</span>해요
             </h2>
@@ -1147,7 +1147,7 @@ export default function Landing() {
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">채용공고 분석</span>
-                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
+                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   링크 하나면,<br />
                   <span className="text-primary-600">기업이 원하는 것을<br />알아냅니다</span>
                 </h3>
@@ -1163,7 +1163,7 @@ export default function Landing() {
                   <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2 mb-3">
                       <Search size={14} className="text-bluewood-300" />
-                      <p className="text-[14px] sm:text-[15px] font-bold text-bluewood-900">채용공고 분석</p>
+                      <p className="text-[14px] sm:text-[15px] font-bold text-primary-600">채용공고 분석</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 bg-surface-50 rounded-lg border border-surface-200 overflow-hidden">
@@ -1177,7 +1177,7 @@ export default function Landing() {
                   <div className="p-4 sm:p-5">
                     <div className="flex items-center gap-3 mb-4 pb-4 border-b border-surface-100">
                       <div>
-                        <p className="text-[15px] sm:text-[16px] font-bold text-bluewood-900">카카오 · UX 디자이너</p>
+                        <p className="text-[15px] sm:text-[16px] font-bold text-primary-600">카카오 · UX 디자이너</p>
                         <p className="text-[12px] sm:text-[13px] text-bluewood-400 mt-0.5">IT/플랫폼 · 경력 1~3년</p>
                       </div>
                     </div>
@@ -1192,7 +1192,7 @@ export default function Landing() {
 
                     <div className="flex items-center gap-1 p-1 bg-surface-50 rounded-lg mb-4 overflow-x-auto">
                       {['기업 분석', '직무 분석', '지원 전략', '산업 트렌드'].map((tab, i) => (
-                        <button key={i} className={`flex-1 min-w-fit py-1.5 px-2 rounded-md text-[12px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${i === 0 ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400'}`}>
+                        <button key={i} className={`flex-1 min-w-fit py-1.5 px-2 rounded-md text-[12px] sm:text-[13px] font-semibold transition-all whitespace-nowrap ${i === 0 ? 'bg-white text-primary-600 shadow-sm' : 'text-bluewood-400'}`}>
                           {tab}
                         </button>
                       ))}
@@ -1226,7 +1226,7 @@ export default function Landing() {
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
                   <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">포트폴리오 에디터</span>
-                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
+                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
                   당신의 경험이,<br />
                   <span className="text-primary-600">기업 맞춤으로<br />자동 완성됩니다</span>
                 </h3>
@@ -1241,7 +1241,7 @@ export default function Landing() {
               <div className="flex-1 w-full min-w-0">
                 <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden p-4 sm:p-6 md:p-8">
                   <div className="mb-4 sm:mb-6">
-                    <h4 className="text-[22px] sm:text-[28px] font-extrabold text-bluewood-900 mb-1 tracking-tight">XX기업 포트폴리오</h4>
+                    <h4 className="text-[22px] sm:text-[28px] font-extrabold text-primary-600 mb-1 tracking-tight">XX기업 포트폴리오</h4>
                     <p className="text-[13px] sm:text-[14px] text-bluewood-400">본 포트폴리오는 PC 환경에 최적화되어 있습니다.</p>
                   </div>
 
@@ -1261,7 +1261,7 @@ export default function Landing() {
                       <div className="bg-surface-100 rounded-xl aspect-square max-w-[120px] sm:max-w-none mb-4 flex items-center justify-center">
                         <Users size={36} className="text-bluewood-300" />
                       </div>
-                      <h5 className="text-[18px] sm:text-[20px] font-extrabold text-bluewood-900 mb-0.5">김XX</h5>
+                      <h5 className="text-[18px] sm:text-[20px] font-extrabold text-primary-600 mb-0.5">김XX</h5>
                       <p className="text-[13px] text-bluewood-400 mb-4">(KIM XX XXX)</p>
 
                       <div className="space-y-2 mb-4 sm:mb-6">
@@ -1273,7 +1273,7 @@ export default function Landing() {
                         </div>
                       </div>
 
-                      <p className="text-[14px] font-bold italic text-bluewood-900 mb-3">My Own Values</p>
+                      <p className="text-[14px] font-bold italic text-primary-600 mb-3">My Own Values</p>
                       <div className="space-y-2">
                         <div className="px-3 py-2 border border-surface-100 rounded-lg text-[13px] font-bold text-bluewood-700 flex items-center gap-2 shadow-sm">
                           <span className="text-primary-500 font-extrabold text-[16px] leading-none">+</span> 경험
@@ -1290,7 +1290,7 @@ export default function Landing() {
                     {/* Middle */}
                     <div className="sm:col-span-1 lg:col-span-4 space-y-6 sm:space-y-8">
                       <div>
-                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-primary-600 flex items-center gap-2 mb-3 sm:mb-4">
                           Education
                         </p>
                         <p className="text-[14px] sm:text-[15px] font-bold text-bluewood-800 mb-1">XX대학교</p>
@@ -1299,7 +1299,7 @@ export default function Landing() {
                       </div>
 
                       <div>
-                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-primary-600 flex items-center gap-2 mb-3 sm:mb-4">
                           Interest
                         </p>
                         <ul className="text-[14px] text-bluewood-600 space-y-2 pl-2">
@@ -1310,7 +1310,7 @@ export default function Landing() {
                       </div>
 
                       <div>
-                        <p className="text-[15px] sm:text-[16px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[15px] sm:text-[16px] font-extrabold text-primary-600 flex items-center gap-2 mb-3 sm:mb-4">
                           Contact
                         </p>
                         <div className="space-y-2.5 text-[13px] text-bluewood-600">
@@ -1325,7 +1325,7 @@ export default function Landing() {
                     {/* Right */}
                     <div className="sm:col-span-2 lg:col-span-5 space-y-6 sm:space-y-8 bg-surface-50/50 p-4 sm:p-5 rounded-xl border border-surface-100">
                       <div>
-                        <p className="text-[14px] sm:text-[15px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[14px] sm:text-[15px] font-extrabold text-primary-600 flex items-center gap-2 mb-3 sm:mb-4">
                           Scholarship and Awards
                         </p>
                         <div className="space-y-3">
@@ -1343,7 +1343,7 @@ export default function Landing() {
                       </div>
 
                       <div>
-                        <p className="text-[14px] sm:text-[15px] font-extrabold text-bluewood-900 flex items-center gap-2 mb-3 sm:mb-4">
+                        <p className="text-[14px] sm:text-[15px] font-extrabold text-primary-600 flex items-center gap-2 mb-3 sm:mb-4">
                           Experience
                         </p>
                         <div className="space-y-3">
@@ -1492,24 +1492,24 @@ export default function Landing() {
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">서비스</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">경험 정리</a></li>
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">포트폴리오</a></li>
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">AI 분석</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">경험 정리</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">포트폴리오</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">AI 분석</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">지원</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">이용 가이드</a></li>
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">자주 묻는 질문</a></li>
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">문의하기</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">이용 가이드</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">자주 묻는 질문</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">문의하기</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">법적 고지</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">이용약관</a></li>
-                <li><a href="#" className="hover:text-bluewood-900 transition-colors">개인정보처리방침</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">이용약관</a></li>
+                <li><a href="#" className="hover:text-primary-600 transition-colors">개인정보처리방침</a></li>
               </ul>
             </div>
             <div>

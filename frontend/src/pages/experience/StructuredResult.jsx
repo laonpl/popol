@@ -38,7 +38,7 @@ function PreviewKeySlides({ keyExperiences }) {
       <h2 className="text-[20px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
       <div className="bg-surface-50 border border-surface-200 rounded-xl overflow-hidden">
         <div className="p-5">
-          {ke.title && <p className="text-[20px] font-bold text-bluewood-900 mb-3">{ke.title}</p>}
+          {ke.title && <p className="text-[20px] font-bold text-primary-600 mb-3">{ke.title}</p>}
           {(ke.metric || ke.afterMetric) && (
             <div className="flex items-center gap-3 mb-3 p-3 bg-surface-100 rounded-lg border border-surface-200">
               {ke.beforeMetric && (
@@ -48,7 +48,7 @@ function PreviewKeySlides({ keyExperiences }) {
                   <span className="text-bluewood-300 text-sm">→</span>
                 </>
               )}
-              <span className="text-[22px] font-extrabold text-bluewood-900">{ke.afterMetric || ke.metric}</span>
+              <span className="text-[22px] font-extrabold text-primary-600">{ke.afterMetric || ke.metric}</span>
               {!ke.beforeMetric && ke.metricLabel && <span className="text-[20px] text-bluewood-400">{ke.metricLabel}</span>}
             </div>
           )}
@@ -95,7 +95,7 @@ const SECTION_META = {
 };
 
 const ACCENT_STYLES = {
-  primary:   { num: 'bg-bluewood-900 text-white', border: 'border-bluewood-200', bg: 'bg-surface-50/40', label: 'text-bluewood-700', ring: 'focus:ring-bluewood-200' },
+  primary:   { num: 'bg-primary-600 text-white', border: 'border-bluewood-200', bg: 'bg-surface-50/40', label: 'text-bluewood-700', ring: 'focus:ring-bluewood-200' },
   indigo:    { num: 'bg-indigo-500 text-white', border: 'border-indigo-200', bg: 'bg-indigo-50/40', label: 'text-indigo-700', ring: 'focus:ring-indigo-200' },
   purple:    { num: 'bg-purple-500 text-white', border: 'border-purple-200', bg: 'bg-purple-50/40', label: 'text-purple-700', ring: 'focus:ring-purple-200' },
   violet:    { num: 'bg-violet-500 text-white', border: 'border-violet-200', bg: 'bg-violet-50/40', label: 'text-violet-700', ring: 'focus:ring-violet-200' },
@@ -745,7 +745,7 @@ export default function StructuredResult() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bluewood-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
       </div>
     );
   }
@@ -838,7 +838,7 @@ export default function StructuredResult() {
                       <X size={13} /> 취소
                     </button>
                     <button onClick={() => sliderRef.current?.saveEditing()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-bluewood-900 text-white border-bluewood-900 hover:bg-bluewood-800 transition-all">
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-primary-600 text-white border-primary-600 hover:bg-primary-700 transition-all">
                       <Check size={13} /> 저장
                     </button>
                   </>
@@ -848,7 +848,7 @@ export default function StructuredResult() {
             )}
 
             <button onClick={handleSave} disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-bluewood-900 text-white rounded-lg text-[19px] font-medium hover:bg-bluewood-800 disabled:opacity-50 transition-colors">
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[19px] font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
             </button>
@@ -874,7 +874,7 @@ export default function StructuredResult() {
         {/* ── 좌: 프로젝트 Overview (편집 가능) ── */}
         <div className="border border-surface-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[19px] font-extrabold text-bluewood-900">Overview</h2>
+            <h2 className="text-[19px] font-extrabold text-primary-600">Overview</h2>
           </div>
 
           {/* 프로젝트 타이틀 (편집) */}
@@ -882,7 +882,7 @@ export default function StructuredResult() {
             value={editedTitle}
             onChange={e => setEditedTitle(e.target.value)}
             readOnly={viewOnly}
-            className={`text-[20px] font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
+            className={`text-[20px] font-bold text-primary-600 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
             placeholder="프로젝트 제목"
           />
 
@@ -1066,13 +1066,13 @@ export default function StructuredResult() {
         {/* 작성 완성도 — 페이지 전체 품질 체크리스트 */}
         <div className="border border-surface-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[20px] font-bold text-bluewood-900">작성 완성도</h3>
+            <h3 className="text-[20px] font-bold text-primary-600">작성 완성도</h3>
             <span className="text-[20px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
           </div>
           {/* 프로그레스 바 */}
           <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
             <div
-              className="h-full bg-bluewood-900 rounded-full transition-all duration-500"
+              className="h-full bg-primary-600 rounded-full transition-all duration-500"
               style={{ width: `${qualityPct}%` }}
             />
           </div>
@@ -1082,7 +1082,7 @@ export default function StructuredResult() {
               const passed = item.check();
               return (
                 <li key={item.id} className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-bluewood-900' : 'bg-surface-100 border border-surface-200'}`}>
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-primary-600' : 'bg-surface-100 border border-surface-200'}`}>
                     {passed && (
                       <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                         <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1106,7 +1106,7 @@ export default function StructuredResult() {
           onDrop={(e) => handleSectionDrop(e, '_unassigned')}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[20px] font-bold text-bluewood-900">사진</h3>
+            <h3 className="text-[20px] font-bold text-primary-600">사진</h3>
             <button
               onClick={() => imageInputRef.current?.click()}
               disabled={uploadingImage}
@@ -1155,7 +1155,7 @@ export default function StructuredResult() {
 
         {/* 힌트 & 가이드 */}
         <div className="border border-surface-100 p-6">
-          <h3 className="text-[20px] font-bold text-bluewood-900 mb-3">작성 가이드</h3>
+          <h3 className="text-[20px] font-bold text-primary-600 mb-3">작성 가이드</h3>
           <ul className="space-y-2.5 text-[20px] text-bluewood-500 leading-relaxed">
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-bluewood-400 mt-1.5 flex-shrink-0" />
@@ -1195,7 +1195,7 @@ export default function StructuredResult() {
           <div className="border border-surface-100 overflow-hidden">
             {/* 직군 특화 헤더 */}
             <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
-              <span className="px-2.5 py-1 bg-bluewood-900 text-white rounded-md text-[19px] font-bold tracking-wide uppercase">직군 특화</span>
+              <span className="px-2.5 py-1 bg-primary-600 text-white rounded-md text-[19px] font-bold tracking-wide uppercase">직군 특화</span>
               <span className="text-[20px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
               <span className="text-[20px] text-bluewood-300 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
             </div>
@@ -1298,7 +1298,7 @@ export default function StructuredResult() {
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <div className="flex items-center gap-3">
-            <h2 className="text-[19px] font-bold text-bluewood-900">상세 경험 정리</h2>
+            <h2 className="text-[19px] font-bold text-primary-600">상세 경험 정리</h2>
             <span className="text-[20px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
           </div>
           <div className="flex items-center gap-2">
@@ -1589,7 +1589,7 @@ export default function StructuredResult() {
             {/* 헤더 */}
             <div className="flex items-center justify-between px-7 py-4 border-b border-surface-200 flex-shrink-0">
               <div>
-                <h3 className="text-[19px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
+                <h3 className="text-[19px] font-extrabold text-primary-600">포트폴리오 미리보기</h3>
                 <p className="text-[20px] text-bluewood-400 mt-0.5">섹션을 구성하고 저장하면 포트폴리오에서 불러올 수 있어요</p>
               </div>
               <div className="flex items-center gap-3">
@@ -1640,7 +1640,7 @@ export default function StructuredResult() {
                           onClick={() => setExportEnabled(p => ({ ...p, [key]: !enabled }))}
                           className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                             enabled
-                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-bluewood-900 border-bluewood-900'
+                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-primary-600 border-primary-600'
                               : 'bg-white border-surface-300'
                           }`}
                         >
@@ -1686,7 +1686,7 @@ export default function StructuredResult() {
                 <div className="px-4 py-4 border-t border-surface-200 flex-shrink-0 space-y-2">
                   <button
                     onClick={handleSaveExportConfig}
-                    className="w-full py-2.5 bg-bluewood-900 hover:bg-bluewood-800 text-white rounded-xl text-[20px] font-bold transition-colors"
+                    className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-[20px] font-bold transition-colors"
                   >
                     구성 저장하기
                   </button>
@@ -1745,7 +1745,7 @@ export default function StructuredResult() {
                 {/* 문서 본문 */}
                 <div className="max-w-[680px] mx-auto px-14 pb-16 pt-8">
                   {/* 제목 */}
-                  <h1 className="text-[34px] font-extrabold text-bluewood-900 leading-tight mb-8">
+                  <h1 className="text-[34px] font-extrabold text-primary-600 leading-tight mb-8">
                     {editedTitle || '프로젝트 제목'}
                   </h1>
 
@@ -1907,12 +1907,12 @@ function ProjectTimeline({ experiences, currentId }) {
                 >
                   {/* 활성 바 */}
                   {isCurrent && expanded && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-bluewood-900 rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary-600 rounded-r-full" />
                   )}
                   {/* 번호 원 */}
                   <span className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[19px] font-bold transition-all duration-200 ${
                     isCurrent
-                      ? 'bg-bluewood-900 text-white shadow-md shadow-bluewood-200/50'
+                      ? 'bg-primary-600 text-white shadow-md shadow-bluewood-200/50'
                       : 'bg-surface-100 border-2 border-surface-200 text-bluewood-400'
                   }`}>
                     {String(idx + 1).padStart(2, '0')}
@@ -1921,7 +1921,7 @@ function ProjectTimeline({ experiences, currentId }) {
                   {expanded && (
                     <div className="min-w-0 flex-1">
                       <p className={`text-[20px] leading-tight truncate transition-colors duration-200 ${
-                        isCurrent ? 'text-bluewood-900 font-bold' : 'text-bluewood-600 font-medium'
+                        isCurrent ? 'text-primary-600 font-bold' : 'text-bluewood-600 font-medium'
                       }`}>
                         {title}
                       </p>

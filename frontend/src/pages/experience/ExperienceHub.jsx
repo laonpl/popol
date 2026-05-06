@@ -279,9 +279,9 @@ export default function ExperienceHub() {
       {/* ═══ 헤더 ═══ */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[28px] font-bold text-bluewood-900 tracking-[-0.02em]">경험 정리</h1>
+          <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">경험 정리</h1>
           <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-bluewood-900 font-bold">{experiences.length}</span>개의 경험이 정리되어 있습니다
+            <span className="text-primary-600 font-bold">{experiences.length}</span>개의 경험이 정리되어 있습니다
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -302,7 +302,7 @@ export default function ExperienceHub() {
                     key={opt.value}
                     onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
                     className={`w-full text-left px-3 py-2 text-[13px] font-medium transition-colors ${
-                      sortBy === opt.value ? 'text-bluewood-900 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
+                      sortBy === opt.value ? 'text-primary-600 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
                     }`}
                   >
                     {opt.label}
@@ -317,7 +317,7 @@ export default function ExperienceHub() {
             <button
               onClick={() => setViewMode('timeline')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
-                viewMode === 'timeline' ? 'bg-bluewood-900 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
+                viewMode === 'timeline' ? 'bg-primary-600 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
               }`}
             >
               <CalendarDays size={13} />타임라인
@@ -325,7 +325,7 @@ export default function ExperienceHub() {
             <button
               onClick={() => setViewMode('table')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
-                viewMode === 'table' ? 'bg-bluewood-900 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
+                viewMode === 'table' ? 'bg-primary-600 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
               }`}
             >
               <List size={13} />표
@@ -335,7 +335,7 @@ export default function ExperienceHub() {
           {/* 새 경험 추가 버튼 */}
           <Link
             to="/app/experience/new"
-            className="flex items-center gap-2 px-5 py-2.5 bg-bluewood-900 text-white rounded-lg text-[15px] font-semibold hover:bg-bluewood-800 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} />
             새 경험 추가
@@ -345,7 +345,7 @@ export default function ExperienceHub() {
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-bluewood-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
       ) : experiences.length === 0 ? (
         <EmptyState />
@@ -373,7 +373,7 @@ export default function ExperienceHub() {
                             key={y}
                             onClick={() => { setSelectedYear(y); setYearDropdownOpen(false); }}
                             className={`w-full text-left px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                              y === selectedYear ? 'text-bluewood-900 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
+                              y === selectedYear ? 'text-primary-600 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
                             }`}
                           >
                             {y}년
@@ -395,7 +395,7 @@ export default function ExperienceHub() {
                       key={p.key}
                       onClick={() => setColorPalette(p.key)}
                       className={`flex items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
-                        colorPalette === p.key ? 'border-bluewood-900 shadow-sm scale-110' : 'border-transparent hover:border-surface-300 opacity-60 hover:opacity-100'
+                        colorPalette === p.key ? 'border-primary-600 shadow-sm scale-110' : 'border-transparent hover:border-surface-300 opacity-60 hover:opacity-100'
                       }`}
                     >
                       {p.colors.map((c, i) => (
@@ -565,7 +565,7 @@ export default function ExperienceHub() {
                               value={editTitle}
                               onChange={e => setEditTitle(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                              className="w-full text-[15px] font-semibold text-bluewood-900 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
+                              className="w-full text-[15px] font-semibold text-primary-600 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
                               autoFocus
                             />
                           </div>
@@ -601,7 +601,7 @@ export default function ExperienceHub() {
                             </button>
                             <button
                               onClick={saveEditing}
-                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-bluewood-900 rounded-lg hover:bg-bluewood-800 transition-colors"
+                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
                             >
                               <Check size={13} /> 저장
                             </button>
