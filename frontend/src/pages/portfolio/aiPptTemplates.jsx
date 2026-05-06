@@ -407,6 +407,12 @@ function renderBody(slide, t, variant) {
   const items = slide.items || [];
   const bullets = slide.bullets || [];
 
+  // [Phase 3] experience 슬라이드 → layout_type에 따라 합격자 스타일 분기
+  if (slide.layout === 'experience' && slide.layout_type && slide.details) {
+    const fancy = renderExperienceLayout(slide, t, variant);
+    if (fancy) return fancy; // null 반환 시 STACK_LIST → 아래 items 렌더링으로 폴스루
+  }
+
   const itemBox = (it, idx) => {
     const metrics = Array.isArray(it.metrics) ? it.metrics.filter(m => m.value || m.label) : [];
     let header, headBg, body;
@@ -532,6 +538,112 @@ function MetricRow({ metrics, t, variant }) {
       })}
     </div>
   );
+}
+
+// =====================================================================
+// [Phase 2] 동적 레이아웃 엔진 — 합격자 PPT 스타일 헬퍼
+// =====================================================================
+
+// 텍스트 길이로 적정 폰트 크기 계산 (글이 짧으면 키우고, 길면 줄임)
+// baseSize: 기본 px, minSize/maxSize: 클램프 범위
+function dynamicFontPx(text, baseSize, { min = 11, max = 28 } = {}) {
+  const len = String(text || '').replace(/\s+/g, ' ').trim().length;
+  if (len === 0) return baseSize;
+  // 24자 이하면 max에 가깝게, 80자 이상이면 min에 가깝게 (선형 보간)
+  if (len <= 24) return Math.min(max, Math.round(baseSize * 1.15));
+  if (len >= 80) return Math.max(min, Math.round(baseSize * 0.78));
+  const t = (len - 24) / 56;
+  return Math.round(baseSize * (1.15 - t * 0.37));
+}
+
+// 텍스트 배열의 예상 높이(px). 글자수/박스폭 기반으로 줄 수 계산.
+function estimateBlockHeightPx(lines, fontSize, boxW, lineHeight = 1.5) {
+  const charW = fontSize * 0.58; // 한글/영문 평균 글자폭
+  const charsPerLine = Math.max(1, Math.floor(boxW / charW));
+  let total = 0;
+  for (const ln of (lines || [])) {
+    const len = String(ln || '').length;
+    const rows = Math.max(1, Math.ceil(len / charsPerLine));
+    total += rows * fontSize * lineHeight;
+  }
+  return total;
+}
+
+// [Phase 3] experience 슬라이드 — layout_type별 React 미리보기
+function renderExperienceLayout(slide, t, variant) {
+  const c = t.colors;
+  const layoutType = slide.layout_type;
+  const hm = slide.highlight_metric;
+  const det = slide.details || {};
+  const item = (slide.items || [])[0] || {};
+
+  const hmDisplay = hm
+    ? (hm.before && hm.after ? `${hm.before} → ${hm.after}` : (hm.value || ''))
+    : '';
+
+  // ── CENTER_METRIC: 중앙에 거대한 지표, 아래 짧은 설명 ──
+  if (layoutType === 'CENTER_METRIC' && hm) {
+    const summary = [...(det.problem || []), ...(det.action || []), ...(det.result || [])].slice(0, 2);
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 12px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: c.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{hm.label || 'KEY METRIC'}</div>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: dynamicFontPx(hmDisplay, 60, { min: 36, max: 84 }), fontWeight: 900, color: c.kpi, lineHeight: 1.05, marginTop: 14, letterSpacing: '-0.02em' }}>
+          {hmDisplay}
+        </div>
+        <div style={{ width: 80, height: 4, background: c.accent, marginTop: 18 }} />
+        <div style={{ marginTop: 18, fontSize: 15, color: c.sub, lineHeight: 1.55, maxWidth: 560 }}>
+          {summary.join(' · ')}
+        </div>
+      </div>
+    );
+  }
+
+  // ── SPLIT_HALF: 좌측 핵심 지표 + 우측 STAR auto-Y ──
+  if (layoutType === 'SPLIT_HALF') {
+    const sections = [
+      { key: 'problem', label: 'Problem', items: det.problem || [] },
+      { key: 'action', label: 'Action', items: det.action || [] },
+      { key: 'result', label: 'Result', items: det.result || [] },
+    ].filter(s => s.items.length);
+    return (
+      <div style={{ height: '100%', display: 'flex', gap: 28 }}>
+        {/* 좌측: 프로젝트명 + 큰 지표 */}
+        <div style={{ flex: '0 0 42%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: dynamicFontPx(item.heading, 22, { min: 16, max: 28 }), fontWeight: 800, color: c.accent, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+            {item.heading || ''}
+          </div>
+          {item.period && <div style={{ marginTop: 6, fontSize: 12, color: c.muted }}>{item.period}</div>}
+          {hm && (
+            <div style={{ marginTop: 22, paddingTop: 18, borderTop: `2px solid ${c.line}` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{hm.label}</div>
+              <div style={{ fontFamily: t.fonts.heading, fontSize: dynamicFontPx(hmDisplay, 32, { min: 22, max: 44 }), fontWeight: 900, color: c.kpi, lineHeight: 1.05, marginTop: 6, letterSpacing: '-0.02em' }}>
+                {hmDisplay}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* 우측: STAR auto-stack */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+          {sections.map(sec => (
+            <div key={sec.key}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: c.accent, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{sec.label}</div>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {sec.items.slice(0, 3).map((b, i) => (
+                  <li key={i} style={{ fontSize: dynamicFontPx(b, 13, { min: 11, max: 15 }), color: c.sub, lineHeight: 1.5, paddingLeft: 14, position: 'relative', marginBottom: 2 }}>
+                    <span style={{ position: 'absolute', left: 0, top: 8, width: 5, height: 5, background: c.accent, borderRadius: '50%' }} />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── STACK_LIST: 기존 items 렌더링으로 위임 ──
+  return null;
 }
 
 // =====================================================================
@@ -746,6 +858,12 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
   const items = slide.items || [];
   const bullets = slide.bullets || [];
 
+  // [Phase 3] experience 슬라이드 → layout_type에 따라 합격자 스타일 분기
+  if (slide.layout === 'experience' && slide.layout_type && slide.details) {
+    const handled = drawExperienceLayout(s, slide, t, x0, y0, w, h);
+    if (handled) return; // STACK_LIST 등 미지원이면 false → 기존 items 렌더링으로 폴스루
+  }
+
   if (items.length > 0) {
     const visible = items.slice(0, 2);
     const rowH = h / visible.length;
@@ -826,4 +944,132 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
 
 function hex(s) {
   return String(s || '#000000').replace('#', '').toUpperCase();
+}
+
+// =====================================================================
+// [Phase 2/3] PPTX 출력용 — 동적 폰트 + Auto-Y + experience layout
+// =====================================================================
+
+// 텍스트 길이로 PPTX 폰트 크기(pt) 결정
+function dynamicFontPt(text, baseSize, { min = 10, max = 24 } = {}) {
+  const len = String(text || '').replace(/\s+/g, ' ').trim().length;
+  if (len === 0) return baseSize;
+  if (len <= 24) return Math.min(max, Math.round(baseSize * 1.15));
+  if (len >= 80) return Math.max(min, Math.round(baseSize * 0.78));
+  const t = (len - 24) / 56;
+  return Math.round(baseSize * (1.15 - t * 0.37));
+}
+
+// 텍스트 라인 묶음의 예상 높이(inch) — Auto-Y 스택용
+function estimateBlockHeightIn(lines, fontSizePt, boxWIn, lineHeight = 1.4) {
+  // 1pt ≈ 1/72 in. 글자폭 ≈ fontSize * 0.0058 in (한글/영문 평균)
+  const charWIn = fontSizePt * 0.0058;
+  const charsPerLine = Math.max(1, Math.floor(boxWIn / charWIn));
+  let totalRows = 0;
+  for (const ln of (lines || [])) {
+    totalRows += Math.max(1, Math.ceil(String(ln || '').length / charsPerLine));
+  }
+  return (totalRows * fontSizePt * lineHeight) / 72;
+}
+
+// experience 슬라이드를 layout_type에 따라 그림. 처리되면 true.
+function drawExperienceLayout(s, slide, t, x0, y0, w, h) {
+  const c = t.colors;
+  const layoutType = slide.layout_type;
+  const hm = slide.highlight_metric;
+  const det = slide.details || {};
+  const item = (slide.items || [])[0] || {};
+  const hmDisplay = hm
+    ? (hm.before && hm.after ? `${hm.before} → ${hm.after}` : (hm.value || ''))
+    : '';
+
+  // ── CENTER_METRIC ──
+  if (layoutType === 'CENTER_METRIC' && hm) {
+    const summary = [...(det.problem || []), ...(det.action || []), ...(det.result || [])].slice(0, 2).join(' · ');
+    const cy = y0 + h / 2 - 1.0;
+    s.addText(hm.label || 'KEY METRIC', {
+      x: x0, y: cy, w, h: 0.3,
+      fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.muted),
+      align: 'center', charSpacing: 4,
+    });
+    const metricFs = dynamicFontPt(hmDisplay, 54, { min: 30, max: 72 });
+    s.addText(hmDisplay, {
+      x: x0, y: cy + 0.4, w, h: 1.5,
+      fontFace: t.fonts.heading, fontSize: metricFs, bold: true, color: hex(c.kpi),
+      align: 'center', valign: 'middle',
+    });
+    s.addShape('rect', { x: x0 + w / 2 - 0.4, y: cy + 2.0, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+    if (summary) {
+      s.addText(summary, {
+        x: x0 + w * 0.1, y: cy + 2.2, w: w * 0.8, h: 0.8,
+        fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), align: 'center',
+      });
+    }
+    return true;
+  }
+
+  // ── SPLIT_HALF ──
+  if (layoutType === 'SPLIT_HALF') {
+    const leftW = w * 0.42;
+    const rightX = x0 + leftW + 0.35;
+    const rightW = w - leftW - 0.35;
+
+    // 좌측: 프로젝트명 + 기간 + 큰 지표
+    const headFs = dynamicFontPt(item.heading, 22, { min: 16, max: 28 });
+    s.addText(item.heading || '', {
+      x: x0, y: y0 + 0.4, w: leftW, h: 1.0,
+      fontFace: t.fonts.heading, fontSize: headFs, bold: true, color: hex(c.accent),
+      valign: 'top',
+    });
+    if (item.period) {
+      s.addText(item.period, {
+        x: x0, y: y0 + 1.5, w: leftW, h: 0.3,
+        fontFace: t.fonts.body, fontSize: 11, color: hex(c.muted),
+      });
+    }
+    if (hm) {
+      s.addShape('rect', { x: x0, y: y0 + 2.05, w: leftW * 0.7, h: 0.03, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
+      s.addText(hm.label || '', {
+        x: x0, y: y0 + 2.2, w: leftW, h: 0.28,
+        fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.muted), charSpacing: 3,
+      });
+      const mFs = dynamicFontPt(hmDisplay, 30, { min: 20, max: 42 });
+      s.addText(hmDisplay, {
+        x: x0, y: y0 + 2.5, w: leftW, h: 1.0,
+        fontFace: t.fonts.heading, fontSize: mFs, bold: true, color: hex(c.kpi),
+      });
+    }
+
+    // 우측: STAR auto-stack
+    const sections = [
+      { key: 'problem', label: 'PROBLEM', items: det.problem || [] },
+      { key: 'action', label: 'ACTION', items: det.action || [] },
+      { key: 'result', label: 'RESULT', items: det.result || [] },
+    ].filter(sec => sec.items.length);
+    let cy = y0;
+    const safeBottom = y0 + h - 0.15; // 안전 영역
+    for (const sec of sections) {
+      if (cy >= safeBottom - 0.3) break;
+      // 라벨
+      s.addText(sec.label, {
+        x: rightX, y: cy, w: rightW, h: 0.28,
+        fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), charSpacing: 4,
+      });
+      cy += 0.32;
+      // bullets — 각 항목의 글자수에 따라 폰트 결정 (한 섹션 내 최소값으로 통일)
+      const bullets = sec.items.slice(0, 3);
+      const fs = Math.min(...bullets.map(b => dynamicFontPt(b, 13, { min: 10, max: 15 })));
+      const blockH = estimateBlockHeightIn(bullets, fs, rightW - 0.25, 1.45) + 0.05;
+      const drawH = Math.min(blockH, safeBottom - cy);
+      const objs = bullets.map(b => ({ text: b, options: { bullet: { code: '25CF' } } }));
+      s.addText(objs, {
+        x: rightX + 0.1, y: cy, w: rightW - 0.1, h: drawH,
+        fontFace: t.fonts.body, fontSize: fs, color: hex(c.sub), paraSpaceAfter: 4,
+      });
+      cy += drawH + 0.15; // Auto-Y: 다음 섹션을 바로 아래에
+    }
+    return true;
+  }
+
+  return false; // STACK_LIST 등 → 기본 items 렌더링으로 폴스루
 }

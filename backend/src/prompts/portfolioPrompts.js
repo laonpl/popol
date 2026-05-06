@@ -283,8 +283,21 @@ export function buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplat
 - 빈 bullet/items는 새로 만들지 말고 그대로 두세요
 - 지원처: ${target || '미정'}에 부합하도록 강조 포인트만 조정
 
+★ experience 레이아웃 슬라이드 추가 규칙 (합격자 PPT 핵심):
+- layout_type: 'SPLIT_HALF' | 'CENTER_METRIC' | 'STACK_LIST' 중 하나
+  · CENTER_METRIC: highlight_metric이 있고 details 텍스트가 매우 짧을 때 (큰 지표 한방)
+  · SPLIT_HALF: highlight_metric + STAR(P/A/R) 모두 있을 때 (좌우 분할)
+  · STACK_LIST: 지표가 약하거나 일반 bullet 위주일 때
+  → 원본 layout_type을 존중하되, 분량에 맞지 않으면 위 기준으로 변경 가능
+- details.problem / details.action / details.result : STAR(문제-행동-성과) 구조로 다듬기
+  · 각 항목 1~3개의 짧은 명사형 문장 (40자 이내)
+  · problem = 어떤 문제/상황이었는가 (수 초 이상 걸리던 불안정한 API 응답…)
+  · action = 어떤 행동을 했는가 (Fail-fast 패턴 적용, 상태 코드 명시적 분기…)
+  · result = 어떤 성과를 냈는가 (150ms 내외 안정화, 디버깅 시간 50% 단축…)
+- highlight_metric { label, value, before, after } : 절대 임의 변경 금지(원본 그대로)
+
 원본 deck (이 구조 그대로 같은 키로 응답):
-${JSON.stringify(baseDeck).substring(0, 6000)}
+${JSON.stringify(baseDeck).substring(0, 8000)}
 
 응답 형식: 위와 동일한 { "meta": {...}, "slides": [...] } JSON만, 추가 설명 금지.`;
   }

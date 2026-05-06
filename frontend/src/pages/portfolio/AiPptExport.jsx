@@ -382,6 +382,41 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
   );
 }
 
+// 색상 hex → 휘도 (0=검정, 1=흰색). 어두운 배경 위에는 밝은 글자, 밝은 배경 위에는 어두운 글자.
+function hexLuma(hex) {
+  if (!hex) return 1;
+  const m = String(hex).replace('#', '');
+  if (m.length !== 6) return 1;
+  const r = parseInt(m.slice(0, 2), 16) / 255;
+  const g = parseInt(m.slice(2, 4), 16) / 255;
+  const b = parseInt(m.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// 사각형 두 개의 겹침 면적이 a 영역 대비 절반 이상이면 "뒤덮인 것"으로 판단
+function findCoveringDecor(textBox, decorShapes) {
+  const ax2 = textBox.x + textBox.w;
+  const ay2 = textBox.y + textBox.h;
+  const aArea = textBox.w * textBox.h;
+  if (aArea <= 0) return null;
+  let best = null;
+  let bestOverlap = 0;
+  for (const d of decorShapes) {
+    const dx = d.x_pt || 0;
+    const dy = d.y_pt || 0;
+    const dx2 = dx + (d.width_pt || 0);
+    const dy2 = dy + (d.height_pt || 0);
+    const ow = Math.max(0, Math.min(ax2, dx2) - Math.max(textBox.x, dx));
+    const oh = Math.max(0, Math.min(ay2, dy2) - Math.max(textBox.y, dy));
+    const overlap = ow * oh;
+    if (overlap > bestOverlap && overlap >= aArea * 0.5) {
+      bestOverlap = overlap;
+      best = d;
+    }
+  }
+  return best;
+}
+
 // 미리보기에서 텍스트가 도형 박스를 넘치지 않도록 글자 수/박스 크기에 맞춰 폰트 크기를 줄여주는 헬퍼
 // (실제 PPT 다운로드는 원본 폰트 크기 그대로 — 미리보기 가독성만 개선)
 function fitFontSize(text, baseFs, w, h) {
@@ -412,8 +447,15 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
   // 원본 템플릿 폰트(fonts.heading/body)는 시스템에 없을 수 있어 글자 폭이 달라짐 → 의도적으로 무시.
   const PREVIEW_FONT = 'Pretendard, "Pretendard Variable", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif';
   const fonts = { heading: PREVIEW_FONT, body: PREVIEW_FONT };
-  // 마스터/레이아웃/슬라이드 모든 데코를 그대로 사용 (큰/작은 모두) — 원본 PPT와 시각적 일치 우선
-  const decorShapes = slide.decorShapes || [];
+  // 슬라이드 전체를 덮는 큰 도형(85% 이상)은 배경으로 처리해 텍스트 가림 방지
+  const allDecors = slide.decorShapes || [];
+  const bgDecors = allDecors.filter(d => d.width_pt >= SLIDE_W * 0.85 && d.height_pt >= SLIDE_H * 0.85);
+  const decorShapes = allDecors.filter(d => !(d.width_pt >= SLIDE_W * 0.85 && d.height_pt >= SLIDE_H * 0.85));
+  // 배경 도형의 fill을 배경색으로 승격 (가장 마지막 배경 도형 사용)
+  const effectiveBg = bgDecors.length > 0
+    ? bgDecors[bgDecors.length - 1].fill
+    : (slide.slideBg || c.bg || '#FFFFFF');
+
   const pics = slide.pics || [];
   const staticTexts = slide.staticTexts || [];
   // AI 매핑된 텍스트가 있으면 그것을, 없으면 원본 템플릿 텍스트를 fallback
@@ -424,7 +466,6 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
     return { ...sh, displayText: text };
   }).filter(sh => sh.displayText);
   const isTitle = (h = '') => /title|heading|제목|타이틀/i.test(h);
-  const slideBg = slide.slideBg || c.bg || '#FFFFFF';
 
   return (
     <button
@@ -432,9 +473,9 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
       className={`block text-left bg-white rounded-xl border-2 overflow-hidden transition-all hover:-translate-y-0.5 ${selected ? 'border-primary-500 ring-2 ring-primary-200' : 'border-surface-200'}`}
       style={{ width: '100%' }}
     >
-      <div style={{ width: '100%', height: SLIDE_H * scale, position: 'relative', overflow: 'hidden', background: slideBg }}>
-        <div style={{ width: SLIDE_W, height: SLIDE_H, position: 'relative', transform: `scale(${scale})`, transformOrigin: 'top left', background: slideBg }}>
-          {/* 1) 데코 도형 (마스터→레이아웃→슬라이드 순으로 누적) */}
+      <div style={{ width: '100%', height: SLIDE_H * scale, position: 'relative', overflow: 'hidden', background: effectiveBg }}>
+        <div style={{ width: SLIDE_W, height: SLIDE_H, position: 'relative', transform: `scale(${scale})`, transformOrigin: 'top left', background: effectiveBg }}>
+          {/* 1) 데코 도형 — z-index로 master(1)→layout(2)→slide(3) 순서 보장 */}
           {decorShapes.map((d, di) => (
             <div
               key={`d-${di}`}
@@ -445,15 +486,17 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                 width: d.width_pt,
                 height: d.height_pt,
                 background: d.fill,
+                zIndex: d.zIndex || 1,
               }}
             />
           ))}
-          {/* 2) 이미지(p:pic) — 사진/로고 */}
+          {/* 2) 이미지(p:pic) — z-index 4~6 */}
           {pics.map((p, pi) => (
             <img
               key={`pic-${pi}`}
               src={p.dataUrl}
               alt=""
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
               style={{
                 position: 'absolute',
                 left: p.x_pt,
@@ -462,14 +505,20 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                 height: p.height_pt,
                 objectFit: 'cover',
                 pointerEvents: 'none',
+                zIndex: p.zIndex || 5,
               }}
             />
           ))}
-          {/* 3) 마스터/레이아웃의 정적 텍스트 (페이지 번호, 로고 텍스트 등) */}
+          {/* 3) 마스터/레이아웃의 정적 텍스트 — z-index 7~8 */}
           {staticTexts.map((st, si) => {
             const innerW = Math.max(1, (st.width_pt || 100) - 4);
             const innerH = Math.max(1, (st.height_pt || 20) - 4);
             const fs = fitFontSize(st.text, st.fontSize || 12, innerW, innerH);
+            const cover = findCoveringDecor(
+              { x: st.x_pt || 0, y: st.y_pt || 0, w: st.width_pt || 100, h: st.height_pt || 20 },
+              decorShapes
+            );
+            const finalColor = cover && hexLuma(cover.fill) < 0.5 ? '#FFFFFF' : (st.color || '#1F2937');
             return (
               <div
                 key={`st-${si}`}
@@ -480,7 +529,7 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                   width: st.width_pt,
                   height: st.height_pt,
                   fontSize: fs,
-                  color: st.color,
+                  color: finalColor,
                   lineHeight: 1.2,
                   overflow: 'hidden',
                   padding: 2,
@@ -489,13 +538,14 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   overflowWrap: 'anywhere',
+                  zIndex: st.zIndex || 7,
                 }}
               >
                 {st.text}
               </div>
             );
           })}
-          {/* 4) AI 매핑된 슬라이드 텍스트 (없으면 원본 fallback) */}
+          {/* 4) AI 매핑된 슬라이드 텍스트 — z-index 10으로 항상 최상위 */}
           {textShapes.map(sh => {
             const text = sh.displayText;
             const baseFontSize = (slide.fontMap?.[sh.shape_id]) || sh.original_font_size_pt || (isTitle(sh.role_hint) ? 28 : 14);
@@ -505,6 +555,13 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
             const innerW = Math.max(1, boxW - 8);
             const innerH = Math.max(1, boxH - 8);
             const fontSize = fitFontSize(text, baseFontSize, innerW, innerH);
+            // 자동 명암: 텍스트 박스 뒤에 어두운 데코 fill 이 깔려 있으면 글자색을 밝게
+            const cover = findCoveringDecor(
+              { x: sh.x_pt || 0, y: sh.y_pt || 0, w: boxW, h: boxH },
+              decorShapes
+            );
+            const baseColor = isT ? (c.titleColor || c.accent || '#111827') : (c.sub || '#1F2937');
+            const finalColor = cover && hexLuma(cover.fill) < 0.5 ? '#FFFFFF' : baseColor;
             return (
               <div
                 key={sh.shape_id}
@@ -517,7 +574,7 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                   fontSize,
                   fontFamily: isT ? (fonts.heading || 'Pretendard') : (fonts.body || 'Pretendard'),
                   fontWeight: isT ? 800 : 500,
-                  color: isT ? (c.titleColor || c.accent || '#111827') : (c.sub || '#1F2937'),
+                  color: finalColor,
                   lineHeight: 1.3,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
@@ -525,12 +582,42 @@ function CustomSlideVisualCard({ slide, template, index, selected, onClick }) {
                   overflow: 'hidden',
                   letterSpacing: '-0.01em',
                   padding: 4,
+                  zIndex: 10,
                 }}
               >
                 {text}
               </div>
             );
           })}
+          {/* 5) textShapes가 없고 lines 데이터가 있을 때 간단 텍스트 폴백 (미리보기용) */}
+          {textShapes.length === 0 && (slide.lines || []).length > 0 && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              padding: Math.round(SLIDE_W * 0.04),
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              gap: Math.round(SLIDE_H * 0.015),
+              zIndex: 10,
+            }}>
+              {(slide.lines || []).slice(0, 8).map((line, li) => (
+                <div key={li} style={{
+                  fontSize: li === 0 ? Math.round(SLIDE_H * 0.06) : Math.round(SLIDE_H * 0.032),
+                  fontWeight: li === 0 ? 800 : 400,
+                  color: effectiveBg && hexLuma(effectiveBg) < 0.45 ? '#FFFFFF' : (c.sub || '#1F2937'),
+                  fontFamily: fonts.body,
+                  lineHeight: 1.3,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  letterSpacing: '-0.01em',
+                }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="px-4 py-2 border-t border-surface-100 flex items-center justify-between text-xs">

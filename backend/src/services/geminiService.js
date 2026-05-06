@@ -737,10 +737,37 @@ function buildDeckFromPortfolio(p) {
       itemBullets = keyExps.slice(0, 4).map(k => k.result || k.action || k.title).filter(Boolean);
     }
 
+    // [Phase 1] STAR 구조 추출 — 합격자 PPT 스타일 핵심
+    const compact = (s, max = 80) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    const problem = keyExps.map(k => compact(k.situation)).filter(Boolean).slice(0, 3);
+    const action = keyExps.map(k => compact(k.action)).filter(Boolean).slice(0, 3);
+    const result = keyExps.map(k => compact(k.result)).filter(Boolean).slice(0, 3);
+    // 빈 값 폴백: 일반 bullets로 균등 분배
+    if (!problem.length && !action.length && !result.length && itemBullets.length) {
+      itemBullets.slice(0, 3).forEach((b, i) => {
+        if (i === 0) problem.push(compact(b));
+        else if (i === 1) action.push(compact(b));
+        else result.push(compact(b));
+      });
+    }
+
+    // 핵심 지표(highlight_metric) — metrics 첫 번째
+    const highlight_metric = metrics[0] || null;
+
+    // 레이아웃 타입 자동 추론 — AI가 polish에서 변경 가능
+    const totalLen = [...problem, ...action, ...result].join(' ').length;
+    let layout_type;
+    if (highlight_metric && totalLen < 80) layout_type = 'CENTER_METRIC';
+    else if (highlight_metric && (problem.length || action.length || result.length)) layout_type = 'SPLIT_HALF';
+    else layout_type = 'STACK_LIST';
+
     slides.push({
       id: `s${slides.length + 1}`, layout: 'experience',
       title: `핵심 경험: ${heading}`,
       subtitle: role || period,
+      layout_type,
+      highlight_metric,
+      details: { problem, action, result },
       items: [{ heading, period, role, body, bullets: itemBullets, metrics }],
     });
   });
@@ -849,6 +876,23 @@ function mergeDecksWithPolish(baseDeck, polished) {
       subtitle: String(p.subtitle || b.subtitle || '').slice(0, 120),
       bullets: mergedBullets,
       items: mergedItems,
+      // [Phase 1] STAR/highlight_metric/layout_type — AI가 변경 가능, 없으면 base 유지
+      layout_type: ['SPLIT_HALF', 'CENTER_METRIC', 'STACK_LIST'].includes(p.layout_type) ? p.layout_type : (b.layout_type || undefined),
+      highlight_metric: (p.highlight_metric && (p.highlight_metric.value || p.highlight_metric.label))
+        ? {
+            label: String(p.highlight_metric.label || '').slice(0, 30),
+            value: String(p.highlight_metric.value || '').slice(0, 24),
+            before: p.highlight_metric.before ? String(p.highlight_metric.before).slice(0, 16) : '',
+            after: p.highlight_metric.after ? String(p.highlight_metric.after).slice(0, 16) : '',
+          }
+        : (b.highlight_metric || undefined),
+      details: (p.details && typeof p.details === 'object')
+        ? {
+            problem: (Array.isArray(p.details.problem) ? p.details.problem : (b.details?.problem || [])).map(x => String(x).slice(0, 90)).slice(0, 3),
+            action: (Array.isArray(p.details.action) ? p.details.action : (b.details?.action || [])).map(x => String(x).slice(0, 90)).slice(0, 3),
+            result: (Array.isArray(p.details.result) ? p.details.result : (b.details?.result || [])).map(x => String(x).slice(0, 90)).slice(0, 3),
+          }
+        : (b.details || undefined),
       notes: p.notes ? String(p.notes).slice(0, 200) : '',
     };
   });
