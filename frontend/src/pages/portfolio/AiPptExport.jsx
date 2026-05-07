@@ -83,9 +83,23 @@ export default function AiPptExport() {
     setStage(STAGE.ANALYZING);
     try {
       if (templateId === 'custom' && customTemplate?.arrayBuffer) {
-        // 커스텀 템플릿: 원본 PPTX 도형에 AI가 내용을 채움 (디자인 100% 보존)
-        const mappedSlides = await analyzeAndPreviewTemplate(customTemplate.arrayBuffer, portfolio, customTemplate.outline);
-        setDeck({ isCustomMapped: true, slides: mappedSlides });
+        // 커스텀 템플릿(레고 아키텍처):
+        //   1) 템플릿 슬라이드 분류 → 2) 포트폴리오 기반 플랜 → 3) PPTX 슬라이드 복제/삭제 →
+        //   4) 재구성된 zip 에서 AI 매핑 → 디자인은 100% 보존된 상태로 슬라이드 개수가 사용자에 맞춰짐.
+        const result = await analyzeAndPreviewTemplate(
+          customTemplate.arrayBuffer,
+          portfolio,
+          customTemplate.outline,
+          customTemplate.designTokens,
+        );
+        const { slides: mappedSlides, materializedArrayBuffer, plan, classifications } = result;
+        setDeck({
+          isCustomMapped: true,
+          slides: mappedSlides,
+          materializedArrayBuffer,
+          plan,
+          classifications,
+        });
         setStage(STAGE.PREVIEW);
       } else {
         const { data } = await api.post('/portfolio/ai-ppt-analyze', {
@@ -144,7 +158,14 @@ export default function AiPptExport() {
     setExporting(true);
     try {
       if (templateId === 'custom' && customTemplate?.arrayBuffer && deck.isCustomMapped) {
-        await fillUploadedPptxTemplate(customTemplate.arrayBuffer, portfolio, customTemplate.outline, deck.slides);
+        await fillUploadedPptxTemplate(
+          customTemplate.arrayBuffer,
+          portfolio,
+          customTemplate.outline,
+          deck.slides,
+          customTemplate.designTokens,
+          deck.materializedArrayBuffer,
+        );
         toast.success('PPT 다운로드를 시작합니다');
       } else {
         const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId}.pptx`;
@@ -186,8 +207,8 @@ export default function AiPptExport() {
       {stage === STAGE.ANALYZING && (
         <div className="flex flex-col items-center justify-center py-32 gap-4">
           <Loader2 size={48} className="animate-spin text-primary-600" />
-          <div className="text-lg font-medium text-gray-700">AI가 합격자 PPT 기준으로 슬라이드를 구성하는 중…</div>
-          <div className="text-sm text-gray-400">최대 60초 정도 소요될 수 있습니다</div>
+          <div className="text-lg font-medium text-gray-700">템플릿 슬라이드를 분류하고 사용자 데이터에 맞게 재조립 중…</div>
+          <div className="text-sm text-gray-400">프로젝트 개수만큼 슬라이드를 복제하고 빈 슬라이드는 제거합니다 · 최대 60초</div>
         </div>
       )}
 
@@ -320,9 +341,16 @@ function PreviewStage({ deck, template, isCustom, customFileName, selectedIdx, s
       </div>
 
       {isCustom && (
-        <div className="mt-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 flex items-center gap-2">
-          <Sparkles size={16} className="text-emerald-600 shrink-0" />
-          <b>{customFileName}</b> 원본 디자인이 100% 보존된 채 AI가 도형 위치에 맞춰 내용을 채웁니다. 미리보기는 도형 위치/텍스트 매핑을 보여주며, 다운로드는 원본 PPT 디자인 그대로입니다.
+        <div className="mt-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-emerald-600 shrink-0" />
+            <b>{customFileName}</b> 원본 디자인이 100% 보존된 채, 사용자 데이터 개수에 맞춰 슬라이드가 자동 복제·정리됩니다.
+          </div>
+          {Array.isArray(deck?.plan) && deck.plan.length > 0 && (
+            <div className="text-xs text-emerald-700 ml-6">
+              <b>레고 플랜:</b> {deck.plan.map(p => p.intent).join(' → ')} ({deck.plan.length}장)
+            </div>
+          )}
         </div>
       )}
 

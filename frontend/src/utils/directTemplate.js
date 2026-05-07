@@ -1115,22 +1115,46 @@ function fillTxBody(txBodyXml, replacement, opts = {}) {
   return withoutParas + paras + endPara;
 }
 
-// shape별 글자수 한도에 맞춰 텍스트 다듬기
+// shape별 글자수 한도에 맞춰 텍스트 다듬기.
+// 백엔드 mapDirectPptxTemplateWithAI 가 이미 budget 을 강제하므로 여기서는
+// 안전망 역할만. 절대 "…" 로 단어를 자르지 않는다 (합격자 PPT 신뢰도 보호).
 function fitTextToBudget(text, budget) {
   const t = String(text || '').trim();
   if (!t) return '';
   const limit = Math.max(8, Number(budget) || 60);
   if (t.length <= limit) return t;
-  // 문장 끊어서 fit (개조식 보존)
-  const segs = t.split(/(?<=[.!?。·])\s+|\s*[\n·]\s*/).map(s => s.trim()).filter(Boolean);
+
+  // 1) 줄바꿈/구분자 단위로 보존 가능한 만큼 합침
+  const lines = t.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const kept = [];
+  let used = 0;
+  for (const line of lines) {
+    const next = used + (kept.length ? 1 : 0) + line.length;
+    if (next > limit) break;
+    kept.push(line);
+    used = next;
+  }
+  if (kept.length) return kept.join('\n');
+
+  // 2) 첫 줄도 안 들어감 → 이메일/URL 같은 원자 단위면 포기, 아니면 단어 경계 절단
+  const first = lines[0] || t;
+  const isAtomic = /^[\w.+-]+@[\w.-]+|^https?:\/\//.test(first);
+  if (isAtomic) return first.length <= limit ? first : '';
+
+  // 3) 문장 부호/공백 경계로 자름 (… 미사용)
+  const segs = first.split(/(?<=[.!?。·])\s+|\s*[·]\s*/).map(s => s.trim()).filter(Boolean);
   let acc = '';
   for (const seg of segs) {
     const next = acc ? `${acc} · ${seg}` : seg;
     if (next.length > limit) break;
     acc = next;
   }
-  if (!acc) acc = t.slice(0, limit - 1) + '…';
-  return acc;
+  if (acc) return acc;
+
+  // 4) 마지막 폴백 — 마지막 공백에서 자르기 (이전엔 …를 붙였으나 신뢰도 위해 제거)
+  const cut = first.lastIndexOf(' ', limit);
+  if (cut > 4) return first.slice(0, cut).trim();
+  return first.slice(0, limit).trim();
 }
 
 // Shape(도형/테이블셀) 단위로 교체.
@@ -1584,22 +1608,235 @@ async function buildSlideVisualContext(zip, slidePath) {
   };
 }
 
-export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText) {
+// ───────────────────────────────────────────────────────
+// Lego Architecture: 템플릿 슬라이드 분류 → 플랜 → 재료화 → AI 매핑
+// ───────────────────────────────────────────────────────
+
+/** Step 1: 템플릿 슬라이드 1장을 intent 로 분류한다. (rule-based, 빠르고 결정적) */
+function classifyTemplateSlide(layoutMap, slideIndex, totalSlides) {
+  const shapes = layoutMap.shapes || [];
+  const allText = shapes.map(s => s.original_text || '').join(' ');
+  const allRoles = shapes.map(s => s.role_hint || '').join(' ');
+  const haystack = (allText + ' ' + allRoles).toLowerCase();
+
+  const scores = { profile: 0, skills: 0, project: 0, award: 0, education: 0, outro: 0 };
+
+  // 위치 기반 시드
+  if (slideIndex === 0) scores.profile += 3;
+  if (slideIndex === totalSlides - 1) scores.outro += 2;
+
+  // 키워드 기반
+  if (/\b(profile|introduce|소개|자기소개|about\s*me|프로필)\b/.test(haystack)) scores.profile += 3;
+  if (/\b(skill|역량|기술|stack|tool|능력|core\s*competen)\b/.test(haystack)) scores.skills += 3;
+  if (/\b(project|프로젝트|experience|경험|case\s*study|portfolio|work)\b/.test(haystack)) scores.project += 3;
+  if (/\b(award|수상|자격|certificat|honor|수료)\b/.test(haystack)) scores.award += 3;
+  if (/\b(education|학력|졸업|university|college|학과|학교)\b/.test(haystack)) scores.education += 3;
+  if (/\b(thank|감사|contact|연락|마무리|q\s*&\s*a|q\s*and\s*a|appendix)\b/.test(haystack)) scores.outro += 3;
+
+  // role_hint 기반 보강
+  const roles = shapes.map(s => (s.role_hint || '').toLowerCase());
+  const hasMetric = roles.some(r => /metric|tag/.test(r));
+  if (hasMetric) scores.project += 1; // 수치 박스 = 프로젝트 슬라이드 가능성↑
+
+  // 분류 결정
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const [topIntent, topScore] = sorted[0];
+  // 점수 0이면 기본 'project' (본문성 슬라이드의 안전한 기본)
+  const intent = topScore > 0 ? topIntent : 'project';
+  return { templateIndex: slideIndex, intent, score: topScore, sample: allText.slice(0, 60) };
+}
+
+/** Step 2: 분류 결과 + 포트폴리오 데이터 → 출력 슬라이드 플랜 (개수·intent·focus 확정). */
+function buildOrchestrationPlan(classifications, portfolio) {
+  const exps = portfolio.experiences || [];
+  const skills = portfolio.skills || {};
+  const skillCount = ['languages', 'frameworks', 'tools', 'others']
+    .reduce((n, k) => n + (Array.isArray(skills[k]) ? skills[k].length : 0), 0);
+  const awardsCount = (portfolio.awards || []).length;
+  const eduCount = (portfolio.education || []).length;
+
+  // 가장 적합한 source slide 찾기 (없으면 폴백 인덱스)
+  const findIdx = (intent, fallback) => {
+    const c = classifications.find(x => x.intent === intent);
+    return c ? c.templateIndex : fallback;
+  };
+  const firstIdx = 0;
+  const lastIdx = Math.max(0, classifications.length - 1);
+  const profileIdx = findIdx('profile', firstIdx);
+  const outroIdx = findIdx('outro', lastIdx);
+  // project source: 'project'로 분류된 슬라이드 → 중간 슬라이드 → cover/outro 가 아닌 첫 슬라이드 → 0
+  const projectIdx = findIdx('project',
+    classifications.find(c => c.templateIndex !== profileIdx && c.templateIndex !== outroIdx)?.templateIndex
+    ?? firstIdx
+  );
+  const skillsIdx = findIdx('skills', null);
+  const awardsIdx = findIdx('award', null);
+  const eduIdx = findIdx('education', null);
+
+  const plan = [];
+  // 1) Cover — 항상 1장
+  plan.push({ sourceTemplateIndex: profileIdx, intent: 'profile', focus: 'cover' });
+
+  // 2) Skills — 사용자에게 스킬이 있고 템플릿에 skills slide 가 있을 때만
+  if (skillCount > 0 && skillsIdx !== null) {
+    plan.push({ sourceTemplateIndex: skillsIdx, intent: 'skills', focus: 'skills_overview' });
+  }
+
+  // 3) Projects — 사용자의 프로젝트 개수만큼 무한 복제 (최대 8개)
+  exps.slice(0, 8).forEach((_, i) => {
+    plan.push({ sourceTemplateIndex: projectIdx, intent: 'project', focus: `projects[${i}]` });
+  });
+
+  // 4) Awards — 사용자에게 수상이 있고 템플릿에 award slide 가 있을 때만
+  if (awardsCount > 0 && awardsIdx !== null) {
+    plan.push({ sourceTemplateIndex: awardsIdx, intent: 'award', focus: 'awards' });
+  }
+
+  // 5) Education — 사용자에게 학력이 있고 템플릿에 education slide 가 있을 때만
+  if (eduCount > 0 && eduIdx !== null) {
+    plan.push({ sourceTemplateIndex: eduIdx, intent: 'education', focus: 'education' });
+  }
+
+  // 6) Outro — 항상 1장
+  if (classifications.length >= 2) {
+    plan.push({ sourceTemplateIndex: outroIdx, intent: 'contact', focus: 'closing' });
+  }
+
+  return plan.map((p, i) => ({ ...p, outputIndex: i }));
+}
+
+/**
+ * Step 4 (전반부): plan 에 따라 PPTX zip 의 슬라이드 목록을 재구성.
+ * 새 zip을 만들고:
+ *   - 모든 비슬라이드 파일은 그대로 복사
+ *   - plan[i] 마다 source slide의 xml + rels 를 새 번호로 복제
+ *   - presentation.xml / Content_Types / presentation.xml.rels 의 슬라이드 목록을 재작성
+ */
+async function materializePptxFromPlan(originalArrayBuffer, plan) {
+  const { default: JSZip } = await import('jszip');
+  const sourceZip = await JSZip.loadAsync(originalArrayBuffer.slice ? originalArrayBuffer.slice(0) : originalArrayBuffer);
+  const sourceSlideFiles = getSlideFiles(sourceZip);
+  if (!sourceSlideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
+
+  // source slide 별 rels 캐시
+  const sourceRels = {};
+  for (let i = 0; i < sourceSlideFiles.length; i++) {
+    const num = sourceSlideFiles[i].match(/slide(\d+)\.xml/)?.[1];
+    const f = sourceZip.file(`ppt/slides/_rels/slide${num}.xml.rels`);
+    sourceRels[i] = f ? await f.async('text') : null;
+  }
+
+  const newZip = new JSZip();
+  // 비슬라이드 파일 그대로 복사
+  for (const path of Object.keys(sourceZip.files)) {
+    if (/^ppt\/slides\/slide\d+\.xml$/.test(path)) continue;
+    if (/^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(path)) continue;
+    const f = sourceZip.file(path);
+    if (!f || f.dir) continue;
+    const buf = await f.async('uint8array');
+    newZip.file(path, buf);
+  }
+
+  // plan 기반으로 새 슬라이드 파일/rels 생성
+  for (let outIdx = 0; outIdx < plan.length; outIdx++) {
+    const srcIdx = plan[outIdx].sourceTemplateIndex;
+    const safeSrcIdx = Math.max(0, Math.min(sourceSlideFiles.length - 1, srcIdx));
+    const srcXml = await sourceZip.file(sourceSlideFiles[safeSrcIdx]).async('text');
+    const newPath = `ppt/slides/slide${outIdx + 1}.xml`;
+    newZip.file(newPath, srcXml);
+    if (sourceRels[safeSrcIdx]) {
+      // notesSlide 참조 제거: 클론 슬라이드가 원본 notesSlide를 공유하면
+      // notesSlide ↔ slide 양방향 참조가 깨져 PowerPoint가 오류를 보고한다.
+      const cleanedRels = sourceRels[safeSrcIdx].replace(
+        /<Relationship\b[^>]*\/relationships\/notesSlide"[^>]*\/>/g, ''
+      );
+      newZip.file(`ppt/slides/_rels/slide${outIdx + 1}.xml.rels`, cleanedRels);
+    }
+  }
+
+  // [Content_Types].xml — 슬라이드 Override 재작성
+  // 주의: ContentType 속성값 "application/vnd.openxmlformats-officedocument.../slide+xml" 에 슬래시가
+  // 포함되므로 [^/]* 패턴은 ContentType 뒤에 있을 때 PartName 뒤 속성을 건너뛰지 못한다.
+  // [^>]* 로 변경해 속성 순서에 무관하게 매칭한다.
+  let contentTypes = await sourceZip.file('[Content_Types].xml').async('text');
+  contentTypes = contentTypes.replace(
+    /<Override\b[^>]*PartName="\/ppt\/slides\/slide\d+\.xml"[^>]*\/>/g, ''
+  );
+  const overrideStr = plan.map((_, i) =>
+    `<Override PartName="/ppt/slides/slide${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`
+  ).join('');
+  contentTypes = contentTypes.replace('</Types>', overrideStr + '</Types>');
+  newZip.file('[Content_Types].xml', contentTypes);
+
+  // ppt/_rels/presentation.xml.rels — 슬라이드 Relationship 재작성
+  // 기존 패턴은 Id → Type → Target 순서를 가정했으나 도구에 따라 속성 순서가 다르다.
+  // Type URL 끝이 /slide" (따옴표 포함) 인 것만 제거한다 — slideLayout/slideMaster 는 제외된다.
+  let presRels = await sourceZip.file('ppt/_rels/presentation.xml.rels').async('text');
+  presRels = presRels.replace(
+    /<Relationship\b[^>]*\/relationships\/slide"[^>]*\/>/g, ''
+  );
+  const existingIds = [...presRels.matchAll(/\bId="rId(\d+)"/g)].map(m => Number(m[1])).filter(Boolean);
+  const baseRelId = (existingIds.length ? Math.max(...existingIds) : 0) + 1;
+  const slideRelEntries = plan.map((_, i) => ({
+    rId: `rId${baseRelId + i}`,
+    num: i + 1,
+  }));
+  const newRelXml = slideRelEntries.map(e =>
+    `<Relationship Id="${e.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${e.num}.xml"/>`
+  ).join('');
+  presRels = presRels.replace('</Relationships>', newRelXml + '</Relationships>');
+  newZip.file('ppt/_rels/presentation.xml.rels', presRels);
+
+  // ppt/presentation.xml — sldIdLst 재작성
+  let presXml = await sourceZip.file('ppt/presentation.xml').async('text');
+  const sldStart = 256;
+  const newSldIds = slideRelEntries.map((e, i) =>
+    `<p:sldId id="${sldStart + i}" r:id="${e.rId}"/>`
+  ).join('');
+  // <p:sldIdLst>...</p:sldIdLst> 와 자체 닫힘 <p:sldIdLst/> 모두 처리
+  presXml = presXml.replace(
+    /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>|<p:sldIdLst\s*\/>/,
+    `<p:sldIdLst>${newSldIds}</p:sldIdLst>`
+  );
+  newZip.file('ppt/presentation.xml', presXml);
+
+  return await newZip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+}
+
+export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText, designTokens = null) {
   if (!templateArrayBuffer) throw new Error('먼저 PPTX 템플릿 파일을 업로드해 주세요.');
   const { default: JSZip } = await import('jszip');
-  const zip = await JSZip.loadAsync(templateArrayBuffer.slice ? templateArrayBuffer.slice(0) : templateArrayBuffer);
-  const slideFiles = getSlideFiles(zip);
-  if (!slideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
+  const sourceZip = await JSZip.loadAsync(templateArrayBuffer.slice ? templateArrayBuffer.slice(0) : templateArrayBuffer);
+  const sourceSlideFiles = getSlideFiles(sourceZip);
+  if (!sourceSlideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
 
   // 슬라이드 사이즈(pt) — presentation.xml의 sldSz cx/cy(EMU) → pt
   let slideW = 960, slideH = 540;
   try {
-    const presXml = await zip.file('ppt/presentation.xml')?.async('text');
+    const presXml = await sourceZip.file('ppt/presentation.xml')?.async('text');
     const m = presXml?.match(/<p:sldSz\s+cx="(\d+)"\s+cy="(\d+)"/);
     if (m) { slideW = emuToPt(m[1]); slideH = emuToPt(m[2]); }
   } catch {}
 
-  // Step 1: 각 슬라이드의 shape-level 레이아웃 지도 + 시각 컨텍스트(이미지/마스터·레이아웃 도형) 추출
+  // ── Lego Step 1: 원본 템플릿 슬라이드 분류 ──
+  const sourceLayoutMaps = [];
+  for (let i = 0; i < sourceSlideFiles.length; i++) {
+    const xml = await sourceZip.file(sourceSlideFiles[i]).async('text');
+    sourceLayoutMaps.push(buildSlideLayoutMap(xml, i));
+  }
+  const classifications = sourceLayoutMaps.map((m, i) => classifyTemplateSlide(m, i, sourceLayoutMaps.length));
+  console.log('[Lego] 슬라이드 분류:', classifications.map(c => `${c.templateIndex}=${c.intent}(${c.score})`).join(' | '));
+
+  // ── Lego Step 2: 포트폴리오 + 분류 → 출력 슬라이드 플랜 (개수·intent·focus 확정) ──
+  const plan = buildOrchestrationPlan(classifications, portfolio);
+  console.log(`[Lego] 플랜 생성: 총 ${plan.length}장 — ${plan.map(p => `${p.intent}(src=${p.sourceTemplateIndex})`).join(' → ')}`);
+
+  // ── Lego Step 3: PPTX 슬라이드 목록 재구성 (Project N개 복제, 빈 데이터 슬라이드 삭제) ──
+  const materializedArrayBuffer = await materializePptxFromPlan(templateArrayBuffer, plan);
+  const zip = await JSZip.loadAsync(materializedArrayBuffer.slice(0));
+  const slideFiles = getSlideFiles(zip);
+
+  // ── Lego Step 4 (전반): 재구성된 zip 에서 layout map + visuals 다시 추출 ──
   const spec = parseDirectTemplate(templateText || '');
   const slideAnalyses = [];
   const slideVisuals = [];
@@ -1623,24 +1860,28 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
     }
   }
 
-  // Step 2: AI가 레이아웃 지도 + 포트폴리오 내용 분석 → shape_id 별 텍스트 배치
+  // ── Lego Step 4 (후반): plan 기반 forcedSlots 와 함께 AI 매핑 호출 ──
   try {
     // AI에는 original_text 를 전달하지 않음 (원본 PPT 텍스트 노출 방지)
     const slidesForAI = slideAnalyses.map(s => ({
       ...s,
       shapes: (s.shapes || []).map(({ original_text, ...rest }) => rest),
     }));
+    const forcedSlots = plan.map((p, i) => ({ slideIndex: i, intent: p.intent, focus: p.focus }));
     const { data } = await api.post('/portfolio/direct-pptx-map', {
       templateTitle: spec.title,
       slides: slidesForAI,
       portfolio: safePortfolioForAI(portfolio),
+      designTokens: sanitizeDesignTokensForAI(designTokens),
+      slideSize: { w: slideW, h: slideH },
+      forcedSlots,
     }, {
       // 2-stage Gemini Pro 호출 (distill + layout-fit) + 재시도 → 기본 120s 로는 부족
       timeout: 300000,
     });
     const aiMappings = Array.isArray(data?.mappings) ? data.mappings : [];
     if (aiMappings.length) {
-      return aiMappings.map(m => {
+      const slides = aiMappings.map(m => {
         const orderedShapes = Array.isArray(m.shapes) ? [...m.shapes].sort((a, b) => Number(a.shape_id) - Number(b.shape_id)) : [];
         const shapeMap = {};
         const fontMap = {};
@@ -1669,7 +1910,9 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
         return {
           slideIndex: idx,
           title: `슬라이드 ${idx + 1}`,
-          intent: m.intent || 'project',
+          intent: m.intent || plan[idx]?.intent || 'project',
+          focus: plan[idx]?.focus || '',
+          sourceTemplateIndex: plan[idx]?.sourceTemplateIndex ?? idx,
           lines,
           shapeMap,
           fontMap,
@@ -1681,6 +1924,7 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
           slideW, slideH,
         };
       });
+      return { slides, materializedArrayBuffer, plan, classifications };
     }
   } catch (err) {
     console.error('[analyzeAndPreviewTemplate] AI 호출 실패:', err);
@@ -1690,22 +1934,27 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
   throw new Error('AI 분석이 빈 결과를 반환했습니다. 다시 시도해 주세요.');
 }
 
-export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, templateText, precomputedSlides = null) {
+export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, templateText, precomputedSlides = null, designTokens = null, materializedArrayBuffer = null) {
   if (!templateArrayBuffer) throw new Error('먼저 PPTX 템플릿 파일을 업로드해 주세요.');
   const { default: JSZip } = await import('jszip');
-  const zip = await JSZip.loadAsync(templateArrayBuffer.slice ? templateArrayBuffer.slice(0) : templateArrayBuffer);
-  const templateSlideFiles = getSlideFiles(zip);
-  if (!templateSlideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
 
-  // 사전 분석 결과가 없으면 여기서 즉시 AI 분석을 수행 (절대 로컬 폴백으로 빠지지 않음)
+  // precomputed 가 있으면 미리 받아둔 materializedArrayBuffer 를 사용 (Lego 단계의 zip 재구성 결과).
+  // 없으면 여기서 즉시 분석해서 materializedArrayBuffer 를 받는다.
   let slides = Array.isArray(precomputedSlides) && precomputedSlides.length ? precomputedSlides : null;
+  let workingBuffer = materializedArrayBuffer || null;
   if (!slides) {
-    console.log('[fillUploadedPptxTemplate] precomputedSlides 없음 → AI 분석 자동 실행');
-    slides = await analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText);
+    console.log('[fillUploadedPptxTemplate] precomputedSlides 없음 → Lego 분석 자동 실행');
+    const result = await analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText, designTokens);
+    slides = result.slides;
+    workingBuffer = result.materializedArrayBuffer;
   }
   if (!slides || !slides.length) {
     throw new Error('AI 분석 결과가 비어 있습니다. 다시 분석해 주세요.');
   }
+  // materializedArrayBuffer 가 없으면 원본 그대로 사용 (Lego 통과 안 한 케이스 — 수동 호출 등)
+  const zip = await JSZip.loadAsync((workingBuffer || templateArrayBuffer).slice ? (workingBuffer || templateArrayBuffer).slice(0) : (workingBuffer || templateArrayBuffer));
+  const templateSlideFiles = getSlideFiles(zip);
+  if (!templateSlideFiles.length) throw new Error('PPTX 템플릿에서 슬라이드를 찾을 수 없습니다.');
 
   // 슬라이드별 텍스트 주입 — DOMParser 기반 안전 교체기 사용 (정규식 XML 조작 금지)
   // 또한 normAutofit 강제 주입을 제거하여 템플릿 원본의 autofit 설정을 보존한다.
@@ -1739,6 +1988,24 @@ export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, t
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
   const fileName = `${(portfolio.userName || 'portfolio').replace(/\s+/g, '_')}_portfolio.pptx`;
   downloadBlob(blob, fileName);
+}
+
+// 썸네일 base64는 너무 크고 mapping AI에는 불필요 → 색상/폰트/레이아웃 힌트만 전달
+function sanitizeDesignTokensForAI(tokens) {
+  if (!tokens || typeof tokens !== 'object') return null;
+  const pick = (k) => (typeof tokens[k] === 'string' ? tokens[k].slice(0, 40) : null);
+  return {
+    bg: pick('bg'),
+    accent: pick('accent'),
+    accent2: pick('accent2'),
+    side: pick('side'),
+    sideFg: pick('sideFg'),
+    sub: pick('sub'),
+    titleColor: pick('titleColor'),
+    fontHeading: pick('fontHeading'),
+    fontBody: pick('fontBody'),
+    layoutHint: pick('layoutHint'),
+  };
 }
 
 function safePortfolioForAI(portfolio) {

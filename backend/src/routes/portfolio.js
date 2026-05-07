@@ -246,7 +246,7 @@ router.post('/analyze-template-design', authMiddleware, aiRateLimiter, async (re
 // POST /api/portfolio/direct-pptx-map - 업로드 PPTX 템플릿에 맞는 내용 배치 AI 분석
 router.post('/direct-pptx-map', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
-    const { templateTitle, slides, portfolio } = req.body;
+    const { templateTitle, slides, portfolio, designTokens, slideSize, forcedSlots } = req.body;
     if (!Array.isArray(slides) || slides.length === 0) {
       return res.status(400).json({ error: 'PPTX 슬라이드 정보가 필요합니다' });
     }
@@ -254,7 +254,7 @@ router.post('/direct-pptx-map', authMiddleware, aiRateLimiter, async (req, res, 
       return res.status(400).json({ error: '포트폴리오 데이터가 필요합니다' });
     }
 
-    const mappings = await mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio });
+    const mappings = await mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio, designTokens, slideSize, forcedSlots });
     res.json({ success: true, mappings });
   } catch (error) {
     next(error);

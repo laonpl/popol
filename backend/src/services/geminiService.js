@@ -371,13 +371,141 @@ function compactText(value, max = 600) {
   return String(value || '').replace(/\s+/g, ' ').trim().substring(0, max);
 }
 
+/**
+ * Yoopta JSON ({ [uuid]: { type, value, meta:{order} } }) | 레거시 [{type,content}] | 문자열
+ * → 정렬된 블록 배열로 정규화. 각 블록: { kind, depth, text, items[], image }
+ *   kind: 'heading' | 'paragraph' | 'bullet' | 'numbered' | 'quote' | 'image' | 'text'
+ */
+function normalizeBlocks(value) {
+  if (!value) return [];
+  if (typeof value === 'string') {
+    return value.split('\n').filter(Boolean).map(text => ({ kind: 'paragraph', depth: 0, text }));
+  }
+  // 레거시 배열 ([{type:'text', content}, {type:'image', content/base64}])
+  if (Array.isArray(value)) {
+    return value.map(b => {
+      if (!b || typeof b !== 'object') return null;
+      if (b.type === 'image') return { kind: 'image', depth: 0, text: '', image: b.content || b.src || b.base64 || '' };
+      const text = String(b.content || b.text || '').trim();
+      if (!text) return null;
+      return { kind: 'text', depth: 0, text };
+    }).filter(Boolean);
+  }
+  // Yoopta JSON: UUID 키 → block dict
+  if (typeof value === 'object') {
+    const items = Object.values(value).filter(b => b && typeof b === 'object' && (b.value || b.children || b.type));
+    items.sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0));
+    return items.map(b => {
+      const type = String(b.type || 'Paragraph');
+      // Yoopta value: [{ id, type, props?, children:[{text,...}|{type:'image',props:{src}}] }, ...]
+      const elements = Array.isArray(b.value) ? b.value : [];
+      // 이미지 요소 — Yoopta image plugin은 props.src 에 base64 / URL 저장
+      const imageEl = elements.find(el => el?.type === 'image' || el?.props?.src);
+      const imageSrc = imageEl?.props?.src || imageEl?.src || '';
+      // 텍스트 요소들의 text leaves 합치기 — 한 블록 = 한 줄로 평탄화
+      const textParts = [];
+      for (const el of elements) {
+        if (!el || el.type === 'image') continue;
+        const children = Array.isArray(el.children) ? el.children : [];
+        const t = children.map(c => (c && typeof c.text === 'string') ? c.text : '').join('');
+        if (t.trim()) textParts.push(t);
+      }
+      const text = textParts.join(' ').replace(/\s+/g, ' ').trim();
+      const depth = Number(b?.meta?.depth) || 0;
+      if (imageSrc) return { kind: 'image', depth, text, image: imageSrc };
+      if (/^Heading/i.test(type)) return { kind: 'heading', depth, text };
+      if (/BulletedList/i.test(type)) return { kind: 'bullet', depth, text };
+      if (/NumberedList/i.test(type)) return { kind: 'numbered', depth, text };
+      if (/Blockquote|Quote/i.test(type)) return { kind: 'quote', depth, text };
+      return { kind: 'paragraph', depth, text };
+    }).filter(b => b.text || b.image);
+  }
+  return [];
+}
+
+/** 텍스트에서 정량 지표(수치+단위/기호) 한두 개를 뽑아낸다. 합격자 PPT의 'key_result' 톤. */
+const METRIC_PATTERN = /(?:^|[^A-Za-z0-9])(?:[+\-±↑↓]?\s*\d{1,3}(?:[,.\d]*)\s*(?:%|배|번|회|건|명|분|시간|일|주|개월|년|만원?|억원?|원|km|kg|MAU|DAU|위|위권|↑|↓|%p|x|×|배|TPS|RPS|p95|p99))/gi;
+function extractMetricsFromText(text) {
+  if (!text) return [];
+  const seen = new Set();
+  const out = [];
+  for (const m of String(text).matchAll(METRIC_PATTERN)) {
+    // 앞뒤 공백/구두점 + 캡쳐 시작의 비단어 1글자 제거
+    const cleaned = m[0].replace(/^[^\w+\-±↑↓]+/, '').trim();
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    out.push(cleaned);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+/** 정규화된 블록들 → 텍스트 라인 + 헤딩 기준 섹션/메트릭. AI 입력용. */
+function flattenBlocksForAI(blocks, { lineCap = 12, sectionLabel = '' } = {}) {
+  if (!blocks?.length) return { text: '', sections: [], metrics: [] };
+  const allMetrics = new Set();
+  const sections = [];
+  let cur = { heading: sectionLabel || '', lines: [], metrics: [] };
+  const flushIfNonEmpty = () => {
+    if (cur.heading || cur.lines.length) sections.push(cur);
+  };
+  for (const b of blocks) {
+    if (b.kind === 'image') {
+      cur.lines.push('[이미지 첨부]');
+      continue;
+    }
+    if (b.kind === 'heading') {
+      flushIfNonEmpty();
+      cur = { heading: b.text, lines: [], metrics: [] };
+      continue;
+    }
+    const prefix = b.kind === 'bullet' ? '• ' : b.kind === 'numbered' ? '· ' : b.kind === 'quote' ? '> ' : '';
+    cur.lines.push(prefix + b.text);
+    const ms = extractMetricsFromText(b.text);
+    ms.forEach(m => { cur.metrics.push(m); allMetrics.add(m); });
+  }
+  flushIfNonEmpty();
+
+  const textLines = [];
+  for (const sec of sections) {
+    if (sec.heading) textLines.push(`## ${sec.heading}`);
+    sec.lines.slice(0, lineCap).forEach(line => textLines.push(line));
+  }
+  return {
+    text: textLines.slice(0, 40).join('\n'),
+    sections,
+    metrics: [...allMetrics].slice(0, 8),
+  };
+}
+
 function collectPortfolioForPptx(portfolio = {}) {
   const lines = [
     `이름: ${portfolio.userName || ''}`,
     `희망 직무: ${portfolio.targetPosition || ''}`,
     `헤드라인: ${portfolio.headline || ''}`,
-    `소개: ${compactText(portfolio.about || portfolio.valuesEssay, 700)}`,
   ];
+
+  const allMetrics = new Set();
+  const narrativeSections = []; // { source, heading, lines[], metrics[] }
+  const imagePresence = []; // { source, count }
+
+  // Yoopta-/legacy-블록 필드 1개를 텍스트 + 섹션 + 메트릭으로 펼침
+  const expandBlockField = (value, source, sectionLabel = '') => {
+    const blocks = normalizeBlocks(value);
+    if (!blocks.length) return '';
+    const imgCount = blocks.filter(b => b.kind === 'image').length;
+    if (imgCount) imagePresence.push({ source, count: imgCount });
+    const flat = flattenBlocksForAI(blocks, { sectionLabel });
+    flat.metrics.forEach(m => allMetrics.add(m));
+    flat.sections.forEach(sec => narrativeSections.push({ source, heading: sec.heading, lines: sec.lines, metrics: sec.metrics }));
+    return flat.text;
+  };
+
+  // 자기소개 — 노션형은 valuesEssayBlocks(Yoopta), 링크형은 about/valuesEssay 평문
+  const introBlocks = expandBlockField(portfolio.valuesEssayBlocks, 'values', '자기소개/가치관');
+  const introPlain = compactText(portfolio.about || portfolio.valuesEssay, 800);
+  if (introBlocks) lines.push(`소개:\n${introBlocks}`);
+  else if (introPlain) lines.push(`소개: ${introPlain}`);
 
   const skills = portfolio.skills || {};
   const skillText = [...(skills.languages || []), ...(skills.frameworks || []), ...(skills.tools || []), ...(skills.others || [])]
@@ -388,33 +516,133 @@ function collectPortfolioForPptx(portfolio = {}) {
 
   (portfolio.experiences || []).slice(0, 12).forEach((exp, idx) => {
     const content = exp.frameworkContent || exp.structuredResult || exp.content || exp;
-    lines.push(`\n[경험 ${idx + 1}] ${exp.title || exp.company || exp.name || '프로젝트'}`);
+    const expTitle = exp.title || exp.company || exp.name || '프로젝트';
+    lines.push(`\n[경험 ${idx + 1}] ${expTitle}`);
     ['intro', 'overview', 'description', 'task', 'process', 'output', 'growth', 'competency', 'aiSummary'].forEach(key => {
-      if (content?.[key]) lines.push(`${key}: ${compactText(content[key], 500)}`);
+      const v = content?.[key];
+      if (!v) return;
+      const txt = compactText(v, 500);
+      if (txt) {
+        lines.push(`${key}: ${txt}`);
+        extractMetricsFromText(txt).forEach(m => allMetrics.add(m));
+      }
     });
     if (content?.projectOverview) lines.push(`개요: ${compactText(JSON.stringify(content.projectOverview), 700)}`);
     if (Array.isArray(content?.keyExperiences)) {
       content.keyExperiences.slice(0, 4).forEach((item, itemIdx) => {
-        lines.push(`핵심경험 ${itemIdx + 1}: ${compactText([item.title, item.metric, item.context, item.action, item.result, item.learning].filter(Boolean).join(' / '), 700)}`);
+        const ke = compactText([item.title, item.metric, item.context, item.action, item.result, item.learning].filter(Boolean).join(' / '), 700);
+        lines.push(`핵심경험 ${itemIdx + 1}: ${ke}`);
+        if (item.metric) allMetrics.add(String(item.metric).trim());
+        extractMetricsFromText(ke).forEach(m => allMetrics.add(m));
       });
     }
     if (Array.isArray(exp.sections)) {
-      exp.sections.slice(0, 5).forEach(section => lines.push(`${section.title || '섹션'}: ${compactText(section.content, 500)}`));
+      exp.sections.slice(0, 5).forEach(section => {
+        const blockText = expandBlockField(section.contentBlocks || section.blocks, `experiences[${idx}]`, `${expTitle} · ${section.title || '섹션'}`);
+        const plain = compactText(section.content, 500);
+        const body = blockText || plain;
+        if (body) lines.push(`${section.title || '섹션'}:\n${body}`);
+      });
     }
+  });
+
+  // 목표/계획 — descriptionBlocks (Yoopta)
+  (portfolio.goals || []).slice(0, 8).forEach((g, i) => {
+    const blockText = expandBlockField(g.descriptionBlocks, `goals[${i}]`, g.title || `목표 ${i + 1}`);
+    const plain = compactText(g.description, 400);
+    const body = blockText || plain;
+    if (g.title || body) lines.push(`[목표 ${i + 1}] ${g.title || ''}\n${body}`.trim());
+  });
+
+  // 학력
+  (portfolio.education || []).slice(0, 5).forEach((edu, idx) => {
+    const parts = [edu.school || edu.name, edu.major, edu.degree, edu.period, edu.detail].filter(Boolean);
+    if (parts.length) lines.push(`[학력 ${idx + 1}] ${compactText(parts.join(' · '), 200)}`);
+  });
+
+  // 수상/자격
+  (portfolio.awards || []).slice(0, 8).forEach((aw, idx) => {
+    const parts = [aw.date, aw.title, aw.organization, aw.detail].filter(Boolean);
+    if (parts.length) {
+      const txt = compactText(parts.join(' · '), 200);
+      lines.push(`[수상 ${idx + 1}] ${txt}`);
+      extractMetricsFromText(txt).forEach(m => allMetrics.add(m));
+    }
+  });
+
+  // 비교과 활동 — descriptionBlocks (Yoopta)
+  const extra = portfolio.extracurricular || {};
+  (extra.details || []).slice(0, 8).forEach((d, i) => {
+    const blockText = expandBlockField(d.descriptionBlocks, `extracurricular[${i}]`, d.title || `활동 ${i + 1}`);
+    const plain = compactText(d.description, 400);
+    const body = blockText || plain;
+    if (d.title || body) lines.push(`[활동 ${i + 1}] ${[d.title, d.period].filter(Boolean).join(' · ')}\n${body}`.trim());
+  });
+
+  // 관심사/가치관 — 합격자 PPT의 표지/마무리 슬라이드 톤 결정에 도움
+  if (Array.isArray(portfolio.interests) && portfolio.interests.length) {
+    lines.push(`관심사: ${compactText(portfolio.interests.join(', '), 200)}`);
+  }
+
+  // 노션형 자유 블록(customBlocks) — segments(텍스트/이미지 섞임) 또는 단일 content
+  (portfolio.customBlocks || []).slice(0, 8).forEach((cb, i) => {
+    if (cb?.type === 'image' || (cb?.content && /^data:image|^https?:.*\.(png|jpe?g|gif|webp)/i.test(String(cb.content)))) {
+      imagePresence.push({ source: `customBlocks[${i}]`, count: 1 });
+      return;
+    }
+    if (Array.isArray(cb?.segments)) {
+      const txt = cb.segments.filter(s => s?.type === 'text').map(s => s.content).filter(Boolean).join('\n');
+      if (txt) {
+        lines.push(`[커스텀 ${i + 1}] ${compactText(txt, 500)}`);
+        extractMetricsFromText(txt).forEach(m => allMetrics.add(m));
+      }
+      if (cb.segments.some(s => s?.type === 'image')) imagePresence.push({ source: `customBlocks[${i}]`, count: 1 });
+      return;
+    }
+    if (typeof cb?.content === 'string' && cb.content.trim()) {
+      const txt = compactText(cb.content, 500);
+      lines.push(`[커스텀 ${i + 1}] ${txt}`);
+      extractMetricsFromText(txt).forEach(m => allMetrics.add(m));
+    }
+  });
+
+  // 사용자 정의 섹션(링크형 포트폴리오의 자유 섹션)
+  (portfolio.customSections || portfolio.sections || []).slice(0, 6).forEach((sec, idx) => {
+    const title = sec.title || sec.label || `섹션 ${idx + 1}`;
+    const body = sec.content || sec.body || sec.description;
+    if (body) lines.push(`[자유섹션 ${idx + 1}] ${title}: ${compactText(body, 400)}`);
   });
 
   const contact = portfolio.contact || {};
   const contactText = [contact.email, contact.phone, contact.github, contact.website || contact.linkedin || contact.instagram].filter(Boolean).join(' / ');
   if (contactText) lines.push(`연락처: ${contactText}`);
 
-  return lines.filter(line => line && !/:\s*$/.test(line)).join('\n');
+  // 추가 링크(블로그/노션/링크인 등)
+  if (Array.isArray(portfolio.links) && portfolio.links.length) {
+    const linkText = portfolio.links.slice(0, 6).map(l => l?.url || l?.href || (typeof l === 'string' ? l : '')).filter(Boolean).join(' / ');
+    if (linkText) lines.push(`링크: ${linkText}`);
+  }
+
+  // AI 가시 영역에 핵심 지표·이미지 가용성 요약 추가 → 합격자 PPT 'key_result' 추출이 쉬워짐
+  if (allMetrics.size) lines.push(`\n[핵심 지표 후보] ${[...allMetrics].slice(0, 12).join(' · ')}`);
+  if (imagePresence.length) {
+    const imgSummary = imagePresence.slice(0, 6).map(p => `${p.source}×${p.count}`).join(', ');
+    lines.push(`[첨부 이미지] ${imgSummary}`);
+  }
+
+  return {
+    text: lines.filter(line => line && !/:\s*$/.test(line)).join('\n'),
+    keyMetrics: [...allMetrics].slice(0, 12),
+    narrativeSections: narrativeSections.slice(0, 16),
+    hasImages: imagePresence.length > 0,
+  };
 }
 
 /**
  * Stage 1: 링크형 포트폴리오 → 합격자 PPT 콘텐츠 팩 + 슬라이드 슬롯 계획.
  * 디자인과 분리된 순수 콘텐츠 추출 단계.
  */
-function ensureContentPackSafety(pack, portfolio, slideCount) {
+function ensureContentPackSafety(pack, portfolio, slideCount, extras = {}) {
   const safe = pack && typeof pack === 'object' ? { ...pack } : {};
   safe.summary = { ...(safe.summary || {}) };
   const sum = safe.summary;
@@ -441,12 +669,35 @@ function ensureContentPackSafety(pack, portfolio, slideCount) {
   if (!Array.isArray(safe.projects)) safe.projects = [];
   if (!Array.isArray(safe.skills_groups)) safe.skills_groups = [];
   if (!Array.isArray(safe.values_keywords)) safe.values_keywords = [];
+
+  // 결정적으로 추출된 정량 지표가 있으면 contentPack에 보강 (AI가 만들지 않음 — 합격자 PPT 'key_result' 톤 보장)
+  const ensured = new Set(Array.isArray(safe.key_metrics) ? safe.key_metrics.map(s => String(s).trim()).filter(Boolean) : []);
+  (extras.keyMetrics || []).forEach(m => { if (m) ensured.add(String(m).trim()); });
+  safe.key_metrics = [...ensured].slice(0, 8);
+
+  // narrative_sections — heading 기준으로 그룹화된 원본 섹션. 매핑 단계에서 제목/본문 매핑 정확도↑
+  if (!Array.isArray(safe.narrative_sections) && Array.isArray(extras.narrativeSections)) {
+    safe.narrative_sections = extras.narrativeSections.slice(0, 12).map(sec => ({
+      source: sec.source || '',
+      heading: sec.heading || '',
+      lines: (sec.lines || []).slice(0, 6),
+      metrics: (sec.metrics || []).slice(0, 3),
+    }));
+  }
   return safe;
 }
 
-async function distillPortfolioContentPack({ portfolio, slideCount }) {
-  const portfolioText = collectPortfolioForPptx(portfolio);
-  const prompt = buildPortfolioDistillPrompt({ portfolioText, slideCount });
+async function distillPortfolioContentPack({ portfolio, slideCount, designTokens = null }) {
+  const collected = collectPortfolioForPptx(portfolio);
+  const portfolioText = collected.text;
+  const prompt = buildPortfolioDistillPrompt({
+    portfolioText,
+    slideCount,
+    designTokens,
+    keyMetrics: collected.keyMetrics,
+    narrativeSections: collected.narrativeSections,
+    hasImages: collected.hasImages,
+  });
   let raw = null;
   try {
     // 콘텐츠 추출은 구조화된 작업이라 Flash-Lite 로 충분 (Pro 보다 3~5배 빠름)
@@ -460,7 +711,13 @@ async function distillPortfolioContentPack({ portfolio, slideCount }) {
   } catch (err) {
     console.warn('[PortfolioDistill] 실패, 안전 폴백으로 진행:', err.message);
   }
-  return { contentPack: ensureContentPackSafety(raw, portfolio, slideCount), portfolioText };
+  return {
+    contentPack: ensureContentPackSafety(raw, portfolio, slideCount, {
+      keyMetrics: collected.keyMetrics,
+      narrativeSections: collected.narrativeSections,
+    }),
+    portfolioText,
+  };
 }
 
 /**
@@ -542,7 +799,7 @@ layoutHint 판단 기준:
   };
 }
 
-export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio }) {
+export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio, designTokens = null, slideSize = null, forcedSlots = null }) {
   const safeSlides = (slides || []).slice(0, 40).map((slide, idx) => {
     const shapesIn = Array.isArray(slide.shapes) ? slide.shapes.slice(0, 30) : [];
     return {
@@ -563,18 +820,31 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
 
   if (!safeSlides.length) throw new Error('분석할 PPTX 슬라이드 정보가 없습니다.');
 
-  // ── Stage 1: 콘텐츠 추출 ──
+  // ── Stage 1: 콘텐츠 추출 (템플릿 톤을 알면 헤드라인/태그라인 어휘를 톤에 맞춰 짤 수 있음) ──
   const { contentPack, portfolioText } = await distillPortfolioContentPack({
     portfolio,
     slideCount: safeSlides.length,
+    designTokens,
   });
 
-  // ── Stage 2: 디자인-온리 레이아웃 핏 ──
+  // ── 결정적 plan(forcedSlots)이 있으면 AI가 정한 slide_slots 를 덮어씀 ──
+  // 프론트엔드의 레고 오케스트레이터가 슬라이드 개수·intent·focus 를 모두 확정함
+  if (Array.isArray(forcedSlots) && forcedSlots.length === safeSlides.length) {
+    contentPack.slide_slots = forcedSlots.map((s, i) => ({
+      slideIndex: i,
+      intent: String(s.intent || 'project'),
+      focus: String(s.focus || ''),
+    }));
+  }
+
+  // ── Stage 2: 디자인-온리 레이아웃 핏 + 템플릿 시각 톤 인지 ──
   const prompt = buildDirectPptxTemplateMappingPrompt({
     templateTitle,
     slides: safeSlides,
     portfolioText,
     contentPack,
+    designTokens,
+    slideSize,
   });
   const text = await callProFirst(prompt, 'DirectPptxTemplateMapping');
   const parsed = parseJSON(text);
@@ -597,7 +867,8 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
           if (!Number.isFinite(font) || font < 6 || font > 96) font = null;
           let newText = String(s.new_text || '').replace(/\\n/g, '\n');
 
-          // 박스 예산을 넘으면 줄 단위 → 글자 단위로 단계적으로 자르고, 잘렸다면 폰트도 1~2pt 축소
+          // 박스 예산을 넘으면 줄/단어 경계로 잘라낸다. 절대 "…" 로 단어를 자르지 않는다.
+          // 단어 잘림은 합격자 PPT의 신뢰도를 깨뜨림 — 차라리 그 라인을 통째로 버린다.
           if (newText.length > budget) {
             const lines = newText.split('\n').map(l => l.trim()).filter(Boolean);
             const kept = [];
@@ -608,7 +879,25 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
               kept.push(line);
               used = next;
             }
-            newText = kept.length ? kept.join('\n') : newText.slice(0, Math.max(8, budget - 1)) + '…';
+            if (kept.length) {
+              newText = kept.join('\n');
+            } else {
+              // 한 줄도 못 들어가면: 첫 줄을 단어 경계로 자름 (이메일/URL은 통째 보존, 못 넣으면 포기)
+              const first = lines[0] || newText;
+              const isAtomic = /^[\w.+-]+@[\w.-]+|^https?:\/\//.test(first);
+              if (isAtomic) {
+                newText = first.length <= budget ? first : '';
+              } else {
+                // 공백/구두점 경계로 단계적 절단 (… 미사용)
+                let trimmed = first;
+                while (trimmed.length > budget) {
+                  const cut = trimmed.lastIndexOf(' ', budget);
+                  if (cut > 4) { trimmed = trimmed.slice(0, cut).trim(); }
+                  else { trimmed = trimmed.slice(0, budget).trim(); break; }
+                }
+                newText = trimmed;
+              }
+            }
             if (!font) {
               const orig = origFonts.get(id);
               if (orig && orig > 12) font = Math.max(11, orig - 2);
