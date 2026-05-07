@@ -5,7 +5,7 @@ import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio }
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout } from '../services/templateParser.js';
 import { mapDeck } from '../services/geminiMapper.js';
-import { renderDeckToPptx } from '../services/pptxRenderer.js';
+import { renderDeckInPlace } from '../services/pptxRendererInPlace.js';
 
 const router = Router();
 
@@ -35,7 +35,7 @@ router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, re
 
     const layout = await parsePptxLayout(req.file.buffer);
     const deck = await mapDeck({ portfolio, layout });
-    const buf = await renderDeckToPptx(deck, layout);
+    const buf = await renderDeckInPlace(deck, req.file.buffer);
 
     // Return JSON with preview data + base64 PPTX for client-side download
     res.json({
