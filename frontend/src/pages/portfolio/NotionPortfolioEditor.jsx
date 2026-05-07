@@ -724,10 +724,10 @@ export default function NotionPortfolioEditor() {
             {saving ? '저장 중...' : '저장하기'}
           </button>
           <button
-            onClick={() => navigate(`/app/portfolio/pdf/${id}`)}
+            onClick={() => navigate(`/app/portfolio/preview/${id}`)}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors"
           >
-            <Download size={14} /> PDF
+            <Download size={14} /> 미리보기 · PPT
           </button>
         </div>
       </div>

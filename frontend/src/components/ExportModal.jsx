@@ -1,5 +1,5 @@
-﻿import { useState } from 'react';
-import { X, Loader2, Copy, Download, FileText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Loader2, Copy, Download, FileText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock, UploadCloud } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -9,47 +9,16 @@ const FORMATS = [
     label: '링크 공유',
     icon: Link2,
     desc: '공개 링크로 포트폴리오를 공유',
-    badge: null,
     info: '링크를 아는 누구나 포트폴리오를 열람할 수 있습니다. 포트폴리오가 공개로 설정됩니다.',
   },
   {
     key: 'PPT',
     label: 'PPT 파일',
     icon: FileText,
-    desc: '기업 제출용 프리미엄 PPT',
-    badge: null,
-    info: '디자인 가이드에 맞춰 구조화된 PPT 형식으로 다운로드합니다.',
+    desc: '내 PPT 템플릿에 자동 매핑',
+    info: '디자인을 가져올 PPTX 템플릿을 업로드하면, 노션형 포트폴리오의 모든 섹션을 AI가 분석해 그 디자인 위에 채워 다운로드합니다.',
   },
 ];
-
-function markdownToHtml(md) {
-  if (!md) return '';
-  const inline = (t) =>
-    t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-     .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-     .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:10.5px">$1</code>');
-  return md
-    .split('\n')
-    .map(line => {
-      const t = line.trim();
-      if (!t) return '<div style="height:5px"></div>';
-      if (t.startsWith('# ')) return `<h1 style="font-size:20px;font-weight:700;margin:14px 0 6px;border-bottom:2px solid #333;padding-bottom:6px">${inline(t.slice(2))}</h1>`;
-      if (t.startsWith('## ')) return `<h2 style="font-size:16px;font-weight:700;margin:12px 0 5px;color:#111">${inline(t.slice(3))}</h2>`;
-      if (t.startsWith('### ')) return `<h3 style="font-size:13px;font-weight:600;margin:8px 0 3px;color:#333">${inline(t.slice(4))}</h3>`;
-      if (t.startsWith('---') || t.startsWith('___')) return '<hr style="border:none;border-top:1px solid #ddd;margin:8px 0"/>';
-      if (t.startsWith('- ') || t.startsWith('• ') || t.startsWith('* '))
-        return `<p style="font-size:11.5px;margin:2px 0;padding-left:14px;line-height:1.65">• ${inline(t.slice(2))}</p>`;
-      if (/^\d+\.\s/.test(t)) {
-        const m = t.match(/^(\d+)\.\s(.+)/);
-        return `<p style="font-size:11.5px;margin:2px 0;padding-left:14px;line-height:1.65">${m?.[1]}. ${inline(m?.[2] || '')}</p>`;
-      }
-      const lm = t.match(/^\[([^\]]+)\](.*)/);
-      if (lm)
-        return `<div style="margin:8px 0 2px"><span style="font-size:11px;font-weight:700;background:#eef2ff;color:#3730a3;padding:2px 7px;border-radius:4px">${lm[1]}</span>${lm[2].trim() ? `<span style="font-size:11.5px;margin-left:6px">${inline(lm[2].trim())}</span>` : ''}</div>`;
-      return `<p style="font-size:11.5px;margin:2px 0;line-height:1.7">${inline(t)}</p>`;
-    })
-    .join('\n');
-}
 
 export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const [format, setFormat] = useState(null);
@@ -58,78 +27,31 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(!!data?.isPublic);
   const [togglingPublic, setTogglingPublic] = useState(false);
+  const [templateFile, setTemplateFile] = useState(null);
+  const fileRef = useRef(null);
 
   const step = result ? 2 : 1;
-  const totalSteps = 2;
 
   const buildExportData = () => {
-    if (type === 'experience') {
-      return {
-        title: data.title || '',
-        framework: data.framework || 'STAR',
-        content: data.content || {},
-        keywords: data.keywords || [],
-        metadata: {
-          duration: data.duration || '',
-          role: data.role || '',
-          techStack: data.techStack || [],
-        },
-      };
-    }
     if (type === 'portfolio') {
-      const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(data.templateType);
-      if (isTemplate) {
-        return {
-          title: data.title || '',
-          userName: data.userName || '',
-          nameEn: data.nameEn || '',
-          headline: data.headline || '',
-          targetCompany: data.targetCompany || '',
-          targetPosition: data.targetPosition || '',
-          templateType: data.templateType,
-          contact: data.contact || {},
-          education: data.education || [],
-          experiences: data.experiences || [],
-          awards: data.awards || [],
-          skills: data.skills || {},
-          goals: data.goals || [],
-          interests: data.interests || [],
-          values: data.values || [],
-          valuesEssay: data.valuesEssay || '',
-          curricular: data.curricular || {},
-          extracurricular: data.extracurricular || {},
-          interviews: data.interviews || [],
-          books: data.books || [],
-          lectures: data.lectures || [],
-        };
-      }
       return {
         title: data.title || '',
         userName: data.userName || '',
+        nameEn: data.nameEn || '',
+        headline: data.headline || '',
         targetCompany: data.targetCompany || '',
         targetPosition: data.targetPosition || '',
+        templateType: data.templateType,
+        contact: data.contact || {},
+        education: data.education || [],
+        experiences: data.experiences || [],
+        awards: data.awards || [],
+        skills: data.skills || {},
+        goals: data.goals || [],
+        interests: data.interests || [],
+        values: data.values || [],
+        valuesEssay: data.valuesEssay || '',
         sections: data.sections || [],
-        metadata: {
-          techStack: (data.sections || [])
-            .filter(s => s.type === 'skills')
-            .map(s => s.content)
-            .join(', ')
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean),
-        },
-      };
-    }
-    if (type === 'coverletter') {
-      return {
-        title: data.title || '',
-        targetCompany: data.targetCompany || '',
-        targetPosition: data.targetPosition || '',
-        questions: (data.questions || []).map(q => ({
-          question: q.question,
-          answer: q.answer,
-        })),
-        summary: (data.questions || []).map(q => q.answer).filter(Boolean).join('\n\n'),
       };
     }
     return data;
@@ -138,61 +60,44 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const handleExport = async () => {
     if (!format) return;
 
-    if (format === 'PPT') {
-      // toast('PPT 내보내기는 추후 업데이트 예정입니다', { style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#1e293b', color: '#fff' } });
-      // return;
-    }
-
     if (format === 'Link') {
-      if (data.id) {
-        setResult(`https://fitpoly.kr/p/${data.id}`);
-      } else {
-        toast.error('공유 링크를 생성할 수 없습니다');
-      }
+      if (data.id) setResult(`https://fitpoly.kr/p/${data.id}`);
+      else toast.error('공유 링크를 생성할 수 없습니다');
       return;
     }
 
-    setExporting(true);
-    try {
-      const exportData = buildExportData();
-      const formatMap = { PPT: 'ppt', GitHub: 'github' };
-      const endpoint = `/export/${formatMap[format]}`;
-      const res = await api.post(endpoint, { data: exportData }, { timeout: 60000 });
-      if (res.data.content) setResult(res.data.content);
-    } catch {
-      toast.error('내보내기에 실패했습니다');
+    if (format === 'PPT') {
+      if (!templateFile) { toast.error('PPTX 템플릿 파일을 업로드해 주세요'); return; }
+      setExporting(true);
+      try {
+        const fd = new FormData();
+        fd.append('template', templateFile);
+        fd.append('portfolio', JSON.stringify(buildExportData()));
+        const res = await api.post('/export/ppt', fd, {
+          responseType: 'blob',
+          timeout: 180000,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const blob = new Blob([res.data], {
+          type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const safeName = (data.userName || data.title || 'portfolio').replace(/[^\w가-힣]+/g, '_').slice(0, 40);
+        a.href = url;
+        a.download = `${safeName}.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setResult('downloaded');
+        toast.success('PPT 다운로드를 시작합니다');
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.message || 'PPT 생성에 실패했습니다';
+        toast.error(msg);
+      }
+      setExporting(false);
     }
-    setExporting(false);
-  };
-
-  const handleDownloadPDF = () => {
-    if (!result) return;
-    const htmlContent = markdownToHtml(result);
-    const printHtml = `<!DOCTYPE html><html lang="ko"><head>
-  <meta charset="UTF-8">
-  <title>${data.title || '포트폴리오'}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Noto Sans KR','Malgun Gothic','맑은 고딕',sans-serif;max-width:794px;margin:0 auto;padding:25px 40px;color:#1a1a1a;font-size:12px;line-height:1.6}
-    h1{font-size:20px;font-weight:700;margin-bottom:10px;border-bottom:2px solid #333;padding-bottom:6px}
-    h2{font-size:15px;font-weight:700;margin-top:14px;margin-bottom:5px}
-    h3{font-size:13px;font-weight:600;margin-top:9px;margin-bottom:3px;color:#333}
-    hr{border:none;border-top:1px solid #ddd;margin:8px 0}
-    p{font-size:11.5px;line-height:1.7;margin:2px 0}
-    strong,b{font-weight:700}em{font-style:italic}
-    code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:10.5px}
-    @page{margin:12mm;size:A4}
-    @media print{body{max-width:100%;padding:0}}
-  </style>
-</head><body>
-${htmlContent}
-<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},600)})</script>
-</body></html>`;
-    const pw = window.open('', '_blank');
-    if (!pw) { toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.'); return; }
-    pw.document.write(printHtml);
-    pw.document.close();
   };
 
   const selectedMeta = FORMATS.find(f => f.key === format);
@@ -201,10 +106,8 @@ ${htmlContent}
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[580px] flex flex-col overflow-hidden">
 
-        {/* ── Header ── */}
         <div className="px-7 pt-6 pb-5">
           <div className="flex items-start justify-between gap-4">
-            {/* 타이틀 + 설명 */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-[19px] font-bold text-gray-900 tracking-tight">내보내기</h2>
@@ -214,42 +117,29 @@ ${htmlContent}
                 {data.title || '포트폴리오'}를 원하는 형식으로 내보냅니다.
               </p>
             </div>
-
-            {/* 진행 상태 + 닫기 */}
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                    style={{ width: `${(step / totalSteps) * 100}%` }}
-                  />
+                  <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${(step / 2) * 100}%` }} />
                 </div>
-                <span className="text-[14px] text-gray-400 whitespace-nowrap">{step}/{totalSteps} 완료</span>
+                <span className="text-[14px] text-gray-400 whitespace-nowrap">{step}/2 완료</span>
               </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
-              >
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600">
                 <X size={17} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Divider ── */}
         <div className="border-t border-dashed border-gray-200 mx-7" />
 
-        {/* ── Body ── */}
         <div className="px-7 py-5 flex-1 overflow-auto">
           {!result ? (
             <div className="space-y-5">
-              {/* 형식 선택 */}
               <div>
-                <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  내보내기 형식 선택
-                </p>
+                <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">내보내기 형식 선택</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {FORMATS.map(({ key, label, icon: Icon, desc, badge }) => {
+                  {FORMATS.map(({ key, label, icon: Icon, desc }) => {
                     const selected = format === key;
                     return (
                       <button
@@ -261,24 +151,15 @@ ${htmlContent}
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60'
                         }`}
                       >
-                        {badge && (
-                          <span className="absolute top-3 right-3 text-[12px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md">
-                            {badge}
-                          </span>
-                        )}
                         {selected && (
-                          <span className="absolute top-3 right-3">
-                            <CheckCircle2 size={15} className="text-blue-500" />
-                          </span>
+                          <span className="absolute top-3 right-3"><CheckCircle2 size={15} className="text-blue-500" /></span>
                         )}
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 transition-colors ${
                           selected ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
                         }`}>
                           <Icon size={16} />
                         </div>
-                        <p className={`text-[15px] font-semibold mb-0.5 ${selected ? 'text-blue-700' : 'text-gray-800'}`}>
-                          {label}
-                        </p>
+                        <p className={`text-[15px] font-semibold mb-0.5 ${selected ? 'text-blue-700' : 'text-gray-800'}`}>{label}</p>
                         <p className="text-[11.5px] text-gray-400 leading-snug">{desc}</p>
                       </button>
                     );
@@ -286,15 +167,38 @@ ${htmlContent}
                 </div>
               </div>
 
-              {/* ── Divider ── */}
+              {format === 'PPT' && (
+                <>
+                  <div className="border-t border-dashed border-gray-200" />
+                  <div>
+                    <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">PPTX 템플릿 업로드</p>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".pptx"
+                      className="hidden"
+                      onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+                    />
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50/40 rounded-xl text-[14px] text-gray-600"
+                    >
+                      <UploadCloud size={16} />
+                      {templateFile ? templateFile.name : '디자인을 가져올 PPTX 파일 선택'}
+                    </button>
+                    <p className="text-[11.5px] text-gray-400 mt-2 leading-relaxed">
+                      업로드 파일의 텍스트는 무시되고, 슬라이드 레이아웃·색상·폰트만 참조됩니다.
+                      모든 섹션이 누락 없이 들어가며 프로젝트는 문제정의·역할·성과·지표 4구획으로 자동 구성됩니다.
+                    </p>
+                  </div>
+                </>
+              )}
+
               <div className="border-t border-dashed border-gray-200" />
 
-              {/* 형식 안내 배너 */}
               {selectedMeta ? (
                 <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border ${
-                  format === 'PPT'
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-blue-50 border-blue-200 text-blue-800'
+                  format === 'PPT' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-blue-50 border-blue-200 text-blue-800'
                 }`}>
                   <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                   <p className="text-[12.5px] leading-relaxed">{selectedMeta.info}</p>
@@ -307,30 +211,24 @@ ${htmlContent}
               )}
             </div>
           ) : (
-            /* ── 결과 화면 ── */
             <div className="space-y-4">
               <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-green-200 bg-green-50">
                 <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
                 <p className="text-[15px] font-medium text-green-700">
-                  {format === 'Link' ? '공개 링크가 생성되었습니다' : `${format} 형식으로 변환이 완료되었습니다`}
+                  {format === 'Link' ? '공개 링크가 생성되었습니다' : 'PPT 다운로드가 시작되었습니다'}
                 </p>
               </div>
 
-              {/* ── Divider ── */}
               <div className="border-t border-dashed border-gray-200" />
 
               {format === 'Link' && (
                 <div className="space-y-4">
-                  {/* 공개 설정 토글 */}
                   {onTogglePublic && (
                     <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-colors ${
                       isPublic ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
                     }`}>
                       <div className="flex items-center gap-2.5">
-                        {isPublic
-                          ? <Unlock size={15} className="text-blue-500 flex-shrink-0" />
-                          : <Lock size={15} className="text-gray-400 flex-shrink-0" />
-                        }
+                        {isPublic ? <Unlock size={15} className="text-blue-500 flex-shrink-0" /> : <Lock size={15} className="text-gray-400 flex-shrink-0" />}
                         <div>
                           <p className={`text-[15px] font-semibold ${isPublic ? 'text-blue-700' : 'text-gray-600'}`}>
                             {isPublic ? '링크 공개 중' : '링크 비공개'}
@@ -348,9 +246,7 @@ ${htmlContent}
                             await onTogglePublic(newVal);
                             setIsPublic(newVal);
                             toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
-                          } catch {
-                            toast.error('설정 변경에 실패했습니다');
-                          }
+                          } catch { toast.error('설정 변경에 실패했습니다'); }
                           setTogglingPublic(false);
                         }}
                         disabled={togglingPublic}
@@ -365,7 +261,6 @@ ${htmlContent}
                     </div>
                   )}
 
-                  {/* 링크 표시 + 복사 */}
                   <div>
                     <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">공유 링크</p>
                     <div className="flex items-center gap-2 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
@@ -398,42 +293,28 @@ ${htmlContent}
                 </div>
               )}
 
-              {format !== 'Link' && (
-                <div>
-                  <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-2">미리보기</p>
-                  <pre className="whitespace-pre-wrap text-[11.5px] text-gray-600 bg-gray-50 rounded-xl p-4 max-h-56 overflow-auto border border-gray-200">
-                    {result}
-                  </pre>
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="w-full flex items-center justify-center gap-2 mt-3 py-2.5 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-[15px] font-medium transition-colors"
-                  >
-                    <Download size={15} /> 다운로드
-                  </button>
+              {format === 'PPT' && (
+                <div className="text-[13px] text-gray-500 leading-relaxed">
+                  브라우저의 다운로드 폴더에서 파일을 확인하세요.
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* ── Divider ── */}
         <div className="border-t border-dashed border-gray-200 mx-7" />
 
-        {/* ── Footer ── */}
         <div className="px-7 py-4 flex items-center justify-between">
-          {/* 도움말 */}
           <a
             href="mailto:support@fitpoly.kr"
             className="flex items-center gap-1.5 text-[12.5px] text-gray-400 hover:text-gray-600 transition-colors underline underline-offset-2"
           >
             <HelpCircle size={13} /> 도움이 필요하신가요?
           </a>
-
-          {/* 액션 버튼 */}
           <div className="flex items-center gap-2">
             {result ? (
               <button
-                onClick={() => { setResult(null); setFormat(null); }}
+                onClick={() => { setResult(null); setFormat(null); setTemplateFile(null); }}
                 className="px-4 py-2 text-[15px] text-gray-500 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200"
               >
                 다시 선택
@@ -448,7 +329,7 @@ ${htmlContent}
             )}
             <button
               onClick={handleExport}
-              disabled={!format || exporting}
+              disabled={!format || exporting || (format === 'PPT' && !templateFile)}
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[15px] font-semibold rounded-xl transition-colors shadow-sm"
             >
               {exporting ? (
@@ -461,7 +342,6 @@ ${htmlContent}
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

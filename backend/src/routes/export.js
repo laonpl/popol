@@ -1,9 +1,52 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
 import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio } from '../services/exportService.js';
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
+import { parsePptxLayout } from '../services/templateParser.js';
+import { mapDeck } from '../services/geminiMapper.js';
+import { renderDeckToPptx } from '../services/pptxRenderer.js';
 
 const router = Router();
+
+const pptUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.pptx$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error('PPTX 파일만 업로드 가능합니다'));
+  },
+});
+
+// POST /api/export/ppt - PPTX 템플릿 + 노션형 포트폴리오 → 완성된 PPTX
+// multipart/form-data: template(file, .pptx), portfolio(string, JSON)
+router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'PPTX 템플릿 파일이 필요합니다' });
+    let portfolio;
+    try {
+      portfolio = JSON.parse(req.body.portfolio || '{}');
+    } catch {
+      return res.status(400).json({ success: false, message: 'portfolio 필드가 유효한 JSON이 아닙니다' });
+    }
+    if (!portfolio || typeof portfolio !== 'object') {
+      return res.status(400).json({ success: false, message: '포트폴리오 데이터가 필요합니다' });
+    }
+
+    const layout = await parsePptxLayout(req.file.buffer);
+    const deck = await mapDeck({ portfolio, layout });
+    const buf = await renderDeckToPptx(deck, layout);
+
+    const safeName = (portfolio.userName || portfolio.title || 'portfolio')
+      .replace(/[^\w가-힣]+/g, '_').slice(0, 40);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}.pptx"`);
+    res.send(buf);
+  } catch (error) {
+    console.error('[POST /export/ppt]', error);
+    next(error);
+  }
+});
 
 // POST /api/export/notion-page - Notion API로 실제 페이지 생성 (3컬럼 레이아웃)
 router.post('/notion-page', authMiddleware, async (req, res, next) => {

@@ -19,9 +19,8 @@ const PortfolioHub          = lazy(() => import('./pages/portfolio/PortfolioHub'
 const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTemplateSelect'));
 const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
 const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfolioPreview'));
-const PdfPortfolioExport    = lazy(() => import('./pages/portfolio/PdfPortfolioExport'));
-const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
 const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfolioView'));
+const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
 
 function PageLoader() {
   return (
@@ -81,7 +80,6 @@ export default function App() {
           <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
           <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
           <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-          <Route path="portfolio/pdf/:id" element={<PdfPortfolioExport />} />
           <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
         </Route>
       </Routes>
