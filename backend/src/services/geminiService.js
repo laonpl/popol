@@ -20,6 +20,8 @@ import {
   buildPortfolioDistillPrompt,
   buildValidatePortfolioPrompt,
   buildMatchSectionsPrompt,
+  buildAiPptAnalyzePrompt,
+  buildAiPptRevisePrompt,
 } from '../prompts/portfolioPrompts.js';
 
 // ── Pro 우선 옵션: Pro 내에서 지수 백오프로 끝까지 재시도 ──

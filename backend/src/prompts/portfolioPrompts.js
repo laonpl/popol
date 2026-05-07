@@ -246,3 +246,122 @@ ${(expText || '등록된 경험 없음').substring(0, 2000)}
 반드시 아래 JSON으로만 응답:
 { "question": "${question.replace(/"/g, '\\"').substring(0, 100)}", "answer": "작성된 답변", "wordCount": 0, "highlightedValues": [] }`;
 }
+
+/** AI PPT 분석 — 노션형 포트폴리오 → SlidePreview 호환 deck JSON */
+export function buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck }) {
+  if (baseDeck && Array.isArray(baseDeck.slides) && baseDeck.slides.length) {
+    const target = `${portfolio.targetCompany || ''} ${portfolio.targetPosition || ''}`.trim();
+    return `합격자 포트폴리오 PPT 컨설턴트입니다. 아래 슬라이드 deck의 문구를 더 임팩트 있게 다듬어주세요.
+
+원칙(반드시 지킬 것):
+- 슬라이드의 id, layout 그대로 유지
+- bullet은 짧고 명사형(15자 내외), 두괄식, 수치/결과 강조
+- items 안의 heading/period는 그대로 두되 body·bullets는 다듬어도 됨
+- metrics 배열의 label/value/before/after는 절대 임의 변경 금지(원본 그대로 유지)
+- 빈 bullet/items는 새로 만들지 말고 그대로 두세요
+- 지원처: ${target || '미정'}에 부합하도록 강조 포인트만 조정
+
+★ experience 레이아웃 슬라이드 추가 규칙 (합격자 PPT 핵심):
+- layout_type: 'SPLIT_HALF' | 'CENTER_METRIC' | 'STACK_LIST' 중 하나
+  · CENTER_METRIC: highlight_metric이 있고 details 텍스트가 매우 짧을 때 (큰 지표 한방)
+  · SPLIT_HALF: highlight_metric + STAR(P/A/R) 모두 있을 때 (좌우 분할)
+  · STACK_LIST: 지표가 약하거나 일반 bullet 위주일 때
+  → 원본 layout_type을 존중하되, 분량에 맞지 않으면 위 기준으로 변경 가능
+- details.problem / details.action / details.result : STAR(문제-행동-성과) 구조로 다듬기
+  · 각 항목 1~3개의 짧은 명사형 문장 (40자 이내)
+- highlight_metric { label, value, before, after } : 절대 임의 변경 금지(원본 그대로)
+
+원본 deck (이 구조 그대로 같은 키로 응답):
+${JSON.stringify(baseDeck).substring(0, 8000)}
+
+응답 형식: 위와 동일한 { "meta": {...}, "slides": [...] } JSON만, 추가 설명 금지.`;
+  }
+  return _buildAiPptAnalyzePromptLegacy({ portfolio, templateHint, customTemplate });
+}
+
+function _buildAiPptAnalyzePromptLegacy({ portfolio, templateHint, customTemplate }) {
+  const data = {
+    title: portfolio.title,
+    userName: portfolio.userName,
+    userBirth: portfolio.userBirth,
+    userAddress: portfolio.userAddress,
+    targetCompany: portfolio.targetCompany,
+    targetPosition: portfolio.targetPosition,
+    contact: portfolio.contact || {},
+    education: portfolio.education || [],
+    experiences: (portfolio.experiences || []).map(e => {
+      const sr = e.structuredResult || e.frameworkContent || {};
+      const ov = sr.projectOverview || {};
+      const keyExperiences = (sr.keyExperiences || e.keyExperiences || []).map(k => ({
+        title: k.title, metric: k.metric, metricLabel: k.metricLabel,
+        beforeMetric: k.beforeMetric, afterMetric: k.afterMetric,
+        situation: k.situation, action: k.action, result: k.result,
+      })).filter(k => k.title || k.metric || k.result);
+      return {
+        company: e.company || e.title,
+        role: ov.role || e.role,
+        period: ov.duration || e.period,
+        goal: ov.goal,
+        techStack: ov.techStack || e.skills,
+        bullets: e.bullets,
+        description: e.description || sr.intro || sr.overview || ov.summary,
+        detail: e.detail,
+        keyExperiences,
+      };
+    }),
+    awards: portfolio.awards || [],
+    skills: portfolio.skills || {},
+    values: portfolio.values || portfolio.valuesEssay || portfolio.about,
+    customSections: portfolio.customSections || [],
+  };
+  const customHint = customTemplate
+    ? `사용자가 업로드한 템플릿의 슬라이드 흐름:\n${JSON.stringify(customTemplate).substring(0, 1500)}`
+    : '';
+  return `당신은 합격자 포트폴리오 PPT 컨설턴트입니다. 아래 포트폴리오 데이터를 분석해
+"${templateHint || 'modern'}" 톤의 PPT 슬라이드 8~12장으로 재구성하세요.
+
+핵심 원칙:
+- 합격자 PPT 기준: 한 슬라이드 한 메시지, 두괄식, 수치·기여도·결과 강조
+- bullet은 명사형/짧게(15자 내외), 각 슬라이드 bullet 5개 이내
+- 표지·프로필·교육·핵심경험(여러 장)·기술·수상·가치관·연락처/마무리 흐름
+- 핵심 경험은 1슬라이드당 1프로젝트로 상세 분리
+- ${data.targetCompany || ''} ${data.targetPosition || ''} 직무에 부합하는 경험을 앞쪽으로 배치
+- ★중요: experiences의 keyExperiences(metric, metricLabel, beforeMetric, afterMetric)는 반드시 해당 프로젝트 슬라이드의 items[].metrics 배열로 포함
+
+${customHint}
+
+포트폴리오 데이터:
+${JSON.stringify(data).substring(0, 5000)}
+
+반드시 아래 JSON으로만 응답(추가 설명 금지):
+{
+  "meta": { "title": "표지 메인 카피", "subtitle": "부제(이름·지원처)", "accentColor": "#0F172A" },
+  "slides": [
+    {
+      "id": "s1",
+      "layout": "cover|profile|education|experience|skills|awards|values|contact|closing|section",
+      "title": "슬라이드 헤딩",
+      "subtitle": "보조 텍스트(선택)",
+      "bullets": ["짧은 포인트"],
+      "items": [{ "heading": "프로젝트명", "period": "2024.03-06", "role": "역할", "body": "한 줄 요약", "bullets": ["성과"], "metrics": [{"label":"응답시간","value":"40% 단축","before":"800ms","after":"480ms"}] }],
+      "notes": ""
+    }
+  ]
+}`;
+}
+
+/** 단일 슬라이드 AI 수정 프롬프트 */
+export function buildAiPptRevisePrompt({ slide, instruction, portfolio }) {
+  return `당신은 합격자 포트폴리오 PPT 편집자입니다. 아래 슬라이드를 사용자의 요청대로 수정하세요.
+구조(layout/필드 키)는 유지하고 텍스트만 다듬으세요. bullet은 짧고 명사형, 수치 강조.
+
+원본 슬라이드:
+${JSON.stringify(slide).substring(0, 1500)}
+
+사용자 요청: ${String(instruction || '').substring(0, 400)}
+
+참고 포트폴리오:
+${JSON.stringify({ name: portfolio.userName, target: `${portfolio.targetCompany || ''} ${portfolio.targetPosition || ''}`.trim(), experiences: (portfolio.experiences || []).slice(0, 5).map(e => e.company || e.title) }).substring(0, 600)}
+
+반드시 수정된 슬라이드 1개의 JSON만 응답(원본과 동일한 키 구조):`;
+}

@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import { validatePortfolioWithAI, matchSectionsToRequirements } from '../services/geminiService.js';
+import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFunctions.js';
 
 const router = Router();
 
@@ -225,6 +226,40 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
     const results = await matchSectionsToRequirements(sections, targetCompany, targetPosition);
     res.json({ success: true, results });
   } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/portfolio/ai-ppt-analyze - 노션형 포트폴리오 → AI PPT 슬라이드 JSON 생성
+router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { portfolioId, templateHint, customTemplate } = req.body;
+    if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다' });
+    const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
+    if (!snap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다' });
+    const portfolio = { id: snap.id, ...snap.data() };
+    const deck = await generateAiPptDeck({ portfolio, templateHint, customTemplate });
+    res.json({ deck });
+  } catch (error) {
+    console.error('[POST /portfolio/ai-ppt-analyze]', error);
+    next(error);
+  }
+});
+
+// POST /api/portfolio/ai-ppt-revise - 단일 슬라이드 AI 수정
+router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { portfolioId, slide, instruction } = req.body;
+    if (!slide || !instruction) return res.status(400).json({ error: 'slide와 instruction이 필요합니다' });
+    let portfolio = {};
+    if (portfolioId) {
+      const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
+      if (snap.exists) portfolio = { id: snap.id, ...snap.data() };
+    }
+    const updated = await reviseAiPptSlide({ slide, instruction, portfolio });
+    res.json({ slide: updated });
+  } catch (error) {
+    console.error('[POST /portfolio/ai-ppt-revise]', error);
     next(error);
   }
 });

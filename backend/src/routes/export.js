@@ -37,11 +37,18 @@ router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, re
     const deck = await mapDeck({ portfolio, layout });
     const buf = await renderDeckToPptx(deck, layout);
 
-    const safeName = (portfolio.userName || portfolio.title || 'portfolio')
-      .replace(/[^\w가-힣]+/g, '_').slice(0, 40);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}.pptx"`);
-    res.send(buf);
+    // Return JSON with preview data + base64 PPTX for client-side download
+    res.json({
+      pptxBase64: buf.toString('base64'),
+      deck,
+      slideSize: layout.slideSize,
+      layoutSlides: layout.slides.map(s => ({
+        index: s.index,
+        bg: s.bg,
+        decor: s.decor,
+        pics: s.pics,
+      })),
+    });
   } catch (error) {
     console.error('[POST /export/ppt]', error);
     next(error);
