@@ -1290,8 +1290,41 @@ function safelyReplaceSlideTextDom(xmlString, byShapeId, byShapeFontPt = null) {
     oldPs.forEach(p => p.parentNode.removeChild(p));
 
     const rPrCloneBase = design.rPr ? design.rPr.cloneNode(true) : null;
-    if (rPrCloneBase && fontSizePt && Number.isFinite(fontSizePt)) {
-      rPrCloneBase.setAttribute('sz', String(Math.round(Number(fontSizePt) * 100)));
+
+    // ── 실효 폰트 크기 결정: AI 지정 > 소형 원본 스케일업 > 원본 그대로 ──
+    let effectiveFontPt = (fontSizePt && Number.isFinite(fontSizePt)) ? fontSizePt : null;
+    if (rPrCloneBase && lines.length > 0 && !effectiveFontPt) {
+      const origSz = Number(rPrCloneBase.getAttribute('sz') || 0); // 1/100pt 단위
+      if (origSz > 0 && origSz <= 1000) { // ≤ 10pt 이면 가독 최솟값으로 올림
+        effectiveFontPt = Math.min(origSz / 100 + 4, 14);
+      }
+    }
+    if (rPrCloneBase && effectiveFontPt && Number.isFinite(effectiveFontPt)) {
+      rPrCloneBase.setAttribute('sz', String(Math.round(effectiveFontPt * 100)));
+    }
+
+    // ── 밝은 회색 글자색 제거: 내용이 충분히 길면 테마 기본색(진한 색)으로 상속 ──
+    // rPr 안에 solidFill > srgbClr 가 있고 R/G/B 모두 140 이상(밝은 회색)이면 제거
+    if (rPrCloneBase && lines.join('').length > 8) {
+      const solidFillNode = Array.from(rPrCloneBase.childNodes).find(
+        n => n.nodeType === 1 && n.localName === 'solidFill'
+      );
+      if (solidFillNode) {
+        const srgbClrNode = Array.from(solidFillNode.childNodes).find(
+          n => n.nodeType === 1 && n.localName === 'srgbClr'
+        );
+        if (srgbClrNode) {
+          const hex = (srgbClrNode.getAttribute('val') || '').toUpperCase();
+          if (hex.length === 6) {
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            if (r > 140 && g > 140 && b > 140) {
+              rPrCloneBase.removeChild(solidFillNode);
+            }
+          }
+        }
+      }
     }
     // [WYSIWYG] 폰트 통일: 미리보기(웹)와 PPTX(출력) 모두 Pretendard 로 강제.
     // 원본 PPT 의 typeface 는 시스템에 없을 수 있어 글자 폭이 어긋남 → 미리보기와 다르게 보임.
