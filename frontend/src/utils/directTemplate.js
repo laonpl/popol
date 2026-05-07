@@ -56,7 +56,11 @@ function isStructuralText(text) {
   if (/^[A-Za-z]$/.test(t)) return true;         // 낱글자 장식
   if (/^Q\d+$/.test(t)) return true;             // Q0, Q1 등 슬라이드 번호
   if (/^[A-Z]\d+[.:)]?$/.test(t)) return true;  // A1, B2: 등 섹션 번호
-  if (t.length <= 2) return true;                // 너무 짧은 장식 텍스트
+  if (t.length <= 2) {
+    // 한글(Hangul 음절)이 포함되면 2자도 의미 있는 텍스트 → 교체 허용 (예: "목차")
+    if (/[\uAC00-\uD7A3]/.test(t)) return false;
+    return true; // 숫자("01"), 라틴 약어("AI", "FE") 등은 구조 장식으로 간주
+  }
   return false;
 }
 
@@ -89,12 +93,12 @@ function estimateCharBudget(geom, fontSizeHundredths) {
   const fs = fontSizeHundredths ? fontSizeHundredths / 100 : 18; // 기본 18pt 가정
   const charWidth = Math.max(6, fs * 1.05);
   const lineHeight = Math.max(8, fs * 1.4);
-  // 박스 폭의 85%만 안전 영역으로 사용
-  const safeW = (w - 4) * 0.85;
+  // 박스 폭의 80%만 안전 영역으로 사용
+  const safeW = (w - 4) * 0.8;
   const perLine = Math.max(2, Math.floor(safeW / charWidth));
   const lines = Math.max(1, Math.floor(h / lineHeight));
-  // 추가 면적 마진 0.85 (폰트 다이버전스 + 줄 끝 흘림 방지)
-  return Math.max(6, Math.min(Math.floor(perLine * lines * 0.85), 200));
+  // 면적 마진 제거 — PPT 렌더 엔진(MS Office)은 웹폰트보다 예측 가능하므로 추가 여유 불필요
+  return Math.max(12, Math.min(Math.floor(perLine * lines), 300));
 }
 
 // 원본 shape의 첫 번째 <a:rPr ... /> 또는 <a:rPr ...></a:rPr> 를 캡처해 새 단락 작성 시 재사용
@@ -1646,7 +1650,36 @@ function classifyTemplateSlide(layoutMap, slideIndex, totalSlides) {
   return { templateIndex: slideIndex, intent, score: topScore, sample: allText.slice(0, 60) };
 }
 
-/** Step 2: 분류 결과 + 포트폴리오 데이터 → 출력 슬라이드 플랜 (개수·intent·focus 확정). */
+/** 한 경험의 콘텐츠 풍부도 점수. 분할(2 슬라이드) 가치가 있는지 판단용. */
+function scoreExperienceContent(exp) {
+  if (!exp || typeof exp !== 'object') return 0;
+  const content = exp.frameworkContent || exp.structuredResult || exp.content || {};
+  const ov = content?.projectOverview || {};
+  const git = exp._git || {};
+  const arrLen = (v) => Array.isArray(v)
+    ? v.filter(x => x && (typeof x === 'string' ? x.trim() : true)).length
+    : (v && typeof v === 'string' ? (v.trim() ? 1 : 0) : (v ? 1 : 0));
+
+  const action = arrLen(exp.action) + arrLen(git.code_changes) + arrLen(git.action_and_solution)
+    + (content?.task ? 1 : 0) + (content?.process ? 1 : 0);
+  const result = arrLen(exp.result) + arrLen(exp.impact) + (content?.output ? 1 : 0);
+  const problem = arrLen(exp.problem_definition) + arrLen(git.problem_definition)
+    + arrLen(exp.context) + (content?.intro ? 1 : 0);
+  const tech = arrLen(exp.techStack) + arrLen(exp.skills) + arrLen(exp.tags)
+    + arrLen(exp.keywords) + arrLen(ov?.techStack);
+  const sections = arrLen(exp.sections);
+  const keyExp = arrLen(content?.keyExperiences);
+
+  // 가중치: section/keyExperiences 는 자체로 풍부 → 2배. action/result 는 1당 1점.
+  return action + result + problem + (tech > 0 ? 2 : 0) + sections * 2 + keyExp;
+}
+
+/** Step 2: 분류 결과 + 포트폴리오 데이터 → 출력 슬라이드 플랜 (개수·intent·focus 확정).
+ *  슬라이드 수는 "프로젝트 개수"가 아니라 **콘텐츠 양** 으로 결정한다.
+ *  - 풍부한 프로젝트(score ≥ 6): project + result 2 슬라이드
+ *  - 보통 프로젝트(score 1~5): project 1 슬라이드
+ *  - 콘텐츠 0인 프로젝트: 스킵
+ */
 function buildOrchestrationPlan(classifications, portfolio) {
   const exps = portfolio.experiences || [];
   const skills = portfolio.skills || {};
@@ -1654,6 +1687,8 @@ function buildOrchestrationPlan(classifications, portfolio) {
     .reduce((n, k) => n + (Array.isArray(skills[k]) ? skills[k].length : 0), 0);
   const awardsCount = (portfolio.awards || []).length;
   const eduCount = (portfolio.education || []).length;
+  const goalsCount = (portfolio.goals || []).filter(g => g?.title || g?.description || g?.descriptionBlocks).length;
+  const extraCount = ((portfolio.extracurricular?.details) || []).filter(d => d?.title || d?.description).length;
 
   // 가장 적합한 source slide 찾기 (없으면 폴백 인덱스)
   const findIdx = (intent, fallback) => {
@@ -1682,9 +1717,21 @@ function buildOrchestrationPlan(classifications, portfolio) {
     plan.push({ sourceTemplateIndex: skillsIdx, intent: 'skills', focus: 'skills_overview' });
   }
 
-  // 3) Projects — 사용자의 프로젝트 개수만큼 무한 복제 (최대 8개)
-  exps.slice(0, 8).forEach((_, i) => {
+  // 3) Projects — 콘텐츠 풍부도(score)에 따라 1~2 슬라이드 할당. "프로젝트 수가 아니라 내용 양으로 결정".
+  //    score ≥ 6: project + result 2장 / score 1~5: 1장 / score 0: 스킵
+  //    슬라이드 폭주 방지를 위해 누적 project 슬라이드 수 16장 cap
+  let projectSlideBudget = 16;
+  exps.slice(0, 12).forEach((exp, i) => {
+    if (projectSlideBudget <= 0) return;
+    const score = scoreExperienceContent(exp);
+    if (score === 0) return; // 빈 경험은 스킵
     plan.push({ sourceTemplateIndex: projectIdx, intent: 'project', focus: `projects[${i}]` });
+    projectSlideBudget--;
+    if (score >= 6 && projectSlideBudget > 0) {
+      // 풍부한 프로젝트는 결과 슬라이드 1장 추가 — 같은 source 템플릿 재사용 (intent="result" 로 다른 콘텐츠 매핑)
+      plan.push({ sourceTemplateIndex: projectIdx, intent: 'result', focus: `projects[${i}].result` });
+      projectSlideBudget--;
+    }
   });
 
   // 4) Awards — 사용자에게 수상이 있고 템플릿에 award slide 가 있을 때만
@@ -1695,6 +1742,11 @@ function buildOrchestrationPlan(classifications, portfolio) {
   // 5) Education — 사용자에게 학력이 있고 템플릿에 education slide 가 있을 때만
   if (eduCount > 0 && eduIdx !== null) {
     plan.push({ sourceTemplateIndex: eduIdx, intent: 'education', focus: 'education' });
+  }
+
+  // 5b) Goals/Extracurricular — 콘텐츠가 충분히 있으면 1장 추가 (project 템플릿 재사용)
+  if (goalsCount + extraCount >= 2) {
+    plan.push({ sourceTemplateIndex: projectIdx, intent: 'project', focus: 'narrative_extras' });
   }
 
   // 6) Outro — 항상 1장
@@ -1880,6 +1932,7 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
       timeout: 300000,
     });
     const aiMappings = Array.isArray(data?.mappings) ? data.mappings : [];
+    const aiContentPack = data?.contentPack || null;
     if (aiMappings.length) {
       const slides = aiMappings.map(m => {
         const orderedShapes = Array.isArray(m.shapes) ? [...m.shapes].sort((a, b) => Number(a.shape_id) - Number(b.shape_id)) : [];
@@ -1924,7 +1977,7 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
           slideW, slideH,
         };
       });
-      return { slides, materializedArrayBuffer, plan, classifications };
+      return { slides, materializedArrayBuffer, plan, classifications, contentPack: aiContentPack };
     }
   } catch (err) {
     console.error('[analyzeAndPreviewTemplate] AI 호출 실패:', err);
@@ -1934,7 +1987,416 @@ export async function analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, 
   throw new Error('AI 분석이 빈 결과를 반환했습니다. 다시 시도해 주세요.');
 }
 
-export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, templateText, precomputedSlides = null, designTokens = null, materializedArrayBuffer = null) {
+// EMU 변환: 1 inch = 914400 EMU, 1 pt = 12700 EMU
+const PT_TO_EMU = 12700;
+
+// 안전한 hex 파서 — design tokens 의 #RRGGBB 를 RGB 6자리로 (없으면 fallback)
+function safeHex6(v, fallback) {
+  const s = typeof v === 'string' ? v.trim().replace('#', '') : '';
+  if (/^[0-9A-Fa-f]{6}$/.test(s)) return s.toUpperCase();
+  return fallback;
+}
+
+// XML 텍스트 이스케이프
+function xmlEsc(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * 텍스트 박스 1개를 OOXML <p:sp> 로 빌드. 위치/크기는 pt, 폰트는 hundredths-of-pt(sz="1100"=11pt).
+ * header 가 있으면 첫 줄을 굵게+accent 색으로, 본문 줄은 sub 색으로.
+ */
+function buildInjectedTextBoxXml({
+  shapeId, name, x_pt, y_pt, w_pt, h_pt,
+  header = '', headerColor = '0F172A', headerSizePt = 11,
+  bodyLines = [], bodyColor = '1F2937', bodySizePt = 9,
+  fontFace = 'Pretendard',
+}) {
+  const x = Math.round(x_pt * PT_TO_EMU);
+  const y = Math.round(y_pt * PT_TO_EMU);
+  const cx = Math.round(w_pt * PT_TO_EMU);
+  const cy = Math.round(h_pt * PT_TO_EMU);
+  const headerSz = Math.round(headerSizePt * 100);
+  const bodySz = Math.round(bodySizePt * 100);
+
+  const fontXml = `<a:latin typeface="${xmlEsc(fontFace)}"/><a:ea typeface="${xmlEsc(fontFace)}"/><a:cs typeface="${xmlEsc(fontFace)}"/>`;
+  const paragraphs = [];
+  if (header) {
+    paragraphs.push(
+      `<a:p><a:pPr algn="l"><a:buNone/></a:pPr>` +
+      `<a:r><a:rPr lang="ko-KR" sz="${headerSz}" b="1" dirty="0">` +
+      `<a:solidFill><a:srgbClr val="${headerColor}"/></a:solidFill>${fontXml}</a:rPr>` +
+      `<a:t>${xmlEsc(header)}</a:t></a:r></a:p>`
+    );
+  }
+  for (const line of bodyLines) {
+    if (!line) continue;
+    paragraphs.push(
+      `<a:p><a:pPr algn="l" indent="0" marL="0"><a:buNone/></a:pPr>` +
+      `<a:r><a:rPr lang="ko-KR" sz="${bodySz}" dirty="0">` +
+      `<a:solidFill><a:srgbClr val="${bodyColor}"/></a:solidFill>${fontXml}</a:rPr>` +
+      `<a:t>${xmlEsc(line)}</a:t></a:r></a:p>`
+    );
+  }
+  if (!paragraphs.length) {
+    paragraphs.push('<a:p><a:endParaRPr lang="ko-KR"/></a:p>');
+  }
+
+  return (
+    `<p:sp>` +
+      `<p:nvSpPr>` +
+        `<p:cNvPr id="${shapeId}" name="${xmlEsc(name)}"/>` +
+        `<p:cNvSpPr txBox="1"/>` +
+        `<p:nvPr/>` +
+      `</p:nvSpPr>` +
+      `<p:spPr>` +
+        `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+        `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+        `<a:noFill/>` +
+      `</p:spPr>` +
+      `<p:txBody>` +
+        `<a:bodyPr wrap="square" rtlCol="0" anchor="t" lIns="36000" tIns="18000" rIns="36000" bIns="18000"><a:normAutofit fontScale="90000" lnSpcReduction="10000"/></a:bodyPr>` +
+        `<a:lstStyle/>` +
+        paragraphs.join('') +
+      `</p:txBody>` +
+    `</p:sp>`
+  );
+}
+
+/**
+ * focus 문자열에서 projects 인덱스 추출. "projects[3]" / "projects[3].result" / "narrative_extras" 등.
+ */
+function parseFocusIndex(focus) {
+  if (typeof focus !== 'string') return null;
+  const m = focus.match(/projects\[(\d+)\]/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * 슬라이드 XML 의 <p:spTree> 닫기 직전에 새 <p:sp> XML 들을 삽입.
+ */
+function injectShapesIntoSpTree(slideXml, shapesXml) {
+  if (!shapesXml) return slideXml;
+  // <p:spTree> ... </p:spTree> 블록의 닫기 직전에 삽입
+  return slideXml.replace(/<\/p:spTree>/, `${shapesXml}</p:spTree>`);
+}
+
+/**
+ * 라운드 사각형 카드 배경. 템플릿 위에 자연스럽게 녹아들도록 fillHex 는
+ * 가능하면 슬라이드 bg(혹은 흰색에 가까운 톤)로 호출자가 결정한다.
+ * 테두리는 옵션 — 디자인을 해치지 않도록 기본은 noFill.
+ */
+function buildCardBackgroundXml({ shapeId, name, x_pt, y_pt, w_pt, h_pt, fillHex = 'FFFFFF', alphaPercent = 95, borderHex = null, cornerRadius = 4000 }) {
+  const x = Math.round(x_pt * PT_TO_EMU);
+  const y = Math.round(y_pt * PT_TO_EMU);
+  const cx = Math.round(w_pt * PT_TO_EMU);
+  const cy = Math.round(h_pt * PT_TO_EMU);
+  const alphaVal = Math.max(0, Math.min(100, Math.round(alphaPercent))) * 1000;
+  const borderXml = borderHex
+    ? `<a:ln w="3175"><a:solidFill><a:srgbClr val="${borderHex}"><a:alpha val="40000"/></a:srgbClr></a:solidFill></a:ln>`
+    : `<a:ln><a:noFill/></a:ln>`;
+  return (
+    `<p:sp>` +
+      `<p:nvSpPr><p:cNvPr id="${shapeId}" name="${xmlEsc(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>` +
+      `<p:spPr>` +
+        `<a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+        `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${cornerRadius}"/></a:avLst></a:prstGeom>` +
+        `<a:solidFill><a:srgbClr val="${fillHex}"><a:alpha val="${alphaVal}"/></a:srgbClr></a:solidFill>` +
+        borderXml +
+      `</p:spPr>` +
+      `<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="ko-KR"/></a:p></p:txBody>` +
+    `</p:sp>`
+  );
+}
+
+// 카드 색을 슬라이드 bg / token bg 에서 적당히 골라 반환. 어두운 배경엔 흰색,
+// 밝은 배경엔 bg 와 유사한 톤(거의 같지만 살짝 밝게)을 써서 카드처럼 보이지 않게 융화시킨다.
+function pickCardFill(designTokens, slideBg) {
+  const bg = safeHex6(slideBg, '') || safeHex6(designTokens?.bg, '') || 'FFFFFF';
+  // 어두운 배경이면 흰색 카드(가독성 우선)
+  if (!isLight('#' + bg)) return { fill: 'FFFFFF', alpha: 92, borderHex: null };
+  // 밝은 배경이면 bg 와 같은 톤 — 카드처럼 보이지 않고 자연스럽게 녹아듦
+  return { fill: bg, alpha: 75, borderHex: null };
+}
+
+// 프로젝트가 실제로 보여줄 콘텐츠가 있는지 — 빈 placeholder 만 들어가지 않도록 가드
+function projectHasSubstance(project) {
+  if (!project) return false;
+  const ke = Array.isArray(project.key_experiences) ? project.key_experiences : [];
+  const hasKe = ke.some(k => k && (k.context || k.action || k.result || k.metric));
+  const hasAction = Array.isArray(project.action) && project.action.some(Boolean);
+  const hasResult = Array.isArray(project.result) && project.result.some(Boolean);
+  const hasMetrics = Array.isArray(project.metrics) && project.metrics.some(Boolean);
+  const hasProblem = !!project.problem || !!project.situation;
+  return hasKe || (hasAction && (hasResult || hasMetrics)) || (hasProblem && hasAction);
+}
+
+/**
+ * 한 슬라이드에 PROBLEM/ACTION/RESULT/METRICS/TECH 박스를 자동 주입.
+ * 사용자의 keyExperiences 가 있으면 그 첫 case study 의 metricLabel/before/after 를 큰 헤드라인으로 추가.
+ * 슬라이드 하단 ~55% 영역에 흰색 카드 + 3컬럼 콘텐츠를 항상 그려 디테일 가시성 보장.
+ */
+function buildProjectDetailShapesXml({ slide, project, designTokens, slideW, slideH, baseShapeId = 9000 }) {
+  if (!project) return '';
+  const tokens = designTokens || {};
+  const accent = safeHex6(tokens.accent || tokens.titleColor, '0F172A');
+  const sub = safeHex6(tokens.sub, '1F2937');
+  const fontBody = (typeof tokens.fontBody === 'string' && tokens.fontBody) ? tokens.fontBody : 'Pretendard';
+
+  // 사용자가 직접 작성한 case studies — PPT 디테일의 1차 소스. 첫 번째를 강조 헤드라인으로 사용.
+  const keyExps = Array.isArray(project.key_experiences) ? project.key_experiences.filter(Boolean) : [];
+  const headline = keyExps[0] || null;
+
+  // PROBLEM / ACTION / RESULT 라인은 case studies 가 있으면 그것을 우선 사용 (사용자 원문 그대로),
+  // 없으면 contentPack.projects[i] 의 STAR 필드를 사용
+  let problemLines, actionLines, resultLines;
+  if (keyExps.length) {
+    problemLines = keyExps.map(ke => ke.context).filter(Boolean).slice(0, 4);
+    actionLines = keyExps.map(ke => ke.action).filter(Boolean).slice(0, 4);
+    resultLines = keyExps.map(ke => ke.result).filter(Boolean).slice(0, 4);
+  } else {
+    const problemRaw = project.problem || project.situation || '';
+    problemLines = (Array.isArray(problemRaw) ? problemRaw : String(problemRaw).split(/[.!?]\s+|\n/))
+      .map(s => String(s || '').trim()).filter(Boolean).slice(0, 4);
+    actionLines = (project.action || []).filter(Boolean).slice(0, 4);
+    resultLines = (project.result || []).filter(Boolean).slice(0, 4);
+  }
+
+  const metrics = (project.metrics || []).filter(Boolean).slice(0, 5);
+  const tech = (project.tech_stack || []).filter(Boolean).slice(0, 8);
+
+  if (!headline && !problemLines.length && !actionLines.length && !resultLines.length && !metrics.length && !tech.length) return '';
+
+  const margin = Math.max(20, slideW * 0.025);
+  // 슬라이드 하단 ~58% 영역. 상단 28% 는 템플릿 디자인 보존.
+  const panelY = slideH * 0.40;
+  const panelX = margin;
+  const panelW = slideW - margin * 2;
+  const panelH = slideH - panelY - margin * 0.6;
+
+  const shapes = [];
+  let shapeId = baseShapeId;
+
+  // 1) 카드 배경 — 슬라이드 bg 와 같은 톤으로 융화 (밝은 템플릿엔 bg톤, 어두운 템플릿엔 흰색)
+  const card = pickCardFill(tokens, slide?.slideBg);
+  shapes.push(buildCardBackgroundXml({
+    shapeId: shapeId++,
+    name: 'inj-card',
+    x_pt: panelX, y_pt: panelY, w_pt: panelW, h_pt: panelH,
+    fillHex: card.fill, alphaPercent: card.alpha, borderHex: card.borderHex,
+    cornerRadius: 2500,
+  }));
+
+  const innerPad = 14;
+  const innerX = panelX + innerPad;
+  const innerW = panelW - innerPad * 2;
+
+  // 2) HEADLINE 박스 — case study 의 metricLabel + 큰 metric + before→after.
+  //    사용자 원본 데이터(예: "오류 응답시간: 약 38ms → 150ms")를 그대로 반영.
+  let headlineH = 0;
+  if (headline && (headline.metricLabel || headline.metric || headline.title)) {
+    headlineH = 64;
+    const hlX = innerX;
+    const hlY = panelY + innerPad;
+    const hlW = innerW * 0.55;
+    // 좌측: metric 라벨 + 큰 숫자
+    const metricLabel = headline.metricLabel || headline.title || '핵심 성과';
+    const metricVal = headline.metric || (headline.afterMetric || '');
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-headline-metric',
+      x_pt: hlX, y_pt: hlY, w_pt: hlW, h_pt: headlineH,
+      header: metricLabel, headerColor: sub, headerSizePt: 10,
+      bodyLines: metricVal ? [metricVal] : [],
+      bodyColor: accent, bodySizePt: 28,
+      fontFace: fontBody,
+    }));
+    // 우측: before → after 비교 (있을 때만) 또는 case study 제목
+    const baX = hlX + hlW + 12;
+    const baW = innerW - hlW - 12;
+    if (headline.beforeMetric && headline.afterMetric) {
+      const baLines = [
+        `개선 전   ${headline.beforeMetric}`,
+        `개선 후   ${headline.afterMetric}`,
+      ];
+      shapes.push(buildInjectedTextBoxXml({
+        shapeId: shapeId++,
+        name: 'inj-headline-ba',
+        x_pt: baX, y_pt: hlY, w_pt: baW, h_pt: headlineH,
+        header: 'BEFORE → AFTER', headerColor: accent, headerSizePt: 9,
+        bodyLines: baLines, bodyColor: sub, bodySizePt: 12,
+        fontFace: fontBody,
+      }));
+    } else if (headline.title) {
+      shapes.push(buildInjectedTextBoxXml({
+        shapeId: shapeId++,
+        name: 'inj-headline-title',
+        x_pt: baX, y_pt: hlY, w_pt: baW, h_pt: headlineH,
+        header: 'CASE STUDY', headerColor: accent, headerSizePt: 9,
+        bodyLines: [headline.title], bodyColor: sub, bodySizePt: 13,
+        fontFace: fontBody,
+      }));
+    }
+  }
+
+  // 3) 메타 띠: 핵심 지표 + 기술 스택
+  const hasMeta = metrics.length || tech.length;
+  const metaH = hasMeta ? 28 : 0;
+  const metaTop = panelY + innerPad + headlineH + (headlineH ? 6 : 0);
+  if (hasMeta) {
+    const metaLines = [];
+    if (metrics.length) metaLines.push(`📊 핵심 지표  ${metrics.join('  ·  ')}`);
+    if (tech.length) metaLines.push(`🛠 기술 스택  ${tech.join('  ·  ')}`);
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-meta',
+      x_pt: innerX, y_pt: metaTop,
+      w_pt: innerW, h_pt: metaH,
+      header: '', bodyLines: metaLines, bodyColor: accent, bodySizePt: 9.5,
+      fontFace: fontBody,
+    }));
+  }
+
+  // 4) 3컬럼: PROBLEM / ACTION / RESULT — 콘텐츠 있는 컬럼만 표시 (placeholder 카드 방지)
+  const colTop = metaTop + metaH + (hasMeta ? 4 : 0);
+  const colH = panelY + panelH - innerPad - colTop;
+  const colGap = 12;
+
+  const sectionsAll = [
+    { header: 'PROBLEM', lines: problemLines },
+    { header: 'ACTION', lines: actionLines.map(s => `· ${s}`) },
+    { header: 'RESULT', lines: resultLines.map(s => `· ${s}`) },
+  ].filter(sec => sec.lines.length > 0);
+  const sections = sectionsAll.length ? sectionsAll : [{ header: 'OVERVIEW', lines: [project.summary || project.title || ''].filter(Boolean) }];
+  const colCount = sections.length;
+  const colW = (innerW - colGap * (colCount - 1)) / colCount;
+
+  sections.forEach((sec, i) => {
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: `inj-${sec.header.toLowerCase()}`,
+      x_pt: innerX + (colW + colGap) * i, y_pt: colTop,
+      w_pt: colW, h_pt: Math.max(40, colH),
+      header: sec.header, headerColor: accent, headerSizePt: 11,
+      bodyLines: sec.lines, bodyColor: sub, bodySizePt: 9.5,
+      fontFace: fontBody,
+    }));
+  });
+
+  return shapes.join('');
+}
+
+/** intent="result" 슬라이드 — 흰색 카드 위에 KEY METRICS + RESULT + LEARNING 항상 그림. */
+function buildResultDetailShapesXml({ slide, project, designTokens, slideW, slideH, baseShapeId = 9100 }) {
+  if (!project) return '';
+  const tokens = designTokens || {};
+  const accent = safeHex6(tokens.accent || tokens.titleColor, '0F172A');
+  const sub = safeHex6(tokens.sub, '1F2937');
+  const fontBody = (typeof tokens.fontBody === 'string' && tokens.fontBody) ? tokens.fontBody : 'Pretendard';
+
+  const result = (project.result || []).filter(Boolean).slice(0, 6);
+  const metrics = (project.metrics || []).filter(Boolean).slice(0, 6);
+  const learning = project.learning || '';
+  if (!result.length && !metrics.length && !learning) return '';
+
+  const margin = Math.max(20, slideW * 0.025);
+  const panelX = margin;
+  const panelY = slideH * 0.42;
+  const panelW = slideW - margin * 2;
+  const panelH = slideH - panelY - margin * 0.6;
+
+  const shapes = [];
+  let shapeId = baseShapeId;
+
+  // 카드 배경 — 슬라이드 bg 와 같은 톤으로 융화
+  const card = pickCardFill(tokens, slide?.slideBg);
+  shapes.push(buildCardBackgroundXml({
+    shapeId: shapeId++,
+    name: 'inj-card',
+    x_pt: panelX, y_pt: panelY, w_pt: panelW, h_pt: panelH,
+    fillHex: card.fill, alphaPercent: card.alpha, borderHex: card.borderHex,
+    cornerRadius: 2500,
+  }));
+
+  const innerPad = 14;
+  const innerX = panelX + innerPad;
+  const innerW = panelW - innerPad * 2;
+  const innerH = panelH - innerPad * 2;
+
+  // 좌측 METRICS / 우측 RESULT — 둘 중 하나만 있을 땐 1컬럼으로 확장
+  const hasMetrics = metrics.length > 0;
+  const hasResult = result.length > 0;
+  const learningH = learning ? 38 : 0;
+  const topH = innerH - learningH;
+
+  if (hasMetrics && hasResult) {
+    const leftW = innerW * 0.42;
+    const rightW = innerW - leftW - 12;
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-metrics',
+      x_pt: innerX, y_pt: panelY + innerPad,
+      w_pt: leftW, h_pt: topH,
+      header: 'KEY METRICS', headerColor: accent, headerSizePt: 12,
+      bodyLines: metrics.map(m => `▲ ${m}`),
+      bodyColor: accent, bodySizePt: 16,
+      fontFace: fontBody,
+    }));
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-result',
+      x_pt: innerX + leftW + 12, y_pt: panelY + innerPad,
+      w_pt: rightW, h_pt: topH,
+      header: 'RESULT', headerColor: accent, headerSizePt: 12,
+      bodyLines: result.map(r => `· ${r}`),
+      bodyColor: sub, bodySizePt: 11,
+      fontFace: fontBody,
+    }));
+  } else if (hasMetrics) {
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-metrics',
+      x_pt: innerX, y_pt: panelY + innerPad,
+      w_pt: innerW, h_pt: topH,
+      header: 'KEY METRICS', headerColor: accent, headerSizePt: 12,
+      bodyLines: metrics.map(m => `▲ ${m}`),
+      bodyColor: accent, bodySizePt: 18,
+      fontFace: fontBody,
+    }));
+  } else if (hasResult) {
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-result',
+      x_pt: innerX, y_pt: panelY + innerPad,
+      w_pt: innerW, h_pt: topH,
+      header: 'RESULT', headerColor: accent, headerSizePt: 12,
+      bodyLines: result.map(r => `· ${r}`),
+      bodyColor: sub, bodySizePt: 12,
+      fontFace: fontBody,
+    }));
+  }
+
+  if (learning) {
+    shapes.push(buildInjectedTextBoxXml({
+      shapeId: shapeId++,
+      name: 'inj-learning',
+      x_pt: innerX, y_pt: panelY + innerPad + topH,
+      w_pt: innerW, h_pt: learningH - 6,
+      header: 'LEARNING', headerColor: accent, headerSizePt: 10,
+      bodyLines: [learning], bodyColor: sub, bodySizePt: 10,
+      fontFace: fontBody,
+    }));
+  }
+
+  return shapes.join('');
+}
+
+export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, templateText, precomputedSlides = null, designTokens = null, materializedArrayBuffer = null, contentPack = null) {
   if (!templateArrayBuffer) throw new Error('먼저 PPTX 템플릿 파일을 업로드해 주세요.');
   const { default: JSZip } = await import('jszip');
 
@@ -1942,11 +2404,13 @@ export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, t
   // 없으면 여기서 즉시 분석해서 materializedArrayBuffer 를 받는다.
   let slides = Array.isArray(precomputedSlides) && precomputedSlides.length ? precomputedSlides : null;
   let workingBuffer = materializedArrayBuffer || null;
+  let pack = contentPack || null;
   if (!slides) {
     console.log('[fillUploadedPptxTemplate] precomputedSlides 없음 → Lego 분석 자동 실행');
     const result = await analyzeAndPreviewTemplate(templateArrayBuffer, portfolio, templateText, designTokens);
     slides = result.slides;
     workingBuffer = result.materializedArrayBuffer;
+    pack = pack || result.contentPack;
   }
   if (!slides || !slides.length) {
     throw new Error('AI 분석 결과가 비어 있습니다. 다시 분석해 주세요.');
@@ -1982,6 +2446,29 @@ export async function fillUploadedPptxTemplate(templateArrayBuffer, portfolio, t
       });
       outXml = safelyReplaceSlideTextDom(xml, byShapeId, null);
     }
+
+    // ── 콘텐츠 보강 주입: project / result 슬라이드에 PROBLEM/ACTION/RESULT/METRICS/TECH 박스를 추가 ──
+    // 업로드 템플릿이 박스가 부족해 디테일이 빠지는 문제를 강제로 해결한다.
+    // 단, 프로젝트가 실질적 콘텐츠를 갖고 있을 때만 — placeholder 만 보이는 카드 주입을 방지.
+    const intent = slide.intent;
+    if (pack && Array.isArray(pack.projects) && (intent === 'project' || intent === 'result')) {
+      const projIdx = parseFocusIndex(slide.focus);
+      const project = projIdx !== null ? pack.projects[projIdx] : null;
+      const slideW = slide.slideW || 960;
+      const slideH = slide.slideH || 540;
+      let injected = '';
+      if (project && projectHasSubstance(project)) {
+        if (intent === 'result') {
+          injected = buildResultDetailShapesXml({ slide, project, designTokens, slideW, slideH, baseShapeId: 9100 + i * 20 });
+        } else {
+          injected = buildProjectDetailShapesXml({ slide, project, designTokens, slideW, slideH, baseShapeId: 9000 + i * 20 });
+        }
+      }
+      if (injected) {
+        outXml = injectShapesIntoSpTree(outXml, injected);
+      }
+    }
+
     zip.file(templateSlideFiles[i], outXml);
   }
 

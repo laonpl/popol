@@ -95,7 +95,7 @@ function describeTemplateTone(designTokens) {
  * "합격자 PPT 콘텐츠 팩"을 추출. 슬라이드 수에 맞춰 슬롯을 미리 계획.
  * 출력: 표지/스킬/경험별 STAR/성과/마무리 + 슬라이드 슬롯 시퀀스
  */
-export function buildPortfolioDistillPrompt({ portfolioText, slideCount, designTokens = null, keyMetrics = [], narrativeSections = [], hasImages = false }) {
+export function buildPortfolioDistillPrompt({ portfolioText, slideCount, designTokens = null, keyMetrics = [], narrativeSections = [], projectBriefs = [], hasImages = false }) {
   const toneBlock = describeTemplateTone(designTokens);
   const metricsBlock = (keyMetrics || []).length
     ? `\n[Pre-extracted Key Metrics — 사용자 본문에서 결정적으로 뽑힌 정량 지표. JSON의 key_metrics 에 그대로 담을 것]\n${keyMetrics.slice(0, 12).join(' · ')}`
@@ -103,23 +103,51 @@ export function buildPortfolioDistillPrompt({ portfolioText, slideCount, designT
   const sectionsBlock = (narrativeSections || []).length
     ? `\n[Narrative Sections — 사용자 노션형 에디터에서 헤딩으로 끊은 섹션 단위. 동일 heading 의 라인들은 같은 슬라이드 본문에 묶을 것]\n${narrativeSections.slice(0, 8).map(s => `· (${s.source}) ${s.heading || '(무제)'} → ${(s.lines || []).slice(0, 3).join(' / ')}`).join('\n')}`
     : '';
+  // 결정적 per-project 브리프: 각 프로젝트의 문제정의·기술스택·지표를 미리 뽑아 AI 가 빠뜨리지 않게 강제 주입
+  const briefsBlock = (projectBriefs || []).length
+    ? `\n[Pre-extracted Project Briefs — 각 프로젝트의 결정적 추출. projects[i] 에 그대로 반영하되 표현만 합격자 톤으로 다듬을 것. 절대 누락 금지]\n${projectBriefs.slice(0, 6).map((b, i) => {
+        const meta = [b.role, b.period].filter(Boolean).join(' · ');
+        const tech = b.tech_stack?.length ? `\n    tech_stack: ${b.tech_stack.join(' · ')}` : '';
+        const prob = b.problem?.length ? `\n    problem: ${b.problem.join(' / ')}` : '';
+        const act = b.action?.length ? `\n    action: ${b.action.join(' / ')}` : '';
+        const res = b.result?.length ? `\n    result: ${b.result.join(' / ')}` : '';
+        const ms = b.metrics?.length ? `\n    metrics: ${b.metrics.join(' · ')}` : '';
+        return `[${i}] ${b.title}${meta ? ` (${meta})` : ''}${tech}${prob}${act}${res}${ms}`;
+      }).join('\n')}`
+    : '';
   const imagesBlock = hasImages ? '\n[Images Detected] 사용자가 첨부한 이미지가 있음. 가능한 슬라이드는 image-friendly 레이아웃으로 슬롯을 배치(intent="project" 우선).' : '';
   return `당신은 네카라쿠배 합격자 포트폴리오를 N년간 첨삭한 시니어 면접관입니다.
 사용자의 [Link Portfolio Raw] 데이터에서 "진짜 합격자 PPT 포트폴리오"에 들어갈 핵심 포인트만 추출·정제하세요.
+
+──────────────────────────────────────────────
+[CORE RULES — 절대 준수]
+1) 템플릿의 기존 텍스트는 완전히 무시한다. 템플릿은 레이아웃·공간·디자인 톤(색·폰트·배치)만 참고한다.
+2) 사용자의 노션형 포트폴리오 데이터를 "합격자 포트폴리오" 형태로 재구성하여 삽입한다 (개조식·두괄식·결과 중심).
+3) 데이터 누락 금지: 모든 섹션을 반영하되, 특히 다음 두 가지는 반드시 돋보이게 포함한다.
+   ① 성과 지표(정량 수치·데이터 시각화 요소 — %, 시간, 인원, 매출, before/after) → key_metrics + projects[*].metrics 에 빠짐없이.
+   ② 핵심경험 & 성과(STAR: problem · action · result) → projects[*].problem / action[] / result[] 에 풍성하게.
+   이 두 항목은 발표 가치가 가장 높으므로, 약하면 다른 사족을 줄여서라도 분량을 확보한다.
+──────────────────────────────────────────────
+
 이 단계는 콘텐츠 추출이지만, 아래 [Template Visual Style] 톤에 맞춰
 headline / tagline / values_keywords 의 어휘 톤을 살짝 맞춥니다 (다크·세리프=격식·결과중심, 미니멀=짧고 단정, 모노=테크·정량).
 ${toneBlock || ''}
 ${metricsBlock}
 ${sectionsBlock}
+${briefsBlock}
 ${imagesBlock}
 
 [추출 원칙]
 1. 모든 섹션을 빠짐없이 훑되, 발표 가치가 낮은 사족(중복 자기소개, 일반론)은 과감히 버린다.
-2. 각 프로젝트/경험은 STAR 구조(상황·과제·행동·결과)로 한 번 요약.
-3. 정량 수치(%·시간·인원·매출 등)와 사용 기술스택은 반드시 보존. 없는 수치는 만들지 않는다.
-4. 합격자 화법: 개조식("~함", "~적용해 ~달성"), 능동·구체·결과 중심. 마크다운 금지.
-5. 섹션이 비었거나 약한 항목은 빈 배열로 둔다 (억지로 채우지 않음).
-6. 한 줄 길이 ≤ 38자 권장.
+2. 각 프로젝트/경험은 **문제정의 → 과제 → 행동(3~5개) → 결과(2~4개) → 배운점** 구조로 풍성하게 요약. 한 줄로 끝내지 않음.
+3. **problem(문제정의)**: 사용자가 마주한 구체적 문제·맥락 1~2줄. 모호한 일반론 금지("UX를 개선하고 싶었음" X → "신규 가입 후 7일 이내 이탈률 38%였음" O).
+4. **tech_stack**: Pre-extracted Project Briefs 의 tech_stack 을 그대로 보존. 임의 누락·각색 금지. 없는 기술은 추가하지 않음.
+5. **action(행동)**: 어떤 기술/방법을 어떻게 적용했는지 3~5개. 각 항목 ≤ 30자 개조식("Redis 캐시 도입해 응답시간 절감", "에러바운더리로 결제 흐름 보호").
+6. **result(결과)**: 정량 수치 우선 2~4개. 수치 없는 결과는 사용자 만족도/배포 등 검증 가능한 사실만.
+7. 정량 수치(%·시간·인원·매출 등)와 사용 기술스택은 반드시 보존. 없는 수치는 만들지 않는다.
+8. 합격자 화법: 개조식("~함", "~적용해 ~달성"), 능동·구체·결과 중심. 마크다운 금지.
+9. 섹션이 비었거나 약한 항목은 빈 배열로 둔다 (억지로 채우지 않음).
+10. 한 줄 길이 ≤ 38자 권장.
 
 [summary 필수 필드 — 절대 비워두지 말 것]
 - summary.name: 입력에 이름이 명시되어 있으면 그대로. 없으면 "이름 미상" (절대 스킬/문장으로 채우지 말 것).
@@ -158,11 +186,13 @@ ${portfolioText.substring(0, 9000)}
     {
       "title": "프로젝트명 (≤28자)",
       "role_period": "역할 · 기간",
-      "tech_stack": ["React", "Node.js"],
-      "situation": "...",
-      "task": "...",
-      "action": ["행동 1", "행동 2"],
-      "result": ["정량 결과 1", "정량 결과 2"],
+      "tech_stack": ["React", "TypeScript", "Node.js", "Redis", "PostgreSQL"],
+      "problem": "구체적 문제 1줄 (≤40자, 정량 맥락 포함)",
+      "situation": "사업·팀 맥락 1줄",
+      "task": "내가 해결할 과제 1줄",
+      "action": ["기술 X 적용해 Y 구축 (≤30자)", "...", "..."],
+      "result": ["P95 응답 -42%", "전환율 +18%", "..."],
+      "metrics": ["P95 -42%", "전환율 +18%"],
       "learning": "한 줄 (≤32자)"
     }
   ],
@@ -215,6 +245,20 @@ export function buildDirectPptxTemplateMappingPrompt({ templateTitle, slides, po
   })();
 
   return `당신은 합격자 PPT 포트폴리오의 레이아웃 디렉터입니다.
+
+──────────────────────────────────────────────
+[CORE RULES — 절대 준수]
+1) 템플릿의 **기존 텍스트는 완전히 무시**한다. 입력에 원본 텍스트가 포함되어 있지도 않으며, 추측·재현하지도 않는다.
+   템플릿에서 가져올 것은 오직 레이아웃과 디자인 요소 — 도형의 위치·크기·공간·배경·색상·타이포·정렬 — 뿐이다.
+2) 사용자의 노션형 포트폴리오 데이터(Distilled Content Pack)를 "합격자 포트폴리오" 형태로 재구성하여
+   템플릿 도형들의 공간에 맞춰 삽입한다. 도형의 의미(role_hint)와 콘텐츠 카테고리를 매칭한다.
+3) 데이터 누락 금지 — 모든 섹션을 반영하되 다음 두 항목은 반드시 돋보이게 배치:
+   ① **성과 지표(데이터 시각화 요소)** — projects[*].metrics / key_metrics 의 정량 수치는 작은 Tag/Metric 박스에
+      1대1로 강조 배치 (수치는 본문에 묻지 말고 강조 박스로 분리). 가능하면 가장 큰 수치를 가장 눈에 띄는 박스로.
+   ② **핵심경험 & 성과** — 프로젝트 슬라이드는 problem(문제) / action(행동) / result(성과) 가 모두 시각적으로 보여야 함.
+      "문제 — ", "▲/▼/· " 등 접두로 STAR 흐름을 명확히 구분.
+──────────────────────────────────────────────
+
 PPTX 템플릿은 **오직 디자인(배경·도형·색상·타이포·배치)** 만 참고합니다.
 템플릿의 원본 텍스트는 입력에 포함되어 있지도 않으며, 추측하지도 마세요.
 
@@ -245,13 +289,26 @@ C-2) **작은 박스 보호 (필수):**
      해당 박스에는 키워드 1개(예: "AI", "Full-Stack"), 숫자 지표(예: "150ms"), 또는 페이지 번호류만.
    - char_budget < 8 인 박스는 1~3자 키워드/숫자 전용. 사람 이름(2~4자) 또는 카테고리 약어("FE", "AI", "01")만.
    - 이메일/URL은 \`char_budget ≥ 표현전체길이\` 인 박스에만 통째로 넣는다(잘라서 넣기 금지).
+C-3) **폰트 최소 가독성 보장**: Body / Subtext / Main Title 박스에서 original_font_size_pt <= 10 이면, 실질적인 내용(성과·문제·행동·이름)을 넣을 때 font_size_pt = max(12, original_font_size_pt + 3) 으로 설정한다. Tag/Metric 박스는 original 폰트를 유지해도 됨.
+C-4) **소형 박스 접두어 금지**: char_budget <= 20 인 박스에는 '기술 — ', '행동 — ', '결과 — ', '역할 — ', '기간 — ' 등의 카테고리 접두어를 붙이지 않는다. 값만 직접 넣는다 (예: 'React', '42%', '풀스택', '6개월').
 D) 같은 슬라이드 내 동일 문구 중복 배치 금지.
 E) 없는 사실/없는 수치/없는 기술스택은 만들지 않는다 (Content Pack 에 있는 값만 사용).
 F) 마크다운/이모지/괄호 장식 금지. 줄바꿈은 \\n.
-G) **Key Metric 우선 배치**: \`contentPack.key_metrics\` 에 값이 있으면 슬라이드마다 1개의 Tag/Metric 박스(가능한 가장 작은 사각형)에 그 수치를 그대로 박는다. 합격자 PPT의 핵심은 "수치로 결과 증명" — 본문 중복 사용 금지, 수치 박스에만.
-H) **헤딩-본문 묶음**: 한 슬라이드의 Main Title 은 \`contentPack.narrative_sections[*].heading\` 또는 \`projects[focus].title\` 만 사용. Body 의 줄들은 같은 섹션의 \`lines\` 에서 가져와 STAR 형태로 압축한다 (다른 섹션 라인을 섞지 않음).
+G) **Key Metric 우선 배치**: project 슬라이드에서는 **\`projects[focus].metrics\` 가 우선**(없으면 \`contentPack.key_metrics\` 폴백). Tag/Metric 박스는 가장 강한 수치부터 박는다. 합격자 PPT의 핵심은 "수치로 결과 증명" — 본문 중복 사용 금지, 수치 박스에만.
+H) **헤딩-본문 묶음**: 한 슬라이드의 Main Title 은 \`contentPack.narrative_sections[*].heading\` 또는 \`projects[focus].title\` 만 사용. Body 의 줄들은 같은 섹션의 \`lines\` 또는 같은 project 의 problem/action/result/learning 에서만 가져온다 (다른 프로젝트/섹션 섞지 않음).
 I) **빈칸 방치 금지**: Layout Map 에 주어진 모든 \`shape_id\` 를 빠짐없이 \`shapes\` 배열에 포함하여 \`new_text\` 를 채워라. Content Pack 이 부족하면 가장 어울리는 키워드 1개라도 채운다(빈 문자열 금지).
 J) **줄 길이 통제**: Body 박스에서 한 줄(\\n 사이)의 길이 ≤ char_budget / 줄수 권장. 한 줄이 박스 폭을 넘기지 않도록 개조식 짧은 명사형(~함, ~구축, ~50% 개선)으로 끊어 쓴다.
+K) **프로젝트 슬라이드 디테일 강제 — 카운트 검증**: intent="project" 또는 "result" 슬라이드의 \`shapes\` 출력에서 다음 카운트를 만족해야 결과 채택:
+    - "문제 — " 또는 problem 텍스트가 1개 이상의 \`new_text\` 에 포함 (intent="result" 는 면제)
+    - action 항목(projects[focus].action[*] 의 표현) 이 1개 이상 슬라이드에 등장 (intent="result" 는 면제)
+    - 정량 수치(metrics 또는 result 의 수치) 가 1개 이상 등장
+    - tech_stack 항목 중 2개 이상이 별개의 박스 \`new_text\` 로 등장 (Tag/Metric 또는 Table Cell)
+   부족하면 가장 큰 본문 박스에 묶어서 한 줄씩 추가하여 충족시킨다. **이 카운트가 안 맞으면 결과를 폐기하고 다시 만든다.**
+
+L) **포커스 파싱**: focus 가 "projects[i]" 또는 "projects[i].result" 또는 "narrative_extras" 형태일 수 있다.
+    - "projects[i]" → contentPack.projects[i] 사용
+    - "projects[i].result" → 동일 프로젝트의 result/metrics 우선 (intent="result" 와 함께 옴)
+    - "narrative_extras" → contentPack.narrative_sections 또는 portfolio.goals/extracurricular 의 핵심을 모아 한 슬라이드 작성
 
 ──────────────────────────────────────────────
 [Shape Recipe Table — intent × role_hint → 콘텐츠 카테고리]
@@ -270,24 +327,42 @@ intent="skills" (역량)
   · Tag/Metric    → \`values_keywords\` 중 1개
   · Table Cell    → skills_groups 의 항목 1개씩
 
-intent="project" (프로젝트 개요)
-  · Main Title    → \`projects[focus].title\`
-  · Subtitle      → \`projects[focus].role_period\`
-  · Body          → STAR 압축: \`situation\` + \`task\` + \`action[0..2]\` 개조식 2~4줄
-  · Tag/Metric    → \`projects[focus].tech_stack\` 중 임팩트 큰 1개
-  · Subtext       → \`projects[focus].learning\`
-  · Table Cell    → tech_stack 항목 1개씩
+intent="project" (프로젝트 개요) — **8가지 콘텐츠 유닛을 슬라이드의 모든 텍스트 박스에 골고루 분산**
+  유닛 목록 (우선순위 순):
+    U1. title         → \`projects[focus].title\` (Main Title 박스 1개)
+    U2. result_line   → "결과 — " + \`projects[focus].result[0]\` (큰 본문 또는 강조 박스에 1개. 정량 수치 포함)
+    U3. problem_line  → "문제 — " + \`projects[focus].problem\` 없으면 situation (큰 본문 박스에 1개)
+    U4. metrics       → \`projects[focus].metrics[*]\` 각 1개씩 (Tag/Metric 박스에 1대1, 작은 사각형 우선)
+    U5. action_lines  → \`projects[focus].action[0..3]\` 각 1줄씩 ("→ " 또는 "· " 접두). 박스가 1개뿐이면 한 박스에 \\n 으로 묶음. 박스가 여러 개면 1박스당 1행동.
+    U6. tech_stack    → \`projects[focus].tech_stack[*]\` 각 1개씩 (Table Cell / 작은 Tag 박스에 1대1)
+    U7. role_period   → \`projects[focus].role_period\` (Subtitle 박스 1개)
+    U8. learning      → \`projects[focus].learning\` (Subtext 1개)
+
+  배치 알고리즘:
+    1) 슬라이드의 모든 텍스트 박스를 char_budget 큰 순으로 정렬.
+    2) Main Title 후보(가장 큰 폰트 또는 폭) → U1.
+    3) char_budget ≥ 60 인 본문 박스가 1개면 → U3 + U5(전체) + U2 를 \\n 으로 결합 (problem → action→action→action → result 한 박스에 4~6줄).
+    4) char_budget ≥ 60 인 본문 박스가 2개 이상이면 → 박스1: U3+U5(앞 절반), 박스2: U5(뒷 절반)+U2.
+    5) Tag/Metric / 작은 사각형(char_budget < 30) → U4 우선 → 부족하면 U6.
+    6) Table Cell 들 → U6 1개씩 (셀 수보다 tech_stack 적으면 빈 셀 두지 말고 metrics 로 보완).
+    7) 남는 박스 → U7, U8.
+    8) **모든 박스에 콘텐츠가 들어가야 함. 빈 박스 금지.**
+
+  **금지**: Body 한 줄에 title 만 적기 (반드시 problem/action/result 줄을 포함). action 박스가 여러 개일 때 같은 action 문구 중복 금지.
 
 intent="process" (문제 해결 과정)
   · Main Title    → \`projects[focus].title\` + " — 문제 해결"
-  · Body          → \`task\` + \`action[*]\` 개조식 3~4줄
+  · Body          → "문제: " + problem (1줄) + \\n + action[*] 3~4줄 (각 줄에 사용 기술 1개 노출)
+  · Tag/Metric    → action 에서 추출한 핵심 기술 1개 (예: "Redis", "Kafka")
   · Subtext       → \`learning\`
 
-intent="result" (성과)
-  · Main Title    → \`projects[focus].title\` + " — 성과"
-  · Body          → \`projects[focus].result[*]\` 정량 결과 개조식 2~4줄
-  · Tag/Metric    → result 중 핵심 수치 (예: "P95 -42%")
+intent="result" (성과 — rich 프로젝트의 두 번째 슬라이드 또는 별도 result 슬롯)
+  · Main Title    → \`projects[focus].title\` + " — 성과" (focus 가 "projects[i].result" 형태면 i번 프로젝트 사용)
+  · Body (가장 큰 박스) → \`projects[focus].result[*]\` 모든 정량 결과를 줄로 나열, 각 줄 앞에 "▲ " / "▼ " / "· "
+  · Tag/Metric (작은 박스 여러 개) → \`projects[focus].metrics[*]\` 각 1개씩 (수치 강조)
   · Subtext       → \`learning\`
+  · Table Cell    → 추가 metrics 또는 result 항목 1개씩
+  · **모든 박스 채우기**: 박스 수 ≥ result+metrics 합산보다 많으면 learning 추가. 빈 박스 금지.
 
 intent="education" (학력)
   · Main Title    → "Education" 또는 "학력"
@@ -317,7 +392,7 @@ ${slotLines}
 ${JSON.stringify(slides, null, 2).substring(0, 7000)}
 
 [Distilled Content Pack — 위 Recipe 가 참조하는 데이터]
-${JSON.stringify(contentPack || {}, null, 2).substring(0, 6000)}
+${JSON.stringify(contentPack || {}, null, 2).substring(0, 12000)}
 
 반드시 아래 JSON 객체만 응답 (다른 설명/마크다운 금지):
 {

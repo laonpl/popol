@@ -514,36 +514,184 @@ function collectPortfolioForPptx(portfolio = {}) {
     .join(', ');
   if (skillText) lines.push(`기술/역량: ${skillText}`);
 
+  // 경험별 구조화 브리프 — distill 단계가 STAR 채우기 쉽도록 프로젝트별로 분리한 결정적 요약
+  const projectBriefs = [];
+  const toStrArr = (v) => Array.isArray(v)
+    ? v.map(x => typeof x === 'string' ? x : (x?.content || x?.text || JSON.stringify(x))).filter(Boolean)
+    : v ? [String(v)] : [];
+
   (portfolio.experiences || []).slice(0, 12).forEach((exp, idx) => {
-    const content = exp.frameworkContent || exp.structuredResult || exp.content || exp;
-    const expTitle = exp.title || exp.company || exp.name || '프로젝트';
-    lines.push(`\n[경험 ${idx + 1}] ${expTitle}`);
-    ['intro', 'overview', 'description', 'task', 'process', 'output', 'growth', 'competency', 'aiSummary'].forEach(key => {
+    const content = exp.frameworkContent || exp.structuredResult || exp.content || {};
+    const ov = content?.projectOverview || {};
+    const git = exp._git || {};
+    const expTitle = exp.title || exp.company || exp.name || ov.name || `프로젝트 ${idx + 1}`;
+    const role = exp.role || ov.role || '';
+    const period = exp.period || exp.date || ov.duration || git.period || '';
+
+    // 기술 스택 — 중복 제거, 다양한 위치에서 수집
+    const stackSet = new Set();
+    const collectStack = (raw) => {
+      if (!raw) return;
+      if (Array.isArray(raw)) {
+        raw.forEach(s => {
+          const v = typeof s === 'string' ? s : (s?.name || s?.label);
+          if (v) stackSet.add(String(v).trim());
+        });
+      } else if (typeof raw === 'string') {
+        raw.split(/[,，·•|/]\s*/).map(s => s.trim()).filter(Boolean).forEach(v => stackSet.add(v));
+      }
+    };
+    collectStack(ov.techStack);
+    collectStack(exp.techStack);
+    collectStack(exp.skills);
+    collectStack(exp.tags);
+    collectStack(exp.keywords);
+    collectStack(git.core_tech_stack);
+    const techStack = [...stackSet].slice(0, 12);
+
+    // 핵심 경험(keyExperiences) — 사용자가 직접 작성한 STAR 형식의 경험 구조화 데이터.
+    // 합격자 PPT 디테일의 핵심 소스. metric/metricLabel/beforeMetric/afterMetric/context/action/result/learning 보존.
+    const keyExperiences = (Array.isArray(content?.keyExperiences) ? content.keyExperiences : [])
+      .filter(it => it && (it.title || it.metric || it.action || it.context || it.result))
+      .slice(0, 4)
+      .map(it => ({
+        title: compactText(it.title, 60),
+        metricLabel: compactText(it.metricLabel, 30),
+        metric: compactText(it.metric, 30),
+        beforeMetric: compactText(it.beforeMetric, 30),
+        afterMetric: compactText(it.afterMetric, 30),
+        context: compactText(it.context, 280),
+        action: compactText(it.action, 280),
+        result: compactText(it.result, 240),
+        learning: compactText(it.learning, 200),
+        keywords: Array.isArray(it.keywords) ? it.keywords.slice(0, 5).map(k => compactText(k, 30)).filter(Boolean) : [],
+      }));
+
+    // 문제 정의 — 명시적 problem_definition 우선, keyExperience.context 도 포함
+    const problemLines = [
+      ...toStrArr(exp.problem_definition),
+      ...toStrArr(git.problem_definition),
+      ...toStrArr(exp.context),
+      ...toStrArr(content?.problem),
+      ...keyExperiences.map(ke => ke.context).filter(Boolean),
+      ...(content?.intro ? [String(content.intro)] : []),
+    ].map(s => compactText(s, 240)).filter(Boolean).slice(0, 5);
+
+    // 행동/과정 — keyExperience.action 우선 반영
+    const actionLines = [
+      ...keyExperiences.map(ke => ke.action).filter(Boolean),
+      ...toStrArr(exp.action),
+      ...toStrArr(git.action_and_solution),
+      ...toStrArr(git.code_changes),
+      ...(content?.task ? [String(content.task)] : []),
+      ...(content?.process ? [String(content.process)] : []),
+    ].map(s => compactText(s, 260)).filter(Boolean).slice(0, 6);
+
+    // 결과/성과 — keyExperience.result 와 metricLabel→metric 변환을 포함
+    const keMetricLines = keyExperiences
+      .filter(ke => ke.metric)
+      .map(ke => {
+        if (ke.metricLabel && ke.beforeMetric && ke.afterMetric) {
+          return `${ke.metricLabel}: ${ke.beforeMetric} → ${ke.afterMetric}`;
+        }
+        if (ke.metricLabel) return `${ke.metricLabel} ${ke.metric}`;
+        return ke.metric;
+      });
+    const resultLines = [
+      ...keyExperiences.map(ke => ke.result).filter(Boolean),
+      ...keMetricLines,
+      ...toStrArr(exp.result),
+      ...toStrArr(exp.impact),
+      ...(content?.output ? [String(content.output)] : []),
+      ...(exp.description && !content?.output ? [String(exp.description)] : []),
+    ].map(s => compactText(s, 260)).filter(Boolean).slice(0, 6);
+
+    // 배운점 — keyExperience.learning 포함
+    const learningLines = [
+      ...keyExperiences.map(ke => ke.learning).filter(Boolean),
+      ...toStrArr(exp.learning),
+      ...toStrArr(git.learning_items),
+      ...toStrArr(git.troubleshooting),
+      ...(content?.growth ? [String(content.growth)] : []),
+      ...(content?.competency ? [String(content.competency)] : []),
+    ].map(s => compactText(s, 220)).filter(Boolean).slice(0, 4);
+
+    // 경험별 정량 지표 — keyExperience.metric 우선, metricLabel 과 함께 라벨된 형태도 포함
+    const projectMetricSet = new Set();
+    keyExperiences.forEach(ke => {
+      if (ke.metric) {
+        const labeled = ke.metricLabel ? `${ke.metricLabel} ${ke.metric}` : ke.metric;
+        projectMetricSet.add(labeled);
+      }
+      if (ke.beforeMetric && ke.afterMetric) {
+        projectMetricSet.add(`${ke.metricLabel || ''} ${ke.beforeMetric}→${ke.afterMetric}`.trim());
+      }
+    });
+    [...problemLines, ...actionLines, ...resultLines, ...learningLines].forEach(t => {
+      extractMetricsFromText(t).forEach(m => projectMetricSet.add(m));
+    });
+    const projectMetrics = [...projectMetricSet].filter(Boolean).slice(0, 6);
+    projectMetrics.forEach(m => allMetrics.add(m));
+
+    // 텍스트 브리프 — distill 프롬프트가 한눈에 STAR 매핑 가능하도록
+    lines.push(`\n[경험 ${idx + 1}] ${expTitle}${role || period ? ` (${[role, period].filter(Boolean).join(' · ')})` : ''}`);
+    if (techStack.length) lines.push(`기술스택: ${techStack.join(' · ')}`);
+    if (problemLines.length) lines.push(`문제정의:\n${problemLines.map(l => `- ${l}`).join('\n')}`);
+    if (actionLines.length) lines.push(`행동/과정:\n${actionLines.map(l => `- ${l}`).join('\n')}`);
+    if (resultLines.length) lines.push(`결과:\n${resultLines.map(l => `- ${l}`).join('\n')}`);
+    if (projectMetrics.length) lines.push(`정량 지표: ${projectMetrics.join(' · ')}`);
+    if (learningLines.length) lines.push(`배운점: ${learningLines.join(' / ')}`);
+    // 핵심 경험(case study) 구조 — metricLabel/before/after 등 PPT 강조 박스에 그대로 박힐 데이터
+    if (keyExperiences.length) {
+      lines.push(`핵심 경험(case studies):`);
+      keyExperiences.forEach((ke, kIdx) => {
+        const head = ke.title ? `- [${kIdx + 1}] ${ke.title}` : `- [${kIdx + 1}]`;
+        lines.push(head);
+        if (ke.metricLabel || ke.metric) {
+          const ba = ke.beforeMetric && ke.afterMetric ? ` (${ke.beforeMetric} → ${ke.afterMetric})` : '';
+          lines.push(`    metric: ${[ke.metricLabel, ke.metric].filter(Boolean).join(' = ')}${ba}`);
+        }
+        if (ke.context) lines.push(`    문제상황: ${ke.context}`);
+        if (ke.action) lines.push(`    핵심행동: ${ke.action}`);
+        if (ke.result) lines.push(`    결과: ${ke.result}`);
+        if (ke.learning) lines.push(`    배운점: ${ke.learning}`);
+      });
+    }
+
+    // frameworkContent 의 추가 자유 필드 (intro/description/aiSummary 가 위 문제정의/결과에 흡수되지 않은 경우)
+    ['description', 'aiSummary'].forEach(key => {
       const v = content?.[key];
       if (!v) return;
-      const txt = compactText(v, 500);
-      if (txt) {
-        lines.push(`${key}: ${txt}`);
+      const txt = compactText(v, 400);
+      if (txt && !problemLines.some(p => p.includes(txt.slice(0, 30))) && !resultLines.some(r => r.includes(txt.slice(0, 30)))) {
+        lines.push(`${key === 'aiSummary' ? '요약' : '설명'}: ${txt}`);
         extractMetricsFromText(txt).forEach(m => allMetrics.add(m));
       }
     });
-    if (content?.projectOverview) lines.push(`개요: ${compactText(JSON.stringify(content.projectOverview), 700)}`);
-    if (Array.isArray(content?.keyExperiences)) {
-      content.keyExperiences.slice(0, 4).forEach((item, itemIdx) => {
-        const ke = compactText([item.title, item.metric, item.context, item.action, item.result, item.learning].filter(Boolean).join(' / '), 700);
-        lines.push(`핵심경험 ${itemIdx + 1}: ${ke}`);
-        if (item.metric) allMetrics.add(String(item.metric).trim());
-        extractMetricsFromText(ke).forEach(m => allMetrics.add(m));
-      });
-    }
+
+    // 사용자가 노션형 에디터로 작성한 섹션 본문 — heading 기반 narrative_sections 로도 들어가지만 텍스트에도 보존
     if (Array.isArray(exp.sections)) {
-      exp.sections.slice(0, 5).forEach(section => {
+      exp.sections.slice(0, 4).forEach(section => {
         const blockText = expandBlockField(section.contentBlocks || section.blocks, `experiences[${idx}]`, `${expTitle} · ${section.title || '섹션'}`);
-        const plain = compactText(section.content, 500);
+        const plain = compactText(section.content, 400);
         const body = blockText || plain;
         if (body) lines.push(`${section.title || '섹션'}:\n${body}`);
       });
     }
+
+    projectBriefs.push({
+      index: idx,
+      title: expTitle,
+      role,
+      period,
+      tech_stack: techStack,
+      problem: problemLines,
+      action: actionLines,
+      result: resultLines,
+      metrics: projectMetrics,
+      learning: learningLines,
+      key_experiences: keyExperiences,
+    });
   });
 
   // 목표/계획 — descriptionBlocks (Yoopta)
@@ -634,6 +782,7 @@ function collectPortfolioForPptx(portfolio = {}) {
     text: lines.filter(line => line && !/:\s*$/.test(line)).join('\n'),
     keyMetrics: [...allMetrics].slice(0, 12),
     narrativeSections: narrativeSections.slice(0, 16),
+    projectBriefs: projectBriefs.slice(0, 8),
     hasImages: imagePresence.length > 0,
   };
 }
@@ -670,6 +819,46 @@ function ensureContentPackSafety(pack, portfolio, slideCount, extras = {}) {
   if (!Array.isArray(safe.skills_groups)) safe.skills_groups = [];
   if (!Array.isArray(safe.values_keywords)) safe.values_keywords = [];
 
+  // 결정적 projectBriefs 와 AI 결과를 머지: AI 가 빠뜨린 problem/tech_stack/metrics 를 보강해
+  // 각 프로젝트 슬라이드에 "문제 → 행동 → 결과 → 기술스택" 이 빠짐없이 들어가게 한다.
+  const briefs = Array.isArray(extras.projectBriefs) ? extras.projectBriefs : [];
+  if (briefs.length) {
+    const merged = briefs.map((brief, i) => {
+      const aiProj = safe.projects[i] || {};
+      const aiTech = Array.isArray(aiProj.tech_stack) ? aiProj.tech_stack.map(s => String(s).trim()).filter(Boolean) : [];
+      const briefTech = Array.isArray(brief.tech_stack) ? brief.tech_stack : [];
+      const tech_stack = [...new Set([...aiTech, ...briefTech])].slice(0, 10);
+
+      const aiAction = Array.isArray(aiProj.action) ? aiProj.action.filter(Boolean) : [];
+      const aiResult = Array.isArray(aiProj.result) ? aiProj.result.filter(Boolean) : [];
+
+      // problem: AI가 string 으로 줬으면 첫 줄로, 비었으면 brief.problem 첫 줄
+      const aiProblem = typeof aiProj.problem === 'string' ? aiProj.problem
+        : (typeof aiProj.situation === 'string' ? aiProj.situation : '');
+      const problem = (aiProblem || brief.problem?.[0] || '').trim();
+
+      return {
+        title: aiProj.title || brief.title,
+        role_period: aiProj.role_period || [brief.role, brief.period].filter(Boolean).join(' · '),
+        tech_stack,
+        problem,
+        situation: aiProj.situation || problem,
+        task: aiProj.task || (brief.problem?.[1] || ''),
+        action: aiAction.length ? aiAction.slice(0, 6) : brief.action.slice(0, 6),
+        result: aiResult.length ? aiResult.slice(0, 6) : brief.result.slice(0, 6),
+        metrics: Array.isArray(aiProj.metrics) && aiProj.metrics.length ? aiProj.metrics : brief.metrics,
+        learning: aiProj.learning || brief.learning?.[0] || '',
+        // 결정적 keyExperiences 는 AI 가 생성하지 않음 — brief 에서만 채움 (사용자가 직접 작성한 STAR 케이스)
+        key_experiences: brief.key_experiences || [],
+      };
+    });
+    // AI 가 더 많이 만들었으면 뒤쪽 항목도 살림
+    if (safe.projects.length > briefs.length) {
+      merged.push(...safe.projects.slice(briefs.length));
+    }
+    safe.projects = merged;
+  }
+
   // 결정적으로 추출된 정량 지표가 있으면 contentPack에 보강 (AI가 만들지 않음 — 합격자 PPT 'key_result' 톤 보장)
   const ensured = new Set(Array.isArray(safe.key_metrics) ? safe.key_metrics.map(s => String(s).trim()).filter(Boolean) : []);
   (extras.keyMetrics || []).forEach(m => { if (m) ensured.add(String(m).trim()); });
@@ -696,6 +885,7 @@ async function distillPortfolioContentPack({ portfolio, slideCount, designTokens
     designTokens,
     keyMetrics: collected.keyMetrics,
     narrativeSections: collected.narrativeSections,
+    projectBriefs: collected.projectBriefs,
     hasImages: collected.hasImages,
   });
   let raw = null;
@@ -715,6 +905,7 @@ async function distillPortfolioContentPack({ portfolio, slideCount, designTokens
     contentPack: ensureContentPackSafety(raw, portfolio, slideCount, {
       keyMetrics: collected.keyMetrics,
       narrativeSections: collected.narrativeSections,
+      projectBriefs: collected.projectBriefs,
     }),
     portfolioText,
   };
@@ -812,7 +1003,7 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
         height_pt: Number(s.height_pt) || null,
         x_pt: Number(s.x_pt) || null,
         y_pt: Number(s.y_pt) || null,
-        char_budget: Math.max(8, Math.min(Number(s.char_budget) || 45, 240)),
+        char_budget: Math.max(12, Math.min(Number(s.char_budget) || 45, 300)),
         original_font_size_pt: Number(s.original_font_size_pt) || null,
       })),
     };
@@ -850,7 +1041,7 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
   const parsed = parseJSON(text);
   const bySlide = new Map(safeSlides.map(slide => [slide.slideIndex, slide]));
 
-  return (parsed.mappings || []).map(mapping => {
+  const mappings = (parsed.mappings || []).map(mapping => {
     const slideIndex = Number(mapping.slideIndex);
     const slide = bySlide.get(slideIndex);
     if (!slide) return null;
@@ -865,6 +1056,13 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
           const budget = budgets.get(id) || 60;
           let font = Number(s.font_size_pt);
           if (!Number.isFinite(font) || font < 6 || font > 96) font = null;
+          // 원본 폰트가 매우 작고(≤ 10pt) 충분한 박스(budget ≥ 40)라면 가독 최솟값으로 올림
+          if (!font) {
+            const orig = origFonts.get(id);
+            if (orig && orig <= 10 && (budgets.get(id) || 60) >= 40) {
+              font = Math.min(orig + 4, 14);
+            }
+          }
           let newText = String(s.new_text || '').replace(/\\n/g, '\n');
 
           // 박스 예산을 넘으면 줄/단어 경계로 잘라낸다. 절대 "…" 로 단어를 자르지 않는다.
@@ -924,6 +1122,29 @@ export async function mapDirectPptxTemplateWithAI({ templateTitle, slides, portf
       lines,
     };
   }).filter(Boolean);
+
+  // contentPack 일부를 프론트엔드에 노출 — 클라이언트 측 shape 주입(빈 박스 보강)에 사용
+  const exposedPack = {
+    summary: contentPack.summary || {},
+    skills_groups: contentPack.skills_groups || [],
+    projects: (contentPack.projects || []).map(p => ({
+      title: p?.title || '',
+      role_period: p?.role_period || '',
+      tech_stack: Array.isArray(p?.tech_stack) ? p.tech_stack.slice(0, 10) : [],
+      problem: p?.problem || p?.situation || '',
+      action: Array.isArray(p?.action) ? p.action.slice(0, 6) : [],
+      result: Array.isArray(p?.result) ? p.result.slice(0, 6) : [],
+      metrics: Array.isArray(p?.metrics) ? p.metrics.slice(0, 5) : [],
+      learning: p?.learning || '',
+      key_experiences: Array.isArray(p?.key_experiences) ? p.key_experiences.slice(0, 3) : [],
+    })),
+    awards: contentPack.awards || [],
+    education: contentPack.education || [],
+    key_metrics: contentPack.key_metrics || [],
+    slide_slots: contentPack.slide_slots || [],
+  };
+
+  return { mappings, contentPack: exposedPack };
 }
 
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {

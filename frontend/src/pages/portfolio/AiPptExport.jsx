@@ -92,13 +92,14 @@ export default function AiPptExport() {
           customTemplate.outline,
           customTemplate.designTokens,
         );
-        const { slides: mappedSlides, materializedArrayBuffer, plan, classifications } = result;
+        const { slides: mappedSlides, materializedArrayBuffer, plan, classifications, contentPack } = result;
         setDeck({
           isCustomMapped: true,
           slides: mappedSlides,
           materializedArrayBuffer,
           plan,
           classifications,
+          contentPack,
         });
         setStage(STAGE.PREVIEW);
       } else {
@@ -165,6 +166,7 @@ export default function AiPptExport() {
           deck.slides,
           customTemplate.designTokens,
           deck.materializedArrayBuffer,
+          deck.contentPack,
         );
         toast.success('PPT 다운로드를 시작합니다');
       } else {

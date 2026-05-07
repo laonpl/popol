@@ -254,8 +254,13 @@ router.post('/direct-pptx-map', authMiddleware, aiRateLimiter, async (req, res, 
       return res.status(400).json({ error: '포트폴리오 데이터가 필요합니다' });
     }
 
-    const mappings = await mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio, designTokens, slideSize, forcedSlots });
-    res.json({ success: true, mappings });
+    const result = await mapDirectPptxTemplateWithAI({ templateTitle, slides, portfolio, designTokens, slideSize, forcedSlots });
+    // 하위 호환: 구버전 클라이언트는 result 가 배열이면 mappings 로 사용 가능. 신버전은 contentPack 도 받음.
+    if (Array.isArray(result)) {
+      res.json({ success: true, mappings: result });
+    } else {
+      res.json({ success: true, mappings: result.mappings || [], contentPack: result.contentPack || null });
+    }
   } catch (error) {
     next(error);
   }
