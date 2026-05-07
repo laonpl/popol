@@ -57,6 +57,7 @@ export default function AiPptExport() {
         form.append('portfolio', JSON.stringify(portfolio));
         const { data } = await api.post('/export/ppt', form, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 300000, // 슬라이드별 병렬 AI 매핑 — 백엔드 처리 시간을 충분히 확보
         });
         setCustomResult(data);
         setStage(STAGE.PREVIEW);

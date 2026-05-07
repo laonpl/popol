@@ -50,7 +50,8 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
   if (!boxes || boxes.length === 0) return slideXml;
   const map = new Map();
   for (const b of boxes) {
-    if (b.text == null) continue;
+    // text가 null/undefined이거나 빈 문자열이면 원본 유지 (원본 내용 보존)
+    if (!b.text) continue;
     map.set(b.shapeId, b);
   }
   if (map.size === 0) return slideXml;

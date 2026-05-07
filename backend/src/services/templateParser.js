@@ -239,6 +239,7 @@ function extractShape(spNode, idx, themeColors, zIndex) {
     phType, phIdx,
     originalText,
     hasText: runCount > 0,
+    hasTxBody: txBody !== null,
     zIndex,
   };
 }
@@ -328,7 +329,8 @@ async function extractSlide(zip, slideFile, slideIndex, themeColors) {
       const meta = extractShape(node, counter++, themeColors, zIndex);
       meta.shapeId = `slide${slideIndex}_${meta.shapeId}`;
       if (meta.w <= 0 || meta.h <= 0) continue;
-      if (meta.hasText) {
+      if (meta.hasTxBody) {
+        // txBody가 있는 모든 도형 (run 없는 placeholder 포함) → 텍스트 교체 대상
         textBoxes.push(meta);
       } else if (meta.fill || (meta.lineColor && meta.lineWidthPt > 0)) {
         decor.push(meta);
