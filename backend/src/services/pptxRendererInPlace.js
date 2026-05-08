@@ -42,19 +42,28 @@ function directChildrenByLocalName(parent, localName) {
   return out;
 }
 
+// spTree 를 재귀적으로 순회하여 sp/pic 노드를 yield (templateParser 와 동일).
+function* walkSpAndPic(node) {
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes.item(i);
+    if (!child || child.nodeType !== 1) continue;
+    const ln = child.localName;
+    if (ln === 'sp' || ln === 'pic') yield child;
+    else if (ln === 'grpSp') yield* walkSpAndPic(child);
+  }
+}
+
 // ── 텍스트 치환 ─────────────────────────────────────────────────────────────
 // 슬라이드 XML 내 <p:sp> 를 templateParser 와 동일한 순서로 순회하며 shapeId 를
 // 부여하고, deck 의 box.text 가 있으면 해당 sp 의 <p:txBody> 안 텍스트만 교체한다.
+// 매핑되지 않은 sp 는 텍스트 run 이 있으면 빈 문자열로 초기화해 템플릿 텍스트 누수를 방지.
 // 도형/이미지/테마/마스터 등은 일절 건드리지 않는다.
 function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
-  if (!boxes || boxes.length === 0) return slideXml;
   const map = new Map();
-  for (const b of boxes) {
-    // text가 null/undefined이거나 빈 문자열이면 원본 유지 (원본 내용 보존)
-    if (!b.text) continue;
+  for (const b of (boxes || [])) {
+    if (b.text == null) continue;
     map.set(b.shapeId, b);
   }
-  if (map.size === 0) return slideXml;
 
   const doc = parseXml(slideXml);
   const sld = doc.documentElement;
@@ -62,17 +71,27 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
   const spTree = cSld ? firstChild(cSld, P_NS, 'spTree') : null;
   if (!spTree) return slideXml;
 
-  // templateParser 와 같은 카운팅 규칙: spTree 의 직계 child 중 sp/pic 만 ++.
   let counter = 0;
-  for (let i = 0; i < spTree.childNodes.length; i++) {
-    const node = spTree.childNodes.item(i);
-    if (!node || node.nodeType !== 1) continue;
+  for (const node of walkSpAndPic(spTree)) {
     const ln = node.localName;
     if (ln === 'sp') {
       const id = `slide${templateSlideIndex}_s${counter}`;
       counter++;
       const box = map.get(id);
-      if (box) replaceTextInShape(node, String(box.text || ''));
+      if (box) {
+        replaceTextInShape(node, String(box.text || ''));
+      } else {
+        // 매핑 안 된 sp 에 run 이 있으면 지워서 템플릿 원본 텍스트 누수 방지
+        const txBody = firstChild(node, P_NS, 'txBody');
+        if (txBody) {
+          let hasRun = false;
+          const ps = findChildren(txBody, A_NS, 'p');
+          for (const p of ps) {
+            if (firstChild(p, A_NS, 'r')) { hasRun = true; break; }
+          }
+          if (hasRun) replaceTextInShape(node, '');
+        }
+      }
     } else if (ln === 'pic') {
       counter++;
     }

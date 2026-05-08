@@ -302,6 +302,18 @@ async function readMediaAsDataUrl(zip, mediaPath) {
   return `data:${mime};base64,${buf.toString('base64')}`;
 }
 
+// spTree 를 재귀적으로 순회하여 sp/pic 노드를 yield.
+// grpSp 안에 중첩된 도형도 빠짐없이 포함된다.
+function* walkSpAndPic(node) {
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes.item(i);
+    if (!child || child.nodeType !== 1) continue;
+    const ln = child.localName;
+    if (ln === 'sp' || ln === 'pic') yield child;
+    else if (ln === 'grpSp') yield* walkSpAndPic(child);
+  }
+}
+
 async function extractSlide(zip, slideFile, slideIndex, themeColors) {
   const xml = await zip.file(slideFile).async('string');
   const doc = parseXml(xml);
@@ -316,21 +328,17 @@ async function extractSlide(zip, slideFile, slideIndex, themeColors) {
   const decor = [];
   const pics = [];
 
-  // spTree 의 직계 자식 순서대로 z-index 부여 (먼저 = 뒤에 그려짐)
   let zIndex = 0;
   let counter = 0;
-  for (let i = 0; i < spTree.childNodes.length; i++) {
-    const node = spTree.childNodes.item(i);
-    if (node.nodeType !== 1) continue;
-    const ln = node.localName;
+  for (const node of walkSpAndPic(spTree)) {
     zIndex++;
+    const ln = node.localName;
 
     if (ln === 'sp') {
       const meta = extractShape(node, counter++, themeColors, zIndex);
       meta.shapeId = `slide${slideIndex}_${meta.shapeId}`;
       if (meta.w <= 0 || meta.h <= 0) continue;
       if (meta.hasTxBody) {
-        // txBody가 있는 모든 도형 (run 없는 placeholder 포함) → 텍스트 교체 대상
         textBoxes.push(meta);
       } else if (meta.fill || (meta.lineColor && meta.lineWidthPt > 0)) {
         decor.push(meta);
