@@ -39,6 +39,11 @@ function attr(node, name) {
   return v === '' || v == null ? null : v;
 }
 
+function readCNvPrId(node) {
+  const cNvPr = firstChild(node, P_NS, 'cNvPr');
+  return attr(cNvPr, 'id');
+}
+
 // ── 색상 추출: solidFill / gradFill 의 첫 stop / schemeClr 폴백 ──────────
 function readColor(parent, themeColors = {}) {
   if (!parent) return null;
@@ -229,8 +234,10 @@ function extractShape(spNode, idx, themeColors, zIndex) {
   else if (fontPt >= 28 && y < 120) role = 'title';
   else if (fontPt >= 22) role = 'heading';
 
+  const cNvPrId = readCNvPrId(spNode);
+
   return {
-    shapeId: `s${idx}`,
+    shapeId: `sp${cNvPrId || idx}`,
     role,
     x, y, w, h, rotation,
     shapeKind,
@@ -259,7 +266,8 @@ function extractPic(picNode, idx, zIndex) {
   const blip = blipFill ? firstChild(blipFill, A_NS, 'blip') : null;
   const embedRid = blip ? (attr(blip, 'r:embed') || attr(blip, 'embed')) : null;
 
-  return { kind: 'pic', picId: `p${idx}`, x, y, w, h, embedRid, zIndex };
+  const cNvPrId = readCNvPrId(picNode);
+  return { kind: 'pic', picId: `pic${cNvPrId || idx}`, x, y, w, h, embedRid, zIndex };
 }
 
 // 슬라이드 배경 색상 추출 (cSld > bg)
@@ -338,7 +346,9 @@ async function extractSlide(zip, slideFile, slideIndex, themeColors) {
       const meta = extractShape(node, counter++, themeColors, zIndex);
       meta.shapeId = `slide${slideIndex}_${meta.shapeId}`;
       if (meta.w <= 0 || meta.h <= 0) continue;
-      if (meta.hasTxBody) {
+      // 채움색이 있지만 실제 텍스트 run이 없는 txBody는 색상 배경 도형(decor).
+      // AI가 내용을 채울 수 있는 박스는: 텍스트가 이미 있거나 채움색이 없는 경우만.
+      if (meta.hasTxBody && (meta.hasText || !meta.fill)) {
         textBoxes.push(meta);
       } else if (meta.fill || (meta.lineColor && meta.lineWidthPt > 0)) {
         decor.push(meta);

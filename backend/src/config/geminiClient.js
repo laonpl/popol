@@ -122,16 +122,18 @@ export const EXPERIENCE_MODEL_FALLBACKS = [
 // Pro 전용 (안전망 없음) - 반드시 Pro로만 시도
 export const PRO_ONLY_FALLBACKS = ['gemini-2.5-pro'];
 
-// ── 글로벌 API 요청 큐: 15 RPM (분당 15요청) 한계선을 절대 넘지 않도록 강제 제어 ──
-// 15 RPM = 1요청 당 4000ms. 안전하게 4100ms 파괴적 딜레이 적용.
-const REQUEST_INTERVAL_MS = 4100;
+// ── 글로벌 API 요청 큐 ──────────────────────────────────────────────────────
+// Gemini 2.5 Flash-Lite: 30 RPM = 2000ms/req, 여유 25% → 2500ms.
+// Pro(5 RPM)·Flash(10 RPM)는 더 낮지만 429 즉시 Lite 폴백으로 대응.
+// 세마포어 타임아웃 600s: 31슬라이드 × 2.5s = 78s 큐 대기 → 충분한 여유.
+const REQUEST_INTERVAL_MS = 2500;
 const MAX_QUEUE_SIZE = 60;
 const waitQueue = [];
 let lastRequestTime = 0;
 let isProcessingQueue = false;
 let activeCount = 0; // 현재 AI가 처리중인 개수 (단순 통계용)
 
-export function acquireSemaphore(timeoutMs = 120000) {
+export function acquireSemaphore(timeoutMs = 600000) {
   return new Promise((resolve, reject) => {
     if (waitQueue.length >= MAX_QUEUE_SIZE) {
       return reject(new Error('QUEUE_FULL'));
@@ -203,9 +205,10 @@ function extractStatus(err) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Pro 모델 503 에러 추적: 연속 2회 503 → Pro 일시 건너뛰기 (60초간) ──
+// ── Pro 모델 503/429 에러 추적: 쿼터 초과 시 일시 건너뛰기 ──
 const modelHealthTracker = {
   'gemini-2.5-pro': { consecutiveErrors: 0, blockedUntil: 0 },
+  'gemini-2.5-flash': { consecutiveErrors: 0, blockedUntil: 0 },
   'gemini-2.5-flash-lite': { consecutiveErrors: 0, blockedUntil: 0 },
 };
 
@@ -226,15 +229,15 @@ function recordModelError(modelName, status) {
   if (!modelHealthTracker[modelName]) return;
   const tracker = modelHealthTracker[modelName];
 
-  // 503 에러만 추적 (Pro TPM 부족 신호)
   if (status === 503) {
+    // 503 에러만 추적 (Pro TPM 부족 신호)
     tracker.consecutiveErrors++;
     if (tracker.consecutiveErrors >= 2) {
-      console.warn(`[Model Health] ${modelName} 연속 503 에러 감지 → 60초간 대기`);
+      console.warn(`[Model Health] ${modelName} 연속 503 에러 감지 → 60초간 차단`);
       tracker.blockedUntil = Date.now() + 60000;
     }
   } else {
-    tracker.consecutiveErrors = 0; // 503 아닌 다른 에러면 카운트 초기화
+    tracker.consecutiveErrors = 0;
   }
 }
 
@@ -273,6 +276,7 @@ export function callGeminiModel(modelName, contents, timeoutMs = 90000) {
  * @param {number}   [options.delayMs] 재시도 기본 대기(백오프 기준). 기본 1500ms.
  * @param {number}   [options.rateLimitDelayMs] 429(TPM/RPM) 전용 기본 대기. 기본 4000ms.
  * @param {boolean}  [options.preferPro] Pro 우선 모드 — 503 발생해도 Pro 내에서 재시도, 회로차단기 무시.
+ * @param {number}   [options.callTimeoutMs] 모델 1회 호출 당 타임아웃(ms). 기본 90000.
  */
 export async function generateWithRetry(prompt, options = {}) {
   const {
@@ -281,6 +285,7 @@ export async function generateWithRetry(prompt, options = {}) {
     delayMs = 1500,
     rateLimitDelayMs = 4000,
     preferPro = false,
+    callTimeoutMs = 90000,
   } = options;
 
   // 세마포어 획득 — 동시 호출 수 제한
@@ -312,7 +317,7 @@ export async function generateWithRetry(prompt, options = {}) {
 
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await callGeminiModel(modelName, prompt);
+          const result = await callGeminiModel(modelName, prompt, callTimeoutMs);
           recordModelSuccess(modelName);
           return result;
         } catch (err) {
@@ -344,16 +349,11 @@ export async function generateWithRetry(prompt, options = {}) {
               skipAllGemini = true;
               break;
             }
-            // 일반 RPM/TPM 쿼터 초과: 지수 백오프 재시도
-            if (attempt < retries - 1) {
-              const wait = Math.min(rateLimitDelayMs * Math.pow(2, attempt), 60000);
-              console.warn(`[Gemini] 429 쿼터 초과 - ${wait}ms 대기 후 재시도 (${modelName})`);
-              await sleep(wait);
-              continue;
-            } else {
-              await sleep(3000);
-              break;
-            }
+            // RPM/TPM 쿼터 초과: 대기 없이 즉시 다음 모델로 폴백.
+            // 이유: 세마포어를 잡고 있는 시간에 대기하면 다른 슬라이드도 지연됨.
+            // Flash은 RPM 한도가 훨씬 높으므로 폴백 후 성공률 높음.
+            console.warn(`[Gemini] 429 쿼터 초과 → 대기 없이 다음 모델로 (${modelName})`);
+            break;
           }
 
           if (status === 503 || status === 500) {
@@ -392,7 +392,12 @@ export async function generateWithRetry(prompt, options = {}) {
           }
 
           if (msg === 'GEMINI_TIMEOUT') {
-            await sleep(2000);
+            // 남은 시도가 있으면 재시도, 소진 시 다음 모델로 폴백
+            if (attempt < retries - 1) {
+              console.warn(`[Gemini] ${modelName} 타임아웃 → 재시도 (${attempt + 1}/${retries})`);
+              continue;
+            }
+            console.warn(`[Gemini] ${modelName} 타임아웃 ${retries}회 소진 → 다음 모델로`);
             break;
           }
 
@@ -400,9 +405,7 @@ export async function generateWithRetry(prompt, options = {}) {
         }
       }
 
-      if (!skipAllGemini && modelName !== models[models.length - 1]) {
-        await sleep(1000);
-      }
+      // 모델 전환 대기 없음: 세마포어 점유 시간 최소화 (특히 429 즉시 폴백 시)
     }
 
     // 모든 Gemini 시도 실패 시 GitHub Models로 Fallback
