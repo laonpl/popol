@@ -4,8 +4,8 @@
 
 const KO_CHAR_WIDTH_RATIO = 0.55;
 const LINE_HEIGHT = 1.3;
-const MIN_PT = 8;
-const MAX_PASSES = 16;
+const MIN_PT = 6;   // 8 → 6: 더 작은 폰트까지 축소 허용 (내용 짤림 방지)
+const MAX_PASSES = 20; // 16 → 20: 더 많은 단계로 정밀 축소
 
 export function shrinkToFit({ text, boxWidthPt, boxHeightPt, basePt, padPt = 4 }) {
   if (!text) return { fontSize: basePt, lines: [''] };
@@ -64,13 +64,14 @@ function wrapText(text, charsPerLine) {
 }
 
 // AI 프롬프트에 넘겨줄 박스별 maxChars 추정. 베이스 폰트로 박스를 가득 채울 때 들어가는 문자 수.
+// 자른 텍스트는 shrinkToFit + normAutofit 으로 폰트가 자동 축소되므로 버퍼 거의 없이 실제 용량을 그대로 노출.
 export function estimateMaxChars({ boxWidthPt, boxHeightPt, basePt }) {
   const innerW = Math.max(8, boxWidthPt - 8);
   const innerH = Math.max(8, boxHeightPt - 8);
   const charPx = Math.max(4, basePt * KO_CHAR_WIDTH_RATIO);
   const charsPerLine = Math.max(1, Math.floor(innerW / charPx));
   const lines = Math.max(1, Math.floor(innerH / (basePt * LINE_HEIGHT)));
-  return Math.max(8, Math.floor(charsPerLine * lines * 0.85)); // 15% 버퍼
+  return Math.max(12, Math.floor(charsPerLine * lines * 0.95)); // 5% 버퍼만 (기존 15% → 자린 내용 복구)
 }
 
 export const EMU_PER_PT = 12700;

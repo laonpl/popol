@@ -170,6 +170,27 @@ function removeAllPicsFromSpTree(spTree) {
   return toRemove.length;
 }
 
+// 템플릿에 포함된 표(table), 차트(chart), SmartArt 등 graphicFrame 을 제거.
+// 이 요소들은 사용자 데이터로 채울 수 없는 템플릿 플레이스홀더이므로 출력물에서 제거.
+// grpSp 내부도 재귀 탐색.
+function removeAllGraphicFramesFromSpTree(spTree) {
+  const toRemove = [];
+  const collect = (group) => {
+    for (let i = 0; i < group.childNodes.length; i++) {
+      const c = group.childNodes.item(i);
+      if (!c || c.nodeType !== 1) continue;
+      if (c.localName === 'graphicFrame') toRemove.push(c);
+      else if (c.localName === 'grpSp') collect(c);
+    }
+  };
+  collect(spTree);
+  for (const gf of toRemove) {
+    if (gf.parentNode) gf.parentNode.removeChild(gf);
+  }
+  if (toRemove.length) console.log(`[Renderer] graphicFrame(표/차트 등) ${toRemove.length}개 제거`);
+  return toRemove.length;
+}
+
 function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
   const map = new Map();
   for (const b of (boxes || [])) {
@@ -211,6 +232,9 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
 
   // Pass 2.5: 텍스트 매핑 완료 후 sample 사진 <p:pic> 제거
   removeAllPicsFromSpTree(spTree);
+
+  // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
+  removeAllGraphicFramesFromSpTree(spTree);
 
   return serializeXml(doc);
 }

@@ -26,7 +26,7 @@ const PPT_SLIDE_OPTIONS = {
   retries: 3,  // GEMINI_TIMEOUT 포함 최대 3회 시도 후 다음 모델로 폴백
   delayMs: 2000,
   rateLimitDelayMs: 5000,
-  callTimeoutMs: 80000, // 40s → 80s (Pro 2.5 응답 지연 대응)
+  callTimeoutMs: 120000, // 80s → 120s (Pro 2.5 장문 응답 완전 대응)
 };
 const PER_SLIDE_TIMEOUT_MS = 120000; // 큐 해제 후 시작 기준 (mapSlide 내부에서만 적용)
 
@@ -552,8 +552,8 @@ function buildContext(norm, step) {
     case 'project':
       return { project: proj };
     // Smart Packing 병합 섹션
+    // project_merged: 독립 슬라이드 — 프로젝트 전체 데이터 포함
     case 'project_merged':
-    case 'project_par':
       return {
         title: proj?.title,
         role: proj?.role,
@@ -570,6 +570,19 @@ function buildContext(norm, step) {
         competency: proj?.competency,
         keyExperiences: proj?.keyExperiences || [],
         link: proj?.link,
+      };
+    // project_par: project_intro 다음 슬라이드 — intro/overview/techStack 중복 방지를 위해 제외
+    case 'project_par':
+      return {
+        title: proj?.title,
+        problem: proj?.problem,
+        action: proj?.action,
+        process: proj?.process,
+        task: proj?.task,
+        output: proj?.output,
+        growth: proj?.growth,
+        competency: proj?.competency,
+        keyExperiences: proj?.keyExperiences || [],
       };
     case 'education':
       return { education: norm.education };
@@ -677,11 +690,12 @@ const SECTION_GUIDE = {
     `박스가 남으면 growth / competency 내용도 채워 넣어. 빈 박스로 남기지 말 것.`,
   project_par:
     `이 슬라이드는 문제(Problem) → 핵심행동(Action) → 성과(Result) 통합 카드.\n` +
-    `  · "문제/배경/상황" 라벨 박스 → problem 또는 intro (핵심만 1~2문장)\n` +
+    `  ⚠ 바로 앞 슬라이드(project_intro)에서 소개·기술스택이 이미 표시됐으므로 intro/overview/techStack 절대 반복 금지.\n` +
+    `  · "문제/배경/상황" 라벨 박스 → problem (핵심만 1~2문장 — intro/overview 반복 금지)\n` +
     `  · "과정/행동/해결" 라벨 박스 → action 또는 process 또는 task (동사 bullet)\n` +
     `  · "결과/성과/결과물" 라벨 박스 → output + growth 압축 (1~2문장)\n` +
     `  · hint=metric 박스 → keyExperiences[0].metric (강조, emphasis="metric")\n` +
-    `  · 나머지 박스 → competency / techStack / role 배분\n` +
+    `  · 나머지 박스 → competency 배분 (techStack/role 반복 금지)\n` +
     `PAR 흐름을 명확히 보여주는 것이 이 슬라이드의 목적. 단정형, 동사 시작 bullet.`,
   education:
     `이 슬라이드는 학력. 학교·전공·기간을 한 줄에. 핵심만.`,
@@ -715,8 +729,9 @@ function buildSingleSlidePrompt(step, ctx, slots) {
 한 슬라이드의 텍스트 박스에 들어갈 한국어 텍스트를 결정해 JSON 으로 반환하십시오.
 
 ━━━ [절대 규칙] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-A. char_budget 초과 절대 금지. 각 박스에 부여된 char_budget(글자 수 한도)을 단 1자도 초과하지 않도록
-   텍스트를 고도로 압축하십시오. 초과 시 PowerPoint에서 글자가 세로로 줄바꿈되어 깨집니다.
+A. char_budget 은 참고 분량이다. 폰트 자동 축소(normAutofit)가 적용되므로 내용이 있으면
+   자르지 말고 작성하라. 단, char_budget 의 2배를 초과하면 압축하라.
+   char_budget ≤ 8 인 박스는 아이콘·번호 자리이므로 "" 로 비워라.
 B. 사용자 데이터(아래 [사용자 데이터])에 없는 회사명·숫자·사실·수치 절대 창작 금지.
 C. 같은 슬라이드 내 두 박스에 동일·유사 text 출력 금지 (중복 내용 출력 방지).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -725,7 +740,7 @@ C. 같은 슬라이드 내 두 박스에 동일·유사 text 출력 금지 (중�
 1. 모든 slots 항목에 text 필드 포함 필수.
    빈 문자열("") 사용 조건:
    (a) 사용자 데이터에 이 박스 의도에 맞는 값이 없는 경우
-   (b) char_budget ≤ 6 인 경우 (아이콘·장식 자리 — 의미 있는 단어 불가)
+   (b) char_budget ≤ 8 인 경우 (아이콘·장식·번호 자리)
 2. 한국어 명사형/단정형. 존댓말·이모지 X.
 3. 출력은 JSON 만 (마크다운 코드펜스 X).
 
@@ -736,7 +751,7 @@ C. 같은 슬라이드 내 두 박스에 동일·유사 text 출력 금지 (중�
 - hint="tag"    : 키워드 한 단어. 긴 텍스트 절대 금지.
 - hint="heading": 부제·섹션 헤딩. 한 줄 요약.
 - hint="body"   : 본문. 1~3문장 또는 동사 시작 bullet.
-                  bullet 줄바꿈은 \\n. 각 줄은 char_budget / 줄 수 이내.
+                  bullet 줄바꿈은 \\n. 내용을 자르지 말고 자연스럽게 작성.
 - semanticRole="stage" 는 IDEATE/PROTOTYPE 같은 템플릿 단계 라벨입니다. stageLabel 값을 유지하거나
   사용자 데이터의 문제/행동/결과 흐름을 해당 단계에 맞게 매우 짧게 배치하십시오.
 - semanticRole="title|metric|meta|tech|link|body" 를 우선하고, 배열 순서보다 semanticRole 을 더 신뢰하십시오.
@@ -898,9 +913,10 @@ function deterministicFallback(step, ctx, slots) {
     const candidate = pickForSlot(slot, i);
     let text = '';
     if (candidate) {
-      // 박스가 너무 작은데 후보가 길면 강제 자르지 않고 비운다 (세로 글자 깨짐 방지).
-      const tooLong = candidate.length > cap * 1.5 && cap <= 12;
-      text = tooLong ? '' : candidate.slice(0, cap);
+      // 아이콘·장식용 아주 작은 박스(cap≤6)에 긴 텍스트가 가면 세로 글자 깨짐 → 비움.
+      // 그 외에는 자르지 않고 원본을 유지 → shrinkToFit + normAutofit이 폰트를 줄여 실제 내용이 잘리지 않게 한다.
+      const tooLong = candidate.length > cap * 2 && cap <= 6;
+      text = tooLong ? '' : candidate;
     }
     const isMetric = step.sectionType === 'project_metric' && /^[+\-]?\d|%|ms|s$|배|개$/.test(text);
     out.push({ shapeId: slot.shapeId, text, emphasis: isMetric ? 'metric' : 'none' });
@@ -910,7 +926,7 @@ function deterministicFallback(step, ctx, slots) {
 
 // AI 출력이 원본 template 더미 텍스트를 그대로 복사했는지 판정.
 // - 와전 동일
-// - b 가 4~30자: a 가 b 를 포함 (짧은 플레이스홀더 단어 누수)
+// - b 가 8~30자: a 가 b 를 포함 (짧은 섹션 라벨 오탐 방지로 4→8로 상향)
 // - b 가 31자 이상: a 가 b 의 앞 40% 이상을 포함 (장문 부분 복사)
 function looksLikeOriginal(text, originalText) {
   if (!text || !originalText) return false;
@@ -919,7 +935,7 @@ function looksLikeOriginal(text, originalText) {
   const b = norm(originalText);
   if (!a || !b) return false;
   if (a === b) return true;
-  if (b.length >= 4 && b.length <= 30 && a.includes(b)) return true;
+  if (b.length >= 8 && b.length <= 30 && a.includes(b)) return true;
   if (b.length > 30 && b.length >= 8) {
     const prefix = b.slice(0, Math.max(8, Math.floor(b.length * 0.4)));
     if (a.includes(prefix)) return true;
@@ -977,7 +993,9 @@ async function mapSlide(step, ctx, slots) {
       chosen = d;
     } else {
       const cap = slot.maxChars || 120;
-      const tooLong = aiText.length > cap * 1.5 && cap <= 12;
+      // 아이콘·장식용 매우 작은 박스(cap≤6)에 긴 텍스트가 가면 세로 글자 깨짐 → 비움.
+      // 그 외에는 원본 그대로 유지 → shrinkToFit/normAutofit 이 폰트 축소로 대응.
+      const tooLong = aiText.length > cap * 2 && cap <= 6;
       if (tooLong) {
         oversize++;
         chosen = { shapeId: slot.shapeId, text: '', emphasis: 'none' };
@@ -1052,18 +1070,50 @@ export async function mapDeck({ portfolio, layout }) {
       planIndex: step.planIndex,
       sectionType: step.sectionType,
       templateSlideIndex: step.templateSlideIndex,
+      sectionParam: step.sectionParam,  // cross-slide 중복 제거에 필요
       boxes: dedupedBoxes,
     };
   });
 
+  // Cross-slide dedup: 같은 프로젝트의 연속 슬라이드 간 본문 내용 중복 제거.
+  // project_intro 에서 표시된 내용이 project_par/project_overview 에 다시 나오는 경우 제거.
+  // 제목(fontPt≥24, role=title) 및 15자 미만 짧은 텍스트는 중복 허용(날짜·라벨 반복 OK).
+  const BODY_PROJ_TYPES = new Set([
+    'project_intro', 'project_overview', 'project_par', 'project_problem',
+    'project_result', 'project_merged', 'project_output', 'project_growth', 'project_competency',
+  ]);
+  const projBodySeen = new Map(); // sectionParam → Set<normalizedKey>
+  for (const slide of deck) {
+    const sParam = slide.sectionParam;
+    if (sParam == null || !BODY_PROJ_TYPES.has(slide.sectionType)) continue;
+    if (!projBodySeen.has(sParam)) projBodySeen.set(sParam, new Set());
+    const seenSet = projBodySeen.get(sParam);
+    for (const box of (slide.boxes || [])) {
+      if ((box.fontPt || 0) >= 24 || box.role === 'title') continue;
+      const t = (box.text || '').trim();
+      if (t.length < 15) continue;
+      const key = normStr(t);
+      if (!key) continue;
+      if (seenSet.has(key)) {
+        console.log(`[PPT-Mapper] 슬라이드 간 중복 제거 [proj${sParam}/${slide.sectionType}]: "${t.slice(0, 40)}"`);
+        box.text = '';
+      } else {
+        seenSet.add(key);
+      }
+    }
+  }
+
   // Slide Pruning: AI가 아무 내용도 채우지 않은 슬라이드를 최종 덱에서 제거.
-  // cover/about/skills/교육/수상/연락처/project_divider 는 항상 유지.
+  // cover/about/skills/교육/수상/연락처 는 항상 유지.
   const ALWAYS_KEEP = new Set(['cover', 'about', 'skills', 'education', 'awards', 'contact']);
-  // project_divider: title 이 콘텐츠 → 일반 hasContent 체크(>2자)로 판정. 빈 divider 자동 제거.
+  // project_divider: 1개 이상 박스에 내용 있으면 유지 (챕터 구분자 역할)
+  // 일반 콘텐츠 슬라이드: 최소 2개 박스에 내용 있어야 의미있는 슬라이드로 판정 (공백 슬라이드 제거)
   return deck.filter(slide => {
     if (ALWAYS_KEEP.has(slide.sectionType)) return true;
-    const hasContent = (slide.boxes || []).some(b => (b.text || '').trim().length > 2);
-    if (!hasContent) console.log(`[PPT-Mapper] 빈 슬라이드 제거: ${slide.sectionType}[${slide.templateSlideIndex}]`);
+    const contentBoxes = (slide.boxes || []).filter(b => (b.text || '').trim().length > 2);
+    const minBoxes = slide.sectionType === 'project_divider' ? 1 : 2;
+    const hasContent = contentBoxes.length >= minBoxes;
+    if (!hasContent) console.log(`[PPT-Mapper] 빈 슬라이드 제거: ${slide.sectionType}[${slide.templateSlideIndex}] (채워진 박스 ${contentBoxes.length}/${(slide.boxes||[]).length}개)`);
     return hasContent;
   });
 }
