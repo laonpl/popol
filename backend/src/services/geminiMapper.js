@@ -390,15 +390,28 @@ export function planDeck(layout, portfolio) {
 
 // ── 4) 슬라이드 박스 사양 빌드 (per-slide) ───────────────────────────────────
 // AI 가 박스 의도(제목/본문/메트릭/태그)를 빠르게 파악할 수 있도록 hint 첨부.
+// stage 역할(IDEATE/PROTOTYPE 등)을 허용하는 섹션 타입. 이 외 섹션에서는 body로 재분류.
+const STAGE_ALLOWED_SECTIONS = new Set([
+  'project_problem', 'project_par', 'project_merged',
+  'project_process', 'project_overview', 'project_intro',
+]);
+
 function buildSlots(layout, step) {
   const tpl = layout.slides[step.templateSlideIndex];
   const boxes = tpl.textBoxes || [];
   const maxFont = boxes.reduce((m, b) => Math.max(m, b.fontPt || 0), 0);
   const slots = boxes.map(box => {
     const fontPt = Math.round(box.fontPt || 14);
-    const maxChars = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt: box.fontPt || 14 });
+    // 템플릿 폰트가 9pt 미만인 박스는 9pt 기준으로 char_budget 계산 → 현실적인 수용량 보장
+    const effectivePt = Math.max(box.fontPt || 14, 9);
+    const maxChars = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt: effectivePt });
     const originalText = (box.originalText || '').slice(0, 120);
-    const { hint, semanticRole } = inferSlotIntent(box, { maxFont, maxChars, originalText });
+    let { hint, semanticRole } = inferSlotIntent(box, { maxFont, maxChars, originalText });
+    // stage 역할은 프로젝트 세부 섹션에서만 유효 — about/divider 등에서 오분류 방지
+    if (semanticRole === 'stage' && !STAGE_ALLOWED_SECTIONS.has(step.sectionType)) {
+      semanticRole = 'body';
+      hint = 'heading';
+    }
     return {
       shapeId: box.shapeId,
       role: box.role,
@@ -459,7 +472,7 @@ function inferSlotIntent(box, { maxFont, maxChars, originalText }) {
   if (box.role === 'heading' || fontPt >= 22) {
     return { hint: 'heading', semanticRole: 'heading' };
   }
-  if (maxChars <= 8) {
+  if (maxChars <= 15) {
     return { hint: 'tag', semanticRole: 'tag' };
   }
   return { hint: 'body', semanticRole: 'body' };
@@ -477,16 +490,28 @@ function buildContext(norm, step) {
         targetPosition: norm.targetPosition,
         title: norm.title,
       };
-    case 'about':
+    case 'about': {
+      const skillsSummary = Object.values(norm.skills || {})
+        .flatMap(arr => (arr || []).map(x => (typeof x === 'string' ? x : x?.name || '')))
+        .filter(Boolean).slice(0, 10).join(', ');
       return {
         userName: norm.about.name,
         headline: norm.about.headline,
         essay: norm.about.essay,
         values: norm.about.values,
         goals: norm.about.goals,
+        targetCompany: norm.targetCompany,
+        targetPosition: norm.targetPosition,
+        contact: norm.contact,
+        skillsSummary,
       };
-    case 'skills':
-      return { skills: norm.skills };
+    }
+    case 'skills': {
+      const skillsFlat = Object.values(norm.skills || {})
+        .flatMap(arr => (arr || []).map(x => (typeof x === 'string' ? x : x?.name || '')))
+        .filter(Boolean);
+      return { skills: norm.skills, skillsFlat };
+    }
     case 'project_divider':
       return {
         sectionLabel: `Project ${(step.sectionParam ?? 0) + 1}`,
@@ -494,6 +519,11 @@ function buildContext(norm, step) {
         title: proj?.title,
         role: proj?.role,
         period: proj?.period,
+        intro: proj?.intro,
+        techStack: proj?.techStack,
+        keyExperiences: (proj?.keyExperiences || []).slice(0, 2).map(ke => ({
+          metric: ke.metric, metricLabel: ke.metricLabel, title: ke.title,
+        })),
       };
     case 'project_intro':
     case 'project_overview':
@@ -730,9 +760,11 @@ function buildSingleSlidePrompt(step, ctx, slots) {
 
 ━━━ [절대 규칙] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 A. char_budget 은 참고 분량이다. 폰트 자동 축소(normAutofit)가 적용되므로 내용이 있으면
-   자르지 말고 작성하라. 단, char_budget 의 2배를 초과하면 압축하라.
-   char_budget ≤ 8 인 박스는 아이콘·번호 자리이므로 "" 로 비워라.
+   자르지 말고 작성하라. 단, char_budget 의 1.5배를 초과하면 반드시 압축하라.
+   char_budget ≤ 15 인 박스는 단어 1~2개 한도. char_budget ≤ 6 인 박스는 "" 로 비워라.
 B. 사용자 데이터(아래 [사용자 데이터])에 없는 회사명·숫자·사실·수치 절대 창작 금지.
+   데이터에 없는 필드는 빈 문자열("")로 반환. '[작성 필요]', '나의 역할', 'N/A',
+   '내용을 입력하세요' 등의 placeholder 텍스트 절대 생성 금지.
 C. 같은 슬라이드 내 두 박스에 동일·유사 text 출력 금지 (중복 내용 출력 방지).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -995,7 +1027,8 @@ async function mapSlide(step, ctx, slots) {
       const cap = slot.maxChars || 120;
       // 아이콘·장식용 매우 작은 박스(cap≤6)에 긴 텍스트가 가면 세로 글자 깨짐 → 비움.
       // 그 외에는 원본 그대로 유지 → shrinkToFit/normAutofit 이 폰트 축소로 대응.
-      const tooLong = aiText.length > cap * 2 && cap <= 6;
+      // cap ≤ 20 인 작은 박스에 cap의 1.5배 초과 텍스트가 오면 비움 (6pt 깨짐 방지)
+      const tooLong = cap <= 20 && aiText.length > Math.max(cap * 1.5, 10);
       if (tooLong) {
         oversize++;
         chosen = { shapeId: slot.shapeId, text: '', emphasis: 'none' };
@@ -1004,7 +1037,7 @@ async function mapSlide(step, ctx, slots) {
       }
     }
     const t = chosen.text || '';
-    if (t.length >= 8) {
+    if (t.length >= 2) {
       const key = normStr(t);
       if (key && seen.has(key)) {
         dupes++;
@@ -1054,11 +1087,11 @@ export async function mapDeck({ portfolio, layout }) {
       };
     });
 
-    // 슬라이드 내 중복 텍스트 제거 (8자 이상)
+    // 슬라이드 내 중복 텍스트 제거 (2자 이상 — 짧은 숫자/% 중복도 제거)
     const seen = new Map();
     const dedupedBoxes = rawBoxes.map(b => {
       const t = b.text || '';
-      if (t.length >= 8) {
+      if (t.length >= 2) {
         const key = normStr(t);
         if (key && seen.has(key)) return { ...b, text: '' };
         if (key) seen.set(key, true);

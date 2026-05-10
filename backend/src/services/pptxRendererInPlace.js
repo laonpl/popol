@@ -272,18 +272,30 @@ function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
   // shrinkToFit: 텍스트가 박스를 넘치면 sz 를 줄여서 XML 에 직접 기록한다.
   // 이 값이 실제 PowerPoint 렌더링에 반영되므로 preview 와 PPT 가 일치.
   let computedSz = null;
+  const MIN_READABLE_PT = 9; // 9pt 미만은 판독 불가 → 잘라냄
   if (newText && boxMeta && boxMeta.w > 0 && boxMeta.h > 0 && boxMeta.fontPt > 0) {
     // 박스 치수가 정확할 때 shrinkToFit 으로 최적 sz 계산
     const { fontSize } = shrinkToFit({
       text: newText, boxWidthPt: boxMeta.w, boxHeightPt: boxMeta.h, basePt: boxMeta.fontPt,
     });
-    computedSz = String(Math.round(Math.max(6, fontSize) * 100));
+    if (fontSize < MIN_READABLE_PT) {
+      // 9pt 이하로 떨어지면: 9pt 기준으로 들어갈 수 있는 글자 수로 텍스트 잘라냄
+      const innerW = Math.max(8, boxMeta.w - 12);
+      const innerH = Math.max(8, boxMeta.h - 8);
+      const cpl = Math.max(1, Math.floor(innerW / (MIN_READABLE_PT * 0.55)));
+      const maxL = Math.max(1, Math.floor(innerH / (MIN_READABLE_PT * 1.3)));
+      const limit = Math.max(4, cpl * maxL - 1);
+      if (newText.length > limit) newText = newText.slice(0, limit - 1) + '…';
+      computedSz = String(MIN_READABLE_PT * 100); // 900 = 9pt
+    } else {
+      computedSz = String(Math.round(fontSize * 100));
+    }
   } else if (newText && boxMeta?.maxChars && newText.length > boxMeta.maxChars * 0.8) {
     // Auto-Shrink 폴백: char_budget 의 80% 초과 시 원본 sz 의 75% 로 강제 축소
     const baseSzStr = savedStyle?.sz || (boxMeta?.fontPt ? String(Math.round(boxMeta.fontPt * 100)) : null);
     if (baseSzStr) {
       const baseSz = parseInt(baseSzStr, 10);
-      if (baseSz > 0) computedSz = String(Math.round(Math.max(600, baseSz * 0.75)));
+      if (baseSz > 0) computedSz = String(Math.round(Math.max(900, baseSz * 0.75)));
     }
   }
 
