@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -12,10 +12,13 @@ const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 export default function AiPptExport() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState(STAGE.CHOOSE);
-  const [templateId, setTemplateId] = useState('modern');
+  const initTemplate = searchParams.get('template') || 'modern';
+  const autostart = searchParams.get('autostart') === 'true';
+  const [templateId, setTemplateId] = useState(initTemplate);
   const [customFile, setCustomFile] = useState(null);
   const [customFileName, setCustomFileName] = useState('');
   // Templates 1/2/3 state
@@ -28,6 +31,8 @@ export default function AiPptExport() {
   const [customResult, setCustomResult] = useState(null); // { pptxBase64, deck, slideSize, layoutSlides }
   const fileInputRef = useRef(null);
 
+  const autoStartFiredRef = useRef(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -37,6 +42,15 @@ export default function AiPptExport() {
       setLoading(false);
     })();
   }, [id]);
+
+  // autostart=true 이면 포트폴리오 로드 완료 후 바로 분석 시작
+  useEffect(() => {
+    if (autostart && portfolio && !loading && !autoStartFiredRef.current) {
+      autoStartFiredRef.current = true;
+      startAnalyze();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autostart, portfolio, loading]);
 
   const handleCustomUpload = (file) => {
     if (!file) return;
@@ -137,8 +151,8 @@ export default function AiPptExport() {
   return (
     <div className="animate-fadeIn max-w-[1200px] mx-auto">
       <div className="flex items-center mb-6">
-        <button onClick={() => navigate(`/app/portfolio/preview/${id}`)} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
-          <ArrowLeft size={16} /> 뒤로
+        <button onClick={() => navigate(autostart ? `/app/portfolio` : `/app/portfolio/preview/${id}`)} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600">
+          <ArrowLeft size={16} /> {autostart ? '포트폴리오 목록으로' : '뒤로'}
         </button>
       </div>
 

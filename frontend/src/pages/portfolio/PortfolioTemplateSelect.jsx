@@ -7,6 +7,7 @@ import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
 
 const TEMPLATE_CATEGORIES = [
   { id: 'all', label: '전체' },
@@ -1283,8 +1284,16 @@ export default function PortfolioTemplateSelect() {
       }
 
       const id = await createPortfolio(user.uid, data);
-      navigate(`/app/portfolio/edit-notion/${id}`);
-      toast.success('포트폴리오가 생성되었습니다!');
+
+      // theme-* 템플릿: AI PPT 생성 페이지로 바로 이동
+      if (template.id.startsWith('theme-')) {
+        // theme- 접두사 제거해서 aiPptTemplates.jsx ID로 변환 (e.g. theme-lean-dev → lean-dev)
+        const pptTemplateId = template.id.replace(/^theme-/, '');
+        navigate(`/app/portfolio/ai-ppt/${id}?template=${pptTemplateId}&autostart=true`);
+      } else {
+        navigate(`/app/portfolio/edit-notion/${id}`);
+        toast.success('포트폴리오가 생성되었습니다!');
+      }
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
     }

@@ -88,7 +88,9 @@ function StarBlock({ section }) {
         {section.action && (
           <div className="bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-3">
             <p className="text-xs font-bold text-blue-600 mb-1">A · Action / 행동</p>
-            <p className="text-sm text-blue-800">{section.action}</p>
+            <p className="text-sm text-blue-800">
+              {Array.isArray(section.action) ? section.action.join(' / ') : section.action}
+            </p>
           </div>
         )}
       </div>
@@ -96,17 +98,33 @@ function StarBlock({ section }) {
       {section.result && (
         <div className="bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg p-3 mb-4">
           <p className="text-xs font-bold text-emerald-600 mb-1">R · Result / 결과</p>
-          <p className="text-sm text-emerald-800">{section.result}</p>
+          <p className="text-sm text-emerald-800">
+            {Array.isArray(section.result) ? section.result.join(' / ') : section.result}
+          </p>
         </div>
       )}
 
       {(section.metrics || []).length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {section.metrics.map((m, i) => (
-            <span key={i} className="text-sm font-bold px-3 py-1 bg-slate-900 text-white rounded-full">
-              {m}
-            </span>
-          ))}
+          {section.metrics.map((m, i) => {
+            let label;
+            if (typeof m === 'string') {
+              label = m;
+            } else if (m && typeof m === 'object') {
+              if (m.before && m.after) {
+                label = `${m.label ? m.label + ': ' : ''}${m.before} → ${m.after}`;
+              } else {
+                label = m.label || m.value || JSON.stringify(m);
+              }
+            } else {
+              label = String(m);
+            }
+            return (
+              <span key={i} className="text-sm font-bold px-3 py-1 bg-slate-900 text-white rounded-full">
+                {label}
+              </span>
+            );
+          })}
         </div>
       )}
 
