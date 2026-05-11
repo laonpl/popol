@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { validatePortfolioWithAI, matchSectionsToRequirements } from '../services/geminiService.js';
+import { validatePortfolioWithAI, matchSectionsToRequirements, generateThemedPortfolio } from '../services/geminiService.js';
 import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFunctions.js';
 
 const router = Router();
@@ -260,6 +260,52 @@ router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, ne
     res.json({ slide: updated });
   } catch (error) {
     console.error('[POST /portfolio/ai-ppt-revise]', error);
+    next(error);
+  }
+});
+
+// POST /api/portfolio/generate-themed — 테마 기반 전문가 포트폴리오 AI 생성
+router.post('/generate-themed', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { portfolioId, themeId } = req.body;
+    if (!portfolioId || !themeId) {
+      return res.status(400).json({ error: 'portfolioId 와 themeId 가 필요합니다' });
+    }
+
+    const docSnap = await adminDb.collection('portfolios').doc(portfolioId).get();
+    if (!docSnap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다' });
+    const portfolio = docSnap.data();
+    if (portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
+
+    // 연결된 경험 데이터 수집
+    const experienceIds = portfolio.experienceIds || [];
+    let experiencesData = [];
+    if (experienceIds.length > 0) {
+      const snaps = await Promise.all(
+        experienceIds.slice(0, 12).map(eid => adminDb.collection('experiences').doc(eid).get())
+      );
+      experiencesData = snaps.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() }));
+    }
+
+    const portfolioMeta = {
+      userName: portfolio.userName || '',
+      targetPosition: portfolio.targetPosition || '',
+      headline: portfolio.headline || '',
+      contact: portfolio.contact || {},
+    };
+
+    const { visual_sections } = await generateThemedPortfolio({ themeId, experiencesData, portfolioMeta });
+
+    // Firestore 에 저장
+    await adminDb.collection('portfolios').doc(portfolioId).update({
+      visual_sections,
+      visual_sections_theme: themeId,
+      visual_sections_generated_at: new Date().toISOString(),
+    });
+
+    res.json({ success: true, visual_sections });
+  } catch (error) {
+    console.error('[POST /portfolio/generate-themed]', error);
     next(error);
   }
 });

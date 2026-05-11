@@ -13,6 +13,7 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import ThemedPortfolioBlocks from './ThemedPortfolioBlocks';
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
@@ -46,6 +47,27 @@ export default function NotionPortfolioPreview() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
+
+  // visual_sections 가 있으면 테마 렌더러로 표시 (templateId 무관)
+  const isThemed = Array.isArray(portfolio?.visual_sections) && portfolio.visual_sections.length > 0;
+  if (isThemed) {
+    return (
+      <div className="animate-fadeIn">
+        <div className="flex items-center justify-between mb-4 max-w-4xl mx-auto px-4">
+          <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
+            <ArrowLeft size={14} /> 목록으로
+          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors">
+              <Edit size={13} /> 편집
+            </button>
+          </div>
+        </div>
+        <ThemedPortfolioBlocks sections={portfolio.visual_sections} themeId={portfolio.templateId} />
+      </div>
+    );
+  }
 
   // 비주얼 템플릿이면 별도 렌더러로 분기
   if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {

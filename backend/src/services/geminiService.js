@@ -22,6 +22,7 @@ import {
   buildMatchSectionsPrompt,
   buildAiPptAnalyzePrompt,
   buildAiPptRevisePrompt,
+  buildThemedPortfolioPrompt,
 } from '../prompts/portfolioPrompts.js';
 
 // ── Pro 우선 옵션: Pro 내에서 지수 백오프로 끝까지 재시도 ──
@@ -908,4 +909,40 @@ async function distillPortfolioContentPack({ portfolio, slideCount, designTokens
     }),
     portfolioText,
   };
+}
+
+/**
+ * 테마 기반 전문가 포트폴리오 생성.
+ * popoldesign.md 의 10가지 디자인 테마 프레임워크에 따라
+ * visual_sections 배열을 AI로 생성한다.
+ */
+export async function generateThemedPortfolio({ themeId, experiencesData, portfolioMeta }) {
+  if (!themeId || !Array.isArray(experiencesData)) {
+    throw new Error('themeId 와 experiencesData 가 필요합니다.');
+  }
+
+  const prompt = buildThemedPortfolioPrompt({ themeId, experiencesData, portfolioMeta });
+  console.log(`[ThemedPortfolio] 생성 시작: themeId=${themeId}, 경험 ${experiencesData.length}개`);
+
+  const text = await withTimeout(
+    callProFirst(prompt, 'ThemedPortfolio'),
+    120000,
+    'ThemedPortfolio'
+  );
+
+  // { visual_sections: [...] } 형태로 파싱
+  let parsed;
+  try {
+    parsed = parseJSON(text, /\{[\s\S]*\}/);
+  } catch {
+    throw new Error('AI 테마 포트폴리오 응답 JSON 파싱 실패');
+  }
+
+  const visual_sections = Array.isArray(parsed.visual_sections) ? parsed.visual_sections : [];
+  if (visual_sections.length === 0) {
+    throw new Error('AI가 visual_sections 를 생성하지 못했습니다. 경험 데이터를 보강 후 재시도해주세요.');
+  }
+
+  console.log(`[ThemedPortfolio] ✓ 완료: ${visual_sections.length}개 섹션 생성`);
+  return { visual_sections };
 }

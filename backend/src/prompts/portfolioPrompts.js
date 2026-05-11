@@ -365,3 +365,307 @@ ${JSON.stringify({ name: portfolio.userName, target: `${portfolio.targetCompany 
 
 반드시 수정된 슬라이드 1개의 JSON만 응답(원본과 동일한 키 구조):`;
 }
+
+// ─────────────────────────────────────────────
+// 테마별 전문가 포트폴리오 생성 프롬프트
+// popoldesign.md 에 정의된 10개 테마의 프레임워크·내러티브 구조에 맞춰
+// 경험 데이터를 visual_sections 배열로 변환.
+//
+// visual_sections 타입:
+//   hero          – 이름/직무/태그라인
+//   metric_cards  – before→after 지표 카드 그리드
+//   star_block    – 문제-행동-결과 STAR 구조 프로젝트 블록
+//   aarrr_funnel  – Acquisition→Revenue 퍼널 지표 카드
+//   diamond_steps – Discover→Define→Develop→Deliver 4단계
+//   traction_timeline – 타임라인 카드 (스타트업)
+//   skill_matrix  – 기술 스택 그룹 표
+//   bento_grid    – 대시보드형 KPI 카드 (3~6개)
+//   hypothesis_log – 가설/피벗 로그 카드
+//   text_block    – 서술형 텍스트 섹션
+//   closing       – 연락처/CTA
+// ─────────────────────────────────────────────
+
+const THEME_FRAMEWORK_GUIDE = {
+  'theme-lean-dev': {
+    name: 'Lean Hypothesis Dev',
+    framework: 'Google XYZ + Lean Canvas',
+    sections: ['hero', 'metric_cards', 'star_block', 'hypothesis_log', 'skill_matrix', 'closing'],
+    tone: '간결한 수치 중심, 실패한 가설도 투명하게, 테크/엔지니어링',
+    structureGuide: `
+- hero: 이름·직무 + 핵심 임팩트 지표 1~2개 태그라인
+- metric_cards: keyExperiences의 before/after 지표 최대 4개
+- star_block(들): 각 프로젝트 → XYZ 공식(X를 Y로 측정해 Z 달성) + Pivot Log
+- hypothesis_log: 실패한 가설과 피벗 과정 카드 (있으면)
+- skill_matrix: 기술 스택 그룹 (Languages/Frameworks/Infra/Tools)
+- closing: GitHub + 라이브 서비스 링크`,
+  },
+  'theme-notion-pm': {
+    name: 'Structured Notion PM',
+    framework: 'STAR + Trade-off Log',
+    sections: ['hero', 'metric_cards', 'star_block', 'text_block', 'closing'],
+    tone: '구조화된 문서형, 트레이드오프 결정 로직 강조, 비즈니스 임팩트',
+    structureGuide: `
+- hero: 프로덕트 철학 한 줄 + 대표 KPI
+- metric_cards: DAU/MAU, 리텐션, CVR 등 프로덕트 지표
+- star_block(들): Context & User Problem → KPI Setup → Trade-off Log → Result & Next Step
+- text_block: 사용자 인터뷰 인용구 or 핵심 의사결정 배경
+- closing: Notion 원본 이력서 + 이메일`,
+  },
+  'theme-double-diamond': {
+    name: 'Double Diamond Creative',
+    framework: 'Double Diamond 4-Steps',
+    sections: ['hero', 'diamond_steps', 'metric_cards', 'skill_matrix', 'closing'],
+    tone: '이미지:텍스트=7:3, 비주얼 임팩트, 문제 해결자로서의 디자이너',
+    structureGuide: `
+- hero: 시선 사로잡는 핵심 문제 정의 문장 + 결과 지표
+- diamond_steps: Discover(리서치) → Define(문제정의/페르소나) → Develop(아이디에이션) → Deliver(최종 UI+UT 결과)
+- metric_cards: Task 성공률, 체류 시간, 재사용률
+- skill_matrix: Design Tools / Research Methods / Systems
+- closing: Figma 프로토타입 + Dribbble 링크`,
+  },
+  'theme-bento-metric': {
+    name: 'Bento Metric Strategist',
+    framework: 'AARRR Funnel Metrics',
+    sections: ['hero', 'bento_grid', 'aarrr_funnel', 'star_block', 'skill_matrix', 'closing'],
+    tone: '숫자와 퍼센트가 주인공, Before→After 형태 필수, 허영 지표 배제',
+    structureGuide: `
+- hero: 누적 매출/트래픽 핵심 숫자 3개
+- bento_grid: 가장 임팩트 큰 KPI 3~6개 대시보드 카드
+- aarrr_funnel: Acquisition→Activation→Retention→Revenue→Referral 각 지표
+- star_block(들): 그로스 실험 → 지표 Before/After → 인사이트
+- closing: Tableau/Looker 대시보드 링크`,
+  },
+  'theme-startup-hustler': {
+    name: 'Startup Hustler',
+    framework: 'Problem-Solution-Fit & MVP',
+    sections: ['hero', 'metric_cards', 'traction_timeline', 'star_block', 'closing'],
+    tone: '거칠고 강렬한, 실행 속도 강조, MVP 출시 일수와 초기 지표',
+    structureGuide: `
+- hero: 해결하려는 시장의 문제 + "X일 만에 배포"
+- metric_cards: CAC, 초기 전환율, 출시 기간
+- traction_timeline: 아이디어→MVP→첫 결제→주요 피벗 타임라인
+- star_block(들): Market Pain Point → MVP Action → Early Traction → Learnings
+- closing: Calendly 커피챗 링크`,
+  },
+  'theme-research-archival': {
+    name: 'Research Archival',
+    framework: 'Empathy to Insight',
+    sections: ['hero', 'text_block', 'star_block', 'metric_cards', 'closing'],
+    tone: '논문형 서술, 방법론과 표본 수 명시, 인사이트가 비즈니스로 연결',
+    structureGuide: `
+- hero: 연구 분야 요약 + 핵심 키워드 태그
+- text_block: Research Goal + Methodology (N수, 정성/정량) 
+- star_block(들): Research Goal → Methodology → Key Insights → Business Impact
+- metric_cards: 표본 수(N), 신뢰수준, 절감된 개발 비용/시간
+- closing: 리서치 리포트 PDF 다운로드`,
+  },
+  'theme-cyberpunk': {
+    name: 'Data Flow Cyberpunk',
+    framework: 'CAR + Architecture',
+    sections: ['hero', 'metric_cards', 'star_block', 'skill_matrix', 'text_block', 'closing'],
+    tone: '터미널 스타일, TPS/Latency/SLA 수치 중심, 아키텍처 다이어그램 강조',
+    structureGuide: `
+- hero: 처리한 최대 트래픽 수치 + 역할
+- metric_cards: TPS, Latency ms, Uptime%, 비용 절감$
+- star_block(들): System Context(규모/한계) → Architecture Design → Action(병목해결) → Result(성능지표)
+- skill_matrix: Backend/Infra/DB/Monitoring 기술 스택
+- text_block: 핵심 트러블슈팅 1개 상세
+- closing: Tech Blog + GitHub`,
+  },
+  'theme-ats-classic': {
+    name: 'ATS-Optimized Classic',
+    framework: 'Reverse-Chronological',
+    sections: ['hero', 'star_block', 'skill_matrix', 'text_block', 'closing'],
+    tone: '키워드 밀도 최대화, 역순 연대기, 행동 동사로 시작, 수치 앞에 배치',
+    structureGuide: `
+- hero: 이름 + 지원 직무 타이틀 + 핵심 스킬 키워드 리스트
+- star_block(들): Company & Role → Key Responsibilities → Quantified Achievements (역순)
+- skill_matrix: 직무 키워드 중심 기술 스택
+- text_block: Executive Summary (3문장)
+- closing: 이력서 PDF 다운로드`,
+  },
+  'theme-component-creator': {
+    name: 'Component-Driven Creator',
+    framework: 'Interactive Component Logs',
+    sections: ['hero', 'metric_cards', 'star_block', 'skill_matrix', 'closing'],
+    tone: '텍스트 최소화, 코드 스니펫과 성능 지표 중심, 인터랙션 품질 강조',
+    structureGuide: `
+- hero: 라이브 Playground 한 줄 소개 + Lighthouse 점수
+- metric_cards: 렌더링 fps, 번들 사이즈 kb, 컴포넌트 재사용률
+- star_block(들): UI Preview → Tech Challenge → Code Solution → Performance
+- skill_matrix: Frontend/State/Testing/Tooling
+- closing: CodeSandbox + Storybook 링크`,
+  },
+  'theme-sustainable': {
+    name: 'Sustainable Impact',
+    framework: 'Impact & Sustainability Logic Model',
+    sections: ['hero', 'metric_cards', 'star_block', 'text_block', 'closing'],
+    tone: '스토리텔링 서술, SDGs 매핑, 이해관계자 조율 과정, 사회적 가치 수치',
+    structureGuide: `
+- hero: 소셜 미션 선언문 + 누적 임팩트 수치
+- metric_cards: 수혜자 수, 탄소 절감량, 펀딩 금액, SDGs 번호
+- star_block(들): Social Problem → Stakeholders 조율 → Output → Outcome/Impact
+- text_block: 이해관계자 인터뷰 & 변화 사례
+- closing: 임팩트 리포트 PDF`,
+  },
+};
+
+/** 테마 ID → 테마 설정 조회 */
+function getThemeFramework(themeId) {
+  return THEME_FRAMEWORK_GUIDE[themeId] || THEME_FRAMEWORK_GUIDE['theme-lean-dev'];
+}
+
+/**
+ * 테마별 전문가 포트폴리오 생성 프롬프트.
+ * 경험 구조화 데이터(keyExperiences, techStack, metrics 등)를
+ * 테마 프레임워크에 맞는 visual_sections 배열로 변환.
+ *
+ * @param {{ themeId, experiencesData, portfolioMeta }} opts
+ */
+export function buildThemedPortfolioPrompt({ themeId, experiencesData, portfolioMeta }) {
+  const theme = getThemeFramework(themeId);
+
+  // 경험 데이터 직렬화 (핵심 필드만)
+  const expSummary = (experiencesData || []).slice(0, 8).map((exp, idx) => {
+    const sr = exp.structuredResult || exp.frameworkContent || {};
+    const ov = sr.projectOverview || {};
+    const keyExps = (sr.keyExperiences || exp.keyExperiences || []).map(k => ({
+      title: k.title,
+      metric: k.metric, metricLabel: k.metricLabel,
+      beforeMetric: k.beforeMetric, afterMetric: k.afterMetric,
+      situation: k.situation, action: k.action, result: k.result,
+    })).filter(k => k.title || k.metric);
+
+    return {
+      idx,
+      title: exp.company || exp.title || `경험 ${idx + 1}`,
+      role: ov.role || exp.role || '',
+      period: ov.duration || exp.period || '',
+      techStack: ov.techStack || exp.skills || [],
+      intro: sr.intro || sr.overview || ov.summary || exp.description || '',
+      task: sr.task || '',
+      process: sr.process || '',
+      output: sr.output || '',
+      growth: sr.growth || '',
+      // 직군 특화 필드
+      optimization: sr.optimization || '',
+      troubleshooting: sr.troubleshooting || '',
+      businessImpact: sr.businessImpact || sr.msc || '',
+      hypothesis: sr.hypothesis || '',
+      infraArch: sr.infraArch || '',
+      researchApproach: sr.researchApproach || '',
+      keyExperiences: keyExps,
+    };
+  });
+
+  const metaBlock = portfolioMeta ? `
+[Portfolio Meta]
+이름: ${portfolioMeta.userName || ''}
+지원 직무: ${portfolioMeta.targetPosition || ''}
+지원 기업: ${portfolioMeta.targetCompany || ''}
+연락처: ${JSON.stringify(portfolioMeta.contact || {})}` : '';
+
+  return `당신은 ${theme.name} 전문가 포트폴리오를 제작하는 시니어 컨설턴트입니다.
+아래 경험 데이터를 "${theme.framework}" 프레임워크에 맞게 professional한 포트폴리오로 변환하세요.
+${metaBlock}
+
+[테마 톤/방향]
+${theme.tone}
+
+[섹션 구성 가이드 — 반드시 준수]
+${theme.structureGuide}
+
+[경험 데이터]
+${JSON.stringify(expSummary, null, 0).substring(0, 8000)}
+
+─────────────────────────────────────────────
+[visual_sections 타입별 스키마 — 정확히 준수]
+
+▸ type: "hero"
+{ "id": "hero", "type": "hero", "name": "이름", "role": "직무 타이틀",
+  "tagline": "핵심 가치 한 줄 (≤35자)", "tags": ["키워드1","키워드2","키워드3"],
+  "impact_summary": "가장 임팩트 큰 성과 한 줄" }
+
+▸ type: "metric_cards"
+{ "id": "metrics", "type": "metric_cards", "heading": "핵심 성과 지표",
+  "cards": [
+    { "label": "지표명", "value": "수치+단위", "direction": "up|down|neutral",
+      "before": "이전값", "after": "이후값", "context": "짧은 배경" }
+  ] }
+
+▸ type: "star_block"
+{ "id": "proj-0", "type": "star_block", "heading": "프로젝트명 (≤28자)",
+  "subheading": "역할 · 기간", "tech_stack": ["React","Node.js"],
+  "problem": "구체적 문제 (정량 맥락 포함, ≤45자)",
+  "action": ["행동 1 (≤30자)", "행동 2", "행동 3"],
+  "result": ["결과 1 (수치 포함)", "결과 2"],
+  "metrics": [{ "label": "지표", "value": "수치", "before": "이전", "after": "이후" }],
+  "learning": "한 줄 배움 (≤32자)" }
+
+▸ type: "aarrr_funnel"
+{ "id": "funnel", "type": "aarrr_funnel", "heading": "AARRR 퍼널 성과",
+  "funnels": [
+    { "stage": "Acquisition|Activation|Retention|Revenue|Referral",
+      "metric": "지표명", "value": "수치", "before": "", "after": "" }
+  ] }
+
+▸ type: "diamond_steps"
+{ "id": "diamond", "type": "diamond_steps", "heading": "디자인 프로세스",
+  "steps": [
+    { "step": "Discover|Define|Develop|Deliver", "title": "단계 제목",
+      "bullets": ["포인트1", "포인트2"], "outcome": "이 단계 결과물" }
+  ] }
+
+▸ type: "traction_timeline"
+{ "id": "timeline", "type": "traction_timeline", "heading": "실행 타임라인",
+  "events": [
+    { "date": "2024.03", "label": "이벤트명", "description": "한 줄 설명",
+      "type": "milestone|pivot|launch|metric" }
+  ] }
+
+▸ type: "skill_matrix"
+{ "id": "skills", "type": "skill_matrix", "heading": "기술 스택",
+  "groups": [
+    { "label": "그룹명", "items": ["기술1","기술2"] }
+  ] }
+
+▸ type: "bento_grid"
+{ "id": "bento", "type": "bento_grid", "heading": "핵심 지표 대시보드",
+  "cards": [
+    { "title": "카드 제목", "value": "핵심 수치", "unit": "단위",
+      "description": "짧은 설명 (≤25자)", "size": "large|medium|small" }
+  ] }
+
+▸ type: "hypothesis_log"
+{ "id": "hypo", "type": "hypothesis_log", "heading": "가설 검증 로그",
+  "logs": [
+    { "hypothesis": "검증한 가설", "result": "success|fail|pivot",
+      "learning": "배운 점", "pivot_to": "피벗 방향 (fail/pivot 시)" }
+  ] }
+
+▸ type: "text_block"
+{ "id": "text-0", "type": "text_block", "heading": "섹션 제목",
+  "paragraphs": ["문단1 (3줄 이내)", "문단2"] }
+
+▸ type: "closing"
+{ "id": "closing", "type": "closing", "cta_text": "Call-to-Action 문구",
+  "links": [{ "label": "GitHub", "url": "" }, { "label": "이메일", "url": "" }] }
+─────────────────────────────────────────────
+
+[생성 원칙 — 절대 준수]
+1. 경험 데이터에 없는 수치를 창작하지 않는다. 수치가 없으면 정성적 표현만.
+2. 테마 섹션 순서: ${theme.sections.join(' → ')} 순으로 생성.
+3. star_block은 경험마다 1개씩 생성 (최대 5개).
+4. metric_cards의 before/after는 keyExperiences의 beforeMetric/afterMetric에서만 추출.
+5. 개조식·두괄식 문장, 마크다운 기호(**,##) 사용 금지.
+6. 각 visual_section id는 고유해야 한다.
+7. 테마 톤에 맞게 어휘/강조점을 조정한다.
+
+반드시 아래 JSON만 응답 (다른 설명 금지):
+{
+  "theme_id": "${themeId}",
+  "theme_name": "${theme.name}",
+  "visual_sections": [ ... ]
+}`;
+}
+

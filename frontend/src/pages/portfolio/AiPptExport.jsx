@@ -197,40 +197,57 @@ export default function AiPptExport() {
 
 // ── 템플릿 선택 화면 ──────────────────────────────────────────────────────
 function ChooseStage({ templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart }) {
+  const baseTemplates = TEMPLATES.filter(t => !t.category);
+  const themeTemplates = TEMPLATES.filter(t => t.category === 'theme');
+
+  const TemplateCard = ({ t, compact = false }) => (
+    <button
+      key={t.id}
+      onClick={() => setTemplateId(t.id)}
+      className={`text-left rounded-2xl border-2 p-4 transition-all ${templateId === t.id ? 'border-primary-500 bg-primary-50/40' : 'border-surface-200 hover:border-surface-300 bg-white'}`}
+    >
+      <div className={`${compact ? 'aspect-video' : 'aspect-video'} rounded-lg mb-3 overflow-hidden border border-surface-200`} style={{ background: t.colors.bg }}>
+        <div style={{ height: '40%', background: t.colors.headBg, color: t.colors.headFg, padding: '6px 8px', fontFamily: t.fonts.heading, fontSize: compact ? 9 : 11, fontWeight: 700, display: 'flex', alignItems: 'flex-end' }}>
+          {t.name}
+        </div>
+        <div style={{ padding: '7px 8px', fontSize: 8, color: t.colors.sub }}>
+          <div style={{ width: 24, height: 2, background: t.colors.accent, marginBottom: 3 }} />
+          <div style={{ fontFamily: t.fonts.heading, fontWeight: 700, color: t.colors.accent, fontSize: compact ? 8 : 9 }}>슬라이드 제목</div>
+          <div style={{ marginTop: 3 }}>• 합격자 스타일 bullet</div>
+          {!compact && <div>• 수치·기여도 강조</div>}
+        </div>
+      </div>
+      <div className={`font-semibold text-gray-800 ${compact ? 'text-xs' : 'text-sm'}`}>{t.name}</div>
+      <div className={`text-gray-500 mt-0.5 leading-relaxed ${compact ? 'text-[10px]' : 'text-xs'}`}>{t.description}</div>
+      {templateId === t.id && (
+        <div className="mt-2 inline-flex items-center gap-1 text-xs text-primary-600 font-medium">
+          <Check size={11} /> 선택됨
+        </div>
+      )}
+    </button>
+  );
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-2">템플릿을 선택하세요</h2>
-        <p className="text-sm text-gray-500">3개의 합격자 스타일 중 하나를 고르거나, 원하는 .pptx 파일을 업로드해 그 디자인에 맞춰 생성할 수 있습니다.</p>
+        <p className="text-sm text-gray-500">합격자 스타일 3가지와 직군별 디자인 테마 10가지 중 하나를 고르거나, .pptx 파일을 업로드해 그 디자인에 맞춰 생성할 수 있습니다.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {TEMPLATES.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTemplateId(t.id)}
-            className={`text-left rounded-2xl border-2 p-5 transition-all ${templateId === t.id ? 'border-primary-500 bg-primary-50/40' : 'border-surface-200 hover:border-surface-300 bg-white'}`}
-          >
-            <div className="aspect-video rounded-lg mb-4 overflow-hidden border border-surface-200" style={{ background: t.colors.bg }}>
-              <div style={{ height: '40%', background: t.colors.headBg, color: t.colors.headFg, padding: '8px 10px', fontFamily: t.fonts.heading, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'flex-end' }}>
-                {t.name}
-              </div>
-              <div style={{ padding: '10px', fontSize: 9, color: t.colors.sub }}>
-                <div style={{ width: 30, height: 2, background: t.colors.accent, marginBottom: 4 }} />
-                <div style={{ fontFamily: t.fonts.heading, fontWeight: 700, color: t.colors.accent, fontSize: 11 }}>슬라이드 제목</div>
-                <div style={{ marginTop: 4 }}>• 합격자 스타일 bullet</div>
-                <div>• 수치·기여도 강조</div>
-              </div>
-            </div>
-            <div className="font-semibold text-gray-800 text-sm">{t.name}</div>
-            <div className="text-xs text-gray-500 mt-1 leading-relaxed">{t.description}</div>
-            {templateId === t.id && (
-              <div className="mt-3 inline-flex items-center gap-1 text-xs text-primary-600 font-medium">
-                <Check size={12} /> 선택됨
-              </div>
-            )}
-          </button>
-        ))}
+      {/* 합격자 스타일 */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">합격자 스타일</h3>
+        <div className="grid grid-cols-3 gap-4">
+          {baseTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+        </div>
+      </div>
+
+      {/* 직군별 디자인 테마 */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">직군별 디자인 테마</h3>
+        <div className="grid grid-cols-5 gap-3">
+          {themeTemplates.map(t => <TemplateCard key={t.id} t={t} compact />)}
+        </div>
       </div>
 
       <div className="rounded-2xl border-2 border-dashed border-surface-300 p-6 bg-surface-50">

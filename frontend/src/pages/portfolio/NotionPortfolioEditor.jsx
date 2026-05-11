@@ -321,6 +321,7 @@ export default function NotionPortfolioEditor() {
 
   const [portfolio, setPortfolio] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [generatingThemed, setGeneratingThemed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('profile');
   const [userExperiences, setUserExperiences] = useState([]);
@@ -619,6 +620,23 @@ export default function NotionPortfolioEditor() {
     setSaving(false);
   };
 
+  const handleGenerateThemed = async () => {
+    const themeId = portfolio?.templateId?.startsWith('theme-')
+      ? portfolio.templateId
+      : 'theme-notion-pm'; // 테마 미설정 포트폴리오의 기본 테마
+    setGeneratingThemed(true);
+    try {
+      const { data } = await api.post('/portfolio/generate-themed', { portfolioId: id, themeId });
+      setPortfolio(prev => ({ ...prev, visual_sections: data.visual_sections, visual_sections_theme: themeId }));
+      toast.success(`전문가 포트폴리오 생성 완료! ${data.visual_sections.length}개 섹션`);
+      navigate(`/app/portfolio/preview/${id}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'AI 생성 실패. 다시 시도해주세요.');
+    } finally {
+      setGeneratingThemed(false);
+    }
+  };
+
   const importExperience = (exp) => {
     const aiResult = exp.structuredResult || {};
     const savedExportCfg = aiResult.exportConfig;
@@ -694,7 +712,7 @@ export default function NotionPortfolioEditor() {
   return (
     <div className="animate-fadeIn w-full">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
           <ArrowLeft size={14} /> 목록으로
         </Link>
@@ -730,6 +748,21 @@ export default function NotionPortfolioEditor() {
             <Download size={14} /> 미리보기 · PPT
           </button>
         </div>
+      </div>
+
+      {/* AI 전문가 포트폴리오 생성 배너 */}
+      <div className="flex items-center justify-between bg-white border border-surface-200 rounded-xl px-5 py-3 mb-6">
+        <div>
+          <p className="text-[13px] font-bold text-slate-800">AI 전문가 포트폴리오 자동 생성</p>
+          <p className="text-[12px] text-bluewood-400 mt-0.5">경험 데이터를 바탕으로 시각적 포트폴리오를 자동으로 만들어드립니다</p>
+        </div>
+        <button
+          onClick={handleGenerateThemed}
+          disabled={generatingThemed}
+          className="px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm shadow-primary-100 flex-shrink-0"
+        >
+          {generatingThemed ? 'AI 생성 중...' : 'AI 포트폴리오 생성'}
+        </button>
       </div>
 
       {/* 포트폴리오 요건 체크리스트 — floating toast */}
