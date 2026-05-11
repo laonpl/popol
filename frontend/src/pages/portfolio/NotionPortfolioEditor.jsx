@@ -7,7 +7,7 @@ import {
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronRight, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
-  Mic, Users, Zap, Check, Building2, ExternalLink, PenLine, Database, Copy
+  Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -725,7 +725,7 @@ export default function NotionPortfolioEditor() {
                 : 'bg-white text-bluewood-400 border-surface-200 hover:text-primary-600 hover:border-primary-300'
             }`}
           >
-            <Building2 size={14} /> 기업 분석
+            기업 분석
           </button>
           <button
             onClick={handleReview}
@@ -964,9 +964,9 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
           </>
         ) : !showJobInput ? (
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
-            <p className="text-[13px] font-bold text-primary-600 tracking-[-0.01em]">채용공고 AI 분석</p>
+            <p className="text-[13px] font-bold text-primary-600 tracking-[-0.01em]">채용공고 분석</p>
             <p className="text-[12px] text-bluewood-400 leading-relaxed">
-              지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
+              지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
             </p>
             <button onClick={() => setShowJobInput(true)}
               className="w-full py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100 tracking-wide">
@@ -1139,7 +1139,6 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
 
             {jobAnalysis?.company && (
               <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                <Building2 size={14} className="text-blue-600" />
                 <span className="text-xs font-medium text-blue-800 truncate">{jobAnalysis.company}</span>
                 {jobAnalysis.position && <span className="text-xs text-blue-500 flex-shrink-0">· {jobAnalysis.position}</span>}
               </div>
@@ -1148,7 +1147,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
             {loading ? (
               <div className="flex flex-col items-center py-10">
                 <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
-                <p className="text-sm text-gray-500">AI가 추천 내용을 구성 중입니다...</p>
+                <p className="text-sm text-gray-500">추천 내용을 구성 중입니다...</p>
                 <p className="text-xs text-gray-400 mt-1">기업 분석과 현재 섹션 목적을 기준으로 정리합니다</p>
               </div>
             ) : data?.recommendations ? (
@@ -1741,7 +1740,6 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {/* 기업 정보 */}
               {jobAnalysis?.company && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                  <Building2 size={14} className="text-blue-600" />
                   <span className="text-xs font-medium text-blue-800">{jobAnalysis.company}</span>
                   {jobAnalysis.position && <span className="text-xs text-blue-500">· {jobAnalysis.position}</span>}
                 </div>
@@ -1751,7 +1749,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               {tailoring && (
                 <div className="flex flex-col items-center py-10">
                   <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
-                  <p className="text-sm text-gray-500">AI가 첨삭 중입니다...</p>
+                  <p className="text-sm text-gray-500">첨삭 중입니다...</p>
                   <p className="text-xs text-gray-400 mt-1">
                     {tailorMode === 'key' ? '핵심 경험을 기업에 맞게 재구성합니다' : '7개 섹션을 기업에 맞게 재구성합니다'}
                   </p>
@@ -3247,16 +3245,13 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           ) : !showJobInput ? (
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
+                  <p className="text-sm font-bold text-blue-900">채용공고 분석</p>
                   <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
               <p className="text-xs text-blue-600 leading-relaxed mb-4">
-                지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
+                지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
               </p>
               <button
                 onClick={() => setShowJobInput(true)}
@@ -4352,16 +4347,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           ) : !showJobInput ? (
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Building2 size={20} className="text-white" />
-                </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-900">채용공고 AI 분석</p>
+                  <p className="text-sm font-bold text-blue-900">채용공고 분석</p>
                   <p className="text-xs text-blue-500">기업·직무·전략을 한눈에</p>
                 </div>
               </div>
               <p className="text-xs text-blue-600 leading-relaxed mb-4">
-                지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 AI가 자동 정리합니다.
+                지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
               </p>
               <button
                 onClick={() => setShowJobInput(true)}

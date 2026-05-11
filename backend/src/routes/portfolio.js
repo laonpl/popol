@@ -230,15 +230,35 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
   }
 });
 
-// POST /api/portfolio/ai-ppt-analyze - 노션형 포트폴리오 → AI PPT 슬라이드 JSON 생성
+// POST /api/portfolio/ai-ppt-analyze - 경험정리 → 1번 제안서형 PPT deck 생성
 router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
-    const { portfolioId, templateHint, customTemplate } = req.body;
+    const { portfolioId } = req.body;
     if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다' });
     const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
     if (!snap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다' });
     const portfolio = { id: snap.id, ...snap.data() };
-    const deck = await generateAiPptDeck({ portfolio, templateHint, customTemplate });
+    if (portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
+
+    const experienceIds = Array.isArray(portfolio.experienceIds) ? portfolio.experienceIds : [];
+    if (experienceIds.length > 0) {
+      const expSnaps = await Promise.all(
+        experienceIds.slice(0, 12).map(eid => adminDb.collection('experiences').doc(eid).get())
+      );
+      const linkedExperiences = expSnaps
+        .filter(s => s.exists)
+        .map(s => ({ id: s.id, ...s.data() }))
+        .filter(exp => exp.userId === req.user.uid);
+      portfolio.experiences = linkedExperiences.length ? linkedExperiences : (portfolio.experiences || []);
+    }
+    if (!Array.isArray(portfolio.experiences) || portfolio.experiences.length === 0) {
+      const expSnap = await adminDb.collection('experiences')
+        .where('userId', '==', req.user.uid)
+        .limit(12)
+        .get();
+      portfolio.experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    const deck = await generateAiPptDeck({ portfolio, templateHint: 'standard:proposal', customTemplate: null });
     res.json({ deck });
   } catch (error) {
     console.error('[POST /portfolio/ai-ppt-analyze]', error);

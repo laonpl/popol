@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, Building2, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
@@ -1462,9 +1462,6 @@ export default function StructuredResult() {
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="px-5 py-4">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
-                      <Building2 size={18} className="text-blue-600" />
-                    </div>
                     <div>
                       <p className="text-sm font-bold text-blue-900">기업 분석</p>
                       <p className="text-[19px] text-blue-400">채용공고 URL을 입력하세요</p>

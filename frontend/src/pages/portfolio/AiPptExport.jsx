@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
-import { TEMPLATES, getTemplate, SlidePreview, exportDeckToPptx } from './aiPptTemplates';
+import { getComposedTemplate, SlidePreview, exportDeckToPptx, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 
@@ -16,7 +16,7 @@ export default function AiPptExport() {
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState(STAGE.CHOOSE);
-  const initTemplate = searchParams.get('template') || 'modern';
+  const initTemplate = searchParams.get('template') || 'proposal';
   const autostart = searchParams.get('autostart') === 'true';
   const [templateId, setTemplateId] = useState(initTemplate);
   const [customFile, setCustomFile] = useState(null);
@@ -32,6 +32,7 @@ export default function AiPptExport() {
   const fileInputRef = useRef(null);
 
   const autoStartFiredRef = useRef(false);
+  const [layoutId, setLayoutId] = useState('standard');
 
   useEffect(() => {
     (async () => {
@@ -76,10 +77,10 @@ export default function AiPptExport() {
         setCustomResult(data);
         setStage(STAGE.PREVIEW);
       } else {
-        // 기존 파이프라인: Notion 스타일 슬라이드 생성
+        // 1번 템플릿 파이프라인: 첨부 PPT형 제안서 deck 생성
         const { data } = await api.post('/portfolio/ai-ppt-analyze', {
           portfolioId: id,
-          templateHint: templateId,
+          templateHint: `${layoutId}:${templateId}`,
           customTemplate: null,
         });
         if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
@@ -116,7 +117,7 @@ export default function AiPptExport() {
     if (!deck) return;
     setExporting(true);
     try {
-      const template = getTemplate(templateId);
+      const template = getComposedTemplate(layoutId, templateId);
       const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId}.pptx`;
       await exportDeckToPptx(deck, template, fileName);
       toast.success('PPT 다운로드를 시작합니다');
@@ -158,12 +159,14 @@ export default function AiPptExport() {
 
       {stage === STAGE.CHOOSE && (
         <ChooseStage
+          layoutId={layoutId}
+          setLayoutId={setLayoutId}
           templateId={templateId}
           setTemplateId={setTemplateId}
           customFileName={customFileName}
           fileInputRef={fileInputRef}
           onUpload={handleCustomUpload}
-          onClearCustom={() => { setCustomFile(null); setCustomFileName(''); if (templateId === 'custom') setTemplateId('modern'); }}
+          onClearCustom={() => { setCustomFile(null); setCustomFileName(''); if (templateId === 'custom') setTemplateId('proposal'); }}
           onStart={startAnalyze}
         />
       )}
@@ -190,7 +193,7 @@ export default function AiPptExport() {
           ) : deck ? (
             <PreviewStage
               deck={deck}
-              template={getTemplate(templateId)}
+              template={getComposedTemplate(layoutId, templateId)}
               portfolioId={id}
               selectedIdx={selectedSlideIdx}
               setSelectedIdx={setSelectedSlideIdx}
@@ -209,91 +212,237 @@ export default function AiPptExport() {
   );
 }
 
-// ── 템플릿 선택 화면 ──────────────────────────────────────────────────────
-function ChooseStage({ templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart }) {
-  const baseTemplates = TEMPLATES.filter(t => !t.category);
-  const themeTemplates = TEMPLATES.filter(t => t.category === 'theme');
-
-  const TemplateCard = ({ t, compact = false }) => (
-    <button
-      key={t.id}
-      onClick={() => setTemplateId(t.id)}
-      className={`text-left rounded-2xl border-2 p-4 transition-all ${templateId === t.id ? 'border-primary-500 bg-primary-50/40' : 'border-surface-200 hover:border-surface-300 bg-white'}`}
-    >
-      <div className={`${compact ? 'aspect-video' : 'aspect-video'} rounded-lg mb-3 overflow-hidden border border-surface-200`} style={{ background: t.colors.bg }}>
-        <div style={{ height: '40%', background: t.colors.headBg, color: t.colors.headFg, padding: '6px 8px', fontFamily: t.fonts.heading, fontSize: compact ? 9 : 11, fontWeight: 700, display: 'flex', alignItems: 'flex-end' }}>
-          {t.name}
+// ── 레이아웃 썸네일 미리보기 ─────────────────────────────────────────────
+function LayoutThumb({ layoutId }) {
+  if (layoutId === 'standard') {
+    return (
+      <div className="w-full h-full p-2 flex flex-col gap-1">
+        <div className="w-full flex-shrink-0 h-[32%] rounded bg-slate-800 flex items-end px-2 pb-1.5 gap-1">
+          <div className="w-10 h-1.5 bg-white/70 rounded" />
+          <div className="w-6 h-1 bg-white/30 rounded" />
         </div>
-        <div style={{ padding: '7px 8px', fontSize: 8, color: t.colors.sub }}>
-          <div style={{ width: 24, height: 2, background: t.colors.accent, marginBottom: 3 }} />
-          <div style={{ fontFamily: t.fonts.heading, fontWeight: 700, color: t.colors.accent, fontSize: compact ? 8 : 9 }}>슬라이드 제목</div>
-          <div style={{ marginTop: 3 }}>• 합격자 스타일 bullet</div>
-          {!compact && <div>• 수치·기여도 강조</div>}
-        </div>
-      </div>
-      <div className={`font-semibold text-gray-800 ${compact ? 'text-xs' : 'text-sm'}`}>{t.name}</div>
-      <div className={`text-gray-500 mt-0.5 leading-relaxed ${compact ? 'text-[10px]' : 'text-xs'}`}>{t.description}</div>
-      {templateId === t.id && (
-        <div className="mt-2 inline-flex items-center gap-1 text-xs text-primary-600 font-medium">
-          <Check size={11} /> 선택됨
-        </div>
-      )}
-    </button>
-  );
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">템플릿을 선택하세요</h2>
-        <p className="text-sm text-gray-500">합격자 스타일 3가지와 직군별 디자인 테마 10가지 중 하나를 고르거나, .pptx 파일을 업로드해 그 디자인에 맞춰 생성할 수 있습니다.</p>
-      </div>
-
-      {/* 합격자 스타일 */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">합격자 스타일</h3>
-        <div className="grid grid-cols-3 gap-4">
-          {baseTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+        <div className="flex gap-1 flex-1">
+          <div className="flex-1 rounded bg-white border border-gray-200 p-1.5 flex flex-col gap-0.5">
+            <div className="w-full h-1 bg-gray-300 rounded" />
+            <div className="w-3/4 h-1 bg-gray-200 rounded" />
+            <div className="w-full h-1 bg-gray-200 rounded" />
+            <div className="w-5/6 h-1 bg-gray-200 rounded" />
+          </div>
+          <div className="flex-1 rounded bg-white border border-gray-200 p-1.5 flex flex-col gap-0.5">
+            <div className="w-full h-1 bg-gray-300 rounded" />
+            <div className="w-2/3 h-1 bg-gray-200 rounded" />
+            <div className="w-full h-1 bg-gray-200 rounded" />
+          </div>
         </div>
       </div>
+    );
+  }
+  return null;
+}
 
-      {/* 직군별 디자인 테마 */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">직군별 디자인 테마</h3>
-        <div className="grid grid-cols-5 gap-3">
-          {themeTemplates.map(t => <TemplateCard key={t.id} t={t} compact />)}
-        </div>
-      </div>
+// ── 템플릿 선택 화면 (2단계: 레이아웃 → 팔레트) ──────────────────────────
+function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart }) {
+  const [step, setStep] = useState('layout');
+  const [hoveredPalette, setHoveredPalette] = useState(null);
+  const selectedLayout = SLIDE_LAYOUTS.find(l => l.id === layoutId);
+  const selectedPalette = COLOR_PALETTES.find(p => p.id === templateId);
+  const paletteSwatches = COLOR_PALETTES.map(p => {
+    const safeColors = getComposedTemplate(layoutId, p.id).colors;
+    return {
+      ...p,
+      swatches: [safeColors.headBg, safeColors.accentOnBg || safeColors.accent, safeColors.neutral, safeColors.bg],
+    };
+  });
 
-      <div className="rounded-2xl border-2 border-dashed border-surface-300 p-6 bg-surface-50">
-        <div className="flex items-start justify-between gap-4">
+  // 실시간 미리보기: 호버 중인 팔레트 > 선택된 팔레트
+  const previewId = hoveredPalette || templateId;
+  const previewTemplate = getComposedTemplate(layoutId, previewId);
+  const previewPalette = COLOR_PALETTES.find(p => p.id === previewId);
+  const SAMPLE_SLIDE = { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' };
+  const PREVIEW_W = 540;
+
+  // ── 팔레트 선택 단계 ────────────────────────────────────────────────────
+  if (step === 'palette') {
+    return (
+      <div className="space-y-6">
+        {/* 헤더 */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setStep('layout')} className="p-2 rounded-lg hover:bg-surface-100 text-gray-400 hover:text-gray-600 transition-colors">
+            <ArrowLeft size={18} />
+          </button>
           <div>
-            <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
-              <Upload size={16} /> 내 템플릿 업로드 (선택)
-            </h3>
-            <p className="text-sm text-gray-500">원하는 디자인의 .pptx 파일을 올리면 그 디자인을 100% 보존한 채 포트폴리오 내용이 채워집니다.</p>
-            {customFileName && (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-surface-200 rounded-lg text-xs">
-                <Check size={12} className="text-green-600" />
-                <span className="font-medium text-gray-700">{customFileName}</span>
-                <button onClick={onClearCustom} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
+            <h2 className="text-xl font-semibold text-gray-800">색상 팔레트를 선택하세요</h2>
+            <p className="text-sm text-gray-400 mt-0.5">레이아웃: <span className="font-medium text-gray-600">{selectedLayout?.name}</span></p>
+          </div>
+        </div>
+
+        {/* 2-column: 스워치 + 실시간 미리보기 */}
+        <div className="flex gap-8 items-start">
+          {/* Left: 팔레트 스워치 */}
+          <div className="flex-shrink-0 w-52 space-y-3">
+            <p className="text-xs font-medium text-gray-400">팔레트 — 마우스를 올리면 미리보기</p>
+            <div className="flex flex-wrap gap-2">
+              {paletteSwatches.map(p => (
+                <div key={p.id} className="relative group">
+                  <button
+                    onClick={() => setTemplateId(p.id)}
+                    onMouseEnter={() => setHoveredPalette(p.id)}
+                    onMouseLeave={() => setHoveredPalette(null)}
+                    className={`flex items-center gap-0.5 p-1.5 rounded-xl border-2 transition-all duration-150 ${
+                      templateId === p.id
+                        ? 'border-primary-500 shadow-sm scale-105'
+                        : 'border-transparent hover:border-surface-300 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    {p.swatches.map((c, i) => (
+                      <span
+                        key={i}
+                        style={{ background: c, width: 13, height: 13, borderRadius: 3, display: 'inline-block', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 }}
+                      />
+                    ))}
+                  </button>
+                  {/* 호버 툴팁 */}
+                  <div className="pointer-events-none absolute left-0 top-full mt-1.5 z-50 hidden group-hover:block bg-gray-900 text-white text-xs px-3 py-2 rounded-xl shadow-2xl" style={{ minWidth: 160 }}>
+                    <div className="font-semibold text-white">{p.name}</div>
+                    <div className="text-gray-400 mt-0.5 text-[10px] leading-snug">{p.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 선택된 팔레트 정보 */}
+            {selectedPalette && (
+              <div className="mt-3 px-3 py-2.5 bg-surface-50 rounded-xl border border-surface-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Check size={11} className="text-primary-500" />
+                  <span className="text-xs font-semibold text-gray-700">{selectedPalette.name}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 leading-snug">{selectedPalette.description}</p>
               </div>
             )}
+
+            {/* PPTX 직접 업로드 */}
+            <div className="pt-1">
+              <p className="text-xs font-medium text-gray-400 mb-1.5">또는 PPTX 직접 업로드</p>
+              <input ref={fileInputRef} type="file" accept=".pptx" className="hidden" onChange={e => onUpload(e.target.files?.[0])} />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-surface-300 rounded-lg text-xs font-medium hover:bg-surface-50 transition-colors"
+              >
+                <Upload size={12} /> 파일 선택
+              </button>
+              {customFileName && (
+                <div className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-surface-200 rounded-lg text-xs">
+                  <Check size={10} className="text-green-500" />
+                  <span className="truncate text-gray-600 flex-1">{customFileName}</span>
+                  <button onClick={onClearCustom} className="text-gray-400 hover:text-gray-600 flex-shrink-0"><X size={10} /></button>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <input ref={fileInputRef} type="file" accept=".pptx" className="hidden" onChange={e => onUpload(e.target.files?.[0])} />
-            <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-white border border-surface-300 rounded-lg text-sm font-medium hover:bg-surface-100">
-              파일 선택
-            </button>
+
+          {/* Right: 실시간 슬라이드 미리보기 */}
+          <div className="flex-1 space-y-2">
+            <p className="text-xs font-medium text-gray-400">
+              미리보기 — <span className="text-gray-700 font-semibold">{previewPalette?.name}</span>
+            </p>
+            <div
+              style={{
+                width: PREVIEW_W,
+                height: Math.round(PREVIEW_W * 9 / 16),
+                overflow: 'hidden',
+                borderRadius: 12,
+                boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+                border: '1px solid rgba(0,0,0,0.07)',
+                transition: 'box-shadow 0.15s',
+              }}
+            >
+              <SlidePreview
+                slide={SAMPLE_SLIDE}
+                template={previewTemplate}
+                scale={PREVIEW_W / 960}
+                index={0}
+              />
+            </div>
+            <p className="text-[10px] text-gray-400">커버 슬라이드 미리보기 · 팔레트에 마우스를 올리면 실시간으로 바뀝니다</p>
           </div>
         </div>
+
+        {/* 생성 버튼 */}
+        <div className="flex justify-between items-center pt-2">
+          <div className="text-sm text-gray-500">
+            선택: <span className="font-semibold text-gray-700">{selectedLayout?.name}</span>
+            <span className="mx-2 text-gray-300">+</span>
+            <span className="font-semibold text-gray-700">{customFileName || selectedPalette?.name}</span>
+          </div>
+          <button
+            onClick={onStart}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-semibold hover:from-primary-700 hover:to-primary-800 shadow-sm transition-all"
+          >
+            AI로 PPT 생성하기 <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 레이아웃 선택 단계 ──────────────────────────────────────────────────
+  return (
+    <div className="space-y-7">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-1">슬라이드 구성 방식을 선택하세요</h2>
+        <p className="text-sm text-gray-500">6가지 레이아웃 중 하나를 고르면 AI가 그 구조에 맞게 내용을 생성합니다. 이후 색상 팔레트를 선택할 수 있습니다.</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        {SLIDE_LAYOUTS.map(layout => (
+          <button
+            key={layout.id}
+            onClick={() => layout.available && setLayoutId(layout.id)}
+            disabled={!layout.available}
+            className={`relative text-left rounded-2xl border-2 p-4 transition-all ${
+              !layout.available
+                ? 'cursor-not-allowed border-surface-100 bg-surface-50 opacity-60'
+                : layoutId === layout.id
+                  ? 'border-primary-500 bg-primary-50/30'
+                  : 'border-surface-200 hover:border-surface-300 bg-white'
+            }`}
+          >
+            {/* 썸네일 */}
+            <div className="w-full h-32 rounded-lg mb-3 bg-gray-50 border border-surface-200 overflow-hidden flex items-center justify-center">
+              {layout.available
+                ? <LayoutThumb layoutId={layout.id} />
+                : <Lock size={22} className="text-gray-300" />
+              }
+            </div>
+
+            {/* 태그 */}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-semibold text-gray-800">{layout.name}</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                layout.available ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-200 text-gray-400'
+              }`}>
+                {layout.tag}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 leading-snug">{layout.description}</p>
+
+            {layoutId === layout.id && layout.available && (
+              <div className="mt-2 inline-flex items-center gap-1 text-xs text-primary-600 font-medium">
+                <Check size={11} /> 선택됨
+              </div>
+            )}
+          </button>
+        ))}
       </div>
 
       <div className="flex justify-end">
         <button
-          onClick={onStart}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-medium hover:from-primary-700 hover:to-primary-800 shadow-sm"
+          onClick={() => setStep('palette')}
+          disabled={!SLIDE_LAYOUTS.find(l => l.id === layoutId)?.available}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 disabled:opacity-40 transition-colors"
         >
-          해당 템플릿으로 PPT 제작하기
+          다음: 색상 팔레트 선택 <ChevronRight size={16} />
         </button>
       </div>
     </div>

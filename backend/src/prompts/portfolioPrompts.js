@@ -251,25 +251,21 @@ ${(expText || '등록된 경험 없음').substring(0, 2000)}
 export function buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck }) {
   if (baseDeck && Array.isArray(baseDeck.slides) && baseDeck.slides.length) {
     const target = `${portfolio.targetCompany || ''} ${portfolio.targetPosition || ''}`.trim();
-    return `합격자 포트폴리오 PPT 컨설턴트입니다. 아래 슬라이드 deck의 문구를 더 임팩트 있게 다듬어주세요.
+    return `제안서형 PPT 편집자입니다. 아래 1번 템플릿 deck의 문구만 다듬어주세요.
 
 원칙(반드시 지킬 것):
-- 슬라이드의 id, layout 그대로 유지
+- 슬라이드의 id, layout, sectionLabel, proposalVariant, dark, table, metrics, 순서 그대로 유지
+- '목차', '제안 배경', '자사 소개', '서비스 방안', '계획 및 조건', '마무리' 흐름과 1번 템플릿 장표 수를 절대 줄이지 말 것
+- proposalVariant(contents, threeCards, splitPhotoList, timeline, darkStats, bubbleCore, comparison, metricBars, graphCallout, synergy, venn, stairSteps, roleTable, targetCircle, caseGrid, testimonial, conditionGrid, criteria, gantt, stageCards, pyramid, faqCards, promise, budget, risk, orbit, closing 등)는 절대 변경하지 말 것
+- profile, education, experience, skills, awards, values, contact 레이아웃을 새로 만들거나 제목으로 쓰지 말 것
+- '프로필', 'Education', '학력', '핵심 경험' 같은 기존 포트폴리오 섹션명으로 되돌리지 말 것
+- 포트폴리오 문서/노션 페이지 형식으로 바꾸지 말고, 첨부 PPT 이미지처럼 제안서형 섹션 구성으로 유지할 것
+- 장표 구조/구성/순서는 수정 금지. 제목·본문 표현만 더 자연스럽게 정리할 것
 - bullet은 짧고 명사형(15자 내외), 두괄식, 수치/결과 강조
 - items 안의 heading/period는 그대로 두되 body·bullets는 다듬어도 됨
 - metrics 배열의 label/value/before/after는 절대 임의 변경 금지(원본 그대로 유지)
 - 빈 bullet/items는 새로 만들지 말고 그대로 두세요
 - 지원처: ${target || '미정'}에 부합하도록 강조 포인트만 조정
-
-★ experience 레이아웃 슬라이드 추가 규칙 (합격자 PPT 핵심):
-- layout_type: 'SPLIT_HALF' | 'CENTER_METRIC' | 'STACK_LIST' 중 하나
-  · CENTER_METRIC: highlight_metric이 있고 details 텍스트가 매우 짧을 때 (큰 지표 한방)
-  · SPLIT_HALF: highlight_metric + STAR(P/A/R) 모두 있을 때 (좌우 분할)
-  · STACK_LIST: 지표가 약하거나 일반 bullet 위주일 때
-  → 원본 layout_type을 존중하되, 분량에 맞지 않으면 위 기준으로 변경 가능
-- details.problem / details.action / details.result : STAR(문제-행동-성과) 구조로 다듬기
-  · 각 항목 1~3개의 짧은 명사형 문장 (40자 이내)
-- highlight_metric { label, value, before, after } : 절대 임의 변경 금지(원본 그대로)
 
 원본 deck (이 구조 그대로 같은 키로 응답):
 ${JSON.stringify(baseDeck).substring(0, 8000)}
