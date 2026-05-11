@@ -251,15 +251,16 @@ ${(expText || '등록된 경험 없음').substring(0, 2000)}
 export function buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck }) {
   if (baseDeck && Array.isArray(baseDeck.slides) && baseDeck.slides.length) {
     const target = `${portfolio.targetCompany || ''} ${portfolio.targetPosition || ''}`.trim();
-    return `제안서형 PPT 편집자입니다. 아래 1번 템플릿 deck의 문구만 다듬어주세요.
+    return `포트폴리오형 PPT 편집자입니다. 아래 1번 템플릿 deck의 문구만 다듬어주세요.
 
 원칙(반드시 지킬 것):
 - 슬라이드의 id, layout, sectionLabel, proposalVariant, dark, table, metrics, 순서 그대로 유지
-- '목차', '제안 배경', '자사 소개', '서비스 방안', '계획 및 조건', '마무리' 흐름과 1번 템플릿 장표 수를 절대 줄이지 말 것
+  - '목차', '포트폴리오 개요', '경험 흐름', '대표 프로젝트', '직무 적합성', '성장 계획', '마무리' 흐름과 1번 템플릿 장표 수를 절대 줄이지 말 것
 - proposalVariant(contents, threeCards, splitPhotoList, timeline, darkStats, bubbleCore, comparison, metricBars, graphCallout, synergy, venn, stairSteps, roleTable, targetCircle, caseGrid, testimonial, conditionGrid, criteria, gantt, stageCards, pyramid, faqCards, promise, budget, risk, orbit, closing 등)는 절대 변경하지 말 것
 - profile, education, experience, skills, awards, values, contact 레이아웃을 새로 만들거나 제목으로 쓰지 말 것
 - '프로필', 'Education', '학력', '핵심 경험' 같은 기존 포트폴리오 섹션명으로 되돌리지 말 것
-- 포트폴리오 문서/노션 페이지 형식으로 바꾸지 말고, 첨부 PPT 이미지처럼 제안서형 섹션 구성으로 유지할 것
+  - 회사 소개, 서비스 소개, 채용 대행, 비용/계약 조건처럼 보이는 문구는 쓰지 말 것
+  - 포트폴리오 문서/노션 페이지 형식으로 바꾸지 말고, 첨부 PPT 이미지처럼 전문적인 발표형 섹션 구성으로 유지할 것
 - 장표 구조/구성/순서는 수정 금지. 제목·본문 표현만 더 자연스럽게 정리할 것
 - bullet은 짧고 명사형(15자 내외), 두괄식, 수치/결과 강조
 - items 안의 heading/period는 그대로 두되 body·bullets는 다듬어도 됨

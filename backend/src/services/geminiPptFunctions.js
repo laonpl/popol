@@ -101,6 +101,11 @@ function buildProposalDeckFromPortfolio(p) {
     const fromExp = expItems.flatMap(e => e.bullets || []).filter(Boolean);
     return (fromExp.length ? fromExp : fallback).slice(0, 6);
   };
+  const expAt = (index) => expItems[index % expItems.length] || expItems[0] || {};
+  const expPoint = (index, fallback) => {
+    const e = expAt(index);
+    return e.bullets?.[0] || e.body || fallback;
+  };
 
   slides.push({
     id: 's1',
@@ -117,33 +122,34 @@ function buildProposalDeckFromPortfolio(p) {
     proposalVariant: 'contents',
     title: '목차',
     items: [
-      { heading: '제안 배경', role: 'Background', body: '지원 직무와 경험 연결 기준' },
-      { heading: '자사 소개', role: 'Candidate Overview', body: `${userName}의 핵심 역량` },
-      { heading: '서비스 방안', role: 'Portfolio Approach', body: '경험 기반 문제 해결 사례' },
-      { heading: '계획 및 조건', role: 'Plan & Terms', body: '협업 방식과 성장 가능성' },
+      { heading: '포트폴리오 개요', role: 'Overview', body: '지원 방향과 핵심 메시지' },
+      { heading: '경험 흐름', role: 'Experience Map', body: `${userName}의 성장 과정과 역할 변화` },
+      { heading: '대표 프로젝트', role: 'Project Evidence', body: '문제 해결 과정과 성과 증거' },
+      { heading: '직무 적합성', role: 'Fit & Impact', body: target ? `${target}와 연결되는 역량` : '지원 직무와 연결되는 역량' },
+      { heading: '성장 계획', role: 'Next Step', body: '입사 후 기여 방향과 확장 가능성' },
     ],
   });
 
   slides.push({
     id: 's3',
     layout: 'proposal',
-    sectionLabel: '제안 배경',
+    sectionLabel: '포트폴리오 개요',
     proposalVariant: 'threeCards',
-    title: target ? `왜 지금, ${target}에 맞는 경험 증명이 필요한가요?` : '왜 지금, 경험 기반 포트폴리오가 필요한가요?',
-    subtitle: '경험은 많아도 채용 담당자가 바로 이해할 수 있는 구조로 재정리되어야 합니다',
+    title: target ? `${target}에 맞춘 포트폴리오 방향입니다` : '이 포트폴리오가 보여주는 핵심 방향입니다',
+    subtitle: '지원 직무가 요구하는 역량을 실제 경험과 성과로 설명합니다',
     items: [
-      { heading: '채용 환경 변화', body: '단순 스펙보다 문제 해결 과정과 역할 기여도를 확인합니다' },
-      { heading: `${userName}의 과제`, body: primary.heading ? `${primary.heading} 경험을 직무 언어로 재구성해야 합니다` : '흩어진 경험을 직무 기준으로 연결해야 합니다' },
-      { heading: '포트폴리오 필요성', body: '성과와 학습을 한눈에 볼 수 있는 제안서형 구조가 필요합니다' },
+      { heading: '지원 방향', body: target ? `${target}에서 요구되는 역할과 연결되는 경험을 선별했습니다` : '지원 직무와 연결되는 경험을 선별했습니다' },
+      { heading: `${userName}의 강점`, body: strengths[0] || primary.heading || '문제 해결 과정과 실행력을 중심으로 보여줍니다' },
+      { heading: '증거 중심 구성', body: firstMetric.label ? `${firstMetric.label} 등 실제 성과를 근거로 설득합니다` : '과정과 결과를 함께 보여주는 구조로 구성했습니다' },
     ],
   });
 
   slides.push({
     id: 's4',
     layout: 'proposal',
-    sectionLabel: '제안 배경',
+    sectionLabel: '포트폴리오 개요',
     proposalVariant: 'splitPhotoList',
-    title: target ? `${target} 속 경험 증명이 요구됩니다` : '지원 직무 속 경험 증명이 요구됩니다',
+    title: target ? `${target}와 연결되는 대표 경험입니다` : '지원 직무와 연결되는 대표 경험입니다',
     subtitle: '대표 수행 사례를 기반으로 직무 적합성과 실행 가능성을 설명합니다',
     items: expItems.slice(0, 3).map(e => ({ heading: e.heading, role: e.role || e.period, body: e.body || (e.bullets || [])[0] || '' })),
   });
@@ -151,7 +157,7 @@ function buildProposalDeckFromPortfolio(p) {
   slides.push({
     id: 's5',
     layout: 'proposal',
-    sectionLabel: '자사 소개',
+    sectionLabel: '경험 흐름',
     proposalVariant: 'timeline',
     title: `${userName}의 경험 흐름을 소개합니다`,
     subtitle: '주요 경험이 어떻게 이어지고 성장했는지 시간 순서로 보여줍니다',
@@ -161,7 +167,7 @@ function buildProposalDeckFromPortfolio(p) {
   slides.push({
     id: 's6',
     layout: 'proposal',
-    sectionLabel: '자사 소개',
+    sectionLabel: '경험 흐름',
     proposalVariant: 'darkStats',
     dark: true,
     title: `${userName}의 검증된 실행력입니다`,
@@ -177,7 +183,7 @@ function buildProposalDeckFromPortfolio(p) {
   slides.push({
     id: 's7',
     layout: 'proposal',
-    sectionLabel: '자사 소개',
+    sectionLabel: '경험 흐름',
     proposalVariant: 'bubbleCore',
     title: `${userName}를 완성하는 핵심입니다`,
     subtitle: '반복적으로 드러난 강점을 중심으로 후보자 경쟁력을 설명합니다',
@@ -187,9 +193,9 @@ function buildProposalDeckFromPortfolio(p) {
   slides.push({
     id: 's8',
     layout: 'proposal',
-    sectionLabel: '제안 배경',
+    sectionLabel: '포트폴리오 개요',
     proposalVariant: 'comparison',
-    title: '환경 변화에 따른 포트폴리오 구조의 필요성입니다',
+    title: '지원 직무와 보유 경험의 연결 구조입니다',
     subtitle: '지원 직무의 요구와 보유 경험 사이의 연결을 명확히 만듭니다',
     items: [
       { heading: '외부환경 측면', body: target ? `${target}에 맞는 경험 해석과 증거가 필요합니다` : '채용 과정에서 직무 맥락과 증거가 중요해졌습니다' },
@@ -197,97 +203,97 @@ function buildProposalDeckFromPortfolio(p) {
     ],
   });
 
-  slides.push({ id: 's9', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'metricBars', title: '기업의 채용 과제를 해결하는 차별화된 가치입니다', subtitle: '경험과 직무 니즈가 결합될 때 달성 가능한 구체적 성과를 명시합니다', bullets: pickBullets(['직무 적합도 향상', '문제 해결력 증명', '성과 중심 커뮤니케이션', '협업 가능성 강화']) });
+  slides.push({ id: 's9', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'metricBars', title: '직무 적합성을 설명하는 차별화 포인트입니다', subtitle: '경험과 직무 니즈가 결합될 때 보여줄 수 있는 구체적 강점을 명시합니다', bullets: pickBullets(['직무 적합도 강화', '문제 해결력 증명', '성과 중심 커뮤니케이션', '협업 가능성 강화']) });
 
-  slides.push({ id: 's10', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'graphCallout', title: target ? `${target} 변화에 선제적으로 대응합니다` : '채용 시장 변화에 선제적으로 대응합니다', subtitle: '경험정리가 보여주는 추세와 성장 가능성, 주요 변화 요인을 설명합니다', bullets: pickBullets(['경험 축적에 따른 문제 해결 범위 확장', '프로젝트별 역할과 책임 증가', '성과 중심 커뮤니케이션 강화']) });
+  slides.push({ id: 's10', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'graphCallout', title: target ? `${target}에서 활용할 수 있는 성장 근거입니다` : '지원 직무에서 활용할 수 있는 성장 근거입니다', subtitle: '경험정리가 보여주는 추세와 성장 가능성, 주요 변화 요인을 설명합니다', bullets: pickBullets(['경험 축적에 따른 문제 해결 범위 확장', '프로젝트별 역할과 책임 증가', '성과 중심 커뮤니케이션 강화']) });
 
-  slides.push({ id: 's11', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'synergy', title: '파트너십으로 극대화되는 채용 시너지입니다', subtitle: '지원자의 경험과 기업 니즈가 결합되어 더 빠르고 안정적인 성과를 만듭니다', items: [
+  slides.push({ id: 's11', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'synergy', title: '경험과 직무 요구가 만드는 적합성입니다', subtitle: '대표 경험에서 확인된 역량이 지원 역할의 요구와 연결됩니다', items: [
     { heading: userName, body: '경험·역량·성과 증거' },
-    { heading: '채용 속도 향상', body: primary.heading || '대표 사례 기반 판단' },
-    { heading: '채용 품질 강화', body: firstMetric.label || '성과 기반 검증' },
-    { heading: target || '지원 기업', body: '직무 니즈와 조직 적합성' },
+    { heading: primary.heading || '대표 경험', body: expPoint(0, '문제 해결 사례') },
+    { heading: firstMetric.label || '성과 증거', body: metricText(firstMetric) },
+    { heading: target || '지원 직무', body: '역할 기대와 조직 적합성' },
   ] });
 
-  slides.push({ id: 's12', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'threeCards', title: '파트너십을 통해 창출되는 가치를 작성합니다', subtitle: '경험정리에서 확인된 전문성과 니즈가 결합되어 나타나는 효과입니다', items: expItems.slice(0, 3).map((e, i) => ({ heading: ['채용 속도 향상', '채용 품질 강화', '운영 효율 개선'][i] || e.heading, body: e.bullets?.[0] || e.body || e.heading })) });
+  slides.push({ id: 's12', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'threeCards', title: '대표 경험에서 확인된 기여 가치를 정리합니다', subtitle: '경험정리에서 확인된 전문성과 직무 니즈가 만나는 지점입니다', items: expItems.slice(0, 3).map((e) => ({ heading: e.heading, body: e.bullets?.[0] || e.body || e.heading })) });
 
-  slides.push({ id: 's13', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'venn', title: '강점이 만나는 지점에서 해답을 제시합니다', subtitle: '후보자의 역량과 기업의 요구사항을 연결해 가장 설득력 있는 포인트를 도출합니다', items: [
+  slides.push({ id: 's13', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'venn', title: '강점과 직무 요구가 만나는 지점입니다', subtitle: '후보자의 역량과 지원 직무의 요구사항을 연결해 가장 설득력 있는 포인트를 도출합니다', items: [
     { heading: `${userName}의 대표 사례`, body: strengths[0] || primary.heading || '문제 해결 경험' },
-    { heading: target || '기업 니즈', body: '직무 요구사항과 조직 적합성' },
+    { heading: target || '지원 직무 요구', body: '필요 역량과 역할 기대' },
     { heading: '해답', body: firstMetric.label ? `${firstMetric.label} 중심의 성과 증명` : '성과 중심 포트폴리오' },
   ] });
 
-  slides.push({ id: 's14', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'splitPhotoList', title: '채용 프로세스 전반을 대행합니다', subtitle: '경험 정리부터 직무 맞춤 표현까지 단계적으로 지원합니다', items: [
-    { heading: '경험 구조화', body: '분산된 경험을 문제·행동·성과로 재정리' },
-    { heading: '직무 매칭', body: target ? `${target} 요구와 경험 연결` : '지원 직무 기준으로 재배치' },
-    { heading: '성과 표현', body: firstMetric.label ? `${firstMetric.label} 지표 강조` : '정량·정성 성과 강조' },
+  slides.push({ id: 's14', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'splitPhotoList', title: '대표 경험을 포트폴리오 흐름으로 연결합니다', subtitle: '경험 정리부터 직무 맞춤 표현까지 단계적으로 보여줍니다', items: [
+    { heading: expAt(0).heading || '경험 맥락', body: expPoint(0, '분산된 경험을 문제·행동·성과로 재정리') },
+    { heading: expAt(1).heading || '문제 해결 과정', body: expPoint(1, target ? `${target} 요구와 경험 연결` : '지원 직무 기준으로 재배치') },
+    { heading: expAt(2).heading || '성과 증거', body: firstMetric.label ? `${firstMetric.label} 지표 강조` : expPoint(2, '정량·정성 성과 강조') },
   ] });
 
-  slides.push({ id: 's15', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'stairSteps', title: '다섯 단계로 완성되는 채용 전략입니다', subtitle: '경험 정리를 채용 담당자가 이해하는 제안서 구조로 전환합니다', items: ['경험 수집', '역량 기준 선별', '문제 해결 사례화', '성과 지표 강조', '최종 제안서 구성'].map((heading, i) => ({ heading, body: pickBullets()[i] || '경험 기반 내용 구성' })) });
+  slides.push({ id: 's15', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'stairSteps', title: '다섯 단계로 정리한 경험 구성 방식입니다', subtitle: '경험 정리를 채용 담당자가 이해하는 포트폴리오 구조로 전환합니다', items: ['경험 맥락', '문제 정의', '실행 과정', '성과 지표', '직무 연결'].map((heading, i) => ({ heading, body: pickBullets()[i] || '경험 기반 내용 구성' })) });
 
-  slides.push({ id: 's16', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'roleTable', title: '역할 분담을 통해 채용의 완성도를 높입니다', subtitle: '후보자 경험과 기업 요구가 만나는 지점을 표 형태로 정리합니다', table: [
-    ['기간', '단계', userName, target || '지원 기업'],
-    ['Phase 1', '경험 준비', '경험 정리 및 핵심 성과 선별', '직무 요구사항 정의'],
-    ['Phase 2', '전략 수립', '강점과 사례 연결', '평가 기준 확인'],
-    ['Phase 3', '검증', '문제 해결 사례 구체화', '적합 후보자 판단'],
-    ['Phase 4', '최종 정리', '포트폴리오 완성', '면접 및 협업 검토'],
+  slides.push({ id: 's16', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'roleTable', title: '경험별 역할과 직무 연결성을 정리합니다', subtitle: '후보자 경험과 지원 직무가 만나는 지점을 표 형태로 정리합니다', table: [
+    ['기간', '경험', '수행 역할', '직무 연결'],
+    [expAt(0).period || 'Experience 1', expAt(0).heading || '대표 경험', expAt(0).role || '핵심 역할 수행', expPoint(0, '직무 요구사항과 연결')],
+    [expAt(1).period || 'Experience 2', expAt(1).heading || '문제 해결 경험', expAt(1).role || '실행 및 개선', expPoint(1, '강점과 사례 연결')],
+    [expAt(2).period || 'Experience 3', expAt(2).heading || '성과 경험', expAt(2).role || '성과 검증', expPoint(2, '문제 해결 사례 구체화')],
+    [expAt(3).period || 'Next', target || '지원 직무', '포트폴리오 메시지 정리', '면접과 협업 가능성 설명'],
   ] });
 
-  slides.push({ id: 's17', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'targetCircle', title: '채용 대행 서비스 협력 체계입니다', subtitle: '경험과 직무 니즈를 한 문장으로 설명할 수 있게 구성합니다', items: [
+  slides.push({ id: 's17', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'targetCircle', title: '핵심 경험이 하나의 포지셔닝으로 연결됩니다', subtitle: '경험과 직무 니즈를 한 문장으로 설명할 수 있게 구성합니다', items: [
     { heading: userName, body: '주요 경험과 성과' },
     { heading: '공동 목표', body: firstMetric.label || '직무 적합성 증명' },
-    { heading: target || '지원 기업', body: '채용 니즈와 역할 범위' },
+    { heading: target || '지원 직무', body: '필요 역량과 역할 범위' },
   ] });
 
-  slides.push({ id: 's18', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'caseGrid', dark: true, title: '성공적으로 수행한 경험 사례입니다', subtitle: '전문적인 경험 구조화를 통해 적합성을 보여주는 주요 사례입니다', items: expItems.slice(0, 4).map(e => ({ heading: e.heading, role: e.role || e.period, body: e.bullets?.[0] || e.body || '' })) });
+  slides.push({ id: 's18', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'caseGrid', dark: true, title: '성공적으로 수행한 경험 사례입니다', subtitle: '전문적인 경험 구조화를 통해 적합성을 보여주는 주요 사례입니다', items: expItems.slice(0, 4).map(e => ({ heading: e.heading, role: e.role || e.period, body: e.bullets?.[0] || e.body || '' })) });
 
-  slides.push({ id: 's19', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'testimonial', dark: true, title: '채용 성과로 이어진 실제 경험을 소개합니다', subtitle: '경험 과정 전반에 대한 성과와 협업 방식을 확인할 수 있습니다', bullets: pickBullets(['직무에 적합한 경험 추천', '신속한 문제 해결', '체계적인 커뮤니케이션']) });
+  slides.push({ id: 's19', layout: 'proposal', sectionLabel: '대표 프로젝트', proposalVariant: 'testimonial', dark: true, title: '성과로 이어진 실제 경험의 근거입니다', subtitle: '경험 과정 전반에 대한 성과와 협업 방식을 확인할 수 있습니다', bullets: pickBullets(['직무에 적합한 경험', '신속한 문제 해결', '체계적인 커뮤니케이션']) });
 
-  slides.push({ id: 's20', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'conditionGrid', title: '검증된 경험 서비스를 통한 기대 효과입니다', subtitle: '실제 경험 성과를 바탕으로 효율적인 채용 운영과 적합 인재 확보를 지원합니다', items: ['대표 사례 확보', '채용 기간 단축', '경험 효율성 향상', '안정적인 협업 운영'].map((heading, i) => ({ heading, body: pickBullets()[i] || '경험 기반 효과를 정리합니다' })) });
+  slides.push({ id: 's20', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'conditionGrid', title: '경험 기반으로 기대할 수 있는 기여입니다', subtitle: '실제 경험 성과를 바탕으로 지원 직무에서 발휘할 수 있는 효과를 정리합니다', items: ['대표 사례', '문제 해결', '성과 개선', '협업 실행'].map((heading, i) => ({ heading, body: pickBullets()[i] || '경험 기반 효과를 정리합니다' })) });
 
-  slides.push({ id: 's21', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'criteria', title: '협업을 위한 서비스 운영 기준을 안내드립니다', subtitle: '필수 조건이 누락되지 않았는지 확인할 수 있도록 기준을 정리합니다', items: [
-    { heading: '수행 기간 및 운영 기준', body: primary.period || '경험 수행 기간과 운영 범위를 명확히 제시' },
+  slides.push({ id: 's21', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'criteria', title: '입사 후 기여를 위한 실행 기준입니다', subtitle: '포트폴리오에서 확인한 역량을 실제 업무로 확장하는 기준을 정리합니다', items: [
+    { heading: '수행 기간 및 역할 기준', body: primary.period || '경험 수행 기간과 역할 범위를 명확히 제시' },
     { heading: '성과 기준 및 증거', body: firstMetric.label ? `${firstMetric.label} ${metricText(firstMetric)}` : '성과 지표와 결과를 명확히 제시' },
-    { heading: '정보 보호 및 기록 유지', body: '경험 데이터와 개인정보를 안전하게 활용' },
-    { heading: '협업 체계 및 책임 범위', body: '역할과 책임, 커뮤니케이션 기준을 명확히 설정' },
+    { heading: '학습 및 개선 방향', body: strengths[1] || '경험에서 얻은 배움을 다음 과제로 확장' },
+    { heading: '협업 방식과 책임 범위', body: '역할과 책임, 커뮤니케이션 기준을 명확히 설정' },
   ] });
 
-  slides.push({ id: 's22', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'gantt', title: '단계별 추진 일정에 따라 체계적으로 진행합니다', subtitle: '경험 정리부터 제안서 완성까지 단계별 일정을 관리합니다', items: ['경험 수집 및 분석', '대표 사례 선별', '제안서 구성', '최종 검토 및 개선'].map((heading, i) => ({ heading, role: ['Week 1', 'Week 2-3', 'Week 3-5', 'Week 5-6'][i], body: pickBullets()[i] || '단계별 작업 수행' })) });
+  slides.push({ id: 's22', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'gantt', title: '입사 후 기여 흐름을 단계별로 정리합니다', subtitle: '경험 이해부터 성과 확장까지 단계별 실행 흐름을 제시합니다', items: ['업무 맥락 이해', '대표 경험 적용', '핵심 과제 수행', '성과 검토 및 확장'].map((heading, i) => ({ heading, role: ['Week 1', 'Week 2-3', 'Week 3-5', 'Week 5-6'][i], body: pickBullets()[i] || '단계별 작업 수행' })) });
 
-  slides.push({ id: 's23', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'stageCards', title: '전문적인 단계별 운영으로 채용 성과를 높입니다', subtitle: '각 단계마다 최적화된 지원을 제공하여 성공적인 채용으로 이어지도록 돕습니다', items: ['채용 기획', '후보자 발굴 추천', '면접 및 평가 지원', '합격 및 입사 지원', '입사 후 정착 지원'].map((heading, i) => ({ heading, body: pickBullets()[i] || '단계별 핵심 활동을 수행합니다' })) });
+  slides.push({ id: 's23', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'stageCards', title: '단계별 기여 방식으로 업무 성과를 만듭니다', subtitle: '각 단계마다 경험에서 검증된 방식을 적용해 빠르게 적응하고 확장합니다', items: ['온보딩 이해', '업무 구조 파악', '핵심 과제 수행', '성과 검증', '확장 기여'].map((heading, i) => ({ heading, body: pickBullets()[i] || '단계별 핵심 활동을 수행합니다' })) });
 
-  slides.push({ id: 's24', layout: 'proposal', sectionLabel: '서비스 방안', proposalVariant: 'pyramid', title: '더 나은 채용을 위한 서비스 지향점을 제시합니다', subtitle: '명확한 기준과 방향성을 바탕으로 서비스를 제공합니다', items: [
+  slides.push({ id: 's24', layout: 'proposal', sectionLabel: '직무 적합성', proposalVariant: 'pyramid', title: '직무 기여를 위한 포트폴리오 메시지입니다', subtitle: '명확한 기준과 방향성을 바탕으로 경험의 설득력을 정리합니다', items: [
     { heading: 'BASE', body: strengths[0] || '전문적인 수행 기반' },
-    { heading: 'MATCH', body: strengths[1] || '정확한 인재 매칭 지향' },
-    { heading: 'RESULT', body: firstMetric.label || '성과 창출 실현' },
+    { heading: 'MATCH', body: strengths[1] || '직무 요구와 경험 연결' },
+    { heading: 'RESULT', body: firstMetric.label || '성과 창출 가능성' },
   ] });
 
-  slides.push({ id: 's25', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'faqCards', title: '검증된 경험 서비스를 통한 기대 효과입니다', subtitle: '자주 확인해야 할 협업 조건과 운영 기준을 명확히 정리합니다', items: [
-    { heading: '서비스 기간에 관해', body: primary.period || '경험과 직무 범위에 따라 운영 기간을 조정합니다' },
-    { heading: '초기 비용에 관해', body: '초기 투입 리소스와 준비 범위를 명확히 관리합니다' },
-    { heading: '계약 후 시작에 관해', body: '합의된 일정에 따라 단계적으로 진행합니다' },
-    { heading: '추가 문의에 관해', body: '변경사항과 추가 요청을 정기적으로 공유합니다' },
+  slides.push({ id: 's25', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'faqCards', title: '포트폴리오에서 확인할 수 있는 핵심 질문입니다', subtitle: '경험의 맥락과 성과, 직무 연결성을 빠르게 확인할 수 있도록 정리합니다', items: [
+    { heading: '왜 이 경험인가요?', body: primary.period || expPoint(0, '지원 직무와 가장 밀접한 경험입니다') },
+    { heading: '어떤 역할을 했나요?', body: primary.role || '문제 해결 과정에서 수행한 역할을 명확히 제시합니다' },
+    { heading: '무엇이 달라졌나요?', body: firstMetric.label ? `${firstMetric.label} ${metricText(firstMetric)}` : expPoint(1, '성과와 변화를 중심으로 설명합니다') },
+    { heading: '어떻게 기여하나요?', body: target ? `${target}의 역할 기대와 연결합니다` : '지원 직무의 역할 기대와 연결합니다' },
   ] });
 
-  slides.push({ id: 's26', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'promise', title: '안정적인 채용 운영과 성공 수행을 약속드립니다', subtitle: '검증된 운영 체계와 전략적 접근을 기반으로 지속 가능한 성과를 실현합니다', bullets: ['전문 운영 체계 기반 효율화', '적합 인재 확보 및 경쟁력 강화', '운영 효율 향상 및 비용 절감'] });
+  slides.push({ id: 's26', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'promise', title: '입사 후 안정적인 기여를 약속드립니다', subtitle: '검증된 경험과 학습 방향을 기반으로 지속 가능한 성과를 실현합니다', bullets: pickBullets(['빠른 업무 맥락 이해', '문제 해결 중심 실행', '성과 기반 개선']) });
 
-  slides.push({ id: 's27', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'budget', dark: true, title: '합리적인 기준에 따른 예산 구성안입니다', subtitle: '효율적인 운영과 안정적인 수행을 위한 최적의 리소스 구조를 제시합니다', items: [
-    { heading: '45%', body: '대표 사례 정리 및 제안서 구성' },
-    { heading: '35%', body: '직무 분석 및 맞춤화' },
-    { heading: '10%', body: '검토 및 개선' },
-    { heading: '10%', body: '기타 운영' },
+  slides.push({ id: 's27', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'budget', dark: true, title: '포트폴리오 메시지의 구성 비중입니다', subtitle: '경험, 직무 연결, 성과, 성장 방향이 균형 있게 보이도록 정리했습니다', items: [
+    { heading: '45%', body: '대표 경험과 문제 해결 과정' },
+    { heading: '35%', body: '직무 연결성과 활용 역량' },
+    { heading: '10%', body: '성과 지표와 검증 근거' },
+    { heading: '10%', body: '성장 방향과 다음 기여' },
   ] });
 
-  slides.push({ id: 's28', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'risk', title: '서비스 수행 리스크 및 대응 방안입니다', subtitle: '주요 리스크에 대한 사전 대응 체계를 기반으로 안정적인 운영을 지원합니다', items: [
-    { heading: '일정 지연', body: '경험 자료 보완과 검토 일정 조율' },
-    { heading: '정보 부족', body: '추가 질문과 구조화 인터뷰로 보완' },
-    { heading: '채용 포기', body: '지원 방향 재설정 및 대안 포지션 탐색' },
+  slides.push({ id: 's28', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'risk', title: '포트폴리오 보완 포인트와 대응입니다', subtitle: '경험의 설득력이 약해질 수 있는 지점을 미리 보완합니다', items: [
+    { heading: '맥락 부족', body: '경험 배경과 문제 정의를 명확히 보완' },
+    { heading: '성과 표현 부족', body: '정량 지표와 변화 전후를 함께 제시' },
+    { heading: '직무 연결 약함', body: '지원 방향과 연결되는 역량 언어로 재정리' },
   ] });
 
-  slides.push({ id: 's29', layout: 'proposal', sectionLabel: '계획 및 조건', proposalVariant: 'orbit', title: '계약 기간과 서비스 조건을 안내드립니다', subtitle: '제공 범위와 책임 기준을 명확히 하여 안정적 협력이 이루어질 수 있도록 안내드립니다', items: [
-    { heading: '계약 기간 및 적용 기준', body: primary.period || '프로젝트 범위에 따라 일정 조정' },
-    { heading: '서비스 범위 및 제공 기준', body: '경험 정리와 포트폴리오 구성 지원' },
-    { heading: '정보 보호 및 기록 유지 기준', body: '개인정보와 경험 데이터 보호' },
-    { heading: '협업 체계 및 책임 범위 기준', body: '역할과 책임을 명확히 설정' },
+  slides.push({ id: 's29', layout: 'proposal', sectionLabel: '성장 계획', proposalVariant: 'orbit', title: '다음 단계에서 확인할 포인트입니다', subtitle: '포트폴리오를 바탕으로 면접과 실무 기여에서 이어갈 내용을 정리합니다', items: [
+    { heading: '핵심 경험', body: primary.heading || '대표 프로젝트 범위와 맥락' },
+    { heading: '활용 역량', body: strengths[0] || '지원 직무에서 바로 활용할 수 있는 역량' },
+    { heading: '성과 증거', body: firstMetric.label ? `${firstMetric.label} ${metricText(firstMetric)}` : '문제 해결 과정과 결과' },
+    { heading: '성장 계획', body: '입사 후 확장할 과제와 학습 방향' },
   ] });
 
   const values = p.values || p.valuesEssay || p.about;
@@ -297,12 +303,12 @@ function buildProposalDeckFromPortfolio(p) {
     proposalVariant: 'closing',
     dark: true,
     sectionLabel: '마무리',
-    title: 'Ready to Get Started?',
+    title: 'Thank You',
     subtitle: `${userName}의 경험이 ${target || '다음 기회'}에 기여하겠습니다.`,
     bullets: contactBullets.length ? contactBullets : [values ? splitSentences(values, 1)[0] : '경험 정리 기반 포트폴리오'],
   });
 
-  return { meta: { title: `${userName} 제안서형 포트폴리오`, subtitle: target, accentColor: '#FF4F1A', templateMode: 'proposal-v1' }, slides };
+  return { meta: { title: `${userName} 경험 기반 포트폴리오`, subtitle: target, accentColor: '#FF4F1A', templateMode: 'proposal-v1' }, slides };
 }
 
 function normalizeExperiences(p) {

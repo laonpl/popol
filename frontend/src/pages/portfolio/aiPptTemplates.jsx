@@ -512,18 +512,20 @@ function renderProposal(slide, t, index) {
   const bodyColor = mutedTextOn(bg, isDark ? SAFE_MUTED_LIGHT : c.muted);
   const accentColor = visibleColorOn(bg, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
   const section = slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : '제안서');
+  const titleSize = dynamicFontPx(slide.title, 34, { min: 24, max: 38 });
+  const bodyTop = slide.subtitle || String(slide.title || '').length > 28 ? 218 : 204;
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: bg, color: titleColor, fontFamily: t.fonts.body }}>
       <div style={{ position: 'absolute', left: 52, top: 28 }}>{proposalPill(section, c)}</div>
       {isDark && <ProposalDots color={accentColor} right={70} top={55} />}
-      <div style={{ position: 'absolute', left: 52, right: 52, top: 86 }}>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: dynamicFontPx(slide.title, 36, { min: 26, max: 42 }), fontWeight: 900, color: titleColor, lineHeight: 1.22, textAlign: slide.layout === 'profile' ? 'left' : 'center' }}>
+      <div style={{ position: 'absolute', left: 52, right: 52, top: 78 }}>
+        <div style={{ width: 'min(820px, 100%)', margin: slide.layout === 'profile' ? 0 : '0 auto', fontFamily: t.fonts.heading, fontSize: titleSize, fontWeight: 900, color: titleColor, lineHeight: 1.22, textAlign: slide.layout === 'profile' ? 'left' : 'center', ...textClamp(2) }}>
           {proposalTextParts(slide.title || section, accentColor)}
         </div>
-        {slide.subtitle ? <div style={{ marginTop: 12, fontSize: 15, fontWeight: 600, color: bodyColor, lineHeight: 1.45, textAlign: slide.layout === 'profile' ? 'left' : 'center' }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <div style={{ width: 'min(720px, 100%)', margin: slide.layout === 'profile' ? '10px 0 0' : '10px auto 0', fontSize: 13, fontWeight: 600, color: bodyColor, lineHeight: 1.45, textAlign: slide.layout === 'profile' ? 'left' : 'center', ...textClamp(2) }}>{slide.subtitle}</div> : null}
       </div>
-      <div style={{ position: 'absolute', left: 52, right: 52, top: 188, bottom: 44 }}>
+      <div style={{ position: 'absolute', left: 52, right: 52, top: bodyTop, bottom: 44 }}>
         {renderProposalBody(slide, t, isDark)}
       </div>
       <div style={{ position: 'absolute', right: 52, bottom: 24, color: isDark ? 'rgba(255,255,255,0.42)' : c.muted, fontSize: 10 }}>{String(index + 1).padStart(2, '0')}</div>
@@ -563,6 +565,10 @@ function renderProposalBody(slide, t, isDark) {
         ))}
       </div>
     );
+  }
+
+  if (variant === 'threeCards') {
+    return <ProposalThreeCards items={items} c={c} isDark={isDark} />;
   }
 
   if (variant === 'splitPhotoList') {
@@ -736,6 +742,36 @@ function ProposalBigMetric({ metric, c, align = 'left' }) {
   return <div style={{ textAlign: align }}><div style={{ fontSize: 52, fontWeight: 300, color: onDark, lineHeight: 1, ...textClamp(1) }}>{metric.value}</div><div style={{ marginTop: 8, fontSize: 17, fontWeight: 900, color: onDark, ...textClamp(2) }}>{metric.label}</div></div>;
 }
 
+function ProposalThreeCards({ items, c, isDark }) {
+  const cardFill = isDark ? c.dark2 : c.card;
+  const cardText = readableTextOn(cardFill, isDark ? SAFE_TEXT_LIGHT : c.sub);
+  const cardMuted = mutedTextOn(cardFill, isDark ? SAFE_MUTED_LIGHT : c.muted);
+  const visible = items.slice(0, 3);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, 1fr)`, gap: 18, height: '100%', alignItems: 'stretch' }}>
+      {visible.map((item, i) => {
+        const featured = i === visible.length - 1;
+        const fill = featured ? c.accent : cardFill;
+        const fg = readableTextOn(fill, featured ? SAFE_TEXT_LIGHT : cardText);
+        const muted = featured ? readableTextOn(fill, SAFE_TEXT_LIGHT, 3.2) : cardMuted;
+        return (
+          <div key={i} style={{ minHeight: 0, borderRadius: 12, background: fill, color: fg, padding: 24, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 14, boxShadow: isDark ? '0 18px 40px rgba(0,0,0,0.22)' : '0 14px 34px rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: featured ? 'rgba(255,255,255,0.2)' : c.line, color: featured ? fg : visibleColorOn(c.line, c.accent, c.dark), fontSize: 11, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</span>
+              <span style={{ flex: 1, height: 2, background: featured ? 'rgba(255,255,255,0.24)' : c.line }} />
+            </div>
+            <div style={{ alignSelf: 'end' }}>
+              <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
+              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, ...textClamp(5) }}>{item.body}</div>
+            </div>
+            <div style={{ height: 4, width: '42%', borderRadius: 999, background: featured ? 'rgba(255,255,255,0.42)' : visibleColorOn(fill, c.accent, c.dark) }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProposalComparison({ items, c }) {
   const cardText = readableTextOn('#FFFFFF', c.sub);
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
@@ -785,11 +821,31 @@ function ProposalVenn({ items, c }) {
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
   const darkText = readableTextOn(c.dark, SAFE_TEXT_LIGHT);
   const accentText = readableTextOn(c.accent, SAFE_TEXT_LIGHT);
-  return <div style={{ position: 'relative', height: '100%' }}><div style={{ position: 'absolute', left: 285, top: 62, width: 190, height: 190, borderRadius: '50%', background: '#FFFFFF', color: cardText, boxShadow: '0 0 45px rgba(255,79,26,0.22)', display: 'grid', placeItems: 'center', textAlign: 'center', fontWeight: 900, padding: 18, ...textClamp(3) }}>{items[0]?.heading}</div><div style={{ position: 'absolute', left: 430, top: 62, width: 190, height: 190, borderRadius: '50%', background: '#FFFFFF', color: cardText, boxShadow: '0 0 45px rgba(255,79,26,0.22)', display: 'grid', placeItems: 'center', textAlign: 'center', fontWeight: 900, padding: 18, ...textClamp(3) }}>{items[1]?.heading}</div><div style={{ position: 'absolute', left: 410, top: 100, width: 82, height: 150, borderRadius: '50%', background: c.accent, opacity: 0.95 }} /><div style={{ position: 'absolute', left: 40, top: 80, width: 220, textAlign: 'center' }}><div style={{ padding: '10px 22px', borderRadius: 999, background: c.dark, color: darkText, fontWeight: 900, ...textClamp(1) }}>{items[0]?.heading}</div><p style={{ fontSize: 12, color: cardMuted, lineHeight: 1.6, ...textClamp(4) }}>{items[0]?.body}</p></div><div style={{ position: 'absolute', right: 40, top: 80, width: 220, textAlign: 'center' }}><div style={{ padding: '10px 22px', borderRadius: 999, background: c.dark, color: darkText, fontWeight: 900, ...textClamp(1) }}>{items[1]?.heading}</div><p style={{ fontSize: 12, color: cardMuted, lineHeight: 1.6, ...textClamp(4) }}>{items[1]?.body}</p></div><div style={{ position: 'absolute', left: 120, right: 120, bottom: 20, padding: 16, borderRadius: 8, background: c.accent, color: accentText, textAlign: 'center', fontWeight: 900, ...textClamp(2) }}>{items[2]?.body}</div></div>;
+  return (
+    <div style={{ height: '100%', display: 'grid', gridTemplateRows: '1fr 58px', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.28fr 1fr', gap: 18, alignItems: 'center', minHeight: 0 }}>
+        <div style={{ minHeight: 150, borderRadius: 12, background: '#FFFFFF', color: cardText, padding: 18, boxShadow: '0 16px 34px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
+          <div style={{ display: 'inline-flex', maxWidth: '100%', padding: '7px 14px', borderRadius: 999, background: c.dark, color: darkText, fontSize: 12, fontWeight: 900, ...textClamp(1) }}>{items[0]?.heading}</div>
+          <div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted, ...textClamp(5) }}>{items[0]?.body}</div>
+        </div>
+        <div style={{ position: 'relative', height: 206, alignSelf: 'center' }}>
+          <div style={{ position: 'absolute', left: 24, top: 18, width: 150, height: 150, borderRadius: '50%', background: '#FFFFFF', color: cardText, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 14, fontWeight: 900, padding: 22, boxShadow: '0 18px 48px rgba(255,255,255,0.12)', ...textClamp(3) }}>{items[0]?.heading || '후보자 강점'}</div>
+          <div style={{ position: 'absolute', right: 24, top: 18, width: 150, height: 150, borderRadius: '50%', background: '#FFFFFF', color: cardText, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 14, fontWeight: 900, padding: 22, boxShadow: '0 18px 48px rgba(255,255,255,0.12)', ...textClamp(3) }}>{items[1]?.heading || '기업 니즈'}</div>
+          <div style={{ position: 'absolute', left: '50%', top: 72, transform: 'translateX(-50%)', width: 94, height: 48, borderRadius: 999, background: c.accent, color: accentText, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 11, fontWeight: 900, boxShadow: '0 10px 28px rgba(0,0,0,0.2)' }}>교집합</div>
+        </div>
+        <div style={{ minHeight: 150, borderRadius: 12, background: '#FFFFFF', color: cardText, padding: 18, boxShadow: '0 16px 34px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
+          <div style={{ display: 'inline-flex', maxWidth: '100%', padding: '7px 14px', borderRadius: 999, background: c.dark, color: darkText, fontSize: 12, fontWeight: 900, ...textClamp(1) }}>{items[1]?.heading}</div>
+          <div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted, ...textClamp(5) }}>{items[1]?.body}</div>
+        </div>
+      </div>
+      <div style={{ borderRadius: 8, background: c.accent, color: accentText, display: 'grid', placeItems: 'center', textAlign: 'center', padding: '0 28px', fontSize: 14, fontWeight: 900, ...textClamp(2) }}>{items[2]?.body || '강점과 요구사항이 만나는 지점에서 실행 가능한 해답을 제시합니다'}</div>
+    </div>
+  );
 }
 
 function ProposalStairs({ items, c }) {
-  return <div style={{ display: 'flex', alignItems: 'end', gap: 10, height: '100%' }}>{items.slice(0, 5).map((item, i) => { const fill = i === 4 ? c.accent : i < 2 ? c.neutral : c.dark; return <div key={i} style={{ flex: 1, height: 105 + i * 38, background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), borderRadius: '9px 9px 0 0', padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'end', position: 'relative', overflow: 'hidden' }}><div style={{ position: 'absolute', top: -48, left: 12, color: visibleColorOn(c.bg, i === 4 ? c.accent : c.dark, SAFE_DARK), fontSize: 42, fontWeight: 300 }}>{String(i + 1).padStart(2, '0')}</div><div style={{ fontWeight: 900, fontSize: 15, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 8, fontSize: 11, lineHeight: 1.35, opacity: 0.9, ...textClamp(4) }}>{item.body}</div></div>; })}</div>;
+  const visible = items.slice(0, 5);
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, 1fr)`, gap: 10, height: '100%', alignItems: 'end' }}>{visible.map((item, i) => { const fill = i === visible.length - 1 ? c.accent : i < 2 ? c.neutral : c.dark; const fg = readableTextOn(fill, SAFE_TEXT_LIGHT); return <div key={i} style={{ height: 116 + i * 22, minHeight: 0, background: fill, color: fg, borderRadius: '12px 12px 0 0', padding: '16px 14px', display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 10, overflow: 'hidden', boxShadow: '0 14px 28px rgba(0,0,0,0.16)' }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div><div style={{ fontWeight: 900, fontSize: 14, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div><div style={{ fontSize: 10.5, lineHeight: 1.42, opacity: 0.9, ...textClamp(5) }}>{item.body}</div></div>; })}</div>;
 }
 
 function ProposalTable({ rows, c }) {
@@ -1579,11 +1635,12 @@ function drawProposalHeader(s, slide, t, i, W, isDark) {
   const c = t.colors;
   const section = slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : '제안서');
   const titleColor = isDark ? 'FFFFFF' : hex(c.sub);
+  const titleSize = dynamicFontPt(slide.title, 24, { min: 18, max: 25 });
   s.addShape('roundRect', { x: 0.72, y: 0.35, w: 1.45, h: 0.32, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' }, rectRadius: 0.14 });
   s.addShape('ellipse', { x: 0.82, y: 0.46, w: 0.08, h: 0.08, fill: { color: pptVisibleOn('#FFFFFF', c.accent, c.dark) }, line: { color: pptVisibleOn('#FFFFFF', c.accent, c.dark) } });
   s.addText(section, { x: 0.95, y: 0.4, w: 1.0, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: pptTextOn('#FFFFFF', c.sub) });
-  s.addText(slide.title || section, { x: 0.7, y: 1.0, w: W - 1.4, h: 0.72, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: titleColor, align: slide.layout === 'profile' ? 'left' : 'center', fit: 'shrink' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 1.5, y: 1.75, w: W - 3.0, h: 0.35, fontFace: t.fonts.body, fontSize: 10, bold: true, color: isDark ? 'D4D4D8' : hex(c.sub), align: 'center', fit: 'shrink' });
+  addPptText(s, slide.title || section, { x: 0.95, y: 0.88, w: W - 1.9, h: 0.88, fontFace: t.fonts.heading, fontSize: titleSize, bold: true, color: titleColor, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: isDark ? 'D4D4D8' : hex(c.sub), align: 'center', fit: 'shrink' });
 }
 
 function drawProposal(s, slide, t, i, W, H) {
@@ -1592,7 +1649,7 @@ function drawProposal(s, slide, t, i, W, H) {
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: isDark ? hex(c.dark) : hex(c.bg) }, line: { color: isDark ? hex(c.dark) : hex(c.bg) } });
   if (isDark) drawProposalDots(s, c, W, 9.4, 0.9);
   drawProposalHeader(s, slide, t, i, W, isDark);
-  const x = 0.72, y = 2.45, w = W - 1.44, h = H - 2.95;
+  const x = 0.72, y = 2.7, w = W - 1.44, h = H - 3.2;
   if (drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark)) {
     // variant 전용 렌더러에서 처리됨
   } else if (slide.layout === 'experience') {
@@ -1632,6 +1689,11 @@ function drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark) {
       s.addShape('ellipse', { x: cx, y: y + h - 1.14, w: 0.1, h: 0.1, fill: { color: accentOnPage }, line: { color: accentOnPage } });
       addPptText(s, item.body, { x: cx, y: y + h - 0.72, w: colW - 0.16, h: 0.42, fontFace: t.fonts.body, fontSize: 8, color: pageMuted, fit: 'shrink' });
     });
+    return true;
+  }
+
+  if (variant === 'threeCards') {
+    drawThreeCardsPptx(s, items.slice(0, 3), t, x, y, w, h, isDark);
     return true;
   }
 
@@ -1761,6 +1823,26 @@ function drawListWithBadges(s, items, t, x, y, w, h) {
   });
 }
 
+function drawThreeCardsPptx(s, items, t, x, y, w, h, isDark) {
+  const c = t.colors;
+  const visible = items.slice(0, 3);
+  const cardW = (w - 0.26 * (visible.length - 1)) / Math.max(1, visible.length);
+  visible.forEach((item, idx) => {
+    const featured = idx === visible.length - 1;
+    const fill = featured ? c.accent : (isDark ? c.dark2 : c.card);
+    const fg = pptTextOn(fill, featured || isDark ? SAFE_TEXT_LIGHT : c.sub);
+    const muted = pptMutedOn(fill, featured || isDark ? SAFE_MUTED_LIGHT : c.muted);
+    const cx = x + idx * (cardW + 0.26);
+    s.addShape('roundRect', { x: cx, y, w: cardW, h, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.1 });
+    s.addShape('ellipse', { x: cx + 0.28, y: y + 0.28, w: 0.34, h: 0.34, fill: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 78 : 0 }, line: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 100 : 0 } });
+    addPptText(s, String(idx + 1).padStart(2, '0'), { x: cx + 0.28, y: y + 0.36, w: 0.34, h: 0.1, fontFace: t.fonts.heading, fontSize: 6.5, bold: true, color: fg, align: 'center', fit: 'shrink' });
+    s.addShape('rect', { x: cx + 0.78, y: y + 0.44, w: cardW - 1.08, h: 0.02, fill: { color: featured ? fg : hex(c.line), transparency: featured ? 70 : 0 }, line: { color: featured ? fg : hex(c.line), transparency: 100 } });
+    addPptText(s, item.heading, { x: cx + 0.28, y: y + h - 1.42, w: cardW - 0.56, h: 0.42, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: fg, fit: 'shrink' });
+    addPptText(s, item.body, { x: cx + 0.28, y: y + h - 0.88, w: cardW - 0.56, h: 0.52, fontFace: t.fonts.body, fontSize: 8, color: muted, fit: 'shrink' });
+    s.addShape('roundRect', { x: cx + 0.28, y: y + h - 0.22, w: cardW * 0.34, h: 0.05, fill: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: featured ? 55 : 0 }, line: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: 100 }, rectRadius: 0.03 });
+  });
+}
+
 function drawComparisonPptx(s, items, t, x, y, w, h) {
   const c = t.colors;
   const cardW = (w - 0.35) / 2;
@@ -1831,24 +1913,32 @@ function drawGraphCalloutPptx(s, bullets, t, x, y, w, h) {
 
 function drawVennPptx(s, items, t, x, y, w, h, withText) {
   const c = t.colors;
-  const centerX = x + w * 0.5;
   const cardText = pptTextOn('#FFFFFF', c.sub);
   const cardMuted = pptMutedOn('#FFFFFF', c.muted);
   const accentText = pptTextOn(c.accent, SAFE_TEXT_LIGHT);
-  s.addShape('ellipse', { x: centerX - 1.6, y: y + 0.75, w: 2.3, h: 2.3, fill: { color: 'FFFFFF', transparency: withText ? 0 : 10 }, line: { color: hex(c.line), transparency: 35 } });
-  s.addShape('ellipse', { x: centerX - 0.35, y: y + 0.75, w: 2.3, h: 2.3, fill: { color: 'FFFFFF', transparency: withText ? 0 : 10 }, line: { color: hex(c.line), transparency: 35 } });
-  s.addShape('ellipse', { x: centerX - 0.1, y: y + 1.15, w: 0.9, h: 1.45, fill: { color: hex(c.accent), transparency: 8 }, line: { color: hex(c.accent), transparency: 100 } });
-  addPptText(s, items[0]?.heading || '핵심 역량', { x: centerX - 1.35, y: y + 1.55, w: 1.2, h: 0.42, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: cardText, align: 'center', fit: 'shrink' });
-  addPptText(s, items[1]?.heading || '실행 역량', { x: centerX + 0.05, y: y + 1.55, w: 1.2, h: 0.42, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: cardText, align: 'center', fit: 'shrink' });
-  if (withText) {
-    drawMiniCallout(s, items[0], t, x, y + 0.95, 2.8, 1.2, c.dark);
-    drawMiniCallout(s, items[1], t, x + w - 2.8, y + 0.95, 2.8, 1.2, c.dark);
-    addPptText(s, items[2]?.body || '', { x: x + 1.4, y: y + h - 0.75, w: w - 2.8, h: 0.35, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: accentText, align: 'center', fit: 'shrink', fill: c.accent });
-  } else {
+  if (!withText) {
     items.slice(0, 4).forEach((item, idx) => {
       drawMiniCircle(s, item.heading, t, x + idx * (w / 4) + 0.25, y + h - 1.15, 0.9, idx === 0 ? c.accent : idx === 3 ? c.dark : 'FFFFFF', idx === 0 || idx === 3 ? 'FFFFFF' : hex(c.sub));
     });
+    return;
   }
+  const sideW = w * 0.26;
+  const centerW = w - sideW * 2 - 0.5;
+  const centerX = x + sideW + 0.25;
+  [0, 1].forEach((idx) => {
+    const cx = idx === 0 ? x : x + w - sideW;
+    s.addShape('roundRect', { x: cx, y: y + 0.32, w: sideW, h: h - 1.12, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' }, rectRadius: 0.1 });
+    s.addShape('roundRect', { x: cx + 0.18, y: y + 0.55, w: sideW - 0.36, h: 0.3, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) }, rectRadius: 0.12 });
+    addPptText(s, items[idx]?.heading || (idx === 0 ? '후보자 강점' : '기업 니즈'), { x: cx + 0.22, y: y + 0.62, w: sideW - 0.44, h: 0.1, fontFace: t.fonts.heading, fontSize: 6.8, bold: true, color: pptTextOn(c.dark, SAFE_TEXT_LIGHT), align: 'center', fit: 'shrink' });
+    addPptText(s, items[idx]?.body || '', { x: cx + 0.22, y: y + 1.02, w: sideW - 0.44, h: h - 1.95, fontFace: t.fonts.body, fontSize: 7.2, color: cardMuted, align: 'center', fit: 'shrink' });
+  });
+  s.addShape('ellipse', { x: centerX + centerW * 0.12, y: y + 0.35, w: 1.55, h: 1.55, fill: { color: 'FFFFFF' }, line: { color: hex(c.line), transparency: 25 } });
+  s.addShape('ellipse', { x: centerX + centerW * 0.5 - 0.15, y: y + 0.35, w: 1.55, h: 1.55, fill: { color: 'FFFFFF' }, line: { color: hex(c.line), transparency: 25 } });
+  s.addShape('roundRect', { x: centerX + centerW * 0.5 - 0.4, y: y + 1.03, w: 0.95, h: 0.36, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) }, rectRadius: 0.16 });
+  addPptText(s, '교집합', { x: centerX + centerW * 0.5 - 0.36, y: y + 1.14, w: 0.87, h: 0.08, fontFace: t.fonts.heading, fontSize: 6.6, bold: true, color: accentText, align: 'center', fit: 'shrink' });
+  addPptText(s, items[0]?.heading || '후보자 강점', { x: centerX + centerW * 0.12 + 0.2, y: y + 0.88, w: 1.15, h: 0.26, fontFace: t.fonts.heading, fontSize: 7.8, bold: true, color: cardText, align: 'center', fit: 'shrink' });
+  addPptText(s, items[1]?.heading || '기업 니즈', { x: centerX + centerW * 0.5 + 0.05, y: y + 0.88, w: 1.15, h: 0.26, fontFace: t.fonts.heading, fontSize: 7.8, bold: true, color: cardText, align: 'center', fit: 'shrink' });
+  addPptText(s, items[2]?.body || '강점과 요구사항이 만나는 지점에서 실행 가능한 해답을 제시합니다', { x: x + 1.1, y: y + h - 0.58, w: w - 2.2, h: 0.36, fontFace: t.fonts.heading, fontSize: 9.3, bold: true, color: accentText, align: 'center', valign: 'middle', fit: 'shrink', fill: c.accent });
 }
 
 function drawSynergyPptx(s, items, t, x, y, w, h) {
@@ -1888,17 +1978,18 @@ function drawCircleDiagramPptx(s, items, bullets, t, x, y, w, h, variant) {
 function drawStairsPptx(s, items, t, x, y, w, h) {
   const c = t.colors;
   const visible = items.slice(0, 5);
-  const stepW = (w - 0.12 * (visible.length - 1)) / Math.max(1, visible.length);
+  const stepW = (w - 0.14 * (visible.length - 1)) / Math.max(1, visible.length);
   visible.forEach((item, idx) => {
-    const stepH = 1.15 + idx * 0.42;
-    const cx = x + idx * (stepW + 0.12);
+    const stepH = 1.18 + idx * 0.27;
+    const cx = x + idx * (stepW + 0.14);
     const cy = y + h - stepH;
     const fill = idx === visible.length - 1 ? c.accent : idx < 2 ? c.neutral : c.dark;
-    addPptText(s, String(idx + 1).padStart(2, '0'), { x: cx + 0.08, y: cy - 0.52, w: 0.8, h: 0.38, fontFace: t.fonts.heading, fontSize: 22, color: pptVisibleOn(c.bg, idx === visible.length - 1 ? c.accent : c.dark, c.dark), fit: 'shrink' });
     s.addShape('roundRect', { x: cx, y: cy, w: stepW, h: stepH, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.08 });
     const fillText = pptTextOn(fill, SAFE_TEXT_LIGHT);
-    addPptText(s, item.heading, { x: cx + 0.18, y: cy + stepH - 0.9, w: stepW - 0.36, h: 0.32, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: fillText, fit: 'shrink' });
-    addPptText(s, item.body, { x: cx + 0.18, y: cy + stepH - 0.52, w: stepW - 0.36, h: 0.35, fontFace: t.fonts.body, fontSize: 7, color: fillText, fit: 'shrink' });
+    s.addShape('ellipse', { x: cx + 0.18, y: cy + 0.18, w: 0.32, h: 0.32, fill: { color: 'FFFFFF', transparency: 78 }, line: { color: 'FFFFFF', transparency: 100 } });
+    addPptText(s, String(idx + 1).padStart(2, '0'), { x: cx + 0.18, y: cy + 0.26, w: 0.32, h: 0.08, fontFace: t.fonts.heading, fontSize: 6.4, bold: true, color: fillText, align: 'center', fit: 'shrink' });
+    addPptText(s, item.heading, { x: cx + 0.18, y: cy + 0.62, w: stepW - 0.36, h: 0.36, fontFace: t.fonts.heading, fontSize: 8.8, bold: true, color: fillText, fit: 'shrink' });
+    addPptText(s, item.body, { x: cx + 0.18, y: cy + 1.02, w: stepW - 0.36, h: stepH - 1.14, fontFace: t.fonts.body, fontSize: 6.4, color: fillText, fit: 'shrink' });
   });
 }
 
