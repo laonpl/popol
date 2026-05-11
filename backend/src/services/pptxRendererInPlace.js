@@ -7,6 +7,7 @@
 
 import JSZip from 'jszip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { shrinkToFit } from './autofit.js';
 
 const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 const P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
@@ -32,6 +33,15 @@ function findChildren(node, ns, ln) {
 function firstChild(node, ns, ln) {
   return findChildren(node, ns, ln)[0] || null;
 }
+function attr(node, name) {
+  if (!node || typeof node.getAttribute !== 'function') return null;
+  const v = node.getAttribute(name);
+  return v === '' || v == null ? null : v;
+}
+function readCNvPrId(node) {
+  const cNvPr = firstChild(node, P_NS, 'cNvPr');
+  return attr(cNvPr, 'id');
+}
 function directChildrenByLocalName(parent, localName) {
   const out = [];
   if (!parent) return out;
@@ -54,10 +64,133 @@ function* walkSpAndPic(node) {
 }
 
 // ── 텍스트 치환 ─────────────────────────────────────────────────────────────
-// 슬라이드 XML 내 <p:sp> 를 templateParser 와 동일한 순서로 순회하며 shapeId 를
-// 부여하고, deck 의 box.text 가 있으면 해당 sp 의 <p:txBody> 안 텍스트만 교체한다.
-// 매핑되지 않은 sp 는 텍스트 run 이 있으면 빈 문자열로 초기화해 템플릿 텍스트 누수를 방지.
+// Pass 1 (sanitizeAllText): 모든 <p:sp>를 순회하여
+//   ① 각 shape의 첫 <a:rPr>/<a:endParaRPr>에서 sz·solidFill 을 savedStyles Map 에 저장.
+//   ② 모든 단락의 <a:r>/<a:fld>/<a:br> 을 완전 삭제 — 빈 슬레이트에서 시작(Force-Clear).
+//   ③ <a:bodyPr> 에 <a:normAutofit> 를 강제 주입(Auto-Shrink 안전망).
+//   <a:pPr>, <a:endParaRPr> 는 단락 구조 정보이므로 유지한다.
+// Pass 2 (applyTextReplacements): 매핑된 박스에만 AI 텍스트를 채워 넣는다.
 // 도형/이미지/테마/마스터 등은 일절 건드리지 않는다.
+//
+// Returns: Map<cNvPrId, { sz: string|null, solidFillXml: string|null }>
+function sanitizeAllText(spTree, doc) {
+  const savedStyles = new Map();
+  for (const node of walkSpAndPic(spTree)) {
+    if (node.localName !== 'sp') continue;
+    const txBody = firstChild(node, P_NS, 'txBody');
+    if (!txBody) continue;
+
+    // ① Force-Clear 전 sz·solidFill·rPr 전체 추출 (보관)
+    // rPrClone: Force-Clear 전의 <a:rPr> 딥클론 — 폰트/색/굵기 복원에 사용.
+    // ⚠ endParaRPr 는 element 이름이 다르므로 절대 rPrClone 으로 사용하지 않는다.
+    //   endParaRPr 를 run 안에 넣으면 <a:r><a:endParaRPr/><a:t/></a:r> 라는 invalid XML 이 된다.
+    //   → run <a:rPr> 에서만 clone, endParaRPr 는 sz/color 값 추출 전용.
+    let sz = null, solidFillXml = null, rPrClone = null;
+    for (const p of directChildrenByLocalName(txBody, 'p')) {
+      // run 의 rPr 에서만 clone (element 이름이 a:rPr 임을 보장)
+      for (const r of directChildrenByLocalName(p, 'r')) {
+        const rPrEl = firstChild(r, A_NS, 'rPr');
+        if (!rPrEl) continue;
+        if (!rPrClone && (rPrEl.attributes?.length > 0 || rPrEl.childNodes?.length > 0)) {
+          rPrClone = rPrEl.cloneNode(true); // 반드시 a:rPr element
+        }
+        if (!sz) sz = rPrEl.getAttribute('sz') || null;
+        if (!solidFillXml) {
+          const fill = firstChild(rPrEl, A_NS, 'solidFill');
+          if (fill) solidFillXml = serializeXml(fill);
+        }
+      }
+      // endParaRPr 는 sz/color 추출 전용 — clone 금지
+      const endPr = firstChild(p, A_NS, 'endParaRPr');
+      if (endPr) {
+        if (!sz) sz = endPr.getAttribute('sz') || null;
+        if (!solidFillXml) {
+          const fill = firstChild(endPr, A_NS, 'solidFill');
+          if (fill) solidFillXml = serializeXml(fill);
+        }
+      }
+      if (rPrClone && sz && solidFillXml) break;
+    }
+    const cNvPrId = readCNvPrId(node);
+    if (cNvPrId) savedStyles.set(cNvPrId, { sz, solidFillXml, rPrClone });
+
+    // ② Force-Clear: <a:r>/<a:fld>/<a:br> 완전 삭제 후 빈 <a:r> 삽입.
+    // ⚠ 빈 <a:r> 을 넣지 않으면 PowerPoint 가 슬라이드 레이아웃의 placeholder prompt text
+    //   (예: "제목을 입력해주세요")를 렌더링 시점에 fallback 으로 주입한다.
+    //   빈 <a:r> 으로 "이 shape 은 명시적으로 비어있음" 을 선언해 fallback 을 완전 차단.
+    for (const p of directChildrenByLocalName(txBody, 'p')) {
+      const toRemove = [];
+      for (let i = 0; i < p.childNodes.length; i++) {
+        const c = p.childNodes.item(i);
+        if (c && c.nodeType === 1 && (c.localName === 'r' || c.localName === 'fld' || c.localName === 'br')) {
+          toRemove.push(c);
+        }
+      }
+      for (const c of toRemove) p.removeChild(c);
+      // 빈 run 삽입 (endParaRPr 이 있으면 그 앞에)
+      const emptyR = doc.createElementNS(A_NS, 'a:r');
+      emptyR.appendChild(doc.createElementNS(A_NS, 'a:rPr'));
+      emptyR.appendChild(doc.createElementNS(A_NS, 'a:t'));
+      const endParaRPr = firstChild(p, A_NS, 'endParaRPr');
+      if (endParaRPr) p.insertBefore(emptyR, endParaRPr);
+      else p.appendChild(emptyR);
+    }
+
+    // ③ normAutofit 강제 주입 (Auto-Shrink 안전망)
+    const bodyPr = firstChild(txBody, A_NS, 'bodyPr');
+    if (bodyPr) {
+      for (const tag of ['spAutoFit', 'noAutofit', 'normAutofit']) {
+        const ex = firstChild(bodyPr, A_NS, tag);
+        if (ex) bodyPr.removeChild(ex);
+      }
+      bodyPr.appendChild(doc.createElementNS(A_NS, 'a:normAutofit'));
+    }
+  }
+  return savedStyles;
+}
+
+// ── 사진 제거 ──────────────────────────────────────────────────────────────────
+// 사용자가 웅로드한 템플릿의 sample 이미지(프로필 사진, 샘플 로고 등)가 출력물에 남지
+// 않도록 슬라이드의 모든 <p:pic> 논드를 제거. 디자인은 배경/장식 도형(<p:sp>) /
+// 레이아웃·마스터의 색·폰트로 보존되므로 큐레이터리시 틀이 크지 않다.
+function removeAllPicsFromSpTree(spTree) {
+  const toRemove = [];
+  const collectFromGroup = (group) => {
+    for (let i = 0; i < group.childNodes.length; i++) {
+      const c = group.childNodes.item(i);
+      if (!c || c.nodeType !== 1) continue;
+      if (c.localName === 'pic') toRemove.push(c);
+      else if (c.localName === 'grpSp') collectFromGroup(c);
+    }
+  };
+  collectFromGroup(spTree);
+  for (const pic of toRemove) {
+    if (pic.parentNode) pic.parentNode.removeChild(pic);
+  }
+  return toRemove.length;
+}
+
+// 템플릿에 포함된 표(table), 차트(chart), SmartArt 등 graphicFrame 을 제거.
+// 이 요소들은 사용자 데이터로 채울 수 없는 템플릿 플레이스홀더이므로 출력물에서 제거.
+// grpSp 내부도 재귀 탐색.
+function removeAllGraphicFramesFromSpTree(spTree) {
+  const toRemove = [];
+  const collect = (group) => {
+    for (let i = 0; i < group.childNodes.length; i++) {
+      const c = group.childNodes.item(i);
+      if (!c || c.nodeType !== 1) continue;
+      if (c.localName === 'graphicFrame') toRemove.push(c);
+      else if (c.localName === 'grpSp') collect(c);
+    }
+  };
+  collect(spTree);
+  for (const gf of toRemove) {
+    if (gf.parentNode) gf.parentNode.removeChild(gf);
+  }
+  if (toRemove.length) console.log(`[Renderer] graphicFrame(표/차트 등) ${toRemove.length}개 제거`);
+  return toRemove.length;
+}
+
 function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
   const map = new Map();
   for (const b of (boxes || [])) {
@@ -71,39 +204,45 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
   const spTree = cSld ? firstChild(cSld, P_NS, 'spTree') : null;
   if (!spTree) return slideXml;
 
+  // Pass 1: Force-Clear (sz/color/rPr 보관 → r/fld/br 완전 삭제, 빈 r 삽입) + normAutofit 주입
+  const savedStyles = sanitizeAllText(spTree, doc);
+
+  // Pass 2: Unique Mapping — shapeId 당 1회만 주입 (이중 주입 버그 차단)
+  // ⚠ pic 제거(Pass 2.5)는 반드시 이 루프 이후: 파서가 pic 도 counter++ 했으므로
+  //   루프 중에 pic 노드가 살아있어야 counter 가 파서와 일치한다.
+  const injected = new Set();
   let counter = 0;
   for (const node of walkSpAndPic(spTree)) {
     const ln = node.localName;
     if (ln === 'sp') {
-      const id = `slide${templateSlideIndex}_s${counter}`;
+      const cNvPrId = readCNvPrId(node);
+      const id = `slide${templateSlideIndex}_sp${cNvPrId || counter}`;
       counter++;
+      if (injected.has(id)) continue;
       const box = map.get(id);
       if (box) {
-        replaceTextInShape(node, String(box.text || ''));
-      } else {
-        // 매핑 안 된 sp 에 run 이 있으면 지워서 템플릿 원본 텍스트 누수 방지
-        const txBody = firstChild(node, P_NS, 'txBody');
-        if (txBody) {
-          let hasRun = false;
-          const ps = findChildren(txBody, A_NS, 'p');
-          for (const p of ps) {
-            if (firstChild(p, A_NS, 'r')) { hasRun = true; break; }
-          }
-          if (hasRun) replaceTextInShape(node, '');
-        }
+        injected.add(id);
+        const savedStyle = cNvPrId ? (savedStyles.get(cNvPrId) || null) : null;
+        replaceTextInShape(node, String(box.text || ''), box, savedStyle);
       }
     } else if (ln === 'pic') {
       counter++;
     }
   }
 
+  // Pass 2.5: 텍스트 매핑 완료 후 sample 사진 <p:pic> 제거
+  removeAllPicsFromSpTree(spTree);
+
+  // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
+  removeAllGraphicFramesFromSpTree(spTree);
+
   return serializeXml(doc);
 }
 
-// <p:sp>/<p:txBody> 안의 모든 <a:p> 를 찾아, 첫 단락의 첫 run 서식을 보존한 채
-// 새 텍스트로 단락을 재구성한다. <a:bodyPr>, <a:lstStyle> 같은 형제 요소와
-// 도형 자체의 회전/위치/크기/스타일은 그대로 유지된다.
-function replaceTextInShape(spNode, newText) {
+// replaceTextInShape(spNode, newText, boxMeta?, savedStyle?)
+// boxMeta:    { w, h, fontPt, maxChars } — 있으면 shrinkToFit 으로 폰트 크기를 XML 에 직접 기록.
+// savedStyle: { sz, solidFillXml }      — Force-Clear 전 추출한 원본 폰트/색상 (복원용).
+function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
   const txBody = firstChild(spNode, P_NS, 'txBody');
   if (!txBody) return;
 
@@ -130,6 +269,48 @@ function replaceTextInShape(spNode, newText) {
     templateEndParaRPr = templateEndParaRPr || firstChild(p0, A_NS, 'endParaRPr');
   }
 
+  // shrinkToFit: 텍스트가 박스를 넘치면 sz 를 줄여서 XML 에 직접 기록한다.
+  // 이 값이 실제 PowerPoint 렌더링에 반영되므로 preview 와 PPT 가 일치.
+  let computedSz = null;
+  const MIN_READABLE_PT = 9; // 9pt 미만은 판독 불가 → 잘라냄
+  if (newText && boxMeta && boxMeta.w > 0 && boxMeta.h > 0 && boxMeta.fontPt > 0) {
+    // 박스 치수가 정확할 때 shrinkToFit 으로 최적 sz 계산
+    const { fontSize } = shrinkToFit({
+      text: newText, boxWidthPt: boxMeta.w, boxHeightPt: boxMeta.h, basePt: boxMeta.fontPt,
+    });
+    if (fontSize < MIN_READABLE_PT) {
+      // 9pt 이하로 떨어지면: 9pt 기준으로 들어갈 수 있는 글자 수로 텍스트 잘라냄
+      const innerW = Math.max(8, boxMeta.w - 12);
+      const innerH = Math.max(8, boxMeta.h - 8);
+      const cpl = Math.max(1, Math.floor(innerW / (MIN_READABLE_PT * 0.55)));
+      const maxL = Math.max(1, Math.floor(innerH / (MIN_READABLE_PT * 1.3)));
+      const limit = Math.max(4, cpl * maxL - 1);
+      if (newText.length > limit) newText = newText.slice(0, limit - 1) + '…';
+      computedSz = String(MIN_READABLE_PT * 100); // 900 = 9pt
+    } else {
+      computedSz = String(Math.round(fontSize * 100));
+    }
+  } else if (newText && boxMeta?.maxChars && newText.length > boxMeta.maxChars * 0.8) {
+    // Auto-Shrink 폴백: char_budget 의 80% 초과 시 원본 sz 의 75% 로 강제 축소
+    const baseSzStr = savedStyle?.sz || (boxMeta?.fontPt ? String(Math.round(boxMeta.fontPt * 100)) : null);
+    if (baseSzStr) {
+      const baseSz = parseInt(baseSzStr, 10);
+      if (baseSz > 0) computedSz = String(Math.round(Math.max(900, baseSz * 0.75)));
+    }
+  }
+
+  // <a:bodyPr> 에 normAutofit 주입: 텍스트가 박스를 초과할 경우 PowerPoint 가
+  // 자동으로 폰트를 추가 축소하도록 보장 (shrinkToFit 추정 오차의 안전망).
+  const bodyPr = firstChild(txBody, A_NS, 'bodyPr');
+  if (bodyPr) {
+    // 기존 spAutoFit / noAutofit 제거 후 normAutofit 삽입 (newText 유무 무관)
+    for (const tag of ['spAutoFit', 'noAutofit', 'normAutofit']) {
+      const existing = firstChild(bodyPr, A_NS, tag);
+      if (existing) bodyPr.removeChild(existing);
+    }
+    bodyPr.appendChild(txBody.ownerDocument.createElementNS(A_NS, 'a:normAutofit'));
+  }
+
   // 기존 단락 모두 제거 (<a:bodyPr>, <a:lstStyle> 등은 보존)
   for (const p of allP) {
     if (p.parentNode === txBody) txBody.removeChild(p);
@@ -137,10 +318,29 @@ function replaceTextInShape(spNode, newText) {
 
   const doc = txBody.ownerDocument;
   const lines = String(newText).split(/\r?\n/);
-  // 빈 텍스트 케이스: 단락 한 개에 endParaRPr 만 둔다 (원본 빈 텍스트 박스와 동일)
+  // 빈 텍스트 케이스: 빈 <a:r> 을 넣어 레이아웃 prompt text fallback 을 억제.
+  // (endParaRPr 만 두면 PowerPoint 가 슬라이드 레이아웃의 "제목을 입력해주세요" 등을 fallback 표시)
+  // Force-Clear 로 삽입된 빈 <a:rPr/> 를 templateRPr 로 쓰면 폰트 정보가 사라짐.
+  // savedStyle.rPrClone = Force-Clear 전 원본 rPr 딥클론 → 이를 최우선으로 사용.
+  const buildRPr = () => {
+    if (savedStyle?.rPrClone) return savedStyle.rPrClone.cloneNode(true);
+    // templateRPr 가 실제 내용을 가진 경우에만 사용 (빈 placeholder 제외)
+    if (templateRPr && (templateRPr.attributes?.length > 0 || templateRPr.childNodes?.length > 0)) {
+      return templateRPr.cloneNode(true);
+    }
+    // 최후 fallback: 빈 rPr 에 sz 만이라도 복원
+    const fallback = doc.createElementNS(A_NS, 'a:rPr');
+    if (savedStyle?.sz) fallback.setAttribute('sz', savedStyle.sz);
+    return fallback;
+  };
+
   if (lines.length === 1 && lines[0] === '') {
     const pEl = doc.createElementNS(A_NS, 'a:p');
     if (templatePPr) pEl.appendChild(templatePPr.cloneNode(true));
+    const rEl = doc.createElementNS(A_NS, 'a:r');
+    rEl.appendChild(buildRPr());
+    rEl.appendChild(doc.createElementNS(A_NS, 'a:t'));
+    pEl.appendChild(rEl);
     if (templateEndParaRPr) pEl.appendChild(templateEndParaRPr.cloneNode(true));
     txBody.appendChild(pEl);
     return;
@@ -150,11 +350,14 @@ function replaceTextInShape(spNode, newText) {
     const pEl = doc.createElementNS(A_NS, 'a:p');
     if (templatePPr) pEl.appendChild(templatePPr.cloneNode(true));
     const rEl = doc.createElementNS(A_NS, 'a:r');
-    if (templateRPr) rEl.appendChild(templateRPr.cloneNode(true));
+    const rPrClone = buildRPr();
+    if (computedSz) rPrClone.setAttribute('sz', computedSz);
+    rEl.appendChild(rPrClone);
     const tEl = doc.createElementNS(A_NS, 'a:t');
     if (line.length > 0) tEl.appendChild(doc.createTextNode(line));
     rEl.appendChild(tEl);
     pEl.appendChild(rEl);
+    if (templateEndParaRPr) pEl.appendChild(templateEndParaRPr.cloneNode(true));
     txBody.appendChild(pEl);
   }
 }
@@ -242,10 +445,20 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     if (t.sourceRelsFile && t.sourceRelsXml) zip.remove(t.sourceRelsFile);
   }
 
-  // 6) 각 deck 항목을 새 슬라이드 파일로 작성
+  // 6) Slide Pruning: boxes 가 있는데 모두 비어있는 슬라이드 제외 (이미지 전용 슬라이드는 유지)
+  const activeDeck = deck.filter(slidePlan => {
+    const boxes = slidePlan.boxes || [];
+    if (boxes.length === 0) return true;
+    return boxes.some(b => b.text && String(b.text).trim().length > 0);
+  });
+  if (activeDeck.length < deck.length) {
+    console.log(`[Renderer] Slide Pruning: ${deck.length - activeDeck.length}개 빈 슬라이드 제외 → ${activeDeck.length}장`);
+  }
+
+  // 각 deck 항목을 새 슬라이드 파일로 작성
   const newSlideMeta = []; // { rid, target, sldIdNum, partName }
-  for (let i = 0; i < deck.length; i++) {
-    const slidePlan = deck[i];
+  for (let i = 0; i < activeDeck.length; i++) {
+    const slidePlan = activeDeck[i];
     const tplIdx = Math.min(slidePlan.templateSlideIndex || 0, tplSlides.length - 1);
     const src = tplSlides[tplIdx];
     const newNum = i + 1;

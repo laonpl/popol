@@ -57,7 +57,7 @@ export default function AiPptExport() {
         form.append('portfolio', JSON.stringify(portfolio));
         const { data } = await api.post('/export/ppt', form, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 300000, // 슬라이드별 병렬 AI 매핑 — 백엔드 처리 시간을 충분히 확보
+          timeout: 600000, // Pro 2.5 병렬: 큐(31×4.1s=127s) + 마지막 슬라이드 AI(40s) ≈ 170s, 여유 있게 10분
         });
         setCustomResult(data);
         setStage(STAGE.PREVIEW);
@@ -503,6 +503,7 @@ function CustomSlideCard({ slidePlan, layoutSlide, slideW, slideH, index }) {
               style={{ position: 'absolute', left: p.x, top: p.y, width: p.w, height: p.h, objectFit: 'cover', zIndex: p.zIndex || 5 }}
             />
           ))}
+
           {texts.map((box, i) => {
             const cover = findCoveringDecor({ x: box.x, y: box.y, w: box.w, h: box.h }, decor);
             const effectiveBg = cover?.fill || bgColor;
