@@ -58,23 +58,23 @@ export default function NotionPortfolioPreview() {
           </Link>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors">
-              <Edit size={13} /> 편집
+              className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
+              편집
             </button>
             <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors">
-              <FileText size={13} /> PPT 내보내기
+              className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
+              PPT 내보내기
             </button>
             <button onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100">
-              <Link2 size={13} /> 링크 내보내기
+              className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
+              링크 내보내기
             </button>
           </div>
         </div>
 
         {/* 공유 링크 */}
         <div className="max-w-[1100px] mx-auto mb-4">
-          <div className="flex items-center gap-4 bg-white rounded-lg border border-surface-200 px-5 py-3">
+          <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
             <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -108,9 +108,8 @@ export default function NotionPortfolioPreview() {
                   toast.success('링크가 복사되었습니다!');
                   setTimeout(() => setLinkCopied(false), 2000);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-colors flex-shrink-0"
+                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-all flex-shrink-0"
               >
-                {linkCopied ? <Check size={12} /> : <Copy size={12} />}
                 {linkCopied ? '복사됨' : '링크 복사'}
               </button>
             )}
@@ -160,23 +159,23 @@ export default function NotionPortfolioPreview() {
         </Link>
         <div className="flex items-center gap-2">
           <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-            className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors">
-            <Edit size={13} /> 편집
+            className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
+            편집
           </button>
           <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors">
-            <FileText size={13} /> PPT 내보내기
+            className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
+            PPT 내보내기
           </button>
           <button onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100">
-            <Link2 size={13} /> 링크 내보내기
+            className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
+            링크 내보내기
           </button>
         </div>
       </div>
 
       {/* 공유 링크 */}
       <div className="max-w-[1100px] mx-auto mb-4">
-        <div className="flex items-center gap-4 bg-white rounded-lg border border-surface-200 px-5 py-3">
+        <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
           <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -210,9 +209,8 @@ export default function NotionPortfolioPreview() {
                 toast.success('링크가 복사되었습니다!');
                 setTimeout(() => setLinkCopied(false), 2000);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-colors flex-shrink-0"
+              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-all flex-shrink-0"
             >
-              {linkCopied ? <Check size={12} /> : <Copy size={12} />}
               {linkCopied ? '복사됨' : '링크 복사'}
             </button>
           )}

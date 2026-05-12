@@ -719,33 +719,33 @@ export default function NotionPortfolioEditor() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setAnalysisMode(prev => !prev)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-colors border ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all border ${
               analysisMode
-                ? 'bg-primary-600 text-white border-primary-600 hover:bg-primary-700'
-                : 'bg-white text-bluewood-400 border-surface-200 hover:text-primary-600 hover:border-primary-300'
+                ? 'bg-primary-50 text-primary-700 border-primary-200'
+                : 'bg-white text-bluewood-500 border-surface-200 hover:border-bluewood-300 hover:text-bluewood-700'
             }`}
           >
             기업 분석
           </button>
           <button
             onClick={handleReview}
-            className="flex items-center gap-1.5 px-4 py-2.5 border border-primary-600 text-primary-600 bg-white rounded-lg text-[13px] font-semibold hover:bg-primary-50 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all"
           >
-            <Eye size={14} /> 검토하기
+            검토하기
           </button>
+          <div className="w-px h-5 bg-surface-200 mx-0.5" />
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm shadow-primary-100"
+            className="flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-100"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? '저장 중...' : '저장하기'}
           </button>
           <button
             onClick={() => navigate(`/app/portfolio/preview/${id}`)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-lg text-[13px] font-semibold hover:bg-red-600 transition-colors"
+            className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all"
           >
-            <Download size={14} /> 미리보기 · PPT
+            미리보기 · PPT
           </button>
         </div>
       </div>
