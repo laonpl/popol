@@ -1445,7 +1445,7 @@ export default function PortfolioTemplateSelect() {
             </button>
             <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">기업 공고 연결</h1>
             <p className="text-[15px] text-bluewood-400">
-              지원할 기업의 채용공고 링크를 넣으면 기업 맞춤형 포트폴리오가 생성됩니다 (선택사항)
+              지원할 기업명, 모집분야, 지원서 접수 기간을 입력하면 기업 맞춤형 포트폴리오가 생성됩니다 (선택사항)
             </p>
           </div>
 

@@ -14,7 +14,7 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
-import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
+import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -889,25 +889,13 @@ function SkillAddInput({ category, onAdd }) {
 
 /* ── 공용: 우측 기업분석 인라인 사이드패널 (Visual / Ashley / Academic 공유) ── */
 function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, onClose }) {
-  const [jobUrl, setJobUrl] = useState('');
-  const [analyzingJob, setAnalyzingJob] = useState(false);
-  const [jobError, setJobError] = useState(null);
   const [showJobInput, setShowJobInput] = useState(false);
-
-  const handleJobAnalyze = async () => {
-    if (!jobUrl.trim()) return;
-    setAnalyzingJob(true);
-    setJobError(null);
-    try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
-      update('jobAnalysis', respData.analysis);
-      setShowJobInput(false);
-      setJobUrl('');
-      toast.success('기업 분석이 완료되었습니다');
-    } catch (err) {
-      setJobError(err.response?.data?.error || '분석에 실패했습니다');
-    }
-    setAnalyzingJob(false);
+  const handleJobAnalysisComplete = (analysis) => {
+    update('jobAnalysis', analysis);
+    update('targetCompany', analysis?.company || '');
+    update('targetPosition', analysis?.position || '');
+    setShowJobInput(false);
+    toast.success('기업 분석이 완료되었습니다');
   };
 
   const p = portfolio;
@@ -945,18 +933,10 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
               </button>
             ) : (
               <div className="bg-surface-50 border border-surface-200 rounded-lg p-3 space-y-2.5">
-                <p className="text-[10px] font-bold text-primary-600 uppercase tracking-[0.08em]">새 채용공고로 변경</p>
-                <input type="url" value={jobUrl} onChange={e => setJobUrl(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-                  placeholder="https:// 채용공고 링크"
-                  className="w-full px-3 py-2 text-[12px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white" />
-                {jobError && <p className="text-[11px] text-red-500">{jobError}</p>}
+                <p className="text-[10px] font-bold text-primary-600 uppercase tracking-[0.08em]">기업 정보 다시 입력</p>
+                <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
                 <div className="flex gap-2">
-                  <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
-                    {analyzingJob ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>분석하기</>}
-                  </button>
-                  <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+                  <button onClick={() => setShowJobInput(false)}
                     className="px-3 py-2 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
                 </div>
               </div>
@@ -966,7 +946,7 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
             <p className="text-[13px] font-bold text-primary-600 tracking-[-0.01em]">채용공고 분석</p>
             <p className="text-[12px] text-bluewood-400 leading-relaxed">
-              지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
+              지원할 기업명, 모집분야, 지원서 접수 기간을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
             </p>
             <button onClick={() => setShowJobInput(true)}
               className="w-full py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100 tracking-wide">
@@ -975,18 +955,10 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
           </div>
         ) : (
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
-            <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">채용공고 URL 입력</p>
-            <input type="url" value={jobUrl} onChange={e => setJobUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-              placeholder="https:// 채용공고 링크를 붙여넣으세요"
-              className="w-full px-3 py-2.5 text-[13px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white" />
-            {jobError && <p className="text-[12px] text-red-500">{jobError}</p>}
+            <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">기업 정보 입력</p>
+            <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
             <div className="flex gap-2">
-              <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
-                {analyzingJob ? <><Loader2 size={13} className="animate-spin" />분석 중...</> : <>분석하기</>}
-              </button>
-              <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+              <button onClick={() => setShowJobInput(false)}
                 className="px-3 py-2.5 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
             </div>
           </div>

@@ -146,49 +146,49 @@ export const COLOR_PALETTES = TEMPLATES.map(t => ({
   fonts: t.fonts,
 }));
 
-// ── 슬라이드 레이아웃 구조 6가지 (추후 추가 예정) ──
+// ── 합격 포트폴리오형 슬라이드 레이아웃 구조 ──
 export const SLIDE_LAYOUTS = [
   {
     id: 'standard',
     name: '제안서형',
     description: '표지 · 목차 · 제안 배경 · 소개 · 서비스 방안 · 계획 및 조건을 제안서 흐름으로 구성',
-    tag: '1번 템플릿',
+    tag: '실무 제안',
     available: true,
   },
   {
     id: 'narrative',
     name: '스토리형',
-    description: '도입 → 문제 → 해결 → 성과의 내러티브 흐름',
-    tag: '준비 중',
-    available: false,
+    description: '한 줄 포지셔닝 → 문제의 시작 → 전환점 → 성과 → 다음 기여로 이어지는 성장 서사형',
+    tag: '합격 서사',
+    available: true,
   },
   {
     id: 'star',
-    name: 'STAR 프레임',
-    description: 'Situation · Task · Action · Result 구조로 각 경험 전개',
-    tag: '준비 중',
-    available: false,
+    name: 'STAT/STAR형',
+    description: 'Situation · Task · Action · Takeaway/Result를 경험별로 쪼개 면접 질문까지 연결하는 검증형',
+    tag: '면접 증거',
+    available: true,
   },
   {
     id: 'kpi-dashboard',
     name: 'KPI 대시보드',
-    description: '성과 수치를 시각적으로 강조하는 메트릭 중심 구성',
-    tag: '준비 중',
-    available: false,
+    description: '핵심 지표 · Before/After · 프로젝트별 KPI · 성과 리스크까지 숫자로 읽히는 성과형',
+    tag: '성과 수치',
+    available: true,
   },
   {
     id: 'timeline',
     name: '타임라인',
-    description: '시간 순서로 커리어 여정을 시각화한 구성',
-    tag: '준비 중',
-    available: false,
+    description: '마일스톤 · 역할 확장 · 성장 곡선 · 입사 후 90일 계획으로 연결하는 여정형',
+    tag: '성장 곡선',
+    available: true,
   },
   {
     id: 'case-study',
     name: '케이스 스터디',
-    description: '문제 → 리서치 → 설계 → 개발 → 학습의 깊은 탐구형',
-    tag: '준비 중',
-    available: false,
+    description: '대표 프로젝트 하나를 문제 · 제약 · 의사결정 · 실행 로그 · 결과 · 학습까지 깊게 파는 심화형',
+    tag: '대표 사례',
+    available: true,
   },
 ];
 
@@ -334,11 +334,13 @@ function fitText(lines = 2) {
 export function getComposedTemplate(layoutId = 'standard', paletteId = 'proposal') {
   const layoutBase = layoutId === 'standard' ? getTemplate('proposal') : getTemplate('proposal');
   const palette = getTemplate(paletteId);
+  const layoutMeta = SLIDE_LAYOUTS.find(l => l.id === layoutId) || SLIDE_LAYOUTS[0];
   return normalizeProposalTemplate({
     ...layoutBase,
-    id: `${layoutBase.id}-${palette.id}`,
-    name: `${layoutBase.name} · ${palette.name}`,
-    description: `${layoutBase.description} / ${palette.description}`,
+    id: `${layoutId}-${palette.id}`,
+    name: `${layoutMeta.name} · ${palette.name}`,
+    description: `${layoutMeta.description} / ${palette.description}`,
+    layoutId,
     colors: {
       ...layoutBase.colors,
       ...palette.colors,
@@ -422,6 +424,10 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
     position: 'relative', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   };
 
+  if (t.style === 'proposal' && t.layoutId && t.layoutId !== 'standard') {
+    return <div style={wrap}>{renderAcceptedPortfolio(slide, t, index)}</div>;
+  }
+
   if (slide.layout === 'cover' || slide.layout === 'section') {
     if (t.style === 'proposal') return <div style={wrap}>{renderProposalCover(slide, t)}</div>;
     if (t.style === 'document') return <div style={wrap}>{renderDocumentCover(slide, t)}</div>;
@@ -435,6 +441,1339 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
   return <div style={wrap}>{renderCreative(slide, t, index)}</div>;
 }
 
+function acceptedVisual(t) {
+  const id = t.layoutId || 'narrative';
+  const c = t.colors || {};
+  const map = {
+    narrative: { bg: '#F7F0E8', ink: '#171412', muted: '#756B61', accent: '#D95B43', soft: '#EADACB', dark: '#171412', card: '#FFF9F1', font: 'Georgia' },
+    star: { bg: '#F4F8EE', ink: '#111827', muted: '#53635A', accent: '#B7F34B', soft: '#E3EFD2', dark: '#111827', card: '#FFFFFF', font: 'Pretendard' },
+    'kpi-dashboard': { bg: '#07111F', ink: '#F8FAFC', muted: '#94A3B8', accent: '#38BDF8', soft: '#0F1E33', dark: '#020617', card: '#102037', font: 'Pretendard' },
+    timeline: { bg: '#FBF7EE', ink: '#27221C', muted: '#7D7163', accent: '#E95F3F', soft: '#EFE2CC', dark: '#27221C', card: '#FFFFFF', font: 'Noto Serif KR' },
+    'case-study': { bg: '#F3F4F8', ink: '#28327A', muted: '#6B7395', accent: '#3FA0FF', soft: '#D8DDF0', dark: '#050608', card: '#FCFCFF', font: 'Pretendard' },
+  };
+  const visual = map[id] || map.narrative;
+  const bg = visual.bg;
+  const ink = visual.ink;
+  const accent = visual.accent;
+  const dark = visual.dark;
+  const card = visual.card || (relativeLuminance(bg) < 0.28 ? c.dark2 : '#FFFFFF');
+  return {
+    ...visual,
+    bg,
+    ink,
+    muted: visual.muted,
+    accent,
+    paletteAccent: accent,
+    soft: visual.soft,
+    dark,
+    card,
+    font: t.fonts?.heading || visual.font,
+  };
+}
+
+function acceptedLinesLegacy(slide) {
+  const items = slide.items || [];
+  const bullets = slide.bullets || [];
+  if (slide.layout === 'experience' && slide.details) {
+    const first = items[0] || {};
+    const detailGroups = [
+      { heading: '문제 정의', body: (slide.details.problem || []).join(' / ') },
+      { heading: '실행 과정', body: (slide.details.action || first.bullets || []).join(' / ') },
+      { heading: '성과', body: (slide.details.result || []).join(' / '), metrics: first.metrics || [] },
+      { heading: first.heading || slide.title || '대표 경험', body: first.body || slide.subtitle || '', period: first.period || first.role || '' },
+    ].filter(line => line.heading || line.body || (line.metrics || []).length);
+    if (detailGroups.length) return detailGroups.slice(0, 4).map(compactAcceptedLine);
+  }
+  if (Array.isArray(slide.table) && slide.table.length > 1) {
+    const headers = slide.table[0] || [];
+    return slide.table.slice(1, 5).map((row, i) => ({
+      heading: row[1] || row[0] || `항목 ${i + 1}`,
+      body: row.map((cell, col) => headers[col] ? `${headers[col]}: ${cell}` : cell).filter(Boolean).join(' · '),
+      period: row[0] || '',
+    }));
+  }
+  if (Array.isArray(slide.metrics) && slide.metrics.length && !items.length) {
+    return slide.metrics.slice(0, 4).map((metric, i) => ({
+      heading: metric.label || `성과 ${i + 1}`,
+      body: acceptedMetricText(metric),
+      metrics: [metric],
+    }));
+  }
+  if (items.length) {
+    return items.slice(0, 4).map(item => ({
+      heading: item.heading || item.role || '핵심 항목',
+      body: item.body || (item.bullets || []).slice(0, 3).join(' / ') || item.role || item.period || '',
+      period: item.period || item.role || '',
+      metrics: item.metrics || [],
+    }));
+  }
+  return bullets.slice(0, 4).map((body, i) => ({ heading: `Point ${i + 1}`, body }));
+}
+
+function cleanPortfolioText(value) {
+  if (value == null) return '';
+  return String(value)
+    .normalize('NFC')
+    .replace(/\uFFFD/g, '')
+    .replace(/[留寃臾吏媛⑹곹됰]/g, ' ')
+    .replace(/[?]{2,}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compactPortfolioText(value, max = 84) {
+  const text = cleanPortfolioText(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function cleanAcceptedLine(line = {}) {
+  return {
+    ...line,
+    heading: cleanPortfolioText(line.heading),
+    body: cleanPortfolioText(line.body),
+    period: cleanPortfolioText(line.period),
+  };
+}
+
+function compactAcceptedLine(line = {}) {
+  return {
+    ...line,
+    heading: compactPortfolioText(line.heading, 32),
+    body: compactPortfolioText(line.body, 88),
+    period: compactPortfolioText(line.period, 18),
+  };
+}
+
+function acceptedCleanLines(slide) {
+  return acceptedLines(slide).map(cleanAcceptedLine).filter(line => line.heading || line.body || line.period || (line.metrics || []).length);
+}
+
+function acceptedMetricTextLegacy(metric) {
+  if (!metric) return 'Impact';
+  if (metric.before && metric.after) return cleanPortfolioText(`${metric.before} → ${metric.after}`);
+  return cleanPortfolioText(metric.value || metric.label || 'Impact');
+}
+
+function acceptedSectionKindLegacy(slide) {
+  const source = `${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`.toLowerCase();
+  if (slide.layout === 'cover' || slide.layout === 'section') return 'cover';
+  if (slide.layout === 'closing' || slide.proposalVariant === 'closing' || /마무리|thank|closing/.test(source)) return 'closing';
+  if (/목차|contents|index/.test(source)) return 'toc';
+  if (/포지셔닝|개요|overview|요약|summary|방향|snapshot/.test(source)) return 'intro';
+  if (/성과|impact|kpi|metric|지표|증거|result/.test(source)) return 'metric';
+  if (/문제|problem|context|상황/.test(source)) return 'problem';
+  if (/대표|프로젝트|project|case|execution|build|경험|장면|마일스톤|milestone/.test(source)) return 'project';
+  if (/직무|매칭|연결|fit|적합|기여|요구/.test(source)) return 'fit';
+  if (/성장|next|다음|계획|90일|roadmap|gantt|온보딩/.test(source)) return 'growth';
+  if (/리스크|보완|risk|trade|포기|선택/.test(source)) return 'risk';
+  return 'default';
+}
+
+function acceptedSlideMood(slide, index) {
+  const kind = acceptedSectionKind(slide);
+  if (kind === 'cover' || kind === 'closing' || kind === 'toc' || kind === 'metric') return kind;
+  if (kind === 'project' || kind === 'growth') return 'process';
+  if (kind === 'fit' || kind === 'risk' || kind === 'problem') return 'evidence';
+  if (slide.layout === 'cover' || slide.layout === 'section') return 'cover';
+  if (slide.layout === 'closing' || slide.proposalVariant === 'closing') return 'closing';
+  if (slide.proposalVariant === 'contents') return 'toc';
+  if (slide.dark || slide.proposalVariant === 'darkStats' || slide.proposalVariant === 'budget' || (slide.metrics || []).length) return 'metric';
+  if (slide.layout === 'experience' || ['timeline', 'gantt', 'stageCards', 'stairSteps', 'roleTable'].includes(slide.proposalVariant)) return 'process';
+  if (['comparison', 'venn', 'targetCircle', 'orbit', 'risk', 'criteria', 'pyramid'].includes(slide.proposalVariant)) return 'evidence';
+  return index % 3 === 1 ? 'feature' : index % 3 === 2 ? 'process' : 'grid';
+}
+
+function acceptedLines(slide) {
+  const items = slide.items || [];
+  const bullets = slide.bullets || [];
+  if (slide.layout === 'experience' && slide.details) {
+    const first = items[0] || {};
+    const detailGroups = [
+      { heading: '문제 정의', body: (slide.details.problem || []).join(' / ') },
+      { heading: '실행 과정', body: (slide.details.action || first.bullets || []).join(' / ') },
+      { heading: '성과', body: (slide.details.result || []).join(' / '), metrics: first.metrics || [] },
+      { heading: first.heading || slide.title || '대표 경험', body: first.body || slide.subtitle || '', period: first.period || first.role || '' },
+    ].filter(line => line.heading || line.body || (line.metrics || []).length);
+    if (detailGroups.length) return detailGroups.slice(0, 4).map(compactAcceptedLine);
+  }
+  if (Array.isArray(slide.table) && slide.table.length > 1) {
+    const headers = slide.table[0] || [];
+    return slide.table.slice(1, 5).map((row, i) => compactAcceptedLine({
+      heading: row[1] || row[0] || `항목 ${i + 1}`,
+      body: row.map((cell, col) => headers[col] ? `${headers[col]}: ${cell}` : cell).filter(Boolean).join(' · '),
+      period: row[0] || '',
+    }));
+  }
+  if (Array.isArray(slide.metrics) && slide.metrics.length && !items.length) {
+    return slide.metrics.slice(0, 4).map((metric, i) => compactAcceptedLine({
+      heading: metric.label || `성과 ${i + 1}`,
+      body: acceptedMetricText(metric),
+      metrics: [metric],
+    }));
+  }
+  if (items.length) {
+    return items.slice(0, 4).map(item => compactAcceptedLine({
+      heading: item.heading || item.role || '핵심 항목',
+      body: item.body || (item.bullets || []).slice(0, 3).join(' / ') || item.role || item.period || '',
+      period: item.period || item.role || '',
+      metrics: item.metrics || [],
+    }));
+  }
+  return bullets.slice(0, 4).map((body, i) => compactAcceptedLine({ heading: `Point ${i + 1}`, body }));
+}
+
+function acceptedMetricText(metric) {
+  if (!metric) return 'Impact';
+  if (metric.before && metric.after) return cleanPortfolioText(`${metric.before} -> ${metric.after}`);
+  return cleanPortfolioText(metric.value || metric.label || 'Impact');
+}
+
+function acceptedSectionKind(slide) {
+  const source = cleanPortfolioText(`${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const hasAny = (...words) => words.some(word => source.includes(word));
+  if (slide.layout === 'cover' || slide.layout === 'section') return 'cover';
+  if (slide.layout === 'closing' || slide.proposalVariant === 'closing' || hasAny('thank', 'closing', '마무리')) return 'closing';
+  if (slide.proposalVariant === 'contents' || hasAny('contents', 'index', '목차')) return 'toc';
+  if (hasAny('overview', 'summary', 'snapshot', 'intro', '개요', '요약', '포지셔닝')) return 'intro';
+  if ((slide.metrics || []).length || hasAny('impact', 'kpi', 'metric', 'result', '성과', '지표', '증거')) return 'metric';
+  if (hasAny('problem', 'context', 'issue', '문제', '상황', '배경')) return 'problem';
+  if (slide.layout === 'experience' || hasAny('project', 'case', 'execution', 'build', 'milestone', '프로젝트', '경험', '실행')) return 'project';
+  if (hasAny('fit', 'match', 'role', '직무', '적합', '기여', '요구')) return 'fit';
+  if (hasAny('next', 'roadmap', 'gantt', 'growth', '90일', '다음', '성장', '계획')) return 'growth';
+  if (hasAny('risk', 'trade', 'response', '리스크', '보완', '대응')) return 'risk';
+  return 'default';
+}
+
+function prepareAcceptedSlide(slide) {
+  return {
+    ...slide,
+    title: compactPortfolioText(slide.title, 54),
+    subtitle: compactPortfolioText(slide.subtitle, 110),
+    sectionLabel: compactPortfolioText(slide.sectionLabel || '', 22),
+    bullets: (slide.bullets || []).slice(0, 4).map(bullet => compactPortfolioText(bullet, 72)),
+    items: (slide.items || []).slice(0, 4).map(item => ({
+      ...item,
+      heading: compactPortfolioText(item.heading, 32),
+      role: compactPortfolioText(item.role, 24),
+      period: compactPortfolioText(item.period, 18),
+      body: compactPortfolioText(item.body || (item.bullets || []).join(' / '), 88),
+      bullets: (item.bullets || []).slice(0, 3).map(bullet => compactPortfolioText(bullet, 44)),
+    })),
+  };
+}
+
+function renderAcceptedPortfolio(slide, t, index) {
+  const prepared = prepareAcceptedSlide(slide);
+  const id = t.layoutId;
+  const v = acceptedVisual(t);
+  if (id === 'narrative') return renderNarrativeSlide(prepared, t, v, index);
+  if (id === 'star') return renderStarSlide(prepared, t, v, index);
+  if (id === 'kpi-dashboard') return renderKpiSlide(prepared, t, v, index);
+  if (id === 'timeline') return renderTimelineSlide(prepared, t, v, index);
+  if (id === 'case-study') return renderCaseStudyReferenceSlide(prepared, t, v, index);
+  return renderProposal(prepared, t, index);
+}
+
+function acceptedVariantIndex(index) {
+  return Math.abs(Number(index) || 0) % 30;
+}
+
+function composeAcceptedProposalSlide(slide, t, index) {
+  const profile = acceptedTemplateProfile(t.layoutId);
+  const variant = (acceptedVariantIndex(index) + profile.variantOffset) % 30;
+  const bodyVariant = (profile.variants && profile.variants[variant]) || ACCEPTED_BODY_VARIANTS_30[variant] || slide.proposalVariant || '';
+  const dark = slide.dark || bodyVariant === 'darkStats' || bodyVariant === 'budget' || (variant + profile.shellOffset) % 9 === 0;
+  return {
+    ...slide,
+    title: cleanPortfolioText(slide.title),
+    subtitle: cleanPortfolioText(slide.subtitle),
+    sectionLabel: cleanPortfolioText(slide.sectionLabel || slide.layout || ''),
+    proposalVariant: slide.proposalVariant === 'contents' || slide.proposalVariant === 'closing' ? slide.proposalVariant : bodyVariant,
+    dark: slide.layout === 'cover' || slide.layout === 'section' ? slide.dark : dark,
+    bullets: (slide.bullets || []).map(cleanPortfolioText).filter(Boolean),
+    items: (slide.items || []).map(item => ({
+      ...item,
+      heading: cleanPortfolioText(item.heading),
+      role: cleanPortfolioText(item.role),
+      period: cleanPortfolioText(item.period),
+      body: cleanPortfolioText(item.body),
+      bullets: (item.bullets || []).map(cleanPortfolioText).filter(Boolean),
+    })),
+    table: Array.isArray(slide.table) ? slide.table.map(row => row.map(cleanPortfolioText)) : slide.table,
+  };
+}
+
+const ACCEPTED_BODY_VARIANTS_30 = [
+  'threeCards', 'splitPhotoList', 'timeline', 'darkStats', 'bubbleCore',
+  'comparison', 'metricBars', 'graphCallout', 'synergy', 'venn',
+  'stairSteps', 'roleTable', 'targetCircle', 'caseGrid', 'testimonial',
+  'conditionGrid', 'criteria', 'gantt', 'stageCards', 'pyramid',
+  'promise', 'budget', 'risk', 'orbit', 'faqCards',
+  'threeCards', 'metricBars', 'graphCallout', 'stageCards', 'caseGrid',
+];
+
+const ACCEPTED_TEMPLATE_PROFILES = {
+  narrative: {
+    variantOffset: 0,
+    shellOffset: 0,
+    heroCount: 5,
+    variants: [
+      'timeline', 'splitPhotoList', 'graphCallout', 'testimonial', 'venn',
+      'stairSteps', 'promise', 'caseGrid', 'comparison', 'gantt',
+      'threeCards', 'conditionGrid', 'orbit', 'stageCards', 'pyramid',
+      'metricBars', 'bubbleCore', 'criteria', 'risk', 'targetCircle',
+      'faqCards', 'darkStats', 'synergy', 'roleTable', 'budget',
+      'timeline', 'graphCallout', 'promise', 'caseGrid', 'closing',
+    ],
+  },
+  star: {
+    variantOffset: 6,
+    shellOffset: 2,
+    heroCount: 0,
+    variants: [
+      'conditionGrid', 'criteria', 'roleTable', 'comparison', 'threeCards',
+      'stageCards', 'risk', 'metricBars', 'faqCards', 'targetCircle',
+      'pyramid', 'darkStats', 'gantt', 'caseGrid', 'testimonial',
+      'orbit', 'splitPhotoList', 'bubbleCore', 'graphCallout', 'synergy',
+      'stairSteps', 'budget', 'promise', 'timeline', 'venn',
+      'criteria', 'roleTable', 'risk', 'caseGrid', 'closing',
+    ],
+  },
+  'kpi-dashboard': {
+    variantOffset: 12,
+    shellOffset: 4,
+    heroCount: 0,
+    variants: [
+      'darkStats', 'metricBars', 'graphCallout', 'budget', 'roleTable',
+      'targetCircle', 'risk', 'caseGrid', 'threeCards', 'timeline',
+      'criteria', 'gantt', 'stageCards', 'conditionGrid', 'comparison',
+      'pyramid', 'bubbleCore', 'venn', 'orbit', 'testimonial',
+      'splitPhotoList', 'stairSteps', 'promise', 'faqCards', 'synergy',
+      'metricBars', 'graphCallout', 'darkStats', 'budget', 'closing',
+    ],
+  },
+  timeline: {
+    variantOffset: 18,
+    shellOffset: 6,
+    heroCount: 0,
+    variants: [
+      'timeline', 'stairSteps', 'gantt', 'stageCards', 'splitPhotoList',
+      'graphCallout', 'threeCards', 'roleTable', 'promise', 'pyramid',
+      'orbit', 'caseGrid', 'testimonial', 'conditionGrid', 'comparison',
+      'metricBars', 'darkStats', 'criteria', 'risk', 'bubbleCore',
+      'venn', 'targetCircle', 'budget', 'faqCards', 'synergy',
+      'timeline', 'gantt', 'stageCards', 'promise', 'closing',
+    ],
+  },
+  'case-study': {
+    variantOffset: 24,
+    shellOffset: 1,
+    heroCount: 0,
+    variants: [
+      'caseGrid', 'comparison', 'conditionGrid', 'roleTable', 'risk',
+      'testimonial', 'threeCards', 'splitPhotoList', 'graphCallout', 'metricBars',
+      'pyramid', 'stageCards', 'gantt', 'promise', 'criteria',
+      'budget', 'darkStats', 'timeline', 'bubbleCore', 'venn',
+      'orbit', 'targetCircle', 'faqCards', 'stairSteps', 'synergy',
+      'caseGrid', 'testimonial', 'risk', 'promise', 'closing',
+    ],
+  },
+};
+
+function acceptedTemplateProfile(layoutId) {
+  return ACCEPTED_TEMPLATE_PROFILES[layoutId] || ACCEPTED_TEMPLATE_PROFILES.narrative;
+}
+
+function acceptedHybridData(slide, t, v, index, label) {
+  const profile = acceptedTemplateProfile(t.layoutId);
+  const variant = (acceptedVariantIndex(index) + profile.variantOffset) % 30;
+  const bodyVariant = (profile.variants && profile.variants[variant]) || ACCEPTED_BODY_VARIANTS_30[variant] || '';
+  const shell = (variant + profile.shellOffset) % 8;
+  const hybridSlide = {
+    ...slide,
+    proposalVariant: bodyVariant,
+    dark: shell === 1 || shell === 5 || bodyVariant === 'darkStats' || bodyVariant === 'budget',
+    sectionLabel: slide.sectionLabel || label,
+  };
+  const isDark = !!hybridSlide.dark;
+  return {
+    variant,
+    bodyVariant,
+    shell,
+    hybridSlide,
+    isDark,
+    body: renderProposalBody(hybridSlide, t, isDark),
+    title: cleanPortfolioText(slide.title || slide.sectionLabel || label),
+    subtitle: cleanPortfolioText(slide.subtitle || `${label} · Slide ${String(index + 1).padStart(2, '0')}`),
+    lines: acceptedCleanLines(slide),
+    metrics: (slide.metrics || acceptedCleanLines(slide).flatMap(line => line.metrics || [])).slice(0, 4),
+  };
+}
+
+function renderNarrativeHybrid(slide, t, v, index, label) {
+  const d = acceptedHybridData(slide, t, v, index, label);
+  const paper = d.shell % 2 ? v.card : '#FFFFFF';
+  const body = renderProposalBody({ ...d.hybridSlide, dark: false }, t, false);
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: `linear-gradient(135deg, ${v.bg}, ${v.soft})`, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 34, top: 34, width: 58, height: 472, background: v.accent, borderRadius: 999, opacity: 0.92 }} />
+      <div style={{ position: 'absolute', left: 56, top: 64, writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, letterSpacing: '0.22em', fontWeight: 950, color: v.dark }}>STORY ARC {String(index + 1).padStart(2, '0')}</div>
+      <div style={{ position: 'absolute', left: 116, top: 44, width: 300, minHeight: 360, background: paper, borderRadius: d.shell % 3 ? 20 : 4, padding: 26, boxShadow: '0 28px 70px rgba(25,18,12,0.16)', transform: `rotate(${d.shell % 2 ? -1.2 : 0.8}deg)` }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>{slide.sectionLabel || label}</div>
+        <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, letterSpacing: '-0.045em', fontWeight: 950, ...textClamp(4) }}>{d.title}</div>
+        <div style={{ marginTop: 16, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(4) }}>{d.subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 450, right: 44, top: 58, bottom: 56, overflow: 'hidden' }}>{body}</div>
+    </div>
+  );
+}
+
+function renderStarHybrid(slide, t, v, index, label) {
+  const d = acceptedHybridData(slide, t, v, index, label);
+  const body = renderProposalBody({ ...d.hybridSlide, dark: false }, t, false);
+  const letters = ['S', 'T', 'A', 'R'];
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', inset: 32, border: `3px solid ${v.dark}`, borderRadius: d.shell % 2 ? 0 : 28 }} />
+      <div style={{ position: 'absolute', left: 56, top: 48, display: 'flex', gap: 8 }}>
+        {letters.map((letter, i) => <div key={letter} style={{ width: 40, height: 40, borderRadius: i === d.shell % 4 ? '50%' : 8, background: i === d.shell % 4 ? v.accent : v.dark, color: i === d.shell % 4 ? v.dark : '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 21, fontWeight: 950 }}>{letter}</div>)}
+      </div>
+      <div style={{ position: 'absolute', left: 56, top: 106, right: 56 }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 950 }}>EVIDENCE SCORECARD / {String(index + 1).padStart(2, '0')}</div>
+        <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 31, lineHeight: 1.08, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(2) }}>{d.title}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 56, right: 56, top: 210, bottom: 54, borderRadius: 22, background: v.card, padding: 18, boxShadow: '0 18px 48px rgba(0,0,0,0.10)', overflow: 'hidden' }}>{body}</div>
+    </div>
+  );
+}
+
+function renderKpiHybrid(slide, t, v, index, label) {
+  const d = acceptedHybridData(slide, t, v, index, label);
+  const lines = d.lines.length ? d.lines : [{ heading: '핵심 항목', body: d.subtitle }];
+  const metrics = d.metrics.length ? d.metrics : lines.flatMap(line => line.metrics || []).slice(0, 4);
+  const titleSize = String(d.title || '').length > 34 ? 24 : 29;
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 42, top: 34, right: 42, height: 38, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+        <div style={{ color: v.accent, fontSize: 11, letterSpacing: '0.22em', fontWeight: 950 }}>KPI DASHBOARD</div>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 900 }}>#{String(index + 1).padStart(2, '0')}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 48, top: 92, width: 300 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: titleSize, lineHeight: 1.09, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(4) }}>{d.title}</div>
+        <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.5)', fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{d.subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 48, bottom: 48, width: 290, height: 74, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)' }} />
+        {[32, 52, 42, 64].map((h, i) => (
+          <div key={i} style={{ flex: 1, height: h, borderRadius: '4px 4px 0 0', background: i === d.shell % 4 ? v.accent : 'rgba(255,255,255,0.15)' }} />
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 385, top: 82, right: 42, bottom: 50, borderRadius: 24, background: '#FFFFFF', color: '#111827', padding: 22, overflow: 'hidden', boxShadow: '0 22px 60px rgba(0,0,0,0.22)' }}>
+        {metrics.length ? <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, metrics.length)}, 1fr)`, gap: 10, marginBottom: 14 }}>
+          {metrics.slice(0, 2).map((metric, i) => <div key={i} style={{ borderRadius: 16, background: i === 0 ? v.accent : '#EAF1FF', color: i === 0 ? v.dark : '#1F2937', padding: 14 }}><div style={{ fontSize: 25, lineHeight: 1, fontWeight: 950, ...textClamp(1) }}>{acceptedMetricText(metric)}</div><div style={{ marginTop: 7, fontSize: 11, fontWeight: 900, ...textClamp(1) }}>{cleanPortfolioText(metric.label || '핵심 지표')}</div></div>)}
+        </div> : null}
+        <div style={{ display: 'grid', gridTemplateColumns: lines.length > 2 ? '1fr 1fr' : '1fr', gap: 10 }}>
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ minHeight: 76, borderRadius: 16, background: i === 0 && !metrics.length ? v.accent : '#F3F6FB', color: i === 0 && !metrics.length ? v.dark : '#111827', padding: 14 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 950, lineHeight: 1.25, ...textClamp(2) }}>{line.heading || `Point ${i + 1}`}</div>
+            <div style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.42, color: i === 0 && !metrics.length ? v.dark : '#4B5563', ...textClamp(3) }}>{line.body}</div>
+          </div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderTimelineHybrid(slide, t, v, index, label) {
+  const d = acceptedHybridData(slide, t, v, index, label);
+  const body = renderProposalBody({ ...d.hybridSlide, dark: false }, t, false);
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 80, top: 0, bottom: 0, width: 2, background: v.dark }} />
+      <div style={{ position: 'absolute', left: 58, top: 64, width: 46, height: 46, borderRadius: '50%', background: v.accent, border: `6px solid ${v.bg}` }} />
+      <div style={{ position: 'absolute', left: 126, top: 58, width: 360 }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>MILESTONE {String(index + 1).padStart(2, '0')}</div>
+        <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: 40, lineHeight: 1.08, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(3) }}>{d.title}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 545, top: 54, bottom: 54, width: 280, borderRadius: d.shell % 2 ? 999 : 34, background: v.dark, color: '#FFFFFF', padding: 28 }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>GROWTH NOTE</div>
+        <div style={{ marginTop: 22, color: 'rgba(255,255,255,0.7)', fontSize: 12, lineHeight: 1.5, ...textClamp(5) }}>{d.subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 126, right: 84, bottom: 54, height: 230, overflow: 'hidden' }}>{body}</div>
+    </div>
+  );
+}
+
+function renderCaseHybrid(slide, t, v, index, label) {
+  const d = acceptedHybridData(slide, t, v, index, label);
+  const body = renderProposalBody({ ...d.hybridSlide, dark: false }, t, false);
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 42, top: 38, width: 250, height: 456, background: v.card, border: `1px solid ${v.soft}`, borderRadius: 8, boxShadow: '0 20px 55px rgba(0,0,0,0.08)' }}>
+        <div style={{ height: 54, background: v.dark, color: '#FFFFFF', padding: '18px 22px', fontSize: 12, letterSpacing: '0.2em', fontWeight: 950 }}>CASE FILE</div>
+        <div style={{ padding: 24 }}>
+          <div style={{ color: v.accent, fontSize: 44, fontWeight: 950, lineHeight: 1 }}>{String(index + 1).padStart(2, '0')}</div>
+          <div style={{ marginTop: 24, fontSize: 18, fontWeight: 950, ...textClamp(4) }}>{slide.sectionLabel || label}</div>
+          <div style={{ marginTop: 18, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(5) }}>{d.subtitle}</div>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 340, top: 58, right: 58 }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>PROBLEM · PROCESS · IMPACT</div>
+        <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 38, lineHeight: 1.08, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(2) }}>{d.title}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 340, right: 58, bottom: 54, top: 190, overflow: 'hidden' }}>{body}</div>
+    </div>
+  );
+}
+
+function renderAcceptedProposalHybrid(slide, t, v, index, label) {
+  if (t.layoutId === 'narrative') return renderNarrativeHybrid(slide, t, v, index, label);
+  if (t.layoutId === 'star') return renderStarHybrid(slide, t, v, index, label);
+  if (t.layoutId === 'kpi-dashboard') return renderKpiHybrid(slide, t, v, index, label);
+  if (t.layoutId === 'timeline') return renderTimelineHybrid(slide, t, v, index, label);
+  if (t.layoutId === 'case-study') return renderCaseHybrid(slide, t, v, index, label);
+  const profile = acceptedTemplateProfile(t.layoutId);
+  const variant = (acceptedVariantIndex(index) + profile.variantOffset) % 30;
+  const bodyVariant = (profile.variants && profile.variants[variant]) || ACCEPTED_BODY_VARIANTS_30[variant] || '';
+  const shell = (variant + profile.shellOffset) % 8;
+  const hybridSlide = {
+    ...slide,
+    proposalVariant: bodyVariant,
+    dark: shell === 1 || shell === 5 || bodyVariant === 'darkStats' || bodyVariant === 'budget',
+    sectionLabel: slide.sectionLabel || label,
+  };
+  const isDark = !!hybridSlide.dark;
+  const bg = isDark ? v.dark : v.bg;
+  const fg = isDark ? '#FFFFFF' : v.ink;
+  const body = renderProposalBody(hybridSlide, t, isDark);
+  const title = slide.title || slide.sectionLabel || label;
+  const subtitle = slide.subtitle || `${label} · Slide ${String(index + 1).padStart(2, '0')}`;
+  const base = { position: 'absolute', inset: 0, overflow: 'hidden', background: bg, color: fg, fontFamily: t.fonts.body };
+  const eyebrow = { fontSize: 11, letterSpacing: '0.22em', fontWeight: 950, color: v.accent, textTransform: 'uppercase' };
+  const titleStyle = { fontFamily: t.fonts.heading, fontWeight: 950, letterSpacing: '-0.045em', lineHeight: 1.08 };
+
+  if (shell === 0) {
+    return (
+      <div style={base}>
+        <div style={{ position: 'absolute', left: 54, top: 42, ...eyebrow }}>{label} / {String(index + 1).padStart(2, '0')}</div>
+        <div style={{ position: 'absolute', left: 54, top: 82, right: 54, display: 'grid', gridTemplateColumns: '340px 1fr', gap: 38, alignItems: 'start' }}>
+          <div>
+            <div style={{ fontSize: 38, ...titleStyle, ...textClamp(3) }}>{title}</div>
+            <div style={{ marginTop: 14, color: isDark ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{subtitle}</div>
+          </div>
+          <div style={{ minHeight: 355 }}>{body}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (shell === 1) {
+    return (
+      <div style={base}>
+        <div style={{ position: 'absolute', left: -80, top: -120, width: 360, height: 360, borderRadius: '50%', background: v.accent }} />
+        <div style={{ position: 'absolute', left: 56, top: 58, width: 260, color: v.dark }}>
+          <div style={{ fontSize: 70, lineHeight: 1, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')}</div>
+          <div style={{ marginTop: 16, fontSize: 15, fontWeight: 950, ...textClamp(3) }}>{slide.sectionLabel || label}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 330, top: 54, right: 56 }}>
+          <div style={{ ...eyebrow }}>{bodyVariant || 'portfolio'}</div>
+          <div style={{ marginTop: 14, fontSize: 36, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 330, right: 56, bottom: 52, top: 188 }}>{body}</div>
+      </div>
+    );
+  }
+
+  if (shell === 2) {
+    return (
+      <div style={{ ...base, background: v.bg }}>
+        <div style={{ position: 'absolute', inset: 34, border: `2px solid ${v.dark}`, borderRadius: 30 }} />
+        <div style={{ position: 'absolute', left: 82, top: 72, width: 590 }}>
+          <div style={eyebrow}>{slide.sectionLabel || label}</div>
+          <div style={{ marginTop: 14, fontSize: 42, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        </div>
+        <div style={{ position: 'absolute', right: 82, top: 82, width: 120, textAlign: 'right', color: v.accent, fontSize: 28, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')}</div>
+        <div style={{ position: 'absolute', left: 82, right: 82, bottom: 70, top: 236 }}>{body}</div>
+      </div>
+    );
+  }
+
+  if (shell === 3) {
+    return (
+      <div style={base}>
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 245, background: v.dark, color: '#FFFFFF', padding: 40 }}>
+          <div style={{ ...eyebrow }}>{label}</div>
+          <div style={{ position: 'absolute', left: 40, bottom: 44, fontSize: 52, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 300, top: 54, right: 58 }}>
+          <div style={{ fontSize: 38, ...titleStyle, ...textClamp(2) }}>{title}</div>
+          <div style={{ marginTop: 8, fontSize: 13, color: v.muted, ...textClamp(2) }}>{subtitle}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 300, right: 58, bottom: 52, top: 178 }}>{body}</div>
+      </div>
+    );
+  }
+
+  if (shell === 4) {
+    return (
+      <div style={{ ...base, background: `linear-gradient(120deg, ${v.bg} 0%, ${v.soft} 100%)` }}>
+        <div style={{ position: 'absolute', left: 56, top: 46, right: 56, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={eyebrow}>{slide.sectionLabel || label}</div>
+          <div style={{ color: v.muted, fontWeight: 900 }}>SLIDE {String(index + 1).padStart(2, '0')}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 56, top: 96, right: 56, height: 82, borderBottom: `1px solid ${v.soft}` }}>
+          <div style={{ fontSize: 34, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 56, right: 56, bottom: 50, top: 220 }}>{body}</div>
+      </div>
+    );
+  }
+
+  if (shell === 5) {
+    return (
+      <div style={base}>
+        <div style={{ position: 'absolute', right: -120, bottom: -120, width: 420, height: 420, borderRadius: '50%', background: v.accent, opacity: 0.9 }} />
+        <div style={{ position: 'absolute', left: 58, top: 54, width: 510 }}>
+          <div style={eyebrow}>{label}</div>
+          <div style={{ marginTop: 20, fontSize: 44, ...titleStyle, ...textClamp(3) }}>{title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 58, right: 58, bottom: 54, height: 250 }}>{body}</div>
+      </div>
+    );
+  }
+
+  if (shell === 6) {
+    return (
+      <div style={base}>
+        <div style={{ position: 'absolute', left: 54, top: 50, width: 260, height: 420, borderRadius: 36, background: v.accent, color: v.dark, padding: 30, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 14, fontWeight: 950 }}>{slide.sectionLabel || label}</div>
+          <div style={{ fontSize: 46, fontWeight: 950, lineHeight: 1 }}>{String(index + 1).padStart(2, '0')}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 360, top: 58, right: 56 }}>
+          <div style={{ fontSize: 36, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 360, right: 56, bottom: 50, top: 174 }}>{body}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={base}>
+      <div style={{ position: 'absolute', left: 52, right: 52, top: 36, display: 'grid', gridTemplateColumns: '1fr 160px', gap: 24 }}>
+        <div>
+          <div style={eyebrow}>{slide.sectionLabel || label}</div>
+          <div style={{ marginTop: 12, fontSize: 35, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        </div>
+        <div style={{ height: 108, borderRadius: 999, background: v.dark, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 30, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 52, right: 52, bottom: 50, top: 190 }}>{body}</div>
+    </div>
+  );
+}
+
+function renderVariedAcceptedSlide(slide, t, v, index, label) {
+  const lines = acceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const profile = acceptedTemplateProfile(t.layoutId);
+  const rawVariant = acceptedVariantIndex(index);
+  const variant = (rawVariant + profile.variantOffset) % 30;
+  const title = slide.title || slide.sectionLabel || 'Portfolio';
+  const section = slide.sectionLabel || label || 'Portfolio';
+  const metric = metrics[0];
+  const stat = metric ? acceptedMetricText(metric) : (lines[0]?.period || String(index + 1).padStart(2, '0'));
+  const base = { position: 'absolute', inset: 0, fontFamily: t.fonts.body, overflow: 'hidden' };
+  const eyebrow = { fontSize: 12, letterSpacing: '0.2em', fontWeight: 950, color: v.accent, textTransform: 'uppercase' };
+  const titleStyle = { fontFamily: t.fonts.heading, fontWeight: 950, letterSpacing: '-0.045em', lineHeight: 1.06 };
+  const muted = { color: v.muted, lineHeight: 1.45 };
+
+  if (variant === 0) {
+    return (
+      <div style={{ ...base, background: v.dark, color: '#FFFFFF' }}>
+        <div style={{ position: 'absolute', left: 56, top: 48, ...eyebrow }}>{section}</div>
+        <div style={{ position: 'absolute', left: 56, top: 104, width: 510, fontSize: 44, ...titleStyle, ...textClamp(3) }}>{title}</div>
+        <div style={{ position: 'absolute', right: 56, top: 68, width: 280, height: 280, borderRadius: '50%', background: v.accent, opacity: 0.95 }} />
+        <div style={{ position: 'absolute', right: 96, top: 142, width: 210, color: v.dark }}>
+          <div style={{ fontSize: 54, fontWeight: 950, lineHeight: 1, ...textClamp(1) }}>{stat}</div>
+          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 900, ...textClamp(3) }}>{metric?.label || lines[0]?.heading || '핵심 증거'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 56, right: 56, bottom: 52, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `3px solid ${i === 0 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingTop: 16 }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.66)', ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 1) {
+    return (
+      <div style={{ ...base, background: v.bg, color: v.ink }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 310, background: v.accent }} />
+        <div style={{ position: 'absolute', left: 54, top: 52, color: v.dark, fontSize: 13, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')} / {label}</div>
+        <div style={{ position: 'absolute', left: 54, bottom: 58, width: 210, color: v.dark, fontSize: 42, ...titleStyle, ...textClamp(4) }}>{title}</div>
+        <div style={{ position: 'absolute', left: 360, right: 58, top: 58, bottom: 58, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: i === 0 ? 28 : 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: 24, boxShadow: '0 16px 40px rgba(18,24,31,0.08)' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 950 }}>POINT {i + 1}</div><div style={{ marginTop: 24, fontSize: 19, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 9, fontSize: 12.5, ...muted, color: i === 0 ? 'rgba(255,255,255,0.66)' : v.muted, ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 2) {
+    return (
+      <div style={{ ...base, background: v.bg, color: v.ink }}>
+        <div style={{ position: 'absolute', left: 58, top: 44, ...eyebrow }}>{label}</div>
+        <div style={{ position: 'absolute', left: 58, top: 90, width: 610, fontSize: 40, ...titleStyle, ...textClamp(2) }}>{title}</div>
+        <div style={{ position: 'absolute', left: 58, right: 58, bottom: 56, height: 250 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 122, height: 2, background: v.soft }} />
+          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ position: 'absolute', left: `${i * 20}%`, top: i % 2 ? 126 : 18, width: 170 }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 0 ? v.dark : v.accent, color: i === 0 ? '#FFFFFF' : v.dark, display: 'grid', placeItems: 'center', fontWeight: 950 }}>{i + 1}</div><div style={{ marginTop: 12, fontSize: 16, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 6, fontSize: 11.5, ...muted, ...textClamp(2) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 3) {
+    return (
+      <div style={{ ...base, background: v.dark, color: '#FFFFFF' }}>
+        <div style={{ position: 'absolute', left: 54, top: 46, ...eyebrow }}>{section}</div>
+        <div style={{ position: 'absolute', left: 54, top: 104, width: 360, fontSize: 34, ...titleStyle, ...textClamp(3) }}>{title}</div>
+        <div style={{ position: 'absolute', right: 54, top: 54, bottom: 54, width: 520, display: 'grid', gridTemplateRows: '1.2fr 1fr', gap: 14 }}>
+          <div style={{ borderRadius: 34, background: v.accent, color: v.dark, padding: 28 }}><div style={{ fontSize: 62, fontWeight: 950, lineHeight: 1, ...textClamp(1) }}>{stat}</div><div style={{ marginTop: 14, fontSize: 15, fontWeight: 950, ...textClamp(2) }}>{metric?.label || lines[0]?.heading || '대표 성과'}</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {lines.slice(0, 2).map((line, i) => <div key={i} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.08)', padding: 22 }}><div style={{ fontSize: 14, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.64)', ...textClamp(4) }}>{line.body}</div></div>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 4) {
+    return (
+      <div style={{ ...base, background: v.bg, color: v.ink }}>
+        <div style={{ position: 'absolute', inset: 38, border: `2px solid ${v.dark}`, borderRadius: 34 }} />
+        <div style={{ position: 'absolute', left: 84, top: 76, width: 500, fontSize: 39, ...titleStyle, ...textClamp(3) }}>{title}</div>
+        <div style={{ position: 'absolute', right: 84, top: 80, width: 210, textAlign: 'right', ...eyebrow }}>{label}<br />{String(index + 1).padStart(2, '0')}</div>
+        <div style={{ position: 'absolute', left: 84, right: 84, bottom: 82, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, background: i === 1 ? v.accent : v.card, padding: 22, borderRadius: 4 }}><div style={{ fontSize: 13, color: i === 1 ? v.dark : v.muted, fontWeight: 950 }}>{line.period || `EVIDENCE ${i + 1}`}</div><div style={{ marginTop: 24, fontSize: 18, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 8, fontSize: 12, ...muted, color: i === 1 ? v.dark : v.muted, ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  const family = Math.floor(variant / 5);
+  const slot = variant % 5;
+  const posterPalette = [
+    [v.bg, v.card, v.soft],
+    [v.dark, v.card, v.accent],
+    [v.bg, '#FFFFFF', v.accent],
+    [v.card, v.bg, v.dark],
+    [v.soft, v.card, v.bg],
+  ][slot];
+  const backgroundAngle = [110, 28, 155, 82, 128, 205][family] + slot * 9;
+  const posterRadius = [42, 8, 90, 24, 0][slot] + [0, 14, -18, 6, 28, -4][family];
+  const posterX = [64, 520, 94, 600, 410][slot] + [0, -34, 28, -72, 44, -12][family];
+  const posterY = [58, 118, 46, 84, 36][slot] + [0, 30, -8, 82, 18, 48][family];
+  const posterW = [350, 290, 330, 260, 310][slot] + [0, 42, -34, 70, -10, 24][family];
+  const posterH = [360, 300, 335, 285, 330][slot] + [0, -36, 42, -10, 30, -24][family];
+  const titleX = [58, 58, 420, 72, 58][slot] + [0, 22, -36, 88, 0, 52][family];
+  const titleY = [96, 70, 90, 250, 128][slot] + [0, 26, 52, -62, 18, -30][family];
+  const titleW = [470, 390, 430, 760, 330][slot] + [0, 110, -40, -160, 180, 80][family];
+  const bottomDirection = family % 2 === 0 ? (slot === 0 ? 'column' : 'row') : (slot < 2 ? 'column' : 'row');
+  const darkPoster = (variant + family) % 4 !== 0;
+  const titleOnDark = slot === 1 || family === 3;
+  const band = [
+    { left: -80, top: 420, width: 380, height: 64, rotate: -6 },
+    { left: 720, top: -40, width: 310, height: 82, rotate: 13 },
+    { left: -40, top: 38, width: 210, height: 300, rotate: 0 },
+    { left: 450, top: 410, width: 560, height: 46, rotate: 4 },
+    { left: 790, top: 120, width: 120, height: 310, rotate: -8 },
+    { left: 80, top: -48, width: 460, height: 54, rotate: -3 },
+  ][family];
+
+  return (
+    <div style={{ ...base, background: `linear-gradient(${backgroundAngle}deg, ${posterPalette[0]} 0%, ${posterPalette[1]} 52%, ${posterPalette[2]} 100%)`, color: titleOnDark ? '#FFFFFF' : v.ink }}>
+      <div style={{ position: 'absolute', left: band.left, top: band.top, width: band.width, height: band.height, borderRadius: family === 2 ? 0 : 999, background: family % 2 ? v.dark : v.accent, opacity: family === 3 ? 0.22 : 0.86, transform: `rotate(${band.rotate}deg)` }} />
+      <div style={{ position: 'absolute', left: 58, top: 48, ...eyebrow }}>{label}</div>
+      <div style={{ position: 'absolute', left: titleX, top: titleY, width: titleW, fontSize: [46, 38, 42, 34, 40, 36][family], color: titleOnDark ? '#FFFFFF' : v.ink, ...titleStyle, ...textClamp(3) }}>{title}</div>
+      <div style={{ position: 'absolute', left: posterX, top: posterY, width: posterW, height: posterH, borderRadius: Math.max(0, posterRadius), background: darkPoster ? v.dark : v.accent, color: darkPoster ? '#FFFFFF' : v.dark, padding: 30, transform: `rotate(${(slot % 2 ? 2 : -2) + family * 0.7}deg)`, clipPath: family === 5 ? 'polygon(0 0, 100% 8%, 92% 100%, 6% 88%)' : undefined }}>
+        <div style={{ color: darkPoster ? v.accent : v.dark, fontSize: 12, fontWeight: 950 }}>HIGHLIGHT {String(index + 1).padStart(2, '0')}</div>
+        <div style={{ marginTop: family === 1 ? 24 : 42, fontSize: family === 2 ? 34 : 42, fontWeight: 950, lineHeight: 1.02, ...textClamp(family === 1 ? 3 : 2) }}>{lines[0]?.heading || stat}</div>
+        <div style={{ marginTop: 18, color: darkPoster ? 'rgba(255,255,255,0.68)' : v.dark, fontSize: 13, lineHeight: 1.5, ...textClamp(4) }}>{lines[0]?.body || metric?.label}</div>
+      </div>
+      <div style={{ position: 'absolute', left: slot === 2 ? 420 : 58, right: family === 4 ? 250 : 58, bottom: family === 2 ? 78 : 56, display: 'flex', flexDirection: bottomDirection, gap: 10, alignItems: family % 2 ? 'stretch' : 'flex-start' }}>
+        {lines.slice(1, 4).map((line, i) => <div key={i} style={{ width: bottomDirection === 'column' ? 260 : 180, minHeight: family === 4 ? 108 : 0, borderRadius: [18, 4, 999, 12, 0, 28][family], background: i === 1 ? v.accent : '#FFFFFF', padding: 18, border: family === 2 ? `1px solid ${v.dark}` : 'none' }}><div style={{ fontSize: 12, fontWeight: 950, color: i === 1 ? v.dark : v.muted }}>0{i + 2}</div><div style={{ marginTop: 14, fontSize: 15, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div></div>)}
+      </div>
+    </div>
+  );
+}
+
+function renderAcceptedSectionScene(slide, t, v, index) {
+  const kind = acceptedSectionKind(slide);
+  const isCover = kind === 'cover';
+  const lines = acceptedLines(slide);
+  if (isCover || kind === 'toc' || kind === 'metric' || kind === 'project') return null;
+
+  if (kind === 'intro') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', right: -90, top: -110, width: 360, height: 360, borderRadius: '50%', background: v.accent, opacity: 0.22 }} />
+        <div style={{ position: 'absolute', left: 58, top: 48, fontSize: 12, color: v.accent, letterSpacing: '0.22em', fontWeight: 900 }}>{slide.sectionLabel || 'OVERVIEW'}</div>
+        <div style={{ position: 'absolute', left: 58, top: 96, width: 560, fontFamily: t.fonts.heading, fontSize: 48, lineHeight: 1.04, fontWeight: 950, letterSpacing: '-0.045em', ...textClamp(3) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ position: 'absolute', left: 62, top: 276, width: 460, fontSize: 15, color: v.muted, lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        <div style={{ position: 'absolute', right: 66, bottom: 62, width: 350, display: 'grid', gap: 12 }}>
+          {lines.slice(0, 3).map((line, i) => (
+            <div key={i} style={{ transform: `translateX(${i * -24}px)`, borderRadius: 24, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: '18px 22px', boxShadow: '0 16px 38px rgba(0,0,0,0.09)' }}>
+              <div style={{ fontSize: 11, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ marginTop: 6, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72, ...textClamp(2) }}>{line.body}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'fit' || kind === 'problem') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: kind === 'fit' ? v.dark : v.bg, color: kind === 'fit' ? '#FFFFFF' : v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 48, fontSize: 12, color: v.accent, letterSpacing: '0.22em', fontWeight: 900 }}>{kind === 'fit' ? 'FIT MAP' : 'PROBLEM FRAMING'}</div>
+        <div style={{ position: 'absolute', left: 54, top: 94, width: 420, fontFamily: t.fonts.heading, fontSize: 40, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', right: 60, top: 86, width: 380, height: 300 }}>
+          <div style={{ position: 'absolute', left: 14, top: 45, width: 190, height: 190, borderRadius: '50%', background: kind === 'fit' ? 'rgba(255,255,255,0.12)' : v.soft, border: `2px solid ${v.accent}`, display: 'grid', placeItems: 'center', textAlign: 'center', padding: 32, fontSize: 17, fontWeight: 900, ...textClamp(3) }}>{lines[0]?.heading || '나의 경험'}</div>
+          <div style={{ position: 'absolute', right: 14, top: 45, width: 190, height: 190, borderRadius: '50%', background: kind === 'fit' ? 'rgba(255,255,255,0.12)' : v.card, border: `2px solid ${v.accent}`, display: 'grid', placeItems: 'center', textAlign: 'center', padding: 32, fontSize: 17, fontWeight: 900, ...textClamp(3) }}>{lines[1]?.heading || '직무 요구'}</div>
+          <div style={{ position: 'absolute', left: 142, top: 120, width: 96, height: 58, borderRadius: 999, background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 950 }}>MATCH</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 60, bottom: 52, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 12 }}>
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `4px solid ${i === 1 ? v.accent : kind === 'fit' ? 'rgba(255,255,255,0.18)' : v.soft}`, paddingTop: 14 }}><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 7, color: kind === 'fit' ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'growth') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 58, top: 48, width: 360 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 900 }}>NEXT ROADMAP</div>
+          <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: 38, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 460, right: 58, top: 66, bottom: 56, display: 'grid', gridTemplateRows: `repeat(${Math.min(4, Math.max(1, lines.length))}, 1fr)`, gap: 12 }}>
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: 22, background: i === lines.slice(0, 4).length - 1 ? v.accent : v.card, color: i === lines.slice(0, 4).length - 1 ? v.dark : v.ink, padding: '18px 22px', display: 'grid', gridTemplateColumns: '86px 1fr', gap: 18, alignItems: 'center', boxShadow: '0 12px 30px rgba(0,0,0,0.06)' }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.period || `STEP ${i + 1}`}</div><div><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72, ...textClamp(2) }}>{line.body}</div></div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'risk') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 46, color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 900 }}>TRADE-OFF / RISK</div>
+        <div style={{ position: 'absolute', left: 54, top: 92, width: 620, fontSize: 42, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 54, right: 54, bottom: 54, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          {(lines.length ? lines : [{ heading: 'Risk', body: '약해질 수 있는 지점' }, { heading: 'Response', body: '보완하는 방식' }]).slice(0, 4).map((line, i) => <div key={i} style={{ minHeight: 126, borderRadius: 20, background: i % 2 ? v.accent : 'rgba(255,255,255,0.08)', color: i % 2 ? v.dark : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 12, fontWeight: 950, opacity: 0.72 }}>{i % 2 ? 'RESPONSE' : 'RISK'}</div><div style={{ marginTop: 16, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'closing') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body, display: 'grid', placeItems: 'center', textAlign: 'center' }}>
+        <div>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.28em', fontWeight: 900 }}>END OF PORTFOLIO</div>
+          <div style={{ marginTop: 22, fontSize: 58, fontWeight: 950, letterSpacing: '-0.05em' }}>{slide.title || 'Thank You'}</div>
+          {slide.subtitle ? <div style={{ marginTop: 14, color: 'rgba(255,255,255,0.62)', fontSize: 17 }}>{slide.subtitle}</div> : null}
+          <div style={{ marginTop: 28, color: v.accent, fontSize: 13, fontWeight: 900 }}>{(slide.bullets || []).slice(0, 3).join(' · ')}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function renderNarrativeSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const mood = acceptedSlideMood(slide, index);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return renderVariedAcceptedSlide(slide, t, v, index, 'STORY PORTFOLIO');
+  if (!isCover && mood === 'toc') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 60, top: 54, fontFamily: v.font, fontSize: 54, fontWeight: 900, lineHeight: 1.05, width: 360 }}>{slide.title}</div>
+        <div style={{ position: 'absolute', right: 60, top: 54, bottom: 50, width: 430, display: 'grid', gridTemplateRows: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 10 }}>
+          {lines.slice(0, 5).map((line, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 18, alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+              <div style={{ color: v.accent, fontSize: 24, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div><div style={{ fontSize: 19, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 5, color: 'rgba(255,255,255,0.58)', fontSize: 12, ...textClamp(1) }}>{line.body}</div></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ position: 'absolute', left: 60, bottom: 58, color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 900 }}>CONTENTS</div>
+      </div>
+    );
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: 62, top: 54, fontSize: 12, color: v.accent, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'IMPACT'}</div>
+        <div style={{ position: 'absolute', left: 62, top: 104, width: 520, fontFamily: v.font, fontSize: 48, lineHeight: 1.06, fontWeight: 900, ...textClamp(3) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ position: 'absolute', left: 62, top: 280, width: 420, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.62)', ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        <div style={{ position: 'absolute', right: 62, top: 80, bottom: 62, width: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          {(metrics.length ? metrics : [{ label: lines[0]?.heading, value: lines[0]?.body }]).slice(0, 3).map((m, i) => (
+            <div key={i} style={{ borderLeft: `5px solid ${i === 0 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingLeft: 20 }}>
+              <div style={{ fontSize: 46, lineHeight: 1, color: i === 0 ? v.accent : '#FFFFFF', fontWeight: 300, ...textClamp(1) }}>{acceptedMetricText(m)}</div>
+              <div style={{ marginTop: 8, fontSize: 14, color: 'rgba(255,255,255,0.68)', fontWeight: 800, ...textClamp(2) }}>{m?.label || '핵심 성과'}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ position: 'absolute', right: -80, bottom: -90, width: 260, height: 260, borderRadius: '50%', border: `44px solid ${v.accent}`, opacity: 0.28 }} />
+      </div>
+    );
+  }
+  if (!isCover && mood === 'process') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 48, right: 54, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12, color: v.accent, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'PROCESS'}</div>
+          <div style={{ fontSize: 11, color: v.muted, fontWeight: 800 }}>{String(index + 1).padStart(2, '0')}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, top: 96, width: 350, fontFamily: v.font, fontSize: 35, lineHeight: 1.12, fontWeight: 900, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 430, right: 58, top: 98, bottom: 58 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `2px solid ${v.soft}` }} />
+          {lines.slice(0, 4).map((line, i) => (
+            <div key={i} style={{ position: 'absolute', left: `${i * 24}%`, top: i % 2 ? '52%' : '8%', width: 150 }}>
+              <div style={{ width: 54, height: 54, borderRadius: '50%', background: i === 0 ? v.accent : v.dark, color: i === 0 ? v.dark : '#FFFFFF', display: 'grid', placeItems: 'center', fontWeight: 900 }}>{i + 1}</div>
+              <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
+              <div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.4, color: v.muted, ...textClamp(3) }}>{line.body}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover) return renderVariedAcceptedSlide(slide, t, v, index, 'STORY PORTFOLIO');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 46, top: 38, bottom: 38, width: 92, borderRight: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, letterSpacing: '0.22em', color: v.muted, fontWeight: 800 }}>STORY PORTFOLIO</div>
+        <div style={{ fontFamily: v.font, fontSize: 42, color: v.accent, fontWeight: 900 }}>{String(index + 1).padStart(2, '0')}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 178, right: 64, top: isCover ? 96 : 54 }}>
+        <div style={{ fontSize: 12, letterSpacing: '0.2em', color: v.accent, fontWeight: 900, textTransform: 'uppercase' }}>{slide.sectionLabel || 'Narrative'}</div>
+        <div style={{ marginTop: 14, fontFamily: v.font, fontSize: isCover ? 58 : 38, lineHeight: 1.08, fontWeight: 900, color: v.ink, ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ marginTop: 14, width: 620, fontSize: 16, color: v.muted, lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+      </div>
+      {!isCover && (
+        <div style={{ position: 'absolute', left: 178, right: 64, bottom: 50, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 18 }}>
+          {lines.slice(0, 3).map((line, i) => (
+            <div key={i} style={{ minHeight: 150, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, borderRadius: 22, padding: 22, boxShadow: '0 18px 44px rgba(45,34,24,0.08)' }}>
+              <div style={{ fontSize: 12, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{line.period || `CHAPTER ${i + 1}`}</div>
+              <div style={{ marginTop: 18, fontSize: 20, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{line.heading}</div>
+              <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.55, opacity: 0.82, ...textClamp(4) }}>{line.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ position: 'absolute', right: 58, bottom: 30, width: 160, height: 6, borderRadius: 999, background: v.soft }}><div style={{ width: `${Math.min(100, (index + 1) * 10)}%`, height: '100%', borderRadius: 999, background: v.accent }} /></div>
+    </div>
+  );
+}
+
+function renderStarSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const labels = ['S', 'T', 'A', 'R'];
+  const mood = acceptedSlideMood(slide, index);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return renderVariedAcceptedSlide(slide, t, v, index, 'STAT / STAR');
+  if (!isCover && mood === 'toc') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 48, top: 48, right: 48, display: 'grid', gridTemplateColumns: '300px 1fr', gap: 40, height: 440 }}>
+          <div style={{ borderRadius: 30, background: v.dark, color: '#FFFFFF', padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>EVIDENCE MAP</div>
+            <div style={{ fontSize: 38, lineHeight: 1.08, fontWeight: 950, ...textClamp(4) }}>{slide.title}</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {lines.slice(0, 4).map((line, i) => (
+              <div key={i} style={{ borderRadius: 24, background: i === 3 ? v.accent : v.card, color: i === 3 ? v.dark : v.ink, padding: 24, border: i === 3 ? 'none' : `1px solid ${v.soft}` }}>
+                <div style={{ fontSize: 34, fontWeight: 950 }}>{String(i + 1).padStart(2, '0')}</div>
+                <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
+                <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{line.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!isCover && mood === 'process') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 50, top: 48, width: 450 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'STAR DETAIL'}</div>
+          <div style={{ marginTop: 18, fontSize: 40, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 16, fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 530, right: 50, top: 64, bottom: 50, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {labels.map((label, i) => {
+            const line = lines[i] || {};
+            return <div key={label} style={{ flex: 1, display: 'grid', gridTemplateColumns: '64px 1fr', gap: 16, alignItems: 'center', borderRadius: 18, background: i === 3 ? v.accent : 'rgba(255,255,255,0.08)', color: i === 3 ? v.dark : '#FFFFFF', padding: '12px 18px' }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, color: i === 3 ? v.accent : v.dark, display: 'grid', placeItems: 'center', fontSize: 24, fontWeight: 950 }}>{label}</div><div><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading || ['상황', '과제', '행동', '결과'][i]}</div><div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, opacity: 0.74, ...textClamp(2) }}>{line.body}</div></div></div>;
+          })}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover) return renderVariedAcceptedSlide(slide, t, v, index, 'STAT / STAR');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 42, top: 34, fontSize: 12, fontWeight: 900, letterSpacing: '0.18em' }}>STAT / STAR</div>
+      <div style={{ position: 'absolute', right: 42, top: 34, fontSize: 13, color: v.muted, fontWeight: 800 }}>{String(index + 1).padStart(2, '0')}</div>
+      <div style={{ position: 'absolute', left: 42, top: 84, width: 330 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: isCover ? 50 : 34, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(isCover ? 4 : 3) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ marginTop: 18, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+      </div>
+      <div style={{ position: 'absolute', left: 420, right: 42, top: 82, bottom: 42, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        {labels.map((label, i) => {
+          const line = lines[i] || {};
+          const fill = i === 3 ? v.accent : i === 0 ? v.dark : v.card;
+          const fg = i === 3 ? '#111827' : i === 0 ? '#FFFFFF' : v.ink;
+          return (
+            <div key={label} style={{ borderRadius: 26, background: fill, color: fg, padding: 24, overflow: 'hidden', border: i === 1 || i === 2 ? `1px solid ${v.soft}` : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ width: 54, height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', background: i === 3 ? '#111827' : v.accent, color: i === 3 ? v.accent : '#111827', fontSize: 26, fontWeight: 950 }}>{label}</div>
+                <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.55 }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
+              </div>
+              <div style={{ marginTop: 22, fontSize: 18, fontWeight: 900, lineHeight: 1.22, ...textClamp(2) }}>{line.heading || ['상황', '과제', '행동', '결과'][i]}</div>
+              <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.5, opacity: 0.78, ...textClamp(4) }}>{line.body}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function renderKpiSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const metrics = (slide.metrics || acceptedLines(slide).flatMap(line => line.metrics || [])).slice(0, 4);
+  const lines = acceptedLines(slide);
+  const mood = acceptedSlideMood(slide, index);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return renderVariedAcceptedSlide(slide, t, v, index, 'KPI DASHBOARD');
+  if (!isCover && (mood === 'toc' || mood === 'process')) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 44, top: 38, right: 44, display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 900 }}>{mood === 'toc' ? 'DASHBOARD INDEX' : 'KPI BREAKDOWN'}</div>
+          <div style={{ color: v.muted, fontSize: 12 }}>#{String(index + 1).padStart(2, '0')}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 44, top: 82, width: 380, fontSize: 34, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 470, right: 44, top: 92, bottom: 48, display: 'grid', gridTemplateRows: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 8 }}>
+          {lines.slice(0, 5).map((line, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 90px', gap: 14, alignItems: 'center', borderRadius: 16, background: i === 0 ? v.accent : v.card, color: i === 0 ? '#06121F' : v.ink, padding: '12px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.68 }}>{line.period || `KPI ${i + 1}`}</div>
+              <div><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 4, fontSize: 11, opacity: 0.7, ...textClamp(1) }}>{line.body}</div></div>
+              <div style={{ height: 7, borderRadius: 999, background: i === 0 ? 'rgba(6,18,31,0.2)' : '#22324A' }}><div style={{ width: `${45 + i * 11}%`, height: '100%', borderRadius: 999, background: i === 0 ? '#06121F' : v.accent }} /></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ position: 'absolute', left: 44, bottom: 54, width: 340, height: 160, borderRadius: 28, background: v.card, padding: 24 }}>
+          <div style={{ fontSize: 12, color: v.muted, fontWeight: 900 }}>READING GUIDE</div>
+          <div style={{ marginTop: 18, color: v.accent, fontSize: 42, lineHeight: 1, fontWeight: 950 }}>{metrics[0] ? acceptedMetricText(metrics[0]) : 'Impact'}</div>
+          <div style={{ marginTop: 10, fontSize: 13, color: v.muted, ...textClamp(2) }}>{metrics[0]?.label || '숫자와 실행 근거를 함께 읽도록 구성했습니다.'}</div>
+        </div>
+      </div>
+    );
+  }
+  if (!isCover && mood === 'evidence') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 46, fontSize: 12, color: v.accent, letterSpacing: '0.22em', fontWeight: 900 }}>{slide.sectionLabel || 'INSIGHT'}</div>
+        <div style={{ position: 'absolute', left: 54, top: 92, width: 560, fontSize: 42, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 54, bottom: 54, right: 54, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 14 }}>
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, borderRadius: 24, background: i === 1 ? v.accent : v.card, color: i === 1 ? '#06121F' : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.heading}</div><div style={{ marginTop: 34, fontSize: 12.5, lineHeight: 1.48, opacity: 0.74, ...textClamp(4) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover) return renderVariedAcceptedSlide(slide, t, v, index, 'KPI DASHBOARD');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 46, top: 34, right: 46, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 12, color: v.accent, fontWeight: 900, letterSpacing: '0.2em' }}>KPI DASHBOARD</div>
+        <div style={{ fontSize: 12, color: v.muted }}>Slide {String(index + 1).padStart(2, '0')}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 46, top: 78, width: isCover ? 650 : 520 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: isCover ? 54 : 34, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.45, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+      </div>
+      <div style={{ position: 'absolute', left: 46, right: 46, bottom: 42, display: 'grid', gridTemplateColumns: '1.35fr 1fr 1fr', gridTemplateRows: '130px 130px', gap: 14 }}>
+        <div style={{ gridRow: 'span 2', borderRadius: 28, background: `linear-gradient(150deg, ${v.card}, ${v.dark})`, padding: 26, overflow: 'hidden' }}>
+          <div style={{ fontSize: 12, color: v.muted, fontWeight: 900 }}>PRIMARY METRIC</div>
+          <div style={{ marginTop: 24, fontSize: 56, lineHeight: 1, fontWeight: 950, color: v.accent, ...textClamp(1) }}>{acceptedMetricText(metrics[0])}</div>
+          <div style={{ marginTop: 12, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{metrics[0]?.label || lines[0]?.heading || '핵심 성과'}</div>
+          <div style={{ position: 'absolute', left: 74, bottom: 78, width: 250, height: 100, borderBottom: `2px solid ${v.muted}` }}>
+            {[0, 1, 2, 3].map(i => <span key={i} style={{ position: 'absolute', left: i * 58, bottom: 0, width: 30, height: 28 + i * 18, borderRadius: '8px 8px 0 0', background: i === 3 ? v.accent : '#28435F' }} />)}
+          </div>
+        </div>
+        {[1, 2, 3].map((n, i) => <div key={n} style={{ borderRadius: 24, background: v.card, padding: 22, overflow: 'hidden' }}><div style={{ fontSize: 32, color: v.accent, fontWeight: 950, ...textClamp(1) }}>{acceptedMetricText(metrics[n])}</div><div style={{ marginTop: 8, color: v.ink, fontSize: 14, fontWeight: 900, ...textClamp(2) }}>{metrics[n]?.label || lines[i]?.heading || '보조 지표'}</div><div style={{ marginTop: 12, height: 7, borderRadius: 999, background: '#22324A' }}><div style={{ width: `${55 + i * 14}%`, height: '100%', borderRadius: 999, background: v.accent }} /></div></div>)}
+        <div style={{ borderRadius: 24, background: v.accent, color: '#03101C', padding: 22, overflow: 'hidden' }}><div style={{ fontSize: 15, fontWeight: 950 }}>Insight</div><div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.45, fontWeight: 700, ...textClamp(4) }}>{lines[0]?.body || '성과를 만든 실행 근거를 함께 제시합니다.'}</div></div>
+      </div>
+    </div>
+  );
+}
+
+function renderTimelineSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const mood = acceptedSlideMood(slide, index);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return renderVariedAcceptedSlide(slide, t, v, index, 'CAREER TIMELINE');
+  if (!isCover && mood === 'toc') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 58, top: 58, fontFamily: v.font, fontSize: 52, lineHeight: 1.05, fontWeight: 900, width: 360 }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 500, top: 68, bottom: 64, width: 2, background: 'rgba(255,255,255,0.2)' }} />
+        {lines.slice(0, 5).map((line, i) => (
+          <div key={i} style={{ position: 'absolute', left: i % 2 ? 520 : 600, top: 72 + i * 78, width: 280 }}>
+            <div style={{ color: v.accent, fontSize: 18, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
+            <div style={{ marginTop: 2, fontSize: 18, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+            <div style={{ marginTop: 5, fontSize: 11.5, color: 'rgba(255,255,255,0.58)', ...textClamp(2) }}>{line.body}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 58, top: 44, color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>GROWTH SNAPSHOT</div>
+        <div style={{ position: 'absolute', left: 58, top: 92, width: 470, fontFamily: v.font, fontSize: 38, lineHeight: 1.08, fontWeight: 900, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', right: 58, top: 74, bottom: 58, width: 330, borderRadius: 36, background: v.dark, color: '#FFFFFF', padding: 34 }}>
+          {(metrics.length ? metrics : [{ label: lines[0]?.heading, value: lines[0]?.body }]).slice(0, 3).map((m, i) => <div key={i} style={{ marginBottom: 28 }}><div style={{ fontSize: 42, color: i === 0 ? v.accent : '#FFFFFF', fontWeight: 300, lineHeight: 1 }}>{acceptedMetricText(m)}</div><div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.64)', fontWeight: 800 }}>{m?.label || '성장 지표'}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover) return renderVariedAcceptedSlide(slide, t, v, index, 'CAREER TIMELINE');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 62, top: 48, width: 270 }}>
+        <div style={{ fontSize: 12, letterSpacing: '0.18em', color: v.accent, fontWeight: 900 }}>CAREER TIMELINE</div>
+        <div style={{ marginTop: 14, fontFamily: v.font, fontSize: isCover ? 48 : 34, lineHeight: 1.12, fontWeight: 900, ...textClamp(isCover ? 4 : 3) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ marginTop: 14, fontSize: 13.5, color: v.muted, lineHeight: 1.55, ...textClamp(4) }}>{slide.subtitle}</div> : null}
+      </div>
+      <div style={{ position: 'absolute', left: 390, top: 74, bottom: 58, width: 2, background: v.soft }} />
+      <div style={{ position: 'absolute', left: 356, right: 56, top: 64, bottom: 42, display: 'grid', gridTemplateRows: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 8 }}>
+        {lines.slice(0, 5).map((line, i) => (
+          <div key={i} style={{ position: 'relative', paddingLeft: 70, display: 'flex', alignItems: 'center' }}>
+            <div style={{ position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', background: i === 0 ? v.accent : v.card, border: `5px solid ${v.dark}` }} />
+            <div style={{ width: '100%', borderRadius: 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: '16px 20px', boxShadow: '0 12px 32px rgba(54,42,27,0.08)' }}>
+              <div style={{ fontSize: 11, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{line.period || `MILESTONE ${i + 1}`}</div>
+              <div style={{ marginTop: 5, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, opacity: 0.78, ...textClamp(2) }}>{line.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', right: 50, top: 38, fontFamily: v.font, fontSize: 28, color: v.soft, fontWeight: 900 }}>{String(index + 1).padStart(2, '0')}</div>
+    </div>
+  );
+}
+
+function renderCaseStudySlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const mood = acceptedSlideMood(slide, index);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return renderVariedAcceptedSlide(slide, t, v, index, 'CASE STUDY');
+  if (!isCover && mood === 'toc') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 50, top: 42, right: 50, height: 120, borderBottom: `1px solid ${v.soft}` }}>
+          <div style={{ fontSize: 12, color: v.accent, letterSpacing: '0.2em', fontWeight: 900 }}>CASE FILE INDEX</div>
+          <div style={{ marginTop: 14, fontSize: 40, lineHeight: 1.05, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 50, right: 50, bottom: 48, display: 'grid', gridTemplateColumns: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 10 }}>
+          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ height: 260, borderRadius: 8, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>FILE {String(i + 1).padStart(2, '0')}</div><div><div style={{ fontSize: 16, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72, ...textClamp(5) }}>{line.body}</div></div></div>)}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 48, color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>CASE IMPACT</div>
+        <div style={{ position: 'absolute', left: 54, top: 94, width: 520, fontSize: 42, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 54, bottom: 58, display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, Math.max(1, metrics.length || 4))}, 1fr)`, gap: 12, right: 54 }}>
+          {(metrics.length ? metrics : [{ label: 'Problem', value: '정의' }, { label: 'Action', value: '실행' }, { label: 'Impact', value: '성과' }, { label: 'Learning', value: '학습' }]).slice(0, 4).map((m, i) => <div key={i} style={{ borderTop: `4px solid ${i === 2 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingTop: 18 }}><div style={{ fontSize: 36, color: i === 2 ? v.accent : '#FFFFFF', fontWeight: 300 }}>{acceptedMetricText(m)}</div><div style={{ marginTop: 8, color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: 800 }}>{m?.label || '근거'}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover && mood === 'process') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 52, top: 48, width: 350 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'BUILD LOG'}</div>
+          <div style={{ marginTop: 18, fontSize: 36, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 450, right: 58, top: 70, bottom: 56 }}>
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ position: 'absolute', left: i % 2 ? 230 : 0, top: Math.floor(i / 2) * 190, width: 220, height: 160, borderRadius: 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 20 }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>{['01 DISCOVER', '02 DECIDE', '03 BUILD', '04 VERIFY'][i]}</div><div style={{ marginTop: 18, fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 8, color: i === 0 ? 'rgba(255,255,255,0.65)' : v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{line.body}</div></div>)}
+        </div>
+      </div>
+    );
+  }
+  if (!isCover) return renderVariedAcceptedSlide(slide, t, v, index, 'CASE STUDY');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 250, background: v.dark, color: '#FFFFFF', padding: 42 }}>
+        <div style={{ fontSize: 12, color: v.accent, letterSpacing: '0.18em', fontWeight: 900 }}>CASE STUDY</div>
+        <div style={{ position: 'absolute', left: 42, bottom: 42, right: 42 }}>
+          <div style={{ fontSize: 54, fontWeight: 950, lineHeight: 1 }}>{String(index + 1).padStart(2, '0')}</div>
+          <div style={{ marginTop: 16, fontSize: 12, lineHeight: 1.5, opacity: 0.65 }}>{slide.sectionLabel || 'Problem / Process / Impact'}</div>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 302, right: 58, top: 52 }}>
+        <div style={{ display: 'inline-flex', padding: '7px 12px', border: `1px solid ${v.soft}`, borderRadius: 999, fontSize: 11, color: v.accent, fontWeight: 900 }}>{slide.sectionLabel || 'Project Evidence'}</div>
+        <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: isCover ? 48 : 34, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.03em', ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
+        {slide.subtitle ? <div style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+      </div>
+      {!isCover && (
+        <div style={{ position: 'absolute', left: 302, right: 58, bottom: 46, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {lines.slice(0, 4).map((line, i) => (
+            <div key={i} style={{ minHeight: 118, borderRadius: 14, background: v.card, border: `1px solid ${v.soft}`, padding: 18, boxShadow: '0 12px 30px rgba(20,20,20,0.04)', position: 'relative' }}>
+              <div style={{ position: 'absolute', right: 16, top: 14, width: 28, height: 28, borderRadius: '50%', background: i === 2 ? v.accent : v.soft }} />
+              <div style={{ fontSize: 12, color: v.accent, fontWeight: 950 }}>{['Problem', 'Decision', 'Build', 'Impact'][i] || `Step ${i + 1}`}</div>
+              <div style={{ marginTop: 13, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 7, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(3) }}>{line.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderCaseStudyDeckSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const mood = acceptedSlideMood(slide, index);
+  const lines = acceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const leftLines = lines.slice(0, 2);
+  const rightLines = lines.slice(2, 4);
+  const label = slide.sectionLabel || 'CASE STUDY';
+  const metricCards = (metrics.length ? metrics : [
+    { label: 'Impact', value: leftLines[0]?.heading || '성과 요약' },
+    { label: 'Flow', value: rightLines[0]?.heading || '프로세스 정리' },
+  ]).slice(0, 2);
+
+  const renderGlow = () => (
+    <>
+      <div style={{ position: 'absolute', left: -80, top: -90, width: 240, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(120,30,0,0.34), rgba(120,30,0,0))' }} />
+      <div style={{ position: 'absolute', right: -40, bottom: -50, width: 280, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(130,0,255,0.28), rgba(130,0,255,0))' }} />
+      <div style={{ position: 'absolute', left: 250, top: 130, width: 360, height: 360, borderRadius: '50%', border: '28px solid rgba(82, 132, 255, 0.1)' }} />
+      <div style={{ position: 'absolute', left: 420, top: 190, width: 260, height: 260, borderRadius: '50%', border: '28px solid rgba(255, 132, 44, 0.1)' }} />
+    </>
+  );
+
+  const renderMockPanel = (title, captions, y, tall = false) => (
+    <div style={{ position: 'absolute', left: 842, top: y, width: 438, height: tall ? 238 : 184, borderRadius: 20, background: 'rgba(252,252,255,0.92)', boxShadow: '0 14px 28px rgba(35,44,86,0.1)', border: `1px solid rgba(216,221,240,0.7)`, padding: '22px 20px' }}>
+      <div style={{ textAlign: 'center', fontFamily: t.fonts.heading, fontSize: 19, fontWeight: 900, color: v.ink }}>{title}</div>
+      <div style={{ marginTop: 10, height: 2, width: 170, background: 'rgba(216,221,240,0.92)', marginLeft: 'auto', marginRight: 'auto' }} />
+      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: tall ? `repeat(${Math.min(2, Math.max(1, captions.length))}, 1fr)` : `repeat(${Math.min(3, Math.max(1, captions.length))}, 1fr)`, gap: 18, alignItems: 'end' }}>
+        {captions.map((caption, idx) => (
+          <div key={`${title}-${idx}`} style={{ textAlign: 'center' }}>
+            <div style={{ height: tall ? 108 : 126, borderRadius: tall ? 18 : 20, background: idx % 3 === 0 ? 'linear-gradient(180deg, #F9F2FF, #E5EBFF)' : idx % 3 === 1 ? 'linear-gradient(180deg, #FFF6E9, #F4F7FF)' : 'linear-gradient(180deg, #F4F7FF, #FFFFFF)', boxShadow: '0 10px 20px rgba(35,44,86,0.12)', border: '1px solid rgba(210,216,236,0.9)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', inset: 14, borderRadius: 14, background: idx % 3 === 0 ? 'linear-gradient(135deg, rgba(108,62,255,0.12), rgba(63,160,255,0.18))' : idx % 3 === 1 ? 'linear-gradient(135deg, rgba(255,162,41,0.14), rgba(255,90,90,0.16))' : 'linear-gradient(135deg, rgba(26,36,108,0.08), rgba(255,255,255,0.24))' }} />
+              <div style={{ position: 'absolute', left: 18, right: 18, bottom: 16, height: 8, borderRadius: 999, background: idx % 2 ? 'rgba(40,50,122,0.18)' : 'rgba(63,160,255,0.24)' }} />
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: v.muted, fontWeight: 700, ...textClamp(1) }}>{caption}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (mood === 'closing' || isCover) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body, overflow: 'hidden' }}>
+        {renderGlow()}
+        {mood !== 'closing' && <div style={{ position: 'absolute', left: 242, top: 208, width: 76, height: 28, borderRadius: 8, background: 'linear-gradient(90deg, rgba(255,255,255,0.95), rgba(201,210,224,0.8), rgba(255,255,255,0.95))', boxShadow: '0 8px 18px rgba(255,255,255,0.12)' }} />}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: mood === 'closing' ? 238 : 252, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: mood === 'closing' ? 64 : 52, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.03em', ...textClamp(2) }}>
+            {mood === 'closing' ? (slide.title || 'THANK YOU') : slide.title}
+          </div>
+          {mood !== 'closing' && slide.subtitle ? <div style={{ marginTop: 16, fontSize: 16, color: 'rgba(255,255,255,0.7)', fontWeight: 700, ...textClamp(1) }}>{slide.subtitle}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 50, top: 38, right: 50 }}>
+        <div style={{ display: 'inline-block', minWidth: 104, height: 34, borderRadius: 10, background: 'linear-gradient(90deg, rgba(255,255,255,0.96), rgba(236,240,249,0.88))', boxShadow: '0 8px 20px rgba(20,28,65,0.08)' }} />
+        <div style={{ marginTop: 14, color: v.ink, fontFamily: t.fonts.heading, fontSize: slide.title && slide.title.length > 26 ? 34 : 42, lineHeight: 1.06, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 42, top: 158, width: 850, height: 515, borderRadius: 26, background: v.card, boxShadow: '0 18px 36px rgba(35,44,86,0.12)', border: '1px solid rgba(216,221,240,0.72)' }}>
+        <div style={{ position: 'absolute', left: 68, top: 70, width: 250 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: v.ink }}>문제정의</div>
+          <div style={{ marginTop: 90, display: 'grid', gap: 28 }}>
+            {leftLines.map((line, idx) => (
+              <div key={`left-${idx}`} style={{ color: idx === 0 ? v.ink : v.muted }}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <div style={{ width: 18, height: 18, marginTop: 6, borderRadius: 4, border: `3px solid ${idx === 0 ? v.muted : v.soft}` }} />
+                  <div>
+                    <div style={{ fontSize: 15, lineHeight: 1.58, fontWeight: 700, ...textClamp(3) }}>{line.body || line.heading}</div>
+                    {line.heading && line.body && line.heading !== line.body ? <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.5, color: v.ink, fontWeight: 800, ...textClamp(1) }}>{line.heading}</div> : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ position: 'absolute', left: 424, top: 99, width: 3, height: 286, background: v.soft }} />
+        <div style={{ position: 'absolute', left: 506, top: 70, width: 286 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: v.ink }}>전략 Strategies/Objectives</div>
+          <div style={{ marginTop: 74, display: 'grid', gap: 20 }}>
+            {rightLines.map((line, idx) => (
+              <div key={`right-${idx}`} style={{ color: v.muted }}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 22, lineHeight: 1, color: v.ink, fontWeight: 900 }}>›</div>
+                  <div>
+                    <div style={{ fontSize: 15, lineHeight: 1.55, fontWeight: 700, color: v.ink, ...textClamp(3) }}>{line.heading || line.body}</div>
+                    {line.body && line.body !== line.heading ? <div style={{ marginTop: 12, paddingLeft: 14, borderLeft: `4px solid ${v.soft}`, fontSize: 13.2, lineHeight: 1.55, color: v.muted, ...textClamp(4) }}>{line.body}</div> : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {mood === 'toc'
+        ? renderMockPanel('MAIN PROJECTS', lines.slice(0, 3).map(line => line.heading || line.period || '프로젝트'), 206)
+        : mood === 'metric'
+          ? renderMockPanel('성과 화면', lines.slice(0, 2).map(line => line.heading || '성과 요약'), 206, true)
+          : renderMockPanel(mood === 'process' ? '프로젝트 진행 화면' : label, lines.slice(0, 3).map(line => line.heading || '핵심 포인트'), 206, mood !== 'process')}
+      {mood === 'metric'
+        ? <div style={{ position: 'absolute', left: 842, top: 452, width: 438, height: 184, borderRadius: 20, background: 'rgba(252,252,255,0.92)', boxShadow: '0 14px 28px rgba(35,44,86,0.1)', border: '1px solid rgba(216,221,240,0.7)', padding: '24px 28px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, height: '100%', alignItems: 'center' }}>
+              {metricCards.map((metric, idx) => (
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '72px 1fr', alignItems: 'center', columnGap: 16 }}>
+                  <div style={{ width: 72, height: 72, borderRadius: '50%', background: idx === 0 ? 'radial-gradient(circle at 32% 28%, #6EC1FF, #2B90FF)' : 'radial-gradient(circle at 38% 32%, #8F96FF, #4A4FCA)', boxShadow: '0 14px 22px rgba(63,160,255,0.24)' }} />
+                  <div>
+                    <div style={{ fontSize: 22, lineHeight: 1.05, color: idx === 0 ? '#2B90FF' : '#4A4FCA', fontWeight: 950, ...textClamp(1) }}>{acceptedMetricText(metric)}</div>
+                    <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.35, color: v.ink, fontWeight: 800, ...textClamp(2) }}>{metric.label || (idx === 0 ? '리소스 효율' : '핵심 변화')}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        : renderMockPanel(mood === 'process' ? '대시보드와 주요 기능' : '결과 Key Result', lines.slice(1, 3).map(line => line.heading || line.period || '핵심 포인트'), 452, true)}
+    </div>
+  );
+}
+
 function proposalTextParts(text, accent) {
   const value = String(text || '').trim();
   if (!value) return null;
@@ -442,6 +1781,273 @@ function proposalTextParts(text, accent) {
   if (words.length < 2) return value;
   const last = words.pop();
   return <>{words.join(' ')} <span style={{ color: accent }}>{last}</span></>;
+}
+
+function renderCaseStudyProposalSlide(slide, t, v, index) {
+  const mood = acceptedSlideMood(slide, index);
+  const proposalSlide = composeAcceptedProposalSlide({
+    ...slide,
+    sectionLabel: slide.sectionLabel || '케이스 스터디',
+    proposalVariant: mood === 'toc' ? 'contents' : slide.proposalVariant,
+    dark: mood === 'metric' ? false : slide.dark,
+  }, t, index);
+
+  if (proposalSlide.layout === 'cover' || proposalSlide.layout === 'section') {
+    return renderProposalCover({
+      ...proposalSlide,
+      bullets: (proposalSlide.bullets && proposalSlide.bullets.length ? proposalSlide.bullets : ['CASE STUDY', 'PROBLEM SOLVING', 'IMPACT']).slice(0, 3),
+    }, t);
+  }
+
+  if (mood === 'closing') {
+    return renderProposal({
+      ...proposalSlide,
+      layout: 'closing',
+      dark: true,
+      title: proposalSlide.title || 'THANK YOU',
+    }, t, index);
+  }
+
+  return renderProposal(proposalSlide, t, index);
+}
+
+const CASE_STUDY_REFERENCE_VARIANTS = [
+  'profile',
+  'projects-3',
+  'projects-2',
+  'dark-title-1',
+  'split-image',
+  'result-gallery',
+  'split-large-image',
+  'result-dashboard',
+  'dark-title-2',
+  'problem-strategy',
+  'result-guide',
+  'problem-strategy-simple',
+  'result-dashboard-metric',
+  'dark-title-3',
+  'problem-strategy-service',
+  'result-customer',
+  'problem-strategy-policy',
+  'result-table',
+  'dark-title-4',
+  'problem-strategy-channel',
+  'result-review',
+  'problem-strategy-ue',
+  'result-chart',
+  'closing',
+];
+
+function caseStudyVariantForIndex(slide, index) {
+  if (slide.layout === 'closing') return 'closing';
+  return CASE_STUDY_REFERENCE_VARIANTS[Math.abs(Number(index) || 0) % CASE_STUDY_REFERENCE_VARIANTS.length];
+}
+
+function renderCaseStudyReferenceSlide(slide, t, v, index) {
+  const variant = caseStudyVariantForIndex(slide, index);
+  const lines = acceptedLines(slide);
+  const items = slide.items || [];
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const left = lines.slice(0, 2);
+  const right = lines.slice(2, 4);
+  const cardShadow = '0 14px 30px rgba(35,44,86,0.12)';
+  const panelBorder = '1px solid rgba(216,221,240,0.82)';
+  const header = (
+    <div style={{ position: 'absolute', left: 40, top: 26, right: 40 }}>
+      <div style={{ width: 76, height: 18, borderRadius: 8, background: 'linear-gradient(90deg, #FFFFFF, #E6EBF8)', boxShadow: '0 8px 18px rgba(35,44,86,0.08)' }} />
+      <div style={{ marginTop: 14, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.08, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+    </div>
+  );
+
+  const darkTitle = title => (
+    <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', overflow: 'hidden', fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: -60, top: -60, width: 180, height: 120, borderRadius: '50%', background: 'radial-gradient(circle, rgba(153,38,0,0.4), rgba(153,38,0,0))' }} />
+      <div style={{ position: 'absolute', right: -10, bottom: -20, width: 220, height: 160, borderRadius: '50%', background: 'radial-gradient(circle, rgba(135,0,193,0.3), rgba(135,0,193,0))' }} />
+      <div style={{ position: 'absolute', left: 276, top: 222, width: 64, height: 22, borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,0.92), rgba(211,219,236,0.78))' }} />
+      <div style={{ position: 'absolute', left: 100, right: 100, top: 246, textAlign: 'center' }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 44, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title || slide.title}</div>
+      </div>
+    </div>
+  );
+
+  const statPill = (value, label, accent = '#2B90FF') => (
+    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '58px 1fr', gap: 12, alignItems: 'center' }}>
+      <div style={{ width: 58, height: 58, borderRadius: '50%', background: accent === '#2B90FF' ? 'radial-gradient(circle at 30% 28%, #6EC1FF, #2B90FF)' : 'radial-gradient(circle at 35% 30%, #9D9EFF, #4A4FCA)' }} />
+      <div>
+        <div style={{ fontSize: 18, lineHeight: 1.05, fontWeight: 950, color: accent, ...textClamp(1) }}>{value}</div>
+        <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, fontWeight: 800, color: v.ink, ...textClamp(2) }}>{label}</div>
+      </div>
+    </div>
+  );
+
+  const mockCard = (caption, height = 112, tone = 0) => (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ height, borderRadius: 18, background: tone === 0 ? 'linear-gradient(180deg, #F6F0FF, #E8EEFF)' : tone === 1 ? 'linear-gradient(180deg, #FFF5E7, #F7FAFF)' : 'linear-gradient(180deg, #F6F8FF, #FFFFFF)', border: panelBorder, boxShadow: '0 10px 18px rgba(35,44,86,0.1)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 12, borderRadius: 12, background: tone === 0 ? 'linear-gradient(135deg, rgba(120,88,255,0.16), rgba(63,160,255,0.14))' : tone === 1 ? 'linear-gradient(135deg, rgba(255,167,55,0.14), rgba(255,92,92,0.14))' : 'linear-gradient(135deg, rgba(40,50,122,0.08), rgba(255,255,255,0.18))' }} />
+        <div style={{ position: 'absolute', left: 16, right: 16, bottom: 14, height: 7, borderRadius: 999, background: tone === 1 ? 'rgba(40,50,122,0.18)' : 'rgba(63,160,255,0.24)' }} />
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: v.muted, fontWeight: 700, ...textClamp(1) }}>{caption}</div>
+    </div>
+  );
+
+  const mainBoard = (leftTitle = '문제정의', rightTitle = '전략 Strategies/Objectives') => (
+    <div style={{ position: 'absolute', left: 40, top: 130, width: 520, height: 300, borderRadius: 24, background: v.card, border: panelBorder, boxShadow: cardShadow }}>
+      <div style={{ position: 'absolute', left: 34, top: 36, width: 180 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 21, fontWeight: 900, color: v.ink }}>{leftTitle}</div>
+        <div style={{ marginTop: 60, display: 'grid', gap: 24 }}>
+          {left.map((line, idx) => (
+            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '16px 1fr', gap: 12 }}>
+              <div style={{ width: 14, height: 14, borderRadius: 4, border: `3px solid ${idx === 0 ? v.muted : v.soft}`, marginTop: 4 }} />
+              <div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.55, fontWeight: 700, color: idx === 0 ? v.ink : v.muted, ...textClamp(3) }}>{line.body || line.heading}</div>
+                {line.heading && line.body && line.heading !== line.body ? <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: v.ink, ...textClamp(1) }}>{line.heading}</div> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 260, top: 66, width: 2, height: 190, background: v.soft }} />
+      <div style={{ position: 'absolute', left: 300, top: 36, width: 184 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 21, fontWeight: 900, color: v.ink }}>{rightTitle}</div>
+        <div style={{ marginTop: 48, display: 'grid', gap: 18 }}>
+          {right.map((line, idx) => (
+            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '12px 1fr', gap: 12 }}>
+              <div style={{ fontSize: 18, lineHeight: 1, fontWeight: 900, color: v.ink }}>›</div>
+              <div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 800, color: v.ink, ...textClamp(2) }}>{line.heading || line.body}</div>
+                {line.body && line.body !== line.heading ? <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: `3px solid ${v.soft}`, fontSize: 11.5, lineHeight: 1.5, color: v.muted, ...textClamp(3) }}>{line.body}</div> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (variant === 'closing') return darkTitle(slide.title || 'THANK YOU');
+  if (variant.startsWith('dark-title')) return darkTitle();
+
+  if (variant === 'profile') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: '#7B7F92', color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 28, top: 28, width: 262, height: 484, borderRadius: 140, background: 'rgba(54,62,122,0.34)' }} />
+        <div style={{ position: 'absolute', left: 326, top: 34, width: 594, height: 448, borderRadius: 36, background: 'rgba(255,255,255,0.88)', boxShadow: cardShadow }} />
+        <div style={{ position: 'absolute', left: 80, top: 86, width: 170, height: 170, borderRadius: '50%', background: '#28327A' }} />
+        <div style={{ position: 'absolute', left: 128, top: 58, width: 74, height: 74, borderRadius: '50%', background: '#0B0D12' }} />
+        <div style={{ position: 'absolute', left: 74, top: 322, width: 190, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.04, fontWeight: 950, color: '#28327A', ...textClamp(2) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 54, bottom: 56, width: 212, fontSize: 14, lineHeight: 1.35, color: 'rgba(255,255,255,0.62)', fontWeight: 700 }}>#사용자중심 #입체적사고 #문제정의 #목적지향 #회복탄력성 #팀워크</div>
+        <div style={{ position: 'absolute', left: 152, top: 236, width: 258, borderRadius: 18, background: '#FFFFFF', padding: '14px 16px', boxShadow: '0 12px 22px rgba(35,44,86,0.14)' }}>
+          <div style={{ fontSize: 12, fontWeight: 900, color: '#2B90FF', textAlign: 'center' }}>나의 경력과 강점 요약</div>
+          <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.55, fontWeight: 700, color: '#404762', textAlign: 'center', ...textClamp(3) }}>{slide.subtitle || '경력, 역할, 툴, 프로젝트 요약을 한 장에서 안정적으로 보여주는 소개형 슬라이드'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 372, top: 76, width: 516, display: 'grid', gap: 22 }}>
+          <div>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: '#28327A' }}>Work</div>
+            <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {lines.slice(0, 4).map((line, idx) => (
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 12, alignItems: 'start' }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: '#0B0D12' }} />
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#21264F', ...textClamp(1) }}>{line.heading}</div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#6B7395', fontWeight: 800, ...textClamp(2) }}>{line.body || line.period}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: '#28327A' }}>Tools</div>
+            <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              {['Figma', 'GA', 'DataGrip', 'Notion', 'Channel', 'Power BI', 'Jira', 'Slack'].map((tool, idx) => (
+                <div key={tool} style={{ borderRadius: 12, background: 'rgba(255,255,255,0.82)', padding: '12px 10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: idx % 2 ? '#6B7395' : '#28327A' }}>{tool}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'projects-3' || variant === 'projects-2') {
+    const count = variant === 'projects-3' ? 3 : 2;
+    const source = (items.length ? items : lines).slice(0, count);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 52, top: 44 }}>
+          <div style={{ fontSize: 22, fontWeight: 950, color: '#1F84F0' }}>{variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS'}</div>
+          <div style={{ marginTop: 6, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.06, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 130, right: 130, top: 180, display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 44 }}>
+          {source.map((entry, idx) => (
+            <div key={idx} style={{ position: 'relative', textAlign: 'center' }}>
+              {idx < count - 1 ? <div style={{ position: 'absolute', right: -22, top: 10, width: 2, height: 240, background: 'rgba(184,191,220,0.7)' }} /> : null}
+              <div style={{ width: 150, height: 150, margin: '0 auto', borderRadius: '50%', background: '#FFFFFF', boxShadow: cardShadow, display: 'grid', placeItems: 'center' }}>
+                <div style={{ width: 118, height: 118, borderRadius: '50%', background: '#080A10' }} />
+              </div>
+              <div style={{ marginTop: 28, fontFamily: t.fonts.heading, fontSize: 22, fontWeight: 900, color: v.ink, ...textClamp(2) }}>{entry.heading || entry.role}</div>
+              <div style={{ marginTop: 18, fontSize: 13, lineHeight: 1.55, color: v.muted, fontWeight: 700, whiteSpace: 'pre-line', ...textClamp(4) }}>{entry.body || (entry.bullets || []).join('\n')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const rightTopPanel = (
+    <div style={{ position: 'absolute', left: 590, top: 130, width: 330, height: variant === 'split-large-image' ? 300 : 154, borderRadius: 22, background: 'rgba(252,252,255,0.95)', border: panelBorder, boxShadow: cardShadow, padding: 18 }}>
+      <div style={{ textAlign: 'center', fontFamily: t.fonts.heading, fontSize: 16, fontWeight: 900, color: v.ink }}>{variant === 'result-guide' ? '글로벌 가이드 페이지' : variant === 'result-dashboard' ? '기능 / 이벤트 / 캘린더' : variant === 'split-large-image' ? '프로젝트 화면' : '예시 화면'}</div>
+      <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: variant === 'split-large-image' ? '1fr' : variant === 'result-guide' ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 14 }}>
+        {(variant === 'result-guide' ? ['가이드', '현지화'] : variant === 'result-dashboard' ? ['기능', '이벤트', '캘린더'] : lines.slice(0, variant === 'split-large-image' ? 1 : 3).map(line => line.heading || '화면')).map((caption, idx) => (
+          <div key={idx}>{mockCard(caption, variant === 'split-large-image' ? 208 : 104, idx)}</div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const rightBottomPanel = (
+    <div style={{ position: 'absolute', left: 590, top: 304, width: 330, height: 126, borderRadius: 22, background: 'rgba(252,252,255,0.95)', border: panelBorder, boxShadow: cardShadow, padding: 18 }}>
+      {variant === 'result-customer' || variant === 'result-chart'
+        ? <div style={{ display: 'flex', gap: 20, height: '100%', alignItems: 'center' }}>
+            {statPill(acceptedMetricText(metrics[0] || { value: '300%' }), metrics[0]?.label || '리소스 효율')}
+            {statPill(acceptedMetricText(metrics[1] || { value: '97.8%' }), metrics[1]?.label || '동일 건 감소', '#4A4FCA')}
+          </div>
+        : variant === 'result-table'
+          ? <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: 11, fontWeight: 900, color: v.ink, textAlign: 'center' }}>
+                <div>AA</div><div>기업명</div><div>BB</div>
+              </div>
+              {['국가', '인력', '비교'].map((row, idx) => (
+                <div key={row} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: 11, fontWeight: 700, color: v.muted, textAlign: 'center', paddingTop: 6, borderTop: idx ? '1px solid rgba(216,221,240,0.82)' : 'none' }}>
+                  <div>{idx === 0 ? '해외' : idx === 1 ? '3' : '0.9'}</div><div>{row}</div><div>{idx === 0 ? '서울, 부산' : idx === 1 ? '유' : '비'}</div>
+                </div>
+              ))}
+            </div>
+          : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, height: '100%', alignItems: 'center' }}>
+              {statPill(acceptedMetricText(metrics[0] || { value: '5→25명' }), metrics[0]?.label || '팀 증원')}
+              {statPill(acceptedMetricText(metrics[1] || { value: 'KR to Global' }), metrics[1]?.label || '선례 확산', '#4A4FCA')}
+            </div>}
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+      {header}
+      {mainBoard(
+        variant.includes('policy') || variant.includes('service') || variant.includes('channel') || variant.includes('ue') ? '문제정의' : '문제정의',
+        variant === 'problem-strategy-simple' ? '전략 Strategies/Objectives' : '전략 Strategies/Objectives'
+      )}
+      {variant === 'split-image' || variant === 'split-large-image'
+        ? <div style={{ position: 'absolute', left: 590, top: 130, width: 330, height: variant === 'split-large-image' ? 300 : 300, borderRadius: 22, background: 'rgba(252,252,255,0.95)', border: panelBorder, boxShadow: cardShadow, padding: 18 }}>
+            {mockCard(lines[0]?.heading || '프로젝트 화면', variant === 'split-large-image' ? 232 : 170, 0)}
+          </div>
+        : rightTopPanel}
+      {variant === 'result-gallery' || variant === 'result-dashboard' || variant === 'result-dashboard-metric' || variant === 'result-guide' || variant === 'result-customer' || variant === 'result-table' || variant === 'result-review' || variant === 'result-chart'
+        ? rightBottomPanel
+        : <div style={{ position: 'absolute', left: 590, top: 304, width: 330, height: 126, borderRadius: 22, background: 'rgba(252,252,255,0.95)', border: panelBorder, boxShadow: cardShadow, padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {metrics.slice(0, 2).map((metric, idx) => <div key={idx}>{statPill(acceptedMetricText(metric), metric.label || '핵심 성과', idx ? '#4A4FCA' : '#2B90FF')}</div>)}
+          </div>}
+    </div>
+  );
 }
 
 function ProposalDots({ color, right = 70, top = 292 }) {
@@ -1519,6 +3125,12 @@ export async function exportDeckToPptx(deck, templateOrId, fileName) {
     const s = pptx.addSlide();
     s.background = { color: hex(c.bg) };
 
+    if (t.style === 'proposal' && t.layoutId && t.layoutId !== 'standard') {
+      drawAcceptedPortfolioPptx(s, slide, t, i, W, H);
+      if (slide.notes) s.addNotes(slide.notes);
+      continue;
+    }
+
     if (slide.layout === 'cover' || slide.layout === 'section') {
       if (t.style === 'proposal') drawProposalCover(s, slide, t, W, H);
       else drawCover(s, slide, t, W, H);
@@ -1619,7 +3231,7 @@ function drawProposalDots(s, c, W, x = 9.0, y = 4.2) {
   }
 }
 
-function drawProposalCover(s, slide, t, W, H) {
+function drawProposalCoverLegacy(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
@@ -1629,6 +3241,685 @@ function drawProposalCover(s, slide, t, W, H) {
   s.addText(slide.title || '포트폴리오 솔루션', { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', fit: 'shrink' });
   drawProposalDots(s, c, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
+}
+
+function drawAcceptedPortfolioPptx(s, slide, t, i, W, H) {
+  const prepared = prepareAcceptedSlide(slide);
+  const id = t.layoutId;
+  const v = acceptedVisual(t);
+  if (id === 'narrative') return drawNarrativePptx(s, prepared, t, v, i, W, H);
+  if (id === 'star') return drawStarPptx(s, prepared, t, v, i, W, H);
+  if (id === 'kpi-dashboard') return drawKpiDashboardPptx(s, prepared, t, v, i, W, H);
+  if (id === 'timeline') return drawTimelinePptx(s, prepared, t, v, i, W, H);
+  if (id === 'case-study') return drawCaseStudyReferencePptx(s, prepared, t, v, i, W, H);
+  return drawProposal(s, prepared, t, i, W, H);
+}
+
+function drawProposalCover(s, slide, t, W, H) {
+  const c = t.colors;
+  const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
+  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT) });
+  s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
+  s.addText(slide.subtitle || '경험과 성과를 기반으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF' });
+  s.addText(slide.title || '포트폴리오', { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  drawProposalDots(s, c, W);
+  s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
+}
+
+function pptAcceptedLines(slide) {
+  return acceptedLines(slide).map(line => ({
+    heading: safePptText(line.heading),
+    body: safePptText(line.body),
+    period: safePptText(line.period),
+    metrics: line.metrics || [],
+  }));
+}
+
+function pptAcceptedMetricText(metric) {
+  return safePptText(acceptedMetricText(metric));
+}
+
+function drawVariedAcceptedPptx(s, slide, t, v, i, W, H, label) {
+  const lines = pptAcceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const profile = acceptedTemplateProfile(t.layoutId);
+  const rawVariant = acceptedVariantIndex(i);
+  const variant = (rawVariant + profile.variantOffset) % 30;
+  const title = safePptText(slide.title || slide.sectionLabel || 'Portfolio');
+  const section = safePptText(slide.sectionLabel || label || 'Portfolio');
+  const metric = metrics[0];
+  const stat = metric ? pptAcceptedMetricText(metric) : (lines[0]?.period || String(i + 1).padStart(2, '0'));
+
+  if (false && rawVariant >= (profile.heroCount || 0)) {
+    const bodyVariant = (profile.variants && profile.variants[variant]) || ACCEPTED_BODY_VARIANTS_30[variant] || '';
+    const shell = (variant + profile.shellOffset) % 8;
+    const framedSlide = {
+      ...slide,
+      proposalVariant: bodyVariant,
+      dark: shell === 1 || shell === 5 || ['darkStats', 'budget'].includes(bodyVariant),
+      sectionLabel: slide.sectionLabel || label,
+    };
+    if (t.layoutId === 'narrative') {
+      s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+      s.addShape('roundRect', { x: 0.55, y: 0.45, w: 0.8, h: 6.3, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.35 });
+      addPptText(s, 'STORY ARC', { x: 0.72, y: 0.95, w: 0.25, h: 1.6, rotate: 270, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.dark), charSpacing: 2 });
+      addPptText(s, title, { x: 1.65, y: 0.72, w: 4.1, h: 1.5, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+      return drawProposal(s, framedSlide, t, i, W, H);
+    }
+    if (t.layoutId === 'star') {
+      s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+      ['S', 'T', 'A', 'R'].forEach((letter, idx) => s.addShape('roundRect', { x: 0.65 + idx * 0.58, y: 0.5, w: 0.42, h: 0.42, fill: { color: idx === variant % 4 ? hex(v.accent) : hex(v.dark) }, line: { color: idx === variant % 4 ? hex(v.accent) : hex(v.dark) }, rectRadius: 0.08 }));
+      return drawProposal(s, framedSlide, t, i, W, H);
+    }
+    if (t.layoutId === 'kpi-dashboard') {
+      framedSlide.dark = true;
+      return drawProposal(s, framedSlide, t, i, W, H);
+    }
+    if (t.layoutId === 'timeline') {
+      s.addShape('rect', { x: 0.75, y: 0, w: 0.02, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+      s.addShape('ellipse', { x: 0.58, y: 0.85, w: 0.36, h: 0.36, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+      return drawProposal(s, framedSlide, t, i, W, H);
+    }
+    if (t.layoutId === 'case-study') {
+      s.addShape('rect', { x: 0, y: 0, w: 2.7, h: H, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+      s.addShape('rect', { x: 0, y: 0, w: 2.7, h: 0.72, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+      return drawProposal(s, framedSlide, t, i, W, H);
+    }
+    return drawProposal(s, framedSlide, t, i, W, H);
+  }
+
+  if (variant === 0) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, section, { x: 0.72, y: 0.55, w: 3.0, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, title, { x: 0.72, y: 1.18, w: 6.2, h: 1.65, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    s.addShape('ellipse', { x: 8.7, y: 0.75, w: 3.0, h: 3.0, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, stat, { x: 9.25, y: 1.65, w: 1.95, h: 0.55, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.dark), align: 'center', fit: 'shrink' });
+    addPptText(s, metric?.label || lines[0]?.heading || '핵심 증거', { x: 9.22, y: 2.35, w: 2.0, h: 0.35, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.dark), align: 'center', fit: 'shrink' });
+    lines.slice(0, 3).forEach((line, idx) => {
+      const x = 0.72 + idx * 4.1;
+      s.addShape('rect', { x, y: 5.05, w: 3.0, h: 0.04, fill: { color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 80 }, line: { color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: 100 } });
+      addPptText(s, line.heading, { x, y: 5.28, w: 3.0, h: 0.24, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: 'FFFFFF' });
+      addPptText(s, line.body, { x, y: 5.62, w: 3.0, h: 0.38, fontFace: t.fonts.body, fontSize: 7.2, color: 'BDBDBD', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 1) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('rect', { x: 0, y: 0, w: 3.45, h: H, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, `${String(i + 1).padStart(2, '0')} / ${label}`, { x: 0.72, y: 0.7, w: 2.2, h: 0.24, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.dark) });
+    addPptText(s, title, { x: 0.72, y: 4.15, w: 2.2, h: 1.45, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark), fit: 'shrink' });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const x = 4.05 + (idx % 2) * 4.15;
+      const y = 0.7 + Math.floor(idx / 2) * 2.85;
+      const fill = idx === 0 ? v.dark : v.card;
+      s.addShape('roundRect', { x, y, w: 3.75, h: 2.35, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.18 });
+      addPptText(s, `POINT ${idx + 1}`, { x: x + 0.25, y: y + 0.25, w: 1.2, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.25, y: y + 0.9, w: 3.1, h: 0.45, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
+      addPptText(s, line.body, { x: x + 0.25, y: y + 1.45, w: 3.1, h: 0.5, fontFace: t.fonts.body, fontSize: 7.3, color: idx === 0 ? 'BDBDBD' : hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 2) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, label, { x: 0.78, y: 0.58, w: 2.6, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, title, { x: 0.78, y: 1.08, w: 7.0, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.ink), fit: 'shrink' });
+    s.addShape('rect', { x: 0.78, y: 4.12, w: 11.6, h: 0.02, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    lines.slice(0, 5).forEach((line, idx) => {
+      const x = 0.95 + idx * 2.25;
+      const y = idx % 2 ? 4.35 : 2.72;
+      s.addShape('ellipse', { x, y, w: 0.5, h: 0.5, fill: { color: idx === 0 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 0 ? hex(v.dark) : hex(v.accent) } });
+      addPptText(s, String(idx + 1), { x, y: y + 0.13, w: 0.5, h: 0.15, fontFace: t.fonts.heading, fontSize: 9, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.dark), align: 'center' });
+      addPptText(s, line.heading, { x, y: y + 0.68, w: 1.65, h: 0.35, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+      addPptText(s, line.body, { x, y: y + 1.08, w: 1.65, h: 0.4, fontFace: t.fonts.body, fontSize: 6.8, color: hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 3) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, section, { x: 0.72, y: 0.58, w: 2.7, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, title, { x: 0.72, y: 1.15, w: 4.3, h: 1.35, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    s.addShape('roundRect', { x: 7.1, y: 0.75, w: 4.7, h: 3.0, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.28 });
+    addPptText(s, stat, { x: 7.5, y: 1.55, w: 3.7, h: 0.62, fontFace: t.fonts.heading, fontSize: 31, bold: true, color: hex(v.dark), fit: 'shrink' });
+    addPptText(s, metric?.label || lines[0]?.heading || '대표 성과', { x: 7.5, y: 2.35, w: 3.5, h: 0.35, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.dark), fit: 'shrink' });
+    lines.slice(0, 2).forEach((line, idx) => {
+      const x = 7.1 + idx * 2.45;
+      s.addShape('roundRect', { x, y: 4.35, w: 2.2, h: 1.35, fill: { color: 'FFFFFF', transparency: 92 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.14 });
+      addPptText(s, line.heading, { x: x + 0.18, y: 4.6, w: 1.75, h: 0.22, fontFace: t.fonts.heading, fontSize: 8.7, bold: true, color: 'FFFFFF' });
+      addPptText(s, line.body, { x: x + 0.18, y: 4.95, w: 1.75, h: 0.35, fontFace: t.fonts.body, fontSize: 6.6, color: 'CFCFCF', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 4) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('roundRect', { x: 0.55, y: 0.45, w: W - 1.1, h: H - 0.9, fill: { color: hex(v.bg), transparency: 100 }, line: { color: hex(v.dark), width: 1.4 }, rectRadius: 0.28 });
+    addPptText(s, title, { x: 1.05, y: 0.9, w: 6.2, h: 1.25, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, `${label}\n${String(i + 1).padStart(2, '0')}`, { x: 9.2, y: 0.95, w: 2.5, h: 0.5, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), align: 'right', charSpacing: 2 });
+    lines.slice(0, 3).forEach((line, idx) => {
+      const x = 1.05 + idx * 3.8;
+      const fill = idx === 1 ? v.accent : v.card;
+      s.addShape('rect', { x, y: 4.35, w: 3.25, h: 1.55, fill: { color: hex(fill) }, line: { color: hex(fill) } });
+      addPptText(s, line.period || `EVIDENCE ${idx + 1}`, { x: x + 0.22, y: 4.58, w: 1.7, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 1 ? hex(v.dark) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.22, y: 5.05, w: 2.6, h: 0.28, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+      addPptText(s, line.body, { x: x + 0.22, y: 5.42, w: 2.6, h: 0.28, fontFace: t.fonts.body, fontSize: 6.8, color: idx === 1 ? hex(v.dark) : hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  const family = Math.floor(variant / 5);
+  const slot = variant % 5;
+  const titleXs = [0.78, 0.88, 5.2, 0.95, 0.78, 1.45];
+  const titleYs = [1.1, 0.86, 1.22, 2.65, 1.55, 0.95];
+  const titleWs = [5.3, 6.25, 4.6, 7.6, 4.2, 6.0];
+  const cardXs = [8.35, 7.7, 0.95, 8.85, 6.8, 7.95];
+  const cardYs = [0.75, 1.32, 0.62, 0.95, 0.48, 1.12];
+  const cardWs = [3.55, 4.05, 3.7, 3.0, 4.25, 3.55];
+  const cardHs = [4.2, 3.25, 4.55, 3.55, 3.9, 4.0];
+  const isDarkStage = slot === 1 || family === 3;
+  const highlightFill = (variant + family) % 4 === 0 ? v.accent : v.dark;
+  const highlightText = highlightFill === v.accent ? hex(v.dark) : 'FFFFFF';
+  const bgFill = isDarkStage ? v.dark : v.bg;
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(bgFill) }, line: { color: hex(bgFill) } });
+  if (family === 1) {
+    s.addShape('rect', { x: 0, y: 5.75, w: W, h: 0.55, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rotate: -4 });
+  } else if (family === 2) {
+    s.addShape('rect', { x: 0.6, y: 0.42, w: 0.18, h: 6.35, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    s.addShape('rect', { x: 4.82, y: 0.42, w: 0.02, h: 6.35, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  } else if (family === 3) {
+    s.addShape('ellipse', { x: 8.9, y: -0.55, w: 3.25, h: 3.25, fill: { color: hex(v.accent), transparency: 12 }, line: { color: hex(v.accent), transparency: 100 } });
+  } else if (family === 4) {
+    s.addShape('rect', { x: 9.75, y: 0, w: 1.65, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  } else if (family === 5) {
+    s.addShape('rect', { x: 0, y: 0.42, w: W, h: 0.55, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rotate: 2 });
+  }
+  s.addShape('roundRect', { x: cardXs[family], y: cardYs[family], w: cardWs[family], h: cardHs[family], fill: { color: hex(highlightFill) }, line: { color: hex(highlightFill) }, rectRadius: [0.24, 0.06, 0.38, 0.16, 0, 0.28][family], rotate: (slot % 2 ? 2 : -2) + family * 0.6 });
+  addPptText(s, label, { x: 0.78, y: 0.6, w: 2.8, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+  addPptText(s, title, { x: titleXs[family], y: titleYs[family], w: titleWs[family], h: 1.55, fontFace: t.fonts.heading, fontSize: [27, 25, 27, 24, 26, 25][family], bold: true, color: isDarkStage ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
+  addPptText(s, 'HIGHLIGHT', { x: cardXs[family] + 0.35, y: cardYs[family] + 0.4, w: 1.4, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: highlightFill === v.accent ? hex(v.dark) : hex(v.accent) });
+  addPptText(s, lines[0]?.heading || stat, { x: cardXs[family] + 0.35, y: cardYs[family] + 1.2, w: cardWs[family] - 0.75, h: 0.8, fontFace: t.fonts.heading, fontSize: family === 2 ? 18 : 20, bold: true, color: highlightText, fit: 'shrink' });
+  addPptText(s, lines[0]?.body || metric?.label || '', { x: cardXs[family] + 0.35, y: cardYs[family] + 2.25, w: cardWs[family] - 0.75, h: 0.7, fontFace: t.fonts.body, fontSize: 7.5, color: highlightFill === v.accent ? hex(v.dark) : 'BDBDBD', fit: 'shrink' });
+  lines.slice(1, 4).forEach((line, idx) => {
+    const horizontal = family % 2 === 0;
+    const x = horizontal ? 0.78 + idx * 2.05 + (family === 4 ? 0.55 : 0) : 0.78;
+    const y = horizontal ? (family === 2 ? 5.2 : 5.0) : 4.1 + idx * 0.78;
+    const chipW = horizontal ? 1.75 : 2.8;
+    const chipH = horizontal ? 0.95 : 0.62;
+    s.addShape('roundRect', { x, y, w: chipW, h: chipH, fill: { color: idx === 1 ? hex(v.accent) : 'FFFFFF' }, line: { color: idx === 1 ? hex(v.accent) : 'FFFFFF' }, rectRadius: [0.14, 0.02, 0.28, 0.08, 0, 0.18][family] });
+    addPptText(s, `0${idx + 2}`, { x: x + 0.16, y: y + 0.18, w: 0.4, h: 0.12, fontFace: t.fonts.body, fontSize: 6.5, bold: true, color: hex(v.dark) });
+    addPptText(s, line.heading, { x: x + 0.16, y: y + (horizontal ? 0.47 : 0.26), w: chipW - 0.36, h: horizontal ? 0.24 : 0.18, fontFace: t.fonts.heading, fontSize: horizontal ? 8.2 : 7.8, bold: true, color: hex(v.dark), fit: 'shrink' });
+  });
+}
+
+function drawAcceptedSectionScenePptx(s, slide, t, v, i, W, H) {
+  const kind = acceptedSectionKind(slide);
+  const lines = pptAcceptedLines(slide);
+  if (['cover', 'toc', 'metric', 'project'].includes(kind)) return false;
+
+  if (kind === 'intro') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('ellipse', { x: W - 2.6, y: -1.0, w: 3.4, h: 3.4, fill: { color: hex(v.accent), transparency: 78 }, line: { color: hex(v.accent), transparency: 100 } });
+    addPptText(s, slide.sectionLabel || 'OVERVIEW', { x: 0.8, y: 0.65, w: 2.8, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.8, y: 1.25, w: 7.0, h: 1.8, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: hex(v.ink) });
+    if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.85, y: 3.45, w: 5.6, h: 0.55, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+    lines.slice(0, 3).forEach((line, idx) => {
+      const x = 7.35 - idx * 0.35;
+      const y = 4.2 + idx * 0.62;
+      const fill = idx === 0 ? v.dark : v.card;
+      s.addShape('roundRect', { x, y, w: 4.35, h: 0.95, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.16 });
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: x + 0.22, y: y + 0.18, w: 0.4, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.75, y: y + 0.15, w: 3.1, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink) });
+      addPptText(s, line.body, { x: x + 0.75, y: y + 0.46, w: 3.1, h: 0.22, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 0 ? 'BDBDBD' : hex(v.muted) });
+    });
+    return true;
+  }
+
+  if (kind === 'fit' || kind === 'problem') {
+    const dark = kind === 'fit';
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(dark ? v.dark : v.bg) }, line: { color: hex(dark ? v.dark : v.bg) } });
+    addPptText(s, dark ? 'FIT MAP' : 'PROBLEM FRAMING', { x: 0.72, y: 0.65, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.2, w: 5.4, h: 1.55, fontFace: t.fonts.heading, fontSize: 29, bold: true, color: dark ? 'FFFFFF' : hex(v.ink) });
+    s.addShape('ellipse', { x: 7.0, y: 1.25, w: 2.25, h: 2.25, fill: { color: dark ? 'FFFFFF' : hex(v.soft), transparency: dark ? 88 : 0 }, line: { color: hex(v.accent), width: 1.5 } });
+    s.addShape('ellipse', { x: 8.95, y: 1.25, w: 2.25, h: 2.25, fill: { color: dark ? 'FFFFFF' : hex(v.card), transparency: dark ? 88 : 0 }, line: { color: hex(v.accent), width: 1.5 } });
+    s.addShape('roundRect', { x: 8.57, y: 2.08, w: 1.0, h: 0.48, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.2 });
+    addPptText(s, 'MATCH', { x: 8.66, y: 2.22, w: 0.82, h: 0.1, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.dark), align: 'center' });
+    lines.slice(0, 3).forEach((line, idx) => {
+      const x = 0.72 + idx * 4.1;
+      s.addShape('rect', { x, y: 5.05, w: 2.9, h: 0.04, fill: { color: idx === 1 ? hex(v.accent) : dark ? 'FFFFFF' : hex(v.soft), transparency: idx === 1 ? 0 : dark ? 80 : 0 }, line: { color: idx === 1 ? hex(v.accent) : dark ? 'FFFFFF' : hex(v.soft), transparency: 100 } });
+      addPptText(s, line.heading, { x, y: 5.28, w: 3.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: dark ? 'FFFFFF' : hex(v.ink) });
+      addPptText(s, line.body, { x, y: 5.62, w: 3.0, h: 0.32, fontFace: t.fonts.body, fontSize: 7.2, color: dark ? 'BDBDBD' : hex(v.muted) });
+    });
+    return true;
+  }
+
+  if (kind === 'growth') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, 'NEXT ROADMAP', { x: 0.78, y: 0.62, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.78, y: 1.2, w: 4.5, h: 1.5, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.ink) });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const y = 0.85 + idx * 1.35;
+      const fill = idx === Math.min(3, lines.length - 1) ? v.accent : v.card;
+      s.addShape('roundRect', { x: 6.0, y, w: 5.7, h: 0.95, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.16 });
+      addPptText(s, line.period || `STEP ${idx + 1}`, { x: 6.28, y: y + 0.28, w: 1.0, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.dark) });
+      addPptText(s, line.heading, { x: 7.45, y: y + 0.18, w: 3.4, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: hex(v.dark) });
+      addPptText(s, line.body, { x: 7.45, y: y + 0.48, w: 3.4, h: 0.2, fontFace: t.fonts.body, fontSize: 7.2, color: hex(v.dark), transparency: 28 });
+    });
+    return true;
+  }
+
+  if (kind === 'risk') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'TRADE-OFF / RISK', { x: 0.72, y: 0.65, w: 2.7, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.25, w: 7.1, h: 1.25, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: 'FFFFFF' });
+    (lines.length ? lines : [{ heading: 'Risk', body: '약해질 수 있는 지점' }, { heading: 'Response', body: '보완하는 방식' }]).slice(0, 4).forEach((line, idx) => {
+      const x = 0.72 + (idx % 2) * 6.1;
+      const y = 4.35 + Math.floor(idx / 2) * 1.05;
+      const fill = idx % 2 ? v.accent : 'FFFFFF';
+      s.addShape('roundRect', { x, y, w: 5.5, h: 0.82, fill: { color: hex(fill), transparency: idx % 2 ? 0 : 92 }, line: { color: hex(fill), transparency: idx % 2 ? 0 : 100 }, rectRadius: 0.12 });
+      addPptText(s, idx % 2 ? 'RESPONSE' : 'RISK', { x: x + 0.22, y: y + 0.14, w: 1.2, h: 0.12, fontFace: t.fonts.body, fontSize: 6.5, bold: true, color: idx % 2 ? hex(v.dark) : 'BDBDBD' });
+      addPptText(s, line.heading, { x: x + 1.6, y: y + 0.13, w: 3.4, h: 0.18, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: idx % 2 ? hex(v.dark) : 'FFFFFF' });
+      addPptText(s, line.body, { x: x + 1.6, y: y + 0.4, w: 3.4, h: 0.18, fontFace: t.fonts.body, fontSize: 7, color: idx % 2 ? hex(v.dark) : 'BDBDBD' });
+    });
+    return true;
+  }
+
+  if (kind === 'closing') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'END OF PORTFOLIO', { x: 0, y: 2.25, w: W, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3, align: 'center' });
+    addPptText(s, slide.title || 'Thank You', { x: 1.2, y: 2.75, w: W - 2.4, h: 0.8, fontFace: t.fonts.heading, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center' });
+    if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.8, y: 3.75, w: W - 3.6, h: 0.3, fontFace: t.fonts.body, fontSize: 11, color: 'BDBDBD', align: 'center' });
+    addPptText(s, (slide.bullets || []).slice(0, 3).join(' · '), { x: 1.8, y: 4.45, w: W - 3.6, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.accent), align: 'center' });
+    return true;
+  }
+
+  return false;
+}
+
+function drawNarrativePptx(s, slide, t, v, i, W, H) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = pptAcceptedLines(slide);
+  const mood = acceptedSlideMood(slide, i);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STORY PORTFOLIO');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  if (!isCover && mood === 'toc') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, slide.title || 'Contents', { x: 0.8, y: 0.75, w: 4.4, h: 1.6, fontFace: t.fonts.heading, fontSize: 38, bold: true, color: 'FFFFFF' });
+    lines.slice(0, 5).forEach((line, idx) => {
+      const y = 0.78 + idx * 1.12;
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: 7.0, y, w: 0.55, h: 0.28, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(v.accent) });
+      addPptText(s, line.heading, { x: 7.85, y, w: 4.0, h: 0.3, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: 'FFFFFF' });
+      addPptText(s, line.body, { x: 7.85, y: y + 0.34, w: 4.0, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'AFAFAF' });
+      s.addShape('rect', { x: 7.0, y: y + 0.86, w: 4.8, h: 0.01, fill: { color: 'FFFFFF', transparency: 82 }, line: { color: 'FFFFFF', transparency: 100 } });
+    });
+    return;
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, slide.sectionLabel || 'IMPACT', { x: 0.82, y: 0.72, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.82, y: 1.28, w: 6.4, h: 1.7, fontFace: t.fonts.heading, fontSize: 32, bold: true, color: 'FFFFFF' });
+    (metrics.length ? metrics : [{ label: lines[0]?.heading, value: lines[0]?.body }]).slice(0, 3).forEach((m, idx) => {
+      const y = 1.0 + idx * 1.7;
+      s.addShape('rect', { x: 8.4, y, w: 0.06, h: 0.9, fill: { color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 80 }, line: { color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 100 } });
+      addPptText(s, pptAcceptedMetricText(m), { x: 8.7, y, w: 3.3, h: 0.45, fontFace: t.fonts.heading, fontSize: 28, bold: false, color: idx === 0 ? hex(v.accent) : 'FFFFFF' });
+      addPptText(s, m?.label || '핵심 성과', { x: 8.7, y: y + 0.58, w: 3.3, h: 0.28, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'BDBDBD' });
+    });
+    s.addShape('arc', { x: 11.2, y: 5.65, w: 2.5, h: 2.5, line: { color: hex(v.accent), width: 18, transparency: 55 }, adjustPoint: 0.25 });
+    return;
+  }
+  if (!isCover && mood === 'process') {
+    addPptText(s, slide.sectionLabel || 'PROCESS', { x: 0.72, y: 0.55, w: 2.4, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.1, w: 4.5, h: 1.4, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    s.addShape('rect', { x: 5.6, y: 3.65, w: 6.4, h: 0.02, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const x = 5.5 + idx * 1.7;
+      const y = idx % 2 ? 3.9 : 1.65;
+      s.addShape('ellipse', { x, y, w: 0.62, h: 0.62, fill: { color: idx === 0 ? hex(v.accent) : hex(v.dark) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.dark) } });
+      addPptText(s, String(idx + 1), { x, y: y + 0.15, w: 0.62, h: 0.2, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: idx === 0 ? hex(v.dark) : 'FFFFFF', align: 'center' });
+      addPptText(s, line.heading, { x, y: y + 0.82, w: 1.45, h: 0.45, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink) });
+      addPptText(s, line.body, { x, y: y + 1.32, w: 1.5, h: 0.5, fontFace: t.fonts.body, fontSize: 7.3, color: hex(v.muted) });
+    });
+    return;
+  }
+  if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STORY PORTFOLIO');
+  s.addShape('rect', { x: 1.9, y: 0.5, w: 0.01, h: H - 1.0, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  s.addText('STORY PORTFOLIO', { x: 0.55, y: 0.55, w: 0.35, h: 2.4, rotate: 270, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), charSpacing: 2 });
+  s.addText(String(i + 1).padStart(2, '0'), { x: 0.6, y: H - 1.35, w: 0.8, h: 0.5, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.accent) });
+  addPptText(s, slide.sectionLabel || 'Narrative', { x: 2.45, y: isCover ? 1.25 : 0.72, w: 3.4, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.accent), charSpacing: 3 });
+  addPptText(s, slide.title || '', { x: 2.45, y: isCover ? 1.65 : 1.1, w: 9.5, h: isCover ? 2.0 : 1.1, fontFace: t.fonts.heading, fontSize: isCover ? 39 : 26, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 2.45, y: isCover ? 3.65 : 2.15, w: 8.5, h: 0.55, fontFace: t.fonts.body, fontSize: 11, color: hex(v.muted), fit: 'shrink' });
+  if (!isCover) {
+    const count = Math.min(3, Math.max(1, lines.length));
+    const cardW = (W - 3.0) / count - 0.18;
+    lines.slice(0, 3).forEach((line, idx) => {
+      const fill = idx === 0 ? v.dark : v.card;
+      const fg = idx === 0 ? 'FFFFFF' : hex(v.ink);
+      const x = 2.45 + idx * (cardW + 0.25);
+      s.addShape('roundRect', { x, y: 4.0, w: cardW, h: 2.05, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.16 });
+      addPptText(s, line.period || `CHAPTER ${idx + 1}`, { x: x + 0.25, y: 4.23, w: cardW - 0.5, h: 0.25, fontFace: t.fonts.body, fontSize: 8, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.25, y: 4.62, w: cardW - 0.5, h: 0.52, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: fg });
+      addPptText(s, line.body, { x: x + 0.25, y: 5.18, w: cardW - 0.5, h: 0.62, fontFace: t.fonts.body, fontSize: 8.5, color: idx === 0 ? 'D8D8D8' : hex(v.muted) });
+    });
+  }
+}
+
+function drawStarPptx(s, slide, t, v, i, W, H) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = pptAcceptedLines(slide);
+  const mood = acceptedSlideMood(slide, i);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STAT / STAR');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  if (!isCover && mood === 'toc') {
+    s.addShape('roundRect', { x: 0.65, y: 0.65, w: 3.9, h: 6.1, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.22 });
+    addPptText(s, 'EVIDENCE MAP', { x: 1.0, y: 1.0, w: 2.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 1.0, y: 4.0, w: 2.8, h: 1.3, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: 'FFFFFF' });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const x = 5.0 + (idx % 2) * 3.65;
+      const y = 0.8 + Math.floor(idx / 2) * 2.95;
+      const fill = idx === 3 ? v.accent : v.card;
+      s.addShape('roundRect', { x, y, w: 3.25, h: 2.55, fill: { color: hex(fill) }, line: { color: idx === 3 ? hex(fill) : hex(v.soft) }, rectRadius: 0.18 });
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: x + 0.25, y: y + 0.25, w: 0.7, h: 0.32, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.dark) });
+      addPptText(s, line.heading, { x: x + 0.25, y: y + 1.15, w: 2.55, h: 0.42, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark) });
+      addPptText(s, line.body, { x: x + 0.25, y: y + 1.65, w: 2.55, h: 0.45, fontFace: t.fonts.body, fontSize: 7.5, color: hex(v.dark), transparency: 25 });
+    });
+    return;
+  }
+  if (!isCover && mood === 'process') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, slide.sectionLabel || 'STAR DETAIL', { x: 0.68, y: 0.58, w: 2.2, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.68, y: 1.15, w: 5.4, h: 1.4, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: 'FFFFFF' });
+    ['S', 'T', 'A', 'R'].forEach((label, idx) => {
+      const y = 0.8 + idx * 1.55;
+      const fill = idx === 3 ? v.accent : 'FFFFFF';
+      s.addShape('roundRect', { x: 7.0, y, w: 5.2, h: 1.18, fill: { color: hex(fill), transparency: idx === 3 ? 0 : 88 }, line: { color: idx === 3 ? hex(fill) : 'FFFFFF', transparency: idx === 3 ? 0 : 100 }, rectRadius: 0.14 });
+      s.addShape('ellipse', { x: 7.28, y: y + 0.26, w: 0.52, h: 0.52, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
+      addPptText(s, label, { x: 7.28, y: y + 0.39, w: 0.52, h: 0.16, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
+      addPptText(s, lines[idx]?.heading || '', { x: 8.05, y: y + 0.2, w: 3.6, h: 0.25, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: idx === 3 ? hex(v.dark) : 'FFFFFF' });
+      addPptText(s, lines[idx]?.body || '', { x: 8.05, y: y + 0.52, w: 3.6, h: 0.3, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 3 ? hex(v.dark) : 'CFCFCF' });
+    });
+    return;
+  }
+  if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STAT / STAR');
+  addPptText(s, 'STAT / STAR', { x: 0.58, y: 0.48, w: 2.2, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.ink), charSpacing: 2 });
+  addPptText(s, String(i + 1).padStart(2, '0'), { x: W - 1.05, y: 0.48, w: 0.5, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), align: 'right' });
+  addPptText(s, slide.title || '', { x: 0.58, y: 1.15, w: 4.5, h: isCover ? 2.4 : 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 34 : 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.58, y: isCover ? 3.8 : 2.75, w: 4.2, h: 0.75, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  const labels = ['S', 'T', 'A', 'R'];
+  labels.forEach((label, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = 5.55 + col * 3.75;
+    const y = 1.1 + row * 2.6;
+    const fill = idx === 3 ? v.accent : idx === 0 ? v.dark : v.card;
+    const fg = idx === 3 ? hex(v.dark) : idx === 0 ? 'FFFFFF' : hex(v.ink);
+    s.addShape('roundRect', { x, y, w: 3.45, h: 2.25, fill: { color: hex(fill) }, line: { color: idx === 1 || idx === 2 ? hex(v.soft) : hex(fill) }, rectRadius: 0.18 });
+    s.addShape('ellipse', { x: x + 0.25, y: y + 0.25, w: 0.55, h: 0.55, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
+    addPptText(s, label, { x: x + 0.25, y: y + 0.31, w: 0.55, h: 0.24, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
+    addPptText(s, ['Situation', 'Task', 'Action', 'Result'][idx], { x: x + 1.0, y: y + 0.34, w: 1.9, h: 0.2, fontFace: t.fonts.body, fontSize: 7, bold: true, color: fg, transparency: 40 });
+    addPptText(s, lines[idx]?.heading || ['상황', '과제', '행동', '결과'][idx], { x: x + 0.28, y: y + 1.05, w: 2.9, h: 0.38, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: fg });
+    addPptText(s, lines[idx]?.body || '', { x: x + 0.28, y: y + 1.48, w: 2.9, h: 0.5, fontFace: t.fonts.body, fontSize: 8, color: fg, transparency: idx === 3 ? 15 : 25 });
+  });
+}
+
+function drawKpiDashboardPptx(s, slide, t, v, i, W, H) {
+  const metrics = (slide.metrics || pptAcceptedLines(slide).flatMap(line => line.metrics || [])).slice(0, 4);
+  const lines = pptAcceptedLines(slide);
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const mood = acceptedSlideMood(slide, i);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'KPI DASHBOARD');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  if (!isCover && (mood === 'toc' || mood === 'process')) {
+    addPptText(s, mood === 'toc' ? 'DASHBOARD INDEX' : 'KPI BREAKDOWN', { x: 0.62, y: 0.42, w: 2.8, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.62, y: 1.05, w: 4.6, h: 1.25, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink) });
+    s.addShape('roundRect', { x: 0.62, y: 4.4, w: 3.8, h: 1.75, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.18 });
+    addPptText(s, metrics[0] ? pptAcceptedMetricText(metrics[0]) : 'Impact', { x: 0.95, y: 4.8, w: 2.9, h: 0.42, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.accent) });
+    addPptText(s, metrics[0]?.label || '성과와 실행 근거를 함께 읽습니다.', { x: 0.95, y: 5.35, w: 2.9, h: 0.28, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted) });
+    lines.slice(0, 5).forEach((line, idx) => {
+      const y = 1.0 + idx * 0.98;
+      const fill = idx === 0 ? v.accent : v.card;
+      s.addShape('roundRect', { x: 5.35, y, w: 6.9, h: 0.72, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.12 });
+      addPptText(s, line.period || `KPI ${idx + 1}`, { x: 5.6, y: y + 0.18, w: 1.15, h: 0.14, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: idx === 0 ? '06121F' : hex(v.muted) });
+      addPptText(s, line.heading, { x: 6.9, y: y + 0.13, w: 3.2, h: 0.2, fontFace: t.fonts.heading, fontSize: 9.2, bold: true, color: idx === 0 ? '06121F' : hex(v.ink) });
+      s.addShape('rect', { x: 10.45, y: y + 0.34, w: 0.9 + idx * 0.18, h: 0.05, fill: { color: idx === 0 ? '06121F' : hex(v.accent) }, line: { color: idx === 0 ? '06121F' : hex(v.accent) } });
+    });
+    return;
+  }
+  if (!isCover && mood === 'evidence') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, slide.sectionLabel || 'INSIGHT', { x: 0.72, y: 0.65, w: 2.3, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.25, w: 7.0, h: 1.45, fontFace: t.fonts.heading, fontSize: 29, bold: true, color: 'FFFFFF' });
+    lines.slice(0, 3).forEach((line, idx) => {
+      const x = 0.72 + idx * 4.1;
+      const fill = idx === 1 ? v.accent : v.card;
+      s.addShape('roundRect', { x, y: 4.6, w: 3.65, h: 1.55, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.14 });
+      addPptText(s, line.heading, { x: x + 0.22, y: 4.88, w: 3.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: idx === 1 ? '06121F' : 'FFFFFF' });
+      addPptText(s, line.body, { x: x + 0.22, y: 5.3, w: 3.0, h: 0.38, fontFace: t.fonts.body, fontSize: 7.5, color: idx === 1 ? '06121F' : 'CFCFCF' });
+    });
+    return;
+  }
+  if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'KPI DASHBOARD');
+  addPptText(s, 'KPI DASHBOARD', { x: 0.62, y: 0.42, w: 2.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.accent), charSpacing: 3 });
+  addPptText(s, `Slide ${String(i + 1).padStart(2, '0')}`, { x: W - 1.5, y: 0.42, w: 0.9, h: 0.22, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), align: 'right' });
+  addPptText(s, slide.title || '', { x: 0.62, y: 1.05, w: isCover ? 8.7 : 6.6, h: isCover ? 1.4 : 0.9, fontFace: t.fonts.heading, fontSize: isCover ? 35 : 24, bold: true, color: hex(v.ink) });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: isCover ? 2.35 : 1.95, w: 6.8, h: 0.42, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  s.addShape('roundRect', { x: 0.62, y: 3.35, w: 4.8, h: 3.15, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.2 });
+  addPptText(s, 'PRIMARY METRIC', { x: 0.95, y: 3.72, w: 2.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted) });
+  addPptText(s, pptAcceptedMetricText(metrics[0]), { x: 0.95, y: 4.18, w: 3.9, h: 0.7, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: hex(v.accent) });
+  addPptText(s, metrics[0]?.label || lines[0]?.heading || '핵심 성과', { x: 0.95, y: 5.0, w: 3.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink) });
+  [0, 1, 2, 3].forEach(idx => s.addShape('rect', { x: 1.0 + idx * 0.65, y: 6.0 - idx * 0.22, w: 0.35, h: 0.42 + idx * 0.22, fill: { color: idx === 3 ? hex(v.accent) : '28435F' }, line: { color: idx === 3 ? hex(v.accent) : '28435F' } }));
+  [1, 2, 3].forEach((n, idx) => {
+    const x = 5.7 + (idx % 2) * 3.2;
+    const y = 3.35 + Math.floor(idx / 2) * 1.55;
+    s.addShape('roundRect', { x, y, w: 2.9, h: 1.35, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.16 });
+    addPptText(s, pptAcceptedMetricText(metrics[n]), { x: x + 0.24, y: y + 0.22, w: 2.3, h: 0.35, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(v.accent) });
+    addPptText(s, metrics[n]?.label || lines[idx]?.heading || '보조 지표', { x: x + 0.24, y: y + 0.68, w: 2.3, h: 0.28, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.ink) });
+    s.addShape('rect', { x: x + 0.24, y: y + 1.08, w: 1.4 + idx * 0.3, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  });
+  s.addShape('roundRect', { x: 8.9, y: 4.9, w: 3.25, h: 1.6, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.16 });
+  addPptText(s, 'Insight', { x: 9.2, y: 5.15, w: 2.4, h: 0.24, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: '03101C' });
+  addPptText(s, lines[0]?.body || '성과를 만든 실행 근거를 함께 제시합니다.', { x: 9.2, y: 5.5, w: 2.45, h: 0.5, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: '03101C' });
+}
+
+function drawTimelinePptx(s, slide, t, v, i, W, H) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = pptAcceptedLines(slide);
+  const mood = acceptedSlideMood(slide, i);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'CAREER TIMELINE');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  if (!isCover && mood === 'toc') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, slide.title || '', { x: 0.75, y: 0.8, w: 4.6, h: 1.5, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF' });
+    s.addShape('rect', { x: 6.2, y: 0.8, w: 0.02, h: 5.9, fill: { color: 'FFFFFF', transparency: 75 }, line: { color: 'FFFFFF', transparency: 100 } });
+    lines.slice(0, 5).forEach((line, idx) => {
+      const y = 0.95 + idx * 1.05;
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: idx % 2 ? 6.45 : 7.4, y, w: 0.5, h: 0.22, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.accent) });
+      addPptText(s, line.heading, { x: idx % 2 ? 7.1 : 8.05, y, w: 3.2, h: 0.22, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: 'FFFFFF' });
+      addPptText(s, line.body, { x: idx % 2 ? 7.1 : 8.05, y: y + 0.3, w: 3.2, h: 0.28, fontFace: t.fonts.body, fontSize: 7.2, color: 'AFAFAF' });
+    });
+    return;
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 3);
+    addPptText(s, 'GROWTH SNAPSHOT', { x: 0.78, y: 0.58, w: 2.6, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.78, y: 1.15, w: 5.4, h: 1.35, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.ink) });
+    s.addShape('roundRect', { x: 8.2, y: 0.9, w: 3.8, h: 5.6, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.24 });
+    (metrics.length ? metrics : [{ label: lines[0]?.heading, value: lines[0]?.body }]).slice(0, 3).forEach((m, idx) => {
+      const y = 1.35 + idx * 1.55;
+      addPptText(s, pptAcceptedMetricText(m), { x: 8.65, y, w: 2.8, h: 0.42, fontFace: t.fonts.heading, fontSize: 25, bold: false, color: idx === 0 ? hex(v.accent) : 'FFFFFF' });
+      addPptText(s, m?.label || '성장 지표', { x: 8.65, y: y + 0.52, w: 2.5, h: 0.24, fontFace: t.fonts.body, fontSize: 8, bold: true, color: 'BDBDBD' });
+    });
+    return;
+  }
+  if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'CAREER TIMELINE');
+  addPptText(s, 'CAREER TIMELINE', { x: 0.82, y: 0.7, w: 2.5, h: 0.25, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.82, y: 1.12, w: 3.8, h: isCover ? 2.3 : 1.35, fontFace: t.fonts.heading, fontSize: isCover ? 31 : 22, bold: true, color: hex(v.ink) });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.82, y: isCover ? 3.75 : 2.62, w: 3.4, h: 0.85, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  s.addShape('rect', { x: 5.35, y: 1.0, w: 0.025, h: 5.65, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  lines.slice(0, 5).forEach((line, idx) => {
+    const y = 0.95 + idx * 1.13;
+    const fill = idx === 0 ? v.dark : v.card;
+    const fg = idx === 0 ? 'FFFFFF' : hex(v.ink);
+    s.addShape('ellipse', { x: 5.17, y: y + 0.38, w: 0.38, h: 0.38, fill: { color: idx === 0 ? hex(v.accent) : hex(v.card) }, line: { color: hex(v.dark), width: 2 } });
+    s.addShape('roundRect', { x: 5.85, y, w: 6.55, h: 0.95, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.12 });
+    addPptText(s, line.period || `MILESTONE ${idx + 1}`, { x: 6.1, y: y + 0.13, w: 2.4, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+    addPptText(s, line.heading, { x: 6.1, y: y + 0.37, w: 5.7, h: 0.24, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: fg });
+    addPptText(s, line.body, { x: 6.1, y: y + 0.64, w: 5.7, h: 0.18, fontFace: t.fonts.body, fontSize: 7.4, color: idx === 0 ? 'D8D8D8' : hex(v.muted) });
+  });
+  addPptText(s, String(i + 1).padStart(2, '0'), { x: W - 1.1, y: 0.4, w: 0.6, h: 0.35, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(v.soft), align: 'right' });
+}
+
+function drawCaseStudyPptx(s, slide, t, v, i, W, H) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = pptAcceptedLines(slide);
+  const mood = acceptedSlideMood(slide, i);
+  if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'CASE STUDY');
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  if (!isCover && mood === 'toc') {
+    addPptText(s, 'CASE FILE INDEX', { x: 0.68, y: 0.58, w: 2.3, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.68, y: 1.05, w: 7.5, h: 0.95, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.ink) });
+    lines.slice(0, 5).forEach((line, idx) => {
+      const x = 0.7 + idx * 2.45;
+      const fill = idx === 0 ? v.dark : v.card;
+      s.addShape('roundRect', { x, y: 3.25, w: 2.12, h: 3.35, fill: { color: hex(fill) }, line: { color: idx === 0 ? hex(fill) : hex(v.soft) }, rectRadius: 0.06 });
+      addPptText(s, `FILE ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.22, y: 3.55, w: 1.3, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.22, y: 4.55, w: 1.55, h: 0.5, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink) });
+      addPptText(s, line.body, { x: x + 0.22, y: 5.25, w: 1.55, h: 0.72, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 0 ? 'BDBDBD' : hex(v.muted) });
+    });
+    return;
+  }
+  if (!isCover && mood === 'metric') {
+    const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'CASE IMPACT', { x: 0.72, y: 0.65, w: 2.2, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.25, w: 6.9, h: 1.4, fontFace: t.fonts.heading, fontSize: 29, bold: true, color: 'FFFFFF' });
+    (metrics.length ? metrics : [{ label: 'Problem', value: '정의' }, { label: 'Action', value: '실행' }, { label: 'Impact', value: '성과' }, { label: 'Learning', value: '학습' }]).slice(0, 4).forEach((m, idx) => {
+      const x = 0.72 + idx * 3.1;
+      s.addShape('rect', { x, y: 5.0, w: 2.45, h: 0.05, fill: { color: idx === 2 ? hex(v.accent) : 'FFFFFF', transparency: idx === 2 ? 0 : 80 }, line: { color: idx === 2 ? hex(v.accent) : 'FFFFFF', transparency: 100 } });
+      addPptText(s, pptAcceptedMetricText(m), { x, y: 5.25, w: 2.3, h: 0.35, fontFace: t.fonts.heading, fontSize: 21, color: idx === 2 ? hex(v.accent) : 'FFFFFF' });
+      addPptText(s, m?.label || '근거', { x, y: 5.75, w: 2.3, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: 'BDBDBD' });
+    });
+    return;
+  }
+  if (!isCover && mood === 'process') {
+    addPptText(s, slide.sectionLabel || 'BUILD LOG', { x: 0.72, y: 0.6, w: 2.1, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
+    addPptText(s, slide.title || '', { x: 0.72, y: 1.1, w: 4.3, h: 1.3, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const x = 5.6 + (idx % 2) * 3.0;
+      const y = 0.95 + Math.floor(idx / 2) * 2.5;
+      const fill = idx === 0 ? v.dark : v.card;
+      s.addShape('roundRect', { x, y, w: 2.55, h: 2.05, fill: { color: hex(fill) }, line: { color: idx === 0 ? hex(fill) : hex(v.soft) }, rectRadius: 0.14 });
+      addPptText(s, ['01 DISCOVER', '02 DECIDE', '03 BUILD', '04 VERIFY'][idx], { x: x + 0.22, y: y + 0.22, w: 1.6, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.muted) });
+      addPptText(s, line.heading, { x: x + 0.22, y: y + 0.85, w: 1.85, h: 0.38, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink) });
+      addPptText(s, line.body, { x: x + 0.22, y: y + 1.3, w: 1.9, h: 0.38, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 0 ? 'BDBDBD' : hex(v.muted) });
+    });
+    return;
+  }
+  if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'CASE STUDY');
+  s.addShape('rect', { x: 0, y: 0, w: 3.35, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  addPptText(s, 'CASE STUDY', { x: 0.55, y: 0.65, w: 1.8, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, String(i + 1).padStart(2, '0'), { x: 0.55, y: H - 1.45, w: 1.3, h: 0.55, fontFace: t.fonts.heading, fontSize: 36, bold: true, color: 'FFFFFF' });
+  addPptText(s, slide.sectionLabel || 'Problem / Process / Impact', { x: 0.55, y: H - 0.82, w: 2.0, h: 0.3, fontFace: t.fonts.body, fontSize: 8, color: 'BDBDBD' });
+  s.addShape('roundRect', { x: 4.05, y: 0.75, w: 2.15, h: 0.34, fill: { color: hex(v.bg) }, line: { color: hex(v.soft) }, rectRadius: 0.16 });
+  addPptText(s, slide.sectionLabel || 'Project Evidence', { x: 4.18, y: 0.83, w: 1.8, h: 0.14, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.accent) });
+  addPptText(s, slide.title || '', { x: 4.05, y: 1.35, w: 8.0, h: isCover ? 1.85 : 1.05, fontFace: t.fonts.heading, fontSize: isCover ? 33 : 23, bold: true, color: hex(v.ink) });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 4.05, y: isCover ? 3.25 : 2.42, w: 7.3, h: 0.45, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  if (!isCover) {
+    lines.slice(0, 4).forEach((line, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const x = 4.05 + col * 4.15;
+      const y = 4.0 + row * 1.35;
+      s.addShape('roundRect', { x, y, w: 3.8, h: 1.13, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.1 });
+      s.addShape('ellipse', { x: x + 3.35, y: y + 0.16, w: 0.28, h: 0.28, fill: { color: idx === 2 ? hex(v.accent) : hex(v.soft) }, line: { color: idx === 2 ? hex(v.accent) : hex(v.soft) } });
+      addPptText(s, ['Problem', 'Decision', 'Build', 'Impact'][idx] || `Step ${idx + 1}`, { x: x + 0.2, y: y + 0.18, w: 1.6, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.accent) });
+      addPptText(s, line.heading, { x: x + 0.2, y: y + 0.45, w: 2.8, h: 0.22, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink) });
+      addPptText(s, line.body, { x: x + 0.2, y: y + 0.72, w: 3.1, h: 0.24, fontFace: t.fonts.body, fontSize: 7.3, color: hex(v.muted) });
+    });
+  }
+}
+
+function drawCaseStudyDeckPptx(s, slide, t, v, i, W, H) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const mood = acceptedSlideMood(slide, i);
+  const lines = pptAcceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const leftLines = lines.slice(0, 2);
+  const rightLines = lines.slice(2, 4);
+  const label = safePptText(slide.sectionLabel || 'CASE STUDY');
+  const metricCards = (metrics.length ? metrics : [
+    { label: 'Impact', value: leftLines[0]?.heading || '성과 요약' },
+    { label: 'Flow', value: rightLines[0]?.heading || '프로세스 정리' },
+  ]).slice(0, 2);
+
+  if (mood === 'closing' || isCover) {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('ellipse', { x: -0.7, y: -0.45, w: 2.7, h: 1.7, fill: { color: '7A1F00', transparency: 72 }, line: { color: '7A1F00', transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.4, y: H - 1.85, w: 3.0, h: 2.0, fill: { color: '6C00D8', transparency: 76 }, line: { color: '6C00D8', transparency: 100 } });
+    s.addShape('ellipse', { x: 4.2, y: 1.6, w: 2.8, h: 2.8, line: { color: '5284FF', transparency: 86, width: 18 }, fill: { color: hex(v.dark), transparency: 100 } });
+    s.addShape('ellipse', { x: 7.0, y: 2.35, w: 2.0, h: 2.0, line: { color: 'FF842C', transparency: 88, width: 18 }, fill: { color: hex(v.dark), transparency: 100 } });
+    if (mood !== 'closing') s.addShape('roundRect', { x: 2.4, y: 2.1, w: 0.72, h: 0.24, fill: { color: 'FFFFFF', transparency: 3 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.05 });
+    addPptText(s, mood === 'closing' ? safePptText(slide.title || 'THANK YOU') : safePptText(slide.title || label), { x: 1.3, y: mood === 'closing' ? 3.0 : 3.15, w: W - 2.6, h: 0.95, fontFace: t.fonts.heading, fontSize: mood === 'closing' ? 34 : 30, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+    if (mood !== 'closing' && slide.subtitle) addPptText(s, slide.subtitle, { x: 2.4, y: 4.1, w: W - 4.8, h: 0.28, fontFace: t.fonts.body, fontSize: 9, color: 'D1D5E6', align: 'center', fit: 'shrink' });
+    return;
+  }
+
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  s.addShape('roundRect', { x: 0.72, y: 0.38, w: 1.0, h: 0.3, fill: { color: 'FFFFFF', transparency: 4 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.08 });
+  addPptText(s, safePptText(slide.title || label), { x: 0.72, y: 0.86, w: 6.5, h: 0.9, fontFace: t.fonts.heading, fontSize: slide.title && String(slide.title).length > 26 ? 24 : 30, bold: true, color: hex(v.ink), fit: 'shrink' });
+  s.addShape('roundRect', { x: 0.62, y: 2.2, w: 7.02, h: 4.68, fill: { color: hex(v.card) }, line: { color: 'D8DDF0', transparency: 24 }, rectRadius: 0.18, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+  addPptText(s, '문제정의', { x: 1.2, y: 2.75, w: 1.8, h: 0.26, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(v.ink) });
+  addPptText(s, '전략 Strategies/Objectives', { x: 4.5, y: 2.75, w: 2.6, h: 0.26, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(v.ink) });
+  s.addShape('rect', { x: 3.92, y: 3.12, w: 0.02, h: 2.6, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  leftLines.forEach((line, idx) => {
+    const y = 4.0 + idx * 1.15;
+    s.addShape('roundRect', { x: 1.24, y: y + 0.02, w: 0.14, h: 0.14, fill: { color: 'FFFFFF', transparency: 100 }, line: { color: idx === 0 ? hex(v.muted) : hex(v.soft), width: 2 }, rectRadius: 0.02 });
+    addPptText(s, safePptText(line.body || line.heading), { x: 1.55, y, w: 2.0, h: 0.54, fontFace: t.fonts.body, fontSize: 10, bold: true, color: idx === 0 ? hex(v.ink) : hex(v.muted), fit: 'shrink' });
+    if (line.heading && line.body && line.heading !== line.body) addPptText(s, safePptText(line.heading), { x: 1.55, y: y + 0.55, w: 1.7, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.ink), fit: 'shrink' });
+  });
+  rightLines.forEach((line, idx) => {
+    const y = 3.95 + idx * 1.05;
+    addPptText(s, '›', { x: 4.5, y, w: 0.14, h: 0.24, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: hex(v.ink) });
+    addPptText(s, safePptText(line.heading || line.body), { x: 4.8, y, w: 2.05, h: 0.32, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(v.ink), fit: 'shrink' });
+    if (line.body && line.body !== line.heading) {
+      s.addShape('rect', { x: 4.8, y: y + 0.42, w: 0.03, h: 0.46, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+      addPptText(s, safePptText(line.body), { x: 5.0, y: y + 0.38, w: 1.9, h: 0.42, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), fit: 'shrink' });
+    }
+  });
+
+  const drawPanel = (title, captions, x, y, w, h, tall = false) => {
+    s.addShape('roundRect', { x, y, w, h, fill: { color: 'FCFCFF', transparency: 6 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+    addPptText(s, safePptText(title), { x: x + 0.15, y: y + 0.12, w: w - 0.3, h: 0.22, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.ink), align: 'center', fit: 'shrink' });
+    s.addShape('rect', { x: x + (w - 1.3) / 2, y: y + 0.38, w: 1.3, h: 0.01, fill: { color: 'D8DDF0' }, line: { color: 'D8DDF0' } });
+    const cols = tall ? Math.min(2, Math.max(1, captions.length)) : Math.min(3, Math.max(1, captions.length));
+    captions.forEach((caption, idx) => {
+      const cw = tall ? 1.45 : 1.0;
+      const gap = tall ? 0.24 : 0.18;
+      const sx = x + 0.2 + idx * (cw + gap);
+      const sy = y + 0.62;
+      s.addShape('roundRect', { x: sx, y: sy, w: cw, h: tall ? 1.05 : 1.25, fill: { color: idx % 3 === 0 ? 'F3EDFF' : idx % 3 === 1 ? 'FFF5E8' : 'F4F7FF' }, line: { color: 'D6DDF1', transparency: 10 }, rectRadius: 0.12 });
+      s.addShape('roundRect', { x: sx + 0.1, y: sy + 0.1, w: cw - 0.2, h: tall ? 0.78 : 0.98, fill: { color: idx % 3 === 0 ? 'E5EBFF' : idx % 3 === 1 ? 'F8FAFF' : 'EFF3FF' }, line: { color: idx % 2 ? 'E8ECF8' : 'D8E6FF', transparency: 8 }, rectRadius: 0.1 });
+      s.addShape('roundRect', { x: sx + 0.16, y: sy + (tall ? 0.84 : 1.04), w: cw - 0.32, h: 0.06, fill: { color: idx % 2 ? 'B7C3E3' : 'AED3FF', transparency: 15 }, line: { color: idx % 2 ? 'B7C3E3' : 'AED3FF', transparency: 100 }, rectRadius: 0.03 });
+      addPptText(s, safePptText(caption), { x: sx, y: sy + (tall ? 1.12 : 1.32), w: cw, h: 0.16, fontFace: t.fonts.body, fontSize: 7, color: hex(v.muted), align: 'center', fit: 'shrink' });
+    });
+  };
+
+  if (mood === 'metric') {
+    drawPanel('성과 화면', lines.slice(0, 2).map(line => line.heading || '성과 요약'), 7.25, 2.1, 3.72, 2.08, true);
+    s.addShape('roundRect', { x: 7.25, y: 4.38, w: 3.72, h: 1.62, fill: { color: 'FCFCFF', transparency: 6 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+    metricCards.forEach((metric, idx) => {
+      const x = 7.55 + idx * 1.8;
+      s.addShape('ellipse', { x, y: 4.78, w: 0.58, h: 0.58, fill: { color: idx === 0 ? '2B90FF' : '4A4FCA', transparency: 8 }, line: { color: idx === 0 ? '2B90FF' : '4A4FCA', transparency: 100 } });
+      addPptText(s, pptAcceptedMetricText(metric), { x: x + 0.7, y: 4.78, w: 1.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: idx === 0 ? '2B90FF' : '4A4FCA', fit: 'shrink' });
+      addPptText(s, safePptText(metric.label || (idx === 0 ? '리소스 효율' : '핵심 변화')), { x: x + 0.7, y: 5.08, w: 1.2, h: 0.26, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    });
+    return;
+  }
+
+  drawPanel(mood === 'toc' ? 'MAIN PROJECTS' : mood === 'process' ? '프로젝트 진행 화면' : label, lines.slice(0, 3).map(line => line.heading || '핵심 포인트'), 7.25, 2.1, 3.72, mood === 'process' ? 1.66 : 2.08, mood !== 'process');
+  drawPanel(mood === 'process' ? '대시보드와 주요 기능' : '결과 Key Result', lines.slice(1, 3).map(line => line.heading || line.period || '핵심 포인트'), 7.25, 4.38, 3.72, 1.62, true);
 }
 
 function drawProposalHeader(s, slide, t, i, W, isDark) {
@@ -1641,6 +3932,174 @@ function drawProposalHeader(s, slide, t, i, W, isDark) {
   s.addText(section, { x: 0.95, y: 0.4, w: 1.0, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: pptTextOn('#FFFFFF', c.sub) });
   addPptText(s, slide.title || section, { x: 0.95, y: 0.88, w: W - 1.9, h: 0.88, fontFace: t.fonts.heading, fontSize: titleSize, bold: true, color: titleColor, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
   if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: isDark ? 'D4D4D8' : hex(c.sub), align: 'center', fit: 'shrink' });
+}
+
+function drawCaseStudyProposalPptx(s, slide, t, v, i, W, H) {
+  const mood = acceptedSlideMood(slide, i);
+  const proposalSlide = composeAcceptedProposalSlide({
+    ...slide,
+    sectionLabel: slide.sectionLabel || '케이스 스터디',
+    proposalVariant: mood === 'toc' ? 'contents' : slide.proposalVariant,
+    dark: mood === 'metric' ? false : slide.dark,
+  }, t, i);
+
+  if (proposalSlide.layout === 'cover' || proposalSlide.layout === 'section') {
+    return drawProposalCover(s, {
+      ...proposalSlide,
+      bullets: (proposalSlide.bullets && proposalSlide.bullets.length ? proposalSlide.bullets : ['CASE STUDY', 'PROBLEM SOLVING', 'IMPACT']).slice(0, 3),
+    }, t, W, H);
+  }
+
+  if (mood === 'closing') {
+    return drawProposal(s, {
+      ...proposalSlide,
+      layout: 'closing',
+      dark: true,
+      title: proposalSlide.title || 'THANK YOU',
+    }, t, i, W, H);
+  }
+
+  return drawProposal(s, proposalSlide, t, i, W, H);
+}
+
+function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
+  const variant = caseStudyVariantForIndex(slide, i);
+  const lines = pptAcceptedLines(slide);
+  const items = normalizePptItems(slide.items || []);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const left = lines.slice(0, 2);
+  const right = lines.slice(2, 4);
+
+  const addDarkTitle = (title) => {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('ellipse', { x: -0.5, y: -0.3, w: 2.2, h: 1.2, fill: { color: '992600', transparency: 68 }, line: { color: '992600', transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.0, y: H - 1.35, w: 2.6, h: 1.5, fill: { color: '8700C1', transparency: 74 }, line: { color: '8700C1', transparency: 100 } });
+    s.addShape('roundRect', { x: 3.85, y: 3.15, w: 0.62, h: 0.2, fill: { color: 'FFFFFF', transparency: 6 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.04 });
+    addPptText(s, safePptText(title || slide.title || 'CASE STUDY'), { x: 1.4, y: 3.45, w: W - 2.8, h: 0.8, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+  };
+
+  if (variant === 'closing') return addDarkTitle(slide.title || 'THANK YOU');
+  if (variant.startsWith('dark-title')) return addDarkTitle();
+
+  if (variant === 'profile') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: '7B7F92' }, line: { color: '7B7F92' } });
+    s.addShape('roundRect', { x: 3.2, y: 0.45, w: 5.95, h: 6.0, fill: { color: 'FFFFFF', transparency: 10 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.22 });
+    s.addShape('ellipse', { x: 0.82, y: 1.15, w: 1.45, h: 1.45, fill: { color: '28327A' }, line: { color: '28327A' } });
+    addPptText(s, safePptText(slide.title || '프로필 소개'), { x: 0.72, y: 4.0, w: 2.1, h: 0.72, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: '28327A', fit: 'shrink' });
+    addPptText(s, '#사용자중심 #문제정의 #팀워크', { x: 0.72, y: 6.15, w: 2.2, h: 0.42, fontFace: t.fonts.body, fontSize: 8, color: 'DFE3EF', fit: 'shrink' });
+    addPptText(s, 'Work', { x: 3.65, y: 0.95, w: 1.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: '28327A' });
+    lines.slice(0, 4).forEach((line, idx) => {
+      const x = 3.65 + (idx % 2) * 2.55;
+      const y = 1.45 + Math.floor(idx / 2) * 1.05;
+      s.addShape('roundRect', { x, y, w: 2.25, h: 0.8, fill: { color: 'FFFFFF', transparency: 18 }, line: { color: 'D8DDF0', transparency: 30 }, rectRadius: 0.08 });
+      addPptText(s, line.heading, { x: x + 0.15, y: y + 0.14, w: 1.8, h: 0.18, fontFace: t.fonts.heading, fontSize: 9, bold: true, color: '21264F', fit: 'shrink' });
+      addPptText(s, line.body || line.period, { x: x + 0.15, y: y + 0.38, w: 1.85, h: 0.22, fontFace: t.fonts.body, fontSize: 7, color: '6B7395', fit: 'shrink' });
+    });
+    addPptText(s, 'Tools', { x: 3.65, y: 4.95, w: 1.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: '28327A' });
+    ['Figma', 'GA', 'DataGrip', 'Notion', 'Channel', 'Power BI', 'Jira', 'Slack'].forEach((tool, idx) => {
+      const x = 3.65 + (idx % 4) * 1.35;
+      const y = 5.35 + Math.floor(idx / 4) * 0.7;
+      s.addShape('roundRect', { x, y, w: 1.08, h: 0.42, fill: { color: 'FFFFFF', transparency: 20 }, line: { color: 'D8DDF0', transparency: 24 }, rectRadius: 0.06 });
+      addPptText(s, tool, { x, y: y + 0.09, w: 1.08, h: 0.12, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: idx % 2 ? '6B7395' : '28327A', align: 'center', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'projects-3' || variant === 'projects-2') {
+    const count = variant === 'projects-3' ? 3 : 2;
+    const source = (items.length ? items : lines).slice(0, count);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS', { x: 0.72, y: 0.62, w: 2.0, h: 0.22, fontFace: t.fonts.body, fontSize: 11, bold: true, color: '1F84F0' });
+    addPptText(s, safePptText(slide.title || '프로젝트 요약'), { x: 0.72, y: 0.92, w: 4.0, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+    source.forEach((entry, idx) => {
+      const colW = count === 3 ? 3.3 : 4.8;
+      const x = 1.4 + idx * colW;
+      if (idx < count - 1) s.addShape('rect', { x: x + colW - 0.25, y: 2.5, w: 0.02, h: 3.0, fill: { color: 'B8BFDC' }, line: { color: 'B8BFDC' } });
+      s.addShape('ellipse', { x: x + 0.65, y: 1.95, w: 1.2, h: 1.2, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } });
+      s.addShape('ellipse', { x: x + 0.9, y: 2.18, w: 0.7, h: 0.7, fill: { color: '080A10' }, line: { color: '080A10' } });
+      addPptText(s, safePptText(entry.heading || entry.role), { x, y: 3.55, w: 2.5, h: 0.38, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.ink), align: 'center', fit: 'shrink' });
+      addPptText(s, safePptText(entry.body || ''), { x: x + 0.15, y: 4.25, w: 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), align: 'center', fit: 'shrink' });
+    });
+    return;
+  }
+
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  s.addShape('roundRect', { x: 0.72, y: 0.38, w: 0.78, h: 0.18, fill: { color: 'FFFFFF', transparency: 6 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.04 });
+  addPptText(s, safePptText(slide.title || '케이스 스터디'), { x: 0.72, y: 0.74, w: 4.3, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+  s.addShape('roundRect', { x: 0.72, y: 1.8, w: 6.9, h: 4.15, fill: { color: hex(v.card) }, line: { color: 'D8DDF0', transparency: 24 }, rectRadius: 0.16, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+  addPptText(s, '문제정의', { x: 1.1, y: 2.25, w: 1.2, h: 0.22, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.ink) });
+  addPptText(s, '전략 Strategies/Objectives', { x: 4.05, y: 2.25, w: 2.2, h: 0.22, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.ink) });
+  s.addShape('rect', { x: 3.7, y: 2.75, w: 0.02, h: 2.35, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  left.forEach((line, idx) => {
+    const y = 3.45 + idx * 1.05;
+    s.addShape('roundRect', { x: 1.12, y: y + 0.03, w: 0.12, h: 0.12, fill: { color: 'FFFFFF', transparency: 100 }, line: { color: idx === 0 ? hex(v.muted) : hex(v.soft), width: 2 }, rectRadius: 0.02 });
+    addPptText(s, safePptText(line.body || line.heading), { x: 1.42, y, w: 1.9, h: 0.44, fontFace: t.fonts.body, fontSize: 9, bold: true, color: idx === 0 ? hex(v.ink) : hex(v.muted), fit: 'shrink' });
+    if (line.heading && line.body && line.heading !== line.body) addPptText(s, safePptText(line.heading), { x: 1.42, y: y + 0.45, w: 1.5, h: 0.16, fontFace: t.fonts.body, fontSize: 7, bold: true, color: hex(v.ink), fit: 'shrink' });
+  });
+  right.forEach((line, idx) => {
+    const y = 3.38 + idx * 0.95;
+    addPptText(s, '›', { x: 4.05, y, w: 0.12, h: 0.18, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink) });
+    addPptText(s, safePptText(line.heading || line.body), { x: 4.28, y, w: 2.05, h: 0.26, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    if (line.body && line.body !== line.heading) {
+      s.addShape('rect', { x: 4.28, y: y + 0.32, w: 0.02, h: 0.34, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+      addPptText(s, safePptText(line.body), { x: 4.42, y: y + 0.28, w: 1.82, h: 0.32, fontFace: t.fonts.body, fontSize: 7.3, color: hex(v.muted), fit: 'shrink' });
+    }
+  });
+  const panel = (title, captions, x, y, w, h, tall = false) => {
+    s.addShape('roundRect', { x, y, w, h, fill: { color: 'FCFCFF', transparency: 4 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+    addPptText(s, safePptText(title), { x: x + 0.12, y: y + 0.12, w: w - 0.24, h: 0.18, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: hex(v.ink), align: 'center', fit: 'shrink' });
+    const cols = tall ? Math.min(2, Math.max(1, captions.length)) : Math.min(3, Math.max(1, captions.length));
+    captions.forEach((caption, idx) => {
+      const cw = tall ? 1.35 : 0.92;
+      const sx = x + 0.18 + idx * (cw + 0.16);
+      const sy = y + 0.48;
+      s.addShape('roundRect', { x: sx, y: sy, w: cw, h: tall ? 0.86 : 1.02, fill: { color: idx % 3 === 0 ? 'F3EDFF' : idx % 3 === 1 ? 'FFF5E8' : 'F4F7FF' }, line: { color: 'D6DDF1', transparency: 8 }, rectRadius: 0.1 });
+      s.addShape('roundRect', { x: sx + 0.08, y: sy + 0.08, w: cw - 0.16, h: tall ? 0.62 : 0.78, fill: { color: idx % 3 === 0 ? 'E5EBFF' : idx % 3 === 1 ? 'F8FAFF' : 'EFF3FF' }, line: { color: idx % 2 ? 'E8ECF8' : 'D8E6FF', transparency: 8 }, rectRadius: 0.08 });
+      addPptText(s, safePptText(caption), { x: sx, y: sy + (tall ? 0.9 : 1.06), w: cw, h: 0.12, fontFace: t.fonts.body, fontSize: 6.5, color: hex(v.muted), align: 'center', fit: 'shrink' });
+    });
+  };
+
+  if (variant === 'split-image' || variant === 'split-large-image') {
+    panel('프로젝트 화면', [lines[0]?.heading || '화면'], 8.0, 1.8, 4.1, 4.15, true);
+    return;
+  }
+  panel(
+    variant === 'result-guide' ? '글로벌 가이드 페이지' : variant === 'result-dashboard' ? '기능 / 이벤트 / 캘린더' : '예시 화면',
+    (variant === 'result-guide' ? ['가이드', '현지화'] : variant === 'result-dashboard' ? ['기능', '이벤트', '캘린더'] : lines.slice(0, 3).map(line => line.heading || '화면')),
+    8.0, 1.8, 4.1, 2.1, variant !== 'result-dashboard'
+  );
+  if (variant === 'result-customer' || variant === 'result-chart') {
+    s.addShape('roundRect', { x: 8.0, y: 4.2, w: 4.1, h: 1.75, fill: { color: 'FCFCFF', transparency: 4 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+    [
+      { metric: metrics[0] || { value: '300%', label: '리소스 효율' }, color: '2B90FF', x: 8.32 },
+      { metric: metrics[1] || { value: '97.8%', label: '동일 건 감소' }, color: '4A4FCA', x: 10.08 },
+    ].forEach(({ metric, color, x }) => {
+      s.addShape('ellipse', { x, y: 4.62, w: 0.54, h: 0.54, fill: { color, transparency: 10 }, line: { color, transparency: 100 } });
+      addPptText(s, pptAcceptedMetricText(metric), { x: x + 0.62, y: 4.62, w: 1.0, h: 0.18, fontFace: t.fonts.heading, fontSize: 11, bold: true, color, fit: 'shrink' });
+      addPptText(s, safePptText(metric.label), { x: x + 0.62, y: 4.9, w: 1.2, h: 0.2, fontFace: t.fonts.body, fontSize: 6.6, bold: true, color: hex(v.ink), fit: 'shrink' });
+    });
+    return;
+  }
+  if (variant === 'result-table') {
+    s.addShape('roundRect', { x: 8.0, y: 4.2, w: 4.1, h: 1.75, fill: { color: 'FCFCFF', transparency: 4 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14 });
+    ['AA', '기업명', 'BB'].forEach((h, idx) => addPptText(s, h, { x: 8.24 + idx * 1.25, y: 4.44, w: 0.9, h: 0.14, fontFace: t.fonts.heading, fontSize: 7, bold: true, color: hex(v.ink), align: 'center' }));
+    ['국가', '인력', '비교'].forEach((row, ridx) => {
+      const y = 4.74 + ridx * 0.34;
+      addPptText(s, ridx === 0 ? '해외' : ridx === 1 ? '3' : '0.9', { x: 8.24, y, w: 0.9, h: 0.12, fontFace: t.fonts.body, fontSize: 6.6, color: hex(v.muted), align: 'center' });
+      addPptText(s, row, { x: 9.49, y, w: 0.9, h: 0.12, fontFace: t.fonts.body, fontSize: 6.6, color: hex(v.muted), align: 'center' });
+      addPptText(s, ridx === 0 ? '서울, 부산' : ridx === 1 ? '유' : '비', { x: 10.74, y, w: 0.9, h: 0.12, fontFace: t.fonts.body, fontSize: 6.6, color: hex(v.muted), align: 'center' });
+    });
+    return;
+  }
+  s.addShape('roundRect', { x: 8.0, y: 4.2, w: 4.1, h: 1.75, fill: { color: 'FCFCFF', transparency: 4 }, line: { color: 'D8DDF0', transparency: 18 }, rectRadius: 0.14, shadow: { type: 'outer', color: 'B9C0DA', blur: 2, angle: 45, distance: 2, opacity: 0.12 } });
+  [
+    { metric: metrics[0] || { value: '5→25명', label: '팀 증원' }, color: '2B90FF', x: 8.32 },
+    { metric: metrics[1] || { value: 'KR to Global', label: '선례 확산' }, color: '4A4FCA', x: 10.08 },
+  ].forEach(({ metric, color, x }) => {
+    s.addShape('ellipse', { x, y: 4.62, w: 0.54, h: 0.54, fill: { color, transparency: 10 }, line: { color, transparency: 100 } });
+    addPptText(s, pptAcceptedMetricText(metric), { x: x + 0.62, y: 4.62, w: 1.0, h: 0.18, fontFace: t.fonts.heading, fontSize: 11, bold: true, color, fit: 'shrink' });
+    addPptText(s, safePptText(metric.label), { x: x + 0.62, y: 4.9, w: 1.2, h: 0.2, fontFace: t.fonts.body, fontSize: 6.6, bold: true, color: hex(v.ink), fit: 'shrink' });
+  });
 }
 
 function drawProposal(s, slide, t, i, W, H) {
@@ -2459,7 +4918,7 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
 }
 
 function withPptSafeFonts(template) {
-  const safeFont = 'Malgun Gothic';
+  const safeFont = '맑은 고딕';
   return {
     ...template,
     fonts: {

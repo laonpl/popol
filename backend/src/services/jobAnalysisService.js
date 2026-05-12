@@ -360,6 +360,106 @@ ${text.substring(0, 8000)}
 }
 
 // ── 경험-요구사항 매칭 ─────────────────────────────────
+export async function analyzeJobFromDetails({ company, position, deadline }) {
+  const normalizedCompany = String(company || '').trim();
+  const normalizedPosition = String(position || '').trim();
+  const normalizedDeadline = String(deadline || '').trim();
+  const syntheticPosting = [
+    `기업명: ${normalizedCompany}`,
+    `모집분야: ${normalizedPosition}`,
+    `지원서 접수 기간: ${normalizedDeadline || '미정'}`,
+  ].join('\n');
+
+  const prompt = `채용시장 전문 분석가입니다. 사용자는 채용공고 링크 대신 아래 기본 정보만 입력했습니다.
+입력 정보만으로도 포트폴리오 작성에 바로 도움이 되도록 기업/직무 분석을 구조화된 JSON으로 작성하세요.
+
+입력 정보:
+${syntheticPosting}
+
+중요 지침:
+1. company, position, deadline은 입력값 기준으로 정확히 채우세요.
+2. 실제 공고 원문이 없으므로 업무 내용, 요구 역량, 지원 전략은 해당 기업과 모집분야의 일반적인 공개 정보와 채용 관행을 바탕으로 현실적으로 추정하세요.
+3. 확인하기 어려운 숫자나 사실은 과장하지 말고, 불확실하면 null 또는 보수적인 서술로 처리하세요.
+4. portfolioRequirements는 이 기업/직무 지원자가 준비하면 좋은 포트폴리오 기준으로 구체적으로 작성하세요.
+5. 산업 트렌드, 직무 역량, 지원 전략은 포트폴리오 문구에 바로 활용할 수 있을 만큼 실무적으로 작성하세요.
+6. 특히 강조할 문구나 키워드는 <u>강조 태그</u>를 사용할 수 있습니다.
+
+반드시 아래 JSON 형식으로만 응답하세요 (마크다운 금지):
+{
+  "company": "${normalizedCompany}",
+  "position": "${normalizedPosition}",
+  "tasks": [],
+  "requirements": { "essential": [], "preferred": [] },
+  "skills": [],
+  "skillImportance": [{ "skill": "", "weight": 8, "reason": "" }],
+  "applicationFormat": {
+    "documents": [],
+    "questions": [{ "question": "", "maxLength": 500 }],
+    "fileConstraints": { "maxSize": null, "format": null }
+  },
+  "deadline": "${normalizedDeadline}",
+  "workConditions": {
+    "salary": null,
+    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "benefits": [],
+    "location": null
+  },
+  "coreValues": [],
+  "companyAnalysis": {
+    "overview": "",
+    "industry": "",
+    "businessAreas": [],
+    "recentTrends": "",
+    "culture": "",
+    "strengths": [],
+    "weaknesses": [],
+    "competitors": [{ "name": "", "comparison": "" }],
+    "companySize": { "employees": "", "revenue": "", "founded": "" },
+    "homepage": null
+  },
+  "positionAnalysis": {
+    "roleDescription": "",
+    "growthPath": "",
+    "keyCompetencies": [{ "name": "", "weight": 8, "description": "" }],
+    "dailyTasks": "",
+    "challengeLevel": { "score": 7, "description": "" }
+  },
+  "applicationStrategy": {
+    "motivationPoints": [{ "point": "", "how": "" }],
+    "passingStrategy": [{ "strategy": "", "description": "" }],
+    "appealPoints": [],
+    "cautionPoints": [],
+    "portfolioTips": []
+  },
+  "industryTrends": [{ "trend": "", "description": "", "impact": "", "keywords": [], "level": "growing", "opportunity": "", "threat": "" }],
+  "fitScoreFactors": [
+    { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
+    { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
+    { "factor": "인재상 부합도", "maxScore": 20, "description": "" },
+    { "factor": "성장 잠재력", "maxScore": 15, "description": "" },
+    { "factor": "문화 적합도", "maxScore": 10, "description": "" }
+  ],
+  "portfolioRequirements": {
+    "required": [],
+    "format": [],
+    "content": [],
+    "submission": ""
+  }
+}`;
+
+  const raw = await callProFirst(prompt, 'AnalyzeJobFromDetails');
+  const parsed = parseJSON(raw);
+  const enriched = enrichPortfolioRequirements(parsed, syntheticPosting);
+
+  return {
+    ...enriched,
+    company: enriched.company || normalizedCompany,
+    position: enriched.position || normalizedPosition,
+    deadline: enriched.deadline || normalizedDeadline || null,
+    _sourceType: 'manual-entry',
+  };
+}
+
 export async function matchExperiencesToJob(jobAnalysis, experiences, portfolio) {
   const expSummaries = experiences.slice(0, 6).map((exp, i) => {
     const content = exp.content
