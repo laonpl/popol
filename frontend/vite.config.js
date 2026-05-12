@@ -5,6 +5,14 @@ export default defineConfig({
   plugins: [react()],
   build: {
     chunkSizeWarningLimit: 600,
+    modulePreload: {
+      resolveDependencies(filename, deps, { hostType }) {
+        if (hostType === 'html') {
+          return deps.filter(dep => !/vendor-(yoopta|slate)/.test(dep));
+        }
+        return deps;
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {

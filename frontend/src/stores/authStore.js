@@ -121,6 +121,8 @@ const useAuthStore = create((set, get) => ({
     const data = {
       ...profileData,
       uid: user.uid,
+      profileSetupSkipped: false,
+      profileSetupCompleted: true,
       updatedAt: new Date().toISOString(),
     };
     const ref = doc(db, 'profiles', user.uid);
@@ -136,6 +138,21 @@ const useAuthStore = create((set, get) => ({
       await updateProfile(auth.currentUser, { displayName: profileData.nameKo });
       set({ user: { ...user, displayName: profileData.nameKo } });
     }
+  },
+
+  skipProfileSetup: async () => {
+    const { user, profile } = get();
+    if (!user) throw new Error('로그인이 필요합니다');
+    const now = new Date().toISOString();
+    const data = {
+      uid: user.uid,
+      email: user.email || '',
+      profileSetupSkipped: true,
+      profileSetupSkippedAt: now,
+      updatedAt: now,
+    };
+    await setDoc(doc(db, 'profiles', user.uid), data, { merge: true });
+    set({ profile: { ...(profile || {}), ...data } });
   },
 
   signOut: async () => {

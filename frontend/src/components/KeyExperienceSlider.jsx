@@ -565,24 +565,24 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
       </span>
       <EditableText
         value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
-        className="text-[22px] sm:text-[26px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-7"
+        className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-5"
         editing={editing} onChange={onChange}
       />
 
       {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
-      <div className="flex flex-col lg:flex-row gap-5">
+      <div className="flex flex-col lg:flex-row gap-4">
 
         {/* ===== 좌측 대형 카드: 메트릭 + 비교 그래프 ===== */}
-        <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6 flex flex-col gap-2">
+        <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5 flex flex-col gap-2">
           <EditableText
             value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
-            className="text-[18px] sm:text-[20px] font-bold text-gray-800 leading-snug"
+            className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug"
             editing={editing} onChange={onChange}
           />
 
           <EditableText
             value={exp.metric} field="metric" placeholder="성과 지표 (예: 40% 단축)"
-            className="text-[22px] sm:text-[26px] font-black"
+            className="text-[20px] sm:text-[24px] font-black"
             style={{ color: theme.accent }}
             editing={editing} onChange={onChange}
           />
@@ -647,16 +647,16 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         </div>
 
         {/* ===== 우측 카드 2개 ===== */}
-        <div className="lg:flex-[0.8] flex flex-col gap-5">
+        <div className="lg:flex-[0.8] flex flex-col gap-4">
           {/* 문제 상황 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
-            <p className="text-[17px] sm:text-[18px] font-bold text-gray-800 mb-2">문제 상황</p>
+          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
+            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
             <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 핵심 행동 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-6">
-            <p className="text-[17px] sm:text-[18px] font-bold text-gray-800 mb-2">핵심 행동</p>
+          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
+            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
             <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
         </div>
@@ -664,7 +664,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
       {/* 키워드 */}
       {(exp.keywords || []).length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-5">
+        <div className="flex flex-wrap gap-2 mt-4">
           {exp.keywords.map((k, i) => (
             <span key={i} className="px-3 py-1 rounded-full text-[13px] font-semibold border"
               style={{
@@ -803,7 +803,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   handlersRef.current = { startEditing, handleSave, handleCancel, handleDelete, handleUndo, handleAdd, goTo, goNext, goPrev };
 
   return (
-    <div className="mb-10">
+    <div className="mb-0">
       {/* 헤더 */}
       {!hideHeader && (
       <div className="flex items-center justify-between mb-5">
@@ -878,12 +878,12 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
       {/* 슬라이드 */}
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-        className={`bg-white rounded-2xl p-6 sm:p-8 lg:p-10 transition-all duration-250 ease-out ${
+        className={`bg-white rounded-2xl border border-surface-200 p-5 sm:p-6 lg:p-7 transition-all duration-250 ease-out ${
           isAnimating
             ? 'opacity-0 scale-[0.985] translate-y-1'
             : 'opacity-100 scale-100 translate-y-0'
         } ${editing ? 'ring-2 ring-primary-200' : ''}`}
-        style={{ boxShadow: '0 2px 24px rgba(0,0,0,0.06)' }}>
+        style={{ boxShadow: '0 10px 32px rgba(15,23,42,0.06)' }}>
         <SlideContent
           exp={displayExp}
           theme={theme}
@@ -894,13 +894,13 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
       {/* 하단 썸네일 탭 + 추가 버튼 */}
       {keyExperiences.length > 1 && (
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-2 mt-3">
           {keyExperiences.map((e, i) => {
             const t = THEMES[i % THEMES.length];
             const active = i === current;
             return (
               <button key={i} onClick={() => goTo(i)}
-                className={`flex-1 rounded-xl p-3 border-2 transition-all text-left ${
+                className={`flex-1 rounded-xl p-2.5 border transition-all text-left ${
                   active
                     ? 'shadow-md bg-white'
                     : 'border-transparent bg-surface-50 hover:bg-surface-100 opacity-50 hover:opacity-70'

@@ -7,6 +7,8 @@ import { Loader2 } from 'lucide-react';
 // ── 초기 로드 필수 (로그인 전 접근 가능) ──────────────────────────
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 // ── 코드 스플리팅: 인증 후에만 필요한 페이지 ─────────────────────
 const ProfileSetup          = lazy(() => import('./pages/ProfileSetup'));
@@ -40,12 +42,7 @@ function PrivateRoute({ children }) {
 function ProfileGuard({ children }) {
   const { user, profile, profileLoading } = useAuthStore();
   if (profileLoading) return <PageLoader />;
-  if (!profile) {
-    const skipped = user?.uid
-      ? localStorage.getItem(`profile-setup-skipped:${user.uid}`) === 'true'
-      : false;
-    if (!skipped) return <Navigate to="/app/profile-setup" replace />;
-  }
+  if (user && !profile) return <Navigate to="/app/profile-setup" replace />;
   return children;
 }
 
@@ -63,6 +60,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/p/:id" element={<PublicPortfolioView />} />
         <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
         <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>

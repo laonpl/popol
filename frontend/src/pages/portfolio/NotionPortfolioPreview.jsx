@@ -645,6 +645,8 @@ export default function NotionPortfolioPreview() {
           </section>
         </div>
 
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="notion" />
+
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 border-t border-surface-100 flex items-center justify-between text-xs text-gray-400">
           <span>FitPoly Portfolio · {p.userName || ''}</span>
@@ -764,6 +766,101 @@ function LinkExportModal({ portfolioId, isPublic, togglingPublic, customSlug, on
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function hasCustomBlockContent(block) {
+  if (!block) return false;
+  if (block.type === 'divider') return true;
+  if (block.type === 'project') return Array.isArray(block.content) && block.content.length > 0;
+  if (Array.isArray(block.segments)) return block.segments.some(seg => String(seg?.content || '').trim());
+  return String(block.content || '').trim().length > 0;
+}
+
+function renderCustomBlockSegments(block, textClassName) {
+  const segments = Array.isArray(block.segments) && block.segments.length > 0
+    ? block.segments
+    : block.type === 'image'
+      ? [{ type: 'image', content: block.content, width: block.width }]
+      : [{ type: 'text', content: block.content }];
+
+  return segments.map((seg, index) => {
+    if (seg.type === 'image' && seg.content) {
+      return (
+        <img
+          key={index}
+          src={seg.content}
+          alt=""
+          className="my-4 max-w-full rounded-xl border border-surface-100 object-contain"
+          style={{ width: seg.width || '100%' }}
+        />
+      );
+    }
+    if (!String(seg.content || '').trim()) return null;
+    return <p key={index} className={textClassName}>{seg.content}</p>;
+  });
+}
+
+function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
+  const visibleBlocks = (blocks || []).filter(hasCustomBlockContent);
+  if (visibleBlocks.length === 0) return null;
+
+  const warm = variant === 'ashley';
+  const dark = variant === 'timeline';
+  const outerClass = warm
+    ? 'px-10 pb-8 space-y-4'
+    : dark
+      ? 'px-8 py-6 border-b border-surface-100 space-y-5'
+      : 'px-10 py-8 border-b border-surface-100 space-y-5';
+  const cardClass = warm
+    ? 'rounded-xl border border-[#e8e4dc] bg-white p-6'
+    : dark
+      ? 'rounded-xl border border-surface-200 bg-white p-5'
+      : 'rounded-xl border border-surface-200 bg-white p-5';
+  const titleClass = warm
+    ? 'text-xl font-bold text-[#2d2a26] leading-snug'
+    : 'text-xl font-bold text-gray-900 leading-snug';
+  const textClass = warm
+    ? 'text-sm text-[#5a564e] leading-[1.85] whitespace-pre-line'
+    : 'text-sm text-gray-700 leading-[1.85] whitespace-pre-line';
+
+  return (
+    <div className={outerClass}>
+      {visibleBlocks.map((block, index) => {
+        if (block.type === 'divider') return <hr key={index} className={warm ? 'border-[#e8e4dc]' : 'border-surface-200'} />;
+        if (block.type === 'heading') return <h2 key={index} className={titleClass}>{block.content}</h2>;
+        if (block.type === 'project') {
+          const cards = Array.isArray(block.content) ? block.content : [];
+          return (
+            <div key={index} className={cardClass}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {cards.map((card, cardIndex) => {
+                  const body = (
+                    <>
+                      {card.thumbnailUrl && <img src={card.thumbnailUrl} alt="" className="mb-3 aspect-[16/9] w-full rounded-lg object-cover" />}
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'}>{card.title || '프로젝트'}</h3>
+                        {card.link && <ExternalLink size={13} className={warm ? 'text-[#c4a882]' : 'text-gray-400'} />}
+                      </div>
+                      {card.date && <p className={warm ? 'mt-1 text-xs text-[#8a8578]' : 'mt-1 text-xs text-gray-400'}>{card.date}</p>}
+                      {card.description && <p className={warm ? 'mt-2 text-xs leading-relaxed text-[#5a564e]' : 'mt-2 text-xs leading-relaxed text-gray-600'}>{card.description}</p>}
+                    </>
+                  );
+                  return card.link ? (
+                    <a key={cardIndex} href={card.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-surface-100 p-4 transition hover:shadow-md">
+                      {body}
+                    </a>
+                  ) : (
+                    <div key={cardIndex} className="rounded-xl border border-surface-100 p-4">{body}</div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        return <div key={index} className={cardClass}>{renderCustomBlockSegments(block, textClass)}</div>;
+      })}
     </div>
   );
 }
@@ -1067,6 +1164,8 @@ function AcademicLayout({ p, setSelectedExp }) {
           </div>
         )}
 
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="academic" />
+
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
           <span>FitPoly Portfolio · {p.userName || ''}</span>
@@ -1245,6 +1344,8 @@ function AshleyLayout({ p, setSelectedExp }) {
             </div>
           </div>
         )}
+
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="ashley" />
 
         {/* Footer */}
         <div className="px-10 py-5 border-t border-[#e8e4dc] flex items-center justify-between text-xs text-[#8a8578]">
@@ -1673,6 +1774,8 @@ function TimelineLayout({ p, setSelectedExp }) {
             </div>
           </div>
         )}
+
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="timeline" />
 
         {/* Footer */}
         <div className="px-8 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">

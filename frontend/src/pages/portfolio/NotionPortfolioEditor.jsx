@@ -295,6 +295,91 @@ const TEMPLATE_SECTION_MAP = {
   timeline: ['profile', 'education', 'curricular', 'experiences', 'goals', 'skills', 'awards', 'contact'],
 };
 
+const REORDERABLE_SECTION_MAP = {
+  ashley: ['skills', 'goals', 'values'],
+  academic: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
+  notion: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
+  timeline: ['activities', 'goals', 'skills'],
+};
+
+function createDragPreview(label, tone = 'default') {
+  const preview = document.createElement('div');
+  preview.textContent = label;
+  preview.style.position = 'fixed';
+  preview.style.top = '-1000px';
+  preview.style.left = '-1000px';
+  preview.style.zIndex = '9999';
+  preview.style.pointerEvents = 'none';
+  preview.style.padding = '10px 14px';
+  preview.style.borderRadius = '12px';
+  preview.style.fontSize = '13px';
+  preview.style.fontWeight = '700';
+  preview.style.boxShadow = '0 16px 40px rgba(15, 23, 42, 0.18)';
+  preview.style.border = tone === 'warm' ? '1px solid #e8e4dc' : '1px solid #dbeafe';
+  preview.style.background = tone === 'warm' ? '#fffaf0' : '#eff6ff';
+  preview.style.color = tone === 'warm' ? '#5f4b32' : '#1e3a8a';
+  document.body.appendChild(preview);
+  requestAnimationFrame(() => preview.remove());
+  return preview;
+}
+
+function makeSectionOrderManager(templateId, sectionOrder, update) {
+  const reorderable = REORDERABLE_SECTION_MAP[templateId] || REORDERABLE_SECTION_MAP.notion;
+  const filteredSaved = Array.isArray(sectionOrder)
+    ? sectionOrder.filter(key => reorderable.includes(key))
+    : [];
+  const order = filteredSaved.length > 0
+    ? [...filteredSaved, ...reorderable.filter(key => !filteredSaved.includes(key))]
+    : reorderable;
+
+  return {
+    getOrder: (key) => {
+      const index = order.indexOf(key);
+      return index >= 0 ? index : order.length;
+    },
+    swap: (fromKey, toKey) => {
+      if (!fromKey || fromKey === toKey || !reorderable.includes(fromKey) || !reorderable.includes(toKey)) return;
+      const next = [...order];
+      const fromIndex = next.indexOf(fromKey);
+      const toIndex = next.indexOf(toKey);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      update('sectionOrder', next);
+    },
+  };
+}
+
+function reorderItems(items, fromIndex, toIndex) {
+  if (!Array.isArray(items) || fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return items;
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function getCustomBlockLabel(block, index) {
+  if (block?.type === 'heading') return block.content || '제목 블록';
+  if (block?.type === 'image') return '이미지 블록';
+  if (block?.type === 'divider') return '구분선 블록';
+  if (block?.type === 'project') return '프로젝트 블록';
+  return `텍스트 블록 ${index + 1}`;
+}
+
+function shouldIgnoreBlockDrag(target) {
+  if (!(target instanceof Element)) return true;
+  return !!target.closest('input,textarea,select,button,a,label,[contenteditable="true"],[role="textbox"],[data-no-block-drag="true"]');
+}
+
+function startCustomBlockDrag(event, index, label, setDragging, tone = 'default') {
+  setDragging(index);
+  event.dataTransfer.setData('application/x-fitpoly-custom-block', String(index));
+  event.dataTransfer.setData('block-idx', String(index));
+  event.dataTransfer.setData('blockIdx', String(index));
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setDragImage(createDragPreview(label, tone), 16, 16);
+}
+
 const SECTIONS_BASE = [
   { id: 'profile', icon: Heart, defaultLabel: '프로필' },
   { id: 'education', icon: GraduationCap, defaultLabel: '학력' },
@@ -741,12 +826,6 @@ export default function NotionPortfolioEditor() {
           >
             {saving ? '저장 중...' : '저장하기'}
           </button>
-          <button
-            onClick={() => navigate(`/app/portfolio/preview/${id}`)}
-            className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all"
-          >
-            미리보기 · PPT
-          </button>
         </div>
       </div>
 
@@ -890,19 +969,29 @@ function SkillAddInput({ category, onAdd }) {
 /* ── 공용: 우측 기업분석 인라인 사이드패널 (Visual / Ashley / Academic 공유) ── */
 function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, onClose }) {
   const [jobUrl, setJobUrl] = useState('');
+  const [jobText, setJobText] = useState('');
+  const [jobInputMode, setJobInputMode] = useState('url');
   const [analyzingJob, setAnalyzingJob] = useState(false);
   const [jobError, setJobError] = useState(null);
   const [showJobInput, setShowJobInput] = useState(false);
 
   const handleJobAnalyze = async () => {
-    if (!jobUrl.trim()) return;
+    const trimmedUrl = jobUrl.trim();
+    const trimmedText = jobText.trim();
+    const payload = jobInputMode === 'text'
+      ? { text: trimmedText }
+      : { url: trimmedUrl };
+
+    if (jobInputMode === 'text' ? trimmedText.length < 100 : !trimmedUrl) return;
+
     setAnalyzingJob(true);
     setJobError(null);
     try {
-      const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
+      const { data: respData } = await api.post('/job/analyze', payload);
       update('jobAnalysis', respData.analysis);
       setShowJobInput(false);
       setJobUrl('');
+      setJobText('');
       toast.success('기업 분석이 완료되었습니다');
     } catch (err) {
       setJobError(err.response?.data?.error || '분석에 실패했습니다');
@@ -946,17 +1035,22 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
             ) : (
               <div className="bg-surface-50 border border-surface-200 rounded-lg p-3 space-y-2.5">
                 <p className="text-[10px] font-bold text-primary-600 uppercase tracking-[0.08em]">새 채용공고로 변경</p>
-                <input type="url" value={jobUrl} onChange={e => setJobUrl(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-                  placeholder="https:// 채용공고 링크"
-                  className="w-full px-3 py-2 text-[12px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white" />
+                <JobPostingInput
+                  mode={jobInputMode}
+                  onModeChange={setJobInputMode}
+                  jobUrl={jobUrl}
+                  onJobUrlChange={setJobUrl}
+                  jobText={jobText}
+                  onJobTextChange={setJobText}
+                  onSubmit={handleJobAnalyze}
+                />
                 {jobError && <p className="text-[11px] text-red-500">{jobError}</p>}
                 <div className="flex gap-2">
-                  <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
+                  <button onClick={handleJobAnalyze} disabled={analyzingJob || (jobInputMode === 'text' ? jobText.trim().length < 100 : !jobUrl.trim())}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
                     {analyzingJob ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>분석하기</>}
                   </button>
-                  <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+                  <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobText(''); setJobError(null); }}
                     className="px-3 py-2 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
                 </div>
               </div>
@@ -976,22 +1070,75 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
         ) : (
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
             <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">채용공고 URL 입력</p>
-            <input type="url" value={jobUrl} onChange={e => setJobUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleJobAnalyze()}
-              placeholder="https:// 채용공고 링크를 붙여넣으세요"
-              className="w-full px-3 py-2.5 text-[13px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white" />
+            <JobPostingInput
+              mode={jobInputMode}
+              onModeChange={setJobInputMode}
+              jobUrl={jobUrl}
+              onJobUrlChange={setJobUrl}
+              jobText={jobText}
+              onJobTextChange={setJobText}
+              onSubmit={handleJobAnalyze}
+            />
             {jobError && <p className="text-[12px] text-red-500">{jobError}</p>}
             <div className="flex gap-2">
-              <button onClick={handleJobAnalyze} disabled={analyzingJob || !jobUrl.trim()}
+              <button onClick={handleJobAnalyze} disabled={analyzingJob || (jobInputMode === 'text' ? jobText.trim().length < 100 : !jobUrl.trim())}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
                 {analyzingJob ? <><Loader2 size={13} className="animate-spin" />분석 중...</> : <>분석하기</>}
               </button>
-              <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobError(null); }}
+              <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobText(''); setJobError(null); }}
                 className="px-3 py-2.5 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function JobPostingInput({ mode, onModeChange, jobUrl, onJobUrlChange, jobText, onJobTextChange, onSubmit }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-white border border-surface-200 p-1">
+        {[
+          ['url', 'URL'],
+          ['text', '텍스트'],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onModeChange(value)}
+            className={`py-1.5 rounded-md text-[11px] font-bold transition-colors ${
+              mode === value
+                ? 'bg-primary-600 text-white shadow-sm'
+                : 'text-bluewood-400 hover:bg-surface-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'text' ? (
+        <>
+          <textarea
+            value={jobText}
+            onChange={e => onJobTextChange(e.target.value)}
+            placeholder="채용공고 본문을 붙여넣으세요"
+            rows={7}
+            className="w-full px-3 py-2.5 text-[12px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white resize-none leading-relaxed"
+          />
+          <p className="text-[10px] text-bluewood-300">{Math.min(jobText.trim().length, 100)}/100자</p>
+        </>
+      ) : (
+        <input
+          type="url"
+          value={jobUrl}
+          onChange={e => onJobUrlChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onSubmit()}
+          placeholder="https:// 채용공고 링크"
+          className="w-full px-3 py-2.5 text-[13px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white"
+        />
+      )}
     </div>
   );
 }
@@ -2198,6 +2345,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
           key={i}
           draggable="true"
           onDragStart={e => {
+            e.stopPropagation();
             // 텍스트 선택 중이면 드래그 취소
             const sel = window.getSelection();
             if (sel && sel.toString().length > 0) { e.preventDefault(); return; }
@@ -2210,6 +2358,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
           onDrop={e => {
             e.preventDefault();
+            e.stopPropagation();
             const from = parseInt(e.dataTransfer.getData('rce-idx'), 10);
             if (!isNaN(from) && from !== i) moveSeg(from, i);
             setDragOver(null);
@@ -2347,6 +2496,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const [projectBlockPickerIdx, setProjectBlockPickerIdx] = useState(null);
   const [addCardMenuIdx, setAddCardMenuIdx] = useState(null);
+  const [blockDragging, setBlockDragging] = useState(null);
+  const [blockDropTarget, setBlockDropTarget] = useState(null);
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -2366,19 +2517,56 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     update('skills', { ...skills, [category]: value });
   };
 
-  // 섹션 순서 관리 (Ashley)
-  const ASHLEY_REORDERABLE = ['skills', 'goals', 'values'];
-  const ashleySectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : ASHLEY_REORDERABLE;
-  const getAshleySectionOrder = (key) => { const i = ashleySectionOrder.indexOf(key); return i >= 0 ? i : ashleySectionOrder.length; };
-  const swapAshleySectionOrder = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey) return;
-    const cur = [...ashleySectionOrder];
-    const fromIdx = cur.indexOf(fromKey);
-    const toIdx = cur.indexOf(toKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
-    update('sectionOrder', cur);
+  const ashleySectionOrderManager = makeSectionOrderManager('ashley', p.sectionOrder, update);
+  const getAshleySectionOrder = ashleySectionOrderManager.getOrder;
+  const swapAshleySectionOrder = ashleySectionOrderManager.swap;
+  const moveAshleyCustomBlock = (from, to) => {
+    const blocks = p.customBlocks || [];
+    const next = reorderItems(blocks, from, to);
+    if (next !== blocks) update('customBlocks', next);
   };
+  const getAshleyCustomBlockDndProps = (index, block) => ({
+    draggable: true,
+    className: `px-10 pb-8 transition-all duration-150 rounded-xl cursor-grab active:cursor-grabbing ${blockDragging === index ? 'opacity-45 scale-[0.99]' : ''} ${blockDropTarget === index && blockDragging !== index ? 'ring-2 ring-[#e8e4dc] bg-[#fffaf0]' : ''}`,
+    onDragStart: (event) => {
+      if (shouldIgnoreBlockDrag(event.target)) {
+        event.preventDefault();
+        return;
+      }
+      startCustomBlockDrag(event, index, getCustomBlockLabel(block, index), setBlockDragging, 'warm');
+    },
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setBlockDropTarget(index);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget) && blockDropTarget === index) setBlockDropTarget(null);
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const from = parseInt(e.dataTransfer.getData('application/x-fitpoly-custom-block') || e.dataTransfer.getData('block-idx'), 10);
+      if (!isNaN(from)) moveAshleyCustomBlock(from, index);
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+  });
+  const getAshleyCustomBlockHandleProps = (index, block) => ({
+    draggable: true,
+    onDragStart: (e) => {
+      e.stopPropagation();
+      startCustomBlockDrag(e, index, getCustomBlockLabel(block, index), setBlockDragging, 'warm');
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+  });
 
   const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
     new Promise((resolve, reject) => {
@@ -2838,17 +3026,11 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
-          <section key={i} className="px-10 pb-8"
-            draggable="true"
-            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
-            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
-          >
+          <section key={i} {...getAshleyCustomBlockDndProps(i, block)}>
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc] relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
+                  <div {...getAshleyCustomBlockHandleProps(i, block)} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors mr-1" title="드래그하여 이동">
                     <GripVertical size={14} />
                   </div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
@@ -3117,6 +3299,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const [analyzingJob, setAnalyzingJob] = useState(false);
   const [jobError, setJobError] = useState(null);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
+  const [blockDragging, setBlockDragging] = useState(null);
+  const [blockDropTarget, setBlockDropTarget] = useState(null);
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
@@ -3144,19 +3328,56 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       reader.onerror = reject; reader.readAsDataURL(file);
     });
 
-  // 섹션 순서 관리 (Academic)
-  const ACADEMIC_REORDERABLE = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
-  const academicSectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : ACADEMIC_REORDERABLE;
-  const getAcademicSectionOrder = (key) => { const i = academicSectionOrder.indexOf(key); return i >= 0 ? i : academicSectionOrder.length; };
-  const swapAcademicSectionOrder = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey) return;
-    const cur = [...academicSectionOrder];
-    const fromIdx = cur.indexOf(fromKey);
-    const toIdx = cur.indexOf(toKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
-    update('sectionOrder', cur);
+  const academicSectionOrderManager = makeSectionOrderManager('academic', p.sectionOrder, update);
+  const getAcademicSectionOrder = academicSectionOrderManager.getOrder;
+  const swapAcademicSectionOrder = academicSectionOrderManager.swap;
+  const moveAcademicCustomBlock = (from, to) => {
+    const blocks = p.customBlocks || [];
+    const next = reorderItems(blocks, from, to);
+    if (next !== blocks) update('customBlocks', next);
   };
+  const getAcademicCustomBlockDndProps = (index, block) => ({
+    draggable: true,
+    className: `px-10 pb-8 transition-all duration-150 rounded-xl cursor-grab active:cursor-grabbing ${blockDragging === index ? 'opacity-45 scale-[0.99]' : ''} ${blockDropTarget === index && blockDragging !== index ? 'ring-2 ring-primary-200 bg-primary-50/30' : ''}`,
+    onDragStart: (event) => {
+      if (shouldIgnoreBlockDrag(event.target)) {
+        event.preventDefault();
+        return;
+      }
+      startCustomBlockDrag(event, index, getCustomBlockLabel(block, index), setBlockDragging);
+    },
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setBlockDropTarget(index);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget) && blockDropTarget === index) setBlockDropTarget(null);
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const from = parseInt(e.dataTransfer.getData('application/x-fitpoly-custom-block') || e.dataTransfer.getData('block-idx'), 10);
+      if (!isNaN(from)) moveAcademicCustomBlock(from, index);
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+  });
+  const getAcademicCustomBlockHandleProps = (index, block) => ({
+    draggable: true,
+    onDragStart: (e) => {
+      e.stopPropagation();
+      startCustomBlockDrag(e, index, getCustomBlockLabel(block, index), setBlockDragging);
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+  });
 
   const fetchVisualRecommendations = async () => {
     if (!portfolio.jobAnalysis) { toast.error('기업 분석을 먼저 등록해주세요'); return; }
@@ -3677,19 +3898,33 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         </div>{/* end flex col wrapper for Academic reorderable sections */}
 
+        {hiddenSections.some(sectionKey => sections.includes(sectionKey)) && (
+          <div className="px-10 pb-8">
+            <div className="rounded-xl border border-dashed border-surface-200 bg-surface-50/70 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500">숨긴 섹션</span>
+                {hiddenSections.filter(sectionKey => sections.includes(sectionKey)).map(sectionKey => (
+                  <button
+                    key={sectionKey}
+                    type="button"
+                    onClick={() => update('hiddenSections', hiddenSections.filter(item => item !== sectionKey))}
+                    className="inline-flex items-center gap-1 rounded-full border border-surface-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
+                  >
+                    <Plus size={11} /> {(p.customSectionLabels || {})[sectionKey] || SECTION_LABELS.academic[sectionKey] || sectionKey}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 커스텀 블록 */}
         {(p.customBlocks || []).map((block, i) => (
-          <section key={i} className="px-10 pb-8"
-            draggable="true"
-            onDragStart={e => { e.dataTransfer.setData('block-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.style.opacity = '0.4'; }}
-            onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('block-idx'), 10); if (!isNaN(from) && from !== i) { const b = [...(p.customBlocks||[])]; const [moved] = b.splice(from, 1); b.splice(i, 0, moved); update('customBlocks', b); } }}
-          >
+          <section key={i} {...getAcademicCustomBlockDndProps(i, block)}>
             <div className="bg-white rounded-xl p-6 border border-surface-200 relative">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex gap-1 items-center">
-                  <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
+                  <div {...getAcademicCustomBlockHandleProps(i, block)} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors mr-1" title="드래그하여 이동"><GripVertical size={14} /></div>
                   <button onClick={() => { if (i === 0) return; const b = [...(p.customBlocks||[])]; [b[i-1],b[i]]=[b[i],b[i-1]]; update('customBlocks',b); }}
                     disabled={i===0} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-30"><ChevronUp size={14}/></button>
                   <button onClick={() => { if (i === (p.customBlocks||[]).length-1) return; const b=[...(p.customBlocks||[])]; [b[i+1],b[i]]=[b[i],b[i+1]]; update('customBlocks',b); }}
@@ -3876,19 +4111,9 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
       reader.readAsDataURL(file);
     });
 
-  // 섹션 순서 관련 (Timeline)
-  const TIMELINE_REORDERABLE = ['activities', 'goals', 'skills'];
-  const timelineSectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : TIMELINE_REORDERABLE;
-  const getTimelineSectionOrder = (key) => { const i = timelineSectionOrder.indexOf(key); return i >= 0 ? i : timelineSectionOrder.length; };
-  const swapTimelineSectionOrder = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey) return;
-    const cur = [...timelineSectionOrder];
-    const fromIdx = cur.indexOf(fromKey);
-    const toIdx = cur.indexOf(toKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
-    update('sectionOrder', cur);
-  };
+  const timelineSectionOrderManager = makeSectionOrderManager('timeline', p.sectionOrder, update);
+  const getTimelineSectionOrder = timelineSectionOrderManager.getOrder;
+  const swapTimelineSectionOrder = timelineSectionOrderManager.swap;
 
   // 학기별로 courses 그룹핑
   const coursesBySemester = (curr.courses || []).reduce((acc, c) => {
@@ -4176,6 +4401,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const extra = p.extracurricular || {};
   const [hoveredSection, setHoveredSection] = useState(null);
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
+  const [sectionDragging, setSectionDragging] = useState(null);
+  const [sectionDropTarget, setSectionDropTarget] = useState(null);
+  const [blockDragging, setBlockDragging] = useState(null);
+  const [blockDropTarget, setBlockDropTarget] = useState(null);
   const profileImageInputRef = useRef(null);
 
   // 섹션 이름 편집 헬퍼
@@ -4276,18 +4505,92 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const sections = SECTION_MAP[templateId] || SECTION_MAP.notion;
   const hiddenSections = p.hiddenSections || [];
 
-  // 섹션 순서 관리
-  const REORDERABLE_SECTIONS = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
-  const sectionOrder = (p.sectionOrder && p.sectionOrder.length > 0) ? p.sectionOrder : REORDERABLE_SECTIONS;
-  const getSectionOrder = (key) => { const i = sectionOrder.indexOf(key); return i >= 0 ? i : sectionOrder.length; };
-  const swapSectionOrder = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey) return;
-    const cur = [...sectionOrder];
-    const fromIdx = cur.indexOf(fromKey);
-    const toIdx = cur.indexOf(toKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    [cur[fromIdx], cur[toIdx]] = [cur[toIdx], cur[fromIdx]];
-    update('sectionOrder', cur);
+  const sectionOrderManager = makeSectionOrderManager('notion', p.sectionOrder, update);
+  const getSectionOrder = sectionOrderManager.getOrder;
+  const swapSectionOrder = sectionOrderManager.swap;
+  const getSectionDndProps = (sectionKey) => ({
+    style: { order: getSectionOrder(sectionKey) },
+    onDragOver: (e) => {
+      if (!sectionDragging) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setSectionDropTarget(sectionKey);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget) && sectionDropTarget === sectionKey) {
+        setSectionDropTarget(null);
+      }
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      const from = e.dataTransfer.getData('application/x-fitpoly-section') || e.dataTransfer.getData('text/plain');
+      swapSectionOrder(from, sectionKey);
+      setSectionDragging(null);
+      setSectionDropTarget(null);
+    },
+    className: `transition-all duration-150 rounded-xl ${sectionDragging === sectionKey ? 'opacity-45 scale-[0.99]' : ''} ${sectionDropTarget === sectionKey && sectionDragging !== sectionKey ? 'ring-2 ring-primary-200 bg-primary-50/30' : ''}`,
+  });
+  const getSectionHandleProps = (sectionKey, label) => ({
+    draggable: true,
+    onDragStart: (e) => {
+      setSectionDragging(sectionKey);
+      e.dataTransfer.setData('application/x-fitpoly-section', sectionKey);
+      e.dataTransfer.setData('text/plain', sectionKey);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setDragImage(createDragPreview(label || sectionKey), 16, 16);
+    },
+    onDragEnd: () => {
+      setSectionDragging(null);
+      setSectionDropTarget(null);
+    },
+  });
+  const getCustomBlockDndProps = (index, block) => ({
+    draggable: true,
+    onDragStart: (event) => {
+      if (shouldIgnoreBlockDrag(event.target)) {
+        event.preventDefault();
+        return;
+      }
+      startCustomBlockDrag(event, index, getCustomBlockLabel(block, index), setBlockDragging);
+    },
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setBlockDropTarget(index);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget) && blockDropTarget === index) setBlockDropTarget(null);
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const from = parseInt(e.dataTransfer.getData('application/x-fitpoly-custom-block') || e.dataTransfer.getData('blockIdx'), 10);
+      if (!isNaN(from) && from !== index) {
+        update('customBlocks', reorderItems(p.customBlocks || [], from, index));
+      }
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+    className: `group/cb relative transition-all duration-150 rounded-xl cursor-grab active:cursor-grabbing ${blockDragging === index ? 'opacity-45 scale-[0.99]' : ''} ${blockDropTarget === index && blockDragging !== index ? 'ring-2 ring-primary-200 bg-primary-50/30' : ''}`,
+  });
+  const getCustomBlockHandleProps = (index, label) => ({
+    draggable: true,
+    onDragStart: (e) => {
+      e.stopPropagation();
+      startCustomBlockDrag(e, index, label || getCustomBlockLabel((p.customBlocks || [])[index], index), setBlockDragging);
+    },
+    onDragEnd: () => {
+      setBlockDragging(null);
+      setBlockDropTarget(null);
+    },
+  });
+  const sectionHandleClass = 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors';
+  const hiddenSectionKey = (key) => {
+    if (!hiddenSections.includes(key)) update('hiddenSections', [...hiddenSections, key]);
   };
 
   return (
@@ -4787,15 +5090,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 교과 활동 */}
         {!hiddenSections.includes('curricular') && sections.includes('curricular') && (
-        <section id="editor-section-교과 활동" style={{ order: getSectionOrder('curricular') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'curricular'); }}>
+        <section id="editor-section-교과 활동" {...getSectionDndProps('curricular')}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="curricular" defaultLabel="📝 교과 활동 | Curricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-1">
               <VisualSectionRecommend sectionType="curricular" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'curricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
-              <button onClick={() => update('hiddenSections', [...hiddenSections, 'curricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+              <span {...getSectionHandleProps('curricular', '교과 활동')} className={sectionHandleClass} title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => hiddenSectionKey('curricular')} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
@@ -4851,15 +5152,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* 비교과 활동 */}
         {!hiddenSections.includes('extracurricular') && sections.includes('extracurricular') && (
-        <section id="editor-section-비교과 활동" style={{ order: getSectionOrder('extracurricular') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'extracurricular'); }}>
+        <section id="editor-section-비교과 활동" {...getSectionDndProps('extracurricular')}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="extracurricular" defaultLabel="💡 비교과 활동 | Extracurricular Activities" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-1">
               <VisualSectionRecommend sectionType="extracurricular" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'extracurricular'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
-              <button onClick={() => update('hiddenSections', [...hiddenSections, 'extracurricular'])} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
+              <span {...getSectionHandleProps('extracurricular', '비교과 활동')} className={sectionHandleClass} title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => hiddenSectionKey('extracurricular')} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
@@ -4931,15 +5230,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Skills */}
         {!hiddenSections.includes('skills') && sections.includes('skills') && (
-        <section id="editor-section-기술" style={{ order: getSectionOrder('skills') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'skills'); }}>
+        <section id="editor-section-기술" {...getSectionDndProps('skills')}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="skills" defaultLabel="🛠 기술 | Skills" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
-              <button onClick={() => update('hiddenSections', [...hiddenSections, 'skills'])}
+              <span {...getSectionHandleProps('skills', '기술')} className={sectionHandleClass} title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => hiddenSectionKey('skills')}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -4966,15 +5263,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Goals - Preview 디자인 */}
         {!hiddenSections.includes('goals') && sections.includes('goals') && (
-        <section id="editor-section-목표와 계획" style={{ order: getSectionOrder('goals') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'goals'); }}>
+        <section id="editor-section-목표와 계획" {...getSectionDndProps('goals')}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="goals" defaultLabel="✨ 목표와 계획 | Future Plans" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
-              <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
+              <span {...getSectionHandleProps('goals', '목표와 계획')} className={sectionHandleClass} title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => hiddenSectionKey('goals')}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -5018,15 +5313,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Values - Preview 디자인 */}
         {!hiddenSections.includes('values') && sections.includes('values') && (
-        <section id="editor-section-가치관" style={{ order: getSectionOrder('values') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapSectionOrder(from, 'values'); }}>
+        <section id="editor-section-가치관" {...getSectionDndProps('values')}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="values" defaultLabel="💬 가치관 | Values" className="text-xl font-bold pb-2 border-b-2 border-green-300 inline-block" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'values'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('section').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('section').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors" title="드래그하여 순서 변경"><GripVertical size={14} /></span>
-              <button onClick={() => update('hiddenSections', [...hiddenSections, 'values'])}
+              <span {...getSectionHandleProps('values', '가치관')} className={sectionHandleClass} title="드래그하여 순서 변경"><GripVertical size={14} /></span>
+              <button onClick={() => hiddenSectionKey('values')}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -5042,22 +5335,9 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Custom Blocks */}
         {(p.customBlocks || []).map((block, i) => (
-          <section key={i} className="group/cb relative"
-            draggable
-            onDragStart={e => { e.dataTransfer.setData('blockIdx', String(i)); e.dataTransfer.effectAllowed = 'move'; }}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            onDrop={e => {
-              e.preventDefault();
-              const from = parseInt(e.dataTransfer.getData('blockIdx'), 10);
-              if (isNaN(from) || from === i) return;
-              const blocks = [...(p.customBlocks || [])];
-              const [moved] = blocks.splice(from, 1);
-              blocks.splice(i, 0, moved);
-              update('customBlocks', blocks);
-            }}
-          >
+          <section key={i} {...getCustomBlockDndProps(i, block)}>
             <div className="absolute -top-1 right-0 flex items-center gap-1">
-              <span className="cursor-grab text-gray-300 hover:text-gray-500 transition-opacity" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span {...getCustomBlockHandleProps(i, getCustomBlockLabel(block, i))} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-opacity" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => {
                 const blocks = [...(p.customBlocks || [])]; blocks.splice(i, 1);
                 update('customBlocks', blocks);
@@ -5217,6 +5497,24 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             })()}
           </section>
         ))}
+
+        {hiddenSections.some(sectionKey => sections.includes(sectionKey)) && (
+          <div className="rounded-xl border border-dashed border-surface-200 bg-surface-50/70 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500">숨긴 섹션</span>
+              {hiddenSections.filter(sectionKey => sections.includes(sectionKey)).map(sectionKey => (
+                <button
+                  key={sectionKey}
+                  type="button"
+                  onClick={() => update('hiddenSections', hiddenSections.filter(item => item !== sectionKey))}
+                  className="inline-flex items-center gap-1 rounded-full border border-surface-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
+                >
+                  <Plus size={11} /> {(p.customSectionLabels || {})[sectionKey] || SECTION_LABELS.notion[sectionKey] || sectionKey}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
       </div>{/* end 포트폴리오 카드 */}

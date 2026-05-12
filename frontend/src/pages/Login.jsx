@@ -1,13 +1,13 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
 
 // ── 메인 로그인 페이지 ───────────────────────────────────
 export default function Login() {
   const navigate = useNavigate();
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithKakao } = useAuthStore();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithKakao, sendPasswordReset } = useAuthStore();
   const user = useAuthStore(s => s.user);
 
   // 화면 단계: 'login' | 'signup' | 'forgot'
@@ -21,8 +21,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [resetName, setResetName] = useState('');
-  const [tempPassword, setTempPassword] = useState('');
 
   const isFormSubmit = useRef(false);
   const handledAutoLogin = useRef(false);
@@ -94,24 +92,16 @@ export default function Login() {
   const handlePasswordReset = async (e) => {
     e.preventDefault();
     if (!resetEmail.trim()) { toast.error('이메일을 입력해주세요'); return; }
-    if (!resetName.trim()) { toast.error('이름을 입력해주세요'); return; }
     setLoading(true);
     try {
-      const baseURL = import.meta.env.VITE_API_URL || '/api';
-      const res = await fetch(`${baseURL}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail.trim(), name: resetName.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || '오류가 발생했습니다');
-        return;
-      }
-      setTempPassword(data.tempPassword);
+      await sendPasswordReset(resetEmail.trim());
       setResetSent(true);
-    } catch {
-      toast.error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요');
+    } catch (err) {
+      if (err.code === 'auth/invalid-email') {
+        toast.error('올바른 이메일을 입력해주세요');
+      } else {
+        setResetSent(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -137,18 +127,10 @@ export default function Login() {
                 <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
                   <Lock size={26} className="text-emerald-500" />
                 </div>
-                <p className="text-[15px] font-semibold text-bluewood-800 mb-2">임시 비밀번호가 발급됐습니다</p>
-                <p className="text-[13px] text-bluewood-400 mb-3">아래 비밀번호로 로그인한 뒤 비밀번호를 변경해주세요.</p>
-                <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-xl px-4 py-3 mb-6">
-                  <span className="flex-1 text-[17px] font-mono font-bold tracking-widest text-primary-600 select-all">{tempPassword}</span>
-                  <button
-                    type="button"
-                    onClick={() => { navigator.clipboard.writeText(tempPassword); toast.success('복사됐습니다'); }}
-                    className="text-[12px] text-bluewood-400 hover:text-bluewood-700 border border-surface-200 rounded-lg px-2 py-1 transition-colors"
-                  >복사</button>
-                </div>
+                <p className="text-[15px] font-semibold text-bluewood-800 mb-2">비밀번호 재설정 메일을 보냈습니다</p>
+                <p className="text-[13px] text-bluewood-400 mb-6">메일함에서 재설정 링크를 확인해주세요.</p>
                 <button
-                  onClick={() => { setStep('login'); setResetSent(false); setResetEmail(''); setResetName(''); setTempPassword(''); }}
+                  onClick={() => { setStep('login'); setResetSent(false); setResetEmail(''); }}
                   className="w-full py-3 bg-primary-600 text-white rounded-xl text-[15px] font-semibold hover:bg-primary-700 transition-colors"
                 >
                   로그인하러 가기
@@ -157,8 +139,8 @@ export default function Login() {
             ) : (
               <>
                 <p className="text-[14px] text-bluewood-400 text-center mb-6">
-                  가입 시 사용한 이메일과 이름을 입력하면<br />
-                  임시 비밀번호를 발급해드립니다.
+                  가입 시 사용한 이메일을 입력하면<br />
+                  비밀번호 재설정 링크를 보내드립니다.
                 </p>
                 <form onSubmit={handlePasswordReset} className="space-y-4">
                   <div>
@@ -175,25 +157,12 @@ export default function Login() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">이름</label>
-                    <div className="relative">
-                      <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="text"
-                        value={resetName}
-                        onChange={e => setResetName(e.target.value)}
-                        placeholder="가입 시 입력한 이름"
-                        className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
-                      />
-                    </div>
-                  </div>
                   <button
                     type="submit"
                     disabled={loading}
                     className="w-full py-3 bg-primary-600 text-white rounded-xl text-[15px] font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors"
                   >
-                    {loading ? '확인 중...' : '임시 비밀번호 발급'}
+                    {loading ? '발송 중...' : '재설정 메일 받기'}
                   </button>
                 </form>
                 <p className="text-center text-sm text-gray-400 mt-5">

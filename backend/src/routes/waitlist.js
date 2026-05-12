@@ -15,7 +15,7 @@ const waitlistLimiter = rateLimit({
 
 router.post('/', waitlistLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || '').toLowerCase().trim();
     
     // 이메일 유효성 검사
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

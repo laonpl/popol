@@ -10,8 +10,23 @@ import {
   MapPin, Phone, Mail
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
-import { db } from '../config/firebase';
-import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+
+const BRAND_ICONS = {
+  KakaoTalk: '/brand-icons/kakaotalk.svg',
+  Notion: '/brand-icons/notion.svg',
+  'Google Drive': '/brand-icons/google-drive.svg',
+  Gmail: '/brand-icons/gmail.svg',
+  Slack: '/brand-icons/slack.svg',
+  Discord: '/brand-icons/discord.svg',
+  Figma: '/brand-icons/figma.svg',
+  'Google Docs': '/brand-icons/google-docs.svg',
+  PDF: '/brand-icons/pdf.svg',
+  GitHub: '/brand-icons/github.svg',
+};
+
+function BrandIcon({ name, className = '' }) {
+  return <img src={BRAND_ICONS[name]} alt={name} className={className} loading="lazy" decoding="async" />;
+}
 
 const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   const containerRef = useRef(null);
@@ -115,21 +130,19 @@ export default function Landing() {
     setWaitlistStatus({ type: 'loading', message: '' });
 
     try {
-      // 중복 이메일 확인
-      const q = query(collection(db, 'waitlist'), where('email', '==', waitlistEmail.toLowerCase().trim()));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        setWaitlistStatus({ type: 'error', message: '이미 등록된 이메일입니다. 출시 알림을 보내드릴게요! 🎁' });
-        return;
-      }
-      // Firestore에 저장
-      await addDoc(collection(db, 'waitlist'), {
-        email: waitlistEmail.toLowerCase().trim(),
-        registeredAt: serverTimestamp(),
-        couponGranted: false,
+      const baseURL = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${baseURL}/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail.toLowerCase().trim() }),
       });
-      setWaitlistStatus({ type: 'success', message: '출시 예약 완료! 정식 출시 시 무료 쿠폰 3장을 보내드릴게요 🎁' });
-      setWaitlistEmail('');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setWaitlistStatus({ type: 'error', message: data.error || '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+      } else {
+        setWaitlistStatus({ type: 'success', message: data.message || '출시 예약 완료! 정식 출시 시 무료 쿠폰 3장을 보내드릴게요 🎁' });
+        setWaitlistEmail('');
+      }
     } catch (error) {
       console.error(error);
       setWaitlistStatus({ type: 'error', message: '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
@@ -185,7 +198,7 @@ export default function Landing() {
   }, [statsVisible]);
 
   return (
-    <div className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden" style={{ zoom: 0.8 }}>
+    <div className="min-h-screen bg-[#f0f2f7] w-full overflow-x-hidden">
 
       {/* ── FLOATING HEADER ── */}
       <div className="fixed top-4 sm:top-6 inset-x-0 z-50 px-3 sm:px-4 flex justify-center">
@@ -212,43 +225,43 @@ export default function Landing() {
         <div className="absolute inset-0 w-full h-full max-w-[1200px] mx-auto pointer-events-none">
           {/* Notion */}
           <div className="hidden md:flex absolute top-[20%] left-[18%] w-16 h-16 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-slow" style={{ animationDelay: '0s' }}>
-            <img src="https://cdn.simpleicons.org/notion/000000" alt="Notion" className="w-8 h-8" />
+            <BrandIcon name="Notion" className="w-8 h-8" />
           </div>
           {/* GitHub */}
           <div className="hidden md:flex absolute top-[18%] right-[22%] w-14 h-14 bg-[#181717] rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] items-center justify-center animate-float-medium" style={{ animationDelay: '1.5s' }}>
-            <img src="https://cdn.simpleicons.org/github/ffffff" alt="GitHub" className="w-8 h-8" />
+            <BrandIcon name="GitHub" className="w-8 h-8" />
           </div>
           {/* KakaoTalk */}
           <div className="hidden lg:flex absolute bottom-[35%] left-[15%] w-20 h-20 bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-fast" style={{ animationDelay: '0.5s' }}>
-            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/KakaoTalk_logo.svg" alt="KakaoTalk" className="w-12 h-12" />
+            <BrandIcon name="KakaoTalk" className="w-12 h-12" />
           </div>
           {/* Slack */}
           <div className="hidden lg:flex absolute top-[40%] left-[8%] w-12 h-12 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] items-center justify-center animate-float-slow" style={{ animationDelay: '2s' }}>
-            <img src="https://api.iconify.design/logos:slack-icon.svg" alt="Slack" className="w-7 h-7" />
+            <BrandIcon name="Slack" className="w-7 h-7" />
           </div>
           {/* Figma */}
           <div className="hidden md:flex absolute bottom-[28%] right-[15%] w-16 h-16 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-medium" style={{ animationDelay: '3s' }}>
-            <img src="https://api.iconify.design/logos:figma.svg" alt="Figma" className="w-8 h-8" />
+            <BrandIcon name="Figma" className="w-8 h-8" />
           </div>
           {/* Google Drive */}
           <div className="hidden lg:flex absolute top-[10%] right-[38%] w-12 h-12 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-fast" style={{ animationDelay: '1s' }}>
-            <img src="https://api.iconify.design/logos:google-drive.svg" alt="Google Drive" className="w-6 h-6" />
+            <BrandIcon name="Google Drive" className="w-6 h-6" />
           </div>
           {/* PDF */}
           <div className="hidden lg:flex absolute bottom-[20%] right-[35%] w-14 h-14 bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-slow" style={{ animationDelay: '2.5s' }}>
-            <img src="https://api.iconify.design/vscode-icons:file-type-pdf2.svg" alt="PDF" className="w-8 h-8" />
+            <BrandIcon name="PDF" className="w-8 h-8" />
           </div>
           {/* Google Docs */}
           <div className="hidden md:flex absolute top-[55%] right-[10%] w-[72px] h-[72px] bg-white rounded-[22px] shadow-[0_12px_40px_rgb(0,0,0,0.08)] items-center justify-center animate-float-medium" style={{ animationDelay: '0.8s' }}>
-            <img src="https://cdn.simpleicons.org/googledocs/4285F4" alt="Google Docs" className="w-9 h-9" />
+            <BrandIcon name="Google Docs" className="w-9 h-9" />
           </div>
           {/* Gmail */}
           <div className="hidden lg:flex absolute bottom-[15%] left-[35%] w-14 h-14 bg-white rounded-[18px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] items-center justify-center animate-float-fast" style={{ animationDelay: '1.8s' }}>
-            <img src="https://api.iconify.design/logos:google-gmail.svg" alt="Gmail" className="w-8 h-8" />
+            <BrandIcon name="Gmail" className="w-8 h-8" />
           </div>
           {/* Discord */}
           <div className="hidden lg:flex absolute top-[12%] left-[35%] w-12 h-12 bg-[#5865F2] rounded-2xl shadow-[0_8px_30px_rgb(88,101,242,0.25)] items-center justify-center animate-float-slow" style={{ animationDelay: '0.3s' }}>
-            <img src="https://cdn.simpleicons.org/discord/ffffff" alt="Discord" className="w-7 h-7" />
+            <BrandIcon name="Discord" className="w-7 h-7" />
           </div>
         </div>
 
@@ -426,19 +439,19 @@ export default function Landing() {
 
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 md:gap-4">
               {[
-                { name: 'KakaoTalk', url: 'https://upload.wikimedia.org/wikipedia/commons/e/e3/KakaoTalk_logo.svg', bg: 'bg-white' },
-                { name: 'Notion', url: 'https://cdn.simpleicons.org/notion/000000', bg: 'bg-white' },
-                { name: 'Google Drive', url: 'https://api.iconify.design/logos:google-drive.svg', bg: 'bg-white' },
-                { name: 'Gmail', url: 'https://api.iconify.design/logos:google-gmail.svg', bg: 'bg-white' },
-                { name: 'Slack', url: 'https://api.iconify.design/logos:slack-icon.svg', bg: 'bg-white' },
-                { name: 'Discord', url: 'https://cdn.simpleicons.org/discord/ffffff', bg: 'bg-[#5865F2]' },
-                { name: 'Figma', url: 'https://api.iconify.design/logos:figma.svg', bg: 'bg-white' },
-                { name: 'Google Docs', url: 'https://cdn.simpleicons.org/googledocs/4285F4', bg: 'bg-white' },
-                { name: 'PDF', url: 'https://api.iconify.design/vscode-icons:file-type-pdf2.svg', bg: 'bg-white' },
-                { name: 'GitHub', url: 'https://cdn.simpleicons.org/github/ffffff', bg: 'bg-[#181717]' },
+                { name: 'KakaoTalk', bg: 'bg-white' },
+                { name: 'Notion', bg: 'bg-white' },
+                { name: 'Google Drive', bg: 'bg-white' },
+                { name: 'Gmail', bg: 'bg-white' },
+                { name: 'Slack', bg: 'bg-white' },
+                { name: 'Discord', bg: 'bg-[#5865F2]' },
+                { name: 'Figma', bg: 'bg-white' },
+                { name: 'Google Docs', bg: 'bg-white' },
+                { name: 'PDF', bg: 'bg-white' },
+                { name: 'GitHub', bg: 'bg-[#181717]' },
               ].map((icon, i) => (
                 <div key={i} className={`w-10 h-10 sm:w-12 sm:h-12 md:w-[60px] md:h-[60px] ${icon.bg} rounded-xl sm:rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-gray-100 flex items-center justify-center`}>
-                  <img src={icon.url} alt={icon.name} className={`${icon.name === 'KakaoTalk' ? 'w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10' : 'w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8'}`} />
+                  <BrandIcon name={icon.name} className={`${icon.name === 'KakaoTalk' ? 'w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10' : 'w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8'}`} />
                 </div>
               ))}
             </div>
@@ -1374,7 +1387,7 @@ export default function Landing() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 sm:py-24 md:py-32 bg-[#f8f9fa]">
+      <section id="faq" className="py-20 sm:py-24 md:py-32 bg-[#f8f9fa]">
         <div className="max-w-[900px] mx-auto px-4 sm:px-8 flex flex-col md:flex-row gap-8 sm:gap-12 md:gap-20 lg:gap-32">
           <div className="md:w-[200px] lg:w-[240px] shrink-0 pt-2">
             <p className="text-[13px] tracking-[0.15em] text-gray-400 font-bold mb-3 sm:mb-4">FAQ</p>
@@ -1492,24 +1505,24 @@ export default function Landing() {
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">서비스</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-primary-600 transition-colors">경험 정리</a></li>
-                <li><a href="#" className="hover:text-primary-600 transition-colors">포트폴리오</a></li>
-                <li><a href="#" className="hover:text-primary-600 transition-colors">AI 분석</a></li>
+                <li><a href="#feature-experience" className="hover:text-primary-600 transition-colors">경험 정리</a></li>
+                <li><a href="#feature-portfolio" className="hover:text-primary-600 transition-colors">포트폴리오</a></li>
+                <li><a href="#feature-experience" className="hover:text-primary-600 transition-colors">AI 분석</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">지원</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-primary-600 transition-colors">이용 가이드</a></li>
-                <li><a href="#" className="hover:text-primary-600 transition-colors">자주 묻는 질문</a></li>
-                <li><a href="#" className="hover:text-primary-600 transition-colors">문의하기</a></li>
+                <li><a href="#feature-experience" className="hover:text-primary-600 transition-colors">이용 가이드</a></li>
+                <li><a href="#faq" className="hover:text-primary-600 transition-colors">자주 묻는 질문</a></li>
+                <li><a href="mailto:gudrbs14@naver.com" className="hover:text-primary-600 transition-colors">문의하기</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-300 uppercase tracking-wider mb-3 sm:mb-4">법적 고지</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li><a href="#" className="hover:text-primary-600 transition-colors">이용약관</a></li>
-                <li><a href="#" className="hover:text-primary-600 transition-colors">개인정보처리방침</a></li>
+                <li><a href="/terms" className="hover:text-primary-600 transition-colors">이용약관</a></li>
+                <li><a href="/privacy" className="hover:text-primary-600 transition-colors">개인정보처리방침</a></li>
               </ul>
             </div>
             <div>

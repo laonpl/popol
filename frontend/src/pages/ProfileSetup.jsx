@@ -25,8 +25,9 @@ const PROFICIENCY_LEVELS = [
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
-  const { user, profile, saveProfile, changePassword } = useAuthStore();
+  const { user, profile, saveProfile, changePassword, skipProfileSetup } = useAuthStore();
   const [saving, setSaving] = useState(false);
+  const [skipSaving, setSkipSaving] = useState(false);
 
   // 비밀번호 변경
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
@@ -57,14 +58,16 @@ export default function ProfileSetup() {
     }
   };
 
-  const getSkipKey = () => user?.uid ? `profile-setup-skipped:${user.uid}` : null;
-  const markProfileSetupSkipped = () => {
-    const key = getSkipKey();
-    if (key) localStorage.setItem(key, 'true');
-  };
-  const clearProfileSetupSkipped = () => {
-    const key = getSkipKey();
-    if (key) localStorage.removeItem(key);
+  const handleSkipProfileSetup = async () => {
+    setSkipSaving(true);
+    try {
+      await skipProfileSetup();
+      navigate('/app');
+    } catch {
+      toast.error('건너뛰기 상태 저장에 실패했습니다');
+    } finally {
+      setSkipSaving(false);
+    }
   };
 
   const [form, setForm] = useState({
@@ -217,7 +220,6 @@ export default function ProfileSetup() {
         frameworks: form.frameworks.filter(Boolean),
         others: form.others.filter(Boolean),
       });
-      clearProfileSetupSkipped();
       toast.success('프로필이 저장되었습니다!');
       navigate('/app');
     } catch (err) {
@@ -390,10 +392,11 @@ export default function ProfileSetup() {
               </p>
             </div>
             <button
-              onClick={() => { markProfileSetupSkipped(); navigate('/app'); }}
+              onClick={handleSkipProfileSetup}
+              disabled={skipSaving}
               className="flex-shrink-0 text-[13px] text-bluewood-300 hover:text-bluewood-600 transition-colors underline underline-offset-2"
             >
-              건너뛰기
+              {skipSaving ? '저장 중...' : '건너뛰기'}
             </button>
           </div>
         </div>
@@ -694,10 +697,11 @@ export default function ProfileSetup() {
             )}
           </button>
           <button
-            onClick={() => { markProfileSetupSkipped(); navigate('/app'); }}
+            onClick={handleSkipProfileSetup}
+            disabled={skipSaving}
             className="w-full py-2.5 mt-1 text-[13px] text-bluewood-300 hover:text-bluewood-600 transition-colors"
           >
-            건너뛰기
+            {skipSaving ? '저장 중...' : '건너뛰기'}
           </button>
         </div>
       </div>

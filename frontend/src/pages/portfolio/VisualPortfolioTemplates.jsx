@@ -22,6 +22,27 @@ function recommendationToText(rec) {
   return [rec?.title, rec?.content].filter(Boolean).map(stripMd).join('\n\n');
 }
 
+function createSectionDragPreview(label) {
+  const preview = document.createElement('div');
+  preview.textContent = label;
+  preview.style.position = 'fixed';
+  preview.style.top = '-1000px';
+  preview.style.left = '-1000px';
+  preview.style.zIndex = '9999';
+  preview.style.pointerEvents = 'none';
+  preview.style.padding = '10px 14px';
+  preview.style.borderRadius = '12px';
+  preview.style.fontSize = '13px';
+  preview.style.fontWeight = '700';
+  preview.style.boxShadow = '0 16px 40px rgba(15, 23, 42, 0.18)';
+  preview.style.border = '1px solid #dbeafe';
+  preview.style.background = '#eff6ff';
+  preview.style.color = '#1e3a8a';
+  document.body.appendChild(preview);
+  requestAnimationFrame(() => preview.remove());
+  return preview;
+}
+
 // ── 섹션별 AI 내용 추천 버튼 (visual 템플릿 공용) ──
 export function VisualSectionRecommend({ sectionType, jobAnalysis }) {
   const [loading, setLoading] = useState(false);
@@ -1080,26 +1101,54 @@ function SkillsEditorPanel({ portfolio, ec }) {
 
 // 섹션 순서 유틸 (Visual Templates 공통)
 function makeSectionOrderUtils(portfolio, ec, defaultSections) {
-  const sectionOrder = (portfolio.sectionOrder && portfolio.sectionOrder.length > 0)
-    ? portfolio.sectionOrder : defaultSections;
+  const saved = Array.isArray(portfolio.sectionOrder)
+    ? portfolio.sectionOrder.filter(key => defaultSections.includes(key))
+    : [];
+  const sectionOrder = saved.length > 0
+    ? [...saved, ...defaultSections.filter(key => !saved.includes(key))]
+    : defaultSections;
   const getOrder = (key) => { const i = sectionOrder.indexOf(key); return i >= 0 ? i : 99; };
   const swapOrder = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey || !ec) return;
+    if (!fromKey || fromKey === toKey || !ec || !defaultSections.includes(fromKey) || !defaultSections.includes(toKey)) return;
     const cur = [...sectionOrder];
     const fi = cur.indexOf(fromKey), ti = cur.indexOf(toKey);
     if (fi === -1 || ti === -1) return;
-    [cur[fi], cur[ti]] = [cur[ti], cur[fi]];
+    const [moved] = cur.splice(fi, 1);
+    cur.splice(ti, 0, moved);
     ec.update('sectionOrder', cur);
   };
   const dragProps = (key) => ec ? {
     style: { order: getOrder(key) },
-    onDragOver: (e) => e.preventDefault(),
-    onDrop: (e) => { e.preventDefault(); swapOrder(e.dataTransfer.getData('text/plain'), key); },
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50/30', 'rounded-xl');
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50/30', 'rounded-xl');
+      }
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50/30', 'rounded-xl');
+      swapOrder(e.dataTransfer.getData('application/x-fitpoly-section') || e.dataTransfer.getData('text/plain'), key);
+    },
   } : {};
   const gripProps = (key) => ec ? {
     draggable: true,
-    onDragStart: (e) => { e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity = '0.5'; },
-    onDragEnd: (e) => { e.currentTarget.closest('div[style]').style.opacity = '1'; },
+    onDragStart: (e) => {
+      e.dataTransfer.setData('application/x-fitpoly-section', key);
+      e.dataTransfer.setData('text/plain', key);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setDragImage(createSectionDragPreview(key), 16, 16);
+      const section = e.currentTarget.closest('[style]');
+      if (section) section.style.opacity = '0.5';
+    },
+    onDragEnd: (e) => {
+      const section = e.currentTarget.closest('[style]');
+      if (section) section.style.opacity = '1';
+    },
     className: 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors ml-1',
     title: '드래그하여 이동',
   } : {};
