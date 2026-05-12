@@ -14,7 +14,7 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
-import { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
+import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -975,6 +975,21 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
   const [jobError, setJobError] = useState(null);
   const [showJobInput, setShowJobInput] = useState(false);
 
+  const resetJobInput = () => {
+    setShowJobInput(false);
+    setJobUrl('');
+    setJobText('');
+    setJobError(null);
+  };
+
+  const handleJobAnalysisComplete = (analysis) => {
+    update('jobAnalysis', analysis);
+    if (analysis?.company) update('targetCompany', analysis.company);
+    if (analysis?.position) update('targetPosition', analysis.position);
+    resetJobInput();
+    toast.success('기업 분석이 완료되었습니다');
+  };
+
   const handleJobAnalyze = async () => {
     const trimmedUrl = jobUrl.trim();
     const trimmedText = jobText.trim();
@@ -988,15 +1003,12 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
     setJobError(null);
     try {
       const { data: respData } = await api.post('/job/analyze', payload);
-      update('jobAnalysis', respData.analysis);
-      setShowJobInput(false);
-      setJobUrl('');
-      setJobText('');
-      toast.success('기업 분석이 완료되었습니다');
+      handleJobAnalysisComplete(respData.analysis);
     } catch (err) {
       setJobError(err.response?.data?.error || '분석에 실패했습니다');
+    } finally {
+      setAnalyzingJob(false);
     }
-    setAnalyzingJob(false);
   };
 
   const p = portfolio;
@@ -1050,8 +1062,12 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
                     {analyzingJob ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>분석하기</>}
                   </button>
-                  <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobText(''); setJobError(null); }}
+                  <button onClick={resetJobInput}
                     className="px-3 py-2 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
+                </div>
+                <div className="border-t border-surface-200 pt-3">
+                  <p className="mb-2 text-[10px] font-bold text-bluewood-400 uppercase tracking-[0.08em]">또는 기업 정보 직접 입력</p>
+                  <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
                 </div>
               </div>
             )}
@@ -1060,7 +1076,7 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
             <p className="text-[13px] font-bold text-primary-600 tracking-[-0.01em]">채용공고 분석</p>
             <p className="text-[12px] text-bluewood-400 leading-relaxed">
-              지원할 기업의 채용공고 URL을 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
+              채용공고 URL이나 본문을 붙여넣거나, 기업명과 모집분야를 직접 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
             </p>
             <button onClick={() => setShowJobInput(true)}
               className="w-full py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100 tracking-wide">
@@ -1069,7 +1085,7 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
           </div>
         ) : (
           <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
-            <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">채용공고 URL 입력</p>
+            <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">채용공고 입력</p>
             <JobPostingInput
               mode={jobInputMode}
               onModeChange={setJobInputMode}
@@ -1085,8 +1101,12 @@ function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, 
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
                 {analyzingJob ? <><Loader2 size={13} className="animate-spin" />분석 중...</> : <>분석하기</>}
               </button>
-              <button onClick={() => { setShowJobInput(false); setJobUrl(''); setJobText(''); setJobError(null); }}
+              <button onClick={resetJobInput}
                 className="px-3 py-2.5 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
+            </div>
+            <div className="border-t border-surface-200 pt-3">
+              <p className="mb-2 text-[10px] font-bold text-bluewood-400 uppercase tracking-[0.08em]">또는 기업 정보 직접 입력</p>
+              <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
             </div>
           </div>
         )}

@@ -6,11 +6,14 @@
  */
 import api from './api';
 
-/** 채용공고 분석. url 또는 text 하나를 받는다. */
-export async function analyzeJob({ url, text } = {}) {
+/** 채용공고 분석. url / text / company+position+deadline 중 하나를 받는다. */
+export async function analyzeJob({ url, text, company, position, deadline } = {}) {
   const payload = {};
   if (url) payload.url = url.trim();
   if (text) payload.text = text.trim();
+  if (company) payload.company = company.trim();
+  if (position) payload.position = position.trim();
+  if (deadline) payload.deadline = deadline.trim();
   const { data } = await api.post('/job/analyze', payload);
   return data; // { analysis, ... }
 }
@@ -18,6 +21,11 @@ export async function analyzeJob({ url, text } = {}) {
 /** URL 단축 헬퍼. */
 export async function analyzeJobUrl(url) {
   return analyzeJob({ url });
+}
+
+/** 회사명, 모집분야, 지원 기간만으로 분석. */
+export async function analyzeJobInfo({ company, position, deadline }) {
+  return analyzeJob({ company, position, deadline });
 }
 
 /** 한 경험(exp)을 기업/직무에 맞춰 재작성. */

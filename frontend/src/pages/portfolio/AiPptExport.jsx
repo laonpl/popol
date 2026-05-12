@@ -237,6 +237,102 @@ function LayoutThumb({ layoutId }) {
       </div>
     );
   }
+  if (layoutId === 'narrative') {
+    return (
+      <div className="w-full h-full p-2 bg-[#1f1d20] flex flex-col justify-between">
+        <div className="flex justify-between items-start">
+          <div className="w-14 h-2 bg-orange-500 rounded" />
+          <div className="w-7 h-1 bg-white/30 rounded" />
+        </div>
+        <div className="space-y-1">
+          <div className="w-24 h-2 bg-white rounded" />
+          <div className="w-16 h-1 bg-white/45 rounded" />
+        </div>
+        <div className="grid grid-cols-4 gap-1 items-end">
+          {[2, 3, 4, 5].map((h, i) => (
+            <div key={i} className="rounded-t bg-white/20 p-1" style={{ height: `${h * 12}px` }}>
+              <div className="w-3 h-3 rounded-full bg-orange-500 mb-1" />
+              <div className="w-full h-1 bg-white/50 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (layoutId === 'star') {
+    return (
+      <div className="w-full h-full p-2 bg-white grid grid-cols-2 gap-1.5">
+        {['S', 'T', 'A', 'R'].map((label, i) => (
+          <div key={label} className={`rounded-lg border p-1.5 ${i === 3 ? 'bg-orange-500 border-orange-500' : 'bg-gray-50 border-gray-200'}`}>
+            <div className={`w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold ${i === 3 ? 'bg-white text-orange-600' : 'bg-slate-900 text-white'}`}>{label}</div>
+            <div className={`mt-2 h-1 rounded ${i === 3 ? 'bg-white/80' : 'bg-gray-300'}`} />
+            <div className={`mt-1 h-1 rounded w-2/3 ${i === 3 ? 'bg-white/55' : 'bg-gray-200'}`} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (layoutId === 'kpi-dashboard') {
+    return (
+      <div className="w-full h-full p-2 bg-slate-50 grid grid-cols-3 gap-1.5">
+        <div className="col-span-2 rounded-lg bg-slate-900 p-2 flex flex-col justify-end">
+          <div className="w-16 h-4 bg-white rounded" />
+          <div className="w-10 h-1 bg-white/40 rounded mt-1" />
+        </div>
+        <div className="rounded-lg bg-orange-500 p-2 flex flex-col justify-end">
+          <div className="w-8 h-4 bg-white rounded" />
+        </div>
+        <div className="rounded-lg bg-white border border-gray-200 p-1.5">
+          <div className="w-full h-1 bg-gray-300 rounded mb-1" />
+          <div className="h-8 bg-gradient-to-t from-orange-100 to-orange-500 rounded" />
+        </div>
+        <div className="rounded-lg bg-white border border-gray-200 p-1.5">
+          <div className="w-8 h-8 rounded-full border-4 border-slate-900 mx-auto" />
+        </div>
+        <div className="rounded-lg bg-white border border-gray-200 p-1.5 flex items-end gap-1">
+          {[5, 8, 4].map((h, i) => <div key={i} className="flex-1 rounded-t bg-slate-900" style={{ height: `${h * 4}px` }} />)}
+        </div>
+      </div>
+    );
+  }
+  if (layoutId === 'timeline') {
+    return (
+      <div className="w-full h-full p-3 bg-white flex items-center">
+        <div className="relative w-full h-20">
+          <div className="absolute left-2 right-2 top-1/2 border-t-2 border-dotted border-gray-300" />
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="absolute -translate-x-1/2" style={{ left: `${10 + i * 27}%`, top: i % 2 ? 44 : 4 }}>
+              <div className={`w-8 h-8 rounded-full ${i === 2 ? 'bg-orange-500' : 'bg-slate-900'} border-4 border-white shadow`} />
+              <div className="w-12 h-1 bg-gray-300 rounded mt-1" />
+              <div className="w-8 h-1 bg-gray-200 rounded mt-1" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (layoutId === 'case-study') {
+    return (
+      <div className="w-full h-full p-2 bg-[#f6f6f7] grid grid-cols-[0.9fr_1.1fr] gap-2">
+        <div className="rounded-lg bg-slate-900 p-2 flex flex-col justify-between">
+          <div className="w-10 h-2 bg-orange-500 rounded" />
+          <div>
+            <div className="w-16 h-2 bg-white rounded" />
+            <div className="w-10 h-1 bg-white/40 rounded mt-1" />
+          </div>
+        </div>
+        <div className="grid grid-rows-3 gap-1.5">
+          {['Problem', 'Build', 'Impact'].map((label, i) => (
+            <div key={label} className={`rounded-lg p-1.5 ${i === 2 ? 'bg-orange-500' : 'bg-white border border-gray-200'}`}>
+              <div className={`w-10 h-1 rounded ${i === 2 ? 'bg-white' : 'bg-slate-900'}`} />
+              <div className={`w-full h-1 rounded mt-1 ${i === 2 ? 'bg-white/55' : 'bg-gray-200'}`} />
+              <div className={`w-2/3 h-1 rounded mt-1 ${i === 2 ? 'bg-white/35' : 'bg-gray-200'}`} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return null;
 }
 

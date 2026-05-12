@@ -3,6 +3,7 @@ import { adminDb as db } from '../config/firebase.js';
 import {
   scrapeJobPosting,
   analyzeJobPosting,
+  analyzeJobFromDetails,
   matchExperiencesToJob,
   generateTailoredCoverLetter,
   generateTailoredPortfolio,
@@ -105,9 +106,19 @@ function sanitizeJobAnalysis(ja) {
 // ── 채용공고 분석 ──────────────────────────────────────
 router.post('/analyze', authMiddleware, async (req, res) => {
   try {
-    const { url, text } = req.body;
-    if (!url && !text) {
+    const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    const company = typeof req.body?.company === 'string' ? req.body.company.trim() : '';
+    const position = typeof req.body?.position === 'string' ? req.body.position.trim() : '';
+    const deadline = typeof req.body?.deadline === 'string' ? req.body.deadline.trim() : '';
+    const hasManualInfo = Boolean(company && position && deadline);
+    if (!url && !text && !hasManualInfo) {
       return res.status(400).json({ error: 'URL 또는 채용공고 텍스트가 필요합니다' });
+    }
+
+    if (hasManualInfo) {
+      const analysis = await analyzeJobFromDetails({ company, position, deadline });
+      return res.json({ analysis });
     }
 
     let postingText = text;

@@ -230,10 +230,10 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
   }
 });
 
-// POST /api/portfolio/ai-ppt-analyze - 경험정리 → 1번 제안서형 PPT deck 생성
+// POST /api/portfolio/ai-ppt-analyze - 경험정리 → 선택한 합격 포트폴리오형 PPT deck 생성
 router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
-    const { portfolioId } = req.body;
+    const { portfolioId, templateHint, customTemplate } = req.body;
     if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다' });
     const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
     if (!snap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다' });
@@ -258,7 +258,7 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
         .get();
       portfolio.experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     }
-    const deck = await generateAiPptDeck({ portfolio, templateHint: 'standard:proposal', customTemplate: null });
+    const deck = await generateAiPptDeck({ portfolio, templateHint: templateHint || 'standard:proposal', customTemplate: customTemplate || null });
     res.json({ deck });
   } catch (error) {
     console.error('[POST /portfolio/ai-ppt-analyze]', error);

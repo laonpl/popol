@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Globe, ClipboardPaste, Search, Loader2, X, Building2, ChevronDown, ChevronUp, ExternalLink, Sparkles, Check } from 'lucide-react';
+import { Search, X, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
@@ -95,17 +95,15 @@ export function buildDisplayPortfolioRequirements(analysis) {
   };
 }
 
-export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
-  const [mode, setMode] = useState('url'); // url | text
-  const [url, setUrl] = useState('');
-  const [text, setText] = useState('');
+export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = false }) {
+  const [company, setCompany] = useState('');
+  const [position, setPosition] = useState('');
+  const [deadline, setDeadline] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showSites, setShowSites] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('');
-
-  const detectedSite = JOB_SITES.find(s => url.includes(s.domain));
 
   const STAGES = [
     { at: 0, label: '기업 분석 중...' },
@@ -130,15 +128,15 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
   }, [loading]);
 
   const handleAnalyze = async () => {
-    if (mode === 'url' && !url.trim()) return;
-    if (mode === 'text' && !text.trim()) return;
+    if (!company.trim() || !position.trim() || !deadline.trim()) return;
 
     setLoading(true);
     setError(null);
     try {
       const { data } = await api.post('/job/analyze', {
-        url: mode === 'url' ? url.trim() : undefined,
-        text: mode === 'text' ? text.trim() : undefined,
+        company: company.trim(),
+        position: position.trim(),
+        deadline: deadline.trim(),
       });
       onAnalysisComplete(data.analysis);
     } catch (err) {
@@ -147,81 +145,80 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
     setLoading(false);
   };
 
+  const canSubmit = company.trim() && position.trim() && deadline.trim();
+  const fieldClassName = 'w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors bg-white';
+
   return (
     <div className="space-y-5">
-      {/* 모드 탭 */}
-      <div className="flex border border-surface-200 rounded-lg overflow-hidden">
-        <button
-          onClick={() => setMode('url')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold transition-colors
-            ${mode === 'url' ? 'bg-primary-600 text-white' : 'bg-white text-bluewood-400 hover:text-bluewood-700 hover:bg-surface-50'}`}
-        >
-          URL 입력
-        </button>
-        <button
-          onClick={() => setMode('text')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-semibold border-l border-surface-200 transition-colors
-            ${mode === 'text' ? 'bg-primary-600 text-white border-l-primary-600' : 'bg-white text-bluewood-400 hover:text-bluewood-700 hover:bg-surface-50'}`}
-        >
-          직접 입력
-        </button>
-      </div>
+      {!compact && (
+        <div className="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3">
+          <p className="text-[13px] font-semibold text-primary-700">링크 없이 분석할 수 있어요</p>
+          <p className="text-[12px] text-bluewood-400 mt-1 leading-relaxed">
+            지원할 기업명, 모집분야, 지원서 접수 기간을 입력하면 그 정보를 바탕으로 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 정리합니다.
+          </p>
+        </div>
+      )}
 
-      {/* 사이트 바로가기 */}
-      <div className="relative flex justify-center">
-        <button
-          onClick={() => setShowSites(!showSites)}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-400 border border-surface-200 rounded-lg hover:border-bluewood-300 hover:text-bluewood-700 bg-white transition-colors"
-        >
-          <Search size={13} />
-          지원할 공고 찾기
-          {showSites ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </button>
-        {showSites && (
-          <div className="absolute top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 min-w-[200px]">
-            {JOB_SITES.map(site => (
-              <a
-                key={site.name}
-                href={site.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-50 text-[13px] text-bluewood-700 transition-colors"
-              >
-                <span className={`w-2 h-2 rounded-full ${site.color}`} />
-                {site.name} 공채달력
-                <ExternalLink size={12} className="text-bluewood-300 ml-auto" />
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 입력 */}
-      {mode === 'url' ? (
-        <div className="relative">
-          <input
-            type="url"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="https:// 공고 링크를 입력하세요"
-            className="w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 pr-28 transition-colors"
-            onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-          />
-          {detectedSite && (
-            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-white px-2.5 py-0.5 rounded-md font-medium ${detectedSite.color}`}>
-              {detectedSite.name}
-            </span>
+      {!compact && (
+        <div className="relative flex justify-center">
+          <button
+            onClick={() => setShowSites(!showSites)}
+            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-400 border border-surface-200 rounded-lg hover:border-bluewood-300 hover:text-bluewood-700 bg-white transition-colors"
+          >
+            <Search size={13} />
+            지원할 공고 찾아보기
+            {showSites ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+          {showSites && (
+            <div className="absolute top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg z-10 py-1 min-w-[200px]">
+              {JOB_SITES.map(site => (
+                <a
+                  key={site.name}
+                  href={site.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-50 text-[13px] text-bluewood-700 transition-colors"
+                >
+                  <span className={`w-2 h-2 rounded-full ${site.color}`} />
+                  {site.name} 공채달력
+                  <ExternalLink size={12} className="text-bluewood-300 ml-auto" />
+                </a>
+              ))}
+            </div>
           )}
         </div>
-      ) : (
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="채용공고 내용을 붙여넣으세요"
-          rows={6}
-          className="w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 resize-none focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors"
-        />
       )}
+
+      <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
+        <div className="space-y-1.5">
+          <p className="text-[12px] font-semibold text-bluewood-600">기업명</p>
+          <input
+            value={company}
+            onChange={e => setCompany(e.target.value)}
+            placeholder="예: 네이버"
+            className={fieldClassName}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-[12px] font-semibold text-bluewood-600">모집분야</p>
+          <input
+            value={position}
+            onChange={e => setPosition(e.target.value)}
+            placeholder="예: 백엔드 개발자"
+            className={fieldClassName}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-[12px] font-semibold text-bluewood-600">지원서 접수 기간</p>
+          <input
+            value={deadline}
+            onChange={e => setDeadline(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+            placeholder="예: 2026.05.12 ~ 2026.05.26"
+            className={fieldClassName}
+          />
+        </div>
+      </div>
 
       {/* 로딩 프로그레스 */}
       {loading && (
@@ -260,10 +257,10 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip }) {
         <div className="flex gap-2">
           <button
             onClick={handleAnalyze}
-            disabled={mode === 'url' ? !url.trim() : !text.trim()}
+            disabled={!canSubmit}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary-100"
           >
-            공고 분석하기
+            기업 분석하기
           </button>
           {onSkip && (
             <button
