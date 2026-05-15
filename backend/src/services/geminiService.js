@@ -123,9 +123,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   }
 
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 1200)}`)
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 2500)}`)
     .join('\n');
-  if (contentText.length > 4000) contentText = contentText.substring(0, 4000);
+  if (contentText.length > 10000) contentText = contentText.substring(0, 10000);
 
   const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
   const lockedCount = hasReviewed ? reviewedMoments.length : null;

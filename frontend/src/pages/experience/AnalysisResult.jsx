@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Pencil, Target } from 'lucide-react';
+import { ArrowLeft, Sparkles, Pencil, Target, ChevronDown, ChevronUp, TrendingUp, Lightbulb, Zap, Users, CheckCircle2, Star, AlertCircle } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
@@ -23,16 +23,17 @@ const KEYWORD_COLORS = [
   '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
 ];
 
-const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+const SECTION_KEYS = ['intro', 'task', 'process', 'output', 'growth', 'competency'];
 
+// ── 섹션별 고유 색상 코딩 + 아이콘 (Cognitive Load Theory: 색상으로 섹션 구분)
 const SECTION_META = {
-  intro:      { num: '01', label: '프로젝트 소개', accent: '#3B82F6' },
-  overview:   { num: '02', label: '프로젝트 개요', accent: '#3B82F6' },
-  task:       { num: '03', label: '진행한 일', accent: '#3B82F6' },
-  process:    { num: '04', label: '과정', accent: '#3B82F6' },
-  output:     { num: '05', label: '결과물', accent: '#3B82F6' },
-  growth:     { num: '06', label: '성장한 점', accent: '#3B82F6' },
-  competency: { num: '07', label: '나의 역량', accent: '#3B82F6' },
+  intro:      { num: '01', label: '프로젝트 소개',  accent: '#6366f1', bg: '#eef2ff', icon: Star,        desc: '첫인상을 결정하는 임팩트 문장' },
+  overview:   { num: '02', label: '프로젝트 개요',  accent: '#0ea5e9', bg: '#f0f9ff', icon: Target,      desc: '배경과 목적' },
+  task:       { num: '03', label: '진행한 일',      accent: '#f59e0b', bg: '#fffbeb', icon: Zap,         desc: '배경 → 문제 → 해결' },
+  process:    { num: '04', label: '과정',           accent: '#8b5cf6', bg: '#f5f3ff', icon: TrendingUp,  desc: '나의 직접적인 액션 + 의사결정' },
+  output:     { num: '05', label: '결과물',         accent: '#10b981', bg: '#ecfdf5', icon: CheckCircle2, desc: '최종 산출물과 성과 수치' },
+  growth:     { num: '06', label: '성장한 점',      accent: '#f43f5e', bg: '#fff1f2', icon: Lightbulb,   desc: '역량 변화와 인사이트' },
+  competency: { num: '07', label: '나의 역량',      accent: '#0d9488', bg: '#f0fdfa', icon: Users,       desc: '입사 후 기여 가능 포인트' },
 };
 
 export default function AnalysisResult() {
@@ -43,6 +44,7 @@ export default function AnalysisResult() {
   const [allImages, setAllImages] = useState([]);
   const [sectionImages, setSectionImages] = useState({});
   const [imageConfig, setImageConfig] = useState({});
+  const [collapsed, setCollapsed] = useState({});
 
   useEffect(() => {
     if (navState?.analysis) {
@@ -114,10 +116,11 @@ export default function AnalysisResult() {
 
   /* 프로젝트 개요 메타 항목 */
   const overviewMeta = [
-    projectOverview.goal     && { label: '목표',   value: projectOverview.goal },
-    projectOverview.role     && { label: '역할',   value: projectOverview.role },
-    projectOverview.team     && { label: '팀 구성', value: projectOverview.team },
-    projectOverview.duration && { label: '기간',   value: projectOverview.duration },
+    projectOverview.goal         && { label: '목표',      value: projectOverview.goal },
+    projectOverview.role         && { label: '역할',      value: projectOverview.role },
+    projectOverview.scopeOfImpact && { label: '영향 범위', value: projectOverview.scopeOfImpact },
+    projectOverview.team         && { label: '팀 구성',   value: projectOverview.team },
+    projectOverview.duration     && { label: '기간',      value: projectOverview.duration },
   ].filter(Boolean);
 
   /* 섹션별 이미지 렌더링 */
@@ -146,148 +149,277 @@ export default function AnalysisResult() {
     );
   };
 
-  /* 작성된 섹션 수 */
+  /* 작성된 섹션 수 + 완성도 (Gestalt Closure — Progress Ring) */
   const filledCount = SECTION_KEYS.filter(k => displayContent[k]?.trim()).length;
+  const completionPct = Math.round((filledCount / SECTION_KEYS.length) * 100);
+
+  /* 섹션 접기/펼치기 토글 */
+  const toggleSection = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
   return (
-    <div className="animate-fadeIn max-w-[1200px] mx-auto pb-12">
-      {/* 상단 네비 + 편집 버튼 */}
-      <div className="flex items-center justify-between mb-5">
+    <div className="animate-fadeIn max-w-[1200px] mx-auto pb-16">
+
+      {/* ── 상단 내비 + 편집 버튼 (Hick's Law: 핵심 CTA 1개) ── */}
+      <div className="flex items-center justify-between mb-6">
         <Link to="/app/experience" className="inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600 transition-colors">
           <ArrowLeft size={16} /> 경험 목록으로
         </Link>
         <Link to={`/app/experience/structured/${id}`}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-card">
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors shadow-md">
           <Pencil size={14} /> 편집하기
         </Link>
       </div>
 
-      {/* ╔══════════════════════════════════════════════╗
-         ║  상단 대시보드: 좌 Overview + 우 핵심경험    ║
-         ╚══════════════════════════════════════════════╝ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-5 mb-5">
+      {/* ══════════════════════════════════════════════════════
+          HERO BAND — 프로젝트 제목 + 완성도 링
+          F-Pattern: 사용자 시선이 처음 닿는 좌상단에 핵심 정보
+         ══════════════════════════════════════════════════════ */}
+      {/* ══ HERO BAND + OVERVIEW 통합 ══ */}
+      <div className="relative bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl mb-5 overflow-hidden">
+        {/* 배경 장식 */}
+        <div className="absolute right-0 top-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+        <div className="absolute right-24 bottom-0 w-40 h-40 rounded-full bg-white/5 translate-y-1/2 pointer-events-none" />
 
-        {/* ── 좌: 프로젝트 Overview ── */}
-        <div className="bg-white rounded-2xl border border-surface-200 p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[17px] font-extrabold text-primary-600">Overview</h2>
-            <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center">
-              <Target size={14} className="text-bluewood-400" />
-            </div>
-          </div>
-
-          <h3 className="text-lg font-bold text-primary-600 leading-snug mb-2">{title}</h3>
-          {(projectOverview.background || projectOverview.summary) && (
-            <p className="text-[12.5px] text-bluewood-400 leading-relaxed mb-5">
-              {projectOverview.background || projectOverview.summary}
-            </p>
-          )}
-
-          {overviewMeta.length > 0 && (
-            <div className="space-y-3 mb-5">
-              {overviewMeta.map((m, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-5 text-[14px] font-bold text-bluewood-300 mt-px">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[14px] font-semibold text-bluewood-700">{m.label}</span>
-                    <p className="text-[14px] text-bluewood-400 leading-relaxed">{m.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {(projectOverview.techStack || []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {projectOverview.techStack.map((tech, i) => (
-                <span key={i} className="px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[13px] font-medium">{tech}</span>
-              ))}
-            </div>
-          )}
-
-          {keywords.length > 0 && (
-            <div className="mt-auto pt-4 border-t border-surface-100">
-              <div className="flex flex-wrap gap-1.5">
-                {keywords.map(k => (
-                  <span key={k} className="px-2.5 py-1 bg-primary-50 text-primary-600 rounded-md text-[13px] font-medium border border-primary-100">{k}</span>
+        {/* 상단: 제목 + 요약 + 테크스택 + 완성도링 */}
+        <div className="relative flex items-start justify-between gap-6 p-7">
+          <div className="flex-1 min-w-0">
+            {aiAnalysis?.jobCategory && aiAnalysis.jobCategory !== 'common' && (
+              <span className="inline-block mb-3 px-3 py-1 bg-white/20 text-white/90 rounded-full text-[12px] font-semibold uppercase tracking-wider">
+                {aiAnalysis.jobCategory}
+              </span>
+            )}
+            <h1 className="text-2xl font-extrabold text-white leading-tight mb-2">{title}</h1>
+            {projectOverview.summary && (
+              <p className="text-white/80 text-[14px] leading-relaxed max-w-2xl">{projectOverview.summary}</p>
+            )}
+            {(projectOverview.techStack || []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-4">
+                {projectOverview.techStack.map((tech, i) => (
+                  <span key={i} className="px-2.5 py-1 bg-white/15 text-white/90 rounded-lg text-[12px] font-medium border border-white/20">{tech}</span>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── 우: 핵심 경험 슬라이더 ── */}
-        <div className="min-w-0">
-          <KeyExperienceSlider keyExperiences={keyExperiences} />
-        </div>
-      </div>
-
-      {/* ╔══════════════════════════════════════════════╗
-         ║  하단: 상세 경험 정리 — 항상 펼쳐진 표       ║
-         ╚══════════════════════════════════════════════╝ */}
-      <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-          <div className="flex items-center gap-3">
-            <Sparkles size={16} className="text-primary-600" />
-            <h2 className="text-[17px] font-extrabold text-primary-600">상세 경험 정리</h2>
-            <span className="text-[14px] text-bluewood-300 font-medium">{filledCount}/7 작성</span>
+            )}
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+            <svg width="72" height="72" viewBox="0 0 72 72" className="drop-shadow-sm">
+              <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="6" />
+              <circle cx="36" cy="36" r="30" fill="none" stroke="white" strokeWidth="6"
+                strokeDasharray={`${2 * Math.PI * 30}`}
+                strokeDashoffset={`${2 * Math.PI * 30 * (1 - completionPct / 100)}`}
+                strokeLinecap="round" transform="rotate(-90 36 36)" />
+              <text x="36" y="40" textAnchor="middle" fill="white" fontSize="15" fontWeight="800">{completionPct}%</text>
+            </svg>
+            <span className="text-white/70 text-[11px] font-medium">{filledCount}/6 완성</span>
           </div>
         </div>
 
-        {/* 하이라이트 범례 */}
-        {highlights.length > 0 && (
-          <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
-            {Object.entries(highlightColors).map(([key, color]) => (
-              <div key={key} className="flex items-center gap-2 text-[13px] text-bluewood-500">
-                <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
-                {color.label}
+        {/* Overview 메타 통합 — 목표/역할/영향범위/팀/기간 */}
+        {overviewMeta.length > 0 && (
+          <div className="relative border-t border-white/10 px-7 py-4 flex items-stretch divide-x divide-white/10">
+            {overviewMeta.map((m, i) => (
+              <div key={i} className={`flex flex-col gap-0.5 ${i === 0 ? 'pr-7' : 'px-7'} min-w-0`}>
+                <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] whitespace-nowrap">{m.label}</span>
+                <span className="text-[13px] text-white font-bold leading-snug">{m.value}</span>
               </div>
             ))}
           </div>
         )}
+      </div>
 
-        {/* 섹션 본문 */}
-        <div className="divide-y divide-surface-100">
-          {SECTION_KEYS.map(sectionKey => {
-            const text = displayContent[sectionKey] || '';
-            const meta = SECTION_META[sectionKey];
-            const fieldHighlights = highlights.filter(h => h.field === sectionKey);
-            const isEmpty = !text.trim();
+      {/* ══════════════════════════════════════════════════════
+          키워드 + 핵심경험 (전체 너비)
+         ══════════════════════════════════════════════════════ */}
 
-            return (
-              <div key={sectionKey}>
-                {/* 섹션 헤더 */}
-                <div className="flex items-center gap-4 px-6 py-3 bg-surface-50/30">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold text-white"
-                    style={{ backgroundColor: meta.accent }}>
-                    {meta.num}
-                  </span>
-                  <span className="text-[15px] font-bold" style={{ color: meta.accent }}>{meta.label}</span>
-                  {isEmpty && (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[12px] font-semibold">빈칸</span>
+      {/* 키워드 패널 — 슬림 가로형 */}
+      {keywords.length > 0 && (
+        <div className="px-1 mb-4 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Sparkles size={13} className="text-primary-500" />
+            <span className="text-[11px] font-black text-bluewood-500 uppercase tracking-[0.12em]">역량 키워드</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {keywords.map((k, i) => (
+              <span key={k} className="px-2.5 py-1 rounded-lg text-[12px] font-semibold border"
+                style={{
+                  color: KEYWORD_COLORS[i % KEYWORD_COLORS.length],
+                  backgroundColor: `${KEYWORD_COLORS[i % KEYWORD_COLORS.length]}15`,
+                  borderColor: `${KEYWORD_COLORS[i % KEYWORD_COLORS.length]}30`,
+                }}>
+                {k}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 핵심 경험 — 전체 너비 (ReadOnlyKeyExperiences) */}
+      <div className="mb-5">
+        <KeyExperienceSlider keyExperiences={keyExperiences} />
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          하이라이트 배너 (있을 때만 노출 — Progressive Disclosure)
+         ══════════════════════════════════════════════════════ */}
+      {highlights.filter(h => !h.field).length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={14} className="text-amber-500" />
+            <span className="text-[13px] font-bold text-amber-700">AI 추천 하이라이트</span>
+          </div>
+          <ul className="space-y-1.5">
+            {highlights.filter(h => !h.field).map((h, i) => (
+              <li key={i} className="flex items-start gap-2 text-[13px] text-amber-800">
+                <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                {typeof h === 'string' ? h : (h.text || '')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          상세 경험 섹션 — 섹션별 색상 코딩 카드
+          Cognitive Load Theory: 색상+아이콘으로 섹션 구분
+          Progressive Disclosure: 클릭으로 접기/펼치기
+         ══════════════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        {SECTION_KEYS.map((sectionKey) => {
+          const text = displayContent[sectionKey] || '';
+          const meta = SECTION_META[sectionKey];
+          const SectionIcon = meta.icon;
+          const fieldHighlights = highlights.filter(h => h.field === sectionKey);
+          const isEmpty = !text.trim();
+          const isCollapsed = collapsed[sectionKey];
+
+          return (
+            <div key={sectionKey}
+              className="rounded-2xl border overflow-hidden transition-all"
+              style={{ borderColor: isEmpty ? '#e8ecf0' : `${meta.accent}25` }}>
+
+              {/* 섹션 헤더 — 클릭 가능 (Progressive Disclosure) */}
+              <button
+                onClick={() => !isEmpty && toggleSection(sectionKey)}
+                className="w-full flex items-center gap-3 px-6 py-4 text-left transition-colors hover:bg-surface-50/50"
+                style={{ cursor: isEmpty ? 'default' : 'pointer' }}>
+
+                {/* 색상 아이콘 배지 */}
+                <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: meta.accent }}>
+                  <SectionIcon size={15} color="white" />
+                </div>
+
+                {/* 번호 + 라벨 + 설명 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-black tabular-nums tracking-[0.15em] uppercase" style={{ color: meta.accent }}>
+                      {meta.num}
+                    </span>
+                    <span className="text-[16px] font-extrabold text-bluewood-900 leading-tight">{meta.label}</span>
+                  </div>
+                  {!isEmpty && (
+                    <span className="mt-0.5 block text-[12px] text-bluewood-400 font-normal leading-none">{meta.desc}</span>
                   )}
                 </div>
 
-                {/* 섹션 내용 */}
-                <div className="px-6 py-4 pl-[60px]">
+                {/* 상태 배지 + 토글 */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isEmpty ? (
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full text-[11px] font-semibold">
+                      <AlertCircle size={10} /> 미작성
+                    </span>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                        style={{ backgroundColor: `${meta.accent}15`, color: meta.accent }}>
+                        <CheckCircle2 size={10} /> 작성됨
+                      </span>
+                      {isCollapsed
+                        ? <ChevronDown size={16} className="text-bluewood-300" />
+                        : <ChevronUp size={16} className="text-bluewood-300" />}
+                    </>
+                  )}
+                </div>
+              </button>
+
+              {/* 섹션 내용 (접기/펼치기) */}
+              {!isCollapsed && (
+                <div className="px-6 pb-6 pt-1">
+                  {/* 섹션 상단 구분선에 accent 색상 적용 */}
+                  <div className="h-px mb-4 rounded-full" style={{ backgroundColor: `${meta.accent}20` }} />
+
                   {renderSectionImages(sectionKey, 'above')}
 
                   {isEmpty ? (
-                    <p className="text-[15px] text-bluewood-300 italic">편집 모드에서 내용을 작성해 주세요</p>
+                    <div className="flex items-center gap-2 py-3">
+                      <p className="text-[14px] text-bluewood-300 italic">편집 모드에서 내용을 작성해 주세요</p>
+                      <Link to={`/app/experience/structured/${id}`}
+                        className="text-[12px] text-primary-500 hover:text-primary-700 font-medium underline underline-offset-2">
+                        지금 편집하기
+                      </Link>
+                    </div>
                   ) : (
-                    <div className="text-[15px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
+                    <div className="text-[15px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
                       <HighlightedText text={text} highlights={fieldHighlights} keywords={keywords} />
                     </div>
                   )}
 
                   {renderSectionImages(sectionKey, 'below')}
+
+                  {/* 섹션별 하이라이트 (있을 때만) */}
+                  {fieldHighlights.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-surface-100 flex flex-wrap gap-1.5">
+                      {Object.entries(highlightColors).map(([key, color]) => {
+                        const hasThis = fieldHighlights.some(h => h.type === key);
+                        if (!hasThis) return null;
+                        return (
+                          <span key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-surface-50 border border-surface-200">
+                            <span className="inline-block w-3 h-0" style={{ borderBottom: `2px solid ${color.underline}` }} />
+                            <span className="text-bluewood-500 font-medium">{color.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          Follow-up Questions (있을 때만 — Progressive Disclosure)
+         ══════════════════════════════════════════════════════ */}
+      {followUpQuestions.length > 0 && (
+        <div className="mt-5 pt-5 border-t border-surface-100">
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb size={14} className="text-primary-500" />
+            <span className="text-[13px] font-bold text-bluewood-600">보완하면 더 강해지는 포인트</span>
+          </div>
+          <ul className="space-y-2">
+            {followUpQuestions.map((q, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-[13px] text-bluewood-600">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-600 text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                {typeof q === 'string' ? q : (q.text || q.question || '')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          하단 편집 CTA (Fixed bottom — always visible)
+         ══════════════════════════════════════════════════════ */}
+      {filledCount < SECTION_KEYS.length && (
+        <div className="mt-6 flex justify-center">
+          <Link to={`/app/experience/structured/${id}`}
+            className="inline-flex items-center gap-2 px-8 py-3 bg-primary-600 text-white rounded-2xl text-[15px] font-semibold hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+            <Pencil size={16} />
+            미작성 섹션 완성하기
+            <span className="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-[12px]">{SECTION_KEYS.length - filledCount}개 남음</span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

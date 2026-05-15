@@ -33,11 +33,234 @@ function ViewText({ value, onEdit, className = '' }) {
   return <p className={`text-[15px] text-gray-500 leading-[1.7] ${className}`}>{stripMd(value)}</p>;
 }
 
-const THEMES = [
-  { label: 'Background & Problem', color: '#002F6C', accent: '#002F6C' },
-  { label: 'Analysis & Action',    color: '#002F6C', accent: '#002F6C' },
-  { label: 'Result & Impact',      color: '#002F6C', accent: '#002F6C' },
+/* 경험별 고유 색상 팔레트 — 읽기/편집 공통 사용 */
+const EXP_COLORS = [
+  '#6366f1', // indigo
+  '#0ea5e9', // sky
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#f43f5e', // rose
+  '#8b5cf6', // violet
 ];
+
+const THEMES = EXP_COLORS.map((accent, i) => ({
+  label: `경험 ${String(i + 1).padStart(2, '0')}`,
+  color: accent,
+  accent,
+}));
+
+/* ══════════════════════════════════════════════════════════════
+   읽기 전용 뷰 — 모든 핵심 경험을 한 화면에 표시
+   ─ Section 1: 임팩트 수치 대시보드 (성과 수치 한눈에)
+   ─ Section 2: CARL 카드 그리드 (모든 경험 동시 표시)
+   ─ Section 3: 핵심 역량 추출 (키워드 + 인사이트)
+   ══════════════════════════════════════════════════════════════ */
+
+const PRIMARY = '#002F6C';
+
+/* 차트 타입 탭 목록 (읽기 뷰용) — 10종 */
+const READ_CHART_TABS = [
+  { id: 'horizontalBar',  label: '가로막대' },
+  { id: 'verticalBar',    label: '세로막대' },
+  { id: 'lineChart',      label: '선형' },
+  { id: 'areaChart',      label: '영역' },
+  { id: 'donut',          label: '도넛' },
+  { id: 'gauge',          label: '게이지' },
+  { id: 'radialBar',      label: '방사형' },
+  { id: 'stackedBar',     label: '누적' },
+  { id: 'bigNumber',      label: '수치' },
+  { id: 'progressCircle', label: '진행' },
+];
+
+/* 경험 단일 행 — 차트 타입 state를 내부에서 관리 */
+function ExpRow({ exp, index }) {
+  const [chartType, setChartType] = useState(exp.chartType || 'horizontalBar');
+  const hasMetric = exp.metric && !isHint(exp.metric) && exp.metric.trim();
+  const hasChart  = hasMetric || exp.beforeMetric || exp.afterMetric;
+
+  const carlItems = [
+    { key: 'C', label: '상황', value: exp.situation || exp.context },
+    { key: 'A', label: '행동', value: exp.action },
+    { key: 'R', label: '결과', value: exp.result },
+    { key: 'L', label: '학습', value: exp.learning },
+  ].filter(item => item.value && !isHint(item.value) && item.value.trim());
+
+  return (
+    <div className="px-6 py-5">
+      {/* 헤더: 번호 + 제목 + 성과 배지 */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span
+            className="flex-shrink-0 w-6 h-6 rounded-full text-white text-[11px] font-black flex items-center justify-center mt-0.5"
+            style={{ backgroundColor: PRIMARY }}>
+            {index + 1}
+          </span>
+          <h3 className="text-[17px] font-extrabold text-bluewood-900 leading-snug"
+            style={{ wordBreak: 'keep-all' }}>
+            {stripMd(exp.title) || '—'}
+          </h3>
+        </div>
+        {hasMetric && (
+          <span className="flex-shrink-0 text-[13px] font-black px-3 py-1 rounded-lg text-white whitespace-nowrap"
+            style={{ backgroundColor: PRIMARY }}>
+            {stripMd(exp.metric)}
+          </span>
+        )}
+      </div>
+
+      {/* 본문: CARL 왼쪽 | 차트 오른쪽 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+
+        {/* CARL 목록 */}
+        {carlItems.length > 0 && (
+          <div className="space-y-3">
+            {carlItems.map(item => (
+              <div key={item.key} className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-0.5"
+                  style={{ backgroundColor: PRIMARY }}>
+                  {item.key}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-0.5">{item.label}</span>
+                  <p className="text-[14px] text-bluewood-700 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                    {stripMd(item.value)}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {/* 키워드 */}
+            {(exp.keywords || []).length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {exp.keywords.map((k, ki) => (
+                  <span key={ki} className="px-2 py-0.5 text-[11px] font-medium bg-surface-50 border border-surface-200 text-bluewood-500 rounded-full">{k}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 차트 + 타입 토글 */}
+        {hasChart && !isHint(exp.metric) && (
+          <div className="flex flex-col gap-2">
+            <MetricCompareChart exp={{ ...exp, chartType }} accent={PRIMARY} />
+            <div className="flex flex-wrap gap-1 mt-1">
+              {READ_CHART_TABS.map(t => (
+                <button key={t.id} onClick={() => setChartType(t.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all ${
+                    chartType === t.id
+                      ? 'border-primary-600 bg-primary-600 text-white'
+                      : 'border-surface-200 text-bluewood-400 bg-white hover:border-bluewood-300'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyKeyExperiences({ keyExperiences }) {
+  if (!keyExperiences || keyExperiences.length === 0) return null;
+
+  const withMetric = keyExperiences.filter(
+    e => e.metric && !isHint(e.metric) && e.metric.trim()
+  );
+
+  const allKeywords = [...new Set(
+    keyExperiences.flatMap(e => (e.keywords || []).filter(Boolean))
+  )];
+
+  const allLearnings = keyExperiences
+    .map(e => e.learning)
+    .filter(l => l && !isHint(l) && l.trim());
+
+  return (
+    <div className="space-y-4">
+
+      {/* ─── SECTION 1: 성과 수치 대시보드 ─── */}
+      {withMetric.length > 0 && (
+        <div>
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em] mb-3 px-1">성과 수치 요약</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 divide-x divide-y divide-surface-100 border border-surface-100 rounded-xl overflow-hidden">
+            {withMetric.map((exp, _i) => {
+              const hasBoth = exp.beforeMetric && exp.afterMetric &&
+                !isHint(exp.beforeMetric) && !isHint(exp.afterMetric);
+              return (
+                <div key={_i} className="px-5 py-4 hover:bg-surface-50/60 transition-colors">
+                  {exp.metricLabel && (
+                    <p className="text-[11px] text-bluewood-400 mb-1 truncate">{stripMd(exp.metricLabel)}</p>
+                  )}
+                  <p className="text-[26px] font-black leading-none mb-1.5" style={{ color: PRIMARY }}>
+                    {stripMd(exp.metric)}
+                  </p>
+                  {hasBoth && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[11px] bg-surface-100 text-bluewood-400 px-1.5 py-0.5 rounded">{exp.beforeMetric}</span>
+                      <span className="text-[11px] text-bluewood-300">→</span>
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: `${PRIMARY}12`, color: PRIMARY }}>{exp.afterMetric}</span>
+                    </div>
+                  )}
+                  {exp.title && (
+                    <p className="text-[11px] text-bluewood-300 mt-1.5 truncate">{stripMd(exp.title)}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── SECTION 2: 핵심 경험 목록 (구분선만) ─── */}
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em]">핵심 경험</p>
+          <span className="text-[11px] text-bluewood-300 font-medium">{keyExperiences.length}개</span>
+        </div>
+        <div className="divide-y divide-surface-200 border border-surface-200 rounded-xl overflow-hidden">
+          {keyExperiences.map((exp, i) => (
+            <ExpRow key={i} exp={exp} index={i} />
+          ))}
+        </div>
+      </div>
+
+      {/* ─── SECTION 3: 핵심 역량 ─── */}
+      {(allKeywords.length > 0 || allLearnings.length > 0) && (
+        <div className="border-t border-surface-100 pt-4">
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em] mb-3 px-1">이 경험으로 쌓은 핵심 역량</p>
+          <div className="px-1 space-y-4">
+            {allKeywords.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">역량 스택</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allKeywords.map((k, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-surface-50 border border-surface-200 text-bluewood-600">{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {allLearnings.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">핵심 인사이트</p>
+                <div className="space-y-2">
+                  {allLearnings.map((text, i) => (
+                    <div key={i} className="flex gap-2.5">
+                      <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-[7px]" style={{ backgroundColor: PRIMARY }} />
+                      <p className="text-[13px] text-bluewood-600 leading-relaxed" style={{ wordBreak: 'keep-all' }}>{stripMd(text)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── 문자열에서 숫자 추출 ──
    "평균 16시간" → 16
@@ -659,6 +882,12 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
             <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
             <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
+
+          {/* 학습한 역량 */}
+          <div className="flex-1 rounded-2xl p-5 border" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
+            <p className="text-[15px] sm:text-[16px] font-bold mb-2" style={{ color: '#92400e' }}>학습한 역량</p>
+            <EditableArea value={exp.learning} field="learning" placeholder="이 경험에서 얻은 핵심 역량을 입력하세요" rows={4} editing={editing} onChange={onChange} />
+          </div>
         </div>
       </div>
 
@@ -724,6 +953,11 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   }));
 
   if (keyExperiences.length === 0) return null;
+
+  /* onUpdate 없음 = 읽기 전용 모드 → 모든 경험을 한 화면에 */
+  if (!onUpdate) {
+    return <ReadOnlyKeyExperiences keyExperiences={keyExperiences} />;
+  }
 
   const exp = keyExperiences[current];
   const theme = THEMES[current % THEMES.length];

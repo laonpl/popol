@@ -82,16 +82,16 @@ const highlightColors = {
   growth:  { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
 };
 
-const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+const SECTION_KEYS = ['intro', 'task', 'process', 'output', 'growth', 'competency'];
 
 const SECTION_META = {
-  intro:      { num: '01', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄', accent: 'primary' },
-  overview:   { num: '02', label: '프로젝트 개요', subtitle: '배경과 목적', accent: 'primary' },
-  task:       { num: '03', label: '진행한 일', subtitle: '배경-문제-(핵심)-해결', accent: 'primary' },
-  process:    { num: '04', label: '과정', subtitle: '나의 직접적인 액션 + 인사이트', accent: 'primary' },
-  output:     { num: '05', label: '결과물', subtitle: '최종으로 진행한 내용 + 포인트', accent: 'primary' },
-  growth:     { num: '06', label: '성장한 점', subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점', accent: 'primary' },
-  competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary' },
+  intro:      { num: '01', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄', accent: 'primary', accentHex: '#6366f1' },
+  overview:   { num: '02', label: '프로젝트 개요', subtitle: '배경과 목적', accent: 'primary', accentHex: '#0ea5e9' },
+  task:       { num: '03', label: '진행한 일', subtitle: '배경-문제-(핵심)-해결', accent: 'primary', accentHex: '#f59e0b' },
+  process:    { num: '04', label: '과정', subtitle: '나의 직접적인 액션 + 인사이트', accent: 'primary', accentHex: '#8b5cf6' },
+  output:     { num: '05', label: '결과물', subtitle: '최종으로 진행한 내용 + 포인트', accent: 'primary', accentHex: '#10b981' },
+  growth:     { num: '06', label: '성장한 점', subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점', accent: 'primary', accentHex: '#f43f5e' },
+  competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary', accentHex: '#0d9488' },
 };
 
 const ACCENT_STYLES = {
@@ -737,7 +737,7 @@ export default function StructuredResult() {
     { id: 'duration',       label: '프로젝트 기간',     check: () => !!editedOverview.duration?.trim() },
     { id: 'metrics',        label: '수치/성과 포함',    check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) },
     { id: 'images',         label: '이미지 첨부',       check: () => allImages.length > 0 },
-    { id: 'sections',       label: `7개 섹션 완성 (${filledCount}/7)`, check: () => filledCount === 7 },
+    { id: 'sections',       label: `6개 섹션 완성 (${filledCount}/6)`, check: () => filledCount === 6 },
   ];
   const passedChecks = qualityChecks.filter(c => c.check()).length;
   const qualityPct = Math.round((passedChecks / qualityChecks.length) * 100);
@@ -758,12 +758,12 @@ export default function StructuredResult() {
   const followUpQuestions = structured.followUpQuestions || [];
 
   /* 작성 완성도 % */
-  const completionPct = Math.round((filledCount / 7) * 100);
+  const completionPct = Math.round((filledCount / 6) * 100);
   const overviewSummary = editedOverview.summary || editedOverview.background || '';
   const heroMetaItems = [
-    editedOverview.duration && { label: '기간', value: editedOverview.duration },
-    editedOverview.role && { label: '역할', value: editedOverview.role },
-    editedOverview.team && { label: '팀', value: editedOverview.team },
+    editedOverview.duration && { label: '기간',   value: editedOverview.duration },
+    editedOverview.role     && { label: '역할',   value: editedOverview.role },
+    editedOverview.team     && { label: '팀',     value: editedOverview.team },
   ].filter(Boolean);
   const heroStats = [
     { label: '완성도', value: `${completionPct}%` },
@@ -872,53 +872,96 @@ export default function StructuredResult() {
         )}
       </div>
 
-      <section className="mb-5 overflow-hidden rounded-[24px] border border-surface-200 bg-white shadow-[0_14px_45px_rgba(15,23,42,0.06)]">
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="p-6 lg:p-7">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary-600 px-3 py-1 text-[12px] font-bold text-white">경험 리포트</span>
-              {heroMetaItems.map(item => (
-                <span key={item.label} className="rounded-full border border-surface-200 bg-surface-50 px-3 py-1 text-[12px] font-semibold text-bluewood-500">
-                  {item.label} · {item.value}
-                </span>
-              ))}
+      {/* ══ HERO BAND ══ */}
+      <section className="mb-5 overflow-hidden rounded-[24px] shadow-[0_14px_45px_rgba(15,23,42,0.15)]">
+        <div className="relative bg-gradient-to-br from-primary-600 to-primary-700">
+          {/* 배경 장식 */}
+          <div className="absolute right-0 top-0 w-72 h-72 rounded-full bg-white/5 -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+          <div className="absolute right-20 bottom-0 w-44 h-44 rounded-full bg-white/5 translate-y-1/2 pointer-events-none" />
+
+          {/* 상단: 제목 + 요약 + 통계 */}
+          <div className="relative grid xl:grid-cols-[minmax(0,1fr)_300px]">
+
+            {/* ① 제목 + 요약 + 기술스택 */}
+            <div className="p-7">
+              <span className="inline-block mb-4 rounded-full bg-white/20 border border-white/25 px-3 py-1 text-[11px] font-bold text-white/90 tracking-wide">경험 리포트</span>
+              <input
+                value={editedTitle}
+                onChange={e => setEditedTitle(e.target.value)}
+                readOnly={viewOnly}
+                className={`w-full bg-transparent text-[28px] font-extrabold leading-tight text-white outline-none sm:text-[34px] placeholder:text-white/30 ${viewOnly ? '' : 'rounded-lg hover:bg-white/10 focus:bg-white/10 px-1 -mx-1 transition-colors'}`}
+                placeholder="프로젝트 제목"
+              />
+              <textarea
+                ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+                value={overviewSummary}
+                onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                readOnly={viewOnly}
+                className={`mt-3 w-full resize-none overflow-hidden bg-transparent text-[14px] leading-7 text-white/70 outline-none placeholder:text-white/30 ${viewOnly ? '' : 'rounded-lg hover:bg-white/10 focus:bg-white/10 px-1 -mx-1 transition-colors'}`}
+                style={{ minHeight: '3.5rem' }}
+                placeholder="경험의 배경과 핵심 내용을 요약하세요"
+              />
+              {(editedOverview.techStack || []).length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {editedOverview.techStack.slice(0, 10).map((tech, i) => (
+                    <span key={`${tech}-${i}`} className="rounded-lg border border-white/20 bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">{tech}</span>
+                  ))}
+                </div>
+              )}
             </div>
-            <input
-              value={editedTitle}
-              onChange={e => setEditedTitle(e.target.value)}
-              readOnly={viewOnly}
-              className={`w-full bg-transparent text-[28px] font-extrabold leading-tight text-bluewood-900 outline-none sm:text-[34px] ${viewOnly ? '' : 'rounded-lg hover:bg-surface-50 focus:bg-surface-50'}`}
-              placeholder="프로젝트 제목"
-            />
-            <textarea
-              ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-              value={overviewSummary}
-              onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-              readOnly={viewOnly}
-              className={`mt-3 w-full resize-none overflow-hidden bg-transparent text-[14px] leading-7 text-bluewood-500 outline-none ${viewOnly ? '' : 'rounded-lg hover:bg-surface-50 focus:bg-surface-50'}`}
-              style={{ minHeight: '3.5rem' }}
-              placeholder="경험의 배경과 핵심 내용을 요약하세요"
-            />
-            {(editedOverview.techStack || []).length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {editedOverview.techStack.slice(0, 10).map((tech, i) => (
-                  <span key={`${tech}-${i}`} className="rounded-lg border border-surface-200 bg-surface-50 px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{tech}</span>
+
+            {/* ② 작성 통계 */}
+            <div className="relative xl:border-l xl:border-white/10 p-6 flex flex-col justify-center gap-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                {heroStats.map(stat => (
+                  <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-3">
+                    <p className="text-[11px] font-bold text-white/40">{stat.label}</p>
+                    <p className="mt-0.5 text-[22px] font-extrabold leading-none text-white">{stat.value}</p>
+                  </div>
                 ))}
               </div>
-            )}
-          </div>
-          <div className="border-t border-surface-200 bg-gradient-to-br from-surface-50 to-white p-5 xl:border-l xl:border-t-0">
-            <div className="grid grid-cols-2 gap-3">
-              {heroStats.map(stat => (
-                <div key={stat.label} className="rounded-2xl border border-white bg-white p-4 shadow-sm">
-                  <p className="text-[12px] font-bold text-bluewood-300">{stat.label}</p>
-                  <p className="mt-1 text-[24px] font-extrabold text-primary-600">{stat.value}</p>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-white/40">작성 완성도</span>
+                  <span className="text-[11px] font-black text-white/80">{completionPct}%</span>
                 </div>
-              ))}
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/15">
+                  <div className="h-full rounded-full bg-white/60 transition-all duration-500" style={{ width: `${completionPct}%` }} />
+                </div>
+              </div>
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-200">
-              <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${completionPct}%` }} />
-            </div>
+          </div>
+
+          {/* 하단: 프로젝트 메타 (목표/기간/역할/팀) */}
+          <div className="relative border-t border-white/10 grid grid-cols-2 divide-y divide-white/10 sm:divide-y-0 sm:grid-cols-4 sm:divide-x divide-white/10">
+            {[
+              { key: 'goal',     label: '목표',    placeholder: '이 프로젝트의 목표' },
+              { key: 'duration', label: '기간',    placeholder: '2024.01 – 06' },
+              { key: 'role',     label: '역할',    placeholder: '백엔드 개발 담당' },
+              { key: 'team',     label: '팀 구성', placeholder: '개발자 3명 + 디자이너 1명' },
+            ].map((item, i) => (
+              <div key={item.key} className="px-5 py-4">
+                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1.5">{item.label}</p>
+                <textarea
+                  rows={1}
+                  ref={el => {
+                    if (el) {
+                      el.style.height = 'auto';
+                      el.style.height = el.scrollHeight + 'px';
+                    }
+                  }}
+                  value={editedOverview[item.key] || ''}
+                  onChange={e => {
+                    setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value }));
+                    const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
+                  }}
+                  readOnly={viewOnly}
+                  className={`w-full resize-none overflow-hidden text-[13px] font-semibold text-white bg-transparent outline-none placeholder:text-white/25 transition-colors leading-snug ${viewOnly ? 'cursor-default' : 'rounded px-1 -mx-1 hover:bg-white/10 focus:bg-white/10'}`}
+                  style={{ minHeight: '1.4rem' }}
+                  placeholder={item.placeholder}
+                />
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -928,197 +971,18 @@ export default function StructuredResult() {
         {/* 메인 콘텐츠 */}
         <div className="flex-1 min-w-0">
 
-      {/* ╔══════════════════════════════════════════════╗
-         ║  상단 대시보드: 좌 Overview + 우 핵심경험    ║
-         ╚══════════════════════════════════════════════╝ */}
-      <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-5 mb-5">
-
-        {/* ── 좌: 프로젝트 Overview (편집 가능) ── */}
-        <div className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-extrabold uppercase tracking-[0.12em] text-primary-600">Overview</h2>
-          </div>
-
-          {/* 프로젝트 타이틀 (편집) */}
-          <input
-            value={editedTitle}
-            onChange={e => setEditedTitle(e.target.value)}
-            readOnly={viewOnly}
-            className={`text-[16px] font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
-            placeholder="프로젝트 제목"
-          />
-
-          {/* 배경/요약 (편집) */}
-          <textarea
-            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-            value={editedOverview.background || editedOverview.summary || ''}
-            onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-            readOnly={viewOnly}
-            className={`text-[13px] text-bluewood-500 leading-relaxed mb-4 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full overflow-hidden`}
-            style={{ minHeight: '4.5rem' }}
-            placeholder="프로젝트 배경 설명"
-          />
-
-          {/* 메타 항목 (편집) */}
-          <div className="space-y-3 mb-5">
-            {[
-              { key: 'goal',     label: '목표',   placeholder: '프로젝트 목표' },
-              { key: 'role',     label: '역할',   placeholder: '담당 역할' },
-              { key: 'team',     label: '팀 구성', placeholder: '팀 인원 / 구성' },
-              { key: 'duration', label: '기간',   placeholder: '2024.01 ~ 2024.06' },
-            ].map((item, i) => (
-              <div key={item.key} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-5 text-[13px] font-bold text-bluewood-300 mt-1.5">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[14px] font-semibold text-bluewood-700">{item.label}</span>
-                  <textarea
-                    ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                    value={editedOverview[item.key] || ''}
-                    onChange={e => { setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                    readOnly={viewOnly}
-                    rows={1}
-                    className={`w-full text-[13px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none transition-colors py-0.5 resize-none overflow-hidden`}
-                    placeholder={item.placeholder}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 기술 스택 (편집) */}
-          <div className="mb-4">
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[13px] font-medium border border-surface-200 group/tech">
-                  {tech}
-                  {!viewOnly && (
-                    <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
-                      className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[14px]">×</button>
-                  )}
-                </span>
-              ))}
-            </div>
-            {!viewOnly && (
-            <div className="flex gap-1.5">
-              <input
-                value={newTechInput}
-                onChange={e => setNewTechInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newTechInput.trim()) {
-                    e.preventDefault();
-                    setEditedOverview(prev => ({ ...prev, techStack: [...(prev.techStack || []), newTechInput.trim()] }));
-                    setNewTechInput('');
-                  }
-                }}
-                className="flex-1 text-[14px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
-                placeholder="기술 추가 후 Enter"
-              />
-            </div>
-            )}
-          </div>
-
-          {/* 역량 키워드 — 카테고리·드래그·팝인 애니메이션 */}
-          <div className="mt-auto pt-4 border-t border-surface-100">
-            {/* 카테고리 범례 */}
-            {editedKeywords.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {KW_CATEGORY_ORDER.map(cat => {
-                  const cs = KW_CATEGORY_STYLES[cat];
-                  const count = editedKeywords.filter(k => (keywordCategories[k] || 'default') === cat).length;
-                  if (count === 0) return null;
-                  return (
-                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cs.dot }} />
-                      {cs.label} {count}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {editedKeywords.map((k, i) => {
-                const catKey = keywordCategories[k] || 'default';
-                const cs = KW_CATEGORY_STYLES[catKey];
-                const isNew = i === newKeywordIdx;
-                const isDragging = kwDragIdx === i;
-                const isOver = kwOverIdx === i && kwDragIdx !== i;
-                return (
-                  <span
-                    key={`${k}-${i}`}
-                    draggable={!viewOnly}
-                    onDragStart={() => !viewOnly && setKwDragIdx(i)}
-                    onDragOver={e => { e.preventDefault(); if (!viewOnly) setKwOverIdx(i); }}
-                    onDragEnd={handleKwDragEnd}
-                    onClick={() => !viewOnly && cycleKwCategory(k)}
-                    title={!viewOnly ? `${cs.label} — 클릭: 분류 변경 / 드래그: 순서 변경` : cs.label}
-                    className={[
-                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[13px] font-medium border transition-all duration-200 select-none',
-                      cs.bg, cs.text, cs.border,
-                      !viewOnly ? 'cursor-grab active:cursor-grabbing' : '',
-                      isNew ? 'animate-pop-in animate-skill-shimmer' : '',
-                      isDragging ? 'opacity-40 scale-95' : '',
-                      isOver ? 'ring-2 ring-offset-1 ring-bluewood-400 scale-[1.04]' : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cs.dot }} />
-                    {k}
-                    {!viewOnly && (
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          setEditedKeywords(prev => prev.filter((_, j) => j !== i));
-                          setKeywordCategories(prev => { const n = { ...prev }; delete n[k]; return n; });
-                        }}
-                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[14px]"
-                      >×</button>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-            {!viewOnly && (
-              <>
-              <div className="flex gap-1.5">
-                <input
-                  value={newKeywordInput}
-                  onChange={e => setNewKeywordInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newKeywordInput.trim()) {
-                      e.preventDefault();
-                      const newIdx = editedKeywords.length;
-                      setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
-                      setNewKeywordIdx(newIdx);
-                      setTimeout(() => setNewKeywordIdx(null), 900);
-                      setNewKeywordInput('');
-                    }
-                  }}
-                  className="flex-1 text-[14px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
-                  placeholder="스킬 추가 후 Enter"
-                />
-              </div>
-              {editedKeywords.length > 0 && (
-                <p className="text-[14px] text-bluewood-300 mt-1.5 leading-relaxed">
-                  클릭해서 분류 변경 · 드래그해서 순서 변경
-                </p>
-              )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── 우: 핵심 경험 슬라이더 (편집 가능) ── */}
-        <div className="min-w-0">
-          <KeyExperienceSlider
-            ref={sliderRef}
-            keyExperiences={editedKeyExperiences}
-            onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
-            viewOnly={viewOnly}
-            hideHeader={!viewOnly}
-            onEditingChange={setSliderEditing}
-            onCurrentChange={setSliderCurrent}
-            onDeletedCountChange={setSliderDeletedCount}
-          />
-        </div>
+      {/* 핵심 경험 슬라이더 */}
+      <div className="mb-5">
+        <KeyExperienceSlider
+          ref={sliderRef}
+          keyExperiences={editedKeyExperiences}
+          onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
+          viewOnly={viewOnly}
+          hideHeader={!viewOnly}
+          onEditingChange={setSliderEditing}
+          onCurrentChange={setSliderCurrent}
+          onDeletedCountChange={setSliderDeletedCount}
+        />
       </div>
 
       {/* ╔══════════════════════════════════════════════╗
@@ -1356,12 +1220,12 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  하단: 상세 경험 정리 — 항상 펼쳐진 편집모드  ║
          ╚══════════════════════════════════════════════╝ */}
-      <div className="border border-surface-100 overflow-hidden">
+      <div className="border border-surface-200 overflow-hidden rounded-2xl">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 bg-surface-50/50">
           <div className="flex items-center gap-3">
             <h2 className="text-[13px] font-bold text-primary-600">상세 경험 정리</h2>
-            <span className="text-[14px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
+            <span className="text-[13px] text-bluewood-300 font-medium">{filledCount}/6 완성</span>
           </div>
           <div className="flex items-center gap-2">
           </div>
@@ -1380,7 +1244,7 @@ export default function StructuredResult() {
         )}
 
         {/* 섹션 본문 — 항상 펼쳐진 편집 모드 */}
-        <div className="divide-y divide-surface-100">
+        <div className="divide-y divide-surface-200">
           {SECTION_KEYS.map(key => {
             const meta = SECTION_META[key];
             const style = ACCENT_STYLES[meta.accent];
@@ -1395,14 +1259,15 @@ export default function StructuredResult() {
             return (
               <div key={key} className="group">
                 {/* 섹션 헤더 바 — 완성 시 brief glow */}
-                <div className={`flex items-center gap-4 px-6 py-3 transition-colors duration-300 ${
-                  flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50/30'
+                <div className={`flex items-center gap-4 px-6 py-3.5 border-b border-surface-200 transition-colors duration-300 ${
+                  flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50'
                 }`}>
-                  <span className={`flex-shrink-0 w-7 h-7 ${style.num} flex items-center justify-center text-[13px] font-bold`}>
+                  <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-[13px] font-bold text-white rounded-lg"
+                    style={{ backgroundColor: meta.accentHex || '#3b82f6' }}>
                     {meta.num}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className={`text-[13px] font-bold ${style.label}`}>{meta.label}</span>
+                    <span className="text-[13px] font-bold" style={{ color: meta.accentHex || '#3b82f6' }}>{meta.label}</span>
                     <span className="text-[13px] text-bluewood-300 ml-2">{meta.subtitle}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
