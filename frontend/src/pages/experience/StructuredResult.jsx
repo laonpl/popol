@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
 function renderMarkdown(text) {
   if (!text) return '';
-  const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+  const parts = sanitizeTextValue(text).split(/(\*\*[^*]+\*\*)/g);
   if (parts.length <= 1) return text.replace(/\*\*/g, '');
   return parts.map((seg, i) => {
     const m = seg.match(/^\*\*(.+)\*\*$/);
@@ -25,7 +25,233 @@ function renderMarkdown(text) {
 }
 function stripMarkdown(text) {
   if (!text) return '';
-  return String(text).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '');
+  return sanitizeTextValue(text).replace(/\*\*/g, '').replace(/^#+\s/gm, '').replace(/^[-*]\s/gm, '');
+}
+
+function sanitizeTextValue(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]+/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function sanitizeTextObject(obj = {}) {
+  return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, typeof value === 'string' ? sanitizeTextValue(value) : value]));
+}
+
+function makeTextBlock(content = '') {
+  return { id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: sanitizeTextValue(content) };
+}
+
+function portfolioBlocksToText(blocks = []) {
+  return blocks.map(block => {
+    if (block?.type === 'text') return sanitizeTextValue(block.content || '');
+    if (block?.type === 'slide') {
+      const cardText = (block.cards || []).map(card => [card.label, card.title, card.body, card.metric].filter(Boolean).join(' ')).filter(Boolean).join('\n');
+      return [block.title, block.subtitle, block.content, cardText].filter(Boolean).map(sanitizeTextValue).join('\n');
+    }
+    return '';
+  }).filter(Boolean).join('\n\n');
+}
+
+function normalizePortfolioBlock(block) {
+  if (!block) return null;
+  if (block.type === 'image') {
+    return {
+      id: block.id || `image-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'image',
+      content: block.content || block.src || '',
+      alt: sanitizeTextValue(block.alt || ''),
+      width: block.width || '100%',
+    };
+  }
+  if (block.type === 'slide') {
+    return {
+      id: block.id || `slide-${block.slideKey || Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'slide',
+      slideKey: block.slideKey || '',
+      label: sanitizeTextValue(block.label || ''),
+      kicker: sanitizeTextValue(block.kicker || ''),
+      title: sanitizeTextValue(block.title || block.headline || ''),
+      subtitle: sanitizeTextValue(block.subtitle || block.subcopy || ''),
+      content: sanitizeTextValue(block.content || ''),
+      cards: Array.isArray(block.cards) ? block.cards.map(card => sanitizeTextObject(card)) : [],
+    };
+  }
+  return { ...(block || {}), id: block.id || `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: sanitizeTextValue(block.content || block.text || '') };
+}
+
+function normalizeExportSection(section = {}) {
+  const rawBlocks = Array.isArray(section.blocks) && section.blocks.length > 0
+    ? section.blocks
+    : (section.content ? [{ id: `${section.key || 'section'}-text`, type: 'text', content: section.content }] : []);
+  const blocks = rawBlocks.map(normalizePortfolioBlock).filter(Boolean);
+  const content = sanitizeTextValue(section.content || portfolioBlocksToText(blocks));
+  return {
+    ...section,
+    label: sanitizeTextValue(section.label || ''),
+    content,
+    blocks,
+  };
+}
+
+function syncTextBlock(blocks = [], content = '') {
+  const cleanContent = sanitizeTextValue(content);
+  const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
+  const textIndex = normalized.findIndex(block => block.type === 'text');
+  if (textIndex >= 0) {
+    return normalized.map((block, index) => index === textIndex ? { ...block, content: cleanContent } : block);
+  }
+  return cleanContent ? [makeTextBlock(cleanContent), ...normalized] : normalized;
+}
+
+function buildSlideExportBlock(sectionKey, slide, content, label) {
+  return normalizePortfolioBlock({
+    type: 'slide',
+    slideKey: sectionKey,
+    label,
+    kicker: slide?.kicker || '',
+    title: slide?.headline || '',
+    subtitle: slide?.subcopy || '',
+    content,
+    cards: Array.isArray(slide?.cards) ? slide.cards.slice(0, 3) : [],
+  });
+}
+
+const SLIDE_DECK_SECTION_KEY = 'detail-slides';
+
+function isSlideDeckSection(section = {}) {
+  return section.key === SLIDE_DECK_SECTION_KEY || section.type === 'slides';
+}
+
+function createSlideDeckSection(blocks = [], enabled = true, label = '상세 슬라이드') {
+  const slideBlocks = blocks.map(normalizePortfolioBlock).filter(block => block?.type === 'slide');
+  return normalizeExportSection({
+    key: SLIDE_DECK_SECTION_KEY,
+    label,
+    type: 'slides',
+    content: portfolioBlocksToText(slideBlocks),
+    blocks: slideBlocks,
+    enabled,
+  });
+}
+
+function moveSlidesToStandaloneSection(sections = []) {
+  const cleanedSections = [];
+  const slideBlocks = [];
+  let deckMeta = null;
+
+  sections.map(normalizeExportSection).forEach(section => {
+    const blocks = section.blocks.map(normalizePortfolioBlock).filter(Boolean);
+    if (isSlideDeckSection(section)) {
+      deckMeta = section;
+      slideBlocks.push(...blocks.filter(block => block.type === 'slide'));
+      return;
+    }
+
+    const textAndImageBlocks = [];
+    blocks.forEach(block => {
+      if (block.type === 'slide') slideBlocks.push(block);
+      else textAndImageBlocks.push(block);
+    });
+    cleanedSections.push(normalizeExportSection({ ...section, blocks: textAndImageBlocks, content: portfolioBlocksToText(textAndImageBlocks) }));
+  });
+
+  if (slideBlocks.length > 0 || deckMeta) {
+    cleanedSections.push(createSlideDeckSection(slideBlocks, deckMeta?.enabled !== false, deckMeta?.label || '상세 슬라이드'));
+  }
+
+  return cleanedSections;
+}
+
+function PortfolioBlockViewer({ blocks = [], compact = false }) {
+  const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
+  if (normalized.length === 0) return null;
+  return (
+    <div className={compact ? 'space-y-3' : 'space-y-4'}>
+      {normalized.map(block => {
+        if (block.type === 'image') {
+          return (
+            <figure key={block.id} className="overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm" style={{ width: block.width || '100%', maxWidth: '100%' }}>
+              <img src={block.content} alt={block.alt || ''} className="block max-h-[520px] w-full object-contain" />
+            </figure>
+          );
+        }
+        if (block.type === 'slide') {
+          return (
+            <div key={block.id} className="rounded-xl border border-primary-100 bg-[#f7f9fb] p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-surface-200 pb-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{block.kicker || block.label || 'SLIDE'}</p>
+                  <h3 className="mt-1 break-words text-[17px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</h3>
+                </div>
+                {block.slideKey && <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-primary-600 ring-1 ring-primary-100">{block.slideKey}</span>}
+              </div>
+              {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.7] text-bluewood-600">{block.subtitle}</p>}
+              {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-[1.7] text-bluewood-500">{block.content}</p>}
+              {block.cards?.length > 0 && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {block.cards.slice(0, 2).map((card, index) => (
+                    <div key={index} className="border-l-[3px] border-primary-500 bg-white px-3 py-2 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
+                      <p className="mt-1 text-[12px] font-extrabold leading-snug text-bluewood-900">{card.title}</p>
+                      {card.body && <p className="mt-1 text-[11px] leading-relaxed text-bluewood-500">{card.body}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <p key={block.id} className="whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-bluewood-700">{sanitizeTextValue(block.content)}</p>;
+      })}
+    </div>
+  );
+}
+
+function PortfolioSlideDeck({ blocks = [], compact = false }) {
+  const slides = blocks.map(normalizePortfolioBlock).filter(block => block?.type === 'slide');
+  const [activeIdx, setActiveIdx] = useState(0);
+  useEffect(() => {
+    if (activeIdx > Math.max(slides.length - 1, 0)) setActiveIdx(Math.max(slides.length - 1, 0));
+  }, [activeIdx, slides.length]);
+  if (slides.length === 0) return null;
+
+  const slide = slides[activeIdx] || slides[0];
+  const go = (dir) => setActiveIdx(prev => (prev + dir + slides.length) % slides.length);
+
+  return (
+    <div className="rounded-xl border border-primary-100 bg-[#f7f9fb] p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-surface-200 pb-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{slide.kicker || slide.label || 'SLIDE'}</p>
+          <h3 className="mt-1 break-words text-[17px] font-extrabold leading-snug text-bluewood-900">{slide.title || slide.label}</h3>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <button type="button" onClick={event => { event.stopPropagation(); go(-1); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-bluewood-500 ring-1 ring-surface-200 hover:bg-primary-50 hover:text-primary-600" aria-label="이전 슬라이드">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-primary-600 ring-1 ring-primary-100">{activeIdx + 1}/{slides.length}</span>
+          <button type="button" onClick={event => { event.stopPropagation(); go(1); }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-bluewood-500 ring-1 ring-surface-200 hover:bg-primary-50 hover:text-primary-600" aria-label="다음 슬라이드">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+      {slide.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.7] text-bluewood-600">{slide.subtitle}</p>}
+      {slide.content && <p className={`${compact ? 'line-clamp-6' : ''} mt-3 whitespace-pre-wrap break-words text-[12px] leading-[1.7] text-bluewood-500`}>{slide.content}</p>}
+      {slide.cards?.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {slide.cards.slice(0, compact ? 2 : 3).map((card, index) => (
+            <div key={index} className="border-l-[3px] border-primary-500 bg-white px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{card.label || 'POINT'}</p>
+              <p className="mt-1 break-words text-[12px] font-extrabold leading-snug text-bluewood-900">{card.title}</p>
+              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-bluewood-500">{card.body}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ── 핵심 경험 슬라이드 (미리보기 전용 서브 컴포넌트) ── */
@@ -83,25 +309,16 @@ const highlightColors = {
 };
 
 const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+const SECTION_COUNT = SECTION_KEYS.length;
 
 const SECTION_META = {
-  intro:      { num: '01', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄', accent: 'primary' },
-  overview:   { num: '02', label: '프로젝트 개요', subtitle: '배경과 목적', accent: 'primary' },
-  task:       { num: '03', label: '진행한 일', subtitle: '배경-문제-(핵심)-해결', accent: 'primary' },
-  process:    { num: '04', label: '과정', subtitle: '나의 직접적인 액션 + 인사이트', accent: 'primary' },
-  output:     { num: '05', label: '결과물', subtitle: '최종으로 진행한 내용 + 포인트', accent: 'primary' },
-  growth:     { num: '06', label: '성장한 점', subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점', accent: 'primary' },
-  competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary' },
-};
-
-const ACCENT_STYLES = {
-  primary:   { num: 'bg-primary-600 text-white', border: 'border-bluewood-200', bg: 'bg-surface-50/40', label: 'text-bluewood-700', ring: 'focus:ring-bluewood-200' },
-  indigo:    { num: 'bg-indigo-500 text-white', border: 'border-indigo-200', bg: 'bg-indigo-50/40', label: 'text-indigo-700', ring: 'focus:ring-indigo-200' },
-  purple:    { num: 'bg-purple-500 text-white', border: 'border-purple-200', bg: 'bg-purple-50/40', label: 'text-purple-700', ring: 'focus:ring-purple-200' },
-  violet:    { num: 'bg-violet-500 text-white', border: 'border-violet-200', bg: 'bg-violet-50/40', label: 'text-violet-700', ring: 'focus:ring-violet-200' },
-  pink:      { num: 'bg-pink-500 text-white', border: 'border-pink-200', bg: 'bg-pink-50/40', label: 'text-pink-700', ring: 'focus:ring-pink-200' },
-  amber:     { num: 'bg-amber-500 text-white', border: 'border-amber-200', bg: 'bg-amber-50/40', label: 'text-amber-700', ring: 'focus:ring-amber-200' },
-  caribbean: { num: 'bg-caribbean-500 text-white', border: 'border-caribbean-200', bg: 'bg-caribbean-50/40', label: 'text-caribbean-700', ring: 'focus:ring-caribbean-200' },
+  intro:      { num: '01', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄', accent: 'primary', accentHex: '#6366f1' },
+  overview:   { num: '02', label: '프로젝트 개요', subtitle: '배경과 목적', accent: 'primary', accentHex: '#0ea5e9' },
+  task:       { num: '03', label: '진행한 일', subtitle: '배경-문제-(핵심)-해결', accent: 'primary', accentHex: '#f59e0b' },
+  process:    { num: '04', label: '과정', subtitle: '나의 직접적인 액션 + 인사이트', accent: 'primary', accentHex: '#8b5cf6' },
+  output:     { num: '05', label: '결과물', subtitle: '최종으로 진행한 내용 + 포인트', accent: 'primary', accentHex: '#10b981' },
+  growth:     { num: '06', label: '성장한 점', subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점', accent: 'primary', accentHex: '#f43f5e' },
+  competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary', accentHex: '#0d9488' },
 };
 
 /* ── 역량 키워드 카테고리 스타일 ── */
@@ -118,9 +335,599 @@ function pickSectionFields(obj) {
   const result = {};
   for (const key of SECTION_KEYS) {
     const val = obj?.[key];
-    result[key] = typeof val === 'string' ? val : '';
+    result[key] = typeof val === 'string' ? sanitizeTextValue(val) : '';
   }
   return result;
+}
+
+function normalizeMarketResearch(value) {
+  const src = value || {};
+  return {
+    marketOverview: typeof src.marketOverview === 'string' ? src.marketOverview : '',
+    decisionMetrics: Array.isArray(src.decisionMetrics) ? src.decisionMetrics.map(item => ({
+      metric: item?.metric || '',
+      whyItMatters: item?.whyItMatters || '',
+      recommendedProxy: item?.recommendedProxy || '',
+      researchBasis: item?.researchBasis || '',
+      confidence: item?.confidence || 'medium',
+    })) : [],
+    sourceNotes: Array.isArray(src.sourceNotes) ? src.sourceNotes.map(item => ({
+      title: item?.title || '',
+      publisher: item?.publisher || '',
+      url: item?.url || '',
+      checkedAt: item?.checkedAt || '',
+      usage: item?.usage || '',
+    })) : [],
+    portfolioAngles: Array.isArray(src.portfolioAngles) ? src.portfolioAngles : [],
+    limitations: typeof src.limitations === 'string' ? src.limitations : '',
+  };
+}
+
+const SECTION_SLIDE_DEFAULTS = {
+  intro:      { kicker: 'BACKGROUND',  prompt: '이 프로젝트는 어떤 문제에서 시작됐을까요?' },
+  overview:   { kicker: 'RESEARCH',    prompt: '왜 지금 이 프로젝트가 필요했을까요?' },
+  task:       { kicker: 'PROBLEM',     prompt: '내가 직접 해결해야 했던 핵심 과제는 무엇이었을까요?' },
+  process:    { kicker: 'ACTION',      prompt: '어떤 판단과 액션으로 문제에 접근했을까요?' },
+  output:     { kicker: 'OUTCOME',     prompt: '최종적으로 무엇이 달라졌을까요?' },
+  growth:     { kicker: 'INSIGHT',     prompt: '이 경험은 어떤 관점을 바꾸었을까요?' },
+  competency: { kicker: 'CAPABILITY',  prompt: '이 경험은 어떤 기여 역량으로 이어질까요?' },
+};
+
+function splitSentences(text, limit = 3) {
+  const clean = stripMarkdown(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  const parts = clean.match(/[^.!?。！？\n]+[.!?。！？]?/g) || [clean];
+  return parts.map(s => s.trim()).filter(Boolean).slice(0, limit);
+}
+
+function compactText(text, max = 150) {
+  const clean = stripMarkdown(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1).trim()}…`;
+}
+
+function extractMetricToken(text) {
+  const match = String(text || '').match(/\d+[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점)/);
+  return match?.[0] || '';
+}
+
+function makeSlideCard(label, title, body, metric = '') {
+  return {
+    label,
+    title,
+    body: compactText(body, 120),
+    metric: metric || extractMetricToken(body),
+  };
+}
+
+function buildFallbackCards({ key, content, research, keyExperiences, overview }) {
+  const sentences = splitSentences(content, 3);
+  const experiences = Array.isArray(keyExperiences) ? keyExperiences : [];
+  const metrics = Array.isArray(research?.decisionMetrics) ? research.decisionMetrics : [];
+  const firstExperience = experiences[0] || {};
+  const firstMetric = metrics[0] || {};
+  const secondMetric = metrics[1] || {};
+  const projectScale = [overview?.scopeOfImpact, overview?.duration, overview?.team].filter(Boolean).join(' · ');
+  const stackText = Array.isArray(overview?.techStack) ? overview.techStack.slice(0, 5).join(', ') : '';
+  const firstSentence = sentences[0] || content || '';
+
+  const bySection = {
+    intro: [
+      makeSlideCard('CONTEXT', '프로젝트 배경', overview?.background || firstSentence, extractMetricToken(overview?.background || firstSentence)),
+      makeSlideCard('GOAL', '해결 목표', overview?.goal || sentences[1] || '[작성 필요]', ''),
+      makeSlideCard('SCOPE', '진행 범위', projectScale || stackText || '[작성 필요]', extractMetricToken(projectScale)),
+    ],
+    overview: [
+      makeSlideCard('MARKET', firstMetric.metric || '시장/사용자 맥락', research?.marketOverview || firstMetric.whyItMatters || firstSentence, firstMetric.confidence || extractMetricToken(research?.marketOverview)),
+      makeSlideCard('METRIC', secondMetric.metric || '확인할 지표', secondMetric.recommendedProxy || firstMetric.recommendedProxy || '[검증 필요]', extractMetricToken(secondMetric.recommendedProxy || firstMetric.recommendedProxy) || secondMetric.confidence),
+      makeSlideCard('ANGLE', '포트폴리오 관점', research?.portfolioAngles?.[0] || sentences[1] || '[작성 필요]', ''),
+    ],
+    task: [
+      makeSlideCard('OWNERSHIP', '내가 맡은 과제', firstExperience.title || firstSentence, ''),
+      makeSlideCard('CONTEXT', '문제 상황', firstExperience.context || sentences[1] || '[작성 필요]', extractMetricToken(firstExperience.context || sentences[1])),
+      makeSlideCard('ROLE', '담당 역할', overview?.role || '[작성 필요]', ''),
+    ],
+    process: [
+      makeSlideCard('ACTION', '실행한 행동', firstExperience.action || firstSentence, extractMetricToken(firstExperience.action || firstSentence)),
+      makeSlideCard('DECISION', '의사결정 기준', firstMetric.whyItMatters || firstMetric.recommendedProxy || sentences[1] || '[작성 필요]', firstMetric.confidence),
+      makeSlideCard('TRADE-OFF', '선택과 조정', sentences[2] || firstExperience.context || '[작성 필요]', ''),
+    ],
+    output: [
+      makeSlideCard('IMPACT', '결과 변화', firstExperience.result || firstSentence, firstExperience.afterMetric || firstExperience.metric || extractMetricToken(firstExperience.result || firstSentence)),
+      makeSlideCard('OUTPUT', '만든 산출물', sentences[1] || firstExperience.title || '[작성 필요]', extractMetricToken(sentences[1])),
+      makeSlideCard('NEXT', '2차 효과', sentences[2] || '[검증 필요]', extractMetricToken(sentences[2])),
+    ],
+    growth: [
+      makeSlideCard('INSIGHT', '새로 얻은 관점', firstExperience.learning || firstSentence, ''),
+      makeSlideCard('CHANGE', '달라진 판단', sentences[1] || '[작성 필요]', ''),
+      makeSlideCard('LEARNING', '다음에 적용할 점', sentences[2] || '[작성 필요]', ''),
+    ],
+    competency: [
+      makeSlideCard('CAPABILITY', '발휘한 역량', sentences[0] || firstExperience.keywords?.join(', ') || '[작성 필요]', ''),
+      makeSlideCard('VALUE', '입사 후 기여', sentences[1] || firstExperience.learning || '[작성 필요]', ''),
+      makeSlideCard('PROOF', '근거 경험', firstExperience.title || overview?.role || '[작성 필요]', firstExperience.metric || firstExperience.afterMetric || ''),
+    ],
+  };
+
+  const fallback = bySection[key] || sentences.map((sentence, index) => (
+    makeSlideCard(['POINT', 'INSIGHT', 'DETAIL'][index] || 'POINT', index === 0 ? SECTION_META[key]?.label : '핵심 근거', sentence)
+  ));
+
+  const seen = new Set();
+  return fallback
+    .filter(item => item.body || item.title || item.metric)
+    .filter(item => {
+      const signature = `${item.label}|${item.title}|${item.body}`.replace(/\s+/g, ' ').toLowerCase();
+      if (seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+function normalizeSectionSlide({ key, content, structured, research, keyExperiences, overview }) {
+  const fromAi = structured?.sectionSlides?.[key] || {};
+  const defaults = SECTION_SLIDE_DEFAULTS[key] || {};
+  const sentences = splitSentences(content, 4);
+  const headline = fromAi.headline || sentences[0] || defaults.prompt || SECTION_META[key]?.label;
+  const subcopy = fromAi.subcopy || sentences.slice(1, 4).join(' ') || content || '';
+  const fallbackCards = buildFallbackCards({ key, content, research, keyExperiences, overview });
+  const aiCards = Array.isArray(fromAi.evidenceCards) && fromAi.evidenceCards.length > 0
+    ? fromAi.evidenceCards.slice(0, 3).map(card => ({
+      label: card?.label || 'RESEARCH',
+      title: card?.title || '핵심 근거',
+      body: card?.body || '',
+      metric: card?.metric || extractMetricToken(`${card?.title || ''} ${card?.body || ''}`),
+    }))
+    : [];
+  const cardCandidates = fromAi._manual ? [...aiCards, ...fallbackCards] : [...fallbackCards, ...aiCards];
+  const cards = cardCandidates
+    .filter(item => item.body || item.title || item.metric)
+    .reduce((acc, item) => {
+      const signature = `${item.label}|${item.title}|${item.body}`.replace(/\s+/g, ' ').toLowerCase();
+      if (!acc.seen.has(signature)) {
+        acc.seen.add(signature);
+        acc.items.push(item);
+      }
+      return acc;
+    }, { seen: new Set(), items: [] }).items
+    .slice(0, 3);
+  return {
+    kicker: fromAi.kicker || defaults.kicker || 'BACKGROUND',
+    headline: compactText(headline, 70),
+    subcopy: compactText(subcopy, 220),
+    cards,
+  };
+}
+
+function PortfolioSectionSlide({
+  sectionKey,
+  meta,
+  value,
+  overview,
+  onOverviewChange,
+  slide,
+  isEditing,
+  viewOnly,
+  field,
+  structured,
+  editedKeywords,
+  onChange,
+  onSlideFieldChange,
+  onSlideCardChange,
+  onEdit,
+  onDone,
+  imageProps,
+  onAddImage,
+  uploadingImage,
+  dragInfo,
+  dropTarget,
+  setDropTarget,
+  handleSectionDrop,
+}) {
+  const isDraft = value?.trim()?.startsWith('[작성 필요]');
+  const cleanValue = sanitizeTextValue(value || '');
+  const cleanHeadline = sanitizeTextValue(slide.headline || '');
+  const cleanSubcopy = sanitizeTextValue(slide.subcopy || '');
+  const headlineRows = Math.max(3, Math.min(6, Math.ceil(Math.max(cleanHeadline.length, 1) / 22)));
+  const subcopyRows = Math.max(2, Math.min(5, Math.ceil(Math.max(cleanSubcopy.length, 1) / 70)));
+  const displayValue = isDraft ? cleanValue.replace(/^\[작성 필요\]\s*/, '').trim() : cleanValue;
+  const fallbackMetric = extractMetricToken(cleanValue);
+  const visibleCards = slide.cards.slice(0, 2);
+  const hiddenCardCount = Math.max(0, slide.cards.length - visibleCards.length);
+  const introMetaItems = sectionKey === 'intro'
+    ? [
+      { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
+      { key: 'role', label: '역할', placeholder: '기획/개발/운영 담당' },
+      { key: 'team', label: '팀 구성', placeholder: '개발 3명, 디자인 1명' },
+      { key: 'scopeOfImpact', label: '영향 범위', placeholder: '사용자/팀/비즈니스 범위' },
+      { key: 'goal', label: '목표', placeholder: '프로젝트의 핵심 목표' },
+    ]
+    : [];
+
+  return (
+    <div className="relative overflow-visible bg-[#f7f9fb]">
+      <div className="absolute inset-0 pointer-events-none opacity-[0.32]" style={{ background: 'radial-gradient(circle at 18% 12%, rgba(0,47,108,0.08), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.92), rgba(236,242,247,0.72))' }} />
+      <div className="relative mx-auto max-w-[1180px] px-5 py-5 lg:px-6 lg:py-6">
+        <div className="relative min-h-[620px] overflow-visible rounded-[8px] border border-white/80 bg-white/82 shadow-[0_22px_70px_rgba(49,65,87,0.13)]">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,47,108,0.035)_1px,transparent_1px),linear-gradient(0deg,rgba(0,47,108,0.025)_1px,transparent_1px)] bg-[size:72px_72px]" />
+          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary-50/70 blur-3xl" />
+          <div className="absolute -left-16 bottom-8 h-56 w-56 rounded-full bg-surface-100/70 blur-3xl" />
+          <div className="relative flex min-h-[620px] flex-col px-8 py-7 lg:px-10 lg:py-8">
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0 flex-1">
+                {viewOnly ? (
+                  <p className="mb-4 text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500">{sanitizeTextValue(slide.kicker)}</p>
+                ) : (
+                  <input
+                    value={sanitizeTextValue(slide.kicker || '')}
+                    onChange={e => onSlideFieldChange?.(sectionKey, 'kicker', e.target.value.toUpperCase())}
+                    className="mb-4 w-full max-w-[220px] bg-transparent text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500 outline-none placeholder:text-bluewood-300 focus:bg-white/60"
+                    placeholder="KICKER"
+                  />
+                )}
+                <div className="flex items-start gap-4">
+                  <span className="mt-1 h-14 w-[3px] flex-shrink-0 bg-primary-500" />
+                  <div className="min-w-0">
+                    {viewOnly ? (
+                      <h3 className="max-w-[780px] break-words text-[25px] font-extrabold leading-[1.28] tracking-normal text-bluewood-900 lg:text-[30px]">
+                        {sanitizeTextValue(slide.headline)}
+                      </h3>
+                    ) : (
+                      <textarea
+                        rows={headlineRows}
+                        value={cleanHeadline}
+                        onChange={e => onSlideFieldChange?.(sectionKey, 'headline', e.target.value)}
+                        className="w-full max-w-[780px] resize-y overflow-y-auto break-words bg-transparent text-[25px] font-extrabold leading-[1.28] tracking-normal text-bluewood-900 outline-none placeholder:text-bluewood-300 focus:bg-white/60 lg:text-[30px]"
+                        placeholder="슬라이드 제목"
+                      />
+                    )}
+                    {(cleanSubcopy || !viewOnly) && (
+                      viewOnly ? (
+                        <p className="mt-4 max-w-[820px] break-words text-[13px] font-medium leading-[1.65] text-bluewood-600">
+                          {renderMarkdown(cleanSubcopy)}
+                        </p>
+                      ) : (
+                        <textarea
+                          rows={subcopyRows}
+                          value={cleanSubcopy}
+                          onChange={e => onSlideFieldChange?.(sectionKey, 'subcopy', e.target.value)}
+                          className="mt-4 w-full max-w-[820px] resize-y overflow-y-auto break-words bg-transparent text-[13px] font-medium leading-[1.65] text-bluewood-600 outline-none placeholder:text-bluewood-300 focus:bg-white/60"
+                          placeholder="슬라이드 설명"
+                        />
+                      )
+                    )}
+                  </div>
+
+                </div>
+              </div>
+              <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
+                <span className="rounded-full border border-primary-100 bg-white/70 px-3 py-1 text-[11px] font-black text-primary-600">{meta.num}</span>
+                <span className="max-w-[160px] text-[12px] font-bold leading-snug text-bluewood-400">{meta.label}</span>
+                {!viewOnly && (
+                  <button
+                    onClick={onAddImage}
+                    disabled={uploadingImage}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-surface-200 bg-white/80 px-3 py-1.5 text-[12px] font-bold text-bluewood-500 shadow-sm hover:bg-white disabled:opacity-50 transition-colors"
+                  >
+                    {uploadingImage ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
+                    사진 추가
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 grid min-h-0 flex-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="flex min-w-0 flex-col">
+                  <div className={`rounded-[8px] border border-white/80 bg-white/72 p-4 shadow-sm ${isEditing ? 'ring-1 ring-primary-100' : ''}`}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-300">DETAIL NOTE</p>
+                      {!viewOnly && <span className="text-[11px] font-bold text-primary-500">바로 수정 가능</span>}
+                    </div>
+                    {!viewOnly ? (
+                      <textarea
+                        value={cleanValue}
+                        onChange={e => onChange(e.target.value)}
+                        placeholder={field?.placeholder || '내용을 입력하세요'}
+                        rows={8}
+                        className="min-h-[180px] w-full resize-y overflow-y-auto break-words bg-transparent text-[12px] leading-[1.65] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:bg-white/50"
+                      />
+                    ) : displayValue ? (
+                      <div className="break-words text-[12px] leading-[1.65] text-bluewood-700 whitespace-pre-wrap">
+                        <HighlightedText
+                          text={displayValue}
+                          highlights={(structured.highlights || []).filter(h => h.field === sectionKey)}
+                          keywords={editedKeywords}
+                          showKeywordUnderline={true}
+                        />
+                      </div>
+                    ) : (
+                      <button onClick={onEdit} className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-dashed border-surface-300 py-10 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-50 transition-colors">
+                        <PenLine size={14} /> 빈칸 채우기
+                      </button>
+                    )}
+                    {introMetaItems.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-surface-200/70 pt-3 lg:grid-cols-3">
+                        {introMetaItems.map(item => (
+                          <div key={item.label} className="rounded-[6px] bg-white/75 px-2.5 py-2 ring-1 ring-surface-200/80">
+                            <p className="text-[10px] font-black tracking-[0.12em] text-bluewood-300">{item.label}</p>
+                            {viewOnly ? (
+                              <p className="mt-1 break-words text-[12px] font-bold leading-snug text-bluewood-700">{sanitizeTextValue(overview?.[item.key] || item.placeholder)}</p>
+                            ) : (
+                              <textarea
+                                rows={2}
+                                value={sanitizeTextValue(overview?.[item.key] || '')}
+                                onChange={e => onOverviewChange?.(item.key, sanitizeTextValue(e.target.value))}
+                                placeholder={item.placeholder}
+                                className="mt-1 min-h-[40px] w-full resize-y overflow-y-auto break-words bg-transparent text-[11px] font-bold leading-snug text-bluewood-700 outline-none placeholder:text-bluewood-300"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <InlineSlideImages
+                      sectionKey={sectionKey}
+                      sectionImages={imageProps.sectionImages}
+                      allImages={imageProps.allImages}
+                      imageConfig={imageProps.imageConfig}
+                      setImageConfig={imageProps.setImageConfig}
+                      handleImageDelete={imageProps.handleImageDelete}
+                      viewOnly={viewOnly}
+                    />
+                  </div>
+              </div>
+
+              <div className="flex min-h-0 flex-col gap-2.5">
+                {visibleCards.length > 0 ? visibleCards.map((card, index) => (
+                  <div key={index} className="min-h-0 border-l-[3px] border-primary-500 bg-white/78 px-3.5 py-3 shadow-sm">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      {viewOnly ? (
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{sanitizeTextValue(card.label || 'RESEARCH')}</p>
+                      ) : (
+                        <input
+                          value={sanitizeTextValue(card.label || '')}
+                          onChange={e => onSlideCardChange?.(sectionKey, index, 'label', e.target.value.toUpperCase(), card)}
+                          className="w-24 bg-transparent text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300 outline-none placeholder:text-bluewood-200 focus:bg-white/70"
+                          placeholder="LABEL"
+                        />
+                      )}
+                      {viewOnly && (card.metric || (index === 0 && fallbackMetric)) && (
+                        <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[12px] font-black text-primary-600">{sanitizeTextValue(card.metric || fallbackMetric)}</span>
+                      )}
+                      {!viewOnly && (
+                        <input
+                          value={sanitizeTextValue(card.metric || '')}
+                          onChange={e => onSlideCardChange?.(sectionKey, index, 'metric', e.target.value, card)}
+                          className="w-24 rounded-full bg-primary-50 px-2 py-0.5 text-right text-[12px] font-black text-primary-600 outline-none placeholder:text-primary-300"
+                          placeholder={index === 0 ? fallbackMetric || '수치' : '수치'}
+                        />
+                      )}
+                    </div>
+                    {viewOnly ? (
+                      <p className="text-[13px] font-extrabold leading-snug text-bluewood-900">{sanitizeTextValue(card.title)}</p>
+                    ) : (
+                      <textarea
+                        rows={2}
+                        value={sanitizeTextValue(card.title || '')}
+                        onChange={e => onSlideCardChange?.(sectionKey, index, 'title', e.target.value, card)}
+                        className="w-full resize-y overflow-y-auto break-words bg-transparent text-[13px] font-extrabold leading-snug text-bluewood-900 outline-none placeholder:text-bluewood-300 focus:bg-white/70"
+                        placeholder="카드 제목"
+                      />
+                    )}
+                    {viewOnly && sanitizeTextValue(card.body) && (
+                      <p className="mt-1.5 break-words text-[12px] font-medium leading-[1.55] text-bluewood-500">
+                        {sanitizeTextValue(card.body)}
+                      </p>
+                    )}
+                    {!viewOnly && (
+                      <textarea
+                        rows={4}
+                        value={sanitizeTextValue(card.body || '')}
+                        onChange={e => onSlideCardChange?.(sectionKey, index, 'body', e.target.value, card)}
+                        className="mt-1.5 w-full resize-y overflow-y-auto break-words bg-transparent text-[11px] font-medium leading-[1.45] text-bluewood-500 outline-none placeholder:text-bluewood-300 focus:bg-white/70"
+                        placeholder="근거/임팩트 설명"
+                      />
+                    )}
+                  </div>
+                )) : (
+                  <div className="border-l-[3px] border-primary-500 bg-white/78 px-4 py-5 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">RESEARCH</p>
+                    <p className="mt-2 text-[15px] font-extrabold text-bluewood-900">보강할 근거가 필요합니다</p>
+                    <p className="mt-2 text-[12px] leading-[1.65] text-bluewood-500">시장 자료, 사용자 지표, 의사결정 기준을 추가하면 이 슬라이드가 더 설득력 있게 완성됩니다.</p>
+                  </div>
+                )}
+                {hiddenCardCount > 0 && (
+                  <div className="rounded-full border border-surface-200 bg-white/78 px-3 py-2 text-center text-[11px] font-bold text-bluewood-400 shadow-sm">
+                    추가 근거 {hiddenCardCount}개는 디테일 노트에 반영됨
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-surface-200/80 pt-3">
+              {dragInfo && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDropTarget(sectionKey); }}
+                  onDragLeave={() => { if (dropTarget === sectionKey) setDropTarget(null); }}
+                  onDrop={(e) => handleSectionDrop(e, sectionKey)}
+                  className={`mt-2 rounded-lg border-2 border-dashed py-3 text-center text-[13px] font-semibold transition-colors ${
+                    dropTarget === sectionKey ? 'border-bluewood-400 bg-bluewood-50/60 text-bluewood-500' : 'border-surface-200 text-bluewood-300'
+                  }`}
+                >
+                  {dragInfo.fromSection === sectionKey ? '끝으로 이동' : '여기로 이미지 이동'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SLIDE_IMAGE_SIZES = [
+  { value: 'sm', label: 'S', width: 10 },
+  { value: 'md', label: 'M', width: 16 },
+  { value: 'lg', label: 'L', width: 24 },
+];
+
+const INLINE_IMAGE_SIZES = {
+  sm: { label: 'S', width: '34%', minWidth: 140 },
+  md: { label: 'M', width: '58%', minWidth: 220 },
+  lg: { label: 'L', width: '100%', minWidth: 260 },
+};
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function InlineSlideImages({ sectionKey, sectionImages, allImages, imageConfig, setImageConfig, handleImageDelete, viewOnly }) {
+  const imgIndices = sectionImages?.[sectionKey] || [];
+  const images = imgIndices.map(imgIdx => ({ imgIdx, img: allImages?.[imgIdx] })).filter(item => item.img);
+  if (images.length === 0) return null;
+
+  const cycleSize = (cfgKey, currentSize) => {
+    const order = Object.keys(INLINE_IMAGE_SIZES);
+    const idx = order.indexOf(currentSize || 'lg');
+    const next = order[(idx + 1) % order.length];
+    setImageConfig(prev => ({
+      ...prev,
+      [cfgKey]: { ...(prev[cfgKey] || {}), size: next },
+    }));
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-start gap-3 border-t border-surface-200/70 pt-4">
+      {images.map(({ imgIdx, img }) => {
+        const cfgKey = `${sectionKey}:${imgIdx}`;
+        const cfg = imageConfig?.[cfgKey] || {};
+        const sizeKey = cfg.size || 'lg';
+        const size = INLINE_IMAGE_SIZES[sizeKey] || INLINE_IMAGE_SIZES.lg;
+
+        return (
+          <figure
+            key={cfgKey}
+            className="group relative overflow-hidden rounded-[8px] border border-surface-200 bg-white shadow-sm"
+            style={{ width: size.width, minWidth: size.minWidth, maxWidth: '100%' }}
+          >
+            <img src={img.url} alt={img.name || '이미지'} className="block max-h-[360px] w-full object-contain" />
+            {!viewOnly && (
+              <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => cycleSize(cfgKey, sizeKey)}
+                  className="rounded bg-black/65 px-2 py-1 text-[11px] font-black text-white hover:bg-black/80"
+                  title="사진 크기 변경"
+                >
+                  {size.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleImageDelete(imgIdx)}
+                  className="rounded bg-red-500/85 p-1.5 text-white hover:bg-red-600"
+                  title="사진 삭제"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+          </figure>
+        );
+      })}
+    </div>
+  );
+}
+
+function SlideImageLayer({ sectionKey, sectionImages, allImages, imageConfig, setImageConfig, handleImageDelete }) {
+  const layerRef = useRef(null);
+  const [moving, setMoving] = useState(null);
+  const imgIndices = sectionImages[sectionKey] || [];
+
+  useEffect(() => {
+    if (!moving) return undefined;
+    const onMove = (event) => {
+      const rect = layerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const widthPct = moving.widthPct || 16;
+      const x = clampNumber(((event.clientX - rect.left - moving.offsetX) / rect.width) * 100, 2, 98 - widthPct);
+      const y = clampNumber(((event.clientY - rect.top - moving.offsetY) / rect.height) * 100, 7, 84);
+      setImageConfig(prev => ({
+        ...prev,
+        [moving.cfgKey]: { ...(prev[moving.cfgKey] || {}), x, y },
+      }));
+    };
+    const onUp = () => setMoving(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [moving, setImageConfig]);
+
+  if (imgIndices.length === 0) return null;
+
+  const cycleSize = (cfgKey, currentSize) => {
+    const idx = SLIDE_IMAGE_SIZES.findIndex(size => size.value === currentSize);
+    const next = SLIDE_IMAGE_SIZES[(idx + 1) % SLIDE_IMAGE_SIZES.length];
+    setImageConfig(prev => ({
+      ...prev,
+      [cfgKey]: { ...(prev[cfgKey] || {}), size: next.value },
+    }));
+  };
+
+  return (
+    <div ref={layerRef} className="absolute inset-0 z-20 pointer-events-none">
+      {imgIndices.map((imgIdx, index) => {
+        const img = allImages[imgIdx];
+        if (!img) return null;
+        const cfgKey = `${sectionKey}:${imgIdx}`;
+        const cfg = imageConfig[cfgKey] || {};
+        const size = SLIDE_IMAGE_SIZES.find(item => item.value === (cfg.size || 'md')) || SLIDE_IMAGE_SIZES[1];
+        const left = cfg.x ?? (7 + (index % 3) * 13);
+        const top = cfg.y ?? (67 + Math.floor(index / 3) * 10);
+
+        return (
+          <div
+            key={`slide-img-${sectionKey}-${imgIdx}`}
+            className="group absolute pointer-events-auto select-none"
+            style={{ left: `${left}%`, top: `${top}%`, width: `${size.width}%` }}
+          >
+            <div
+              onMouseDown={(event) => {
+                if (event.button !== 0) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                setMoving({ cfgKey, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, widthPct: size.width });
+              }}
+              className="relative cursor-grab active:cursor-grabbing rounded-[8px] border border-white/90 bg-white/80 p-1 shadow-[0_12px_28px_rgba(49,65,87,0.18)] backdrop-blur-sm"
+            >
+              <img src={img.url} alt={img.name || '이미지'} className="block w-full rounded-[6px] object-cover" />
+              <div className="absolute left-1 top-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="rounded bg-black/60 p-1"><GripVertical size={12} className="text-white" /></span>
+              </div>
+              <div className="absolute right-1 top-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => { event.stopPropagation(); cycleSize(cfgKey, size.value); }}
+                  className="rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-black text-white hover:bg-black/80"
+                >
+                  {size.label}
+                </button>
+                <button
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => { event.stopPropagation(); handleImageDelete(imgIdx); }}
+                  className="rounded bg-red-500/85 p-1 text-white hover:bg-red-600"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function StructuredResult() {
@@ -136,7 +943,9 @@ export default function StructuredResult() {
   const [editedContent, setEditedContent] = useState({});
   const [editingSections, setEditingSections] = useState({});
   const [editedTitle, setEditedTitle] = useState('');
-  const [editedOverview, setEditedOverview] = useState({ background: '', goal: '', role: '', team: '', duration: '', summary: '', techStack: [] });
+  const [editedOverview, setEditedOverview] = useState({ background: '', goal: '', role: '', team: '', duration: '', summary: '', scopeOfImpact: '', techStack: [] });
+  const [editedSectionSlides, setEditedSectionSlides] = useState({});
+  const [editedResearch, setEditedResearch] = useState(() => normalizeMarketResearch());
   const [editedKeywords, setEditedKeywords] = useState([]);
   const [editedKeyExperiences, setEditedKeyExperiences] = useState([]);
   const [newTechInput, setNewTechInput] = useState('');
@@ -152,14 +961,19 @@ export default function StructuredResult() {
   const [dropTarget, setDropTarget] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showHighlights, setShowHighlights] = useState(true);
+  const [showQualityPanel, setShowQualityPanel] = useState(true);
+  const [activeQualityId, setActiveQualityId] = useState('sections');
   const [imageConfig, setImageConfig] = useState({});
+  const detailSlidesRef = useRef(null);
   const imageInputRef = useRef(null);
+  const [imageUploadTarget, setImageUploadTarget] = useState('_unassigned');
   const sectionTextareaRefs = useRef({});
   // 핵심 경험 슬라이더 ref & 동기화 state
   const sliderRef = useRef(null);
   const [sliderEditing, setSliderEditing] = useState(false);
   const [sliderCurrent, setSliderCurrent] = useState(0);
   const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
+  const [sectionSlideIdx, setSectionSlideIdx] = useState(0);
 
   /* ── 역량 키워드 커스터마이징 ── */
   const [newKeywordIdx, setNewKeywordIdx] = useState(null);     // 팝인 애니메이션 대상 인덱스
@@ -177,6 +991,8 @@ export default function StructuredResult() {
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [exportEnabled, setExportEnabled] = useState({});
   const [exportOrder, setExportOrder] = useState([]);
+  const [exportCustomSections, setExportCustomSections] = useState([]);
+  const [activeExportSectionKey, setActiveExportSectionKey] = useState(null);
   const [exportCoverImg, setExportCoverImg] = useState(null);
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
@@ -208,14 +1024,17 @@ export default function StructuredResult() {
       setEditedTitle(navState.title || '');
       const normStack1 = structured.projectOverview?.techStack;
       setEditedOverview({
-        background: structured.projectOverview?.background || '',
-        goal: structured.projectOverview?.goal || '',
-        role: structured.projectOverview?.role || '',
-        team: structured.projectOverview?.team || '',
-        duration: structured.projectOverview?.duration || '',
-        summary: structured.projectOverview?.summary || '',
+        background: sanitizeTextValue(structured.projectOverview?.background || ''),
+        goal: sanitizeTextValue(structured.projectOverview?.goal || ''),
+        role: sanitizeTextValue(structured.projectOverview?.role || ''),
+        team: sanitizeTextValue(structured.projectOverview?.team || ''),
+        duration: sanitizeTextValue(structured.projectOverview?.duration || ''),
+        summary: sanitizeTextValue(structured.projectOverview?.summary || ''),
+        scopeOfImpact: sanitizeTextValue(structured.projectOverview?.scopeOfImpact || ''),
         techStack: Array.isArray(normStack1) ? normStack1 : (normStack1 ? String(normStack1).split(',').map(s => s.trim()).filter(Boolean) : []),
       });
+      setEditedResearch(normalizeMarketResearch(structured.marketResearch));
+      setEditedSectionSlides(structured.sectionSlides || {});
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
       setJobCategory(structured.jobCategory || 'common');
@@ -265,19 +1084,37 @@ export default function StructuredResult() {
         setEditedTitle(data.title || '');
         const normStack2 = sr.projectOverview?.techStack;
         setEditedOverview({
-          background: sr.projectOverview?.background || '',
-          goal: sr.projectOverview?.goal || '',
-          role: sr.projectOverview?.role || '',
-          team: sr.projectOverview?.team || '',
-          duration: sr.projectOverview?.duration || '',
-          summary: sr.projectOverview?.summary || '',
+          background: sanitizeTextValue(sr.projectOverview?.background || ''),
+          goal: sanitizeTextValue(sr.projectOverview?.goal || ''),
+          role: sanitizeTextValue(sr.projectOverview?.role || ''),
+          team: sanitizeTextValue(sr.projectOverview?.team || ''),
+          duration: sanitizeTextValue(sr.projectOverview?.duration || ''),
+          summary: sanitizeTextValue(sr.projectOverview?.summary || ''),
+          scopeOfImpact: sanitizeTextValue(sr.projectOverview?.scopeOfImpact || ''),
           techStack: Array.isArray(normStack2) ? normStack2 : (normStack2 ? String(normStack2).split(',').map(s => s.trim()).filter(Boolean) : []),
         });
+        setEditedResearch(normalizeMarketResearch(sr.marketResearch));
+        setEditedSectionSlides(sr.sectionSlides || {});
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         setJobCategory(data.jobCategory || sr.jobCategory || 'common');
         setEditedJobSpecific(sr.jobSpecific || {});
         setExportCoverImg(sr.exportConfig?.coverImg || null);
+        const savedExportSections = Array.isArray(sr.exportConfig?.draftSections) && sr.exportConfig.draftSections.length > 0
+          ? sr.exportConfig.draftSections
+          : sr.exportConfig?.sections;
+        if (Array.isArray(savedExportSections) && savedExportSections.length > 0) {
+          const savedSections = moveSlidesToStandaloneSection(savedExportSections.map((section, index) => ({
+            key: section.key || `saved-${index}`,
+            label: section.label || `섹션 ${index + 1}`,
+            type: section.type || 'custom',
+            content: sanitizeTextValue(section.content || ''),
+            blocks: Array.isArray(section.blocks) ? section.blocks : (section.content ? [makeTextBlock(section.content)] : []),
+            enabled: section.enabled !== false,
+          })));
+          setExportCustomSections(savedSections);
+          setActiveExportSectionKey(savedSections.find(section => !isSlideDeckSection(section))?.key || savedSections[0]?.key || null);
+        }
         if (!viewOnly) {
           // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
           const autoEdit = {};
@@ -292,15 +1129,74 @@ export default function StructuredResult() {
   };
 
   const handleFieldChange = (key, value) => {
+    const cleanValue = sanitizeTextValue(value);
     // 빈칸/초안 → 충분한 내용으로 완성될 때 섹션 완성 피드백
     const currentVal = editedContent[key];
     const wasEmpty = !currentVal?.trim() || currentVal.trim().startsWith('[작성 필요]');
-    const isNowFilled = !!value.trim() && !value.trim().startsWith('[작성 필요]') && value.trim().length > 15;
-    setEditedContent(prev => ({ ...prev, [key]: value }));
+    const isNowFilled = !!cleanValue.trim() && !cleanValue.trim().startsWith('[작성 필요]') && cleanValue.trim().length > 15;
+    setEditedContent(prev => ({ ...prev, [key]: cleanValue }));
     if (wasEmpty && isNowFilled) {
       setFlashedSection(key);
       setTimeout(() => setFlashedSection(null), 1300);
     }
+  };
+
+  const handleSlideFieldChange = (sectionKey, field, value) => {
+    const cleanValue = sanitizeTextValue(value);
+    setEditedSectionSlides(prev => ({
+      ...prev,
+      [sectionKey]: {
+        ...(prev[sectionKey] || {}),
+        _manual: true,
+        [field]: cleanValue,
+      },
+    }));
+  };
+
+  const handleSlideCardChange = (sectionKey, cardIndex, field, value, baseCard = {}) => {
+    const cleanValue = sanitizeTextValue(value);
+    setEditedSectionSlides(prev => {
+      const currentSlide = prev[sectionKey] || {};
+      const currentCards = Array.isArray(currentSlide.evidenceCards) ? currentSlide.evidenceCards : [];
+      const nextCards = [...currentCards];
+      nextCards[cardIndex] = { ...baseCard, ...(nextCards[cardIndex] || {}), [field]: cleanValue };
+      return {
+        ...prev,
+        [sectionKey]: {
+          ...currentSlide,
+          _manual: true,
+          evidenceCards: nextCards,
+        },
+      };
+    });
+  };
+
+  const updateDecisionMetric = (index, field, value) => {
+    setEditedResearch(prev => ({
+      ...prev,
+      decisionMetrics: prev.decisionMetrics.map((item, i) => i === index ? { ...item, [field]: value } : item),
+    }));
+  };
+
+  const addDecisionMetric = () => {
+    setEditedResearch(prev => ({
+      ...prev,
+      decisionMetrics: [...prev.decisionMetrics, { metric: '', whyItMatters: '', recommendedProxy: '', researchBasis: '', confidence: 'medium' }],
+    }));
+  };
+
+  const removeDecisionMetric = (index) => {
+    setEditedResearch(prev => ({
+      ...prev,
+      decisionMetrics: prev.decisionMetrics.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateSourceNote = (index, field, value) => {
+    setEditedResearch(prev => ({
+      ...prev,
+      sourceNotes: prev.sourceNotes.map((item, i) => i === index ? { ...item, [field]: value } : item),
+    }));
   };
 
   const toggleEditing = (key) => {
@@ -423,11 +1319,19 @@ export default function StructuredResult() {
         const startIdx = allImages.length;
         const updatedAll = [...allImages, ...newImgs];
         setAllImages(updatedAll);
-        const unassigned = [...(sectionImages._unassigned || []), ...newImgs.map((_, i) => startIdx + i)];
-        const updatedSection = { ...sectionImages, _unassigned: unassigned };
+        const targetKey = imageUploadTarget || '_unassigned';
+        const targetImages = [...(sectionImages[targetKey] || []), ...newImgs.map((_, i) => startIdx + i)];
+        const updatedSection = { ...sectionImages, [targetKey]: targetImages };
+        const updatedImageConfig = { ...imageConfig };
+        if (targetKey !== '_unassigned') {
+          newImgs.forEach((_, i) => {
+            updatedImageConfig[`${targetKey}:${startIdx + i}`] = { size: 'lg' };
+          });
+        }
         setSectionImages(updatedSection);
+        setImageConfig(updatedImageConfig);
         const docRef = doc(db, 'experiences', id);
-        await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, updatedAt: new Date() });
+        await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, imageConfig: updatedImageConfig, updatedAt: new Date() });
         toast.success(`${newImgs.length}장 업로드 완료`);
       }
     } catch (err) {
@@ -435,7 +1339,13 @@ export default function StructuredResult() {
       toast.error('이미지 업로드 실패');
     }
     setUploadingImage(false);
+    setImageUploadTarget('_unassigned');
     e.target.value = '';
+  };
+
+  const openSlideImagePicker = (sectionKey) => {
+    setImageUploadTarget(sectionKey);
+    imageInputRef.current?.click();
   };
 
   const handleImageDelete = async (imgIdx) => {
@@ -445,11 +1355,20 @@ export default function StructuredResult() {
       .map(i => i > imgIdx ? i - 1 : i);
     const updatedSection = {};
     Object.entries(sectionImages).forEach(([k, v]) => { updatedSection[k] = remap(v); });
+    const updatedImageConfig = {};
+    Object.entries(imageConfig || {}).forEach(([key, value]) => {
+      const [sectionKey, rawIdx] = key.split(':');
+      const currentIdx = Number(rawIdx);
+      if (!sectionKey || Number.isNaN(currentIdx) || currentIdx === imgIdx) return;
+      const nextIdx = currentIdx > imgIdx ? currentIdx - 1 : currentIdx;
+      updatedImageConfig[`${sectionKey}:${nextIdx}`] = value;
+    });
     setAllImages(updatedAll);
     setSectionImages(updatedSection);
+    setImageConfig(updatedImageConfig);
     try {
       const docRef = doc(db, 'experiences', id);
-      await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, updatedAt: new Date() });
+      await updateDoc(docRef, { images: updatedAll, sectionImages: updatedSection, imageConfig: updatedImageConfig, updatedAt: new Date() });
     } catch {}
   };
 
@@ -563,6 +1482,8 @@ export default function StructuredResult() {
 
   const handleSave = async () => {
     setSaving(true);
+    const sliderDraft = sliderRef.current?.saveEditing?.();
+    const keyExperiencesForSave = Array.isArray(sliderDraft) ? sliderDraft : editedKeyExperiences;
     // 저장 전 현재 상태를 히스토리에 스냅샷 저장 → 저장 후에도 되돌리기 가능
     pushEditSnapshot(id, {
       content: { ...editedContent },
@@ -571,34 +1492,43 @@ export default function StructuredResult() {
     });
     try {
       const ref = doc(db, 'experiences', id);
+      const cleanEditedContent = sanitizeTextObject(editedContent);
+      const cleanOverview = sanitizeTextObject(editedOverview);
+      const cleanSectionSlides = Object.fromEntries(Object.entries(editedSectionSlides).map(([key, slide]) => [key, {
+        ...slide,
+        kicker: sanitizeTextValue(slide?.kicker || ''),
+        headline: sanitizeTextValue(slide?.headline || ''),
+        subcopy: sanitizeTextValue(slide?.subcopy || ''),
+        evidenceCards: Array.isArray(slide?.evidenceCards) ? slide.evidenceCards.map(card => sanitizeTextObject(card)) : slide?.evidenceCards,
+      }]));
+      const cleanExportSections = moveSlidesToStandaloneSection(exportCustomSections);
+      const cleanEnabledExportSections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide')));
       const updatedStructured = {
         ...(experience.structuredResult || {}),
-        ...editedContent,
-        projectOverview: { ...editedOverview },
+        ...cleanEditedContent,
+        projectOverview: { ...cleanOverview },
+        marketResearch: { ...editedResearch },
+        sectionSlides: { ...cleanSectionSlides },
         keywords: editedKeywords,
-        keyExperiences: editedKeyExperiences,
+        keyExperiences: keyExperiencesForSave,
         jobCategory,
         jobSpecific: editedJobSpecific,
         exportConfig: (() => {
           const prevCfg = experience?.structuredResult?.exportConfig || {};
-          const order = prevCfg.sectionOrder?.length ? prevCfg.sectionOrder : exportOrder;
-          const enabled = prevCfg.enabledMap || exportEnabled;
-          const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
-          const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
-          const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
-          const getSec = (key) => {
-            const jd = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
-            return jd ? (editedJobSpecific[key] || '') : (editedContent[key] || '');
-          };
+          const sections = cleanEnabledExportSections.map(section => ({
+            key: section.key,
+            label: section.label,
+            type: section.type || 'custom',
+            content: section.content,
+            blocks: section.blocks || [],
+          }));
           return {
             ...prevCfg,
-            sectionOrder: order,
-            enabledMap: enabled,
+            sectionOrder: cleanExportSections.map(section => section.key),
+            enabledMap: Object.fromEntries(cleanExportSections.map(section => [section.key, section.enabled !== false])),
             coverImg: exportCoverImg || prevCfg.coverImg || null,
-            sections: order
-              .filter(k => enabled[k] !== false)
-              .map(k => ({ key: k, label: allSectMap[k]?.label || k, type: allSectMap[k]?.type || 'base', content: getSec(k) }))
-              .filter(s => s.content?.trim()),
+            sections,
+            draftSections: cleanExportSections,
           };
         })(),
       };
@@ -627,6 +1557,211 @@ export default function StructuredResult() {
 
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
+  const firstIncompleteSlideIdx = SECTION_KEYS.findIndex(k => {
+    const value = editedContent[k]?.trim();
+    return !value || value.startsWith('[작성 필요]');
+  });
+
+  const buildDefaultExportSections = () => {
+    const metaLines = [
+      editedOverview.duration && `기간: ${editedOverview.duration}`,
+      editedOverview.role && `역할: ${editedOverview.role}`,
+      editedOverview.team && `팀 구성: ${editedOverview.team}`,
+      editedOverview.scopeOfImpact && `영향 범위: ${editedOverview.scopeOfImpact}`,
+      editedOverview.techStack?.length > 0 && `기술: ${editedOverview.techStack.join(', ')}`,
+      editedKeywords.length > 0 && `키워드: ${editedKeywords.map(kw => typeof kw === 'string' ? kw : kw?.name || kw?.keyword || '').filter(Boolean).join(', ')}`,
+      editedOverview.goal && `목표: ${editedOverview.goal}`,
+    ].filter(Boolean).join('\n');
+    const keyExperienceText = editedKeyExperiences.map((item, index) => [
+      `${index + 1}. ${item.title || '핵심 경험'}`,
+      item.metric || item.afterMetric ? `성과: ${item.afterMetric || item.metric}` : '',
+      item.context ? `상황: ${item.context}` : '',
+      item.action ? `행동: ${item.action}` : '',
+      item.result ? `결과: ${item.result}` : '',
+      item.learning ? `학습: ${item.learning}` : '',
+    ].filter(Boolean).join('\n')).join('\n\n');
+    const researchText = [
+      editedResearch.marketOverview,
+      ...(editedResearch.decisionMetrics || []).map(item => [
+        item.metric && `지표: ${item.metric}`,
+        item.whyItMatters && `중요도: ${item.whyItMatters}`,
+        item.recommendedProxy && `확인 방법: ${item.recommendedProxy}`,
+        item.researchBasis && `근거: ${item.researchBasis}`,
+      ].filter(Boolean).join('\n')),
+      editedResearch.limitations && `검증 필요: ${editedResearch.limitations}`,
+    ].filter(Boolean).join('\n\n');
+    const jobSections = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(field => ({
+      key: `job-${field.key}`,
+      sourceKey: field.key,
+      label: field.label,
+      type: 'job',
+      content: editedJobSpecific[field.key] || '',
+      enabled: !!(editedJobSpecific[field.key] || '').trim(),
+    }));
+    const baseSections = SECTION_KEYS.map(key => ({
+      key,
+      sourceKey: key,
+      label: SECTION_META[key].label,
+      type: 'base',
+      content: editedContent[key] || '',
+      enabled: true,
+    }));
+    return [
+      { key: 'project-meta', label: '프로젝트 정보', type: 'meta', content: metaLines, enabled: true },
+      { key: 'key-experiences', label: '핵심 경험 & 성과', type: 'summary', content: keyExperienceText, enabled: editedKeyExperiences.length > 0 },
+      { key: 'market-research', label: '시장/지표 리서치', type: 'research', content: researchText, enabled: !!researchText.trim() },
+      ...jobSections,
+      ...baseSections,
+    ].map(section => normalizeExportSection({ ...section, blocks: section.content ? [makeTextBlock(section.content)] : [] }));
+  };
+
+  const normalizedExportSections = moveSlidesToStandaloneSection(exportCustomSections);
+  const enabledExportSections = normalizedExportSections
+    .filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide')));
+  const activeExportSectionRaw = normalizedExportSections.find(section => section.key === activeExportSectionKey) || normalizedExportSections.find(section => !isSlideDeckSection(section)) || normalizedExportSections[0];
+  const activeExportSection = activeExportSectionRaw ? normalizeExportSection(activeExportSectionRaw) : null;
+  const activeIsSlideDeck = activeExportSection ? isSlideDeckSection(activeExportSection) : false;
+  const slideDeckSection = normalizedExportSections.find(isSlideDeckSection) || createSlideDeckSection([]);
+  const slideDeckBlocks = slideDeckSection.blocks.filter(block => block.type === 'slide');
+
+  const updateExportSection = (key, patch) => {
+    const cleanPatch = sanitizeTextObject(patch);
+    setExportCustomSections(prev => prev.map(section => {
+      if (section.key !== key) return section;
+      const next = { ...section, ...cleanPatch };
+      if (Object.prototype.hasOwnProperty.call(cleanPatch, 'content') && !Object.prototype.hasOwnProperty.call(cleanPatch, 'blocks')) {
+        next.blocks = syncTextBlock(section.blocks || [], cleanPatch.content);
+      }
+      return normalizeExportSection(next);
+    }));
+  };
+
+  const addExportSection = () => {
+    const key = `custom-${Date.now()}`;
+    const next = normalizeExportSection({ key, label: '새 섹션', type: 'custom', content: '', blocks: [makeTextBlock('')], enabled: true });
+    setExportCustomSections(prev => [...prev, next]);
+    setActiveExportSectionKey(key);
+  };
+
+  const removeExportSection = (key) => {
+    setExportCustomSections(prev => {
+      const next = prev.filter(section => section.key !== key);
+      if (activeExportSectionKey === key) setActiveExportSectionKey(next[0]?.key || null);
+      return next;
+    });
+  };
+
+  const updateExportBlock = (sectionKey, blockId, patch) => {
+    setExportCustomSections(prev => prev.map(section => {
+      if (section.key !== sectionKey) return section;
+      const blocks = normalizeExportSection(section).blocks.map(normalizePortfolioBlock).filter(Boolean).map(block => {
+        if (block.id !== blockId) return block;
+        return normalizePortfolioBlock({ ...block, ...patch });
+      });
+      return normalizeExportSection({ ...section, blocks, content: portfolioBlocksToText(blocks) });
+    }));
+  };
+
+  const removeExportBlock = (sectionKey, blockId) => {
+    setExportCustomSections(prev => prev.map(section => {
+      if (section.key !== sectionKey) return section;
+      const blocks = normalizeExportSection(section).blocks.map(normalizePortfolioBlock).filter(Boolean).filter(block => block.id !== blockId);
+      return normalizeExportSection({ ...section, blocks, content: portfolioBlocksToText(blocks) });
+    }));
+  };
+
+  const moveExportBlock = (sectionKey, blockId, dir) => {
+    setExportCustomSections(prev => prev.map(section => {
+      if (section.key !== sectionKey) return section;
+      const blocks = normalizeExportSection(section).blocks.map(normalizePortfolioBlock).filter(Boolean);
+      const index = blocks.findIndex(block => block.id === blockId);
+      const target = index + dir;
+      if (index < 0 || target < 0 || target >= blocks.length) return section;
+      const nextBlocks = [...blocks];
+      [nextBlocks[index], nextBlocks[target]] = [nextBlocks[target], nextBlocks[index]];
+      return normalizeExportSection({ ...section, blocks: nextBlocks, content: portfolioBlocksToText(nextBlocks) });
+    }));
+  };
+
+  const addExportTextBlock = (sectionKey) => {
+    setExportCustomSections(prev => prev.map(section => {
+      if (section.key !== sectionKey) return section;
+      const blocks = [...(normalizeExportSection(section).blocks.map(normalizePortfolioBlock).filter(Boolean)), makeTextBlock('')];
+      return normalizeExportSection({ ...section, blocks, content: portfolioBlocksToText(blocks) });
+    }));
+  };
+
+  const buildCurrentSlideBlock = (slideKey) => {
+    const sr = experience?.structuredResult || {};
+    const slide = normalizeSectionSlide({
+      key: slideKey,
+      content: editedContent[slideKey] || '',
+      structured: { ...sr, sectionSlides: { ...(sr.sectionSlides || {}), ...editedSectionSlides } },
+      research: editedResearch,
+      keyExperiences: editedKeyExperiences,
+      overview: editedOverview,
+    });
+    return buildSlideExportBlock(slideKey, slide, editedContent[slideKey] || '', SECTION_META[slideKey]?.label || slideKey);
+  };
+
+  const updateSlideDeck = (updater) => {
+    setExportCustomSections(prev => {
+      const sections = moveSlidesToStandaloneSection(prev);
+      const deckIndex = sections.findIndex(isSlideDeckSection);
+      const deck = deckIndex >= 0 ? sections[deckIndex] : createSlideDeckSection([]);
+      const nextDeck = normalizeExportSection(updater(deck));
+      if (deckIndex >= 0) return sections.map((section, index) => index === deckIndex ? nextDeck : section);
+      return [...sections, nextDeck];
+    });
+  };
+
+  const addExportSlideBlock = (slideKey) => {
+    const slideBlock = buildCurrentSlideBlock(slideKey);
+    updateSlideDeck(deck => {
+      const blocks = [...deck.blocks.filter(block => block.type === 'slide'), slideBlock];
+      return createSlideDeckSection(blocks, true, deck.label || '상세 슬라이드');
+    });
+    toast.success('상세 슬라이드에 추가되었습니다');
+  };
+
+  const addAllExportSlideBlocks = () => {
+    const blocks = SECTION_KEYS.map(buildCurrentSlideBlock);
+    updateSlideDeck(deck => createSlideDeckSection(blocks, true, deck.label || '상세 슬라이드'));
+    toast.success('7개 상세 슬라이드를 구성했습니다');
+  };
+
+  const addExportImageBlock = async (sectionKey, file) => {
+    if (!file || !file.type?.startsWith('image/')) return;
+    try {
+      const base64 = await resizeToBase64(file, 1400, 0.8);
+      const imageBlock = normalizePortfolioBlock({ type: 'image', content: base64, alt: file.name, width: '100%' });
+      setExportCustomSections(prev => prev.map(section => {
+        if (section.key !== sectionKey) return section;
+        const blocks = [...(normalizeExportSection(section).blocks.map(normalizePortfolioBlock).filter(Boolean)), imageBlock];
+        return normalizeExportSection({ ...section, blocks, content: portfolioBlocksToText(blocks) });
+      }));
+      toast.success('이미지가 섹션에 추가되었습니다');
+    } catch {
+      toast.error('이미지 추가에 실패했습니다');
+    }
+  };
+
+  const moveExportCustomSection = (key, dir) => {
+    setExportCustomSections(prev => {
+      const index = prev.findIndex(section => section.key === key);
+      const target = index + dir;
+      if (index < 0 || target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const resetExportSectionsFromPage = () => {
+    const defaults = buildDefaultExportSections();
+    setExportCustomSections(defaults);
+    setActiveExportSectionKey(defaults[0]?.key || null);
+  };
 
   /* ── 포트폴리오 내보내기 섹션 목록 초기화 ── */
   useEffect(() => {
@@ -637,40 +1772,37 @@ export default function StructuredResult() {
     const enabled = {};
     allSects.forEach(s => { enabled[s.key] = true; });
     setExportEnabled(enabled);
-  }, [jobCategory]);
+    setExportCustomSections(prev => {
+      if (prev.length > 0) return prev;
+      const defaults = buildDefaultExportSections();
+      setActiveExportSectionKey(defaults[0]?.key || null);
+      return defaults;
+    });
+  }, [jobCategory, experience?.id]);
 
   /* 포트폴리오 내보내기 핸들러 */
   const handleExportToPortfolio = () => {
-    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
-    const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
-    const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
-
-    // 선택된 섹션만, 사용자 지정 순서로
-    const orderedEnabled = exportOrder.filter(k => exportEnabled[k]);
     const sr = experience?.structuredResult || {};
-
-    // 각 섹션의 내용 매핑
-    const getSectionContent = (key) => {
-      const jobSectDef = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
-      if (jobSectDef) return editedJobSpecific[key] || sr.jobSpecific?.[key] || '';
-      return editedContent[key] || sr[key] || '';
-    };
+    const cleanSections = enabledExportSections.map(normalizeExportSection);
+    const sections = cleanSections.map(section => ({
+      key: section.key,
+      label: section.label,
+      type: section.type || 'custom',
+      content: section.content,
+      blocks: section.blocks || [],
+    }));
 
     const exportConfig = {
       experienceId: id,
       title: editedTitle,
       jobCategory,
-      sectionOrder: orderedEnabled,
-      sections: orderedEnabled.map(key => ({
-        key,
-        label: allSectMap[key]?.label || key,
-        type: allSectMap[key]?.type || 'base',
-        content: getSectionContent(key),
-      })).filter(s => s.content?.trim()),
-      structuredResult: { ...sr, ...editedContent, jobSpecific: editedJobSpecific },
+      sectionOrder: sections.map(section => section.key),
+      sections,
+      structuredResult: { ...sr, ...editedContent, projectOverview: editedOverview, marketResearch: editedResearch, sectionSlides: editedSectionSlides, jobSpecific: editedJobSpecific },
       keywords: editedKeywords,
       keyExperiences: editedKeyExperiences,
       projectOverview: editedOverview,
+      marketResearch: editedResearch,
       coverImg: exportCoverImg || sr.exportConfig?.coverImg || null,
     };
 
@@ -679,24 +1811,19 @@ export default function StructuredResult() {
 
   /* 포트폴리오 미리보기 - 섹션 구성 Firestore 저장 */
   const handleSaveExportConfig = async () => {
-    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
-    const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
-    const allSectMap = Object.fromEntries([...jobSects, ...baseSects].map(s => [s.key, s]));
-    const orderedEnabled = exportOrder.filter(k => exportEnabled[k] !== false);
-    const getSectionContent = (key) => {
-      const jobDef = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
-      if (jobDef) return editedJobSpecific[key] || '';
-      return editedContent[key] || '';
-    };
+    const cleanExportSections = moveSlidesToStandaloneSection(exportCustomSections);
+    const sections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide'))).map(section => ({
+      key: section.key,
+      label: section.label,
+      type: section.type || 'custom',
+      content: section.content,
+      blocks: section.blocks || [],
+    }));
     const exportConfigData = {
-      sectionOrder: exportOrder,
-      enabledMap: exportEnabled,
-      sections: orderedEnabled.map(key => ({
-        key,
-        label: allSectMap[key]?.label || key,
-        type: allSectMap[key]?.type || 'base',
-        content: getSectionContent(key),
-      })).filter(s => s.content?.trim()),
+      sectionOrder: cleanExportSections.map(section => section.key),
+      enabledMap: Object.fromEntries(cleanExportSections.map(section => [section.key, section.enabled !== false])),
+      sections,
+      draftSections: cleanExportSections,
       coverImg: exportCoverImg || null,
       savedAt: new Date(),
     };
@@ -729,18 +1856,25 @@ export default function StructuredResult() {
 
   /* 페이지 전체 품질 체크리스트 */
   const qualityChecks = [
-    { id: 'title',          label: '프로젝트 제목',     check: () => !!editedTitle.trim() },
-    { id: 'techStack',      label: '기술 스택 입력',    check: () => editedOverview.techStack.length > 0 },
-    { id: 'keywords',       label: '키워드 3개 이상',   check: () => editedKeywords.length >= 3 },
-    { id: 'keyExperiences', label: '핵심 경험 추가',    check: () => editedKeyExperiences.length > 0 },
-    { id: 'role',           label: '내 역할 명시',      check: () => !!editedOverview.role?.trim() },
-    { id: 'duration',       label: '프로젝트 기간',     check: () => !!editedOverview.duration?.trim() },
-    { id: 'metrics',        label: '수치/성과 포함',    check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) },
-    { id: 'images',         label: '이미지 첨부',       check: () => allImages.length > 0 },
-    { id: 'sections',       label: `7개 섹션 완성 (${filledCount}/7)`, check: () => filledCount === 7 },
+    { id: 'title',          label: '슬라이드 제목/프로젝트명', targetSlide: 0, check: () => !!editedTitle.trim(), tip: '소개 슬라이드의 제목은 프로젝트명보다 한 단계 구체적으로, 문제와 결과가 보이게 다듬어 주세요.' },
+    { id: 'meta',           label: '소개 슬라이드 메타 입력', targetSlide: 0, check: () => !!editedOverview.duration?.trim() && !!editedOverview.role?.trim() && !!editedOverview.team?.trim(), tip: '기간, 역할, 팀 구성은 읽는 사람이 프로젝트 규모와 본인 기여 범위를 바로 판단하는 기준입니다.' },
+    { id: 'techStack',      label: '기술 스택 입력', targetSlide: 0, check: () => editedOverview.techStack.length > 0, tip: '기술 스택은 많이 나열하기보다 이 경험의 핵심 판단에 쓰인 도구를 우선 배치해 주세요.' },
+    { id: 'keywords',       label: '키워드 3개 이상', targetSlide: 0, check: () => editedKeywords.length >= 3, tip: '키워드는 역할, 문제 해결 방식, 성과 방향이 섞이도록 3개 이상 구성하면 슬라이드 인상이 선명해집니다.' },
+    { id: 'keyExperiences', label: '핵심 경험 슬라이드 추가', targetSlide: 3, check: () => editedKeyExperiences.length > 0, tip: '핵심 경험은 행동 나열보다 의사결정의 이유와 trade-off가 보이게 정리하면 좋습니다.' },
+    { id: 'research',       label: '시장/지표 근거 보강', targetSlide: 1, check: () => !!editedResearch.marketOverview?.trim() || editedResearch.decisionMetrics.length > 0, tip: '시장/지표 근거는 내 성과로 둔갑시키지 말고, 판단 기준이나 비교 기준으로 연결해 주세요.' },
+    { id: 'metrics',        label: '수치/성과 근거 포함', targetSlide: 4, check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) || editedKeyExperiences.some(k => k.metric || k.afterMetric), tip: '성과 슬라이드에는 전후 변화, 처리량, 시간 절감, 사용자 반응처럼 검증 가능한 수치를 우선 배치해 주세요.' },
+    { id: 'images',         label: '슬라이드 이미지 배치', targetSlide: sectionSlideIdx, check: () => allImages.length > 0, tip: '이미지는 설명을 대신하는 증거로 쓰는 게 좋아요. 현재 슬라이드에서 결과물, 화면, 구조도를 필요한 위치에 배치해 보세요.' },
+    { id: 'sections',       label: `${SECTION_COUNT}개 섹션 완성 (${filledCount}/${SECTION_COUNT})`, targetSlide: firstIncompleteSlideIdx >= 0 ? firstIncompleteSlideIdx : 0, check: () => filledCount === SECTION_COUNT, tip: '비어 있는 섹션부터 채우면 전체 흐름이 빨리 안정됩니다. 각 슬라이드는 배경, 문제, 행동, 결과가 겹치지 않게 역할을 나눠 주세요.' },
   ];
   const passedChecks = qualityChecks.filter(c => c.check()).length;
   const qualityPct = Math.round((passedChecks / qualityChecks.length) * 100);
+  const activeQualityCheck = qualityChecks.find(item => item.id === activeQualityId) || qualityChecks.find(item => !item.check()) || qualityChecks[0];
+  const handleQualityCheckClick = (item) => {
+    const nextSlideIdx = Math.min(item.targetSlide ?? 0, SECTION_COUNT - 1);
+    setActiveQualityId(item.id);
+    setSectionSlideIdx(nextSlideIdx);
+    detailSlidesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   if (loading) {
     return (
@@ -758,19 +1892,120 @@ export default function StructuredResult() {
   const followUpQuestions = structured.followUpQuestions || [];
 
   /* 작성 완성도 % */
-  const completionPct = Math.round((filledCount / 7) * 100);
-  const overviewSummary = editedOverview.summary || editedOverview.background || '';
-  const heroMetaItems = [
-    editedOverview.duration && { label: '기간', value: editedOverview.duration },
-    editedOverview.role && { label: '역할', value: editedOverview.role },
-    editedOverview.team && { label: '팀', value: editedOverview.team },
-  ].filter(Boolean);
-  const heroStats = [
-    { label: '완성도', value: `${completionPct}%` },
-    { label: '핵심 경험', value: `${editedKeyExperiences.length}개` },
-    { label: '키워드', value: `${editedKeywords.length}개` },
-    { label: '이미지', value: `${allImages.length}장` },
-  ];
+  const completionPct = Math.round((filledCount / SECTION_COUNT) * 100);
+
+  const renderDetailSlides = () => (
+    <div ref={detailSlidesRef} className="mb-5 scroll-mt-6">
+      <div className="mb-4 border-b border-surface-200 pb-3">
+        <h1 className="text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-surface-200">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-surface-200 bg-white">
+          <span className="text-[13px] text-bluewood-300 font-medium">{filledCount}/{SECTION_COUNT} 완성</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSectionSlideIdx(i => Math.max(0, i - 1))}
+            disabled={sectionSlideIdx === 0}
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronLeft size={15} />
+          </button>
+          <div className="flex items-center gap-1.5 px-2">
+            {SECTION_KEYS.map((key, index) => {
+              const value = editedContent[key] || '';
+              const done = value.trim() && !value.trim().startsWith('[작성 필요]');
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSectionSlideIdx(index)}
+                  title={SECTION_META[key].label}
+                  className={`h-2 rounded-full transition-all ${index === sectionSlideIdx ? 'w-6 bg-primary-600' : done ? 'w-2 bg-caribbean-400' : 'w-2 bg-surface-300 hover:bg-bluewood-300'}`}
+                />
+              );
+            })}
+          </div>
+          <span className="min-w-[44px] text-center text-[13px] font-semibold text-bluewood-400 tabular-nums">{sectionSlideIdx + 1}/{SECTION_COUNT}</span>
+          <button
+            onClick={() => setSectionSlideIdx(i => Math.min(SECTION_COUNT - 1, i + 1))}
+            disabled={sectionSlideIdx === SECTION_COUNT - 1}
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+
+      {(structured.highlights || []).length > 0 && (
+        <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
+          {Object.entries(highlightColors).map(([key, color]) => (
+            <div key={key} className="flex items-center gap-2 text-[13px] text-bluewood-500">
+              <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
+              {color.label}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        {[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].map(key => {
+          const meta = SECTION_META[key];
+          const value = editedContent[key] || '';
+          const isEditing = editingSections[key];
+          const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
+          const slide = normalizeSectionSlide({
+            key,
+            content: value,
+            structured: { ...structured, sectionSlides: { ...(structured.sectionSlides || {}), ...editedSectionSlides } },
+            research: editedResearch,
+            keyExperiences: editedKeyExperiences,
+            overview: editedOverview,
+          });
+          const imageProps = {
+            sectionImages,
+            allImages,
+            imageConfig,
+            setImageConfig,
+            dragInfo,
+            dropTarget,
+            setDropTarget,
+            handleDragStart,
+            handleDragEnd,
+            handleImageDrop,
+            handleImageDelete,
+          };
+
+          return (
+            <PortfolioSectionSlide
+              key={key}
+              sectionKey={key}
+              meta={meta}
+              overview={editedOverview}
+              onOverviewChange={(overviewKey, overviewValue) => setEditedOverview(prev => ({ ...prev, [overviewKey]: sanitizeTextValue(overviewValue) }))}
+              value={value}
+              slide={slide}
+              isEditing={isEditing}
+              viewOnly={viewOnly}
+              field={field}
+              structured={structured}
+              editedKeywords={editedKeywords}
+              onChange={(nextValue) => handleFieldChange(key, nextValue)}
+              onSlideFieldChange={handleSlideFieldChange}
+              onSlideCardChange={handleSlideCardChange}
+              onEdit={() => handleStartEditing(key)}
+              onDone={() => toggleEditing(key)}
+              imageProps={imageProps}
+              onAddImage={() => openSlideImagePicker(key)}
+              uploadingImage={uploadingImage}
+              dragInfo={dragInfo}
+              dropTarget={dropTarget}
+              setDropTarget={setDropTarget}
+              handleSectionDrop={handleSectionDrop}
+            />
+          );
+        })}
+      </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -782,7 +2017,10 @@ export default function StructuredResult() {
         </Link>
         {viewOnly ? (
           <button
-            onClick={() => navigate(`/app/experience/structured/${id}`)}
+            onClick={() => {
+              openAllSections();
+              navigate(`/app/experience/structured/${id}`);
+            }}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[13px] font-medium hover:bg-surface-50 transition-colors"
           >
             <PenLine size={14} />
@@ -832,28 +2070,10 @@ export default function StructuredResult() {
                     <Undo2 size={12} /> ({sliderDeletedCount})
                   </button>
                 )}
-                {/* 수정 / 저장·취소·삭제 */}
-                {!sliderEditing ? (
-                  <button onClick={() => sliderRef.current?.startEditing()}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-500 border-surface-200 hover:bg-surface-50 transition-all shadow-sm">
-                    <PenLine size={13} /> 수정
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={() => sliderRef.current?.deleteSlide()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 transition-all">
-                      <Trash2 size={13} /> 삭제
-                    </button>
-                    <button onClick={() => sliderRef.current?.cancelEditing()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-bluewood-400 border-surface-200 hover:bg-surface-50 transition-all">
-                      <X size={13} /> 취소
-                    </button>
-                    <button onClick={() => sliderRef.current?.saveEditing()}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-primary-600 text-white border-primary-600 hover:bg-primary-700 transition-all">
-                      <Check size={13} /> 저장
-                    </button>
-                  </>
-                )}
+                <button onClick={() => sliderRef.current?.deleteSlide()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 transition-all">
+                  <Trash2 size={13} /> 삭제
+                </button>
                 <div className="w-px h-6 bg-surface-200 mx-1" />
               </>
             )}
@@ -872,376 +2092,28 @@ export default function StructuredResult() {
         )}
       </div>
 
-      <section className="mb-5 overflow-hidden rounded-[24px] border border-surface-200 bg-white shadow-[0_14px_45px_rgba(15,23,42,0.06)]">
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="p-6 lg:p-7">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary-600 px-3 py-1 text-[12px] font-bold text-white">경험 리포트</span>
-              {heroMetaItems.map(item => (
-                <span key={item.label} className="rounded-full border border-surface-200 bg-surface-50 px-3 py-1 text-[12px] font-semibold text-bluewood-500">
-                  {item.label} · {item.value}
-                </span>
-              ))}
-            </div>
-            <input
-              value={editedTitle}
-              onChange={e => setEditedTitle(e.target.value)}
-              readOnly={viewOnly}
-              className={`w-full bg-transparent text-[28px] font-extrabold leading-tight text-bluewood-900 outline-none sm:text-[34px] ${viewOnly ? '' : 'rounded-lg hover:bg-surface-50 focus:bg-surface-50'}`}
-              placeholder="프로젝트 제목"
-            />
-            <textarea
-              ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-              value={overviewSummary}
-              onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-              readOnly={viewOnly}
-              className={`mt-3 w-full resize-none overflow-hidden bg-transparent text-[14px] leading-7 text-bluewood-500 outline-none ${viewOnly ? '' : 'rounded-lg hover:bg-surface-50 focus:bg-surface-50'}`}
-              style={{ minHeight: '3.5rem' }}
-              placeholder="경험의 배경과 핵심 내용을 요약하세요"
-            />
-            {(editedOverview.techStack || []).length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {editedOverview.techStack.slice(0, 10).map((tech, i) => (
-                  <span key={`${tech}-${i}`} className="rounded-lg border border-surface-200 bg-surface-50 px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{tech}</span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="border-t border-surface-200 bg-gradient-to-br from-surface-50 to-white p-5 xl:border-l xl:border-t-0">
-            <div className="grid grid-cols-2 gap-3">
-              {heroStats.map(stat => (
-                <div key={stat.label} className="rounded-2xl border border-white bg-white p-4 shadow-sm">
-                  <p className="text-[12px] font-bold text-bluewood-300">{stat.label}</p>
-                  <p className="mt-1 text-[24px] font-extrabold text-primary-600">{stat.value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-200">
-              <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${completionPct}%` }} />
-            </div>
-          </div>
-        </div>
-      </section>
+      {renderDetailSlides()}
 
       {/* ── 메인 + 우측 기업분석 사이드바 ── */}
       <div className="flex gap-5 items-start">
         {/* 메인 콘텐츠 */}
         <div className="flex-1 min-w-0">
 
-      {/* ╔══════════════════════════════════════════════╗
-         ║  상단 대시보드: 좌 Overview + 우 핵심경험    ║
-         ╚══════════════════════════════════════════════╝ */}
-      <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-5 mb-5">
-
-        {/* ── 좌: 프로젝트 Overview (편집 가능) ── */}
-        <div className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-extrabold uppercase tracking-[0.12em] text-primary-600">Overview</h2>
-          </div>
-
-          {/* 프로젝트 타이틀 (편집) */}
-          <input
-            value={editedTitle}
-            onChange={e => setEditedTitle(e.target.value)}
-            readOnly={viewOnly}
-            className={`text-[16px] font-bold text-bluewood-900 leading-snug mb-2 bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-400'} focus:outline-none transition-colors px-0 py-0.5 w-full`}
-            placeholder="프로젝트 제목"
-          />
-
-          {/* 배경/요약 (편집) */}
-          <textarea
-            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-            value={editedOverview.background || editedOverview.summary || ''}
-            onChange={e => { setEditedOverview(prev => ({ ...prev, background: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-            readOnly={viewOnly}
-            className={`text-[13px] text-bluewood-500 leading-relaxed mb-4 bg-transparent border border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none rounded-lg p-1.5 resize-none transition-colors w-full overflow-hidden`}
-            style={{ minHeight: '4.5rem' }}
-            placeholder="프로젝트 배경 설명"
-          />
-
-          {/* 메타 항목 (편집) */}
-          <div className="space-y-3 mb-5">
-            {[
-              { key: 'goal',     label: '목표',   placeholder: '프로젝트 목표' },
-              { key: 'role',     label: '역할',   placeholder: '담당 역할' },
-              { key: 'team',     label: '팀 구성', placeholder: '팀 인원 / 구성' },
-              { key: 'duration', label: '기간',   placeholder: '2024.01 ~ 2024.06' },
-            ].map((item, i) => (
-              <div key={item.key} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-5 text-[13px] font-bold text-bluewood-300 mt-1.5">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[14px] font-semibold text-bluewood-700">{item.label}</span>
-                  <textarea
-                    ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                    value={editedOverview[item.key] || ''}
-                    onChange={e => { setEditedOverview(prev => ({ ...prev, [item.key]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                    readOnly={viewOnly}
-                    rows={1}
-                    className={`w-full text-[13px] text-bluewood-500 leading-relaxed bg-transparent border-b border-transparent ${viewOnly ? '' : 'hover:border-surface-200 focus:border-bluewood-300'} focus:outline-none transition-colors py-0.5 resize-none overflow-hidden`}
-                    placeholder={item.placeholder}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 기술 스택 (편집) */}
-          <div className="mb-4">
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {(Array.isArray(editedOverview.techStack) ? editedOverview.techStack : []).map((tech, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 rounded-md text-[13px] font-medium border border-surface-200 group/tech">
-                  {tech}
-                  {!viewOnly && (
-                    <button onClick={() => setEditedOverview(prev => ({ ...prev, techStack: prev.techStack.filter((_, j) => j !== i) }))}
-                      className="text-bluewood-300 hover:text-red-500 transition-colors ml-0.5 text-[14px]">×</button>
-                  )}
-                </span>
-              ))}
-            </div>
-            {!viewOnly && (
-            <div className="flex gap-1.5">
-              <input
-                value={newTechInput}
-                onChange={e => setNewTechInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newTechInput.trim()) {
-                    e.preventDefault();
-                    setEditedOverview(prev => ({ ...prev, techStack: [...(prev.techStack || []), newTechInput.trim()] }));
-                    setNewTechInput('');
-                  }
-                }}
-                className="flex-1 text-[14px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
-                placeholder="기술 추가 후 Enter"
-              />
-            </div>
-            )}
-          </div>
-
-          {/* 역량 키워드 — 카테고리·드래그·팝인 애니메이션 */}
-          <div className="mt-auto pt-4 border-t border-surface-100">
-            {/* 카테고리 범례 */}
-            {editedKeywords.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {KW_CATEGORY_ORDER.map(cat => {
-                  const cs = KW_CATEGORY_STYLES[cat];
-                  const count = editedKeywords.filter(k => (keywordCategories[k] || 'default') === cat).length;
-                  if (count === 0) return null;
-                  return (
-                    <span key={cat} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-semibold ${cs.bg} ${cs.text} ${cs.border} border`}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cs.dot }} />
-                      {cs.label} {count}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {editedKeywords.map((k, i) => {
-                const catKey = keywordCategories[k] || 'default';
-                const cs = KW_CATEGORY_STYLES[catKey];
-                const isNew = i === newKeywordIdx;
-                const isDragging = kwDragIdx === i;
-                const isOver = kwOverIdx === i && kwDragIdx !== i;
-                return (
-                  <span
-                    key={`${k}-${i}`}
-                    draggable={!viewOnly}
-                    onDragStart={() => !viewOnly && setKwDragIdx(i)}
-                    onDragOver={e => { e.preventDefault(); if (!viewOnly) setKwOverIdx(i); }}
-                    onDragEnd={handleKwDragEnd}
-                    onClick={() => !viewOnly && cycleKwCategory(k)}
-                    title={!viewOnly ? `${cs.label} — 클릭: 분류 변경 / 드래그: 순서 변경` : cs.label}
-                    className={[
-                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[13px] font-medium border transition-all duration-200 select-none',
-                      cs.bg, cs.text, cs.border,
-                      !viewOnly ? 'cursor-grab active:cursor-grabbing' : '',
-                      isNew ? 'animate-pop-in animate-skill-shimmer' : '',
-                      isDragging ? 'opacity-40 scale-95' : '',
-                      isOver ? 'ring-2 ring-offset-1 ring-bluewood-400 scale-[1.04]' : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cs.dot }} />
-                    {k}
-                    {!viewOnly && (
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          setEditedKeywords(prev => prev.filter((_, j) => j !== i));
-                          setKeywordCategories(prev => { const n = { ...prev }; delete n[k]; return n; });
-                        }}
-                        className="opacity-40 hover:opacity-100 hover:text-red-500 transition-all ml-0.5 text-[14px]"
-                      >×</button>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-            {!viewOnly && (
-              <>
-              <div className="flex gap-1.5">
-                <input
-                  value={newKeywordInput}
-                  onChange={e => setNewKeywordInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newKeywordInput.trim()) {
-                      e.preventDefault();
-                      const newIdx = editedKeywords.length;
-                      setEditedKeywords(prev => [...prev, newKeywordInput.trim()]);
-                      setNewKeywordIdx(newIdx);
-                      setTimeout(() => setNewKeywordIdx(null), 900);
-                      setNewKeywordInput('');
-                    }
-                  }}
-                  className="flex-1 text-[14px] bg-surface-50 border border-surface-200 rounded-md px-2 py-1 focus:outline-none focus:border-bluewood-300 transition-colors"
-                  placeholder="스킬 추가 후 Enter"
-                />
-              </div>
-              {editedKeywords.length > 0 && (
-                <p className="text-[14px] text-bluewood-300 mt-1.5 leading-relaxed">
-                  클릭해서 분류 변경 · 드래그해서 순서 변경
-                </p>
-              )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── 우: 핵심 경험 슬라이더 (편집 가능) ── */}
-        <div className="min-w-0">
-          <KeyExperienceSlider
-            ref={sliderRef}
-            keyExperiences={editedKeyExperiences}
-            onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
-            viewOnly={viewOnly}
-            hideHeader={!viewOnly}
-            onEditingChange={setSliderEditing}
-            onCurrentChange={setSliderCurrent}
-            onDeletedCountChange={setSliderDeletedCount}
-          />
-        </div>
+      {/* 핵심 경험 슬라이더 */}
+      <div className="mb-5">
+        <KeyExperienceSlider
+          ref={sliderRef}
+          keyExperiences={editedKeyExperiences}
+          onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
+          viewOnly={viewOnly}
+          forceEditing={!viewOnly}
+          hideHeader={!viewOnly}
+          onEditingChange={setSliderEditing}
+          onCurrentChange={setSliderCurrent}
+          onDeletedCountChange={setSliderDeletedCount}
+        />
       </div>
-
-      {/* ╔══════════════════════════════════════════════╗
-         ║  하단 좌: 작성 완성도 + 사진 / 우: 힌트     ║
-         ╚══════════════════════════════════════════════╝ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* 작성 완성도 — 페이지 전체 품질 체크리스트 */}
-        <div className="border border-surface-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-bold text-primary-600">작성 완성도</h3>
-            <span className="text-[14px] font-bold text-caribbean-600">{passedChecks}/{qualityChecks.length}</span>
-          </div>
-          {/* 프로그레스 바 */}
-          <div className="w-full h-1.5 bg-surface-100 rounded-full mb-4 overflow-hidden">
-            <div
-              className="h-full bg-primary-600 rounded-full transition-all duration-500"
-              style={{ width: `${qualityPct}%` }}
-            />
-          </div>
-          {/* 품질 체크리스트 */}
-          <ul className="space-y-2">
-            {qualityChecks.map(item => {
-              const passed = item.check();
-              return (
-                <li key={item.id} className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-primary-600' : 'bg-surface-100 border border-surface-200'}`}>
-                    {passed && (
-                      <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                        <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <span className={`text-[14px] font-medium leading-none ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>
-                    {item.label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {/* 사진 */}
-        <div 
-          className={`border border-surface-100 p-6 transition-colors ${dragInfo && dropTarget === '_unassigned' ? 'ring-2 ring-bluewood-200' : ''}`}
-          onDragOver={(e) => { if (dragInfo) { e.preventDefault(); setDropTarget('_unassigned'); } }}
-          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { if (dropTarget === '_unassigned') setDropTarget(null); } }}
-          onDrop={(e) => handleSectionDrop(e, '_unassigned')}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-bold text-primary-600">사진</h3>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              disabled={uploadingImage}
-              className="flex items-center gap-1 px-2.5 py-1 text-[14px] text-bluewood-500 hover:bg-surface-50 rounded-lg transition-colors border border-surface-200"
-            >
-              {uploadingImage ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
-              {uploadingImage ? '업로드중' : '추가'}
-            </button>
-            <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
-          </div>
-          {allImages.length > 0 ? (
-            (sectionImages._unassigned || []).length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {(sectionImages._unassigned || []).map((imgIdx, pos) => {
-                  const img = allImages[imgIdx];
-                  if (!img) return null;
-                  return (
-                    <div key={`unassigned-${imgIdx}`} draggable
-                      onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, '_unassigned', pos); }}
-                      onDragEnd={handleDragEnd}
-                      className="relative group cursor-grab active:cursor-grabbing">
-                      <img src={img.url} alt={img.name || '이미지'} className="w-16 h-12 object-cover rounded-lg border border-surface-200" />
-                      <div className="absolute top-0.5 left-0.5 opacity-0 group-hover:opacity-100 bg-black/50 rounded p-0.5 transition-opacity">
-                        <GripVertical size={10} className="text-white" />
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleImageDelete(imgIdx); }}
-                        className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center transition-opacity hover:bg-red-600"
-                      >
-                        <X size={9} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-bluewood-300 text-center py-3">모든 이미지 배치됨</p>
-            )
-          ) : (
-            <button onClick={() => imageInputRef.current?.click()}
-              className="w-full py-4 border-2 border-dashed border-surface-200 rounded-xl text-[14px] text-bluewood-300 hover:border-bluewood-300 hover:text-bluewood-400 transition-colors">
-              사진을 추가하세요
-            </button>
-          )}
-        </div>
-
-        {/* 힌트 & 가이드 */}
-        <div className="border border-surface-100 p-6">
-          <h3 className="text-[14px] font-bold text-primary-600 mb-3">작성 가이드</h3>
-          <ul className="space-y-2.5 text-[14px] text-bluewood-500 leading-relaxed">
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-bluewood-400 mt-1.5 flex-shrink-0" />
-              AI는 입력된 내용만 정리합니다.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
-              <strong>빈칸</strong> 섹션은 직접 채워주세요.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-caribbean-400 mt-1.5 flex-shrink-0" />
-              모든 섹션 완성 시 자소서·포트폴리오에 활용 가능
-            </li>
-          </ul>
-          {followUpQuestions.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-surface-100 space-y-2">
-              <p className="text-[13px] font-bold text-amber-500">빈칸 채우기 힌트</p>
-              {followUpQuestions.map((q, i) => (
-                <p key={i} className="text-[13px] text-bluewood-500 leading-relaxed">{q}</p>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
 
       {/* ╔══════════════════════════════════════════════╗
          ║  직군 특화 핵심 분석 섹션 (7개 섹션 위)       ║
@@ -1354,161 +2226,141 @@ export default function StructuredResult() {
       })()}
 
       {/* ╔══════════════════════════════════════════════╗
-         ║  하단: 상세 경험 정리 — 항상 펼쳐진 편집모드  ║
+         ║  시장/지표 리서치 보강                        ║
          ╚══════════════════════════════════════════════╝ */}
-      <div className="border border-surface-100 overflow-hidden">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[13px] font-bold text-primary-600">상세 경험 정리</h2>
-            <span className="text-[14px] text-bluewood-300 font-medium">{filledCount}/7 완성</span>
+      {(editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (
+        <div className="mt-5 border border-surface-200 overflow-hidden rounded-2xl">
+          <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-surface-200 bg-white">
+            <div>
+              <h2 className="text-[13px] font-bold text-primary-600">시장/지표 리서치</h2>
+              <p className="mt-1 text-[13px] text-bluewood-400">외부 자료는 비교 기준으로만 쓰고, 실제 프로젝트 수치는 직접 검증해 반영하세요.</p>
+            </div>
+            {!viewOnly && (
+              <button
+                onClick={addDecisionMetric}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">
+                <Plus size={13} /> 지표 추가
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-          </div>
-        </div>
 
-        {/* 하이라이트 범례 — 하이라이트 있으면 항상 표시 */}
-        {(structured.highlights || []).length > 0 && (
-          <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
-            {Object.entries(highlightColors).map(([key, color]) => (
-              <div key={key} className="flex items-center gap-2 text-[13px] text-bluewood-500">
-                <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
-                {color.label}
-              </div>
-            ))}
-          </div>
-        )}
+          <div className="p-6 space-y-5">
+            <div>
+              <p className="mb-2 text-[13px] font-bold text-bluewood-700">프로젝트와 연결되는 시장 맥락</p>
+              <textarea
+                value={editedResearch.marketOverview}
+                onChange={e => setEditedResearch(prev => ({ ...prev, marketOverview: e.target.value }))}
+                readOnly={viewOnly}
+                placeholder="프로젝트와 관련된 시장, 사용자 문제, 채용/JD 맥락이 여기에 정리됩니다."
+                className={`w-full min-h-[96px] resize-none rounded-xl border border-surface-200 bg-white p-4 text-[13px] leading-[1.8] text-bluewood-800 outline-none placeholder:text-bluewood-300 ${viewOnly ? '' : 'focus:ring-2 focus:ring-bluewood-200'}`}
+              />
+            </div>
 
-        {/* 섹션 본문 — 항상 펼쳐진 편집 모드 */}
-        <div className="divide-y divide-surface-100">
-          {SECTION_KEYS.map(key => {
-            const meta = SECTION_META[key];
-            const style = ACCENT_STYLES[meta.accent];
-            const value = editedContent[key] || '';
-            const isTrulyEmpty = !value.trim();
-            const isDraft = !isTrulyEmpty && value.trim().startsWith('[작성 필요]');
-            const isEmpty = isTrulyEmpty;
-            const isEditing = editingSections[key];
-            const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
-            const draftText = isDraft ? value.replace(/^\[작성 필요\]\s*/,'').trim() : '';
-
-            return (
-              <div key={key} className="group">
-                {/* 섹션 헤더 바 — 완성 시 brief glow */}
-                <div className={`flex items-center gap-4 px-6 py-3 transition-colors duration-300 ${
-                  flashedSection === key ? 'bg-caribbean-50/60 animate-section-glow' : 'bg-surface-50/30'
-                }`}>
-                  <span className={`flex-shrink-0 w-7 h-7 ${style.num} flex items-center justify-center text-[13px] font-bold`}>
-                    {meta.num}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-[13px] font-bold ${style.label}`}>{meta.label}</span>
-                    <span className="text-[13px] text-bluewood-300 ml-2">{meta.subtitle}</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {isEmpty ? (
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[14px] font-semibold">빈칸</span>
-                    ) : isDraft ? (
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[14px] font-semibold">초안</span>
-                    ) : (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-caribbean-50 text-caribbean-600 rounded text-[14px] font-semibold transition-transform duration-300 ${flashedSection === key ? 'scale-110' : 'scale-100'}`}>
-                        {flashedSection === key && (
-                          <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="animate-pop-in">
-                            <path d="M1 3.5L3.5 6L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                        완료
-                      </span>
-                    )}
-                    {!isEditing && !isEmpty && !viewOnly && (
-                      <button onClick={() => handleStartEditing(key)}
-                        className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 px-2 py-1 text-[13px] text-bluewood-400 hover:text-bluewood-700 bg-white rounded-md border border-surface-200 transition-all">
-                        <PenLine size={11} /> 수정
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 섹션 본문 — 항상 열림 */}
-                <div className="px-6 py-4 pl-[60px]">
-                  {/* 이미지 (위) */}
-                  <SectionImageGroup sectionKey={key} position="above"
-                    sectionImages={sectionImages} allImages={allImages} imageConfig={imageConfig} setImageConfig={setImageConfig}
-                    dragInfo={dragInfo} dropTarget={dropTarget} setDropTarget={setDropTarget}
-                    handleDragStart={handleDragStart} handleDragEnd={handleDragEnd} handleImageDrop={handleImageDrop} />
-
-                  {isEditing ? (
-                    <div>
-                      <p className="text-[13px] text-bluewood-400 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 mb-3 leading-relaxed">
-                        <strong>{meta.subtitle}</strong><br />{field?.placeholder}
-                      </p>
-                      <textarea
-                        ref={el => { sectionTextareaRefs.current[key] = el; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                        value={editedContent[key] || ''}
-                        onChange={e => { handleFieldChange(key, e.target.value); const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
-                        placeholder={field?.placeholder || '내용을 입력하세요'}
-                        className={`w-full bg-white border border-surface-200 p-4 text-[13px] outline-none focus:ring-2 focus:ring-bluewood-200 transition-shadow resize-none overflow-hidden text-bluewood-800 placeholder-bluewood-300`}
-                        style={{ minHeight: key === 'intro' ? '3rem' : '7rem' }}
-                      />
-                      {!(!editedContent[key]?.trim()) && (
-                        <div className="flex justify-end mt-2">
-                          <button onClick={() => handleStartEditing(key)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg ${style.label} hover:bg-white/80 transition-colors`}>
-                            <Check size={13} /> 완료
+            {editedResearch.decisionMetrics.length > 0 && (
+              <div>
+                <p className="mb-3 text-[13px] font-bold text-bluewood-700">의사결정에 사용할 지표 후보</p>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {editedResearch.decisionMetrics.map((metric, index) => (
+                    <div key={index} className="rounded-xl border border-surface-200 bg-surface-50/40 p-4">
+                      <div className="mb-3 flex items-start gap-2">
+                        <input
+                          value={metric.metric}
+                          onChange={e => updateDecisionMetric(index, 'metric', e.target.value)}
+                          readOnly={viewOnly}
+                          placeholder="지표명"
+                          className="flex-1 bg-transparent text-[14px] font-bold text-primary-600 outline-none placeholder:text-bluewood-300"
+                        />
+                        {!viewOnly && (
+                          <button onClick={() => removeDecisionMetric(index)} className="p-1 text-bluewood-300 hover:text-red-500 transition-colors">
+                            <Trash2 size={13} />
                           </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : isEmpty ? (
-                    <button onClick={() => handleStartEditing(key)}
-                      className={`w-full py-3 border-2 border-dashed ${style.border} text-[13px] font-medium ${style.label} hover:bg-white/60 transition-colors flex items-center justify-center gap-2`}>
-                      <PenLine size={14} /> 빈칸 채우기
-                    </button>
-                  ) : isDraft ? (
-                    <div className="border-l-2 border-surface-200 bg-surface-50/40 px-4 py-3">
-                      <p className="text-[13px] text-bluewood-400 font-medium mb-1.5">AI 초안 — 수정해서 완성해보세요</p>
-                      <p className="text-[13px] text-bluewood-500 leading-[1.85] whitespace-pre-wrap">{draftText}</p>
-                      {!viewOnly && (
-                        <button onClick={() => handleStartEditing(key)}
-                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-bluewood-600 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors">
-                          <PenLine size={11} /> 수정하기
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-[13px] text-bluewood-700 leading-[1.85] whitespace-pre-wrap">
-                      <HighlightedText
-                        text={value}
-                        highlights={(structured.highlights || []).filter(h => h.field === key)}
-                        keywords={editedKeywords}
-                        showKeywordUnderline={true}
+                        )}
+                      </div>
+                      <textarea
+                        value={metric.whyItMatters}
+                        onChange={e => updateDecisionMetric(index, 'whyItMatters', e.target.value)}
+                        readOnly={viewOnly}
+                        placeholder="왜 중요한 지표인가요?"
+                        className="mb-2 w-full min-h-[58px] resize-none bg-transparent text-[13px] leading-relaxed text-bluewood-700 outline-none placeholder:text-bluewood-300"
                       />
+                      <input
+                        value={metric.recommendedProxy}
+                        onChange={e => updateDecisionMetric(index, 'recommendedProxy', e.target.value)}
+                        readOnly={viewOnly}
+                        placeholder="확인할 프록시/계산식"
+                        className="mb-2 w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-[13px] text-bluewood-700 outline-none placeholder:text-bluewood-300"
+                      />
+                      <textarea
+                        value={metric.researchBasis}
+                        onChange={e => updateDecisionMetric(index, 'researchBasis', e.target.value)}
+                        readOnly={viewOnly}
+                        placeholder="자료 근거 또는 [검증 필요]"
+                        className="w-full min-h-[52px] resize-none bg-transparent text-[13px] leading-relaxed text-bluewood-500 outline-none placeholder:text-bluewood-300"
+                      />
+                      <div className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[12px] font-semibold text-bluewood-400 border border-surface-200">
+                        신뢰도 {metric.confidence || 'medium'}
+                      </div>
                     </div>
-                  )}
-
-                  {/* 이미지 (아래) */}
-                  <SectionImageGroup sectionKey={key} position="below"
-                    sectionImages={sectionImages} allImages={allImages} imageConfig={imageConfig} setImageConfig={setImageConfig}
-                    dragInfo={dragInfo} dropTarget={dropTarget} setDropTarget={setDropTarget}
-                    handleDragStart={handleDragStart} handleDragEnd={handleDragEnd} handleImageDrop={handleImageDrop} />
-
-                  {dragInfo && (
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setDropTarget(key); }}
-                      onDragLeave={() => { if (dropTarget === key) setDropTarget(null); }}
-                      onDrop={(e) => handleSectionDrop(e, key)}
-                      className={`mt-2 py-3 border-2 border-dashed rounded-lg text-center text-[14px] font-medium transition-colors ${
-                        dropTarget === key ? 'border-bluewood-400 bg-bluewood-50/60 text-bluewood-500' : 'border-surface-200 text-bluewood-300'
-                      }`}>
-                      {dragInfo.fromSection === key ? '끝으로 이동' : '여기로 이미지 이동'}
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
-            );
-          })}
+            )}
+
+            {(editedResearch.portfolioAngles.length > 0 || editedResearch.sourceNotes.length > 0 || editedResearch.limitations) && (
+              <div className="grid gap-4 lg:grid-cols-3">
+                {editedResearch.portfolioAngles.length > 0 && (
+                  <div className="rounded-xl border border-surface-200 p-4">
+                    <p className="mb-2 text-[13px] font-bold text-bluewood-700">강조 관점</p>
+                    <ul className="space-y-1.5">
+                      {editedResearch.portfolioAngles.map((angle, i) => (
+                        <li key={i} className="text-[13px] leading-relaxed text-bluewood-600">{angle}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {editedResearch.sourceNotes.length > 0 && (
+                  <div className="rounded-xl border border-surface-200 p-4 lg:col-span-2">
+                    <p className="mb-2 text-[13px] font-bold text-bluewood-700">자료 메모</p>
+                    <div className="space-y-2">
+                      {editedResearch.sourceNotes.map((source, index) => (
+                        <div key={index} className="grid gap-2 md:grid-cols-[1fr_120px]">
+                          <input
+                            value={source.title}
+                            onChange={e => updateSourceNote(index, 'title', e.target.value)}
+                            readOnly={viewOnly}
+                            placeholder="자료 제목"
+                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-700 outline-none"
+                          />
+                          <input
+                            value={source.publisher}
+                            onChange={e => updateSourceNote(index, 'publisher', e.target.value)}
+                            readOnly={viewOnly}
+                            placeholder="발행처"
+                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none"
+                          />
+                          <input
+                            value={source.url}
+                            onChange={e => updateSourceNote(index, 'url', e.target.value)}
+                            readOnly={viewOnly}
+                            placeholder="URL 또는 [검증 필요]"
+                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none md:col-span-2"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {editedResearch.limitations && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 lg:col-span-3">
+                    <p className="mb-1 text-[13px] font-bold text-amber-700">검증 필요</p>
+                    <p className="text-[13px] leading-relaxed text-amber-700">{editedResearch.limitations}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
         </div>{/* end 메인 콘텐츠 */}
 
@@ -1637,21 +2489,78 @@ export default function StructuredResult() {
         <ProjectTimeline experiences={experiences} currentId={id} />
       </div>
 
+      {/* 작성 완성도 플로팅 패널 */}
+      {showQualityPanel ? (
+        <div className="fixed bottom-5 right-5 z-40 w-[min(360px,calc(100vw-40px))] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+          <div className="flex items-center justify-between border-b border-surface-100 px-4 py-3">
+            <div>
+              <p className="text-[13px] font-extrabold text-primary-600">작성 완성도</p>
+              <p className="mt-0.5 text-[12px] font-medium text-bluewood-300">슬라이드 품질 체크리스트</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-black text-primary-600">{passedChecks}/{qualityChecks.length}</span>
+              <button
+                onClick={() => setShowQualityPanel(false)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600"
+                aria-label="작성 완성도 패널 닫기"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="px-4 pb-4 pt-3">
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-100">
+              <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${qualityPct}%` }} />
+            </div>
+            <div className="max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
+              {qualityChecks.map(item => {
+                const passed = item.check();
+                const active = activeQualityCheck?.id === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleQualityCheckClick(item)}
+                    className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${active ? 'bg-primary-50 ring-1 ring-primary-100' : 'hover:bg-surface-50'}`}
+                  >
+                    <span className={`inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded ${passed ? 'bg-primary-600 text-white' : 'border border-surface-200 bg-white text-transparent'}`}>
+                      <Check size={11} strokeWidth={3} />
+                    </span>
+                    <span className={`flex-1 text-[13px] font-semibold leading-snug ${passed ? 'text-bluewood-700' : 'text-bluewood-300'}`}>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2">
+              <p className="text-[12px] font-bold text-amber-700">수정 팁</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-amber-700">{activeQualityCheck?.tip || followUpQuestions[0] || '현재 선택한 체크 항목에 맞춰 슬라이드 내용을 보강해 주세요.'}</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowQualityPanel(true)}
+          className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white px-4 py-3 text-[13px] font-extrabold text-primary-600 shadow-[0_14px_35px_rgba(15,23,42,0.16)] hover:bg-primary-50"
+        >
+          <Check size={15} /> 작성 완성도 {qualityPct}%
+        </button>
+      )}
+
       {/* ── 포트폴리오 내보내기 모달 ── */}
       {showExportPanel && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6" onClick={() => setShowExportPanel(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bluewood-900/45 backdrop-blur-sm p-2 sm:p-4" onClick={() => setShowExportPanel(false)}>
           <div
-            className="w-full max-w-[1160px] h-[88vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-surface-200"
+            className="h-[94vh] w-full max-w-[calc(100vw-32px)] bg-white rounded-[18px] shadow-2xl flex flex-col overflow-hidden border border-surface-200"
             onClick={e => e.stopPropagation()}
           >
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-7 py-4 border-b border-surface-200 flex-shrink-0">
+            <div className="flex items-center justify-between px-7 py-5 border-b border-surface-200 flex-shrink-0 bg-white">
               <div>
-                <h3 className="text-[13px] font-extrabold text-primary-600">포트폴리오 미리보기</h3>
-                <p className="text-[14px] text-bluewood-400 mt-0.5">섹션을 구성하고 저장하면 포트폴리오에서 불러올 수 있어요</p>
+                <h3 className="text-[18px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
+                <p className="text-[13px] text-bluewood-400 mt-1">경험 페이지의 내용을 자유롭게 더하고 빼서 포트폴리오용 페이지를 구성하세요</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[14px] text-bluewood-400">{exportOrder.filter(k => exportEnabled[k] !== false).length}개 섹션 선택됨</span>
+                <span className="rounded-full bg-primary-50 px-3 py-1.5 text-[13px] font-bold text-primary-600">{enabledExportSections.length}개 섹션 선택됨</span>
                 <button
                   onClick={() => setShowExportPanel(false)}
                   className="text-[13px] text-bluewood-400 hover:text-bluewood-700 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
@@ -1665,77 +2574,64 @@ export default function StructuredResult() {
             <div className="flex flex-1 min-h-0">
 
               {/* 왼쪽: 섹션 구성 */}
-              <div className="w-[300px] flex-shrink-0 bg-surface-50 border-r border-surface-200 flex flex-col">
-                <div className="px-5 pt-4 pb-2 flex-shrink-0">
-                  <p className="text-[13px] font-bold text-bluewood-400 uppercase tracking-widest">섹션 구성</p>
+              <div className="w-[320px] flex-shrink-0 bg-surface-50 border-r border-surface-200 flex flex-col">
+                <div className="px-5 py-4 flex-shrink-0 border-b border-surface-200">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-black text-bluewood-400 uppercase tracking-widest">페이지 구성</p>
+                    <button
+                      onClick={resetExportSectionsFromPage}
+                      className="text-[12px] font-bold text-bluewood-400 hover:text-primary-600"
+                    >
+                      원본 다시 불러오기
+                    </button>
+                  </div>
+                  <button
+                    onClick={addExportSection}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary-100 bg-white px-3 py-2.5 text-[13px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
+                  >
+                    <Plus size={14} /> 빈 섹션 추가
+                  </button>
                 </div>
-                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5">
-                  {exportOrder.map((key) => {
-                    const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
-                    const isSect = SECTION_KEYS.includes(key);
-                    if (!isJob && !isSect) return null;
-                    const label = isJob ? isJob.label : SECTION_META[key].label;
-                    const num = isSect ? SECTION_META[key].num : null;
-                    const enabled = exportEnabled[key] !== false;
-                    const globalIdx = exportOrder.indexOf(key);
-                    const hasContent = isJob
-                      ? !!(editedJobSpecific[key] || '').trim()
-                      : !!(editedContent[key] || '').trim();
-
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                  {normalizedExportSections.map((section, index) => {
+                    const normalizedSection = normalizeExportSection(section);
+                    const active = activeExportSection?.key === section.key;
+                    const enabled = section.enabled !== false;
+                    const empty = !normalizedSection.content?.trim() && !normalizedSection.blocks?.some(block => block.type === 'image' || block.type === 'slide');
+                    const slideDeck = isSlideDeckSection(normalizedSection);
+                    const previewText = slideDeck
+                      ? `${normalizedSection.blocks.filter(block => block.type === 'slide').length}개 슬라이드`
+                      : (sanitizeTextValue(normalizedSection.content) || `${normalizedSection.blocks.length}개 블록`);
                     return (
-                      <div
-                        key={key}
-                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all cursor-default ${
-                          enabled
-                            ? isJob
-                              ? 'bg-caribbean-50 border-caribbean-200'
-                              : 'bg-white border-surface-200 hover:border-bluewood-300'
-                            : 'bg-transparent border-transparent opacity-40'
-                        }`}
+                      <button
+                        key={section.key}
+                        type="button"
+                        onClick={() => setActiveExportSectionKey(section.key)}
+                        className={`group w-full rounded-xl border p-3 text-left transition-all ${active ? 'border-primary-200 bg-white shadow-sm ring-1 ring-primary-100' : enabled ? 'border-surface-200 bg-white hover:border-bluewood-200' : 'border-transparent bg-white/45 opacity-60 hover:opacity-100'}`}
                       >
-                        {/* 체크박스 토글 */}
-                        <button
-                          onClick={() => setExportEnabled(p => ({ ...p, [key]: !enabled }))}
-                          className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                            enabled
-                              ? isJob ? 'bg-caribbean-500 border-caribbean-500' : 'bg-primary-600 border-primary-600'
-                              : 'bg-white border-surface-300'
-                          }`}
-                        >
-                          {enabled && <span className="text-white text-[14px] font-bold leading-none">✓</span>}
-                        </button>
-
-                        {/* 번호 / 직군 마커 */}
-                        {num ? (
-                          <span className="flex-shrink-0 text-[13px] font-bold text-bluewood-400 w-5 text-right">{num}</span>
-                        ) : (
-                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-caribbean-400" />
-                        )}
-
-                        {/* 라벨 */}
-                        <span className={`flex-1 text-[13px] font-medium leading-tight ${
-                          enabled ? 'text-bluewood-800' : 'text-bluewood-300'
-                        }`}>{label}</span>
-
-                        {/* 빈칸 경고 */}
-                        {!hasContent && enabled && (
-                          <span className="text-[14px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">빈칸</span>
-                        )}
-
-                        {/* 순서 버튼 */}
-                        <div className="flex flex-col flex-shrink-0">
-                          <button
-                            onClick={() => moveExportSection(globalIdx, -1)}
-                            disabled={globalIdx === 0}
-                            className="text-[13px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
-                          >▲</button>
-                          <button
-                            onClick={() => moveExportSection(globalIdx, 1)}
-                            disabled={globalIdx === exportOrder.length - 1}
-                            className="text-[13px] text-bluewood-400 hover:text-bluewood-700 disabled:opacity-20 leading-none px-1 py-0.5"
-                          >▼</button>
+                        <div className="flex items-start gap-2.5">
+                          <span className={`mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md ${enabled ? 'bg-primary-600 text-white' : 'border border-surface-300 bg-white text-transparent'}`}
+                            onClick={event => { event.stopPropagation(); updateExportSection(section.key, { enabled: !enabled }); }}
+                          >
+                            <Check size={12} strokeWidth={3} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                              <p className="truncate text-[13px] font-extrabold text-bluewood-800">{section.label || '제목 없는 섹션'}</p>
+                            </div>
+                            <p className="mt-1 line-clamp-2 break-all text-[12px] leading-relaxed text-bluewood-400">{empty ? '내용 없음' : previewText}</p>
+                          </div>
                         </div>
-                      </div>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${slideDeck ? 'bg-primary-50 text-primary-600' : section.type === 'custom' ? 'bg-amber-50 text-amber-700' : section.type === 'job' ? 'bg-caribbean-50 text-caribbean-700' : 'bg-surface-100 text-bluewood-400'}`}>{slideDeck ? '슬라이드' : section.type === 'custom' ? '직접 추가' : section.type === 'job' ? '직군 특화' : '경험 데이터'}</span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={event => { event.stopPropagation(); moveExportCustomSection(section.key, -1); }} disabled={index === 0} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-700 disabled:opacity-20"><MoveUp size={13} /></button>
+                            <button onClick={event => { event.stopPropagation(); moveExportCustomSection(section.key, 1); }} disabled={index === normalizedExportSections.length - 1} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-700 disabled:opacity-20"><MoveDown size={13} /></button>
+                            <button onClick={event => { event.stopPropagation(); removeExportSection(section.key); }} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                          </div>
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1749,6 +2645,12 @@ export default function StructuredResult() {
                     구성 저장하기
                   </button>
                   <button
+                    onClick={handleExportToPortfolio}
+                    className="w-full py-2.5 border border-primary-100 bg-white text-primary-600 rounded-xl text-[13px] font-bold hover:bg-primary-50 transition-colors"
+                  >
+                    포트폴리오에 추가하기
+                  </button>
+                  <button
                     onClick={() => setShowExportPanel(false)}
                     className="w-full py-2 text-[13px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
                   >
@@ -1757,142 +2659,227 @@ export default function StructuredResult() {
                 </div>
               </div>
 
-              {/* 오른쪽: Notion 스타일 미리보기 */}
-              <div className="flex-1 bg-white overflow-y-auto">
+              {/* 오른쪽: 편집 + 미리보기 */}
+              <div className="flex-1 overflow-y-auto bg-[#f7f9fb]">
+                <div className="grid min-h-full grid-cols-1 gap-4 p-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
+                      <p className="text-[12px] font-black uppercase tracking-widest text-bluewood-300">편집 중인 섹션</p>
+                      {activeExportSection ? (
+                        <div className="mt-4 space-y-3">
+                          <input
+                            value={activeExportSection.label || ''}
+                            onChange={e => updateExportSection(activeExportSection.key, { label: e.target.value })}
+                            className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-[15px] font-extrabold text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-100"
+                            placeholder="섹션 제목"
+                          />
+                          {!activeIsSlideDeck && <div className="flex flex-wrap gap-2">
+                            <button onClick={() => addExportTextBlock(activeExportSection.key)} className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[12px] font-bold text-bluewood-500 hover:bg-surface-50">
+                              <Plus size={13} /> 텍스트
+                            </button>
+                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[12px] font-bold text-bluewood-500 hover:bg-surface-50">
+                              <ImagePlus size={13} /> 사진
+                              <input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) addExportImageBlock(activeExportSection.key, file); }} />
+                            </label>
+                          </div>}
+                          {activeIsSlideDeck && (
+                            <div className="rounded-xl border border-primary-100 bg-primary-50/35 px-3 py-3 text-[13px] font-bold text-primary-600">
+                              현재 {slideDeckBlocks.length}개 슬라이드가 구성되어 있습니다.
+                            </div>
+                          )}
+                          {!activeIsSlideDeck && <div className="space-y-2">
+                            {(activeExportSection.blocks || []).map((block, blockIndex) => {
+                              const isFirst = blockIndex === 0;
+                              const isLast = blockIndex === activeExportSection.blocks.length - 1;
+                              return (
+                                <div key={block.id} className="rounded-xl border border-surface-200 bg-white p-3">
+                                  <div className="mb-2 flex items-center justify-between gap-2">
+                                    <span className="text-[11px] font-black uppercase tracking-widest text-bluewood-300">{block.type === 'image' ? 'IMAGE' : block.type === 'slide' ? 'SLIDE' : 'TEXT'}</span>
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => moveExportBlock(activeExportSection.key, block.id, -1)} disabled={isFirst} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveUp size={13} /></button>
+                                      <button onClick={() => moveExportBlock(activeExportSection.key, block.id, 1)} disabled={isLast} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveDown size={13} /></button>
+                                      <button onClick={() => removeExportBlock(activeExportSection.key, block.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                                    </div>
+                                  </div>
+                                  {block.type === 'image' ? (
+                                    <div className="space-y-2">
+                                      <img src={block.content} alt={block.alt || ''} className="max-h-52 w-full rounded-lg border border-surface-200 object-contain" />
+                                      <div className="flex items-center gap-1.5">
+                                        {['45%', '70%', '100%'].map(width => (
+                                          <button key={width} onClick={() => updateExportBlock(activeExportSection.key, block.id, { width })} className={`rounded-md px-2 py-1 text-[11px] font-bold ${block.width === width ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}>{width}</button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : block.type === 'slide' ? (
+                                    <div className="rounded-lg bg-[#f7f9fb] p-3 ring-1 ring-surface-200">
+                                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{block.kicker || block.label}</p>
+                                      <p className="mt-1 break-words text-[14px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</p>
+                                      {block.subtitle && <p className="mt-1.5 line-clamp-3 text-[12px] leading-relaxed text-bluewood-500">{block.subtitle}</p>}
+                                    </div>
+                                  ) : (
+                                    <textarea
+                                      value={sanitizeTextValue(block.content || '')}
+                                      onChange={e => updateExportBlock(activeExportSection.key, block.id, { content: e.target.value })}
+                                      className="min-h-[150px] w-full resize-y rounded-xl border border-surface-200 bg-white px-3 py-3 text-[13px] leading-[1.75] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-100"
+                                      placeholder="포트폴리오에 보여줄 내용을 자유롭게 작성하세요"
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {(activeExportSection.blocks || []).length === 0 && (
+                              <button onClick={() => addExportTextBlock(activeExportSection.key)} className="w-full rounded-xl border border-dashed border-surface-300 py-8 text-[13px] font-semibold text-bluewood-300 hover:bg-surface-50">첫 텍스트 블록 추가</button>
+                            )}
+                          </div>}
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              onClick={() => updateExportSection(activeExportSection.key, { enabled: activeExportSection.enabled === false })}
+                              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-bold transition-colors ${activeExportSection.enabled === false ? 'bg-surface-100 text-bluewood-400 hover:bg-surface-200' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'}`}
+                            >
+                              {activeExportSection.enabled === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                              {activeExportSection.enabled === false ? '숨김 상태' : '표시 중'}
+                            </button>
+                            <button
+                              onClick={() => removeExportSection(activeExportSection.key)}
+                              className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[13px] font-bold text-red-600 hover:bg-red-100"
+                            >
+                              <Trash2 size={14} /> 삭제
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-xl border border-dashed border-surface-300 py-12 text-center text-[13px] font-semibold text-bluewood-300">왼쪽에서 섹션을 선택하거나 새 섹션을 추가하세요</div>
+                      )}
+                    </div>
 
-                {/* 커버 이미지 영역 */}
-                <div className={`relative w-full group ${exportCoverImg ? 'h-52' : 'h-14'}`}>
-                  {exportCoverImg ? (
-                    <>
-                      <img src={exportCoverImg} alt="cover" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                        <label className="cursor-pointer px-3 py-1.5 bg-white/90 text-[14px] font-semibold text-bluewood-700 rounded-lg hover:bg-white transition-colors">
-                          변경
-                          <input type="file" accept="image/*" className="hidden" onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = ev => setExportCoverImg(ev.target.result);
-                            reader.readAsDataURL(file);
-                          }} />
-                        </label>
+                    <div className="rounded-2xl border border-primary-100 bg-white p-5 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[12px] font-black uppercase tracking-widest text-primary-500">상세 슬라이드</p>
+                          <p className="mt-1 text-[13px] font-bold text-bluewood-500">{slideDeckBlocks.length}개 슬라이드</p>
+                        </div>
                         <button
-                          onClick={() => setExportCoverImg(null)}
-                          className="px-3 py-1.5 bg-white/90 text-[14px] font-semibold text-red-600 rounded-lg hover:bg-white transition-colors"
+                          type="button"
+                          onClick={addAllExportSlideBlocks}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-[12px] font-bold text-white hover:bg-primary-700"
                         >
-                          제거
+                          <LayoutGrid size={13} /> 7개 자동 구성
                         </button>
                       </div>
-                    </>
-                  ) : (
-                    <div className="h-full flex items-center px-14">
-                      <label className="cursor-pointer text-[14px] text-bluewood-300 hover:text-bluewood-500 transition-colors">
-                        + 커버 이미지 추가
-                        <input type="file" accept="image/*" className="hidden" onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = ev => setExportCoverImg(ev.target.result);
-                          reader.readAsDataURL(file);
-                        }} />
-                      </label>
+                      <div className="mt-4 grid grid-cols-2 gap-1.5">
+                        {SECTION_KEYS.map(slideKey => (
+                          <button
+                            key={slideKey}
+                            type="button"
+                            onClick={() => addExportSlideBlock(slideKey)}
+                            className="rounded-lg bg-primary-50 px-2 py-1.5 text-left text-[12px] font-bold text-bluewood-600 ring-1 ring-primary-100 hover:bg-white"
+                          >
+                            {SECTION_META[slideKey].num} {SECTION_META[slideKey].label}
+                          </button>
+                        ))}
+                      </div>
+                      {slideDeckBlocks.length > 0 ? (
+                        <div className="mt-4 space-y-3">
+                          <PortfolioSlideDeck blocks={slideDeckBlocks} compact />
+                          <div className="space-y-2">
+                            {slideDeckBlocks.map((block, index) => (
+                              <div key={block.id} className="flex items-center gap-2 rounded-xl border border-surface-200 bg-surface-50 px-3 py-2">
+                                <span className="text-[11px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                                <p className="min-w-0 flex-1 truncate text-[12px] font-extrabold text-bluewood-800">{block.title || block.label || '상세 슬라이드'}</p>
+                                <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, -1)} disabled={index === 0} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveUp size={13} /></button>
+                                <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, 1)} disabled={index === slideDeckBlocks.length - 1} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveDown size={13} /></button>
+                                <button onClick={() => removeExportBlock(SLIDE_DECK_SECTION_KEY, block.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-xl border border-dashed border-primary-100 bg-primary-50/35 py-8 text-center text-[13px] font-semibold text-bluewood-300">추가된 상세 슬라이드가 없습니다</div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* 문서 본문 */}
-                <div className="max-w-[680px] mx-auto px-14 pb-16 pt-8">
-                  {/* 제목 */}
-                  <h1 className="text-[34px] font-extrabold text-primary-600 leading-tight mb-8">
-                    {editedTitle || '프로젝트 제목'}
-                  </h1>
-
-                  {/* 프로퍼티 */}
-                  <div className="mb-8 space-y-2.5 border-b border-surface-200 pb-6">
-                    {editedOverview.duration && (
-                      <div className="flex items-center gap-4">
-                        <span className="w-16 text-[14px] text-bluewood-400 flex-shrink-0">기간</span>
-                        <span className="text-[13px] text-bluewood-700">{editedOverview.duration}</span>
-                      </div>
-                    )}
-                    {editedOverview.role && (
-                      <div className="flex items-center gap-4">
-                        <span className="w-16 text-[14px] text-bluewood-400 flex-shrink-0">역할</span>
-                        <span className="text-[13px] text-bluewood-700">{editedOverview.role}</span>
-                      </div>
-                    )}
-                    {editedOverview.techStack?.length > 0 && (
-                      <div className="flex items-start gap-4">
-                        <span className="w-16 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {editedOverview.techStack.map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[14px]">{t}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {editedKeywords.length > 0 && (
-                      <div className="flex items-start gap-4">
-                        <span className="w-16 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {editedKeywords.slice(0, 6).map((kw, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[14px] font-medium">
-                              {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {editedOverview.goal && (
-                      <div className="flex items-start gap-4">
-                        <span className="w-16 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
-                        <span className="text-[13px] text-bluewood-700 leading-relaxed">{editedOverview.goal}</span>
-                      </div>
-                    )}
+                    <div className="rounded-2xl border border-primary-100 bg-white p-5 shadow-sm">
+                      <p className="text-[13px] font-extrabold text-primary-600">구성 팁</p>
+                      <p className="mt-2 text-[13px] leading-relaxed text-bluewood-500">왼쪽에서 필요 없는 섹션은 체크를 해제하거나 삭제하고, 강조하고 싶은 내용은 새 섹션으로 분리해 포트폴리오 흐름을 직접 만들 수 있습니다.</p>
+                    </div>
                   </div>
 
-                  {/* 핵심 경험 슬라이드 */}
-                  <PreviewKeySlides keyExperiences={editedKeyExperiences} />
-
-                  {/* 섹션 본문 */}
-                  <div className="space-y-8">
-                    {exportOrder
-                      .filter(k => exportEnabled[k] !== false)
-                      .map(key => {
-                        const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === key);
-                        const isSect = SECTION_KEYS.includes(key);
-                        const label = isJob ? isJob.label : (isSect ? SECTION_META[key].label : key);
-                        const content = isJob
-                          ? (editedJobSpecific[key] || '')
-                          : (editedContent[key] || '');
-                        if (!content.trim()) return null;
-                        const displayContent = content.trim().startsWith('[작성 필요]')
-                          ? content.replace(/^\[작성 필요\]\s*/, '')
-                          : content;
-
-                        return (
-                          <div key={key}>
-                            <h2 className={`text-[14px] font-bold uppercase tracking-widest mb-3 pb-2 border-b ${
-                              isJob
-                                ? 'text-bluewood-600 border-bluewood-100'
-                                : 'text-bluewood-400 border-surface-200'
-                            }`}>
-                              {label}{isJob ? ' · 직군특화' : ''}
-                            </h2>
-                            <p className="text-[14px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">
-                              {displayContent}
-                            </p>
+                  <div className="rounded-[18px] border border-surface-200 bg-white shadow-sm overflow-hidden">
+                    <div className={`relative w-full group ${exportCoverImg ? 'h-48' : 'h-16'} bg-surface-50`}>
+                      {exportCoverImg ? (
+                        <>
+                          <img src={exportCoverImg} alt="cover" className="h-full w-full object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center gap-3 bg-bluewood-900/25 opacity-0 transition-opacity group-hover:opacity-100">
+                            <label className="cursor-pointer rounded-lg bg-white/95 px-3 py-1.5 text-[13px] font-bold text-bluewood-700 hover:bg-white">
+                              변경
+                              <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = ev => setExportCoverImg(ev.target.result);
+                                reader.readAsDataURL(file);
+                              }} />
+                            </label>
+                            <button onClick={() => setExportCoverImg(null)} className="rounded-lg bg-white/95 px-3 py-1.5 text-[13px] font-bold text-red-600 hover:bg-white">제거</button>
                           </div>
-                        );
-                      })}
+                        </>
+                      ) : (
+                        <div className="flex h-full items-center px-8">
+                          <label className="cursor-pointer rounded-lg border border-dashed border-surface-300 px-3 py-2 text-[13px] font-bold text-bluewood-300 hover:border-bluewood-300 hover:text-bluewood-500">
+                            + 커버 이미지 추가
+                            <input type="file" accept="image/*" className="hidden" onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => setExportCoverImg(ev.target.result);
+                              reader.readAsDataURL(file);
+                            }} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
 
-                    {exportOrder.filter(k => exportEnabled[k] !== false).every(k => {
-                      const isJob = (JOB_SPECIFIC_FIELDS[jobCategory] || []).find(s => s.key === k);
-                      const content = isJob ? (editedJobSpecific[k] || '') : (editedContent[k] || '');
-                      return !content.trim();
-                    }) && (
-                      <p className="text-center text-bluewood-300 text-[14px] py-16">선택된 섹션에 내용이 없습니다</p>
-                    )}
+                    <div className="mx-auto max-w-[1040px] px-8 py-8 lg:px-12 lg:py-10">
+                      <input
+                        value={editedTitle}
+                        onChange={e => setEditedTitle(sanitizeTextValue(e.target.value))}
+                        className="mb-7 w-full bg-transparent text-[32px] font-extrabold leading-tight text-primary-700 outline-none placeholder:text-bluewood-200"
+                        placeholder="프로젝트 제목"
+                      />
+
+                      <div className="space-y-4">
+                        {enabledExportSections.map((section, index) => {
+                          const slideDeck = isSlideDeckSection(section);
+                          return (
+                            <div
+                              key={section.key}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setActiveExportSectionKey(section.key)}
+                              onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setActiveExportSectionKey(section.key); }}
+                              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition-all ${activeExportSection?.key === section.key ? 'border-primary-200 bg-primary-50/40 ring-1 ring-primary-100' : 'border-surface-200 bg-white hover:border-bluewood-200'}`}
+                            >
+                              <div className="mb-3 flex items-center gap-3 border-b border-surface-100 pb-3">
+                                <span className="text-[12px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                                <h2 className="text-[14px] font-extrabold text-bluewood-900">{section.label || '제목 없는 섹션'}</h2>
+                              </div>
+                              {slideDeck ? (
+                                <PortfolioSlideDeck blocks={section.blocks || []} compact />
+                              ) : (
+                                <PortfolioBlockViewer blocks={section.blocks?.length ? section.blocks : [makeTextBlock(section.content)]} compact />
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {enabledExportSections.length === 0 && (
+                          <div className="rounded-2xl border border-dashed border-surface-300 py-20 text-center">
+                            <p className="text-[14px] font-semibold text-bluewood-300">선택된 섹션이 없습니다</p>
+                            <button onClick={addExportSection} className="mt-4 rounded-xl bg-primary-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-primary-700">섹션 추가하기</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -429,7 +429,7 @@ export default function TemplateSelect() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩(추출), 4: 검토, 5: 로딩(최종)
+  const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩(추출), 4: 추출 결과 검토, 5: 리서치/섹션 생성
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -813,7 +813,8 @@ export default function TemplateSelect() {
 
     const finalSteps = [
       { label: '경험 데이터 생성', status: 'pending' },
-      { label: 'AI 구조화 분석', status: 'pending' },
+      { label: '프로젝트 개요·시장/지표 리서치', status: 'pending' },
+      { label: '7개 포트폴리오 섹션 생성', status: 'pending' },
     ];
     setLoadingSteps(finalSteps);
 
@@ -875,6 +876,7 @@ export default function TemplateSelect() {
       }
       if (analysisError) throw analysisError;
       updateLoadingStep(1, 'done');
+      updateLoadingStep(2, 'done');
 
       toast.success('경험 정리가 완료되었습니다!');
       navigate(`/app/experience/structured/${experienceId}`, {
@@ -1002,7 +1004,7 @@ export default function TemplateSelect() {
         </div>
 
         <p className="text-[19px] text-bluewood-200 mt-12 leading-relaxed">
-          7가지 섹션으로 구조화합니다 · 최대 5분 소요 · 페이지 이탈 시 작업이 중단됩니다
+          실제 자료와 검증 가능한 시장/지표 맥락을 함께 정리합니다 · 최대 5분 소요 · 페이지 이탈 시 작업이 중단됩니다
         </p>
       </div>
     );
@@ -1052,7 +1054,7 @@ export default function TemplateSelect() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <h1 className="text-[28px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">경험 검토</h1>
-              <p className="mt-1.5 text-[19px] text-bluewood-400">추출된 경험을 확인하고 수정한 뒤 포트폴리오 정리를 시작하세요.</p>
+              <p className="mt-1.5 text-[19px] text-bluewood-400">AI가 추출한 경험을 먼저 확인하고, 필요한 내용을 수정한 뒤 포트폴리오 섹션 생성을 시작하세요.</p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <span className="text-[19px] text-bluewood-300 tabular-nums">
@@ -1062,7 +1064,7 @@ export default function TemplateSelect() {
                 {[
                   { label: '기본 정보', done: true },
                   { label: '자료 수집', done: true },
-                  { label: '경험 검토', active: true },
+                  { label: '추출 결과 검토', active: true },
                 ].map((s, idx, arr) => (
                   <div key={idx} className="flex items-center gap-1.5">
                     <span className={`text-[19px] font-semibold ${s.active ? 'text-primary-600' : 'text-bluewood-300'}`}>
@@ -1546,7 +1548,7 @@ export default function TemplateSelect() {
               disabled={moments.length === 0}
               className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              {moments.length}개 경험으로 포트폴리오 정리
+              {moments.length}개 경험으로 시장/지표 보강 시작
               <ChevronRight size={15} />
             </button>
           </div>
@@ -1582,7 +1584,7 @@ export default function TemplateSelect() {
         <div className="h-px flex-1 bg-surface-300" />
         <div className="flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-surface-200 bg-white px-4 py-3 text-sm font-semibold text-bluewood-400">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-100 text-xs font-bold">3</span>
-          경험 검토
+          추출 결과 검토
         </div>
       </div>
 
@@ -1781,7 +1783,7 @@ export default function TemplateSelect() {
             <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Data Collection · Step 2 of 3</p>
             <h1 className="text-[28px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">자료 수집</h1>
             <p className="mt-2 text-[19px] text-bluewood-400 leading-relaxed">
-              파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출합니다.
+              파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출하고 다음 단계에서 직접 검토·수정할 수 있습니다.
             </p>
           </div>
 

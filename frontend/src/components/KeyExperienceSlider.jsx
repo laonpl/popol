@@ -1,4 +1,4 @@
-﻿import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+﻿import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 
@@ -33,11 +33,234 @@ function ViewText({ value, onEdit, className = '' }) {
   return <p className={`text-[15px] text-gray-500 leading-[1.7] ${className}`}>{stripMd(value)}</p>;
 }
 
-const THEMES = [
-  { label: 'Background & Problem', color: '#002F6C', accent: '#002F6C' },
-  { label: 'Analysis & Action',    color: '#002F6C', accent: '#002F6C' },
-  { label: 'Result & Impact',      color: '#002F6C', accent: '#002F6C' },
+/* 경험별 고유 색상 팔레트 — 읽기/편집 공통 사용 */
+const EXP_COLORS = [
+  '#6366f1', // indigo
+  '#0ea5e9', // sky
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#f43f5e', // rose
+  '#8b5cf6', // violet
 ];
+
+const THEMES = EXP_COLORS.map((accent, i) => ({
+  label: `경험 ${String(i + 1).padStart(2, '0')}`,
+  color: accent,
+  accent,
+}));
+
+/* ══════════════════════════════════════════════════════════════
+   읽기 전용 뷰 — 모든 핵심 경험을 한 화면에 표시
+   ─ Section 1: 임팩트 수치 대시보드 (성과 수치 한눈에)
+   ─ Section 2: CARL 카드 그리드 (모든 경험 동시 표시)
+   ─ Section 3: 핵심 역량 추출 (키워드 + 인사이트)
+   ══════════════════════════════════════════════════════════════ */
+
+const PRIMARY = '#002F6C';
+
+/* 차트 타입 탭 목록 (읽기 뷰용) — 10종 */
+const READ_CHART_TABS = [
+  { id: 'horizontalBar',  label: '가로막대' },
+  { id: 'verticalBar',    label: '세로막대' },
+  { id: 'lineChart',      label: '선형' },
+  { id: 'areaChart',      label: '영역' },
+  { id: 'donut',          label: '도넛' },
+  { id: 'gauge',          label: '게이지' },
+  { id: 'radialBar',      label: '방사형' },
+  { id: 'stackedBar',     label: '누적' },
+  { id: 'bigNumber',      label: '수치' },
+  { id: 'progressCircle', label: '진행' },
+];
+
+/* 경험 단일 행 — 차트 타입 state를 내부에서 관리 */
+function ExpRow({ exp, index }) {
+  const [chartType, setChartType] = useState(exp.chartType || 'horizontalBar');
+  const hasMetric = exp.metric && !isHint(exp.metric) && exp.metric.trim();
+  const hasChart  = hasMetric || exp.beforeMetric || exp.afterMetric;
+
+  const carlItems = [
+    { key: 'C', label: '상황', value: exp.situation || exp.context },
+    { key: 'A', label: '행동', value: exp.action },
+    { key: 'R', label: '결과', value: exp.result },
+    { key: 'L', label: '학습', value: exp.learning },
+  ].filter(item => item.value && !isHint(item.value) && item.value.trim());
+
+  return (
+    <div className="px-6 py-5">
+      {/* 헤더: 번호 + 제목 + 성과 배지 */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span
+            className="flex-shrink-0 w-6 h-6 rounded-full text-white text-[11px] font-black flex items-center justify-center mt-0.5"
+            style={{ backgroundColor: PRIMARY }}>
+            {index + 1}
+          </span>
+          <h3 className="text-[17px] font-extrabold text-bluewood-900 leading-snug"
+            style={{ wordBreak: 'keep-all' }}>
+            {stripMd(exp.title) || '—'}
+          </h3>
+        </div>
+        {hasMetric && (
+          <span className="flex-shrink-0 text-[13px] font-black px-3 py-1 rounded-lg text-white whitespace-nowrap"
+            style={{ backgroundColor: PRIMARY }}>
+            {stripMd(exp.metric)}
+          </span>
+        )}
+      </div>
+
+      {/* 본문: CARL 왼쪽 | 차트 오른쪽 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+
+        {/* CARL 목록 */}
+        {carlItems.length > 0 && (
+          <div className="space-y-3">
+            {carlItems.map(item => (
+              <div key={item.key} className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-0.5"
+                  style={{ backgroundColor: PRIMARY }}>
+                  {item.key}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-0.5">{item.label}</span>
+                  <p className="text-[14px] text-bluewood-700 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                    {stripMd(item.value)}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {/* 키워드 */}
+            {(exp.keywords || []).length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {exp.keywords.map((k, ki) => (
+                  <span key={ki} className="px-2 py-0.5 text-[11px] font-medium bg-surface-50 border border-surface-200 text-bluewood-500 rounded-full">{k}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 차트 + 타입 토글 */}
+        {hasChart && !isHint(exp.metric) && (
+          <div className="flex flex-col gap-2">
+            <MetricCompareChart exp={{ ...exp, chartType }} accent={PRIMARY} />
+            <div className="flex flex-wrap gap-1 mt-1">
+              {READ_CHART_TABS.map(t => (
+                <button key={t.id} onClick={() => setChartType(t.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all ${
+                    chartType === t.id
+                      ? 'border-primary-600 bg-primary-600 text-white'
+                      : 'border-surface-200 text-bluewood-400 bg-white hover:border-bluewood-300'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyKeyExperiences({ keyExperiences }) {
+  if (!keyExperiences || keyExperiences.length === 0) return null;
+
+  const withMetric = keyExperiences.filter(
+    e => e.metric && !isHint(e.metric) && e.metric.trim()
+  );
+
+  const allKeywords = [...new Set(
+    keyExperiences.flatMap(e => (e.keywords || []).filter(Boolean))
+  )];
+
+  const allLearnings = keyExperiences
+    .map(e => e.learning)
+    .filter(l => l && !isHint(l) && l.trim());
+
+  return (
+    <div className="space-y-4">
+
+      {/* ─── SECTION 1: 성과 수치 대시보드 ─── */}
+      {withMetric.length > 0 && (
+        <div>
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em] mb-3 px-1">성과 수치 요약</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 divide-x divide-y divide-surface-100 border border-surface-100 rounded-xl overflow-hidden">
+            {withMetric.map((exp, _i) => {
+              const hasBoth = exp.beforeMetric && exp.afterMetric &&
+                !isHint(exp.beforeMetric) && !isHint(exp.afterMetric);
+              return (
+                <div key={_i} className="px-5 py-4 hover:bg-surface-50/60 transition-colors">
+                  {exp.metricLabel && (
+                    <p className="text-[11px] text-bluewood-400 mb-1 truncate">{stripMd(exp.metricLabel)}</p>
+                  )}
+                  <p className="text-[26px] font-black leading-none mb-1.5" style={{ color: PRIMARY }}>
+                    {stripMd(exp.metric)}
+                  </p>
+                  {hasBoth && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[11px] bg-surface-100 text-bluewood-400 px-1.5 py-0.5 rounded">{exp.beforeMetric}</span>
+                      <span className="text-[11px] text-bluewood-300">→</span>
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ backgroundColor: `${PRIMARY}12`, color: PRIMARY }}>{exp.afterMetric}</span>
+                    </div>
+                  )}
+                  {exp.title && (
+                    <p className="text-[11px] text-bluewood-300 mt-1.5 truncate">{stripMd(exp.title)}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── SECTION 2: 핵심 경험 목록 (구분선만) ─── */}
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em]">핵심 경험</p>
+          <span className="text-[11px] text-bluewood-300 font-medium">{keyExperiences.length}개</span>
+        </div>
+        <div className="divide-y divide-surface-200 border border-surface-200 rounded-xl overflow-hidden">
+          {keyExperiences.map((exp, i) => (
+            <ExpRow key={i} exp={exp} index={i} />
+          ))}
+        </div>
+      </div>
+
+      {/* ─── SECTION 3: 핵심 역량 ─── */}
+      {(allKeywords.length > 0 || allLearnings.length > 0) && (
+        <div className="border-t border-surface-100 pt-4">
+          <p className="text-[12px] font-black text-bluewood-500 uppercase tracking-[0.1em] mb-3 px-1">이 경험으로 쌓은 핵심 역량</p>
+          <div className="px-1 space-y-4">
+            {allKeywords.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">역량 스택</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allKeywords.map((k, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-surface-50 border border-surface-200 text-bluewood-600">{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {allLearnings.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-bluewood-300 uppercase tracking-widest mb-2">핵심 인사이트</p>
+                <div className="space-y-2">
+                  {allLearnings.map((text, i) => (
+                    <div key={i} className="flex gap-2.5">
+                      <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-[7px]" style={{ backgroundColor: PRIMARY }} />
+                      <p className="text-[13px] text-bluewood-600 leading-relaxed" style={{ wordBreak: 'keep-all' }}>{stripMd(text)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── 문자열에서 숫자 추출 ──
    "평균 16시간" → 16
@@ -508,7 +731,7 @@ function ChartByType({ chartType, beforeLabel, afterLabel, beforePct, afterPct, 
 }
 
 /* ── 인라인 편집 공통 스타일 ── */
-const inlineBase = "bg-transparent border border-transparent rounded-lg focus:outline-none focus:bg-white focus:border-gray-200 focus:shadow-sm transition-all w-full";
+const inlineBase = "bg-white/55 border border-transparent rounded-[6px] px-2 py-1 focus:outline-none focus:bg-white focus:border-primary-100 focus:ring-2 focus:ring-primary-50 transition-all w-full placeholder:text-bluewood-300";
 
 /* ── 편집 가능한 텍스트 필드 (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
 function EditableText({ value, field, placeholder, className, style, tag: Tag = 'p', editing, onChange }) {
@@ -544,7 +767,7 @@ function EditableArea({ value, field, placeholder, rows = 3, editing, onChange }
         onChange={e => onChange(field, e.target.value)}
         placeholder={displayPlaceholder}
         rows={rows}
-        className={`text-[15px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
+        className={`text-[13px] text-bluewood-600 resize-none leading-[1.7] ${inlineBase}`}
       />
     );
   }
@@ -559,31 +782,38 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
   return (
     <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
+      {editing && (
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-primary-600 shadow-sm">
+          편집 중
+        </div>
+      )}
       {/* 섹션 라벨 + 헤딩 */}
-      <span className="text-[14px] font-extrabold tracking-wider" style={{ color: theme.color }}>
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500">
         {theme.label}
       </span>
-      <EditableText
-        value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
-        className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-5"
-        editing={editing} onChange={onChange}
-      />
+      <div className="mt-4 mb-5 flex items-start gap-4">
+        <span className="mt-1 h-14 w-[3px] flex-shrink-0 bg-primary-500" />
+        <EditableText
+          value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
+          className="text-[26px] sm:text-[32px] font-extrabold text-bluewood-900 leading-[1.18]"
+          editing={editing} onChange={onChange}
+        />
+      </div>
 
       {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
 
         {/* ===== 좌측 대형 카드: 메트릭 + 비교 그래프 ===== */}
-        <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5 flex flex-col gap-2">
+        <div className="rounded-[8px] border border-white/80 bg-white/72 p-5 shadow-sm flex flex-col gap-2">
           <EditableText
             value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
-            className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug"
+            className="text-[16px] sm:text-[18px] font-bold text-bluewood-900 leading-snug"
             editing={editing} onChange={onChange}
           />
 
           <EditableText
             value={exp.metric} field="metric" placeholder="성과 지표 (예: 40% 단축)"
-            className="text-[20px] sm:text-[24px] font-black"
-            style={{ color: theme.accent }}
+            className="text-[24px] sm:text-[28px] font-black text-primary-600"
             editing={editing} onChange={onChange}
           />
 
@@ -606,7 +836,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
             <div className="border-t border-gray-200 mt-2 pt-2">
               <button
                 onClick={() => setChartOpen(o => !o)}
-                className="text-[13px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                className="text-[12px] font-bold text-bluewood-300 hover:text-primary-600 transition-colors"
               >
                 차트 설정 {chartOpen ? '▲' : '▼'}
               </button>
@@ -617,13 +847,13 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                       value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
                       onChange={e => onChange('beforeMetric', e.target.value)}
                       placeholder={isHint(exp.beforeMetric) ? exp.beforeMetric.replace(/\[작성 필요\]\s*/, '') : "개선 전 (예: 800ms)"}
-                      className={`flex-1 text-[14px] text-gray-600 px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[13px] text-bluewood-600 ${inlineBase}`}
                     />
                     <input
                       value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
                       onChange={e => onChange('afterMetric', e.target.value)}
                       placeholder={isHint(exp.afterMetric) ? exp.afterMetric.replace(/\[작성 필요\]\s*/, '') : "개선 후 (예: 480ms)"}
-                      className={`flex-1 text-[14px] px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[13px] ${inlineBase}`}
                       style={{ color: theme.accent }}
                     />
                   </div>
@@ -633,8 +863,8 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                         onClick={() => onChange('chartType', ct.id)}
                         className={`px-2 py-0.5 rounded-md border text-[12px] font-medium transition-all ${
                           (exp.chartType || 'horizontalBar') === ct.id
-                            ? 'border-blue-400 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                            ? 'border-primary-200 bg-primary-50 text-primary-700'
+                            : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300'
                         }`}>
                         {ct.label}
                       </button>
@@ -647,17 +877,23 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         </div>
 
         {/* ===== 우측 카드 2개 ===== */}
-        <div className="lg:flex-[0.8] flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* 문제 상황 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
+          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">문제 상황</p>
             <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 핵심 행동 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
+          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">핵심 행동</p>
             <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
+          </div>
+
+          {/* 학습한 역량 */}
+          <div className="flex-1 border-l-[3px] border-amber-400 bg-amber-50/60 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">학습한 역량</p>
+            <EditableArea value={exp.learning} field="learning" placeholder="이 경험에서 얻은 핵심 역량을 입력하세요" rows={4} editing={editing} onChange={onChange} />
           </div>
         </div>
       </div>
@@ -686,7 +922,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
    ══════════════════════════════════════════════ */
 const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   keyExperiences = [], onUpdate, viewOnly = false,
-  hideHeader = false, onEditingChange, onCurrentChange, onDeletedCountChange,
+  hideHeader = false, forceEditing = false, onEditingChange, onCurrentChange, onDeletedCountChange,
 }, ref) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -723,7 +959,25 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
     goPrev: () => handlersRef.current.goPrev?.(),
   }));
 
+  useEffect(() => {
+    if (!forceEditing || !onUpdate || keyExperiences.length === 0) return;
+    const safeCurrent = Math.min(current, keyExperiences.length - 1);
+    if (safeCurrent !== current) {
+      _setCurrent(safeCurrent);
+      return;
+    }
+    if (!editing || !localExp) {
+      setLocalExp({ ...(keyExperiences[safeCurrent] || {}) });
+      if (!editing) _setEditing(true);
+    }
+  }, [forceEditing, onUpdate, keyExperiences.length, current, editing, localExp]);
+
   if (keyExperiences.length === 0) return null;
+
+  /* onUpdate 없음 = 읽기 전용 모드 → 모든 경험을 한 화면에 */
+  if (!onUpdate) {
+    return <ReadOnlyKeyExperiences keyExperiences={keyExperiences} />;
+  }
 
   const exp = keyExperiences[current];
   const theme = THEMES[current % THEMES.length];
@@ -731,14 +985,25 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
   const goTo = (idx) => {
     if (isAnimating || idx === current) return;
+    const wasEditing = editing;
+    let nextExperiences = keyExperiences;
     if (editing && localExp && onUpdate) {
-      const next = keyExperiences.map((e, i) => i === current ? localExp : e);
-      onUpdate(next);
+      nextExperiences = keyExperiences.map((e, i) => i === current ? localExp : e);
+      onUpdate(nextExperiences);
     }
-    _setEditing(false);
-    setLocalExp(null);
+    if (!forceEditing) {
+      _setEditing(false);
+      setLocalExp(null);
+    }
     setIsAnimating(true);
-    setTimeout(() => { _setCurrent(idx); setIsAnimating(false); }, 250);
+    setTimeout(() => {
+      _setCurrent(idx);
+      if (forceEditing && wasEditing && onUpdate) {
+        setLocalExp({ ...(nextExperiences[idx] || {}) });
+        _setEditing(true);
+      }
+      setIsAnimating(false);
+    }, 250);
   };
   const goNext = () => goTo((current + 1) % keyExperiences.length);
   const goPrev = () => goTo((current - 1 + keyExperiences.length) % keyExperiences.length);
@@ -759,23 +1024,43 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   };
 
   const handleSave = () => {
-    if (!onUpdate || !localExp) return;
-    const next = keyExperiences.map((e, i) => i === current ? localExp : e);
-    onUpdate(next);
+    if (!onUpdate) return keyExperiences;
+    const next = localExp ? keyExperiences.map((e, i) => i === current ? localExp : e) : keyExperiences;
+    if (localExp) onUpdate(next);
+    if (forceEditing) {
+      setLocalExp({ ...(next[current] || {}) });
+      _setEditing(true);
+    } else {
+      _setEditing(false);
+      setLocalExp(null);
+    }
+    return next;
+  };
+
+  const handleCancel = () => {
+    if (forceEditing) {
+      setLocalExp({ ...(exp || {}) });
+      _setEditing(true);
+      return;
+    }
     _setEditing(false);
     setLocalExp(null);
   };
-
-  const handleCancel = () => { _setEditing(false); setLocalExp(null); };
 
   const handleDelete = () => {
     if (!onUpdate) return;
     _setDeletedStack(prev => [...prev, { item: exp, index: current }]);
     const next = keyExperiences.filter((_, i) => i !== current);
     onUpdate(next);
-    _setCurrent(Math.max(0, current - 1));
-    _setEditing(false);
-    setLocalExp(null);
+    const nextIndex = Math.max(0, current - 1);
+    _setCurrent(nextIndex);
+    if (forceEditing && next.length > 0) {
+      setLocalExp({ ...(next[nextIndex] || {}) });
+      _setEditing(true);
+    } else {
+      _setEditing(false);
+      setLocalExp(null);
+    }
   };
 
   const handleUndo = () => {
@@ -878,18 +1163,21 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
       {/* 슬라이드 */}
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-        className={`bg-white rounded-2xl border border-surface-200 p-5 sm:p-6 lg:p-7 transition-all duration-250 ease-out ${
+        className={`relative overflow-hidden rounded-[8px] border border-white/80 bg-[#f7f9fb] p-7 transition-all duration-250 ease-out ${
           isAnimating
             ? 'opacity-0 scale-[0.985] translate-y-1'
             : 'opacity-100 scale-100 translate-y-0'
         } ${editing ? 'ring-2 ring-primary-200' : ''}`}
-        style={{ boxShadow: '0 10px 32px rgba(15,23,42,0.06)' }}>
-        <SlideContent
-          exp={displayExp}
-          theme={theme}
-          editing={editing}
-          onChange={handleFieldChange}
-        />
+        style={{ boxShadow: '0 22px 70px rgba(49,65,87,0.13)' }}>
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,47,108,0.035)_1px,transparent_1px),linear-gradient(0deg,rgba(0,47,108,0.025)_1px,transparent_1px)] bg-[size:72px_72px]" />
+        <div className="relative">
+          <SlideContent
+            exp={displayExp}
+            theme={theme}
+            editing={editing}
+            onChange={handleFieldChange}
+          />
+        </div>
       </div>
 
       {/* 하단 썸네일 탭 + 추가 버튼 */}

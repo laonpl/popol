@@ -73,10 +73,10 @@ function withTimeout(promise, ms = 90000, label = 'AI') {
 }
 
 // ── Pro 우선 + 자동 Lite 폴백 호출 ──
-async function callProFirst(prompt, label) {
+async function callProFirst(prompt, label, optionOverrides = {}) {
   try {
     console.log(`[${label}] Pro 우선 호출 시작...`);
-    const text = await generateWithRetry(prompt, PRO_FIRST_OPTIONS);
+    const text = await generateWithRetry(prompt, { ...PRO_FIRST_OPTIONS, ...optionOverrides });
     console.log(`[${label}] ✓ 호출 성공`);
     return text;
   } catch (err) {
@@ -91,7 +91,19 @@ async function callProFirst(prompt, label) {
     }
     console.warn(`[${label}] Pro+Lite 모두 실패 → 마지막 Lite 폴백:`, err.message);
     // 최후 수단: Lite 단독 재시도
-    return await generateWithRetry(prompt, LITE_FALLBACK_OPTIONS);
+    return await generateWithRetry(prompt, { ...LITE_FALLBACK_OPTIONS, ...optionOverrides });
+  }
+}
+
+async function callProFirstWithSearch(prompt, label) {
+  try {
+    return await callProFirst(prompt, label, {
+      config: { tools: [{ googleSearch: {} }] },
+      callTimeoutMs: 120000,
+    });
+  } catch (err) {
+    console.warn(`[${label}] 검색 grounding 실패 → 일반 분석으로 전환:`, err.message);
+    return await callProFirst(prompt, `${label}-NoSearch`, { callTimeoutMs: 120000 });
   }
 }
 
@@ -123,9 +135,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   }
 
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 1200)}`)
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 2500)}`)
     .join('\n');
-  if (contentText.length > 4000) contentText = contentText.substring(0, 4000);
+  if (contentText.length > 10000) contentText = contentText.substring(0, 10000);
 
   const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
   const lockedCount = hasReviewed ? reviewedMoments.length : null;
@@ -145,7 +157,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   // ============================================================
   const overviewPromise = (async () => {
     const prompt = buildOverviewPrompt(contentText, jobCategory);
-    const text = await callProFirst(prompt, 'Step1-Overview');
+    const text = await callProFirstWithSearch(prompt, 'Step1-Overview');
     return parseJSON(text);
   })();
 
@@ -240,6 +252,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     projectOverview: overviewJson.projectOverview || {
       summary: '', background: '', goal: '', role: '', team: '', duration: '', techStack: [],
     },
+    marketResearch: overviewJson.marketResearch || {
+      marketOverview: '', decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
+    },
     keyExperiences,
     intro: overviewJson.intro || '',
     overview: overviewJson.overview || '',
@@ -248,6 +263,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     output: overviewJson.output || '',
     growth: overviewJson.growth || '',
     competency: overviewJson.competency || '',
+    sectionSlides: overviewJson.sectionSlides || {},
     jobCategory: jobCategory || 'common',
     jobSpecific: overviewJson.jobSpecific || {},
     keywords: metaJson.keywords || [],
