@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  FileText, Briefcase, Mail, Folder, ChevronRight,
+  FileText, Briefcase, Mail, Folder, ChevronLeft, ChevronRight,
   Code, Palette, List, LayoutGrid, Columns, Search,
   Filter, ArrowUpDown, MoreHorizontal, Plus, ChevronDown,
   Phone, MapPin, Instagram, Star, Lightbulb, CheckCircle2,
@@ -16,6 +16,111 @@ const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
+function sanitizePortfolioText(text) {
+  if (text == null) return '';
+  return String(text).replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]+/g, '').replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizePortfolioBlock(block) {
+  if (!block) return null;
+  if (block.type === 'image') return { ...block, type: 'image', content: block.content || block.src || '', width: block.width || '100%' };
+  if (block.type === 'slide') return {
+    ...block,
+    type: 'slide',
+    title: sanitizePortfolioText(block.title || block.headline || block.label || ''),
+    subtitle: sanitizePortfolioText(block.subtitle || block.subcopy || ''),
+    content: sanitizePortfolioText(block.content || ''),
+    cards: Array.isArray(block.cards) ? block.cards : [],
+  };
+  return { ...block, type: 'text', content: sanitizePortfolioText(block.content || block.text || '') };
+}
+
+function PortfolioBlockViewer({ blocks = [] }) {
+  const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
+  if (normalized.length === 0) return null;
+  return (
+    <div className="space-y-4">
+      {normalized.map((block, index) => {
+        if (block.type === 'image') {
+          return (
+            <figure key={block.id || index} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm" style={{ width: block.width || '100%', maxWidth: '100%' }}>
+              <img src={block.content} alt={block.alt || ''} className="block max-h-[560px] w-full object-contain" />
+            </figure>
+          );
+        }
+        if (block.type === 'slide') {
+          return (
+            <div key={block.id || index} className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{block.kicker || block.label || 'SLIDE'}</p>
+              <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{block.title || block.label}</h3>
+              {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{block.subtitle}</p>}
+              {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{block.content}</p>}
+              {block.cards?.length > 0 && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {block.cards.slice(0, 2).map((card, cardIndex) => (
+                    <div key={cardIndex} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+                      <p className="mt-1 text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
+                      {card.body && <p className="mt-1 text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <p key={block.id || index} className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap break-words">{block.content}</p>;
+      })}
+    </div>
+  );
+}
+
+function PortfolioSlideDeck({ blocks = [] }) {
+  const slides = blocks.map(normalizePortfolioBlock).filter(block => block?.type === 'slide');
+  const [activeIdx, setActiveIdx] = useState(0);
+  if (slides.length === 0) return null;
+  const safeIdx = Math.min(activeIdx, slides.length - 1);
+  const slide = slides[safeIdx];
+  const go = (dir) => setActiveIdx(prev => (prev + dir + slides.length) % slides.length);
+
+  return (
+    <div className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{slide.kicker || slide.label || 'SLIDE'}</p>
+          <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{slide.title || slide.label}</h3>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => go(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="이전 슬라이드">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{safeIdx + 1}/{slides.length}</span>
+          <button type="button" onClick={() => go(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="다음 슬라이드">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+      {slide.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{slide.subtitle}</p>}
+      {slide.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{slide.content}</p>}
+      {slide.cards?.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {slide.cards.slice(0, 3).map((card, index) => (
+            <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+              <p className="mt-1 break-words text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
+              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function sectionTextFromBlocks(blocks = []) {
+  return blocks.map(block => block?.type === 'text' ? sanitizePortfolioText(block.content || '') : block?.type === 'slide' ? [block.title, block.subtitle, block.content].filter(Boolean).join('\n') : '').filter(Boolean).join('\n\n');
 }
 
 function recommendationToText(rec) {
@@ -757,9 +862,11 @@ export function mapPortfolioToTemplateData(p) {
   const _getSections = (e) => {
     const exportSections = e.structuredResult?.exportConfig?.sections;
     if (exportSections?.length > 0)
-      return exportSections.filter(s => s.content?.trim()).map(s => ({ label: s.label || s.key, content: s.content }));
+      return exportSections
+        .filter(s => s.content?.trim() || s.blocks?.some(block => block.type === 'image' || block.type === 'slide'))
+        .map(s => ({ key: s.key, label: s.label || s.key, type: s.type || 'custom', content: s.content || sectionTextFromBlocks(s.blocks || []), blocks: s.blocks || [] }));
     if ((e.sections || []).some(s => s.title && s.content))
-      return e.sections.filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content }));
+      return e.sections.filter(s => s.title && (s.content || s.blocks?.length)).map(s => ({ key: s.key, label: s.title, type: s.type || 'custom', content: s.content || sectionTextFromBlocks(s.blocks || []), blocks: s.blocks || [] }));
     return null;
   };
 
@@ -837,7 +944,9 @@ const ProjectModal = ({ project, onClose }) => {
   const EXP_SECTION_LABELS = { background: '배경', situation: '상황', task: '진행한 일', process: '과정', result: '결과물', growth: '성장한 점', contribution: '나의 역할' };
   let sectionsToRender = [];
   if (sr.exportConfig?.sections?.length > 0) {
-    sectionsToRender = sr.exportConfig.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content }));
+    sectionsToRender = sr.exportConfig.sections
+      .filter(s => s.content?.trim() || s.blocks?.some(block => block.type === 'image' || block.type === 'slide'))
+      .map(s => ({ key: s.key, label: s.label, type: s.type || 'custom', content: s.content || sectionTextFromBlocks(s.blocks || []), blocks: s.blocks || [] }));
   } else {
     const baseSects = EXP_SECTION_KEYS.filter(k => (typeof sr[k] === 'string' ? sr[k] : '').trim()).map(k => ({ label: EXP_SECTION_LABELS[k], content: sr[k] }));
     if (baseSects.length > 0) sectionsToRender = baseSects;
@@ -934,14 +1043,21 @@ const ProjectModal = ({ project, onClose }) => {
             {/* 섹션 본문 */}
             {sectionsToRender.length > 0 && (
               <div className="space-y-7">
-                {sectionsToRender.map((sec, i) => (
-                  <div key={i}>
-                    <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
-                      {sec.label}
-                    </h2>
-                    <p className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
-                  </div>
-                ))}
+                {sectionsToRender.map((sec, i) => {
+                  const isSlideDeck = sec.type === 'slides' || sec.key === 'detail-slides' || (sec.blocks?.length > 0 && sec.blocks.every(block => block?.type === 'slide'));
+                  return (
+                    <div key={sec.key || i}>
+                      <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
+                        {sec.label}
+                      </h2>
+                      {isSlideDeck ? (
+                        <PortfolioSlideDeck blocks={sec.blocks || []} />
+                      ) : (
+                        <PortfolioBlockViewer blocks={sec.blocks?.length ? sec.blocks : [{ type: 'text', content: sec.content }]} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

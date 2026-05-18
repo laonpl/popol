@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
   GraduationCap, Award, Briefcase, Mail, Phone, Globe,
-  MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronRight, X,
+  MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
   Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy
@@ -23,6 +23,167 @@ import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioT
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
+function sanitizePortfolioText(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]+/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizePortfolioBlock(block) {
+  if (!block) return null;
+  if (block.type === 'image') {
+    return {
+      id: block.id || `image-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'image',
+      content: block.content || block.src || '',
+      alt: sanitizePortfolioText(block.alt || ''),
+      width: block.width || '100%',
+    };
+  }
+  if (block.type === 'slide') {
+    return {
+      id: block.id || `slide-${block.slideKey || Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'slide',
+      slideKey: block.slideKey || '',
+      label: sanitizePortfolioText(block.label || ''),
+      kicker: sanitizePortfolioText(block.kicker || ''),
+      title: sanitizePortfolioText(block.title || block.headline || ''),
+      subtitle: sanitizePortfolioText(block.subtitle || block.subcopy || ''),
+      content: sanitizePortfolioText(block.content || ''),
+      cards: Array.isArray(block.cards) ? block.cards.map(card => ({
+        ...card,
+        label: sanitizePortfolioText(card?.label || ''),
+        title: sanitizePortfolioText(card?.title || ''),
+        body: sanitizePortfolioText(card?.body || ''),
+        metric: sanitizePortfolioText(card?.metric || ''),
+      })) : [],
+    };
+  }
+  return { id: block.id || `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: sanitizePortfolioText(block.content || block.text || '') };
+}
+
+function portfolioBlocksToText(blocks = []) {
+  return blocks.map(block => {
+    if (block?.type === 'text') return sanitizePortfolioText(block.content || '');
+    if (block?.type === 'slide') {
+      const cardText = (block.cards || []).map(card => [card.label, card.title, card.body, card.metric].filter(Boolean).join(' ')).filter(Boolean).join('\n');
+      return [block.title, block.subtitle, block.content, cardText].filter(Boolean).map(sanitizePortfolioText).join('\n');
+    }
+    return '';
+  }).filter(Boolean).join('\n\n');
+}
+
+function normalizePortfolioSection(section = {}) {
+  const blocks = Array.isArray(section.blocks) && section.blocks.length > 0
+    ? section.blocks.map(normalizePortfolioBlock).filter(Boolean)
+    : (section.content ? [{ id: `${section.key || section.title || 'section'}-text`, type: 'text', content: sanitizePortfolioText(section.content) }] : []);
+  return {
+    ...section,
+    title: sanitizePortfolioText(section.title || section.label || ''),
+    label: sanitizePortfolioText(section.label || section.title || ''),
+    content: sanitizePortfolioText(section.content || portfolioBlocksToText(blocks)),
+    blocks,
+  };
+}
+
+function updateSectionTextBlock(section, content) {
+  const normalized = normalizePortfolioSection(section);
+  const cleanContent = sanitizePortfolioText(content);
+  const textIndex = normalized.blocks.findIndex(block => block.type === 'text');
+  const blocks = textIndex >= 0
+    ? normalized.blocks.map((block, index) => index === textIndex ? { ...block, content: cleanContent } : block)
+    : [{ id: `${section.key || section.title || 'section'}-text`, type: 'text', content: cleanContent }, ...normalized.blocks];
+  return normalizePortfolioSection({ ...normalized, content: portfolioBlocksToText(blocks), blocks });
+}
+
+function PortfolioBlockViewer({ blocks = [] }) {
+  const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
+  if (normalized.length === 0) return null;
+  return (
+    <div className="space-y-4">
+      {normalized.map(block => {
+        if (block.type === 'image') {
+          return (
+            <figure key={block.id} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm" style={{ width: block.width || '100%', maxWidth: '100%' }}>
+              <img src={block.content} alt={block.alt || ''} className="block max-h-[560px] w-full object-contain" />
+            </figure>
+          );
+        }
+        if (block.type === 'slide') {
+          return (
+            <div key={block.id} className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{block.kicker || block.label || 'SLIDE'}</p>
+                  <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{block.title || block.label}</h3>
+                </div>
+                {block.slideKey && <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{block.slideKey}</span>}
+              </div>
+              {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{block.subtitle}</p>}
+              {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{block.content}</p>}
+              {block.cards?.length > 0 && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {block.cards.slice(0, 2).map((card, index) => (
+                    <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+                      <p className="mt-1 text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
+                      {card.body && <p className="mt-1 text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <p key={block.id} className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap break-words">{sanitizePortfolioText(block.content)}</p>;
+      })}
+    </div>
+  );
+}
+
+function PortfolioSlideDeck({ blocks = [] }) {
+  const slides = blocks.map(normalizePortfolioBlock).filter(block => block?.type === 'slide');
+  const [activeIdx, setActiveIdx] = useState(0);
+  if (slides.length === 0) return null;
+  const safeIdx = Math.min(activeIdx, slides.length - 1);
+  const slide = slides[safeIdx];
+  const go = (dir) => setActiveIdx(prev => (prev + dir + slides.length) % slides.length);
+
+  return (
+    <div className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{slide.kicker || slide.label || 'SLIDE'}</p>
+          <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{slide.title || slide.label}</h3>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => go(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="이전 슬라이드">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{safeIdx + 1}/{slides.length}</span>
+          <button type="button" onClick={() => go(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="다음 슬라이드">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+      {slide.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{slide.subtitle}</p>}
+      {slide.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{slide.content}</p>}
+      {slide.cards?.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {slide.cards.slice(0, 3).map((card, index) => (
+            <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
+              <p className="mt-1 break-words text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
+              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function recommendationToText(rec) {
@@ -500,6 +661,7 @@ export default function NotionPortfolioEditor() {
         if (!alreadyImported) {
           const sr = exportConfig.structuredResult || {};
           const overview = exportConfig.projectOverview || sr.projectOverview || {};
+          const importedSections = (exportConfig.sections || []).map(section => normalizePortfolioSection({ ...section, title: section.title || section.label }));
           const newExp = {
             date: overview.duration || '',
             title: exportConfig.title || '',
@@ -515,7 +677,8 @@ export default function NotionPortfolioEditor() {
               keyExperiences: exportConfig.keyExperiences || sr.keyExperiences || [],
               exportConfig: {
                 sectionOrder: exportConfig.sectionOrder,
-                sections: exportConfig.sections,
+                sections: importedSections.map(section => ({ key: section.key, label: section.label || section.title, type: section.type || 'custom', content: section.content, blocks: section.blocks || [] })),
+                draftSections: (exportConfig.draftSections || sr.exportConfig?.draftSections || importedSections).map(section => normalizePortfolioSection(section)),
                 jobCategory: exportConfig.jobCategory,
                 coverImg: exportConfig.coverImg || null,
               },
@@ -528,7 +691,7 @@ export default function NotionPortfolioEditor() {
               : (exportConfig.keywords || []).slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
             role: overview.role || '',
             link: '',
-            sections: exportConfig.sections.map(s => ({ title: s.label, content: s.content })),
+            sections: importedSections.map(section => ({ title: section.label || section.title, content: section.content, blocks: section.blocks || [], key: section.key, type: section.type || 'custom' })),
           };
           const updatedExps = [...existing, newExp];
           setPortfolio(prev => ({ ...prev, experiences: updatedExps }));
@@ -733,8 +896,9 @@ export default function NotionPortfolioEditor() {
     if (savedExportCfg?.sections?.length > 0) {
       // 사용자가 미리보기에서 저장한 섹션 구성 사용
       sections = savedExportCfg.sections
-        .filter(s => s.content?.trim())
-        .map(s => ({ title: s.label, content: s.content }));
+        .map(s => normalizePortfolioSection({ ...s, title: s.title || s.label }))
+        .filter(s => s.content?.trim() || s.blocks?.some(block => block.type === 'image' || block.type === 'slide'))
+        .map(s => ({ title: s.label || s.title, content: s.content, blocks: s.blocks || [], key: s.key, type: s.type || 'custom' }));
       description = aiResult.projectOverview?.summary || aiResult.intro || sections[0]?.content || '';
     } else {
       // 저장된 구성 없으면 프레임워크 기본값 사용
@@ -746,7 +910,7 @@ export default function NotionPortfolioEditor() {
       });
       sections = fields
         .filter(field => contentSource[field.key]?.trim?.())
-        .map(field => ({ title: field.label, content: contentSource[field.key] }));
+        .map(field => normalizePortfolioSection({ key: field.key, title: field.label, content: contentSource[field.key] }));
       description =
         aiResult.projectOverview?.summary ||
         aiResult.intro ||
@@ -770,7 +934,13 @@ export default function NotionPortfolioEditor() {
       keywords: autoSkills,
       aiSummary: aiResult.projectOverview?.summary || aiResult.intro || '',
       // AI 분석 전체 데이터 보존 (keyExperiences, projectOverview 등)
-      structuredResult: aiResult,
+      structuredResult: savedExportCfg?.sections?.length > 0 ? {
+        ...aiResult,
+        exportConfig: {
+          ...(savedExportCfg || {}),
+          sections: sections.map(s => ({ key: s.key, label: s.label || s.title, type: s.type || 'custom', content: s.content, blocks: s.blocks || [] })),
+        },
+      } : aiResult,
       // Notion 스타일 필드
       thumbnailUrl: exp.images?.[0] || '',
       status: 'finished',
@@ -1396,7 +1566,23 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     acc[k] = (typeof structured[k] === 'string' ? structured[k] : '') || '';
     return acc;
   }, {});
-  const hasSections = EXP_SECTION_KEYS.some(k => sectionContents[k]?.trim());
+  const renderableSections = useMemo(() => {
+    const exportCfg = structured.exportConfig;
+    const jobSpecific = structured.jobSpecific || {};
+    if (exportCfg?.sections?.length > 0) {
+      return exportCfg.sections
+        .map((section, index) => normalizePortfolioSection({ ...section, key: section.key || `export-${index}`, title: section.title || section.label }))
+        .filter(section => section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide'));
+    }
+    const jobSects = Object.entries(jobSpecific)
+      .filter(([, v]) => v?.trim?.())
+      .map(([k, v]) => normalizePortfolioSection({ key: k, label: k, type: 'job', content: v }));
+    const baseSects = EXP_SECTION_KEYS
+      .filter(k => sectionContents[k]?.trim())
+      .map(k => normalizePortfolioSection({ key: k, label: EXP_SECTION_META[k].label, type: 'base', content: sectionContents[k] }));
+    return [...jobSects, ...baseSects];
+  }, [structured, exp?.sections]);
+  const hasSections = renderableSections.length > 0;
   const hasRichData = keyExps.length > 0 || hasSections;
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaDraft, setMetaDraft] = useState(null);
@@ -1420,6 +1606,30 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     setAppliedSections({});
     setAppliedKeyExperiences({});
     try {
+      if (mode === 'section') {
+        const sectionsForTailor = renderableSections.map((section, index) => ({
+          key: section.key || `section-${index}`,
+          title: section.label || section.title || `섹션 ${index + 1}`,
+          content: sanitizePortfolioText(portfolioBlocksToText(section.blocks || []) || section.content || ''),
+        })).filter(section => section.content.trim());
+        if (sectionsForTailor.length === 0) {
+          setTailorResult({ portfolioSections: [], overallNote: '첨삭할 섹션 내용이 없습니다.' });
+          setTailoring(false);
+          return;
+        }
+        const { data } = await api.post('/job/tailor-portfolio', { jobAnalysis, sections: sectionsForTailor });
+        setTailorResult({
+          ...data,
+          portfolioSections: (data.sections || []).map(item => ({
+            ...item,
+            key: sectionsForTailor[item.index]?.key,
+            label: sectionsForTailor[item.index]?.title,
+            originalContent: sectionsForTailor[item.index]?.content || '',
+          })),
+        });
+        setTailoring(false);
+        return;
+      }
       const expForTailor = { ...exp, structuredResult: { ...baseStructured, keyExperiences: originalKeyExps } };
       const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: expForTailor });
       if (mode === 'key') {
@@ -1454,18 +1664,55 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     handleTailor(mode);
   };
 
+  const applySectionContent = (sectionKey, content) => {
+    if (!content?.trim()) return;
+    const currentStructured = exp?.structuredResult || {};
+    const exportCfg = currentStructured.exportConfig || null;
+    if (exportCfg?.sections?.length > 0) {
+      const updatedSections = exportCfg.sections.map((section, index) => {
+        const key = section.key || `export-${index}`;
+        if (key !== sectionKey) return normalizePortfolioSection({ ...section, key });
+        return updateSectionTextBlock({ ...section, key }, content);
+      });
+      const exportSections = updatedSections.map(section => ({
+        key: section.key,
+        label: section.label || section.title,
+        type: section.type || 'custom',
+        content: section.content,
+        blocks: section.blocks || [],
+      }));
+      onUpdate({
+        sections: exportSections.map(section => ({ title: section.label, content: section.content, blocks: section.blocks, key: section.key, type: section.type })),
+        structuredResult: { ...currentStructured, exportConfig: { ...exportCfg, sections: exportSections, draftSections: exportSections } },
+      });
+      return;
+    }
+    if (EXP_SECTION_KEYS.includes(sectionKey)) {
+      onUpdate({ structuredResult: { ...currentStructured, [sectionKey]: content } });
+      return;
+    }
+    onTailorApply?.(sectionKey, content);
+  };
+
   const applySingleSection = (sectionKey) => {
-    if (!tailorResult?.sections?.[sectionKey]?.content || !onTailorApply) return;
-    onTailorApply(sectionKey, tailorResult.sections[sectionKey].content);
+    const portfolioSection = tailorResult?.portfolioSections?.find(section => section.key === sectionKey);
+    const nextContent = portfolioSection?.tailoredContent || tailorResult?.sections?.[sectionKey]?.content;
+    if (!nextContent) return;
+    applySectionContent(sectionKey, nextContent);
     setAppliedSections(prev => ({ ...prev, [sectionKey]: true }));
   };
 
   const applyAllSections = () => {
-    if (!tailorResult?.sections || !onTailorApply) return;
+    if (tailorResult?.portfolioSections?.length > 0) {
+      tailorResult.portfolioSections.forEach(section => {
+        if (section.key && section.tailoredContent?.trim()) applySectionContent(section.key, section.tailoredContent);
+      });
+      setAppliedSections(Object.fromEntries(tailorResult.portfolioSections.filter(section => section.key && section.tailoredContent?.trim()).map(section => [section.key, true])));
+      return;
+    }
+    if (!tailorResult?.sections) return;
     EXP_SECTION_KEYS.forEach(k => {
-      if (tailorResult.sections[k]?.content?.trim()) {
-        onTailorApply(k, tailorResult.sections[k].content);
-      }
+      if (tailorResult.sections[k]?.content?.trim()) applySectionContent(k, tailorResult.sections[k].content);
     });
     const allApplied = {};
     EXP_SECTION_KEYS.forEach(k => { if (tailorResult.sections[k]?.content?.trim()) allApplied[k] = true; });
@@ -1501,13 +1748,34 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   const [sectionDraft, setSectionDraft] = useState({});
 
   const startSectionEdit = () => {
-    setSectionDraft({ ...sectionContents });
+    setSectionDraft(Object.fromEntries(renderableSections.map(section => [section.key, section.content || portfolioBlocksToText(section.blocks || [])])));
     setEditingSections(true);
   };
 
   const saveSectionEdit = () => {
-    const updatedStructured = { ...(exp?.structuredResult || {}), ...sectionDraft };
-    onUpdate({ structuredResult: updatedStructured });
+    const currentStructured = exp?.structuredResult || {};
+    const exportCfg = currentStructured.exportConfig || null;
+    if (exportCfg?.sections?.length > 0) {
+      const updatedSections = exportCfg.sections.map((section, index) => {
+        const key = section.key || `export-${index}`;
+        if (!Object.prototype.hasOwnProperty.call(sectionDraft, key)) return normalizePortfolioSection(section);
+        return updateSectionTextBlock({ ...section, key }, sectionDraft[key]);
+      });
+      const exportSections = updatedSections.map(section => ({
+        key: section.key,
+        label: section.label || section.title,
+        type: section.type || 'custom',
+        content: section.content,
+        blocks: section.blocks || [],
+      }));
+      onUpdate({
+        sections: exportSections.map(section => ({ title: section.label, content: section.content, blocks: section.blocks, key: section.key, type: section.type })),
+        structuredResult: { ...currentStructured, exportConfig: { ...exportCfg, sections: exportSections, draftSections: exportSections } },
+      });
+    } else {
+      const updatedStructured = { ...currentStructured, ...sectionDraft };
+      onUpdate({ structuredResult: updatedStructured });
+    }
     setEditingSections(false);
   };
 
@@ -1785,28 +2053,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
               {/* ── Notion 스타일 상세 섹션 ── */}
               {hasSections && (() => {
-                // exportConfig가 있으면 그 순서/선택대로, 없으면 기본 7개 섹션
-                const exportCfg = exp?.structuredResult?.exportConfig;
-                const jobCat = exp?.structuredResult?.jobCategory || 'common';
-                const jobSpecific = exp?.structuredResult?.jobSpecific || {};
-
-                // 렌더할 섹션 목록 결정
-                let sectionsToRender;
-                if (exportCfg?.sections?.length > 0) {
-                  // 사용자가 커스텀 구성한 섹션 순서
-                  sectionsToRender = exportCfg.sections
-                    .filter(s => s.content?.trim())
-                    .map(s => ({ key: s.key, label: s.label, type: s.type, content: s.content }));
-                } else {
-                  // 기본: 7개 섹션 + job-specific
-                  const jobSects = Object.entries(jobSpecific)
-                    .filter(([, v]) => v?.trim?.())
-                    .map(([k, v]) => ({ key: k, label: k, type: 'job', content: v }));
-                  const baseSects = EXP_SECTION_KEYS
-                    .filter(k => sectionContents[k]?.trim())
-                    .map(k => ({ key: k, label: EXP_SECTION_META[k].label, type: 'base', content: sectionContents[k] }));
-                  sectionsToRender = [...jobSects, ...baseSects];
-                }
+                const sectionsToRender = renderableSections;
 
                 return (
                   <div className="bg-white rounded-xl border border-surface-100 overflow-hidden">
@@ -1849,6 +2096,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                     <div className="px-6 py-2 divide-y divide-gray-50">
                       {sectionsToRender.map((sect, i) => {
                         const isJobType = sect.type === 'job';
+                        const isSlideDeck = sect.type === 'slides' || sect.key === 'detail-slides' || (sect.blocks?.length > 0 && sect.blocks.every(block => block?.type === 'slide'));
                         const editVal = editingSections ? (sectionDraft[sect.key] ?? sect.content) : sect.content;
                         return (
                           <div key={sect.key} className="py-5">
@@ -1865,17 +2113,17 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                               )}
                             </div>
                             {/* Notion 스타일 본문 */}
-                            {editingSections ? (
+                            {editingSections && !isSlideDeck ? (
                               <textarea
                                 value={sectionDraft[sect.key] ?? ''}
                                 onChange={e => setSectionDraft(prev => ({ ...prev, [sect.key]: e.target.value }))}
                                 rows={4}
                                 className="w-full px-4 py-3 border border-gray-100 rounded-xl text-[16px] text-gray-800 leading-[1.9] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow bg-gray-50"
                               />
+                            ) : isSlideDeck ? (
+                              <PortfolioSlideDeck blocks={sect.blocks || []} />
                             ) : (
-                              <p className={`text-[16px] leading-[1.9] whitespace-pre-wrap ${isJobType ? 'text-gray-700' : 'text-gray-600'} font-[450]`}>
-                                {editVal}
-                              </p>
+                              <PortfolioBlockViewer blocks={sect.blocks?.length ? sect.blocks : [{ type: 'text', content: editVal }]} />
                             )}
                           </div>
                         );
@@ -2007,7 +2255,10 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
                   {/* 전체 적용 버튼 */}
                   {tailorMode === 'section' && (() => {
-                    const availableCount = EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).length;
+                    const tailoredList = tailorResult.portfolioSections?.length > 0
+                      ? tailorResult.portfolioSections.filter(section => section.tailoredContent?.trim())
+                      : EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).map(k => ({ key: k }));
+                    const availableCount = tailoredList.length;
                     const appliedCount = Object.keys(appliedSections).length;
                     const allApplied = availableCount > 0 && appliedCount >= availableCount;
                     return availableCount > 0 && (
@@ -2026,16 +2277,19 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   })()}
 
                   {/* 각 섹션 */}
-                  {tailorMode === 'section' && EXP_SECTION_KEYS.map(key => {
-                    const meta = EXP_SECTION_META[key];
-                    const section = tailorResult.sections?.[key];
-                    if (!section?.content?.trim()) return null;
+                  {tailorMode === 'section' && (tailorResult.portfolioSections?.length > 0
+                    ? tailorResult.portfolioSections
+                    : EXP_SECTION_KEYS.map(key => ({ key, label: EXP_SECTION_META[key].label, content: tailorResult.sections?.[key]?.content, reason: tailorResult.sections?.[key]?.reason, num: EXP_SECTION_META[key].num }))
+                  ).map((section, sectionIndex) => {
+                    const key = section.key || `tailor-${sectionIndex}`;
+                    const content = section.tailoredContent || section.content;
+                    if (!content?.trim()) return null;
                     const isApplied = appliedSections[key];
                     return (
                       <div key={key} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
                         <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[11px] font-bold">{meta.num}</span>
-                          <span className="text-xs font-bold text-gray-700 flex-1">{meta.label}</span>
+                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[11px] font-bold">{section.num || String(sectionIndex + 1).padStart(2, '0')}</span>
+                          <span className="text-xs font-bold text-gray-700 flex-1">{section.label || '섹션'}</span>
                           <button
                             onClick={() => applySingleSection(key)}
                             disabled={isApplied}
@@ -2049,9 +2303,9 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                           </button>
                         </div>
                         <div className="p-3">
-                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(section.content)}</p>
-                          {section.reason && (
-                            <p className="text-[12px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason)}</p>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(content)}</p>
+                          {(section.reason || section.changeReason) && (
+                            <p className="text-[12px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason || section.changeReason)}</p>
                           )}
                         </div>
                       </div>

@@ -257,10 +257,12 @@ function extractGeminiText(response) {
   throw new Error('Gemini 응답에 텍스트가 없습니다.');
 }
 
-export function callGeminiModel(modelName, contents, timeoutMs = 90000) {
+export function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
-    getGenAI().models.generateContent({ model: modelName, contents }).then(
+    const request = { model: modelName, contents };
+    if (config && Object.keys(config).length > 0) request.config = config;
+    getGenAI().models.generateContent(request).then(
       r => { clearTimeout(timer); resolve(extractGeminiText(r)); },
       e => { clearTimeout(timer); reject(e); },
     );
@@ -277,6 +279,7 @@ export function callGeminiModel(modelName, contents, timeoutMs = 90000) {
  * @param {number}   [options.rateLimitDelayMs] 429(TPM/RPM) 전용 기본 대기. 기본 4000ms.
  * @param {boolean}  [options.preferPro] Pro 우선 모드 — 503 발생해도 Pro 내에서 재시도, 회로차단기 무시.
  * @param {number}   [options.callTimeoutMs] 모델 1회 호출 당 타임아웃(ms). 기본 90000.
+ * @param {object}   [options.config] Gemini generateContent config. 예: tools 설정.
  */
 export async function generateWithRetry(prompt, options = {}) {
   const {
@@ -286,6 +289,7 @@ export async function generateWithRetry(prompt, options = {}) {
     rateLimitDelayMs = 4000,
     preferPro = false,
     callTimeoutMs = 90000,
+    config = null,
   } = options;
 
   // 세마포어 획득 — 동시 호출 수 제한
@@ -317,7 +321,7 @@ export async function generateWithRetry(prompt, options = {}) {
 
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await callGeminiModel(modelName, prompt, callTimeoutMs);
+          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config);
           recordModelSuccess(modelName);
           return result;
         } catch (err) {

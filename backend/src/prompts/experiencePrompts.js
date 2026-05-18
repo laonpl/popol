@@ -31,6 +31,28 @@ const NO_HALLUCINATION_RULES = `
 [⛔ 원본에 없는 내용 절대 금지 — 기술명·수치·회사명·역할·상황 창작 불가]
 ✅ 허용: 원본 내용 요약·재구성·CARL 구조 매핑·명시된 수치 추출
 ❌ 원본에 없으면: "[작성 필요] (원본에 없음)" 으로 처리
+돼✅ 시장/업계 자료는 공개 자료 기반의 일반 맥락·벤치마크·의사결정 지표 후보로만 사용
+❌ 외부 업계 수치를 사용자의 프로젝트 성과처럼 쓰기 금지. 프로젝트 실제 수치가 없으면 "[검증 필요]" 또는 "[작성 필요]" 로 남김
+`;
+
+const MARKET_RESEARCH_RULES = `
+[시장·지표 리서치 보강 규칙]
+- 가능하면 최신 공개 자료, 공식 문서, 리서치 리포트, 제품 벤치마크, 채용공고/JD에서 확인되는 지표를 참고해 프로젝트 맥락을 풍부하게 만드세요.
+- 검색 grounding이 가능하면 sourceNotes에 제목·발행처·URL·확인일을 남기세요. 출처를 확신할 수 없으면 URL을 만들지 말고 "[검증 필요]" 로 표기하세요.
+- 채워야 할 것은 "사용자가 실제로 확인하면 좋은 의사결정 지표"입니다. 예: 전환율, 리텐션, 처리시간, 오류율, CAC, ROAS, NPS, 태스크 성공률, 응답시간 p95, 비용/요청, 재작업률 등.
+- benchmark나 시장 수치는 "비교 기준"으로만 쓰고, 사용자의 프로젝트 성과로 둔갑시키지 마세요.
+- marketResearch.decisionMetrics에는 지표명, 왜 중요한지, 사용자가 확인할 프록시/계산식, 리서치 근거, 신뢰도(high/medium/low)를 넣으세요.
+`;
+
+const SLIDE_PORTFOLIO_RULES = `
+[슬라이드형 포트폴리오 구성 규칙 — 이미지 레퍼런스 스타일]
+- 7개 섹션은 각각 독립적인 한 장의 슬라이드로 읽혀야 합니다.
+- 각 슬라이드는 작은 영문 라벨(BACKGROUND/RESEARCH/ACTION/OUTCOME/LEARNING/CAPABILITY), 질문형 또는 문제 제기형 headline, 2~3문장 subcopy, 2~3개의 evidenceCards로 구성하세요.
+- evidenceCards는 숫자/근거/의사결정 기준/인사이트를 담되, 원본에 없는 프로젝트 성과 수치는 만들지 마세요. 없으면 "[작성 필요]" 또는 "[검증 필요]"를 명시하세요.
+- evidenceCards는 슬라이드마다 같은 카드 제목/본문을 반복하지 마세요. 반드시 해당 섹션 본문에 맞는 서로 다른 역할을 가져야 합니다.
+- intro 카드는 프로젝트 배경·목표·기간/팀/역할 같은 소개 정보, overview 카드는 시장/사용자 맥락·검증 지표, task 카드는 담당 과제·문제 상황·오너십, process 카드는 행동·의사결정 기준·대안 비교, output 카드는 산출물·성과·2차 효과, growth 카드는 배운 점·관점 변화, competency 카드는 발휘 역량·입사 후 기여 근거만 담으세요.
+- 카드 문장은 1~2줄로 짧게, 슬라이드에 바로 얹을 수 있는 밀도로 작성하세요.
+- 디자인 방향은 "흰색/아주 옅은 블루그레이 배경 + 파란 세로 라인 + 정돈된 3열 카드 + 넓은 여백"을 전제로 합니다.
 `;
 
 const WRITING_QUALITY_RULES = `
@@ -259,6 +281,8 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
 대상 직군: ${jobInfo.label}
 
 ${NO_HALLUCINATION_RULES}
+${MARKET_RESEARCH_RULES}
+${SLIDE_PORTFOLIO_RULES}
 ${WRITING_QUALITY_RULES}
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
 ${jobEmphasis}
@@ -278,6 +302,32 @@ ${contentText}
     "team": "팀 구성 (원본에 있으면)",
     "duration": "기간 (원본에 있으면)",
     "techStack": ["기술1", "기술2"]
+  },
+  "marketResearch": {
+    "marketOverview": "프로젝트와 연결되는 실제 시장/사용자/채용 맥락 요약. 외부 자료는 비교 기준으로만 사용하고 프로젝트 성과로 오해되지 않게 작성",
+    "decisionMetrics": [
+      {
+        "metric": "의사결정에 필요한 지표명",
+        "whyItMatters": "이 프로젝트/직무에서 중요한 이유",
+        "recommendedProxy": "사용자가 확인하거나 계산할 수 있는 프록시/계산식",
+        "researchBasis": "공개 자료/JD/업계 관행 기반 근거. 출처 불확실 시 [검증 필요]",
+        "confidence": "high|medium|low"
+      }
+    ],
+    "sourceNotes": [
+      { "title": "자료 제목 또는 [검증 필요]", "publisher": "발행처", "url": "URL 또는 [검증 필요]", "checkedAt": "${new Date().toISOString().slice(0, 10)}", "usage": "어느 판단에 사용했는지" }
+    ],
+    "portfolioAngles": ["포트폴리오에서 강조하면 좋은 시장/사용자/비즈니스 관점"],
+    "limitations": "자료 부족 또는 검증 필요 항목"
+  },
+  "sectionSlides": {
+    "intro": { "kicker": "BACKGROUND", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "CONTEXT", "title": "프로젝트 배경/목표/범위 중 하나", "body": "소개 섹션에 맞는 근거", "metric": "기간·팀 규모·스케일 또는 [작성 필요]" }] },
+    "overview": { "kicker": "RESEARCH", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "MARKET", "title": "시장/사용자 맥락 또는 검증 지표", "body": "리서치 근거와 비교 기준", "metric": "검증 지표 또는 [검증 필요]" }] },
+    "task": { "kicker": "PROBLEM", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "OWNERSHIP", "title": "내 담당 과제/문제 상황", "body": "직접 맡은 범위와 난점", "metric": "과제 규모 또는 [작성 필요]" }] },
+    "process": { "kicker": "ACTION", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "DECISION", "title": "행동/의사결정/대안 비교", "body": "왜 그렇게 판단했는지", "metric": "판단 기준 또는 [작성 필요]" }] },
+    "output": { "kicker": "OUTCOME", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "IMPACT", "title": "성과/산출물/2차 효과", "body": "무엇이 달라졌는지", "metric": "성과 수치 또는 [작성 필요]" }] },
+    "growth": { "kicker": "LEARNING", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "INSIGHT", "title": "배운 점/관점 변화", "body": "다음에 다르게 판단할 지점", "metric": "적용 범위 또는 [작성 필요]" }] },
+    "competency": { "kicker": "CAPABILITY", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "VALUE", "title": "발휘 역량/입사 후 기여", "body": "역량의 근거 경험", "metric": "기여 지표 또는 [작성 필요]" }] }
   },
   "intro": "【피라미드+XYZ】 첫 문장에 최대 결과·수치 배치, 스케일 포함, 2차 효과까지 (3~4문장)",
   "overview": "프로젝트 전체 맥락 (배경·목적·범위·스케일, Scope of Impact 포함, 3~5문장)",

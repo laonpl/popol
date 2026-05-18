@@ -1,4 +1,4 @@
-﻿import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+﻿import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 
@@ -731,7 +731,7 @@ function ChartByType({ chartType, beforeLabel, afterLabel, beforePct, afterPct, 
 }
 
 /* ── 인라인 편집 공통 스타일 ── */
-const inlineBase = "bg-transparent border border-transparent rounded-lg focus:outline-none focus:bg-white focus:border-gray-200 focus:shadow-sm transition-all w-full";
+const inlineBase = "bg-white/55 border border-transparent rounded-[6px] px-2 py-1 focus:outline-none focus:bg-white focus:border-primary-100 focus:ring-2 focus:ring-primary-50 transition-all w-full placeholder:text-bluewood-300";
 
 /* ── 편집 가능한 텍스트 필드 (SlideContent 외부 정의 — 렌더링마다 새 타입 생성 방지) ── */
 function EditableText({ value, field, placeholder, className, style, tag: Tag = 'p', editing, onChange }) {
@@ -767,7 +767,7 @@ function EditableArea({ value, field, placeholder, rows = 3, editing, onChange }
         onChange={e => onChange(field, e.target.value)}
         placeholder={displayPlaceholder}
         rows={rows}
-        className={`text-[15px] text-gray-500 resize-none leading-[1.7] ${inlineBase}`}
+        className={`text-[13px] text-bluewood-600 resize-none leading-[1.7] ${inlineBase}`}
       />
     );
   }
@@ -782,31 +782,38 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
 
   return (
     <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
+      {editing && (
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-primary-600 shadow-sm">
+          편집 중
+        </div>
+      )}
       {/* 섹션 라벨 + 헤딩 */}
-      <span className="text-[14px] font-extrabold tracking-wider" style={{ color: theme.color }}>
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500">
         {theme.label}
       </span>
-      <EditableText
-        value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
-        className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 leading-[1.35] mt-2 mb-5"
-        editing={editing} onChange={onChange}
-      />
+      <div className="mt-4 mb-5 flex items-start gap-4">
+        <span className="mt-1 h-14 w-[3px] flex-shrink-0 bg-primary-500" />
+        <EditableText
+          value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
+          className="text-[26px] sm:text-[32px] font-extrabold text-bluewood-900 leading-[1.18]"
+          editing={editing} onChange={onChange}
+        />
+      </div>
 
       {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
 
         {/* ===== 좌측 대형 카드: 메트릭 + 비교 그래프 ===== */}
-        <div className="lg:flex-[1.2] rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5 flex flex-col gap-2">
+        <div className="rounded-[8px] border border-white/80 bg-white/72 p-5 shadow-sm flex flex-col gap-2">
           <EditableText
             value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
-            className="text-[16px] sm:text-[18px] font-bold text-gray-800 leading-snug"
+            className="text-[16px] sm:text-[18px] font-bold text-bluewood-900 leading-snug"
             editing={editing} onChange={onChange}
           />
 
           <EditableText
             value={exp.metric} field="metric" placeholder="성과 지표 (예: 40% 단축)"
-            className="text-[20px] sm:text-[24px] font-black"
-            style={{ color: theme.accent }}
+            className="text-[24px] sm:text-[28px] font-black text-primary-600"
             editing={editing} onChange={onChange}
           />
 
@@ -829,7 +836,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
             <div className="border-t border-gray-200 mt-2 pt-2">
               <button
                 onClick={() => setChartOpen(o => !o)}
-                className="text-[13px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                className="text-[12px] font-bold text-bluewood-300 hover:text-primary-600 transition-colors"
               >
                 차트 설정 {chartOpen ? '▲' : '▼'}
               </button>
@@ -840,13 +847,13 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                       value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
                       onChange={e => onChange('beforeMetric', e.target.value)}
                       placeholder={isHint(exp.beforeMetric) ? exp.beforeMetric.replace(/\[작성 필요\]\s*/, '') : "개선 전 (예: 800ms)"}
-                      className={`flex-1 text-[14px] text-gray-600 px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[13px] text-bluewood-600 ${inlineBase}`}
                     />
                     <input
                       value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
                       onChange={e => onChange('afterMetric', e.target.value)}
                       placeholder={isHint(exp.afterMetric) ? exp.afterMetric.replace(/\[작성 필요\]\s*/, '') : "개선 후 (예: 480ms)"}
-                      className={`flex-1 text-[14px] px-2 py-1 ${inlineBase}`}
+                      className={`flex-1 text-[13px] ${inlineBase}`}
                       style={{ color: theme.accent }}
                     />
                   </div>
@@ -856,8 +863,8 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
                         onClick={() => onChange('chartType', ct.id)}
                         className={`px-2 py-0.5 rounded-md border text-[12px] font-medium transition-all ${
                           (exp.chartType || 'horizontalBar') === ct.id
-                            ? 'border-blue-400 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                            ? 'border-primary-200 bg-primary-50 text-primary-700'
+                            : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300'
                         }`}>
                         {ct.label}
                       </button>
@@ -870,22 +877,22 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
         </div>
 
         {/* ===== 우측 카드 2개 ===== */}
-        <div className="lg:flex-[0.8] flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* 문제 상황 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">문제 상황</p>
+          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">문제 상황</p>
             <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 핵심 행동 */}
-          <div className="flex-1 rounded-2xl bg-[#f8f9fb] border border-gray-100 p-5">
-            <p className="text-[15px] sm:text-[16px] font-bold text-gray-800 mb-2">핵심 행동</p>
+          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">핵심 행동</p>
             <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
           </div>
 
           {/* 학습한 역량 */}
-          <div className="flex-1 rounded-2xl p-5 border" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
-            <p className="text-[15px] sm:text-[16px] font-bold mb-2" style={{ color: '#92400e' }}>학습한 역량</p>
+          <div className="flex-1 border-l-[3px] border-amber-400 bg-amber-50/60 px-4 py-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">학습한 역량</p>
             <EditableArea value={exp.learning} field="learning" placeholder="이 경험에서 얻은 핵심 역량을 입력하세요" rows={4} editing={editing} onChange={onChange} />
           </div>
         </div>
@@ -915,7 +922,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
    ══════════════════════════════════════════════ */
 const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   keyExperiences = [], onUpdate, viewOnly = false,
-  hideHeader = false, onEditingChange, onCurrentChange, onDeletedCountChange,
+  hideHeader = false, forceEditing = false, onEditingChange, onCurrentChange, onDeletedCountChange,
 }, ref) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -952,6 +959,19 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
     goPrev: () => handlersRef.current.goPrev?.(),
   }));
 
+  useEffect(() => {
+    if (!forceEditing || !onUpdate || keyExperiences.length === 0) return;
+    const safeCurrent = Math.min(current, keyExperiences.length - 1);
+    if (safeCurrent !== current) {
+      _setCurrent(safeCurrent);
+      return;
+    }
+    if (!editing || !localExp) {
+      setLocalExp({ ...(keyExperiences[safeCurrent] || {}) });
+      if (!editing) _setEditing(true);
+    }
+  }, [forceEditing, onUpdate, keyExperiences.length, current, editing, localExp]);
+
   if (keyExperiences.length === 0) return null;
 
   /* onUpdate 없음 = 읽기 전용 모드 → 모든 경험을 한 화면에 */
@@ -965,14 +985,25 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
   const goTo = (idx) => {
     if (isAnimating || idx === current) return;
+    const wasEditing = editing;
+    let nextExperiences = keyExperiences;
     if (editing && localExp && onUpdate) {
-      const next = keyExperiences.map((e, i) => i === current ? localExp : e);
-      onUpdate(next);
+      nextExperiences = keyExperiences.map((e, i) => i === current ? localExp : e);
+      onUpdate(nextExperiences);
     }
-    _setEditing(false);
-    setLocalExp(null);
+    if (!forceEditing) {
+      _setEditing(false);
+      setLocalExp(null);
+    }
     setIsAnimating(true);
-    setTimeout(() => { _setCurrent(idx); setIsAnimating(false); }, 250);
+    setTimeout(() => {
+      _setCurrent(idx);
+      if (forceEditing && wasEditing && onUpdate) {
+        setLocalExp({ ...(nextExperiences[idx] || {}) });
+        _setEditing(true);
+      }
+      setIsAnimating(false);
+    }, 250);
   };
   const goNext = () => goTo((current + 1) % keyExperiences.length);
   const goPrev = () => goTo((current - 1 + keyExperiences.length) % keyExperiences.length);
@@ -993,23 +1024,43 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   };
 
   const handleSave = () => {
-    if (!onUpdate || !localExp) return;
-    const next = keyExperiences.map((e, i) => i === current ? localExp : e);
-    onUpdate(next);
+    if (!onUpdate) return keyExperiences;
+    const next = localExp ? keyExperiences.map((e, i) => i === current ? localExp : e) : keyExperiences;
+    if (localExp) onUpdate(next);
+    if (forceEditing) {
+      setLocalExp({ ...(next[current] || {}) });
+      _setEditing(true);
+    } else {
+      _setEditing(false);
+      setLocalExp(null);
+    }
+    return next;
+  };
+
+  const handleCancel = () => {
+    if (forceEditing) {
+      setLocalExp({ ...(exp || {}) });
+      _setEditing(true);
+      return;
+    }
     _setEditing(false);
     setLocalExp(null);
   };
-
-  const handleCancel = () => { _setEditing(false); setLocalExp(null); };
 
   const handleDelete = () => {
     if (!onUpdate) return;
     _setDeletedStack(prev => [...prev, { item: exp, index: current }]);
     const next = keyExperiences.filter((_, i) => i !== current);
     onUpdate(next);
-    _setCurrent(Math.max(0, current - 1));
-    _setEditing(false);
-    setLocalExp(null);
+    const nextIndex = Math.max(0, current - 1);
+    _setCurrent(nextIndex);
+    if (forceEditing && next.length > 0) {
+      setLocalExp({ ...(next[nextIndex] || {}) });
+      _setEditing(true);
+    } else {
+      _setEditing(false);
+      setLocalExp(null);
+    }
   };
 
   const handleUndo = () => {
@@ -1112,18 +1163,21 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
 
       {/* 슬라이드 */}
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-        className={`bg-white rounded-2xl border border-surface-200 p-5 sm:p-6 lg:p-7 transition-all duration-250 ease-out ${
+        className={`relative overflow-hidden rounded-[8px] border border-white/80 bg-[#f7f9fb] p-7 transition-all duration-250 ease-out ${
           isAnimating
             ? 'opacity-0 scale-[0.985] translate-y-1'
             : 'opacity-100 scale-100 translate-y-0'
         } ${editing ? 'ring-2 ring-primary-200' : ''}`}
-        style={{ boxShadow: '0 10px 32px rgba(15,23,42,0.06)' }}>
-        <SlideContent
-          exp={displayExp}
-          theme={theme}
-          editing={editing}
-          onChange={handleFieldChange}
-        />
+        style={{ boxShadow: '0 22px 70px rgba(49,65,87,0.13)' }}>
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,47,108,0.035)_1px,transparent_1px),linear-gradient(0deg,rgba(0,47,108,0.025)_1px,transparent_1px)] bg-[size:72px_72px]" />
+        <div className="relative">
+          <SlideContent
+            exp={displayExp}
+            theme={theme}
+            editing={editing}
+            onChange={handleFieldChange}
+          />
+        </div>
       </div>
 
       {/* 하단 썸네일 탭 + 추가 버튼 */}
