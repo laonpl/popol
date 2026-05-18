@@ -47,6 +47,10 @@ export default function NotionPortfolioPreview() {
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
+  const pptLayoutIds = ['narrative', 'star', 'kpi-dashboard', 'timeline', 'case-study'];
+  const pptTemplateQuery = pptLayoutIds.includes(portfolio?.templateId) ? `?template=${portfolio.templateId}` : '';
+  const pptExportUrl = `/app/portfolio/ai-ppt/${id}${pptTemplateQuery}`;
+
   // 비주얼 템플릿이면 별도 렌더러로 분기
   if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {
     return (
@@ -61,7 +65,7 @@ export default function NotionPortfolioPreview() {
               className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
               편집
             </button>
-            <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
+            <button onClick={() => navigate(pptExportUrl)}
               className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
               PPT 내보내기
             </button>
@@ -162,7 +166,7 @@ export default function NotionPortfolioPreview() {
             className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
             편집
           </button>
-          <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
+          <button onClick={() => navigate(pptExportUrl)}
             className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
             PPT 내보내기
           </button>
