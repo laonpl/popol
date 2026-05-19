@@ -463,6 +463,35 @@ function kpiMetricValueFontPx(text, base = 44) {
   return Math.round(base * (1 - ratio * 0.65));
 }
 
+// PPTX 포인트 기반 KPI 메트릭 값 폰트 스케일. fit:'shrink'만으로는 PowerPoint에서 한국어 긴 텍스트가
+// 박스를 넘쳐서 인접 카드까지 침범하므로 길이별로 pt 자체를 줄여 미리 안전한 크기로 렌더.
+function kpiMetricValueFontPt(text, base = 31) {
+  const len = String(text || '').replace(/\s+/g, ' ').trim().length;
+  if (len === 0) return base;
+  if (len <= 5) return base;
+  if (len <= 8) return Math.round(base * 0.78);
+  if (len <= 12) return Math.round(base * 0.55);
+  return Math.round(base * 0.4);
+}
+
+// KPI 카드의 '값' 슬롯은 짧은 수치/태그만 표시해야 함.
+// Why: 사용자 데이터의 metric.value/label가 긴 한국어 설명("프론트엔드와 백엔드 개발을 모두 담당했습니다...")이면
+// 큰 폰트(30~44pt) 박스를 넘쳐서 옆 카드/제목까지 침범. 긴 설명은 m.body로 가야 함.
+// 짧은 값을 만들지 못하면 '—'를 반환 — placeholder가 missing 데이터를 명확히 드러내는 게 overflow보다 낫다.
+function metricDisplayValue(m, fallback = '—') {
+  if (!m) return fallback;
+  if (m.before && m.after) {
+    const ba = cleanPortfolioText(`${m.before} → ${m.after}`);
+    if (ba.length <= 14) return ba;
+  }
+  const value = cleanPortfolioText(m.value || '').trim();
+  if (value && value.length <= 12) return value;
+  const tokenSource = `${value} ${cleanPortfolioText(m.label || '')}`;
+  const numMatch = tokenSource.match(/[+\-]?\d[\d,.]*\s*[%+]?|\d+\s*[가-힣]{1,3}/);
+  if (numMatch) return numMatch[0].trim().slice(0, 12);
+  return fallback;
+}
+
 function acceptedVisual(t) {
   const id = t.layoutId || 'narrative';
   const c = t.colors || {};
@@ -2267,7 +2296,7 @@ function renderKpiExecutive(slide, t) {
         {items.slice(0, 4).map((m, i) => (
           <div key={i} style={{ background: panel, border: `1px solid ${line}`, padding: '20px 18px', minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 9, letterSpacing: '0.1em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 36), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 36), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
             <div style={{ marginTop: 8, color: muted, fontSize: 11, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
@@ -2406,7 +2435,7 @@ function renderKpiMetrics(slide, t) {
         {metricCards.map((m, i) => (
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
             <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
@@ -2494,7 +2523,7 @@ function renderKpiTechnical(slide, t) {
         {metricCards.map((m, i) => (
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
             <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
@@ -2569,7 +2598,7 @@ function renderKpiCumulative(slide, t) {
         {metricCards.map((m, i) => (
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
             <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
@@ -2617,7 +2646,7 @@ function renderKpiRoadmap(slide, t) {
         {metricCards.map((m, i) => (
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `GOAL ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
             <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
@@ -2661,7 +2690,7 @@ function renderKpiClosing(slide, t) {
         {metricCards.map((m, i) => (
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: 44, lineHeight: 1, fontWeight: 950 }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1, fontWeight: 950, ...textClamp(1) }}>{metricDisplayValue(m)}</div>
           </div>
         ))}
       </div>
@@ -6373,9 +6402,10 @@ function kpiPptMetricRow(s, t, cards, dataRows, top) {
   const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
   cards.forEach((m, idx) => {
     const x = 0.82 + idx * 4.05;
+    const dv = safePptText(metricDisplayValue(m));
     kpiPptRule(s, x, top, 3.45);
     addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
-    addPptText(s, pptAcceptedMetricText(m), { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: tf, fontSize: 31, bold: true, color: mint, fit: 'shrink' });
+    addPptText(s, dv, { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: tf, fontSize: kpiMetricValueFontPt(dv, 31), bold: true, color: mint, fit: 'shrink' });
     addPptText(s, safePptText(dataRows[idx]?.body || m.body || ''), { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: tb, fontSize: 8.2, color: muted, fit: 'shrink' });
   });
 }
@@ -6411,9 +6441,10 @@ function drawKpiExecutivePptx(s, slide, t, W, H) {
   kpiPptHeader(s, t, label, title, 0.62, 8.5);
   cards.forEach((m, idx) => {
     const x = 0.82 + idx * 3.05;
+    const dv = safePptText(metricDisplayValue(m));
     s.addShape('rect', { x, y: 2.45, w: 2.82, h: 1.35, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
     addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x: x + 0.18, y: 2.65, w: 2.2, h: 0.14, fontFace: mono, fontSize: 7, bold: true, color: blue, charSpacing: 0.8 });
-    addPptText(s, pptAcceptedMetricText(m), { x: x + 0.18, y: 3.0, w: 2.2, h: 0.42, fontFace: tf, fontSize: 26, bold: true, color: mint, fit: 'shrink' });
+    addPptText(s, dv, { x: x + 0.18, y: 3.0, w: 2.2, h: 0.42, fontFace: tf, fontSize: kpiMetricValueFontPt(dv, 26), bold: true, color: mint, fit: 'shrink' });
     addPptText(s, safePptText(m.body || ''), { x: x + 0.18, y: 3.52, w: 2.4, h: 0.18, fontFace: tb, fontSize: 7.5, color: muted, fit: 'shrink' });
   });
   addPptText(s, 'COMPETENCY DISTRIBUTION', { x: 0.82, y: 6.25, w: 3.0, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
@@ -6730,7 +6761,7 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
       const x = 0.82 + idx * 4.05;
       addRule(x, top, 3.45);
       addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
-      addPptText(s, pptAcceptedMetricText(m), { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: titleFont, fontSize: 31, bold: true, color: mint, fit: 'shrink' });
+      { const dv = safePptText(metricDisplayValue(m)); addPptText(s, dv, { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: titleFont, fontSize: kpiMetricValueFontPt(dv, 31), bold: true, color: mint, fit: 'shrink' }); }
       addPptText(s, data[idx]?.body || subtitle || 'Measured portfolio performance signal', { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: t.fonts.body, fontSize: 8.2, color: muted, fit: 'shrink' });
     });
   };
@@ -6911,7 +6942,7 @@ function drawKpiDashboardPptx(s, slide, t, v, i, W, H) {
     addPptText(s, mood === 'toc' ? 'DASHBOARD INDEX' : 'KPI BREAKDOWN', { x: 0.62, y: 0.42, w: 2.8, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
     addPptText(s, slide.title || '', { x: 0.62, y: 1.05, w: 4.6, h: 1.25, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink) });
     s.addShape('roundRect', { x: 0.62, y: 4.4, w: 3.8, h: 1.75, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.18 });
-    addPptText(s, metrics[0] ? pptAcceptedMetricText(metrics[0]) : 'Impact', { x: 0.95, y: 4.8, w: 2.9, h: 0.42, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.accent) });
+    { const dv = metrics[0] ? safePptText(metricDisplayValue(metrics[0])) : 'Impact'; addPptText(s, dv, { x: 0.95, y: 4.8, w: 2.9, h: 0.42, fontFace: t.fonts.heading, fontSize: kpiMetricValueFontPt(dv, 26), bold: true, color: hex(v.accent), fit: 'shrink' }); }
     addPptText(s, metrics[0]?.label || '성과와 실행 근거를 함께 읽습니다.', { x: 0.95, y: 5.35, w: 2.9, h: 0.28, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted) });
     lines.slice(0, 5).forEach((line, idx) => {
       const y = 1.0 + idx * 0.98;
@@ -6943,14 +6974,14 @@ function drawKpiDashboardPptx(s, slide, t, v, i, W, H) {
   if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: isCover ? 2.35 : 1.95, w: 6.8, h: 0.42, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
   s.addShape('roundRect', { x: 0.62, y: 3.35, w: 4.8, h: 3.15, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.2 });
   addPptText(s, 'PRIMARY METRIC', { x: 0.95, y: 3.72, w: 2.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted) });
-  addPptText(s, pptAcceptedMetricText(metrics[0]), { x: 0.95, y: 4.18, w: 3.9, h: 0.7, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: hex(v.accent) });
+  { const dv = safePptText(metricDisplayValue(metrics[0])); addPptText(s, dv, { x: 0.95, y: 4.18, w: 3.9, h: 0.7, fontFace: t.fonts.heading, fontSize: kpiMetricValueFontPt(dv, 34), bold: true, color: hex(v.accent), fit: 'shrink' }); }
   addPptText(s, metrics[0]?.label || lines[0]?.heading || '핵심 성과', { x: 0.95, y: 5.0, w: 3.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink) });
   [0, 1, 2, 3].forEach(idx => s.addShape('rect', { x: 1.0 + idx * 0.65, y: 6.0 - idx * 0.22, w: 0.35, h: 0.42 + idx * 0.22, fill: { color: idx === 3 ? hex(v.accent) : '28435F' }, line: { color: idx === 3 ? hex(v.accent) : '28435F' } }));
   [1, 2, 3].forEach((n, idx) => {
     const x = 5.7 + (idx % 2) * 3.2;
     const y = 3.35 + Math.floor(idx / 2) * 1.55;
     s.addShape('roundRect', { x, y, w: 2.9, h: 1.35, fill: { color: hex(v.card) }, line: { color: hex(v.card) }, rectRadius: 0.16 });
-    addPptText(s, pptAcceptedMetricText(metrics[n]), { x: x + 0.24, y: y + 0.22, w: 2.3, h: 0.35, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(v.accent) });
+    { const dv = safePptText(metricDisplayValue(metrics[n])); addPptText(s, dv, { x: x + 0.24, y: y + 0.22, w: 2.3, h: 0.35, fontFace: t.fonts.heading, fontSize: kpiMetricValueFontPt(dv, 20), bold: true, color: hex(v.accent), fit: 'shrink' }); }
     addPptText(s, metrics[n]?.label || lines[idx]?.heading || '보조 지표', { x: x + 0.24, y: y + 0.68, w: 2.3, h: 0.28, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.ink) });
     s.addShape('rect', { x: x + 0.24, y: y + 1.08, w: 1.4 + idx * 0.3, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
   });
