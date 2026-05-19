@@ -568,6 +568,32 @@ function compactPortfolioText(value, max = 84) {
   return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
 }
 
+function cleanPortfolioTextKeepLines(value) {
+  if (value == null) return '';
+  return String(value)
+    .normalize('NFC')
+    .replace(/�/g, '')
+    .replace(/[留寃쏀뿕臾吏媛곹됰⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g, ' ')
+    .replace(/[?]{2,}/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n').map(line => line.trim()).join('\n')
+    .trim();
+}
+
+function compactPortfolioTextKeepLines(value, max = 240) {
+  const text = cleanPortfolioTextKeepLines(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function splitBulletLines(value) {
+  const text = cleanPortfolioTextKeepLines(value);
+  if (!text) return [];
+  return text.split('\n').map(line => line.replace(/^[•·\-–—]\s*/, '').trim()).filter(Boolean);
+}
+
 function cleanAcceptedLine(line = {}) {
   return {
     ...line,
@@ -687,19 +713,32 @@ function acceptedSectionKind(slide) {
 }
 
 function prepareAcceptedSlide(slide) {
+  const layout = typeof slide.layout === 'string' ? slide.layout : '';
+  const isCsLayout = layout.startsWith('cs-');
+  const itemLimit = isCsLayout ? 6 : 4;
+  const bodyLimit = isCsLayout ? 260 : 88;
+  const headingLimit = isCsLayout ? 48 : 32;
+  const periodLimit = isCsLayout ? 32 : 18;
+  const bulletLimit = isCsLayout ? 64 : 44;
+  const cleanBody = (value) => isCsLayout
+    ? compactPortfolioTextKeepLines(value, bodyLimit)
+    : compactPortfolioText(value, bodyLimit);
+  const cleanTitle = (value) => isCsLayout
+    ? compactPortfolioTextKeepLines(value, 96)
+    : compactPortfolioText(value, 54);
   return {
     ...slide,
-    title: compactPortfolioText(slide.title, 54),
+    title: cleanTitle(slide.title),
     subtitle: compactPortfolioText(slide.subtitle, 110),
     sectionLabel: compactPortfolioText(slide.sectionLabel || '', 48),
     bullets: (slide.bullets || []).slice(0, 5).map(bullet => compactPortfolioText(bullet, 72)),
-    items: (slide.items || []).slice(0, 4).map(item => ({
+    items: (slide.items || []).slice(0, itemLimit).map(item => ({
       ...item,
-      heading: compactPortfolioText(item.heading, 32),
+      heading: compactPortfolioText(item.heading, headingLimit),
       role: compactPortfolioText(item.role, 24),
-      period: compactPortfolioText(item.period, 18),
-      body: compactPortfolioText(item.body || (item.bullets || []).join(' / '), 88),
-      bullets: (item.bullets || []).slice(0, 3).map(bullet => compactPortfolioText(bullet, 44)),
+      period: compactPortfolioText(item.period, periodLimit),
+      body: cleanBody(item.body || (item.bullets || []).join(isCsLayout ? '\n' : ' / ')),
+      bullets: (item.bullets || []).slice(0, isCsLayout ? 4 : 3).map(bullet => compactPortfolioText(bullet, bulletLimit)),
     })),
   };
 }
@@ -3596,6 +3635,219 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
 
   if (variant === 'closing') return darkTitle(slide.title || 'THANK YOU');
   if (variant.startsWith('dark-title')) return darkTitle();
+
+  if (slide.layout === 'cs-closing') return darkTitle(slide.title || 'THANK YOU');
+
+  if (slide.layout === 'cs-cover') {
+    const acRgb = hexToRgb(v.accent);
+    const acGlow = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.4)`;
+    const acGlow2 = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.22)`;
+    const titleLines = (slide.title || '').split('\n');
+    const tagBullets = (slide.bullets || []).filter(Boolean).slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', overflow: 'hidden', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: -70, top: -50, width: 220, height: 160, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow}, rgba(0,0,0,0))` }} />
+        <div style={{ position: 'absolute', right: -30, bottom: -40, width: 260, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow2}, rgba(0,0,0,0))` }} />
+        <div style={{ position: 'absolute', left: 64, top: 56, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 56, height: 14, borderRadius: 4, background: v.accent, boxShadow: `0 0 14px ${v.accent}66` }} />
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 950 }}>{slide.sectionLabel || 'CASE STUDY'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 64, right: 64, top: 188 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 48, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.01em', whiteSpace: 'pre-line', ...textClamp(4) }}>{titleLines.join('\n')}</div>
+          {slide.subtitle ? <div style={{ marginTop: 18, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.7)', fontWeight: 700, maxWidth: 720, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        </div>
+        {tagBullets.length ? (
+          <div style={{ position: 'absolute', left: 64, right: 64, bottom: 56, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {tagBullets.map((bullet, idx) => (
+              <div key={idx} style={{ padding: '8px 16px', borderRadius: 999, background: idx === 0 ? v.accent : 'rgba(255,255,255,0.08)', color: idx === 0 ? '#FFFFFF' : 'rgba(255,255,255,0.78)', fontSize: 11.5, fontWeight: 900, letterSpacing: '0.14em', border: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.18)' }}>{String(bullet).toUpperCase()}</div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-contents') {
+    const tocItems = items.length ? items : caseLines;
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 54, bottom: 54, width: 220, borderRight: '1px solid rgba(255,255,255,0.16)' }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.28em', fontWeight: 950 }}>CASE FILE</div>
+          <div style={{ position: 'absolute', left: 0, bottom: 0, fontFamily: t.fonts.heading, fontSize: 64, lineHeight: 0.92, fontWeight: 950, letterSpacing: '-0.02em' }}>INDEX</div>
+        </div>
+        <div style={{ position: 'absolute', left: 316, top: 62, right: 54, bottom: 54 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 38, lineHeight: 1.06, fontWeight: 950, ...textClamp(2) }}>{slide.title || 'Contents'}</div>
+          <div style={{ marginTop: 22, display: 'grid', gap: 8 }}>
+            {tocItems.slice(0, 6).map((item, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 10, alignItems: 'center', minHeight: 46, padding: '8px 0', borderBottom: idx < Math.min(tocItems.length, 6) - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none' }}>
+                <div style={{ fontSize: 14, fontWeight: 950, color: idx === 0 ? v.accent : 'rgba(255,255,255,0.42)' }}>{String(idx + 1).padStart(2, '0')}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{item.heading || item.title}</div>
+                  {item.body ? <div style={{ marginTop: 2, fontSize: 11.5, lineHeight: 1.4, color: 'rgba(255,255,255,0.55)', fontWeight: 700, ...textClamp(1) }}>{item.body}</div> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-technical') {
+    const techItems = items.slice(0, 6);
+    const heroMetric = metrics[0] || null;
+    const cols = techItems.length > 4 ? 2 : techItems.length <= 2 ? 1 : 2;
+    const rows = Math.max(1, Math.ceil(techItems.length / cols));
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'TECHNICAL EXCELLENCE'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        {heroMetric ? (
+          <div style={{ position: 'absolute', left: 54, top: 170, width: 290, bottom: 54, borderRadius: 22, background: v.dark, color: '#FFFFFF', padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: cardShadow }}>
+            <div>
+              <div style={{ color: v.accent, fontSize: 11, letterSpacing: '0.22em', fontWeight: 950 }}>HERO METRIC</div>
+              <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.72)', fontWeight: 800, ...textClamp(3) }}>{heroMetric.label || 'Impact'}</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.12, fontWeight: 950, color: v.accent, ...textClamp(3) }}>{acceptedMetricText(heroMetric)}</div>
+              {heroMetric.before && heroMetric.after ? (
+                <div style={{ marginTop: 8, fontSize: 11, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)', fontWeight: 850 }}>BEFORE → AFTER</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <div style={{ position: 'absolute', left: heroMetric ? 368 : 54, right: 54, top: 170, bottom: 54, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 12 }}>
+          {techItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            return (
+              <div key={idx} style={{ borderRadius: 16, background: v.card, border: `1px solid ${v.soft}`, padding: '14px 16px', boxShadow: cardShadow, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 950 }}>{icon || (idx + 1)}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 950, color: v.ink, ...textClamp(1) }}>{item.heading}</div>
+                  <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(3) }}>{item.body}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-skillmap') {
+    const skillItems = items.slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'TECHNICAL SUMMARY'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 168, bottom: 50, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 14 }}>
+          {skillItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            const bullets = splitBulletLines(item.body);
+            const isPrimary = idx === 0;
+            return (
+              <div key={idx} style={{ borderRadius: 18, background: isPrimary ? v.dark : v.card, color: isPrimary ? '#FFFFFF' : v.ink, border: `1px solid ${isPrimary ? v.dark : v.soft}`, padding: '18px 20px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: isPrimary ? `${v.accent}33` : `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 950 }}>{icon || (idx + 1)}</div>
+                  <div style={{ fontSize: 16, fontWeight: 950, ...textClamp(1) }}>{item.heading}</div>
+                </div>
+                <div style={{ marginTop: 12, display: 'grid', gap: 6, overflow: 'hidden' }}>
+                  {bullets.slice(0, 4).map((line, lineIdx) => (
+                    <div key={lineIdx} style={{ display: 'grid', gridTemplateColumns: '8px 1fr', gap: 8, alignItems: 'start' }}>
+                      <div style={{ marginTop: 6, width: 5, height: 5, borderRadius: '50%', background: v.accent }} />
+                      <div style={{ fontSize: 11.5, lineHeight: 1.5, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.78)' : v.muted, ...textClamp(2) }}>{line}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-journey') {
+    const phases = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'GROWTH NARRATIVE'}</div>
+          <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 220, bottom: 50, display: 'grid', gap: 12 }}>
+          {phases.map((phase, idx) => {
+            const tag = phase.role || phase.period || `PHASE 0${idx + 1}`;
+            const isAccent = idx === 1;
+            const isDarkRow = idx === 0;
+            return (
+              <div key={idx} style={{ borderRadius: 16, background: isDarkRow ? v.dark : isAccent ? v.accent : v.card, color: isDarkRow || isAccent ? '#FFFFFF' : v.ink, border: `1px solid ${isDarkRow ? v.dark : isAccent ? v.accent : v.soft}`, padding: '16px 22px', boxShadow: cardShadow, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 18, alignItems: 'center' }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.22em', fontWeight: 950, color: isDarkRow ? v.accent : isAccent ? '#FFFFFF' : v.accent, ...textClamp(1) }}>{tag}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 950, ...textClamp(1) }}>{phase.heading}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isDarkRow ? 'rgba(255,255,255,0.74)' : isAccent ? 'rgba(255,255,255,0.88)' : v.muted, ...textClamp(2) }}>{phase.body}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-contribution') {
+    const contribItems = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'NEXT CONTRIBUTION'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 184, bottom: 50, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {contribItems.map((item, idx) => {
+            const tag = item.role || item.period || `Commit ${idx + 1}`;
+            const isPrimary = idx === 1;
+            return (
+              <div key={idx} style={{ borderRadius: 20, background: isPrimary ? v.dark : v.card, color: isPrimary ? '#FFFFFF' : v.ink, border: `1px solid ${isPrimary ? v.dark : v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'inline-flex', alignSelf: 'flex-start', padding: '4px 10px', borderRadius: 999, background: isPrimary ? `${v.accent}33` : `${v.accent}1f`, color: v.accent, fontSize: 10.5, letterSpacing: '0.16em', fontWeight: 950, ...textClamp(1) }}>{tag}</div>
+                <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 19, lineHeight: 1.18, fontWeight: 950, ...textClamp(3) }}>{item.heading}</div>
+                <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.74)' : v.muted, flex: 1, ...textClamp(7) }}>{item.body}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-retrospective') {
+    const retroItems = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'RETROSPECTIVE'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 180, bottom: 50, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {retroItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            return (
+              <div key={idx} style={{ borderRadius: 18, background: v.card, border: `1px solid ${v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 950 }}>{icon || '•'}</div>
+                <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 17, lineHeight: 1.2, fontWeight: 950, color: v.ink, ...textClamp(3) }}>{item.heading}</div>
+                <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: v.muted, flex: 1, ...textClamp(8) }}>{item.body}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'case-toc') {
     return (
@@ -7178,6 +7430,203 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
 
   if (variant === 'closing') return addDarkTitle(slide.title || 'THANK YOU');
   if (variant.startsWith('dark-title')) return addDarkTitle();
+
+  // ── cs-* explicit layouts (buildCaseStudyReferenceDeck) ──
+  if (slide.layout === 'cs-closing') return addDarkTitle(slide.title || 'THANK YOU');
+
+  if (slide.layout === 'cs-cover') {
+    const titleText = safePptText(slide.title);
+    const tagBullets = (slide.bullets || []).filter(Boolean).slice(0, 4).map(safePptText).filter(Boolean);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('ellipse', { x: -1.0, y: -0.7, w: 3.0, h: 2.2, fill: { color: hex(v.accent), transparency: 60 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.4, y: H - 1.95, w: 3.6, h: 2.8, fill: { color: hex(v.accent), transparency: 78 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('roundRect', { x: 0.89, y: 0.78, w: 0.78, h: 0.19, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.05 });
+    addPptText(s, safePptText(slide.sectionLabel || 'CASE STUDY'), { x: 1.83, y: 0.74, w: 6.0, h: 0.24, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 4 });
+    addPptText(s, titleText, { x: 0.89, y: 2.55, w: W - 1.78, h: 2.5, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', valign: 'top', breakLine: true });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 0.89, y: 5.15, w: 10.0, h: 1.0, fontFace: t.fonts.body, fontSize: 11, color: 'B8C0D5' });
+    }
+    if (tagBullets.length) {
+      let pillX = 0.89;
+      tagBullets.forEach((bullet, idx) => {
+        const isPrimary = idx === 0;
+        const text = bullet.toUpperCase();
+        const pillW = Math.min(2.6, 0.55 + text.length * 0.13);
+        if (pillX + pillW > W - 0.89) return;
+        s.addShape('roundRect', { x: pillX, y: 6.72, w: pillW, h: 0.36, fill: { color: isPrimary ? hex(v.accent) : 'FFFFFF', transparency: isPrimary ? 0 : 92 }, line: { color: isPrimary ? hex(v.accent) : 'FFFFFF', transparency: isPrimary ? 100 : 82 }, rectRadius: 0.18 });
+        addPptText(s, text, { x: pillX, y: 6.75, w: pillW, h: 0.3, fontFace: t.fonts.body, fontSize: 8, bold: true, color: isPrimary ? 'FFFFFF' : 'D8DEEA', align: 'center', charSpace: 1.6 });
+        pillX += pillW + 0.14;
+      });
+    }
+    return;
+  }
+
+  if (slide.layout === 'cs-contents') {
+    const tocItems = items.length ? items : caseLines.map(line => ({ heading: line.heading, body: line.body }));
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('rect', { x: 3.8, y: 0.75, w: 0.012, h: H - 1.5, fill: { color: 'FFFFFF', transparency: 84 }, line: { color: 'FFFFFF', transparency: 100 } });
+    addPptText(s, 'CASE FILE', { x: 0.75, y: 0.78, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(v.accent), charSpace: 3.5 });
+    addPptText(s, 'INDEX', { x: 0.75, y: 5.8, w: 3.0, h: 0.86, fontFace: t.fonts.heading, fontSize: 50, bold: true, color: 'FFFFFF' });
+    addPptText(s, safePptText(slide.title || 'Contents'), { x: 4.4, y: 0.86, w: W - 5.2, h: 0.86, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: 'FFFFFF' });
+    tocItems.slice(0, 6).forEach((item, idx) => {
+      const y = 1.95 + idx * 0.75;
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: 4.4, y, w: 0.6, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 58 });
+      addPptText(s, safePptText(item.heading || item.title), { x: 5.05, y, w: 5.8, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: 'FFFFFF' });
+      if (item.body) {
+        addPptText(s, safePptText(item.body), { x: 5.05, y: y + 0.32, w: 7.4, h: 0.26, fontFace: t.fonts.body, fontSize: 9, color: 'AEB7C7' });
+      }
+      if (idx < Math.min(tocItems.length, 6) - 1) {
+        s.addShape('rect', { x: 4.4, y: y + 0.7, w: W - 5.2, h: 0.005, fill: { color: 'FFFFFF', transparency: 88 }, line: { color: 'FFFFFF', transparency: 100 } });
+      }
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-technical') {
+    const techItems = items.slice(0, 6);
+    const heroMetric = metrics[0] || null;
+    const cols = techItems.length > 4 ? 2 : techItems.length <= 2 ? 1 : 2;
+    const rows = Math.max(1, Math.ceil(techItems.length / cols));
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'TECHNICAL EXCELLENCE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const gridLeft = heroMetric ? 5.15 : 0.75;
+    const gridW = W - gridLeft - 0.75;
+    const gridTop = 2.36, gridBottom = H - 0.75;
+    const gridH = gridBottom - gridTop;
+    if (heroMetric) {
+      s.addShape('roundRect', { x: 0.75, y: gridTop, w: 4.0, h: gridH, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.22 });
+      addPptText(s, 'HERO METRIC', { x: 1.05, y: gridTop + 0.32, w: 3.4, h: 0.2, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.accent), charSpace: 3 });
+      addPptText(s, safePptText(heroMetric.label || 'Impact'), { x: 1.05, y: gridTop + 0.7, w: 3.4, h: 0.8, fontFace: t.fonts.body, fontSize: 10.5, color: 'B8C0D5' });
+      addPptText(s, safePptText(acceptedMetricText(heroMetric)), { x: 1.05, y: gridTop + gridH - 1.55, w: 3.4, h: 0.95, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.accent) });
+      if (heroMetric.before && heroMetric.after) {
+        addPptText(s, 'BEFORE → AFTER', { x: 1.05, y: gridTop + gridH - 0.5, w: 3.4, h: 0.2, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF', transparency: 50, charSpace: 2 });
+      }
+    }
+    const cellW = (gridW - (cols - 1) * 0.18) / cols;
+    const cellH = (gridH - (rows - 1) * 0.18) / rows;
+    techItems.forEach((item, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = gridLeft + col * (cellW + 0.18);
+      const y = gridTop + row * (cellH + 0.18);
+      const icon = safePptText(item.role || item.period || '') || String(idx + 1);
+      s.addShape('roundRect', { x, y, w: cellW, h: cellH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
+      s.addShape('roundRect', { x: x + 0.22, y: y + 0.22, w: 0.5, h: 0.5, fill: { color: hex(v.accent), transparency: 80 }, line: { color: hex(v.accent), transparency: 80 }, rectRadius: 0.1 });
+      addPptText(s, icon, { x: x + 0.22, y: y + 0.32, w: 0.5, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.85, y: y + 0.22, w: cellW - 1.07, h: 0.34, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: hex(v.ink) });
+      addPptText(s, safePptText(item.body), { x: x + 0.85, y: y + 0.6, w: cellW - 1.07, h: cellH - 0.82, fontFace: t.fonts.body, fontSize: 8.5, color: hex(v.muted) });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-skillmap') {
+    const skillItems = items.slice(0, 4);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'TECHNICAL SUMMARY'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const gridTop = 2.33, gridBottom = H - 0.7;
+    const gridLeft = 0.75, gridRight = W - 0.75;
+    const cellW = (gridRight - gridLeft - 0.2) / 2;
+    const cellH = (gridBottom - gridTop - 0.2) / 2;
+    skillItems.forEach((item, idx) => {
+      const col = idx % 2, row = Math.floor(idx / 2);
+      const x = gridLeft + col * (cellW + 0.2);
+      const y = gridTop + row * (cellH + 0.2);
+      const isPrimary = idx === 0;
+      const icon = safePptText(item.role || item.period || '') || String(idx + 1);
+      const bullets = splitBulletLines(item.body);
+      s.addShape('roundRect', { x, y, w: cellW, h: cellH, fill: { color: isPrimary ? hex(v.dark) : hex(v.card) }, line: { color: isPrimary ? hex(v.dark) : hex(v.soft) }, rectRadius: 0.22 });
+      s.addShape('roundRect', { x: x + 0.28, y: y + 0.28, w: 0.46, h: 0.46, fill: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, line: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, rectRadius: 0.1 });
+      addPptText(s, icon, { x: x + 0.28, y: y + 0.37, w: 0.46, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.86, y: y + 0.32, w: cellW - 1.1, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: isPrimary ? 'FFFFFF' : hex(v.ink) });
+      bullets.slice(0, 4).forEach((line, bi) => {
+        const by = y + 0.96 + bi * 0.34;
+        s.addShape('ellipse', { x: x + 0.32, y: by + 0.11, w: 0.08, h: 0.08, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+        addPptText(s, safePptText(line), { x: x + 0.5, y: by - 0.02, w: cellW - 0.7, h: 0.32, fontFace: t.fonts.body, fontSize: 9, color: isPrimary ? 'D8DEEA' : hex(v.muted) });
+      });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-journey') {
+    const phases = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'GROWTH NARRATIVE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.9, w: W - 1.5, h: 0.78, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink) });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 0.75, y: 1.78, w: W - 1.5, h: 0.5, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+    }
+    const rowTop = 2.6, rowBottom = H - 0.7;
+    const rowGap = 0.18;
+    const rowH = (rowBottom - rowTop - rowGap * 2) / 3;
+    phases.forEach((phase, idx) => {
+      const y = rowTop + idx * (rowH + rowGap);
+      const isAccent = idx === 1;
+      const isDarkRow = idx === 0;
+      const fill = isDarkRow ? hex(v.dark) : isAccent ? hex(v.accent) : hex(v.card);
+      const border = isDarkRow ? hex(v.dark) : isAccent ? hex(v.accent) : hex(v.soft);
+      const fg = isDarkRow || isAccent ? 'FFFFFF' : hex(v.ink);
+      const muted = isDarkRow ? 'B8C0D5' : isAccent ? 'FFFFFF' : hex(v.muted);
+      const tagColor = isDarkRow ? hex(v.accent) : isAccent ? 'FFFFFF' : hex(v.accent);
+      const tag = safePptText(phase.role || phase.period || '') || `PHASE 0${idx + 1}`;
+      s.addShape('roundRect', { x: 0.75, y, w: W - 1.5, h: rowH, fill: { color: fill }, line: { color: border }, rectRadius: 0.18 });
+      addPptText(s, tag, { x: 1.05, y: y + 0.32, w: 1.85, h: 0.3, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: tagColor, charSpace: 2.8 });
+      addPptText(s, safePptText(phase.heading), { x: 3.0, y: y + 0.22, w: W - 3.75, h: 0.42, fontFace: t.fonts.heading, fontSize: 14.5, bold: true, color: fg });
+      addPptText(s, safePptText(phase.body), { x: 3.0, y: y + 0.72, w: W - 3.75, h: rowH - 0.92, fontFace: t.fonts.body, fontSize: 10, color: muted });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-contribution') {
+    const contribItems = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'NEXT CONTRIBUTION'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink) });
+    const colTop = 2.56, colBottom = H - 0.7;
+    const colLeft = 0.75, colRight = W - 0.75;
+    const gap = 0.2;
+    const colW = (colRight - colLeft - gap * 2) / 3;
+    const colH = colBottom - colTop;
+    contribItems.forEach((item, idx) => {
+      const x = colLeft + idx * (colW + gap);
+      const isPrimary = idx === 1;
+      const fill = isPrimary ? hex(v.dark) : hex(v.card);
+      const border = isPrimary ? hex(v.dark) : hex(v.soft);
+      const fg = isPrimary ? 'FFFFFF' : hex(v.ink);
+      const muted = isPrimary ? 'B8C0D5' : hex(v.muted);
+      const tag = safePptText(item.role || item.period || '') || `Commit ${idx + 1}`;
+      s.addShape('roundRect', { x, y: colTop, w: colW, h: colH, fill: { color: fill }, line: { color: border }, rectRadius: 0.24 });
+      const tagW = Math.min(colW - 0.6, 1.5 + tag.length * 0.06);
+      s.addShape('roundRect', { x: x + 0.32, y: colTop + 0.3, w: tagW, h: 0.3, fill: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, line: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, rectRadius: 0.14 });
+      addPptText(s, tag, { x: x + 0.32, y: colTop + 0.34, w: tagW, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.accent), align: 'center', charSpace: 1.8 });
+      addPptText(s, safePptText(item.heading), { x: x + 0.32, y: colTop + 0.88, w: colW - 0.64, h: 1.1, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: fg });
+      addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.1, w: colW - 0.64, h: colH - 2.3, fontFace: t.fonts.body, fontSize: 10, color: muted });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-retrospective') {
+    const retroItems = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'RETROSPECTIVE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const colTop = 2.5, colBottom = H - 0.7;
+    const colLeft = 0.75, colRight = W - 0.75;
+    const gap = 0.2;
+    const colW = (colRight - colLeft - gap * 2) / 3;
+    const colH = colBottom - colTop;
+    retroItems.forEach((item, idx) => {
+      const x = colLeft + idx * (colW + gap);
+      const icon = safePptText(item.role || item.period || '') || '•';
+      s.addShape('roundRect', { x, y: colTop, w: colW, h: colH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.22 });
+      s.addShape('roundRect', { x: x + 0.32, y: colTop + 0.3, w: 0.6, h: 0.6, fill: { color: hex(v.accent), transparency: 82 }, line: { color: hex(v.accent), transparency: 82 }, rectRadius: 0.14 });
+      addPptText(s, icon, { x: x + 0.32, y: colTop + 0.42, w: 0.6, h: 0.36, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.32, y: colTop + 1.18, w: colW - 0.64, h: 0.96, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.ink) });
+      addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.28, w: colW - 0.64, h: colH - 2.48, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+    });
+    return;
+  }
 
   if (variant === 'case-toc') {
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });

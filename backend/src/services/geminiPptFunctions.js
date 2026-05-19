@@ -24,6 +24,20 @@ function withTimeout(promise, ms = 90000) {
   ]);
 }
 
+// CP949↔UTF-8 미스매치 산물(Mojibake) 감지·정제.
+// Why: 일부 Firestore 문서에 과거 인코딩 손상으로 寃쏀뿕(경험) 같은 잔재가 남아 슬라이드에 노출됨.
+// 감지 신호(MOJIBAKE_MARKERS)는 한국어 문서에서 사실상 나타나지 않는 문자만 보수적으로 포함 — 정상 한자/이름은 건드리지 않음.
+const MOJIBAKE_MARKERS = /[寃쏀뿕곹됰⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/;
+function sanitizePortfolioText(value) {
+  if (typeof value !== 'string' || !value) return value;
+  if (!MOJIBAKE_MARKERS.test(value)) return value;
+  return value
+    .replace(/[㐀-䶿一-鿿]/g, '')
+    .replace(/[寃쏀뿕곹됰⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {
   const layoutMode = getPptLayoutMode(templateHint);
   if (customTemplate) {
@@ -92,9 +106,9 @@ export async function reviseAiPptSlide({ slide, instruction, portfolio }) {
 
 function buildProposalDeckFromPortfolio(p) {
   const slides = [];
-  const userName = p.userName || '지원자';
-  const targetCompany = p.targetCompany || '';
-  const targetPosition = p.targetPosition || '';
+  const userName = sanitizePortfolioText(p.userName) || '지원자';
+  const targetCompany = sanitizePortfolioText(p.targetCompany) || '';
+  const targetPosition = sanitizePortfolioText(p.targetPosition) || '';
   const target = `${targetCompany} ${targetPosition}`.trim();
   const experiences = normalizeExperiences(p).slice(0, 4);
   const primary = experiences[0] || {};
@@ -419,8 +433,8 @@ function buildAcceptedLayoutDeckFromPortfolio(p, layoutMode) {
 }
 
 function buildDeckContext(p) {
-  const userName = p.userName || p.name || p.nameKo || '지원자';
-  const target = `${p.targetCompany || ''} ${p.targetPosition || ''}`.trim() || p.headline || p.title || '';
+  const userName = sanitizePortfolioText(p.userName || p.name || p.nameKo) || '지원자';
+  const target = `${sanitizePortfolioText(p.targetCompany) || ''} ${sanitizePortfolioText(p.targetPosition) || ''}`.trim() || sanitizePortfolioText(p.headline) || sanitizePortfolioText(p.title) || '';
   const experiences = normalizeExperiences(p).slice(0, 6);
   const expItems = experiences.length ? experiences : [{
     heading: '대표 경험',
@@ -2056,6 +2070,16 @@ function expandAcceptedDeckToThirty(slides, ctx, mode) {
     .map((slide, index) => ({ ...slide, id: 's' + (index + 1) }));
 }
 
+// proposal 모드 패딩 슬라이드에서 사용할 변형 풀.
+// Why: buildProposalDeckFromPortfolio가 contents/threeCards/timeline/darkStats/splitPhotoList/
+// stairSteps/venn/metricBars/conditionGrid/gantt/promise 를 이미 슬라이드 1~14에 사용함.
+// 슬라이드 15~29 패딩은 사용자가 보낸 30장 이미지에서 아직 매핑 안 된 다른 디자인 풀로 채움.
+const PROPOSAL_EXPANSION_VARIANTS = [
+  'bubbleCore', 'comparison', 'graphCallout', 'synergy', 'roleTable',
+  'targetCircle', 'caseGrid', 'testimonial', 'criteria', 'stageCards',
+  'pyramid', 'budget', 'risk', 'orbit', 'faqCards',
+];
+
 function buildAcceptedExpansionSlide(ctx, mode, number, source = {}) {
   const exp = ctx.expAt(number);
   const metric = ctx.metricPool[number % Math.max(1, ctx.metricPool.length)] || ctx.firstMetric;
@@ -2065,8 +2089,13 @@ function buildAcceptedExpansionSlide(ctx, mode, number, source = {}) {
     'kpi-dashboard': 'KPI Evidence',
     timeline: 'Timeline Evidence',
     'case-study': 'Case Evidence',
+    proposal: '제안 자료',
   }[mode] || 'Portfolio Evidence';
-  const sectionLabels = [
+  const sectionLabels = mode === 'proposal' ? [
+    '핵심 강점', '차이점', '경험 기반 전략', '협업 시너지', '역할 분담',
+    '공동 목표', '대표 사례', '추천 신뢰', '평가 기준', '단계별 운영',
+    '서비스 지향점', '예산 구성', '리스크 대응', '협력 체계', '서비스 안내',
+  ] : [
     'Opening Signal', 'Context', 'Problem', 'Decision', 'Execution', 'Evidence',
     'Impact', 'Learning', 'Fit', 'Collaboration', 'Risk', 'Next Move',
     'Metric Proof', 'User Insight', 'Role Scope', 'Before / After', 'Process Log',
@@ -2074,36 +2103,185 @@ function buildAcceptedExpansionSlide(ctx, mode, number, source = {}) {
     'KPI Trace', 'Roadmap', 'Final Proof',
   ];
   const label = sectionLabels[(number - 1) % sectionLabels.length];
-  const heading = exp.heading || source.title || 'Representative Experience';
+  const heading = exp.heading || source.title || (mode === 'proposal' ? '대표 경험' : 'Representative Experience');
   const bullets = ctx.pickBullets([
-    exp.problem?.[0] || exp.body || 'Define the problem clearly',
-    exp.action?.[0] || 'Explain the decision and execution path',
-    exp.result?.[0] || 'Connect the result to role fit',
-    ctx.strengths[number % Math.max(1, ctx.strengths.length)] || 'Show repeatable working style',
+    exp.problem?.[0] || exp.body || (mode === 'proposal' ? '해결할 문제를 명확히 정의합니다' : 'Define the problem clearly'),
+    exp.action?.[0] || (mode === 'proposal' ? '실행 방식과 의사결정 경로를 설명합니다' : 'Explain the decision and execution path'),
+    exp.result?.[0] || (mode === 'proposal' ? '결과를 직무 적합성과 연결합니다' : 'Connect the result to role fit'),
+    ctx.strengths[number % Math.max(1, ctx.strengths.length)] || (mode === 'proposal' ? '반복 가능한 강점' : 'Show repeatable working style'),
   ]);
-  const variants = ['', 'proof', 'quote', 'map', 'signal', 'snapshot'];
-  const titlePatterns = [
+
+  const isProposalMode = mode === 'proposal';
+  const bodyVariant = isProposalMode
+    ? PROPOSAL_EXPANSION_VARIANTS[(number - 1) % PROPOSAL_EXPANSION_VARIANTS.length]
+    : (['', 'proof', 'quote', 'map', 'signal', 'snapshot'])[number % 6];
+
+  const titlePatterns = isProposalMode ? [
+    `${label}을(를) 한눈에 보여드립니다`,
+    `${heading}에서 확인된 ${label}`,
+    `${ctx.target || '지원 직무'}에서 검증된 ${label}`,
+    `${label} · 경험 기반으로 정리한 ${ctx.userName}의 강점`,
+  ] : [
     `${label}: ${heading}`,
-    `${heading}?? ??? ${label}`,
+    `${heading}에서 확인된 ${label}`,
     `${modeLabel} ${String(number).padStart(2, '0')}`,
-    `${ctx.target || '?? ??'} ??? ${label}`,
+    `${ctx.target || '지원 직무'} 관점의 ${label}`,
   ];
+
+  const variantData = isProposalMode
+    ? buildProposalExpansionData(bodyVariant, ctx, exp, metric, bullets, heading)
+    : null;
+
   return {
     id: 's' + number,
     layout: 'proposal',
     sectionLabel: label,
-    proposalVariant: variants[number % variants.length],
+    proposalVariant: bodyVariant,
+    dark: ['darkStats', 'budget'].includes(bodyVariant),
     title: titlePatterns[number % titlePatterns.length],
-    subtitle: `${modeLabel} ? ${ctx.userName}`,
-    bullets: bullets.slice(0, 4),
-    metrics: metric ? [metric] : [],
-    items: [
+    subtitle: `${modeLabel} · ${ctx.userName}`,
+    bullets: (variantData && variantData.bullets) || bullets.slice(0, 4),
+    metrics: (variantData && variantData.metrics) || (metric ? [metric] : []),
+    items: (variantData && variantData.items) || [
       { heading: exp.heading || label, role: exp.role || ctx.target || modeLabel, period: exp.period || '', body: exp.body || bullets[0] || '', bullets: bullets.slice(0, 3), metrics: exp.metrics || [] },
-      { heading: 'Problem', body: exp.problem?.[0] || bullets[0] || '??? ??? ??' },
-      { heading: 'Action', body: exp.action?.[0] || bullets[1] || '??? ?? ??? ??' },
-      { heading: 'Result', body: exp.result?.[0] || bullets[2] || '??? ?? ?? ??' },
+      { heading: 'Problem', body: exp.problem?.[0] || bullets[0] || '해결해야 할 문제와 맥락을 정의합니다' },
+      { heading: 'Action', body: exp.action?.[0] || bullets[1] || '문제 해결을 위한 구체적 실행 방식을 정리합니다' },
+      { heading: 'Result', body: exp.result?.[0] || bullets[2] || '결과와 배운 점을 증거 중심으로 정리합니다' },
     ],
+    table: variantData && variantData.table,
   };
+}
+
+// 각 proposal 변형에 필요한 items/bullets/metrics/table 구조를 ctx로부터 빌드.
+// 사용자가 첨부한 30장 제안서 이미지의 비주얼 다양성을 슬라이드 15~29에 재현.
+function buildProposalExpansionData(variant, ctx, exp, metric, bullets, heading) {
+  const userName = ctx.userName || '지원자';
+  const target = ctx.target || '지원 직무';
+  const strengths = ctx.strengths || [];
+  const expItems = ctx.expItems || [];
+
+  switch (variant) {
+    case 'bubbleCore':
+      return {
+        bullets: (strengths.length ? strengths : ['전문성 기반 실행력', '안정적 운영 체계', '협업과 성장 기반']).slice(0, 3),
+      };
+    case 'comparison':
+      return {
+        items: [
+          { heading: '도입 전', body: exp.problem?.[0] || '초기 문제와 우선순위가 명확하지 않은 상황' },
+          { heading: '도입 후', body: exp.result?.[0] || exp.action?.[0] || '체계적 실행으로 측정 가능한 결과 도출' },
+        ],
+      };
+    case 'graphCallout':
+      return {
+        bullets: [
+          exp.body || bullets[0] || `${userName}의 경험 기반 전략으로 빠른 성장 가능성을 제시합니다`,
+          ...bullets.slice(0, 3),
+        ],
+      };
+    case 'synergy':
+      return {
+        items: (strengths.length >= 4 ? strengths.slice(0, 4) : ['전문 역량', '실행 속도', '협업 시너지', '성과 창출'])
+          .map(t => ({ heading: typeof t === 'string' ? t.split('·')[0].trim() : t })),
+      };
+    case 'roleTable':
+      return {
+        table: [
+          ['기간', '단계', userName, target],
+          ['Phase 1', '준비', '강점·경험 분석', '요구사항 정리'],
+          ['Phase 2', '실행', '맞춤 실행 계획', '실행 검토'],
+          ['Phase 3', '확장', '성과 도출', '결과 검증'],
+          ['Phase 4', '완성', '안정화 및 인수인계', '최종 합의'],
+        ],
+      };
+    case 'targetCircle':
+    case 'orbit':
+      return {
+        items: [
+          { heading: userName, body: '강점 기반의 실행 경험' },
+          { heading: '공동 목표', body: '직무 적합성과 성과 창출' },
+          { heading: target, body: '핵심 역량 요구와 기대 성과' },
+          { heading: '연결 포인트', body: '경험에서 검증된 역량' },
+        ],
+      };
+    case 'caseGrid': {
+      const cases = (expItems.length ? expItems : [
+        { heading: '대표 사례', body: '핵심 경험과 직무 연결' },
+        { heading: '주요 성과', body: '수치 기반 결과 정리' },
+        { heading: '협업 경험', body: '팀 시너지와 기여' },
+        { heading: '성장 사례', body: '학습과 적용의 반복' },
+      ]).slice(0, 4);
+      return {
+        items: cases.map(e => ({
+          heading: e.heading || '대표 사례',
+          body: e.body || e.bullets?.[0] || '경험에서 확인된 성과와 역할',
+        })),
+      };
+    }
+    case 'testimonial':
+      return {
+        bullets: [
+          strengths[0] || '직무 적합도 높은 경험 정리',
+          strengths[1] || '신속한 실행과 협업 역량',
+          strengths[2] || '체계적인 결과 검증과 학습',
+        ],
+      };
+    case 'criteria':
+      return {
+        items: [
+          { heading: '검증된 전문성', body: '직무 이해를 바탕으로 한 실행 경험' },
+          { heading: '광범위한 경험', body: `${expItems.length || 1}건의 대표 경험과 사례 보유` },
+          { heading: '안정적 운영 체계', body: '체계적 프로세스와 명확한 기준 적용' },
+          { heading: '지속 성장', body: '경험에서 배운 것을 반복 적용하며 성장' },
+        ],
+      };
+    case 'stageCards':
+      return {
+        items: [
+          { heading: '준비', body: '요구사항 분석과 전략 수립' },
+          { heading: '실행 시작', body: '핵심 영역 우선 적용' },
+          { heading: '운영', body: '체계적 프로세스 유지' },
+          { heading: '검증', body: '성과 점검과 피드백' },
+          { heading: '확장', body: '안정적 결과로 영역 확대' },
+        ],
+      };
+    case 'pyramid':
+      return {
+        items: [
+          { heading: 'BASE', body: '전문 수행 기반 — 검증된 경험과 안정적 운영' },
+          { heading: 'MATCH', body: '정확한 매칭 — 직무 요구와 강점 연결' },
+          { heading: 'RESULT', body: '성과 창출 — 측정 가능한 결과 실현' },
+        ],
+      };
+    case 'budget':
+      return {
+        items: [
+          { heading: '45%', body: '핵심 역량 영역' },
+          { heading: '35%', body: '실행 및 운영 지원' },
+          { heading: '10%', body: '평가 및 검증' },
+          { heading: '10%', body: '기타 운영' },
+        ],
+      };
+    case 'risk':
+      return {
+        items: [
+          { heading: '일정 지연', body: '예상 원인과 사전 대응 시나리오 정리' },
+          { heading: '리소스 부족', body: '예상 원인과 사전 대응 시나리오 정리' },
+          { heading: '결과 미달', body: '예상 원인과 사전 대응 시나리오 정리' },
+        ],
+      };
+    case 'faqCards':
+      return {
+        items: [
+          { heading: '서비스 기간', body: '기본 계약 기간은 1년 단위로 운영하며 협의 후 연장 가능합니다' },
+          { heading: '초기 비용', body: '서비스 범위와 규모에 따라 합리적인 기준으로 산정됩니다' },
+          { heading: '계약 후 시작', body: '계약 체결 후 1~2주 내 본격 운영을 시작합니다' },
+          { heading: '추가 문의', body: '전담 담당자를 통해 상시 문의 및 안내가 가능합니다' },
+        ],
+      };
+    default:
+      return null;
+  }
 }
 function normalizeExperiences(p) {
   const source = Array.isArray(p.experiences) ? p.experiences : [];
@@ -2115,7 +2293,7 @@ function normalizeExperiences(p) {
       ? exportConfig.sections
       : (Array.isArray(e.sections) ? e.sections : []);
     const keyExperiences = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : (Array.isArray(e.keyExperiences) ? e.keyExperiences : []);
-    const compact = (value, max = 95) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    const compact = (value, max = 95) => sanitizePortfolioText(String(value || '')).replace(/\s+/g, ' ').trim().slice(0, max);
     const bullets = [
       ...(Array.isArray(e.bullets) ? e.bullets : []),
       ...sections.map(s => s.content || s.title).filter(Boolean),
@@ -2166,8 +2344,8 @@ function splitSentences(value, limit = 5) {
 
 function buildDeckFromPortfolio(p) {
   const slides = [];
-  const userName = p.userName || '';
-  const target = `${p.targetCompany || ''} ${p.targetPosition || ''}`.trim();
+  const userName = sanitizePortfolioText(p.userName) || '';
+  const target = `${sanitizePortfolioText(p.targetCompany) || ''} ${sanitizePortfolioText(p.targetPosition) || ''}`.trim();
 
   slides.push({ id: 's1', layout: 'cover', title: p.title || `${userName} 포트폴리오`, subtitle: target || (p.headline || '') });
 
@@ -2203,7 +2381,7 @@ function buildDeckFromPortfolio(p) {
     const keyExps = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
     const metrics = keyExps.slice(0, 3).map(k => ({ label: k.metricLabel || k.title || '', value: k.metric || '', before: k.beforeMetric || '', after: k.afterMetric || '' })).filter(m => m.label || m.value);
     if (!itemBullets.length && keyExps.length) itemBullets = keyExps.slice(0, 4).map(k => k.result || k.action || k.title).filter(Boolean);
-    const compact = (s, max = 80) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    const compact = (s, max = 80) => sanitizePortfolioText(String(s || '')).replace(/\s+/g, ' ').trim().slice(0, max);
     const problem = keyExps.map(k => compact(k.situation)).filter(Boolean).slice(0, 3);
     const action = keyExps.map(k => compact(k.action)).filter(Boolean).slice(0, 3);
     const result = keyExps.map(k => compact(k.result)).filter(Boolean).slice(0, 3);

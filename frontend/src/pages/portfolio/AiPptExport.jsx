@@ -371,7 +371,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
     'star': { layout: 'star-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STAT / STAR' },
     'kpi-dashboard': { layout: 'kpi-cover', title: '홍길동', subtitle: 'AI · 풀스택 개발자', sectionLabel: 'PERFORMANCE DASHBOARD' },
     'timeline': { layout: 'timeline-cover', title: '홍길동', subtitle: '성장 곡선을 숫자로 증명합니다', sectionLabel: 'TIMELINE' },
-    'case-study': { layout: 'cover', title: '홍길동', subtitle: '케이스 스터디 포트폴리오', sectionLabel: 'CASE FILE' },
+    'case-study': { layout: 'cs-cover', title: '사용자 경험을 기술로 설계하는\n프론트엔드 개발자, 홍길동', subtitle: '단순 구현을 넘어 최적의 의사결정으로 문제를 해결합니다.', sectionLabel: 'TECHNICAL CASE STUDY', bullets: ['홍길동', '프론트엔드'] },
   };
   const SAMPLE_SLIDE = LAYOUT_SAMPLE_SLIDES[layoutId] || LAYOUT_SAMPLE_SLIDES['standard'];
   const PREVIEW_W = 540;
