@@ -721,7 +721,12 @@ export default function NotionPortfolioEditor() {
 
   // Array helpers
   const addToArray = (field, item) => {
-    setPortfolio(prev => ({ ...prev, [field]: [...(prev[field] || []), item] }));
+    setPortfolio(prev => ({
+      ...prev,
+      [field]: field === 'customBlocks'
+        ? [item, ...(prev[field] || [])]
+        : [...(prev[field] || []), item]
+    }));
   };
   const removeFromArray = (field, index) => {
     setPortfolio(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
@@ -3210,7 +3215,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             <EditableTitle sectionKey="skills" defaultLabel="이런 일을 할 수 있어요" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-[#e8e4dc] bg-white/80 text-[#8a6c4a] hover:bg-[#fffaf0] p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => hideSection('skills')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -3244,7 +3249,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             <EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-[#e8e4dc] bg-white/80 text-[#8a6c4a] hover:bg-[#fffaf0] p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => hideSection('goals')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
@@ -3281,7 +3286,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <EditableTitle sectionKey="values" defaultLabel="나를 들려주는 이야기" className="font-bold text-lg text-[#2d2a26]" />
               <div className="flex items-center gap-2">
                 <VisualSectionRecommend sectionType="values" jobAnalysis={portfolio.jobAnalysis} />
-                <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'values'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-[#c4b89a] hover:text-[#8a6c4a] transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+                <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'values'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-[#e8e4dc] bg-white/80 text-[#8a6c4a] hover:bg-[#fffaf0] p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
                 <button onClick={() => hideSection('values')} className="text-[#c4b89a] hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
               </div>
             </div>
@@ -4107,7 +4112,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             </h2>
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="skills" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-6">
@@ -4141,7 +4146,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             </h2>
             <div className="flex items-center gap-2">
               <VisualSectionRecommend sectionType="goals" jobAnalysis={portfolio.jobAnalysis} />
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <button onClick={() => update('hiddenSections', [...hiddenSections, 'goals'])}
                 className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
@@ -4530,7 +4535,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
               <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
             </h2>
             <div className="flex items-center gap-2">
-              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'activities'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'activities'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
               <div className="relative">
                 <button onClick={() => setShowAddExpMenu(prev => !prev)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
                   <Plus size={14} /> 경험 추가
@@ -4602,7 +4607,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
             </h2>
-            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'goals'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {(p.goals || []).map((g, i) => (
@@ -4641,7 +4646,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
             </h2>
-            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
+            <span draggable onDragStart={e => { e.dataTransfer.setData('text/plain', 'skills'); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.closest('div[style]').style.opacity='0.5'; }} onDragEnd={e => { e.currentTarget.closest('div[style]').style.opacity='1'; }} className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 p-1 transition-colors" title="드래그하여 이동"><GripVertical size={14} /></span>
           </div>
           <div className="flex flex-wrap gap-2">
             {[...(skills.tools || []), ...(skills.languages || []), ...(skills.frameworks || []), ...(skills.others || [])].map((s, i) => (
@@ -4862,7 +4867,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       setBlockDropTarget(null);
     },
   });
-  const sectionHandleClass = 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-1 rounded hover:bg-gray-50 transition-colors';
+  const sectionHandleClass = 'cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 hover:text-primary-700 p-1 transition-colors';
   const hiddenSectionKey = (key) => {
     if (!hiddenSections.includes(key)) update('hiddenSections', [...hiddenSections, key]);
   };

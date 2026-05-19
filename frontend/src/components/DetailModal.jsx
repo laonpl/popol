@@ -22,7 +22,7 @@ function parseStarText(content) {
   return Object.keys(result).length > 0 ? result : null;
 }
 
-export default function DetailModal({ type, data, onClose }) {
+export default function DetailModal({ type, data, onClose, closeLabel = '닫기' }) {
   const [experienceMap, setExperienceMap] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -45,7 +45,7 @@ export default function DetailModal({ type, data, onClose }) {
   if (!data) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-surface-200">
           <h2 className="text-lg font-bold">{data.title || '상세 내용'}</h2>
@@ -82,6 +82,36 @@ export default function DetailModal({ type, data, onClose }) {
                 <div className="bg-violet-50 rounded-xl p-4 mt-4">
                   <p className="text-xs font-bold text-violet-700 mb-2">AI 분석 결과</p>
                   <p className="text-sm text-gray-600">{data.aiAnalysis.feedback || data.aiAnalysis.summary || ''}</p>
+                </div>
+              )}
+
+              {data.structuredResult && (
+                <div className="space-y-3 mt-2">
+                  {data.structuredResult.projectOverview && (
+                    <div className="bg-violet-50 rounded-xl p-4">
+                      <p className="text-xs font-bold text-violet-700 mb-1">역할 · 기간</p>
+                      <p className="text-sm font-semibold text-gray-700">{data.structuredResult.projectOverview.role}</p>
+                      {data.structuredResult.projectOverview.duration && (
+                        <p className="text-xs text-gray-400 mt-0.5">{data.structuredResult.projectOverview.duration}</p>
+                      )}
+                      {data.structuredResult.projectOverview.summary && (
+                        <p className="text-sm text-gray-600 mt-2 leading-relaxed">{data.structuredResult.projectOverview.summary}</p>
+                      )}
+                    </div>
+                  )}
+                  {data.structuredResult.keyExperiences?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">핵심 경험</p>
+                      <div className="space-y-2">
+                        {data.structuredResult.keyExperiences.map((ke, i) => (
+                          <div key={i} className="bg-white border border-surface-200 rounded-xl p-3">
+                            <p className="text-sm font-semibold text-gray-700">{ke.title}</p>
+                            {ke.metric && <p className="text-xs text-green-600 font-bold mt-1">{ke.metric}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -217,7 +247,7 @@ export default function DetailModal({ type, data, onClose }) {
             onClick={onClose}
             className="px-5 py-2.5 text-sm text-gray-500 hover:bg-surface-100 rounded-xl transition-colors"
           >
-            닫기
+            {closeLabel}
           </button>
         </div>
       </div>

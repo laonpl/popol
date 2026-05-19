@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+﻿import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
   ExternalLink, Mail, Phone, Globe, ChevronUp, X, FileText,
@@ -13,10 +13,60 @@ import { FRAMEWORKS } from '../../stores/experienceStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import toast from 'react-hot-toast';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import { useOnboarding } from '../../components/OnboardingOverlay';
+import GuidedTutorial from '../../components/GuidedTutorial';
+
+const PREVIEW_REORDERABLE_SECTION_MAP = {
+  ashley: ['skills', 'goals', 'values'],
+  academic: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
+  notion: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
+  timeline: ['activities', 'goals', 'skills'],
+};
+
+function makePreviewSectionOrder(templateId, sectionOrder) {
+  const reorderable = PREVIEW_REORDERABLE_SECTION_MAP[templateId] || PREVIEW_REORDERABLE_SECTION_MAP.notion;
+  const saved = Array.isArray(sectionOrder)
+    ? sectionOrder.filter(key => reorderable.includes(key))
+    : [];
+  const order = saved.length > 0
+    ? [...saved, ...reorderable.filter(key => !saved.includes(key))]
+    : reorderable;
+
+  return (key) => {
+    const index = order.indexOf(key);
+    return index >= 0 ? index : order.length;
+  };
+}
+
+const TUTORIAL_PORTFOLIO_EXPERIENCE = {
+  id: 'tutorial-portfolio-experience',
+  title: '예시 경험: 서비스 개선 프로젝트',
+  status: 'finished',
+  classify: ['프로젝트', '기획'],
+  skills: ['문제정의', '프로토타입', '데이터 분석'],
+  keywords: ['사용자 경험', '성과 개선', '협업'],
+  role: 'PM / 프론트엔드',
+  date: '2026.03 - 2026.06',
+  structuredResult: {
+    projectOverview: {
+      role: 'PM / 프론트엔드',
+      duration: '2026.03 - 2026.06',
+      summary: '공지 확인 흐름을 개선하기 위해 사용자 인터뷰와 프로토타입 검증을 진행했습니다.',
+      goal: '사용자가 놓치는 정보를 줄이고 반복 확인 시간을 낮추는 것',
+      techStack: ['Figma', 'React', 'Firebase'],
+    },
+    intro: '학생들이 공지를 확인하는 과정에서 반복적으로 놓치는 지점을 발견하고 개선 프로젝트를 시작했습니다.',
+    task: '인터뷰 질문 설계, 문제 패턴 정리, 핵심 화면 프로토타입 제작을 맡았습니다.',
+    process: '12명의 사용자를 인터뷰하고 주요 불편을 3가지 흐름으로 묶어 우선순위를 정했습니다.',
+    output: '테스트 만족도 4.6/5를 기록했고 공지 확인 누락률을 32% 낮추는 개선안을 도출했습니다.',
+    growth: '정성 인터뷰를 실제 화면 구조와 성과 지표로 연결하는 경험을 얻었습니다.',
+  },
+};
 
 export default function NotionPortfolioPreview() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const { updatePortfolio, setCurrentPortfolio } = usePortfolioStore();
   const [portfolio, setPortfolio] = useState(null);
@@ -27,6 +77,11 @@ export default function NotionPortfolioPreview() {
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [customSlug, setCustomSlug] = useState('');
+  const previewTutorialKey = user?.uid ? `portfolio-preview-tutorial-${user.uid}` : null;
+  const forcePreviewTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
+  const { visible: previewTutorialVisible, dismiss: dismissPreviewTutorial } = useOnboarding(previewTutorialKey, { force: forcePreviewTutorial });
+  const previewTutorialRef = useRef(null);
+  const [previewTutorialCurrentStep, setPreviewTutorialCurrentStep] = useState(0);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -47,25 +102,92 @@ export default function NotionPortfolioPreview() {
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
+  const closePreviewTutorial = (permanent = false) => {
+    setShowExportModal(false);
+    setSelectedExp(null);
+    dismissPreviewTutorial(permanent);
+  };
+
+  const previewTutorialSteps = [
+    {
+      selector: '[data-tour="portfolio-edit"]',
+      title: '편집을 눌러서 수정 화면으로 돌아가보세요',
+      body: '미리보기에서 부족한 섹션을 발견하면 이 버튼을 눌러서 블록, 문장, 섹션 순서를 바로 고칠 수 있습니다.',
+    },
+    {
+      selector: '[data-tour="portfolio-link"]',
+      title: '링크 내보내기를 눌러서 설정을 확인해보세요',
+      body: '공개 여부와 복사 가능한 공유 링크를 여기서 관리합니다. 튜토리얼에서는 설정 창만 열어서 흐름을 보여드립니다.',
+    },
+    {
+      selector: '[data-tour="portfolio-public-toggle"]',
+      title: '공개 토글을 눌러서 링크 상태를 바꿔보세요',
+      body: '이 토글을 켜면 공개 링크가 활성화되고, 링크를 아는 사람이 포트폴리오를 볼 수 있습니다. 튜토리얼 중에는 실제 저장 없이 다음 단계로만 넘어갑니다.',
+      preview: <p>튜토리얼은 저장 값을 바꾸지 않고 위치와 의미만 먼저 보여드립니다.</p>,
+      onEnter: () => setShowExportModal(true),
+    },
+    {
+      selector: '[data-tour="portfolio-ppt"]',
+      title: 'PPT 내보내기를 눌러서 발표 자료로 옮겨보세요',
+      body: '포트폴리오 내용을 발표 자료로 만들 때 이 버튼을 사용합니다. 현재 미리보기의 섹션과 경험 구성이 내보내기 기준이 됩니다.',
+      onEnter: () => setShowExportModal(false),
+    },
+    {
+      selector: '[data-tour="portfolio-preview-surface"]',
+      title: '경험 항목을 눌러서 상세 화면을 열어보세요',
+      body: '노션 포트폴리오에서는 프로젝트 카드나 경험 항목을 누르면 상세 페이지처럼 열립니다. 데이터가 없을 때도 예시 화면으로 먼저 확인할 수 있습니다.',
+      actionLabel: '상세 예시 열기',
+      onEnter: () => setShowExportModal(false),
+      onAction: () => setSelectedExp((portfolio.experiences || [])[0] || TUTORIAL_PORTFOLIO_EXPERIENCE),
+    },
+    {
+      selector: '[data-tour="portfolio-detail-modal"]',
+      title: '상세 내용을 눌러서 연결된 정보를 확인해보세요',
+      body: '경험 정리에서 만든 핵심 내용, 키워드, 성과가 포트폴리오 상세 화면에 이런 방식으로 펼쳐집니다.',
+    },
+  ];
+
+  const handleTutorialPublicToggle = () => {
+    if (!(previewTutorialVisible && previewTutorialCurrentStep === 2)) return false;
+    toast.success('튜토리얼에서는 공개 설정을 저장하지 않았습니다');
+    previewTutorialRef.current?.next();
+    return true;
+  };
+
   // 비주얼 템플릿이면 별도 렌더러로 분기
   if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {
     return (
       <div className="animate-fadeIn">
+        <GuidedTutorial
+          ref={previewTutorialRef}
+          visible={previewTutorialVisible}
+          steps={previewTutorialSteps}
+          onSkip={() => closePreviewTutorial(false)}
+          onNeverShow={() => closePreviewTutorial(true)}
+          onStepChange={setPreviewTutorialCurrentStep}
+        />
         {/* Admin bar */}
         <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
           <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
             <ArrowLeft size={14} /> 목록으로
           </Link>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+            <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
+              className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
+              튜토리얼 보기
+            </Link>
+            <button data-tour="portfolio-edit" onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
               className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
               편집
             </button>
-            <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
+            <button data-tour="portfolio-ppt" onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
               className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
               PPT 내보내기
             </button>
-            <button onClick={() => setShowExportModal(true)}
+            <button data-tour="portfolio-link" onClick={() => {
+              setShowExportModal(true);
+              if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
+            }}
               className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
               링크 내보내기
             </button>
@@ -116,7 +238,7 @@ export default function NotionPortfolioPreview() {
           </div>
         </div>
 
-        <div className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-visible">
+        <div data-tour="portfolio-preview-surface" className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-visible">
           <VisualPortfolioRenderer portfolio={portfolio} />
         </div>
 
@@ -128,6 +250,7 @@ export default function NotionPortfolioPreview() {
             togglingPublic={togglingPublic}
             customSlug={customSlug}
             onToggle={async () => {
+              if (handleTutorialPublicToggle()) return;
               setTogglingPublic(true);
               const newVal = !isPublic;
               try {
@@ -140,6 +263,12 @@ export default function NotionPortfolioPreview() {
             onClose={() => setShowExportModal(false)}
           />
         )}
+        {selectedExp && (
+          <ExperienceDetailModal
+            exp={selectedExp}
+            onClose={() => setSelectedExp(null)}
+          />
+        )}
       </div>
     );
   }
@@ -149,24 +278,40 @@ export default function NotionPortfolioPreview() {
   const skills = p.skills || {};
   const curr = p.curricular || {};
   const extra = p.extracurricular || {};
+  const getPreviewSectionOrder = makePreviewSectionOrder(p.templateId || 'notion', p.sectionOrder);
 
   return (
     <div className="animate-fadeIn">
+      <GuidedTutorial
+        ref={previewTutorialRef}
+        visible={previewTutorialVisible}
+        steps={previewTutorialSteps}
+        onSkip={() => closePreviewTutorial(false)}
+        onNeverShow={() => closePreviewTutorial(true)}
+        onStepChange={setPreviewTutorialCurrentStep}
+      />
       {/* Admin bar */}
       <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
         <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
           <ArrowLeft size={14} /> 목록으로
         </Link>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+          <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
+            className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
+            튜토리얼 보기
+          </Link>
+          <button data-tour="portfolio-edit" onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
             className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
             편집
           </button>
-          <button onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
+          <button data-tour="portfolio-ppt" onClick={() => navigate(`/app/portfolio/ai-ppt/${id}`)}
             className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
             PPT 내보내기
           </button>
-          <button onClick={() => setShowExportModal(true)}
+          <button data-tour="portfolio-link" onClick={() => {
+            setShowExportModal(true);
+            if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
+          }}
             className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
             링크 내보내기
           </button>
@@ -219,7 +364,7 @@ export default function NotionPortfolioPreview() {
 
       {/* ── Template Layouts ── */}
       {(!p.templateId || p.templateId === 'notion') ? (
-      <div className="max-w-[1100px] mx-auto bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden" id="notion-portfolio">
+      <div data-tour="portfolio-preview-surface" className="max-w-[1100px] mx-auto bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden" id="notion-portfolio">
 
         {/* Header / Title */}
         <div className="px-10 pt-10 pb-6 border-b border-surface-100">
@@ -425,11 +570,11 @@ export default function NotionPortfolioPreview() {
         )}
 
         {/* ── Full-width sections ── */}
-        <div className="px-10 py-8 border-t border-surface-100">
+        <div className="px-10 py-8 border-t border-surface-100 flex flex-col">
 
           {/* 교과 활동 - Ashley 템플릿에서는 숨김 */}
           {p.templateId !== 'ashley' && (
-          <section id="section-교과 활동" className="mb-10">
+          <section id="section-교과 활동" className="mb-10" style={{ order: getPreviewSectionOrder('curricular') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">📝 교과 활동 | Curricular Activities</h2>
             {(curr.summary?.credits || curr.summary?.gpa) && (
               <div className="bg-surface-50 rounded-xl p-4 mb-4">
@@ -495,7 +640,7 @@ export default function NotionPortfolioPreview() {
 
           {/* 비교과 활동 - Ashley 템플릿에서는 숨김 */}
           {p.templateId !== 'ashley' && (
-          <section id="section-비교과 활동" className="mb-10">
+          <section id="section-비교과 활동" className="mb-10" style={{ order: getPreviewSectionOrder('extracurricular') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">비교과 활동 | Extracurricular Activities</h2>
             {extra.summary && (
               <div className="bg-surface-50 rounded-xl p-4 mb-4">
@@ -559,7 +704,7 @@ export default function NotionPortfolioPreview() {
           )}
 
           {/* 기술 */}
-          <section id="section-기술" className="mb-10">
+          <section id="section-기술" className="mb-10" style={{ order: getPreviewSectionOrder('skills') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">기술 | Skills</h2>
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
@@ -592,7 +737,7 @@ export default function NotionPortfolioPreview() {
 
           {/* 목표와 계획 - Ashley 템플릿에서는 숨김 */}
           {p.templateId !== 'ashley' && (
-          <section id="section-목표와 계획" className="mb-10">
+          <section id="section-목표와 계획" className="mb-10" style={{ order: getPreviewSectionOrder('goals') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">✨ 목표와 계획 | Future Plans</h2>
             {(p.goals || []).length > 0 ? (
               <div className="space-y-3">
@@ -622,7 +767,7 @@ export default function NotionPortfolioPreview() {
           )}
 
           {/* 가치관 */}
-          <section id="section-가치관" className="mb-10">
+          <section id="section-가치관" className="mb-10" style={{ order: getPreviewSectionOrder('values') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">가치관 | Values</h2>
             {p.valuesEssay ? (
               <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line">
@@ -669,6 +814,7 @@ export default function NotionPortfolioPreview() {
           togglingPublic={togglingPublic}
           customSlug={customSlug}
           onToggle={async () => {
+            if (handleTutorialPublicToggle()) return;
             setTogglingPublic(true);
             const newVal = !isPublic;
             try {
@@ -726,6 +872,7 @@ function LinkExportModal({ portfolioId, isPublic, togglingPublic, customSlug, on
               <p className="text-xs text-gray-400 mt-0.5">누구나 링크로 포트폴리오를 확인할 수 있어요</p>
             </div>
             <button
+              data-tour="portfolio-public-toggle"
               onClick={onToggle}
               disabled={togglingPublic}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-500' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
@@ -871,9 +1018,10 @@ function AcademicLayout({ p, setSelectedExp }) {
   const skills = p.skills || {};
   const curr = p.curricular || {};
   const extra = p.extracurricular || {};
+  const getPreviewSectionOrder = makePreviewSectionOrder('academic', p.sectionOrder);
 
   return (
-    <div className="max-w-[900px] mx-auto" id="notion-portfolio">
+    <div data-tour="portfolio-preview-surface" className="max-w-[900px] mx-auto" id="notion-portfolio">
       {/* Hero Banner */}
       <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
@@ -1047,8 +1195,10 @@ function AcademicLayout({ p, setSelectedExp }) {
           </div>
         )}
 
+        <div className="flex flex-col">
+
         {/* Skills */}
-        <div className="px-10 py-8 border-b border-surface-100" id="acad-기술">
+        <div className="px-10 py-8 border-b border-surface-100" id="acad-기술" style={{ order: getPreviewSectionOrder('skills') }}>
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-teal-500 rounded-full inline-block" /> 기술
           </h2>
@@ -1083,7 +1233,7 @@ function AcademicLayout({ p, setSelectedExp }) {
 
         {/* Curricular */}
         {(curr.courses?.length > 0 || curr.summary?.credits || curr.summary?.gpa) && (
-          <div className="px-10 py-8 border-b border-surface-100" id="acad-교과">
+          <div className="px-10 py-8 border-b border-surface-100" id="acad-교과" style={{ order: getPreviewSectionOrder('curricular') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-orange-500 rounded-full inline-block" /> 교과 활동
             </h2>
@@ -1104,7 +1254,7 @@ function AcademicLayout({ p, setSelectedExp }) {
 
         {/* Extracurricular */}
         {(extra.details?.length > 0 || extra.badges?.length > 0 || extra.languages?.length > 0 || extra.summary) && (
-          <div className="px-10 py-8 border-b border-surface-100" id="acad-비교과">
+          <div className="px-10 py-8 border-b border-surface-100" id="acad-비교과" style={{ order: getPreviewSectionOrder('extracurricular') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-pink-500 rounded-full inline-block" /> 비교과 활동
             </h2>
@@ -1141,7 +1291,7 @@ function AcademicLayout({ p, setSelectedExp }) {
 
         {/* Goals */}
         {(p.goals || []).length > 0 && (
-          <div className="px-10 py-8 border-b border-surface-100" id="acad-목표">
+          <div className="px-10 py-8 border-b border-surface-100" id="acad-목표" style={{ order: getPreviewSectionOrder('goals') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-cyan-500 rounded-full inline-block" /> 목표와 계획
             </h2>
@@ -1164,6 +1314,8 @@ function AcademicLayout({ p, setSelectedExp }) {
           </div>
         )}
 
+        </div>
+
         <CustomPortfolioBlocks blocks={p.customBlocks} variant="academic" />
 
         {/* Footer */}
@@ -1180,9 +1332,10 @@ function AcademicLayout({ p, setSelectedExp }) {
 function AshleyLayout({ p, setSelectedExp }) {
   const contact = p.contact || {};
   const skills = p.skills || {};
+  const getPreviewSectionOrder = makePreviewSectionOrder('ashley', p.sectionOrder);
 
   return (
-    <div className="max-w-[860px] mx-auto" id="notion-portfolio">
+    <div data-tour="portfolio-preview-surface" className="max-w-[860px] mx-auto" id="notion-portfolio">
       {/* Hero */}
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         <div className="px-10 pt-10 pb-8">
@@ -1295,8 +1448,10 @@ function AshleyLayout({ p, setSelectedExp }) {
           </div>
         )}
 
+        <div className="flex flex-col">
+
         {/* 이런 일을 할 수 있어요 (Skills) */}
-        <div className="px-10 pb-8">
+        <div className="px-10 pb-8" style={{ order: getPreviewSectionOrder('skills') }}>
           <h3 className="font-bold text-lg text-[#2d2a26] mb-4">💼 이런 일을 할 수 있어요</h3>
           <div className="grid grid-cols-2 gap-4">
             {Object.entries(skills).filter(([_, arr]) => arr && arr.length > 0).map(([category, items]) => (
@@ -1325,13 +1480,15 @@ function AshleyLayout({ p, setSelectedExp }) {
 
         {/* 가치관 에세이 (긴 글) */}
         {p.valuesEssay && (
-          <div className="px-10 pb-8">
+          <div className="px-10 pb-8" style={{ order: getPreviewSectionOrder('values') }}>
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
               <h3 className="font-bold text-lg text-[#2d2a26] mb-4">📝 나를 들려주는 이야기</h3>
               <div className="prose prose-sm max-w-none text-[#5a564e] leading-[1.9] whitespace-pre-line">{p.valuesEssay}</div>
             </div>
           </div>
         )}
+
+        </div>
 
         {/* Interests */}
         {(p.interests || []).length > 0 && (
@@ -1486,7 +1643,7 @@ function ExperienceDetailModal({ exp, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-[720px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div data-tour="portfolio-detail-modal" className="bg-white rounded-xl max-w-[720px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 영역 */}
         <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
           {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
@@ -1611,6 +1768,7 @@ function TimelineLayout({ p, setSelectedExp }) {
   const contact = p.contact || {};
   const skills = p.skills || {};
   const curr = p.curricular || {};
+  const getPreviewSectionOrder = makePreviewSectionOrder('timeline', p.sectionOrder);
 
   const now = new Date();
   const year = now.getFullYear();
@@ -1632,7 +1790,7 @@ function TimelineLayout({ p, setSelectedExp }) {
   const sortedExperiences = [...(p.experiences || [])].sort((a, b) => (b.period || '').localeCompare(a.period || ''));
 
   return (
-    <div className="max-w-[900px] mx-auto" id="notion-portfolio">
+    <div data-tour="portfolio-preview-surface" className="max-w-[900px] mx-auto" id="notion-portfolio">
       {/* Dark header with calendar */}
       <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] rounded-t-2xl px-8 pt-8 pb-6">
         <div className="flex items-center gap-4 mb-6">
@@ -1697,9 +1855,11 @@ function TimelineLayout({ p, setSelectedExp }) {
           </div>
         )}
 
+        <div className="flex flex-col">
+
         {/* 활동 기록 */}
         {sortedExperiences.length > 0 && (
-          <div className="px-8 py-6 border-b border-surface-100" id="section-활동 기록">
+          <div className="px-8 py-6 border-b border-surface-100" id="section-활동 기록" style={{ order: getPreviewSectionOrder('activities') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
             </h2>
@@ -1727,7 +1887,7 @@ function TimelineLayout({ p, setSelectedExp }) {
 
         {/* 스터디 계획 */}
         {(p.goals || []).length > 0 && (
-          <div className="px-8 py-6 border-b border-surface-100" id="section-스터디 계획">
+          <div className="px-8 py-6 border-b border-surface-100" id="section-스터디 계획" style={{ order: getPreviewSectionOrder('goals') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
             </h2>
@@ -1743,7 +1903,7 @@ function TimelineLayout({ p, setSelectedExp }) {
         )}
 
         {/* 기술 */}
-        <div className="px-8 py-6 border-b border-surface-100" id="section-기술">
+        <div className="px-8 py-6 border-b border-surface-100" id="section-기술" style={{ order: getPreviewSectionOrder('skills') }}>
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
           </h2>
@@ -1754,6 +1914,8 @@ function TimelineLayout({ p, setSelectedExp }) {
               </span>
             ))}
           </div>
+        </div>
+
         </div>
 
         {/* 수상 */}

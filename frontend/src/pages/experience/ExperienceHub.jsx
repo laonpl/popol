@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, CalendarDays, List, Star, ArrowUpDown,
@@ -11,30 +11,8 @@ import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import { stripMd } from '../../utils/textUtils';
-import OnboardingOverlay, { useOnboarding } from '../../components/OnboardingOverlay';
-
-const EXPERIENCE_ONBOARDING = [
-  {
-    message: '새 경험 추가',
-    sub: '버튼을 눌러 활동, 프로젝트, 인턴 경험을 상세히 기록해보세요',
-    arrow: 'up',
-    // 컨테이너 우측 여백(max(32px, 50vw-620px))에서 버튼 중심(+65px) - 카드 절반(-94px)
-    style: { top: '150px', right: 'max(3px, calc(50vw - 649px))' },
-  },
-  {
-    message: '타임라인으로 한눈에',
-    sub: '기간별로 경험을 정렬하고 간트 차트로 시각화할 수 있어요',
-    arrow: 'up',
-    // 타임라인 토글 중심(컨테이너 우측+257px)에서 카드 절반(-94px)
-    style: { top: '150px', right: 'max(195px, calc(50vw - 457px))' },
-  },
-  {
-    message: 'AI가 핵심역량을 추출해요',
-    sub: '경험을 저장하면 AI가 분석해 자소서·포트폴리오 작성을 도와줘요',
-    arrow: 'right',
-    style: { bottom: '28%', left: '24px' },
-  },
-];
+import { useOnboarding } from '../../components/OnboardingOverlay';
+import GuidedTutorial from '../../components/GuidedTutorial';
 
 function formatDate(ts) {
   if (!ts) return '';
@@ -89,6 +67,65 @@ const SORT_OPTIONS = [
   { value: 'favorite',  label: '즐겨찾기순' },
 ];
 
+function createTutorialExperience() {
+  const year = new Date().getFullYear();
+  return {
+    id: 'tutorial-demo-experience',
+    isTutorialDemo: true,
+    title: '가상 경험: 교내 서비스 개선 프로젝트',
+    period: `${year}.03 ~ ${year}.06`,
+    createdAt: new Date(),
+    status: 'finished',
+    classify: ['프로젝트', '팀 리딩'],
+    keywords: ['문제정의', '사용자 인터뷰', '프로토타입'],
+    skills: ['Figma', 'React', '데이터 분석'],
+    structuredResult: {
+      projectOverview: {
+        role: 'PM / 프론트엔드',
+        summary: '학생들이 놓치던 공지 확인 흐름을 개선하기 위해 가설 수립, 인터뷰, 프로토타입 검증을 진행했습니다.',
+        duration: `${year}.03 ~ ${year}.06`,
+      },
+      keyExperiences: [
+        { title: '인터뷰 12건으로 문제 패턴 정리', metric: '공지 확인 누락률 32% 감소' },
+        { title: '핵심 화면 3개를 빠르게 프로토타입 제작', metric: '테스트 만족도 4.6/5' },
+      ],
+      keywords: ['문제정의', '사용자 인터뷰', '프로토타입'],
+    },
+  };
+}
+
+function TutorialBuildPreview({ status }) {
+  const steps = [
+    { key: 'collecting', label: '가상 경험 입력값 준비' },
+    { key: 'structuring', label: '기간, 키워드, 성과 정리' },
+    { key: 'ready', label: '타임라인 맨 위에 추가' },
+  ];
+  const currentIndex = status === 'ready' ? 2 : status === 'structuring' ? 1 : status === 'collecting' ? 0 : -1;
+
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-bluewood-700">가상 경험 만들기를 눌러서 생성 과정을 확인해보세요.</p>
+      <div className="space-y-1.5">
+        {steps.map((step, index) => {
+          const done = currentIndex > index || status === 'ready';
+          const active = currentIndex === index && status !== 'ready';
+          return (
+            <div key={step.key} className="flex items-center gap-2 text-[13px]">
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
+                done ? 'bg-primary-600 text-white' : active ? 'bg-primary-100 text-primary-700' : 'bg-white text-bluewood-300 border border-surface-200'
+              }`}>
+                {done ? <Check size={12} /> : active ? <span className="h-2 w-2 rounded-full bg-primary-600 animate-pulse" /> : index + 1}
+              </span>
+              <span className={done || active ? 'font-semibold text-bluewood-700' : 'text-bluewood-400'}>{step.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      {status === 'ready' && <p className="text-[13px] font-semibold text-primary-600">완료되었습니다. 다음을 눌러서 생성된 경험을 확인해보세요.</p>}
+    </div>
+  );
+}
+
 /* ── 즐겨찾기 로컬스토리지 헬퍼 ── */
 const FAV_KEY = 'exp_favorites';
 function loadFavs() {
@@ -100,14 +137,19 @@ function saveFavs(set) {
 }
 
 export default function ExperienceHub() {
-  const { visible: obVisible, dismiss: obDismiss } = useOnboarding('experience-hub');
   const { user } = useAuthStore();
+  const location = useLocation();
+  const tutorialKey = user?.uid ? `experience-flow-tutorial-${user.uid}` : null;
+  const forceTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
+  const tutorialInitialStep = parseInt(new URLSearchParams(location.search).get('step') || '0', 10) || 0;
+  const { visible: tutorialVisible, dismiss: dismissTutorial, show: showTutorial } = useOnboarding(tutorialKey, { force: forceTutorial });
   const { experiences, fetchExperiences, loading, deleteExperience, createExperience, updateExperience, reorderExperiences } = useExperienceStore();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
   const [exportData, setExportData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [tutorialDemoExperience, setTutorialDemoExperience] = useState(null);
 
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -119,14 +161,56 @@ export default function ExperienceHub() {
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const timelineRef = useRef(null);
   const yearDropdownRef = useRef(null);
+  const tutorialDemoTimersRef = useRef([]);
+  const tutorialRef = useRef(null);
+  const [tutorialCurrentStep, setTutorialCurrentStep] = useState(0);
+  const [tutorialDetailOpen, setTutorialDetailOpen] = useState(false);
   const [hoveredBar, setHoveredBar] = useState(null);
   const [colorPalette, setColorPalette] = useState('blue');
+  const [tutorialDemoBuildStep, setTutorialDemoBuildStep] = useState('idle');
 
   /* ── 정렬 & 즐겨찾기 ── */
   const [sortBy, setSortBy] = useState('custom');
   const [sortDropOpen, setSortDropOpen] = useState(false);
   const sortDropRef = useRef(null);
   const [favorites, setFavorites] = useState(loadFavs);
+
+  const displayExperiences = useMemo(() => {
+    if (!tutorialDemoExperience) return experiences;
+    return [tutorialDemoExperience, ...experiences.filter(exp => exp.id !== tutorialDemoExperience.id)];
+  }, [experiences, tutorialDemoExperience]);
+
+  const clearTutorialDemoTimers = useCallback(() => {
+    tutorialDemoTimersRef.current.forEach(timer => window.clearTimeout(timer));
+    tutorialDemoTimersRef.current = [];
+  }, []);
+
+  const showTutorialDemo = useCallback(() => {
+    clearTutorialDemoTimers();
+    if (tutorialDemoExperience) {
+      setTutorialDemoBuildStep('ready');
+      setViewMode('timeline');
+      setSelectedYear(parsePeriod(tutorialDemoExperience).start.getFullYear());
+      setSelectedId(tutorialDemoExperience.id);
+      return;
+    }
+
+    setTutorialDemoBuildStep('collecting');
+    setViewMode('timeline');
+    setSelectedId(null);
+
+    const structureTimer = window.setTimeout(() => setTutorialDemoBuildStep('structuring'), 650);
+    const completeTimer = window.setTimeout(() => {
+      const demo = createTutorialExperience();
+      setTutorialDemoExperience(demo);
+      setSelectedYear(parsePeriod(demo).start.getFullYear());
+      setSelectedId(demo.id);
+      setTutorialDemoBuildStep('ready');
+    }, 1450);
+    tutorialDemoTimersRef.current = [structureTimer, completeTimer];
+  }, [clearTutorialDemoTimers, tutorialDemoExperience]);
+
+  useEffect(() => () => clearTutorialDemoTimers(), [clearTutorialDemoTimers]);
 
   const toggleFavorite = useCallback((id, e) => {
     e?.stopPropagation();
@@ -140,7 +224,7 @@ export default function ExperienceHub() {
 
   /* 정렬된 경험 목록 */
   const sortedExperiences = useMemo(() => {
-    const list = [...experiences];
+    const list = [...displayExperiences];
     if (sortBy === 'latest') {
       return list.sort((a, b) => {
         const ta = a.createdAt?.toDate?.() ?? new Date(a.createdAt || 0);
@@ -159,7 +243,7 @@ export default function ExperienceHub() {
       });
     }
     return list; // custom — 원본 순서 유지
-  }, [experiences, sortBy, favorites]);
+  }, [displayExperiences, sortBy, favorites]);
 
   /* ── 드래그 앤 드롭 (custom 모드에서만) ── */
   const [dragIdx, setDragIdx] = useState(null);
@@ -204,6 +288,12 @@ export default function ExperienceHub() {
   const saveEditing = async (e) => {
     e?.stopPropagation();
     if (!editingId || !editTitle.trim()) return;
+    if (editingId === tutorialDemoExperience?.id) {
+      setTutorialDemoExperience(prev => prev ? { ...prev, title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` } : prev);
+      toast.success('가상 경험이 수정되었습니다');
+      setEditingId(null);
+      return;
+    }
     try {
       await updateExperience(editingId, { title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` });
       toast.success('수정 완료');
@@ -214,6 +304,13 @@ export default function ExperienceHub() {
   /* ── 타임라인 바 삭제 ── */
   const handleTimelineDelete = useCallback((exp, e) => {
     e.stopPropagation();
+    if (exp.isTutorialDemo) {
+      setTutorialDemoBuildStep('idle');
+      setTutorialDemoExperience(null);
+      setSelectedId(null);
+      toast.success('가상 경험을 지웠습니다');
+      return;
+    }
     if (window.confirm(`"${stripMd(exp.title)}" 경험을 삭제하시겠습니까?`)) {
       deleteExperience(exp.id);
       toast.success('삭제되었습니다');
@@ -261,33 +358,99 @@ export default function ExperienceHub() {
   }, [sortedExperiences, selectedYear]);
 
   const availableYears = useMemo(() => {
-    if (experiences.length === 0) return [new Date().getFullYear()];
+    if (displayExperiences.length === 0) return [new Date().getFullYear()];
     const years = new Set();
-    experiences.forEach(exp => {
+    displayExperiences.forEach(exp => {
       const { start, end } = parsePeriod(exp);
       for (let y = start.getFullYear(); y <= end.getFullYear(); y++) years.add(y);
     });
     return [...years].sort((a, b) => b - a);
-  }, [experiences]);
+  }, [displayExperiences]);
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
 
+  const experienceTutorialSteps = useMemo(() => [
+    {
+      selector: '[data-tour="experience-new"]',
+      title: '새 경험 추가를 눌러서 작성 화면으로 들어가보세요',
+      body: '이 버튼을 누르면 실제 새 경험 작성 화면으로 이동하고, 다음 화면에서 가상 경험이 만들어지는 과정을 이어서 보여드립니다.',
+      preview: <p>실제 저장이나 AI 호출 없이, 작성 화면 안에서 샘플 경험 생성 흐름을 확인합니다.</p>,
+      hideNav: true,
+    },
+    {
+      selector: '[data-tour="experience-demo-bar"]',
+      title: '생성된 경험을 눌러서 확인해보세요',
+      body: '가상 경험이 타임라인 맨 위에 추가되었습니다. 바를 클릭하면 상세 내용을 볼 수 있습니다. 확인 후 돌아오면 다음 단계로 이어집니다.',
+      preview: <p>키워드, 성과, 역할 정보가 함께 들어간 예시라서 저장 없이 바로 확인할 수 있습니다.</p>,
+      onEnter: showTutorialDemo,
+    },
+    {
+      selector: '[data-tour="experience-view-toggle"]',
+      title: '표 보기를 눌러서 비교해보세요',
+      body: '타임라인에서 기간을 확인했다면 표 보기로 바꿔보세요. 키워드와 성과를 한 줄씩 비교하기 좋아집니다.',
+    },
+    {
+      selector: '[data-tour="experience-demo-row"]',
+      title: '가상 경험 행을 눌러서 내용을 살펴보세요',
+      body: '표에서는 제목, 기간, 성과, 키워드가 한 줄로 정리됩니다. 수정 패널을 열어서 바뀌는 위치도 확인해보세요.',
+      onEnter: () => {
+        const demo = tutorialDemoExperience || createTutorialExperience();
+        setTutorialDemoExperience(demo);
+        setTutorialDemoBuildStep('ready');
+        setViewMode('table');
+      },
+    },
+    {
+      selector: '[data-tour="experience-edit-panel"]',
+      title: '제목과 기간을 눌러서 수정해보세요',
+      body: '튜토리얼의 가상 경험은 화면에서만 바뀝니다. 실제 경험은 여기서 저장을 누르면 내 경험 DB에 반영됩니다.',
+      onEnter: () => {
+        const demo = tutorialDemoExperience || createTutorialExperience();
+        setTutorialDemoExperience(demo);
+        setTutorialDemoBuildStep('ready');
+        setViewMode('table');
+        startEditing(demo);
+      },
+    },
+    {
+      selector: '[data-tour="experience-sort"]',
+      title: '정렬을 눌러서 보는 순서를 바꿔보세요',
+      body: '직접 정렬, 최신순, 기간순, 즐겨찾기순을 눌러서 경험 목록을 원하는 관점으로 다시 볼 수 있습니다.',
+    },
+  ], [navigate, dismissTutorial, showTutorialDemo, tutorialDemoExperience]);
+
   return (
     <>
-    <OnboardingOverlay visible={obVisible} onDismiss={obDismiss} callouts={EXPERIENCE_ONBOARDING} />
+    <GuidedTutorial
+      ref={tutorialRef}
+      visible={tutorialVisible}
+      steps={experienceTutorialSteps}
+      onSkip={() => dismissTutorial(false)}
+      onNeverShow={() => dismissTutorial(true)}
+      initialStep={tutorialInitialStep}
+      onStepChange={setTutorialCurrentStep}
+    />
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
       {/* ═══ 헤더 ═══ */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">경험 정리</h1>
           <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-primary-600 font-bold">{experiences.length}</span>개의 경험이 정리되어 있습니다
+            <span className="text-primary-600 font-bold">{displayExperiences.length}</span>개의 경험이 정리되어 있습니다
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { navigate('/app/experience?tutorial=1'); showTutorial(); }}
+            className="px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
+          >
+            튜토리얼 보기
+          </button>
           {/* 정렬 드롭다운 */}
           <div className="relative" ref={sortDropRef}>
             <button
+              data-tour="experience-sort"
               onClick={() => setSortDropOpen(v => !v)}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-600 hover:border-surface-300 transition-colors"
             >
@@ -313,7 +476,7 @@ export default function ExperienceHub() {
           </div>
 
           {/* 뷰 전환 */}
-          <div className="flex items-center gap-0.5 border border-surface-200 rounded-lg p-1 bg-white">
+          <div data-tour="experience-view-toggle" className="flex items-center gap-0.5 border border-surface-200 rounded-lg p-1 bg-white">
             <button
               onClick={() => setViewMode('timeline')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
@@ -323,7 +486,10 @@ export default function ExperienceHub() {
               <CalendarDays size={13} />타임라인
             </button>
             <button
-              onClick={() => setViewMode('table')}
+              onClick={() => {
+                setViewMode('table');
+                if (tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
+              }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
                 viewMode === 'table' ? 'bg-primary-600 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
               }`}
@@ -334,7 +500,11 @@ export default function ExperienceHub() {
 
           {/* 새 경험 추가 버튼 */}
           <Link
-            to="/app/experience/new"
+            data-tour="experience-new"
+            to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
+            onClick={() => {
+              if (tutorialVisible && tutorialCurrentStep === 0) dismissTutorial(false);
+            }}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} />
@@ -347,7 +517,7 @@ export default function ExperienceHub() {
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
-      ) : experiences.length === 0 ? (
+      ) : displayExperiences.length === 0 ? (
         <EmptyState />
       ) : (
         <>
@@ -441,6 +611,7 @@ export default function ExperienceHub() {
                         return (
                           <div
                             key={exp.id}
+                            data-tour={exp.isTutorialDemo ? 'experience-demo-bar' : undefined}
                             className="absolute group"
                             style={{ top: `${idx * 56 + 16}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '120px', zIndex: isEditingThis ? 50 : 1 }}
                             onMouseEnter={(e) => { if (!isEditingThis) setHoveredBar({ exp, rect: e.currentTarget.getBoundingClientRect() }); }}
@@ -484,8 +655,18 @@ export default function ExperienceHub() {
                                   className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
                                     isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
                                   }`}
-                                  onClick={() => setSelectedId(isSelected ? null : exp.id)}
-                                  onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
+                                  onClick={() => {
+                                    if (tutorialVisible && tutorialCurrentStep === 1 && exp.isTutorialDemo) {
+                                      setHoveredBar(null);
+                                      setDetailData(exp);
+                                      setTutorialDetailOpen(true);
+                                    } else {
+                                      setSelectedId(isSelected ? null : exp.id);
+                                    }
+                                  }}
+                                  onDoubleClick={() => {
+                                    if (!exp.isTutorialDemo) navigate(`/app/experience/structured/${exp.id}?view=true`);
+                                  }}
                                 >
                                   <span className={`text-[15px] font-semibold ${theme.barText} truncate block pr-12`}>
                                     {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
@@ -555,7 +736,7 @@ export default function ExperienceHub() {
                   /* ── 편집 상태: 그리드를 무너뜨리고 풀 너비 form 패널 ── */
                   if (isEditing) {
                     return (
-                      <div key={exp.id} className="bg-surface-50/60 border-y border-surface-200 px-5 py-5">
+                      <div key={exp.id} data-tour={exp.isTutorialDemo ? 'experience-edit-panel' : undefined} className="bg-surface-50/60 border-y border-surface-200 px-5 py-5">
                         <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.14em] mb-4">경험 수정</p>
                         <div className="flex flex-col gap-3">
                           {/* 제목 */}
@@ -615,16 +796,26 @@ export default function ExperienceHub() {
                   return (
                     <div
                       key={exp.id}
+                      data-tour={exp.isTutorialDemo ? 'experience-demo-row' : undefined}
                       draggable={!isEditing}
                       onDragStart={(e) => handleDragStart(e, idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
-                      onDoubleClick={() => navigate(`/app/experience/structured/${exp.id}?view=true`)}
+                      onDoubleClick={() => {
+                        if (!exp.isTutorialDemo) navigate(`/app/experience/structured/${exp.id}?view=true`);
+                      }}
                       className={`group grid grid-cols-[24px_24px_44px_1fr_150px_130px_110px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
                         isDragging ? 'opacity-40' : ''
                       } ${isOver && !isDragging ? 'border-t-2 border-t-bluewood-400' : ''
                       } ${isSelected ? `${theme.light}` : 'hover:bg-surface-50/40'}`}
-                      onClick={() => setSelectedId(isSelected ? null : exp.id)}
+                      onClick={() => {
+                        if (tutorialVisible && tutorialCurrentStep === 3 && exp.isTutorialDemo) {
+                          startEditing(exp);
+                          tutorialRef.current?.next();
+                        } else {
+                          setSelectedId(isSelected ? null : exp.id);
+                        }
+                      }}
                     >
                       {/* 드래그 핸들 — 모든 모드에서 활성화 */}
                       <div
@@ -683,7 +874,17 @@ export default function ExperienceHub() {
                           <Pencil size={13} />
                         </button>
                         <button
-                          onClick={e => { e.stopPropagation(); if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id); }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (exp.isTutorialDemo) {
+                              setTutorialDemoBuildStep('idle');
+                              setTutorialDemoExperience(null);
+                              setSelectedId(null);
+                              toast.success('가상 경험을 지웠습니다');
+                              return;
+                            }
+                            if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id);
+                          }}
                           className="p-1.5 text-bluewood-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                           title="삭제"
                         >
@@ -703,7 +904,18 @@ export default function ExperienceHub() {
         <ImportModal targetType="experience" onClose={() => setShowImport(false)} onImport={handleImport} />
       )}
       {detailData && (
-        <DetailModal type="experience" data={detailData} onClose={() => setDetailData(null)} />
+        <DetailModal
+          type="experience"
+          data={detailData}
+          closeLabel={tutorialDetailOpen ? '← 돌아가기' : '닫기'}
+          onClose={() => {
+            setDetailData(null);
+            if (tutorialDetailOpen) {
+              setTutorialDetailOpen(false);
+              tutorialRef.current?.next();
+            }
+          }}
+        />
       )}
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />

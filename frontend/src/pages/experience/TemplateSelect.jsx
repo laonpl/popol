@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Globe, Github,
   X, CheckCircle2, Calendar,
@@ -11,8 +11,52 @@ import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore
 import { importFileUpload, importFromUrl } from '../../services/importAI';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useOnboarding } from '../../components/OnboardingOverlay';
+import GuidedTutorial from '../../components/GuidedTutorial';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp';
+const TUTORIAL_PROJECT = {
+  title: '가상 경험: 교내 공지 서비스 개선 프로젝트',
+  startDate: '2026-03',
+  endDate: '2026-06',
+  jobCategory: 'dev',
+  textInput: `교내 공지 확인 서비스에서 학생들이 중요한 안내를 놓치는 문제가 있었습니다.
+저는 사용자 인터뷰 12건을 진행해 공지 탐색 흐름을 분석했고, 자주 놓치는 카테고리를 다시 정리했습니다.
+React로 핵심 화면 3개를 프로토타입으로 만들고 테스트를 진행했습니다.
+그 결과 공지 확인 누락률을 32% 낮추고 테스트 만족도 4.6/5를 얻었습니다.`,
+};
+
+function createTutorialMoment(prefix = 'tutorial') {
+  return {
+    id: `${prefix}-${Date.now()}`,
+    title: '교내 공지 서비스 개선 프로젝트',
+    type: '유형1,유형5',
+    description: [
+      'Context: 학생들이 중요한 공지를 여러 채널에서 확인해야 해서 누락이 자주 발생했습니다.',
+      'Action: 사용자 인터뷰 12건을 진행하고 공지 탐색 흐름을 재설계한 뒤 React 프로토타입 3개 화면을 제작했습니다.',
+      'Result: 공지 확인 누락률을 32% 낮추고 테스트 만족도 4.6/5를 달성했습니다.',
+      'Learning: 정성 인터뷰를 화면 구조와 정량 성과로 연결하는 방법을 배웠습니다.',
+    ].join('\n'),
+    keywords: ['문제정의', '사용자 인터뷰', '프로토타입', '성과 개선'],
+    context: '학생들이 중요한 공지를 여러 채널에서 확인해야 해서 누락이 자주 발생했습니다.',
+    action: '사용자 인터뷰 12건을 진행하고 공지 탐색 흐름을 재설계한 뒤 React 프로토타입 3개 화면을 제작했습니다.',
+    result: '공지 확인 누락률을 32% 낮추고 테스트 만족도 4.6/5를 달성했습니다.',
+    learning: '정성 인터뷰를 화면 구조와 정량 성과로 연결하는 방법을 배웠습니다.',
+    isTutorialDemo: true,
+  };
+}
+
+function createTutorialDraft() {
+  return {
+    title: '추가 가상 경험: 알림 우선순위 개선',
+    type: '유형1',
+    context: '모든 공지가 같은 중요도로 노출되어 사용자가 긴급한 안내를 구분하기 어려웠습니다.',
+    action: '공지 유형별 우선순위 기준을 만들고 긴급 안내를 상단에 고정하는 화면을 설계했습니다.',
+    result: '긴급 공지 클릭률이 21% 증가했고 반복 문의가 줄었습니다.',
+    learning: '정보 구조를 정리할 때 사용자 행동 데이터와 인터뷰를 함께 봐야 한다는 점을 배웠습니다.',
+    keywords: ['정보구조', '우선순위', '사용자 행동'],
+  };
+}
 
 /* description 텍스트에서 CARL 섹션 파싱 */
 function parseCarlDescription(desc) {
@@ -427,7 +471,11 @@ export default function TemplateSelect() {
   const { user } = useAuthStore();
   const { createExperience, analyzeExperience, extractMoments } = useExperienceStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
+  const createTutorialKey = user?.uid ? `experience-create-tutorial-${user.uid}` : null;
+  const forceCreateTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
+  const { visible: createTutorialVisible, dismiss: dismissCreateTutorial } = useOnboarding(createTutorialKey, { force: forceCreateTutorial });
 
   const [step, setStep] = useState(1); // 1: 기본정보, 2: 자료수집, 3: 로딩(추출), 4: 추출 결과 검토, 5: 리서치/섹션 생성
   const [title, setTitle] = useState('');
@@ -447,6 +495,10 @@ export default function TemplateSelect() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [loadingSteps, setLoadingSteps] = useState([]);
   const [currentLoadingStep, setCurrentLoadingStep] = useState(0);
+  const tutorialTimersRef = useRef([]);
+  const tutorialRef = useRef(null);
+  const [tutorialExtracting, setTutorialExtracting] = useState(false);
+  const [tutorialCurrentStep, setTutorialCurrentStep] = useState(0);
   // 핵심 경험 검토 단계용
   const [collectedText, setCollectedText] = useState('');
   const [moments, setMoments] = useState([]); // { id, title, description, keywords }
@@ -462,6 +514,148 @@ export default function TemplateSelect() {
   const [deepQExpanded, setDeepQExpanded] = useState(true);
   const [deepQAnswers, setDeepQAnswers] = useState({}); // `${momentId}-${qId}` → answer string
   const [deepQDraft, setDeepQDraft] = useState({});     // `${momentId}-${qId}` → draft
+
+  const clearTutorialTimers = useCallback(() => {
+    tutorialTimersRef.current.forEach(timer => window.clearTimeout(timer));
+    tutorialTimersRef.current = [];
+  }, []);
+
+  useEffect(() => () => clearTutorialTimers(), [clearTutorialTimers]);
+
+  const fillTutorialBasics = useCallback(() => {
+    setTitle(TUTORIAL_PROJECT.title);
+    setStartDate(TUTORIAL_PROJECT.startDate);
+    setEndDate(TUTORIAL_PROJECT.endDate);
+    setIsOngoing(false);
+    setJobCategory(TUTORIAL_PROJECT.jobCategory);
+    toast.success('예시 기본 정보를 채웠습니다');
+  }, []);
+
+  const moveTutorialToDataStep = useCallback(() => {
+    if (!title.trim() || !startDate || !jobCategory) fillTutorialBasics();
+    setStep(2);
+  }, [fillTutorialBasics, jobCategory, startDate, title]);
+
+  const fillTutorialInput = useCallback(() => {
+    setTextInput(TUTORIAL_PROJECT.textInput);
+    toast.success('예시 자료를 입력했습니다');
+  }, []);
+
+  const runTutorialExtraction = useCallback(() => {
+    if (tutorialExtracting) return;
+    clearTutorialTimers();
+    if (!title.trim() || !startDate || !jobCategory) fillTutorialBasics();
+    if (!textInput.trim()) setTextInput(TUTORIAL_PROJECT.textInput);
+
+    setTutorialExtracting(true);
+    setStep(3);
+    setLoadingSteps([
+      { label: '예시 텍스트 데이터 처리', status: 'loading' },
+      { label: '핵심 경험 후보 추출', status: 'pending' },
+      { label: 'CARL 구조로 정리', status: 'pending' },
+    ]);
+    setCurrentLoadingStep(0);
+
+    const firstTimer = window.setTimeout(() => {
+      setLoadingSteps([
+        { label: '예시 텍스트 데이터 처리', status: 'done' },
+        { label: '핵심 경험 후보 추출', status: 'loading' },
+        { label: 'CARL 구조로 정리', status: 'pending' },
+      ]);
+      setCurrentLoadingStep(1);
+    }, 600);
+
+    const secondTimer = window.setTimeout(() => {
+      setLoadingSteps([
+        { label: '예시 텍스트 데이터 처리', status: 'done' },
+        { label: '핵심 경험 후보 추출', status: 'done' },
+        { label: 'CARL 구조로 정리', status: 'loading' },
+      ]);
+      setCurrentLoadingStep(2);
+    }, 1200);
+
+    const doneTimer = window.setTimeout(() => {
+      const moment = createTutorialMoment('tutorial-extracted');
+      setCollectedText(TUTORIAL_PROJECT.textInput);
+      setMoments([moment]);
+      setCurrentMomentIdx(0);
+      setEditingMomentId(null);
+      setIsCreatingNew(false);
+      setTutorialExtracting(false);
+      setStep(4);
+      tutorialRef.current?.next();
+      toast.success('가상 경험이 추출되었습니다');
+    }, 1900);
+
+    tutorialTimersRef.current = [firstTimer, secondTimer, doneTimer];
+  }, [clearTutorialTimers, fillTutorialBasics, jobCategory, startDate, textInput, title, tutorialExtracting]);
+
+  const openTutorialManualForm = useCallback(() => {
+    setStep(4);
+    setIsCreatingNew(true);
+    setEditingMomentId(null);
+    setNewExp(createTutorialDraft());
+    setNewExpKwInput('');
+  }, []);
+
+  const addTutorialManualExperience = useCallback(() => {
+    const draft = createTutorialDraft();
+    const moment = {
+      id: `tutorial-manual-${Date.now()}`,
+      title: draft.title,
+      type: draft.type,
+      description: [
+        `Context: ${draft.context}`,
+        `Action: ${draft.action}`,
+        `Result: ${draft.result}`,
+        `Learning: ${draft.learning}`,
+      ].join('\n'),
+      keywords: draft.keywords,
+      context: draft.context,
+      action: draft.action,
+      result: draft.result,
+      learning: draft.learning,
+      isTutorialDemo: true,
+    };
+    setMoments(prev => {
+      const next = [...prev, moment];
+      setCurrentMomentIdx(next.length - 1);
+      return next;
+    });
+    setIsCreatingNew(false);
+    setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] });
+    toast.success('가상 경험이 목록에 추가되었습니다');
+  }, []);
+
+  const runTutorialFinalSubmit = useCallback(() => {
+    clearTutorialTimers();
+    dismissCreateTutorial(true);
+    setStep(5);
+    setLoadingSteps([
+      { label: '경험 데이터 생성', status: 'loading' },
+      { label: '프로젝트 개요·시장/지표 리서치', status: 'pending' },
+      { label: '7개 포트폴리오 섹션 생성', status: 'pending' },
+    ]);
+    const t1 = window.setTimeout(() => {
+      setLoadingSteps([
+        { label: '경험 데이터 생성', status: 'done' },
+        { label: '프로젝트 개요·시장/지표 리서치', status: 'loading' },
+        { label: '7개 포트폴리오 섹션 생성', status: 'pending' },
+      ]);
+    }, 700);
+    const t2 = window.setTimeout(() => {
+      setLoadingSteps([
+        { label: '경험 데이터 생성', status: 'done' },
+        { label: '프로젝트 개요·시장/지표 리서치', status: 'done' },
+        { label: '7개 포트폴리오 섹션 생성', status: 'loading' },
+      ]);
+    }, 1400);
+    const t3 = window.setTimeout(() => {
+      toast.success('튜토리얼 완료! 이제 직접 경험을 작성해보세요');
+      navigate('/app/experience?tutorial=1&step=1');
+    }, 2200);
+    tutorialTimersRef.current = [t1, t2, t3];
+  }, [clearTutorialTimers, dismissCreateTutorial, navigate]);
 
   const handleFileAdd = (e) => {
     const newFiles = Array.from(e.target.files || []);
@@ -892,6 +1086,69 @@ export default function TemplateSelect() {
     }
   };
 
+  const createTutorialSteps = [
+    {
+      selector: '[data-tour="create-title"]',
+      title: '프로젝트명을 눌러서 기본 정보를 채워보세요',
+      body: '새 경험 작성 화면으로 들어왔습니다. 먼저 예시 프로젝트명, 기간, 직군을 채워서 경험 만들기 흐름을 시작합니다.',
+      actionLabel: '예시 정보 채우기',
+      onAction: fillTutorialBasics,
+      preview: <p>실제 저장 없이 화면에만 샘플 값이 입력됩니다.</p>,
+    },
+    {
+      selector: '[data-tour="create-to-data"]',
+      title: '자료 수집으로 눌러서 다음 단계로 이동해보세요',
+      body: '기본 정보가 채워졌다면 자료 수집 단계로 넘어갑니다. 여기서 파일, 링크, 직접 입력 자료를 넣을 수 있습니다.',
+    },
+    {
+      selector: '[data-tour="create-text-input"]',
+      title: '직접 입력 칸을 눌러서 예시 자료를 넣어보세요',
+      body: '튜토리얼에서는 파일 업로드 대신 짧은 샘플 텍스트를 넣고, 이 내용에서 핵심 경험이 추출되는 과정을 보여드립니다.',
+      actionLabel: '예시 자료 입력하기',
+      onAction: fillTutorialInput,
+      onPrev: () => setStep(1),
+    },
+    {
+      selector: '[data-tour="create-extract"]',
+      title: 'AI 경험 추출을 눌러서 만들어지는 과정을 확인해보세요',
+      body: '이 버튼을 누르면 예시 자료가 처리되고, 핵심 경험 후보가 CARL 구조로 정리되는 과정을 화면에서 보여드립니다.',
+      preview: <p>튜토리얼 실행 중에는 실제 AI 호출이나 DB 저장을 하지 않습니다.</p>,
+    },
+    {
+      selector: '[data-tour="create-moment-list"]',
+      title: '추출된 가상 경험을 눌러서 확인해보세요',
+      body: '예시 자료에서 경험 카드가 생성되었습니다. 왼쪽 목록에서 선택하면 제목, 행동, 성과, 배운 점을 확인하고 수정할 수 있습니다.',
+      onPrev: () => { clearTutorialTimers(); setTutorialExtracting(false); setMoments([]); setStep(2); },
+    },
+    {
+      selector: '[data-tour="create-manual-add"]',
+      title: '새 경험 추가를 눌러서 직접 만드는 예시도 확인해보세요',
+      body: 'AI가 추출한 경험 외에도 직접 경험을 추가할 수 있습니다. 버튼을 눌러서 미리 채워진 작성 폼을 열어보세요.',
+    },
+    {
+      selector: '[data-tour="create-manual-form"]',
+      title: '가상 경험을 눌러서 목록에 추가해보세요',
+      body: '폼에는 제목, 배경, 행동, 결과, 배운 점이 샘플로 채워져 있습니다. 아래 버튼을 누르면 경험 목록에 하나 더 추가됩니다.',
+      onPrev: () => setIsCreatingNew(false),
+    },
+    {
+      selector: '[data-tour="create-final-submit"]',
+      title: '검토가 끝나면 구조화를 시작합니다',
+      body: '실제 사용에서는 이 버튼을 눌러 경험을 저장하고 포트폴리오 섹션을 생성합니다. 이 버튼을 직접 눌러 튜토리얼 완료 흐름을 확인해보세요.',
+    },
+  ];
+
+  const createTutorialOverlay = (
+    <GuidedTutorial
+      ref={tutorialRef}
+      visible={createTutorialVisible}
+      steps={createTutorialSteps}
+      onSkip={() => dismissCreateTutorial(false)}
+      onNeverShow={() => dismissCreateTutorial(true)}
+      onStepChange={setTutorialCurrentStep}
+    />
+  );
+
   // ===== Step 3: 로딩 화면 =====
   if (step === 3) {
     const doneCount = loadingSteps.filter(s => s.status === 'done').length;
@@ -899,6 +1156,8 @@ export default function TemplateSelect() {
     const activeStep = loadingSteps.find(s => s.status === 'loading');
 
     return (
+      <>
+      {createTutorialOverlay}
       <div className="animate-fadeIn mx-auto max-w-3xl pt-24 px-8">
         {/* 상단 메타 */}
         <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-200 mb-8">AI Analysis · Processing</p>
@@ -948,6 +1207,7 @@ export default function TemplateSelect() {
           자료량에 따라 최대 5분 소요 · 페이지 이탈 시 분석이 중단됩니다
         </p>
       </div>
+      </>
     );
   }
 
@@ -958,6 +1218,8 @@ export default function TemplateSelect() {
     const activeStep = loadingSteps.find(s => s.status === 'loading');
 
     return (
+      <>
+      {createTutorialOverlay}
       <div className="animate-fadeIn mx-auto max-w-3xl pt-24 px-8">
         {/* 상단 메타 */}
         <p className="text-[20px] font-bold uppercase tracking-[0.22em] text-bluewood-200 mb-8">AI Analysis · Structuring</p>
@@ -1007,6 +1269,7 @@ export default function TemplateSelect() {
           실제 자료와 검증 가능한 시장/지표 맥락을 함께 정리합니다 · 최대 5분 소요 · 페이지 이탈 시 작업이 중단됩니다
         </p>
       </div>
+      </>
     );
   }
 
@@ -1039,6 +1302,8 @@ export default function TemplateSelect() {
     };
 
     return (
+      <>
+      {createTutorialOverlay}
       <div className="animate-fadeIn max-w-[1180px] mx-auto" style={{ zoom: '0.75' }}>
         {/* 뒤로가기 */}
         <button
@@ -1088,7 +1353,7 @@ export default function TemplateSelect() {
           <div className="flex gap-5 mb-6 items-start">
 
             {/* 사이드바 */}
-            <div className="w-[196px] flex-shrink-0">
+            <div className="w-[196px] flex-shrink-0" data-tour="create-moment-list">
               <p className="text-[19px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
               <div className="flex flex-col gap-px mb-2">
                 {moments.map((m, idx) => {
@@ -1122,7 +1387,15 @@ export default function TemplateSelect() {
               </div>
               {/* 새 경험 추가 버튼 */}
               <button
-                onClick={() => { setIsCreatingNew(true); setEditingMomentId(null); setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] }); }}
+                data-tour="create-manual-add"
+                onClick={() => {
+                  if (createTutorialVisible && tutorialCurrentStep === 5) {
+                    openTutorialManualForm();
+                    tutorialRef.current?.next();
+                  } else {
+                    setIsCreatingNew(true); setEditingMomentId(null); setNewExp({ title: '', type: '', context: '', action: '', result: '', learning: '', keywords: [] });
+                  }
+                }}
                 className={`w-full text-left px-3 py-2.5 rounded-lg text-[20px] border border-dashed transition-colors ${
                   isCreatingNew
                     ? 'border-bluewood-400 bg-surface-50 text-bluewood-700 font-medium'
@@ -1138,7 +1411,7 @@ export default function TemplateSelect() {
 
               {/* ── 새 경험 직접 작성 폼 ── */}
               {isCreatingNew && (
-                <div className="border border-surface-100 overflow-hidden">
+                <div data-tour="create-manual-form" className="border border-surface-100 overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100">
                     <div className="flex items-center gap-2">
                       <h3 className="text-[20px] font-semibold text-primary-600">새 경험 직접 작성</h3>
@@ -1240,7 +1513,7 @@ export default function TemplateSelect() {
                         className="px-4 py-2 text-xs text-bluewood-500 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
                       >취소</button>
                       <button
-                        onClick={handleAddNewExp}
+                        onClick={createTutorialVisible && tutorialCurrentStep === 6 ? () => { addTutorialManualExperience(); tutorialRef.current?.next(); } : handleAddNewExp}
                         disabled={!newExp.title.trim() || !newExp.action.trim()}
                         className="px-5 py-2 text-xs font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >경험 추가하기</button>
@@ -1544,7 +1817,8 @@ export default function TemplateSelect() {
             </button>
             <button
               id="final-submit-btn"
-              onClick={handleFinalSubmit}
+              data-tour="create-final-submit"
+              onClick={createTutorialVisible && tutorialCurrentStep === 7 ? runTutorialFinalSubmit : handleFinalSubmit}
               disabled={moments.length === 0}
               className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
@@ -1554,9 +1828,12 @@ export default function TemplateSelect() {
           </div>
         </div>
       </div>
+      </>
     );
   }
   return (
+    <>
+    {createTutorialOverlay}
     <div className="animate-fadeIn mx-auto max-w-5xl px-1 pb-8" style={{ zoom: '0.75' }}>
       <Link to="/app/experience" className="mb-8 inline-flex items-center gap-2 text-sm text-bluewood-400 hover:text-bluewood-600">
         <ArrowLeft size={16} /> 경험 정리로 돌아가기
@@ -1613,6 +1890,7 @@ export default function TemplateSelect() {
                 </div>
               </div>
               <input
+                data-tour="create-title"
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
@@ -1764,8 +2042,9 @@ export default function TemplateSelect() {
               {canNext1 && <span className="ml-2 text-primary-400 font-medium">✓ 모두 입력됨</span>}
             </p>
             <button
-              onClick={() => setStep(2)}
-              disabled={!canNext1}
+              data-tour="create-to-data"
+              onClick={createTutorialVisible && tutorialCurrentStep === 1 ? () => { moveTutorialToDataStep(); tutorialRef.current?.next(); } : () => setStep(2)}
+              disabled={createTutorialVisible && tutorialCurrentStep === 1 ? false : !canNext1}
               className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
             >
               자료 수집으로
@@ -1844,6 +2123,7 @@ export default function TemplateSelect() {
               </div>
               <div>
                 <textarea
+                  data-tour="create-text-input"
                   value={textInput}
                   onChange={e => setTextInput(e.target.value)}
                   placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예) 어떤 문제를 해결했나요? 내가 맡은 역할은? 어떤 성과가 있었나요?`}
@@ -1974,7 +2254,8 @@ export default function TemplateSelect() {
             <div className="flex items-center gap-4">
               <p className="text-[19px] text-bluewood-300">AI는 입력 자료만으로 정리합니다</p>
               <button
-                onClick={handleSubmit}
+                data-tour="create-extract"
+                onClick={createTutorialVisible && tutorialCurrentStep === 3 ? runTutorialExtraction : handleSubmit}
                 disabled={!hasInput}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-7 py-3 text-[19px] font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-30"
               >
@@ -1986,5 +2267,6 @@ export default function TemplateSelect() {
         </div>
       )}
     </div>
+    </>
   );
 }
