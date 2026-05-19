@@ -332,15 +332,19 @@ function fitText(lines = 2) {
 }
 
 export function getComposedTemplate(layoutId = 'standard', paletteId = 'proposal') {
+  const layoutIds = SLIDE_LAYOUTS.map(layout => layout.id);
+  const paletteIsLayout = layoutIds.includes(paletteId) && paletteId !== 'standard';
+  const effectiveLayoutId = (layoutId === 'standard' && paletteIsLayout) ? paletteId : layoutId;
+  const effectivePaletteId = paletteIsLayout ? 'proposal' : paletteId;
   const layoutBase = layoutId === 'standard' ? getTemplate('proposal') : getTemplate('proposal');
-  const palette = getTemplate(paletteId);
-  const layoutMeta = SLIDE_LAYOUTS.find(l => l.id === layoutId) || SLIDE_LAYOUTS[0];
+  const palette = getTemplate(effectivePaletteId);
+  const layoutMeta = SLIDE_LAYOUTS.find(l => l.id === effectiveLayoutId) || SLIDE_LAYOUTS[0];
   return normalizeProposalTemplate({
     ...layoutBase,
-    id: `${layoutId}-${palette.id}`,
+    id: `${effectiveLayoutId}-${palette.id}`,
     name: `${layoutMeta.name} · ${palette.name}`,
     description: `${layoutMeta.description} / ${palette.description}`,
-    layoutId,
+    layoutId: effectiveLayoutId,
     colors: {
       ...layoutBase.colors,
       ...palette.colors,
@@ -441,31 +445,68 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
   return <div style={wrap}>{renderCreative(slide, t, index)}</div>;
 }
 
+function kpiPaletteColors(t) {
+  const c = t.colors || {};
+  const paletteAccent = c.accent ? normalizeHexColor(c.accent) : null;
+  if (paletteAccent && paletteAccent !== '#FF4F1A') {
+    return { blue: paletteAccent, mint: c.kpi ? normalizeHexColor(c.kpi) : '#19C58E' };
+  }
+  return { blue: '#3182FF', mint: '#19C58E' };
+}
+
+function kpiMetricValueFontPx(text, base = 44) {
+  const len = String(text || '').replace(/\s+/g, ' ').trim().length;
+  if (len === 0) return base;
+  if (len <= 6) return base;
+  if (len >= 14) return 16;
+  const ratio = (len - 6) / 8;
+  return Math.round(base * (1 - ratio * 0.65));
+}
+
 function acceptedVisual(t) {
   const id = t.layoutId || 'narrative';
   const c = t.colors || {};
   const map = {
-    narrative: { bg: '#F7F0E8', ink: '#171412', muted: '#756B61', accent: '#D95B43', soft: '#EADACB', dark: '#171412', card: '#FFF9F1', font: 'Georgia' },
-    star: { bg: '#F4F8EE', ink: '#111827', muted: '#53635A', accent: '#B7F34B', soft: '#E3EFD2', dark: '#111827', card: '#FFFFFF', font: 'Pretendard' },
+    narrative: { bg: '#FFFFFF', ink: '#0F172A', muted: '#64748B', accent: '#2563EB', soft: '#E2E8F0', dark: '#0F172A', card: '#F8FAFC', font: 'Pretendard' },
+    star: { bg: '#EEEEE6', ink: '#1A1A1A', muted: '#4A7878', accent: '#B4F03B', soft: '#DEDDD5', dark: '#1A1A1A', card: '#FFFFFF', font: 'Pretendard' },
     'kpi-dashboard': { bg: '#07111F', ink: '#F8FAFC', muted: '#94A3B8', accent: '#38BDF8', soft: '#0F1E33', dark: '#020617', card: '#102037', font: 'Pretendard' },
-    timeline: { bg: '#FBF7EE', ink: '#27221C', muted: '#7D7163', accent: '#E95F3F', soft: '#EFE2CC', dark: '#27221C', card: '#FFFFFF', font: 'Noto Serif KR' },
-    'case-study': { bg: '#F3F4F8', ink: '#28327A', muted: '#6B7395', accent: '#3FA0FF', soft: '#D8DDF0', dark: '#050608', card: '#FCFCFF', font: 'Pretendard' },
+    timeline: { bg: '#FFFFFF', ink: '#071225', muted: '#60708A', accent: '#2563EB', soft: '#E3E9F4', dark: '#111827', card: '#F7FAFF', font: 'Pretendard' },
+    'case-study': { bg: '#F2EDE4', ink: '#2C2420', muted: '#8B7355', accent: '#C4964A', soft: '#E8E2D5', dark: '#6B7B6E', card: '#EDE7DC', font: 'Noto Serif KR' },
   };
   const visual = map[id] || map.narrative;
-  const bg = visual.bg;
-  const ink = visual.ink;
-  const accent = visual.accent;
+  const paletteAccent = c.accent ? normalizeHexColor(c.accent) : null;
+  const isNonDefault = paletteAccent && paletteAccent !== '#FF4F1A';
+  const accent = isNonDefault ? paletteAccent : visual.accent;
+  const paletteDark = c.side ? normalizeHexColor(c.side) : (c.headBg ? normalizeHexColor(c.headBg) : null);
+  const isCaseStudy = id === 'case-study';
+  const bg = (isCaseStudy && isNonDefault && c.bg) ? normalizeHexColor(c.bg) : visual.bg;
+  const ink = (isCaseStudy && isNonDefault) ? readableTextOn(bg, visual.ink) : visual.ink;
+  const muted = (isCaseStudy && isNonDefault && c.muted) ? normalizeHexColor(c.muted) : visual.muted;
+  const soft = (isCaseStudy && isNonDefault && c.line) ? normalizeHexColor(c.line) : visual.soft;
+  const card = (isCaseStudy && isNonDefault)
+    ? (relativeLuminance(bg) > 0.5 ? '#FFFFFF' : hexLighten(bg, 0.15))
+    : (visual.card || (relativeLuminance(bg) < 0.28 ? c.dark2 : '#FFFFFF'));
   const dark = visual.dark;
-  const card = visual.card || (relativeLuminance(bg) < 0.28 ? c.dark2 : '#FFFFFF');
+  const resolvedDark = (() => {
+    if (isCaseStudy && isNonDefault) {
+      const palHb = c.headBg ? normalizeHexColor(c.headBg) : null;
+      const palSide = c.side ? normalizeHexColor(c.side) : null;
+      if (palHb && relativeLuminance(palHb) < 0.5) return palHb;
+      if (palSide && relativeLuminance(palSide) < 0.5) return palSide;
+      if (paletteAccent && relativeLuminance(paletteAccent) < 0.5) return paletteAccent;
+      return '#1C1C1E';
+    }
+    return (isNonDefault && paletteDark && relativeLuminance(paletteDark) < 0.2) ? paletteDark : dark;
+  })();
   return {
     ...visual,
     bg,
     ink,
-    muted: visual.muted,
+    muted,
     accent,
     paletteAccent: accent,
-    soft: visual.soft,
-    dark,
+    soft,
+    dark: resolvedDark,
     card,
     font: t.fonts?.heading || visual.font,
   };
@@ -525,6 +566,32 @@ function compactPortfolioText(value, max = 84) {
   const text = cleanPortfolioText(value);
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function cleanPortfolioTextKeepLines(value) {
+  if (value == null) return '';
+  return String(value)
+    .normalize('NFC')
+    .replace(/�/g, '')
+    .replace(/[留寃쏀뿕臾吏媛곹됰⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g, ' ')
+    .replace(/[?]{2,}/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n').map(line => line.trim()).join('\n')
+    .trim();
+}
+
+function compactPortfolioTextKeepLines(value, max = 240) {
+  const text = cleanPortfolioTextKeepLines(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function splitBulletLines(value) {
+  const text = cleanPortfolioTextKeepLines(value);
+  if (!text) return [];
+  return text.split('\n').map(line => line.replace(/^[•·\-–—]\s*/, '').trim()).filter(Boolean);
 }
 
 function cleanAcceptedLine(line = {}) {
@@ -646,19 +713,32 @@ function acceptedSectionKind(slide) {
 }
 
 function prepareAcceptedSlide(slide) {
+  const layout = typeof slide.layout === 'string' ? slide.layout : '';
+  const isCsLayout = layout.startsWith('cs-');
+  const itemLimit = isCsLayout ? 6 : 4;
+  const bodyLimit = isCsLayout ? 260 : 88;
+  const headingLimit = isCsLayout ? 48 : 32;
+  const periodLimit = isCsLayout ? 32 : 18;
+  const bulletLimit = isCsLayout ? 64 : 44;
+  const cleanBody = (value) => isCsLayout
+    ? compactPortfolioTextKeepLines(value, bodyLimit)
+    : compactPortfolioText(value, bodyLimit);
+  const cleanTitle = (value) => isCsLayout
+    ? compactPortfolioTextKeepLines(value, 96)
+    : compactPortfolioText(value, 54);
   return {
     ...slide,
-    title: compactPortfolioText(slide.title, 54),
+    title: cleanTitle(slide.title),
     subtitle: compactPortfolioText(slide.subtitle, 110),
-    sectionLabel: compactPortfolioText(slide.sectionLabel || '', 22),
-    bullets: (slide.bullets || []).slice(0, 4).map(bullet => compactPortfolioText(bullet, 72)),
-    items: (slide.items || []).slice(0, 4).map(item => ({
+    sectionLabel: compactPortfolioText(slide.sectionLabel || '', 48),
+    bullets: (slide.bullets || []).slice(0, 5).map(bullet => compactPortfolioText(bullet, 72)),
+    items: (slide.items || []).slice(0, itemLimit).map(item => ({
       ...item,
-      heading: compactPortfolioText(item.heading, 32),
+      heading: compactPortfolioText(item.heading, headingLimit),
       role: compactPortfolioText(item.role, 24),
-      period: compactPortfolioText(item.period, 18),
-      body: compactPortfolioText(item.body || (item.bullets || []).join(' / '), 88),
-      bullets: (item.bullets || []).slice(0, 3).map(bullet => compactPortfolioText(bullet, 44)),
+      period: compactPortfolioText(item.period, periodLimit),
+      body: cleanBody(item.body || (item.bullets || []).join(isCsLayout ? '\n' : ' / ')),
+      bullets: (item.bullets || []).slice(0, isCsLayout ? 4 : 3).map(bullet => compactPortfolioText(bullet, bulletLimit)),
     })),
   };
 }
@@ -1290,7 +1370,385 @@ function renderAcceptedSectionScene(slide, t, v, index) {
   return null;
 }
 
+function narrAccent(v) { return v.accent || '#2563EB'; }
+function narrRule(v) { return <div style={{ width: 52, height: 4, background: narrAccent(v), borderRadius: 2, margin: '14px 0 20px' }} />; }
+function narrLabel(text, v) { return <div style={{ color: narrAccent(v), fontSize: 12, letterSpacing: '0.22em', fontWeight: 850, textTransform: 'uppercase' }}>{text}</div>; }
+function narrShell(children, bg = '#FFFFFF') { return <div style={{ position: 'absolute', inset: 0, background: bg, fontFamily: 'Pretendard, sans-serif', overflow: 'hidden' }}>{children}</div>; }
+
+function renderNarrativeCover(slide, t, v) {
+  const acc = narrAccent(v);
+  const chips = (slide.bullets || ['React', 'Node.js', 'Firebase', 'AI API', 'TypeScript']).slice(0, 6);
+  return (
+    <div style={{ position: 'absolute', inset: 0, fontFamily: 'Pretendard, sans-serif', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, left: 0, right: '38%', background: '#F8FAFC' }} />
+      <div style={{ position: 'absolute', inset: 0, left: '62%', background: '#0F172A' }} />
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: '58%', width: 72, background: acc, transform: 'skewX(-4deg)', transformOrigin: 'top' }} />
+      <div style={{ position: 'absolute', left: 62, top: 58, right: '42%' }}>
+        <div style={{ fontSize: dynamicFontPx(slide.title || '', 46, { min: 32, max: 52 }), lineHeight: 1.12, fontWeight: 950, color: '#0F172A', whiteSpace: 'pre-line', ...textClamp(4) }}>{slide.title}</div>
+        <div style={{ width: 52, height: 4, background: acc, borderRadius: 2, margin: '18px 0 16px' }} />
+        <div style={{ fontSize: 15, color: '#475569', fontWeight: 700 }}>{slide.subtitle}</div>
+        <div style={{ marginTop: 8, fontSize: 13, color: '#94A3B8' }}>{(slide.bullets || []).slice(0, 1)[0] ? '경험을 제품으로 바꾸는 개발자' : ''}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 62, bottom: 46 }}>
+        <div style={{ color: acc, fontSize: 13, fontWeight: 850, letterSpacing: '0.12em' }}>{(slide.sectionLabel || 'KIM YUSHIN PORTFOLIO').toUpperCase()}</div>
+      </div>
+      <div style={{ position: 'absolute', right: 60, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 10, width: 200 }}>
+        {chips.map((chip, i) => <div key={i} style={{ background: '#1E2D3D', color: '#E2E8F0', fontFamily: 'monospace', fontSize: 13, fontWeight: 700, padding: '10px 14px', borderRadius: 4 }}>{chip}</div>)}
+      </div>
+    </div>
+  );
+}
+
+function renderNarrativeProfile(slide, t, v) {
+  const acc = narrAccent(v);
+  const edu = (slide.items || []).filter(Boolean);
+  const awardList = (slide.metrics || []).slice(0, 3);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 32, { min: 24, max: 36 }), fontWeight: 950, color: '#0F172A', lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, top: 188, width: 370, bottom: 60 }}>
+      {narrLabel('PROFILE', v)}
+      <div style={{ marginTop: 14, fontSize: 20, fontWeight: 950 }}>{edu[0]?.heading || slide.title?.split(' ')[0] || 'Name'}</div>
+      {edu.map((item, i) => <div key={i} style={{ marginTop: 14 }}><div style={{ color: acc, fontSize: 10, letterSpacing: '0.2em', fontWeight: 850 }}>{(item.role || item.period || 'EDUCATION').toUpperCase()}</div><div style={{ marginTop: 6, fontSize: 14, fontWeight: 850 }}>{item.heading}</div><div style={{ marginTop: 4, fontSize: 12, color: '#64748B' }}>{item.body}</div></div>)}
+    </div>
+    <div style={{ position: 'absolute', left: 468, top: 188, right: 60, bottom: 60 }}>
+      {narrLabel('AWARDS & ACHIEVEMENTS', v)}
+      {awardList.map((m, i) => <div key={i} style={{ marginTop: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}><div style={{ fontSize: 18, marginTop: 2 }}>{'🏆🥈📖'[i] || '🏅'}</div><div><div style={{ fontSize: 14, fontWeight: 900 }}>{m.label}</div><div style={{ marginTop: 3, fontSize: 11.5, color: '#64748B' }}>{m.body}</div></div></div>)}
+      {slide.subtitle ? <><div style={{ marginTop: 20, height: 1, background: '#E2E8F0' }} /><div style={{ marginTop: 16, fontSize: 13.5, fontStyle: 'italic', color: '#0F172A', lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div></> : null}
+    </div>
+  </>);
+}
+
+function renderNarrativePhilosophy(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 3);
+  const icons = ['+', '—', '×'];
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 34, { min: 26, max: 38 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18 }}>
+      {items.map((item, i) => <div key={i} style={{ background: '#F8FAFC', borderRadius: 8, padding: '24px 20px', borderTop: `3px solid ${acc}` }}>
+        <div style={{ color: acc, fontSize: 28, fontWeight: 950, lineHeight: 1 }}>{icons[i]}</div>
+        <div style={{ marginTop: 14, fontSize: 13, fontWeight: 950, letterSpacing: '0.04em' }}>{item.heading?.toUpperCase()}</div>
+        <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.6, color: '#334155', ...textClamp(4) }}>{item.body}</div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ color: acc, fontSize: 20, fontWeight: 950 }}>"</div>
+      <div style={{ color: '#E2E8F0', fontSize: 13, lineHeight: 1.55, ...textClamp(2) }}>{slide.subtitle}</div>
+    </div>
+  </>);
+}
+
+function renderNarrativeSkills(slide, t, v) {
+  const acc = narrAccent(v);
+  const groups = (slide.items || []).slice(0, 6);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: 34, fontWeight: 950 }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 160, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+      {groups.map((g, i) => <div key={i}>
+        <div style={{ color: acc, fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>{(g.period || g.heading || `GROUP ${i+1}`).toUpperCase()}</div>
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {(g.bullets?.length ? g.bullets : [g.heading, g.body].filter(Boolean)).map((b, j) => <span key={j} style={{ border: '1px solid #CBD5E1', borderLeft: `3px solid ${acc}`, borderRadius: 3, padding: '3px 8px', fontSize: 11.5, fontFamily: 'monospace', color: '#334155' }}>{b}</span>)}
+        </div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ color: acc, fontSize: 15, fontFamily: 'monospace', fontWeight: 950 }}>{'</>'}</div>
+      <div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div>
+    </div>
+  </>);
+}
+
+function renderNarrativeProblem(slide, t, v) {
+  const acc = narrAccent(v);
+  const problems = (slide.items || []).slice(0, 3);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 32, { min: 24, max: 36 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, top: 190, width: 380 }}>
+      {narrLabel('THE PROBLEM', v)}
+      {problems.map((p, i) => <div key={i} style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+        <div style={{ color: acc, fontSize: 16, marginTop: 2 }}>{'⚠️📄🔍'[i] || '•'}</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: '#334155', ...textClamp(3) }}>{p.body}</div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', right: 60, top: 190, width: 260, background: '#F8FAFC', borderRadius: 8, padding: '28px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 16, color: '#64748B', lineHeight: 2.2 }}>시간 낭비</div>
+      <div style={{ fontSize: 22, color: acc, fontWeight: 950 }}>+</div>
+      <div style={{ fontSize: 16, color: '#64748B', lineHeight: 2.2 }}>일관성 부족</div>
+      <div style={{ fontSize: 22, color: acc, fontWeight: 950 }}>=</div>
+      <div style={{ fontSize: 15, color: acc, fontWeight: 950, lineHeight: 1.4 }}>취업 준비의<br/>가장 큰 장벽</div>
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ fontSize: 16 }}>💡</div>
+      <div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div>
+    </div>
+  </>);
+}
+
+function renderNarrativeProject(slide, t, v) {
+  const acc = narrAccent(v);
+  const details = (slide.items || []).slice(0, 3);
+  const chips = (slide.bullets || []).slice(0, 9);
+  return (
+    <div style={{ position: 'absolute', inset: 0, fontFamily: 'Pretendard, sans-serif', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '38%', background: '#0F172A' }} />
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: '33%', width: 60, background: acc, transform: 'skewX(-3deg)', transformOrigin: 'top' }} />
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: '36%', right: 0, background: '#FFFFFF' }} />
+      <div style={{ position: 'absolute', left: 40, top: 60, width: '28%' }}>
+        <div style={{ color: acc, fontSize: 11, letterSpacing: '0.22em', fontWeight: 850 }}>{slide.sectionLabel?.toUpperCase()}</div>
+        <div style={{ marginTop: 14, fontSize: 42, fontWeight: 950, color: '#FFFFFF', lineHeight: 1.1, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', left: '40%', top: 52, right: 52, bottom: 52 }}>
+        {details.map((d, i) => <div key={i} style={{ marginBottom: 18 }}>
+          {narrLabel(d.heading, v)}
+          <div style={{ marginTop: 4, height: 1, background: '#E2E8F0' }} />
+          {i === 0 ? <div style={{ marginTop: 8, fontSize: 13.5, color: '#334155', lineHeight: 1.55, ...textClamp(3) }}>{d.body}</div>
+            : <div style={{ marginTop: 8, fontSize: 13, color: '#0F172A' }}><span style={{ fontWeight: 950, marginRight: 8 }}>{d.heading}</span>{d.body}</div>}
+        </div>)}
+        {chips.length > 0 && <>
+          {narrLabel('TECH STACK', v)}
+          <div style={{ marginTop: 4, height: 1, background: '#E2E8F0' }} />
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {chips.map((c, i) => <span key={i} style={{ border: '1px dashed #CBD5E1', borderRadius: 3, padding: '4px 10px', fontSize: 11, fontFamily: 'monospace', color: '#475569' }}>{c}</span>)}
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function renderNarrativeChallenge(slide, t, v) {
+  const acc = narrAccent(v);
+  const all = (slide.items || []).slice(0, 6);
+  const problems = all.filter(it => it.heading?.startsWith('Problem'));
+  const actions = all.filter(it => it.heading?.startsWith('Action') || it.heading?.startsWith('Solution'));
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, top: 188, width: 360 }}>
+      {narrLabel('THE PROBLEM', v)}
+      {problems.map((p, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ fontSize: 15, marginTop: 1 }}>{'🕐📄🤖'[i] || '•'}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.55, color: '#334155', ...textClamp(3) }}>{p.body}</div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', right: 60, top: 188, width: 300, borderLeft: `2px solid ${acc}`, paddingLeft: 20 }}>
+      {narrLabel('CORE TASKS', v)}
+      {actions.map((a, i) => <div key={i} style={{ marginTop: 12, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
+        <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
+        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 900 }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B' }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
+      </div>)}
+    </div>
+    {slide.subtitle ? <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ fontSize: 16 }}>📈</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div> : null}
+  </>);
+}
+
+function renderNarrativeArchitecture(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 4);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {items.map((item, i) => <div key={i} style={{ padding: '14px 16px', background: '#F8FAFC', borderRadius: 6 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ background: '#0F172A', color: acc, fontSize: 11, fontWeight: 950, padding: '3px 8px', borderRadius: 3, flexShrink: 0 }}>{String(i+1).padStart(2,'0')}</div>
+          <div style={{ color: acc, fontSize: 13, fontWeight: 900 }}>{item.heading}</div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12.5, color: '#64748B', lineHeight: 1.5, ...textClamp(2) }}>{item.body?.split(' → ')[0] || item.body}</div>
+        {item.body?.includes('→') ? <div style={{ marginTop: 6, fontSize: 12, fontWeight: 850, color: '#0F172A' }}>→ {item.body.split('→').slice(1).join('→').trim()}</div> : null}
+      </div>)}
+    </div>
+    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 16, borderLeft: `3px solid ${acc}`, paddingLeft: 14, background: '#F8FAFC', padding: '10px 14px' }}><div style={{ color: '#64748B', fontSize: 10, letterSpacing: '0.18em', fontWeight: 850 }}>CORE INSIGHT</div><div style={{ marginTop: 4, fontSize: 13, color: acc, fontWeight: 850, ...textClamp(2) }}>{slide.subtitle}</div></div> : null}
+  </>);
+}
+
+function renderNarrativeResults(slide, t, v) {
+  const acc = narrAccent(v);
+  const all = (slide.items || []).slice(0, 7);
+  const deliverables = all.slice(0, 4);
+  const growth = all.slice(4, 7);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, top: 190, width: 360 }}>
+      {narrLabel('KEY DELIVERABLES', v)}
+      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 12, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 13.5, fontWeight: 850, color: '#0F172A', ...textClamp(2) }}>{d.heading}</div></div>)}
+    </div>
+    <div style={{ position: 'absolute', right: 60, top: 190, width: 310, background: '#0F172A', borderRadius: 8, padding: '20px 22px' }}>
+      <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>GROWTH POINTS</div>
+      {growth.map((g, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12.5, color: '#E2E8F0', lineHeight: 1.5, ...textClamp(3) }}>{g.heading}</div></div>)}
+    </div>
+  </>);
+}
+
+function renderNarrativeAwards(slide, t, v) {
+  const acc = narrAccent(v);
+  const all = (slide.items || []);
+  const awards = all.filter(a => !a.period?.toLowerCase().includes('language') && !a.heading?.toLowerCase().includes('toeic') && !a.heading?.toLowerCase().includes('language'));
+  const lang = all.find(a => a.period?.toLowerCase().includes('language') || a.heading?.toLowerCase().includes('toeic') || a.heading?.toLowerCase().includes('language')) || all.slice(-1)[0];
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: 32, fontWeight: 950 }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, top: 185, width: 360 }}>
+      {narrLabel('AWARDS', v)}
+      {(awards.length ? awards : all.slice(0, 2)).map((a, i) => <div key={i} style={{ marginTop: 14, background: '#F8FAFC', borderLeft: `3px solid ${acc}`, borderRadius: '0 6px 6px 0', padding: '12px 16px' }}><div style={{ display: 'flex', gap: 8 }}><div style={{ fontSize: 16 }}>🏆</div><div style={{ fontSize: 14, fontWeight: 900 }}>{a.heading}</div></div><div style={{ marginTop: 4, fontSize: 12, color: '#64748B', paddingLeft: 24 }}>{a.body}</div></div>)}
+    </div>
+    <div style={{ position: 'absolute', right: 60, top: 185, width: 280 }}>
+      {narrLabel('LANGUAGE', v)}
+      {lang ? <div style={{ marginTop: 14, background: '#F8FAFC', borderLeft: `3px solid ${acc}`, borderRadius: '0 6px 6px 0', padding: '14px 16px' }}><div style={{ display: 'flex', gap: 8 }}><div style={{ fontSize: 16 }}>📚</div><div style={{ fontSize: 14, fontWeight: 900 }}>{lang.heading}</div></div><div style={{ marginTop: 6, fontSize: 12, color: '#64748B', paddingLeft: 24, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{lang.body}</div></div> : null}
+    </div>
+  </>);
+}
+
+function renderNarrativeTimeline(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 5);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, bottom: 64 }}>
+      {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+        <div style={{ width: 70, flexShrink: 0, color: acc, fontSize: 15, fontWeight: 950, paddingTop: 2 }}>{item.period || `202${1+i}`}</div>
+        <div style={{ width: 4, flexShrink: 0, background: acc, borderRadius: 2, alignSelf: 'stretch', minHeight: 40 }} />
+        <div><div style={{ fontSize: 14, fontWeight: 900, color: '#0F172A' }}>{item.heading}</div><div style={{ marginTop: 4, fontSize: 12.5, color: '#64748B', ...textClamp(2) }}>{item.body}</div></div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '12px 60px', display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ fontSize: 15 }}>🚀</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div>
+  </>);
+}
+
+function renderNarrativeSummary(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 3);
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+      {items.map((item, i) => <div key={i} style={{ background: '#F8FAFC', borderRadius: 8, padding: '20px 18px', borderTop: `3px solid ${acc}`, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ color: acc, fontSize: 26, fontWeight: 950, lineHeight: 1 }}>{String(i+1).padStart(2,'0')}</div>
+        <div style={{ marginTop: 12, fontSize: 14, fontWeight: 950, lineHeight: 1.4, ...textClamp(3) }}>{item.heading}</div>
+        <div style={{ marginTop: 10, fontSize: 12, color: '#64748B', lineHeight: 1.6, flex: 1, ...textClamp(5) }}>{item.body}</div>
+        <div style={{ marginTop: 14, background: '#0F172A', color: '#E2E8F0', fontSize: 10, fontWeight: 950, padding: '5px 8px', letterSpacing: '0.1em', borderRadius: 3, alignSelf: 'flex-start' }}>PROVEN IN: {(item.period || item.role || '').toUpperCase()}</div>
+      </div>)}
+    </div>
+  </>);
+}
+
+function renderNarrativeConnection(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 3);
+  const headers = ['PROJECT', 'CORE TECH', 'WHAT I LEARNED', 'CONNECTION TO NEXT'];
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.3fr 1.3fr', background: '#0F172A', borderRadius: '6px 6px 0 0', padding: '10px 0' }}>
+        {headers.map((h, i) => <div key={i} style={{ padding: '0 14px', color: '#94A3B8', fontSize: 10.5, fontWeight: 850, letterSpacing: '0.12em' }}>{h}</div>)}
+      </div>
+      {items.map((item, i) => <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.3fr 1.3fr', borderBottom: '1px solid #E2E8F0', padding: '12px 0' }}>
+        <div style={{ padding: '0 14px', fontSize: 14, fontWeight: 950 }}>{item.heading}</div>
+        <div style={{ padding: '0 14px', fontSize: 11, color: acc, whiteSpace: 'pre-line', lineHeight: 1.6 }}>{item.body}</div>
+        <div style={{ padding: '0 14px', fontSize: 12.5, fontWeight: 850, color: '#0F172A', ...textClamp(2) }}>{item.period}</div>
+        <div style={{ padding: '0 14px', fontSize: 12, color: acc, display: 'flex', gap: 5, alignItems: 'flex-start' }}><span>🔗</span><span style={{ ...textClamp(2) }}>{item.role}</span></div>
+      </div>)}
+    </div>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '12px 60px', display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ fontSize: 16 }}>🔗</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div>
+  </>);
+}
+
+function renderNarrativeRoadmap(slide, t, v) {
+  const acc = narrAccent(v);
+  const items = (slide.items || []).slice(0, 3);
+  const labels = ['SHORT-TERM', 'MID-TERM', 'LONG-TERM'];
+  return narrShell(<>
+    <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      {narrRule(v)}
+    </div>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 190, bottom: 80 }}>
+      {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 14, borderLeft: `3px solid ${acc}`, paddingLeft: 16, paddingTop: 6, paddingBottom: 6 }}>
+        <div style={{ width: 90, flexShrink: 0, color: acc, fontSize: 11, fontWeight: 950, letterSpacing: '0.1em', paddingTop: 2 }}>{(item.period || item.role || labels[i]).toUpperCase()}</div>
+        <div style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.55, ...textClamp(2) }}>{item.body}</div>
+      </div>)}
+    </div>
+    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 14, background: '#0F172A', borderRadius: 6, padding: '16px 20px' }}><div style={{ color: acc, fontSize: 16, fontWeight: 950, lineHeight: 1 }}>"</div><div style={{ marginTop: 6, color: '#E2E8F0', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line', ...textClamp(3) }}>{slide.subtitle}</div></div> : null}
+  </>);
+}
+
+function renderNarrativeClosing(slide, t, v) {
+  const acc = narrAccent(v);
+  const contacts = (slide.bullets || []).slice(0, 3);
+  const chips = (slide.items || []).slice(0, 7);
+  const contactIcons = ['✉', '📞', '🎓'];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: '#0F172A', fontFamily: 'Pretendard, sans-serif', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 60, right: 60, top: '50%', transform: 'translateY(-50%)', textAlign: 'center' }}>
+        <div style={{ fontSize: dynamicFontPx(slide.title || '', 32, { min: 24, max: 38 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.3, fontStyle: 'italic', whiteSpace: 'pre-line', ...textClamp(4) }}>{slide.title}</div>
+        <div style={{ margin: '20px auto', width: 52, height: 4, background: acc, borderRadius: 2 }} />
+        <div style={{ fontSize: 15, color: acc, fontWeight: 850 }}>{slide.subtitle}</div>
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center', gap: 32 }}>
+          {contacts.map((c, i) => <div key={i} style={{ textAlign: 'center' }}><div style={{ fontSize: 16 }}>{contactIcons[i]}</div><div style={{ marginTop: 6, color: '#CBD5E1', fontSize: 12.5, ...textClamp(1) }}>{c}</div></div>)}
+        </div>
+        <div style={{ marginTop: 24, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+          {chips.map((chip, i) => <div key={i} style={{ border: `1px solid ${i === 2 ? acc : '#334155'}`, color: i === 2 ? acc : '#CBD5E1', borderRadius: 4, padding: '5px 12px', fontSize: 12, fontFamily: 'monospace' }}>{chip.heading}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function renderNarrativeSlide(slide, t, v, index) {
+  const NARR_KIND = {
+    'narrative-cover': 'cover', 'narrative-profile': 'profile', 'narrative-philosophy': 'philosophy',
+    'narrative-skills': 'skills', 'narrative-problem': 'problem', 'narrative-project': 'project',
+    'narrative-challenge': 'challenge', 'narrative-architecture': 'architecture', 'narrative-results': 'results',
+    'narrative-awards': 'awards', 'narrative-timeline': 'timeline', 'narrative-summary': 'summary',
+    'narrative-connection': 'connection', 'narrative-roadmap': 'roadmap', 'narrative-closing': 'closing',
+  };
+  const nkind = NARR_KIND[slide.layout];
+  if (nkind === 'cover') return renderNarrativeCover(slide, t, v);
+  if (nkind === 'profile') return renderNarrativeProfile(slide, t, v);
+  if (nkind === 'philosophy') return renderNarrativePhilosophy(slide, t, v);
+  if (nkind === 'skills') return renderNarrativeSkills(slide, t, v);
+  if (nkind === 'problem') return renderNarrativeProblem(slide, t, v);
+  if (nkind === 'project') return renderNarrativeProject(slide, t, v);
+  if (nkind === 'challenge') return renderNarrativeChallenge(slide, t, v);
+  if (nkind === 'architecture') return renderNarrativeArchitecture(slide, t, v);
+  if (nkind === 'results') return renderNarrativeResults(slide, t, v);
+  if (nkind === 'awards') return renderNarrativeAwards(slide, t, v);
+  if (nkind === 'timeline') return renderNarrativeTimeline(slide, t, v);
+  if (nkind === 'summary') return renderNarrativeSummary(slide, t, v);
+  if (nkind === 'connection') return renderNarrativeConnection(slide, t, v);
+  if (nkind === 'roadmap') return renderNarrativeRoadmap(slide, t, v);
+  if (nkind === 'closing') return renderNarrativeClosing(slide, t, v);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = acceptedLines(slide);
   const mood = acceptedSlideMood(slide, index);
@@ -1379,8 +1837,300 @@ function renderNarrativeSlide(slide, t, v, index) {
   );
 }
 
+function renderStarPhaseBadge(v, phase, label) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ background: v.accent, color: v.dark, fontSize: 10, fontWeight: 950, padding: '4px 14px', borderRadius: 999 }}>{label}</div>
+      <div style={{ width: 30, height: 30, borderRadius: '50%', background: v.dark, display: 'grid', placeItems: 'center', color: v.accent, fontSize: 13, fontWeight: 950 }}>{phase}</div>
+    </div>
+  );
+}
+
+function renderStarCover(slide, t, v) {
+  const items = (slide.items || []).slice(0, 4);
+  const fills = [v.dark, v.card, v.card, v.accent];
+  const borders = ['none', `1px solid ${v.soft}`, `1px solid ${v.soft}`, 'none'];
+  const fgs = ['#FFFFFF', v.ink, v.ink, v.dark];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 34, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>STAT / STAR</div>
+      <div style={{ position: 'absolute', left: 44, top: 72, width: 356 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 52, fontWeight: 950, lineHeight: 1.02, letterSpacing: '-0.04em', color: v.dark, ...textClamp(2) }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 14, fontSize: 13, color: v.muted, lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div>}
+        <div style={{ marginTop: 26, display: 'flex', gap: 8 }}>
+          {['S', 'T', 'A', 'R'].map(l => (
+            <div key={l} style={{ width: 36, height: 36, borderRadius: '50%', background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950 }}>{l}</div>
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', right: 40, top: 54, bottom: 38, width: 484, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ borderRadius: 22, background: fills[i], color: fgs[i], padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: borders[i], overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950, color: i === 3 ? v.accent : v.dark, flexShrink: 0 }}>{['S', 'T', 'A', 'R'][i]}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, opacity: 0.55 }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
+              <div style={{ marginTop: 7, fontSize: 11, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{item.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarIdentity(slide, t, v) {
+  const items = (slide.items || []).slice(0, 3);
+  const icons = ['🎓', '🎯', '⚡'];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'PROFESSIONAL IDENTITY').toUpperCase()}</div>
+      <div style={{ position: 'absolute', left: 44, top: 62, right: 44 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 34, fontWeight: 950, letterSpacing: '-0.03em', color: v.dark, lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 7, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
+      </div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 182, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: v.card, borderRadius: 22, padding: 24, border: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>{icons[i]}</div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
+            <div style={{ fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarTimeline(slide, t, v) {
+  const items = (slide.items || []).slice(0, 4);
+  const n = Math.max(1, items.length);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'EXPERIENCE TIMELINE').toUpperCase()}</div>
+      <div style={{ position: 'absolute', left: 44, top: 62, right: 44, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ position: 'absolute', left: 52, right: 52, top: 148, height: 3, background: v.soft, borderRadius: 999 }} />
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 140, bottom: 36, display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 10 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: i === 0 ? v.accent : v.soft, border: `3px solid ${v.accent}`, flexShrink: 0, marginTop: 3 }} />
+            <div style={{ background: v.card, borderRadius: 18, padding: 16, border: `1px solid ${v.soft}`, flex: 1, width: '100%', marginTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period}</div>
+              <div style={{ marginTop: 5, fontSize: 14, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
+              <div style={{ marginTop: 6, fontSize: 11, color: v.muted, lineHeight: 1.45, ...textClamp(3) }}>{item.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarSituation(slide, t, v) {
+  const metrics = (slide.metrics || []).slice(0, 2);
+  const hasMetrics = metrics.length > 0;
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'S', slide.sectionLabel || 'SITUATION')}</div>
+      <div style={{ position: 'absolute', left: 44, top: 80, right: 44 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 5, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
+      </div>
+      <div style={{ position: 'absolute', left: 44, top: 185, right: hasMetrics ? 222 : 44, bottom: 38, background: v.dark, borderRadius: 22, padding: '22px 26px', color: '#FFFFFF' }}>
+        <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>SITUATION</div>
+        <div style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9, ...textClamp(7) }}>{slide.body || slide.subtitle || ''}</div>
+      </div>
+      {hasMetrics && (
+        <div style={{ position: 'absolute', right: 44, top: 185, width: 162, bottom: 38, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {metrics.map((m, i) => (
+            <div key={i} style={{ flex: 1, background: i === 0 ? v.accent : v.card, borderRadius: 18, padding: '16px 16px', border: i === 1 ? `1px solid ${v.soft}` : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em' }}>{m.value || m.label}</div>
+              <div style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: v.dark, opacity: i === 0 ? 0.8 : 0.6 }}>{m.label || m.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderStarTask(slide, t, v) {
+  const items = (slide.items || []).slice(0, 3);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'T', slide.sectionLabel || 'TASK')}</div>
+      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 172, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `2px solid ${v.accent}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period || `TASK ${String(i + 1).padStart(2, '0')}`}</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
+            <div style={{ fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarAction(slide, t, v) {
+  const items = (slide.items || []).slice(0, 3);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'A', slide.sectionLabel || 'ACTION')}</div>
+      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: 38, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ flex: 1, background: v.card, borderRadius: 16, padding: '0 20px', border: `1px solid ${v.soft}`, display: 'grid', gridTemplateColumns: '52px 1fr', gap: 16, alignItems: 'center' }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: v.dark, display: 'grid', placeItems: 'center', color: v.accent, fontSize: 13, fontWeight: 950 }}>
+              {item.period || String(i + 1).padStart(2, '0')}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: v.dark, ...textClamp(1) }}>{item.heading}</div>
+              <div style={{ marginTop: 4, fontSize: 11.5, color: v.muted, lineHeight: 1.45, ...textClamp(2) }}>{item.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarResult(slide, t, v) {
+  const metrics = (slide.metrics || []).slice(0, 3);
+  const hasBody = !!slide.body;
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'R', slide.sectionLabel || 'RESULT')}</div>
+      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: hasBody ? 112 : 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {(metrics.length ? metrics : [{ label: '성과', value: '달성' }]).slice(0, 3).map((m, i) => (
+          <div key={i} style={{ background: v.accent, borderRadius: 20, padding: '20px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.04em' }}>{m.value}</div>
+            <div style={{ marginTop: 5, fontSize: 13, fontWeight: 900, color: v.dark }}>{m.label}</div>
+            {m.body && <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(0,0,0,0.55)', lineHeight: 1.4, ...textClamp(2) }}>{m.body}</div>}
+          </div>
+        ))}
+      </div>
+      {hasBody && (
+        <div style={{ position: 'absolute', left: 44, right: 44, bottom: 36, height: 66, background: v.dark, borderRadius: 18, padding: '12px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>KEY TAKEAWAY</div>
+          <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', opacity: 0.9, ...textClamp(2) }}>{slide.body}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderStarQA(slide, t, v) {
+  const items = (slide.items || []).slice(0, 2);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'PREDICTED Q&A').toUpperCase()}</div>
+      <div style={{ position: 'absolute', left: 44, top: 62, right: 44, fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 150, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 24, border: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: v.dark, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 950, flexShrink: 0 }}>Q</div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: v.dark, lineHeight: 1.35, ...textClamp(3) }}>{item.heading}</div>
+            </div>
+            <div style={{ height: 1, background: v.soft }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 950, flexShrink: 0 }}>A</div>
+              <div style={{ fontSize: 11.5, color: v.muted, lineHeight: 1.55, ...textClamp(6) }}>{item.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarAwards(slide, t, v) {
+  const items = (slide.items || []).slice(0, 3);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 26, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>🏆</div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.2em' }}>{(slide.sectionLabel || 'HONORS & RECOGNITION').toUpperCase()}</div>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 26, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(1) }}>{slide.title}</div>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 120, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `1px solid ${v.soft}` }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: v.muted }}>{item.period || item.role}</div>
+            <div style={{ marginTop: 8, fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
+            <div style={{ marginTop: 9, fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarRoadmap(slide, t, v) {
+  const items = (slide.items || []).slice(0, 3);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: 44, top: 26, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>🚀</div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.2em' }}>{(slide.sectionLabel || 'FUTURE ROADMAP').toUpperCase()}</div>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 26, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(1) }}>{slide.title}</div>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 44, right: 44, top: 120, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: v.accent, borderRadius: 20, padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: v.dark, opacity: 0.65 }}>{item.period || `Phase ${String(i + 1).padStart(2, '0')}`}</div>
+            <div style={{ fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderStarClosing(slide, t, v) {
+  const bullets = slide.bullets || [];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.dark, fontFamily: t.fonts.body }}>
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', width: '82%' }}>
+        <div style={{ display: 'inline-block', background: v.accent, color: v.dark, fontSize: 10, fontWeight: 950, padding: '5px 18px', borderRadius: 999, letterSpacing: '0.2em', marginBottom: 20 }}>THANK YOU</div>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 58, fontWeight: 950, color: v.accent, letterSpacing: '-0.04em', lineHeight: 1.0 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 15, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55 }}>{slide.subtitle}</div>}
+        {bullets.length > 0 && (
+          <div style={{ marginTop: 26, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+            {bullets.map((b, i) => (
+              <div key={i} style={{ background: 'rgba(255,255,255,0.1)', color: '#FFFFFF', fontSize: 11, padding: '7px 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.2)' }}>{b}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function renderStarSlide(slide, t, v, index) {
-  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const l = slide.layout;
+  if (l === 'star-cover') return renderStarCover(slide, t, v);
+  if (l === 'star-identity') return renderStarIdentity(slide, t, v);
+  if (l === 'star-timeline') return renderStarTimeline(slide, t, v);
+  if (l === 'star-situation') return renderStarSituation(slide, t, v);
+  if (l === 'star-task') return renderStarTask(slide, t, v);
+  if (l === 'star-action') return renderStarAction(slide, t, v);
+  if (l === 'star-result') return renderStarResult(slide, t, v);
+  if (l === 'star-qa') return renderStarQA(slide, t, v);
+  if (l === 'star-awards') return renderStarAwards(slide, t, v);
+  if (l === 'star-roadmap') return renderStarRoadmap(slide, t, v);
+  if (l === 'star-closing') return renderStarClosing(slide, t, v);
+  const isCover = l === 'cover' || l === 'section';
   const lines = acceptedLines(slide);
   const labels = ['S', 'T', 'A', 'R'];
   const mood = acceptedSlideMood(slide, index);
@@ -1453,7 +2203,744 @@ function renderStarSlide(slide, t, v, index) {
   );
 }
 
+// ── KPI Dashboard dedicated render functions ────────────────────────────────
+
+function kpiGrid(t) {
+  const { blue } = t ? kpiPaletteColors(t) : { blue: '#3182FF' };
+  const rgb = hexToRgb(blue);
+  const gl = `rgba(${rgb.red},${rgb.green},${rgb.blue},0.055)`;
+  return {
+    backgroundColor: '#0E1727',
+    backgroundImage: `linear-gradient(${gl} 1px, transparent 1px), linear-gradient(90deg, ${gl} 1px, transparent 1px)`,
+    backgroundSize: '40px 40px',
+  };
+}
+
+function renderKpiCover(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Portfolio');
+  const subtitle = cleanPortfolioText(slide.subtitle || '');
+  const facts = [
+    ['VERSION', (slide.bullets || [])[0] || '3.0.0-PRO'],
+    ['CORE COMPETENCY', (slide.bullets || [])[1] || 'AI Architecture & Full-Stack'],
+    ['FOCUS AREA', (slide.bullets || [])[2] || subtitle || 'Growth Metrics'],
+    ['STATUS', (slide.bullets || [])[3] || 'Ready for Impact'],
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 20, color: blue, fontFamily: mono, fontSize: 13, letterSpacing: '0.34em', fontWeight: 800 }}>PERFORMANCE DASHBOARD</div>
+      <div style={{ position: 'absolute', left: 58, top: 50, width: 10, height: 10, borderRadius: '50%', background: mint, boxShadow: `0 0 16px ${mint}` }} />
+      <div style={{ position: 'absolute', left: 78, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>SYSTEM ONLINE</div>
+      <div style={{ position: 'absolute', left: 410, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>DATA SYNCED</div>
+      <div style={{ position: 'absolute', right: 58, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>SECURE ACCESS</div>
+      <div style={{ position: 'absolute', left: 58, top: 70, width: 710, fontFamily: t.fonts.heading, fontSize: 62, lineHeight: 1.03, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, top: 282, color: mint, fontFamily: mono, fontSize: 20, fontWeight: 900, ...textClamp(1) }}>{subtitle || '2021-2026 Growth Metrics & Strategic Impact'}</div>
+      <div style={{ position: 'absolute', left: 58, top: 448, right: 58, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 44, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40 }}>
+        {facts.map(([h, b]) => <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 9, letterSpacing: '0.08em' }}>{h}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontFamily: mono, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{b}</div></div>)}
+      </div>
+    </div>
+  );
+}
+
+function renderKpiExecutive(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)'; const panel = 'rgba(23,35,56,0.78)';
+  const title = cleanPortfolioText(slide.title || 'Performance Overview');
+  const label = cleanPortfolioText(slide.sectionLabel || 'EXECUTIVE SUMMARY').toUpperCase();
+  const cards = (slide.metrics || []).slice(0, 4);
+  const defaults = [
+    { label: 'Projects', value: '03', body: '주요 포트폴리오 프로젝트' },
+    { label: 'Awards', value: '02', body: '수상 및 인증 내역' },
+    { label: 'Skills', value: '12+', body: '기술 스택 및 역량' },
+    { label: 'Contact', value: 'ON', body: '연락처 정보' },
+  ];
+  const items = cards.length ? cards : defaults;
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 230, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 22 }}>
+        {items.slice(0, 4).map((m, i) => (
+          <div key={i} style={{ background: panel, border: `1px solid ${line}`, padding: '20px 18px', minHeight: 120 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 9, letterSpacing: '0.1em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 36), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 8, color: muted, fontSize: 11, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 42 }}>
+        <div style={{ color: muted, fontFamily: mono, fontSize: 9, letterSpacing: '0.08em' }}>COMPETENCY DISTRIBUTION</div>
+        <div style={{ marginTop: 12, height: 28, background: 'rgba(126,147,179,0.14)' }}>
+          <div style={{ width: '78%', height: '100%', background: `linear-gradient(90deg, ${blue}, ${mint})` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiSkills(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t);
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Core Competency Analysis');
+  const label = cleanPortfolioText(slide.sectionLabel || 'SKILL ARCHITECTURE').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  const data = items.length ? items : [
+    { heading: 'Frontend', period: 'UI/UX', bullets: ['React', 'TypeScript'] },
+    { heading: 'Backend', period: 'API', bullets: ['Node.js', 'Express'] },
+    { heading: 'AI/ML', period: 'Engine', bullets: ['Gemini API', 'LangChain'] },
+    { heading: 'DevOps', period: 'Infra', bullets: ['Docker', 'Firebase'] },
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 222, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 38 }}>
+        {data.slice(0, 4).map((item, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 104 }}>
+            <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.08em', fontWeight: 800 }}>{(item.period || item.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+              {[item.heading, ...(item.bullets || []), item.body].filter(Boolean).slice(0, 2).map((skill, j) => (
+                <div key={j}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}><span>{skill}</span><span>{95 - i * 3 - j * 5}%</span></div>
+                  <div style={{ marginTop: 6, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderKpiTimeline(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t);
+  const title = cleanPortfolioText(slide.title || 'Performance Timeline');
+  const label = cleanPortfolioText(slide.sectionLabel || 'GROWTH ANALYTICS').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  const data = items.length ? items : [
+    { heading: 'Foundation', body: '기반 역량 구축', period: '2021' },
+    { heading: 'Full-Stack Shift', body: '서비스 구현 범위 확장', period: '2023' },
+    { heading: 'Scale & Standards', body: 'AI 최적화 경험 축적', period: '2025' },
+    { heading: 'Innovation', body: '실전 성과 검증', period: '2026' },
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 248, height: 2, background: 'rgba(49,130,255,0.32)' }} />
+      {data.slice(0, 4).map((item, i) => {
+        const x = 70 + i * 220;
+        const abv = i % 2 === 0;
+        return (
+          <div key={i} style={{ position: 'absolute', left: x - 54, top: abv ? 182 : 286, width: 190, textAlign: 'center' }}>
+            <div style={{ position: 'absolute', left: 80, top: abv ? 58 : -44, width: 18, height: 18, borderRadius: '50%', background: blue, border: '4px solid #081326', boxShadow: `0 0 20px ${blue}` }} />
+            <div style={{ color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{item.period || `0${i + 1}`}</div>
+            <div style={{ marginTop: 22, color: '#FFFFFF', fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{item.heading}</div>
+            <div style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{item.body}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderKpiProject(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Project');
+  const subtitle = cleanPortfolioText(slide.subtitle || '');
+  const label = cleanPortfolioText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  const data = items.length ? items : [{ heading: 'Core Mission', body: subtitle || title }];
+  const side = data.slice(1, 4);
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, width: 720, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, top: 196, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{subtitle || data[0]?.period || 'AI-Driven Platform'}</div>
+      <div style={{ position: 'absolute', left: 58, top: 248, right: 390, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, top: 270, width: 520 }}>
+        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>CORE MISSION</div>
+        <div style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700, ...textClamp(4) }}>{data[0]?.body || data[0]?.heading || subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', right: 58, top: 250, width: 330, border: '1px solid rgba(49,130,255,0.28)', background: 'rgba(23,35,56,0.38)', padding: 20 }}>
+        <div style={{ color: blue, fontSize: 21, fontWeight: 950 }}>{side[0]?.heading || 'Lead Developer'}</div>
+        {(side.length ? side : data).slice(0, 3).map((item, i) => <div key={i} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 14 }}>✓ {item.body || item.heading}</div>)}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 80, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.2fr', gap: 30 }}>
+        {['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].map((h, i) => (
+          <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{h}</div><div style={{ marginTop: 10, color: '#FFFFFF', fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{data[i]?.period || data[i]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production', 'Impact Verified'][i]}</div></div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderKpiMetrics(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)'; const panel = 'rgba(23,35,56,0.78)';
+  const title = cleanPortfolioText(slide.title || 'KPI Dashboard');
+  const label = cleanPortfolioText(slide.sectionLabel || 'KPI METRICS').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Efficiency', value: '85%', body: 'Measured performance' },
+    { label: 'Reliability', value: '99.9%', body: 'System stability' },
+    { label: 'Impact', value: '94%', body: 'Business impact' },
+  ];
+  const chartTitle = cleanPortfolioText((slide.items || [])[0]?.heading || 'VALUE DELIVERY TREND').toUpperCase();
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {metricCards.map((m, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+        <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>{chartTitle}</div>
+        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>TOTAL IMPACT VERIFIED</div>
+        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
+          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+          {[46, 72, 88, 64].map((h, i) => (
+            <div key={i} style={{ position: 'absolute', left: 0, bottom: 0 }}>
+              <div style={{ position: 'absolute', left: 64 + i * 160, bottom: 0, width: 76, height: h, background: i % 2 ? mint : blue }} />
+              <div style={{ position: 'absolute', left: 64 + i * 160 + 86, bottom: 0, width: 76, height: Math.max(18, h - 24), background: 'rgba(126,147,179,0.34)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiComparison(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Before vs After');
+  const label = cleanPortfolioText(slide.sectionLabel || 'COMPARISON').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  const lhs = items.slice(0, 2);
+  const rhs = items.slice(2, 4);
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 88, top: 204, width: 385 }}>
+        <div style={{ color: muted, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>BEFORE: MANUAL PROCESS</div>
+        {lhs.map((item, i) => (
+          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+            <div style={{ width: 34, height: 34, border: `1px solid ${line}`, display: 'grid', placeItems: 'center', color: muted }}>□</div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+          </div>
+        ))}
+        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+          <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
+          <div style={{ marginTop: 34, color: '#FFFFFF', fontSize: 28, fontWeight: 950 }}>300 MIN</div>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 480, top: 198, bottom: 48, width: 2, background: 'rgba(49,130,255,0.12)' }} />
+      <div style={{ position: 'absolute', right: 88, top: 204, width: 385 }}>
+        <div style={{ color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>AFTER: AI-DRIVEN WORKFLOW</div>
+        {(rhs.length ? rhs : lhs).map((item, i) => (
+          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+            <div style={{ width: 34, height: 34, border: `1px solid ${blue}`, display: 'grid', placeItems: 'center', color: blue }}>✓</div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+          </div>
+        ))}
+        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+          <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
+          <div style={{ marginTop: 34, color: mint, fontSize: 28, fontWeight: 950 }}>10 MIN</div>
+          <div style={{ marginTop: 16, display: 'inline-block', padding: '7px 12px', background: 'rgba(25,197,142,0.14)', color: mint, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>96.7% TIME REDUCTION</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiTechnical(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)'; const panel = 'rgba(23,35,56,0.78)';
+  const title = cleanPortfolioText(slide.title || 'Technical Performance KPI');
+  const label = cleanPortfolioText(slide.sectionLabel || 'TECHNICAL KPI').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'System Uptime', value: '99.9%', body: 'High availability' },
+    { label: 'API Success', value: '99.95%', body: 'Error-free operations' },
+    { label: 'Security Score', value: 'A+', body: 'Zero vulnerabilities' },
+  ];
+  const pts = [30, 55, 42, 70, 60, 85, 78].map((h, i) => ({ x: 42 + i * 130, y: 100 - h }));
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: muted, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {metricCards.map((m, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px', overflow: 'hidden' }}>
+        <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>RESPONSE LATENCY TREND</div>
+        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>PERFORMANCE OPTIMIZED</div>
+        <svg style={{ position: 'absolute', left: 22, bottom: 20, width: '92%', height: 110 }} viewBox="0 0 900 110">
+          {[0, 1, 2, 3, 4].map(i => <line key={i} x1="0" y1={20 + i * 22} x2="900" y2={20 + i * 22} stroke="rgba(126,147,179,0.18)" strokeWidth="1" />)}
+          <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={blue} strokeWidth="2.5" />
+          {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="5" fill={mint} />)}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiRisk(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3'; const amber = '#F59E0B';
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Risk Management & Mitigation');
+  const label = cleanPortfolioText(slide.sectionLabel || 'RISK MANAGEMENT').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  const data = items.length ? items : [
+    { heading: 'Security Risk', body: '보안 취약점 분석 및 대응 방안', period: 'Verified' },
+    { heading: 'Technical Debt', body: '기술 부채 관리 및 코드 품질 유지', period: 'Managed' },
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: amber, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 230, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 44 }}>
+        {data.slice(0, 2).map((item, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
+            <div style={{ color: i ? mint : amber, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 900 }}>{i ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT'}</div>
+            <div style={{ marginTop: 28, color: '#FFFFFF', fontSize: 20, fontWeight: 950 }}>{item.heading}</div>
+            <div style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55, ...textClamp(3) }}>{item.body}</div>
+            <div style={{ marginTop: 22, border: `1px solid ${line}`, padding: '14px 16px', color: blue, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>
+              MITIGATION: {item.period || 'Verified control'}<br />RESULT: {i ? '80% Risk Reduction' : '100% Prevention'}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 78 }}>
+        <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>SYSTEM INTEGRITY INDEX</div>
+        <div style={{ marginTop: 16, height: 32, background: 'rgba(126,147,179,0.18)' }}>
+          <div style={{ width: '92%', height: '100%', background: `linear-gradient(90deg, ${blue}, ${mint})` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiCumulative(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)'; const panel = 'rgba(23,35,56,0.78)';
+  const title = cleanPortfolioText(slide.title || 'Cumulative Impact Analysis');
+  const label = cleanPortfolioText(slide.sectionLabel || 'CUMULATIVE IMPACT').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Projects', value: '03', body: '포트폴리오 주요 경험' },
+    { label: 'Skills', value: '12+', body: '기술 스택' },
+    { label: 'Awards', value: '02', body: '수상/인증' },
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {metricCards.map((m, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+        <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>CUMULATIVE PERFORMANCE COMPARISON</div>
+        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>3 PROJECTS VERIFIED</div>
+        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
+          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+          {[65, 82, 90].map((h, i) => (
+            <div key={i} style={{ position: 'absolute', bottom: 0 }}>
+              <div style={{ position: 'absolute', left: 30 + i * 270, bottom: 0, width: 58, height: h, background: blue }} />
+              <div style={{ position: 'absolute', left: 100 + i * 270, bottom: 0, width: 58, height: Math.max(20, h - 20), background: mint }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiRoadmap(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)'; const panel = 'rgba(23,35,56,0.78)';
+  const title = cleanPortfolioText(slide.title || 'Future Growth KPI & Roadmap');
+  const label = cleanPortfolioText(slide.sectionLabel || 'VISION & GROWTH').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Next Milestone', value: 'Q3', body: '다음 성장 목표' },
+    { label: 'Skill Target', value: 'AI+', body: '확장할 기술 스택' },
+    { label: 'Project Impact', value: '×3', body: '목표 임팩트' },
+  ];
+  const phases = (slide.items || []).slice(0, 3);
+  const phaseData = phases.length ? phases : [
+    { heading: 'Scale Architecture', body: '대규모 시스템 설계 역량 확장', period: 'PHASE 1' },
+    { heading: 'AI Integration', body: 'LLM 기반 서비스 고도화', period: 'PHASE 2' },
+    { heading: 'Product Leadership', body: '제품 방향성 리드 및 팀 성장', period: 'PHASE 3' },
+  ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {metricCards.map((m, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `GOAL ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(cleanPortfolioText(m.value || acceptedMetricText(m) || '--'), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 155, border: `1px solid ${line}`, background: panel, padding: '22px 26px' }}>
+        <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 11, letterSpacing: '0.08em' }}>TECHNICAL GROWTH ROADMAP</div>
+        <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
+          {phaseData.map((phase, i) => (
+            <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}>
+              <div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{phase.period || `PHASE ${i + 1}`}</div>
+              <div style={{ marginTop: 8, color: '#FFFFFF', fontSize: 15, fontWeight: 900 }}>{phase.heading}</div>
+              <div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{phase.body}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderKpiClosing(slide, t) {
+  const mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const ink = '#EAF2FF'; const { blue, mint } = kpiPaletteColors(t); const muted = '#7E93B3';
+  const line = 'rgba(126,147,179,0.28)';
+  const title = cleanPortfolioText(slide.title || 'Thank You for Your Time');
+  const subtitle = cleanPortfolioText(slide.subtitle || '');
+  const label = cleanPortfolioText(slide.sectionLabel || 'FINAL REPORT').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Total Efficiency', value: '85% UP' },
+    { label: 'System Stability', value: '99.9%' },
+    { label: 'AI Innovation', value: '94% ACC' },
+  ];
+  const bullets = slide.bullets || [];
+  return (
+    <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, top: 94, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ position: 'absolute', left: 58, top: 132, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      {subtitle && <div style={{ position: 'absolute', left: 58, top: 298, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{subtitle}</div>}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 374, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {metricCards.map((m, i) => (
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
+            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: 44, lineHeight: 1, fontWeight: 950 }}>{cleanPortfolioText(m.value || acceptedMetricText(m) || '--')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 80, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 44, display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr 1fr', gap: 40 }}>
+        {(bullets.length ? bullets : ['yushin.kim@example.com', 'github.com/yushinkim', 'portfolio link', 'Seoul, KR']).slice(0, 4).map((item, i) => (
+          <div key={i}>
+            <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{['EMAIL', 'GITHUB', 'PORTFOLIO', 'LOCATION'][i]}</div>
+            <div style={{ marginTop: 10, color: blue, fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{item}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const KPI_REFERENCE_KIND_SEQUENCE = [
+  'cover', 'dashboard', 'skills', 'timeline',
+  'project', 'dashboard', 'beforeAfter', 'dashboard', 'risk',
+  'project', 'dashboard', 'beforeAfter', 'dashboard', 'risk',
+  'project', 'dashboard', 'beforeAfter', 'dashboard', 'risk',
+  'dashboard', 'roadmap', 'closing',
+];
+
+function kpiReferenceSequenceKind(index) {
+  return KPI_REFERENCE_KIND_SEQUENCE[Math.abs(Number(index) || 0) % KPI_REFERENCE_KIND_SEQUENCE.length] || 'dashboard';
+}
+
+function renderKpiReferenceSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const mood = acceptedSlideMood(slide, index);
+  const source = cleanPortfolioText(`${slide.layout || ''} ${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const hasAny = (...words) => words.some(word => source.includes(word));
+  const title = cleanPortfolioText(slide.title || 'Performance Dashboard');
+  const subtitle = cleanPortfolioText(slide.subtitle || '');
+  const label = cleanPortfolioText(slide.sectionLabel || (isCover ? 'Performance Dashboard' : 'Executive Summary')).toUpperCase();
+  const data = lines.length ? lines : [
+    { heading: 'Efficiency', body: subtitle || title, period: '85%' },
+    { heading: 'Reliability', body: 'System stability and operational quality', period: '99.9%' },
+    { heading: 'Impact', body: 'Business impact and technical execution', period: '94%' },
+  ];
+  let kind = kpiReferenceSequenceKind(index);
+  if (isCover) kind = 'cover';
+  else if (slide.layout === 'closing' || slide.proposalVariant === 'closing' || mood === 'closing' || hasAny('thank', 'final')) kind = 'closing';
+  else if (hasAny('before', 'after', 'workflow', 'transformation', 'manual', 'traditional')) kind = 'beforeAfter';
+  else if (hasAny('risk', 'audit', 'mitigation', 'security', 'integrity', 'vulnerability', 'bias', 'debt')) kind = 'risk';
+  else if (hasAny('timeline', 'growth analytics', 'milestone')) kind = 'timeline';
+  else if (hasAny('skill', 'competency', 'architecture', 'stack')) kind = 'skills';
+  else if (hasAny('project case', 'case ', 'core mission', 'platform') || slide.layout === 'experience') kind = 'project';
+  else if (hasAny('roadmap', 'future', 'vision', 'growth')) kind = 'roadmap';
+  else if (metrics.length || mood === 'metric' || hasAny('kpi', 'dashboard', 'performance', 'impact', 'overview', 'summary')) kind = kpiReferenceSequenceKind(index) === 'closing' ? 'dashboard' : kpiReferenceSequenceKind(index);
+
+  const ink = '#EAF2FF';
+  const muted = '#7E93B3';
+  const { blue, mint } = kpiPaletteColors(t);
+  const amber = '#F59E0B';
+  const panel = 'rgba(23,35,56,0.78)';
+  const line = 'rgba(126,147,179,0.28)';
+  const gridBg = '#0E1727';
+  const mono = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  const blueRgb = hexToRgb(blue);
+  const gridLineColor = `rgba(${blueRgb.red},${blueRgb.green},${blueRgb.blue},0.055)`;
+  const grid = {
+    backgroundColor: gridBg,
+    backgroundImage: `linear-gradient(${gridLineColor} 1px, transparent 1px), linear-gradient(90deg, ${gridLineColor} 1px, transparent 1px)`,
+    backgroundSize: '40px 40px',
+  };
+  const shell = children => (
+    <div style={{ position: 'absolute', inset: 0, ...grid, color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+  const header = (y = 58, w = 760) => (
+    <div style={{ position: 'absolute', left: 58, top: y, width: w }}>
+      <div style={{ color: kind === 'risk' ? amber : blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
+      <div style={{ marginTop: 38, fontFamily: t.fonts.heading, fontSize: dynamicFontPx(title, 42, { min: 32, max: 48 }), lineHeight: 1.05, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+    </div>
+  );
+  const divider = (x, y, w) => <div style={{ position: 'absolute', left: x, top: y, width: w, height: 1, background: line }} />;
+  const metricText = (metric, fallback) => cleanPortfolioText(metric ? acceptedMetricText(metric) : fallback);
+  const metricCards = (metrics.length ? metrics : data.map((line, i) => ({
+    label: line.heading || ['Efficiency', 'Reliability', 'Impact'][i],
+    value: line.period || ['85%', '99.9%', '94%'][i],
+  }))).slice(0, 3);
+
+  const metricRow = (top = 236) => (
+    <div style={{ position: 'absolute', left: 58, right: 58, top, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      {metricCards.map((m, i) => (
+        <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+          <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || data[i]?.heading || `KPI ${i + 1}`).toUpperCase()}</div>
+          <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricText(m, ['85%', '99.9%', '94%'][i]), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricText(m, ['85%', '99.9%', '94%'][i])}</div>
+          <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{data[i]?.body || subtitle || 'Measured portfolio performance signal'}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const chartPanel = (titleText = 'PERFORMANCE TREND', note = 'TOTAL IMPACT VERIFIED') => (
+    <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+      <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>{titleText}</div>
+      <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>{note}</div>
+      <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
+        {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+        {[46, 72, 88, 64].map((h, i) => (
+          <div key={i} style={{ position: 'absolute', left: 0, bottom: 0 }}>
+            <div style={{ position: 'absolute', left: 64 + i * 160, bottom: 0, width: 76, height: h, background: i % 2 ? mint : blue }} />
+            <div style={{ position: 'absolute', left: 64 + i * 160 + 86, bottom: 0, width: 76, height: Math.max(18, h - 24), background: 'rgba(126,147,179,0.34)' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (kind === 'cover') {
+    const facts = [
+      ['VERSION', (slide.bullets || [])[0] || '3.0.0-PRO'],
+      ['CORE COMPETENCY', (slide.bullets || [])[1] || 'AI Architecture & Full-Stack'],
+      ['FOCUS AREA', (slide.bullets || [])[2] || subtitle || 'Growth Metrics'],
+      ['STATUS', (slide.bullets || [])[3] || 'Ready for Impact'],
+    ];
+    return shell(<>
+      <div style={{ position: 'absolute', left: 58, top: 20, color: blue, fontFamily: mono, fontSize: 13, letterSpacing: '0.34em', fontWeight: 800 }}>PERFORMANCE DASHBOARD</div>
+      <div style={{ position: 'absolute', left: 58, top: 50, width: 10, height: 10, borderRadius: '50%', background: mint, boxShadow: `0 0 16px ${mint}` }} />
+      <div style={{ position: 'absolute', left: 78, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>SYSTEM ONLINE</div>
+      <div style={{ position: 'absolute', left: 410, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>DATA SYNCED</div>
+      <div style={{ position: 'absolute', right: 58, top: 46, color: muted, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>SECURE ACCESS</div>
+      <div style={{ position: 'absolute', left: 58, top: 70, width: 710, fontFamily: t.fonts.heading, fontSize: 62, lineHeight: 1.03, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, top: 282, color: mint, fontFamily: mono, fontSize: 20, fontWeight: 900, ...textClamp(1) }}>{subtitle || '2021-2026 Growth Metrics & Strategic Impact'}</div>
+      {divider(58, 448, 844)}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 44, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40 }}>
+        {facts.map(([h, b]) => <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 9, letterSpacing: '0.08em' }}>{h}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontFamily: mono, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{b}</div></div>)}
+      </div>
+    </>);
+  }
+
+  if (kind === 'timeline') {
+    return shell(<>
+      {header(58, 780)}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 248, height: 2, background: 'rgba(49,130,255,0.32)' }} />
+      {data.slice(0, 4).map((lineItem, i) => {
+        const x = 70 + i * 220;
+        const top = i % 2 === 0;
+        return <div key={i} style={{ position: 'absolute', left: x - 54, top: top ? 182 : 286, width: 190, textAlign: 'center' }}>
+          <div style={{ position: 'absolute', left: 80, top: top ? 58 : -44, width: 18, height: 18, borderRadius: '50%', background: blue, border: '4px solid #081326', boxShadow: `0 0 20px ${blue}` }} />
+          <div style={{ color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{lineItem.period || ['2021', '2023', '2025', '2026'][i]}</div>
+          <div style={{ marginTop: 22, color: '#FFFFFF', fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{lineItem.heading}</div>
+          <div style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{lineItem.body}</div>
+        </div>;
+      })}
+    </>);
+  }
+
+  if (kind === 'skills') {
+    return shell(<>
+      {header(58, 780)}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 222, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 38 }}>
+        {data.slice(0, 4).map((lineItem, i) => <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 104 }}>
+          <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.08em', fontWeight: 800 }}>{(lineItem.period || lineItem.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
+          <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+            {[lineItem.heading, ...(lineItem.bullets || []), lineItem.body].filter(Boolean).slice(0, 2).map((item, j) => (
+              <div key={j}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}><span>{item}</span><span>{95 - i * 3 - j * 5}%</span></div>
+                <div style={{ marginTop: 6, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>)}
+      </div>
+    </>);
+  }
+
+  if (kind === 'project') {
+    const side = data.slice(1, 4);
+    return shell(<>
+      {header(58, 720)}
+      <div style={{ position: 'absolute', left: 58, top: 196, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{subtitle || data[0]?.period || 'AI-Driven Platform'}</div>
+      {divider(58, 248, 520)}
+      <div style={{ position: 'absolute', left: 58, top: 270, width: 520 }}>
+        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>CORE MISSION</div>
+        <div style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700, ...textClamp(4) }}>{data[0]?.body || data[0]?.heading || subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', right: 58, top: 250, width: 330, border: `1px solid rgba(49,130,255,0.28)`, background: 'rgba(23,35,56,0.38)', padding: 20 }}>
+        <div style={{ color: blue, fontSize: 21, fontWeight: 950 }}>{side[0]?.heading || 'Lead Developer'}</div>
+        {(side.length ? side : data).slice(0, 3).map((lineItem, i) => <div key={i} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 14 }}>✓ {lineItem.body || lineItem.heading}</div>)}
+      </div>
+      {divider(58, 462, 844)}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.2fr', gap: 30 }}>
+        {['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].map((h, i) => <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{h}</div><div style={{ marginTop: 10, color: '#FFFFFF', fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{data[i]?.period || data[i]?.heading || ['2026.04 - 2026.05', 'React, Node.js, Firebase', 'Production Ready', 'Impact Verified'][i]}</div></div>)}
+      </div>
+    </>);
+  }
+
+  if (kind === 'beforeAfter') {
+    const left = data.slice(0, 2);
+    const right = data.slice(2, 4);
+    return shell(<>
+      {header(58, 820)}
+      <div style={{ position: 'absolute', left: 88, top: 205, bottom: 48, width: 1, background: 'transparent' }} />
+      <div style={{ position: 'absolute', left: 88, top: 204, width: 385 }}>
+        <div style={{ color: muted, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>BEFORE: MANUAL PROCESS</div>
+        {left.map((lineItem, i) => <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}><div style={{ width: 34, height: 34, border: `1px solid ${line}`, display: 'grid', placeItems: 'center', color: muted }}>□</div><div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{lineItem.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{lineItem.body}</div></div></div>)}
+        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div><div style={{ marginTop: 34, color: '#FFFFFF', fontSize: 28, fontWeight: 950 }}>300 MIN</div></div>
+      </div>
+      <div style={{ position: 'absolute', left: 480, top: 198, bottom: 48, width: 2, background: 'rgba(49,130,255,0.12)' }} />
+      <div style={{ position: 'absolute', right: 88, top: 204, width: 385 }}>
+        <div style={{ color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>AFTER: AI-DRIVEN WORKFLOW</div>
+        {(right.length ? right : data.slice(0, 2)).map((lineItem, i) => <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}><div style={{ width: 34, height: 34, border: `1px solid ${blue}`, display: 'grid', placeItems: 'center', color: blue }}>✓</div><div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{lineItem.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{lineItem.body}</div></div></div>)}
+        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div><div style={{ marginTop: 34, color: mint, fontSize: 28, fontWeight: 950 }}>10 MIN</div><div style={{ marginTop: 34, display: 'inline-block', padding: '7px 12px', background: 'rgba(25,197,142,0.14)', color: mint, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>96.7% TIME REDUCTION</div></div>
+      </div>
+    </>);
+  }
+
+  if (kind === 'risk') {
+    return shell(<>
+      {header(58, 800)}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 230, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 44 }}>
+        {data.slice(0, 2).map((lineItem, i) => <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
+          <div style={{ color: i ? mint : amber, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 900 }}>{i ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT'}</div>
+          <div style={{ marginTop: 28, color: '#FFFFFF', fontSize: 20, fontWeight: 950 }}>{lineItem.heading}</div>
+          <div style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55, ...textClamp(3) }}>{lineItem.body}</div>
+          <div style={{ marginTop: 22, border: `1px solid ${line}`, padding: '14px 16px', color: blue, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>MITIGATION: {lineItem.period || 'Verified control'}<br />RESULT: {i ? '80% Risk Reduction' : '100% Prevention'}</div>
+        </div>)}
+      </div>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 78 }}>
+        <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>SYSTEM INTEGRITY INDEX</div>
+        <div style={{ marginTop: 16, height: 32, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: '92%', height: '100%', background: `linear-gradient(90deg, ${blue}, ${mint})` }} /></div>
+      </div>
+    </>);
+  }
+
+  if (kind === 'roadmap') {
+    return shell(<>
+      {header(58, 800)}
+      {metricRow(236)}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 50, height: 140, border: `1px solid ${line}`, background: panel, padding: '22px 26px' }}>
+        <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 11, letterSpacing: '0.08em' }}>TECHNICAL GROWTH ROADMAP</div>
+        <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
+          {data.slice(0, 3).map((lineItem, i) => <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}><div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{lineItem.period || `PHASE ${i + 1}`}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontSize: 15, fontWeight: 900 }}>{lineItem.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{lineItem.body}</div></div>)}
+        </div>
+      </div>
+    </>);
+  }
+
+  if (kind === 'closing') {
+    return shell(<>
+      {header(94, 820)}
+      <div style={{ position: 'absolute', left: 58, top: 298, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{subtitle || 'Full-Stack Engineer & System Architect'}</div>
+      {metricRow(374)}
+      {divider(58, 486, 844)}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 44, display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr 1fr', gap: 40 }}>
+        {(slide.bullets?.length ? slide.bullets : ['yushin.kim@example.com', 'github.com/yushinkim', 'portfolio link', 'Seoul, South Korea']).slice(0, 4).map((item, i) => <div key={i}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{['EMAIL', 'GITHUB', 'PORTFOLIO', 'LOCATION'][i]}</div><div style={{ marginTop: 10, color: blue, fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{item}</div></div>)}
+      </div>
+    </>);
+  }
+
+  return shell(<>
+    {header(58, 800)}
+    {metricRow(236)}
+    {chartPanel(hasAny('recruitment') ? 'RECRUITMENT FUNNEL EFFICIENCY' : 'VALUE DELIVERY TREND', 'TOTAL IMPACT VERIFIED')}
+  </>);
+}
+
 function renderKpiSlide(slide, t, v, index) {
+  const l = slide.layout;
+  if (l === 'kpi-cover') return renderKpiCover(slide, t);
+  if (l === 'kpi-executive') return renderKpiExecutive(slide, t);
+  if (l === 'kpi-skills') return renderKpiSkills(slide, t);
+  if (l === 'kpi-timeline') return renderKpiTimeline(slide, t);
+  if (l === 'kpi-project') return renderKpiProject(slide, t);
+  if (l === 'kpi-metrics') return renderKpiMetrics(slide, t);
+  if (l === 'kpi-comparison') return renderKpiComparison(slide, t);
+  if (l === 'kpi-technical') return renderKpiTechnical(slide, t);
+  if (l === 'kpi-risk') return renderKpiRisk(slide, t);
+  if (l === 'kpi-cumulative') return renderKpiCumulative(slide, t);
+  if (l === 'kpi-roadmap') return renderKpiRoadmap(slide, t);
+  if (l === 'kpi-closing') return renderKpiClosing(slide, t);
+  return renderKpiReferenceSlide(slide, t, v, index);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const metrics = (slide.metrics || acceptedLines(slide).flatMap(line => line.metrics || [])).slice(0, 4);
   const lines = acceptedLines(slide);
@@ -1522,7 +3009,201 @@ function renderKpiSlide(slide, t, v, index) {
   );
 }
 
+function renderTimelineReferenceSlide(slide, t, v, index) {
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const lines = acceptedLines(slide);
+  const mood = acceptedSlideMood(slide, index);
+  const source = cleanPortfolioText(`${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const entries = (slide.items?.length ? slide.items : lines).filter(Boolean);
+  const hasAny = (...words) => words.some(word => source.includes(word));
+  const TL_KIND = { 'timeline-cover': 'cover', 'timeline-philosophy': 'philosophy', 'timeline-profile': 'profile', 'timeline-master': 'timeline', 'timeline-stack': 'stack', 'timeline-project': 'project', 'timeline-architecture': 'detail', 'timeline-challenge': 'detail', 'timeline-detail': 'detail', 'timeline-outcomes': 'metrics', 'timeline-awards': 'awards', 'timeline-growth': 'detail', 'timeline-roadmap': 'roadmap', 'timeline-closing': 'closing' };
+  let kind = TL_KIND[slide.layout];
+  if (!kind) {
+    kind = index % 4 === 0 ? 'detail' : index % 4 === 1 ? 'stack' : index % 4 === 2 ? 'project' : 'metrics';
+    if (isCover) kind = 'cover';
+    else if (mood === 'closing' || slide.layout === 'closing' || slide.proposalVariant === 'closing') kind = 'closing';
+    else if (slide.proposalVariant === 'contents' || mood === 'toc') kind = 'philosophy';
+    else if (hasAny('profile', 'key metrics', 'education', 'language', 'focus')) kind = 'profile';
+    else if (slide.proposalVariant === 'timeline' || hasAny('timeline', 'milestone', 'growth curve')) kind = 'timeline';
+    else if (hasAny('roadmap', 'vision', 'next', 'phase') || slide.proposalVariant === 'gantt' || slide.proposalVariant === 'stageCards') kind = 'roadmap';
+    else if (hasAny('award', 'honor', 'recognition')) kind = 'awards';
+    else if (hasAny('stack', 'skill', 'frontend', 'backend', 'technical')) kind = 'stack';
+    else if (hasAny('architecture', 'challenge', 'security', 'learning', 'principle', 'integration', 'optimization')) kind = 'detail';
+    else if (hasAny('project') || slide.layout === 'experience') kind = 'project';
+    else if (metrics.length || mood === 'metric' || hasAny('outcome', 'result', 'metric', 'achievement', 'proof')) kind = 'metrics';
+  }
+  const label = (slide.sectionLabel || (kind === 'cover' ? '2021 - 2026 Growth Archive' : 'Growth Timeline')).toUpperCase();
+  const title = slide.title || 'Growth Timeline';
+  const subtitle = slide.subtitle || '';
+  const topRule = <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 6, background: v.accent }} />;
+  const logo = <div style={{ position: 'absolute', left: 734, bottom: 6, width: 22, height: 22, borderRadius: '50%', border: '3px solid #1597A5', color: '#1597A5', display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950, lineHeight: 1 }}>G</div>;
+  const shell = (children, bg = '#FFFFFF') => (
+    <div style={{ position: 'absolute', inset: 0, background: bg, color: v.ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      {kind !== 'cover' && kind !== 'closing' ? topRule : null}
+      {children}
+      {kind !== 'cover' ? logo : null}
+    </div>
+  );
+  const header = (x = 62, y = 78, w = 800) => (
+    <div style={{ position: 'absolute', left: x, top: y, width: w }}>
+      <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>{label}</div>
+      <div style={{ marginTop: 26, fontFamily: t.fonts.heading, fontSize: dynamicFontPx(title, 38, { min: 30, max: 42 }), lineHeight: 1.08, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{title}</div>
+      {subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 15, lineHeight: 1.45, fontWeight: 600, ...textClamp(2) }}>{subtitle}</div> : null}
+    </div>
+  );
+  const data = entries.length ? entries : [{ heading: 'Experience', body: subtitle || title }];
+
+  if (kind === 'closing') {
+    const contact = (slide.bullets || []).slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 452, top: 102, width: 60, height: 4, background: v.accent }} />
+        <div style={{ position: 'absolute', left: 170, right: 170, top: 176, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 45, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title || 'Thank You for Your Time'}</div>
+          <div style={{ marginTop: 28, color: '#B8CCE8', fontSize: 18, lineHeight: 1.55, ...textClamp(2) }}>{subtitle || '함께 성장하며 미래를 설계할 기회를 기다리겠습니다.'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 138, right: 138, top: 346, height: 1, background: 'rgba(184,204,232,0.22)' }} />
+        <div style={{ position: 'absolute', left: 150, right: 150, top: 390, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32, textAlign: 'center' }}>
+          {['EMAIL', 'GITHUB', 'PORTFOLIO'].map((h, idx) => <div key={h}><div style={{ color: v.accent, letterSpacing: '0.26em', fontSize: 12, fontWeight: 950 }}>{h}</div><div style={{ marginTop: 18, color: '#FFFFFF', fontSize: 15, fontWeight: 800, ...textClamp(1) }}>{contact[idx] || ['yushin@example.com', 'github.com/yushin-dev', 'portfolio link'][idx]}</div></div>)}
+        </div>
+        {logo}
+      </div>
+    );
+  }
+
+  if (kind === 'cover') {
+    const facts = [
+      { h: 'CANDIDATE', b: (slide.bullets || [])[0] || cleanPortfolioText(title).split(' ')[0] || 'Candidate' },
+      { h: 'ROLE', b: subtitle || 'Full-Stack Developer' },
+      { h: 'EDUCATION', b: (slide.bullets || [])[1] || 'Portfolio' },
+    ];
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: 9, top: 0, width: 7, height: 540, background: v.accent }} />
+        <div style={{ position: 'absolute', right: -20, bottom: -10, width: 300, height: 300, background: '#F5F8FC', transform: 'skewX(-12deg)' }} />
+        <div style={{ position: 'absolute', left: 78, top: 62, color: v.accent, fontSize: 14, letterSpacing: '0.32em', fontWeight: 850 }}>2021 - 2026 GROWTH ARCHIVE</div>
+        <div style={{ position: 'absolute', left: 78, top: 136, width: 620, fontFamily: t.fonts.heading, fontSize: 54, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{title}</div>
+        <div style={{ position: 'absolute', left: 78, top: 294, width: 620, color: v.muted, fontSize: 19, lineHeight: 1.42, ...textClamp(2) }}>{subtitle || '미래를 설계하는 개발자의 성장 타임라인'}</div>
+        <div style={{ position: 'absolute', left: 78, bottom: 62, display: 'grid', gridTemplateColumns: 'repeat(3, 170px)', gap: 34 }}>
+          {facts.map(f => <div key={f.h} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 22 }}><div style={{ color: v.muted, fontSize: 9, letterSpacing: '0.18em', fontWeight: 850 }}>{f.h}</div><div style={{ marginTop: 14, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{f.b}</div></div>)}
+        </div>
+        {logo}
+      </div>
+    );
+  }
+
+  if (kind === 'profile') {
+    const metricCards = (metrics.length ? metrics : [
+      { label: 'Production Projects', value: '5+' },
+      { label: 'TOEIC Score', value: '900' },
+      { label: 'Documentation Rate', value: '100%' },
+    ]).slice(0, 3);
+    const profileItems = data.slice(0, 3);
+    return shell(<>
+      <div style={{ position: 'absolute', left: 60, top: 78, bottom: 70, width: 404, borderRight: `1px solid ${v.soft}` }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>PROFILE</div>
+        <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, color: v.ink, ...textClamp(1) }}>{title}</div>
+        {profileItems.map((item, idx) => (
+          <div key={idx} style={{ marginTop: idx === 0 ? 18 : 16 }}>
+            <div style={{ color: v.muted, fontSize: 9, letterSpacing: '0.16em', fontWeight: 850 }}>{(item.period || item.role || ['EDUCATION', 'LANGUAGE', 'FOCUS'][idx]).toUpperCase()}</div>
+            <div style={{ marginTop: 10, color: v.ink, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{item.heading}</div>
+            <div style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 508, top: 78, right: 62, bottom: 70 }}>
+        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>KEY METRICS</div>
+        {metricCards.map((metric, idx) => (
+          <div key={idx} style={{ marginTop: idx === 0 ? 46 : 42 }}>
+            <div style={{ color: v.accent, fontSize: 38, lineHeight: 1, fontWeight: 950 }}>{acceptedMetricText(metric)}</div>
+            <div style={{ marginTop: 18, color: v.ink, fontSize: 14.5, fontWeight: 900 }}>{metric.label}</div>
+            <div style={{ marginTop: 12, color: v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(2) }}>{metric.body || data[idx]?.body || subtitle}</div>
+          </div>
+        ))}
+      </div>
+    </>);
+  }
+
+  if (kind === 'philosophy') {
+    return shell(<>
+      {header(78, 94, 680)}
+      <div style={{ position: 'absolute', left: 78, right: 78, top: 264, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
+        {data.slice(0, 3).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 16 }}><div style={{ color: v.accent, fontSize: 16, fontWeight: 950 }}>{['EXPERIENCE', 'MEMORY', 'VALUE'][idx] || line.heading}</div><div style={{ marginTop: 18, fontSize: 14, lineHeight: 1.6, color: v.ink, ...textClamp(4) }}>{line.body || line.heading}</div></div>)}
+      </div>
+    </>);
+  }
+
+  if (kind === 'timeline') {
+    const marks = data.slice(0, 5);
+    return shell(<>
+      <div style={{ position: 'absolute', left: 62, top: 82, color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>MASTER TIMELINE</div>
+      <div style={{ position: 'absolute', left: 62, top: 120, width: 460, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 62, right: 62, top: 276, height: 2, background: v.soft }} />
+      {marks.map((line, idx) => {
+        const x = 126 + idx * 158;
+        const top = idx % 2 === 0;
+        return <div key={idx} style={{ position: 'absolute', left: x - 80, top: top ? 112 : 306, width: 170, textAlign: 'center' }}>
+          <div style={{ position: 'absolute', left: 80, top: top ? 158 : -42, width: 10, height: 10, borderRadius: '50%', background: v.accent }} />
+          <div style={{ color: v.accent, fontSize: 16, fontWeight: 950 }}>{line.period || `Phase ${idx + 1}`}</div>
+          <div style={{ marginTop: 16, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+          <div style={{ marginTop: 10, color: v.muted, fontSize: 12, lineHeight: 1.42, ...textClamp(3) }}>{line.body}</div>
+        </div>;
+      })}
+    </>);
+  }
+
+  if (kind === 'metrics') {
+    const metricCards = (metrics.length ? metrics : data.map((line, idx) => ({ label: line.heading, value: idx === 0 ? '80%' : idx === 1 ? '99.9%' : '4.8/5' }))).slice(0, 3);
+    return shell(<>
+      {header(62, 80, 780)}
+      <div style={{ position: 'absolute', left: 62, right: 62, top: 190, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
+        {metricCards.map((m, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 46 }}><div style={{ color: v.accent, fontSize: 44, lineHeight: 1, fontWeight: 950 }}>{acceptedMetricText(m)}</div><div style={{ marginTop: 18, fontSize: 16, fontWeight: 900 }}>{m.label || data[idx]?.heading}</div><div style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{data[idx]?.body || subtitle}</div></div>)}
+      </div>
+      <div style={{ position: 'absolute', left: 62, right: 62, top: 334, height: 1, background: v.soft }} />
+    </>);
+  }
+
+  if (kind === 'roadmap') {
+    return shell(<>
+      {header(60, 78, 780)}
+      <div style={{ position: 'absolute', left: 60, right: 60, top: 186, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+        {data.slice(0, 3).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 24 }}><div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.08em', fontWeight: 950 }}>PHASE {String(idx + 1).padStart(2, '0')}</div><div style={{ marginTop: 12, fontSize: 20, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>{(line.bullets?.length ? line.bullets : [line.body, line.period, subtitle].filter(Boolean)).slice(0, 3).map((b, bi) => <div key={bi} style={{ marginTop: 14, color: v.ink, fontSize: 13.2, lineHeight: 1.45 }}>› {b}</div>)}</div>)}
+      </div>
+    </>);
+  }
+
+  if (kind === 'awards') {
+    const first = data[0] || {};
+    return shell(<>
+      {header(62, 82, 760)}
+      <div style={{ position: 'absolute', left: 62, right: 62, top: 214, height: 172, background: '#F6F8FC', borderLeft: `5px solid ${v.accent}`, padding: '28px 34px' }}>
+        <div style={{ color: v.accent, fontSize: 14, fontWeight: 950 }}>{first.period || '2026.05'}</div>
+        <div style={{ marginTop: 26, fontSize: 24, fontWeight: 950 }}>{first.heading || title}</div>
+        <div style={{ marginTop: 16, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{first.body || subtitle}</div>
+      </div>
+      <div style={{ position: 'absolute', left: 62, right: 62, top: 396, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 42 }}>
+        {data.slice(1, 5).map((line, idx) => <div key={idx} style={{ borderBottom: `1px solid ${v.soft}`, paddingBottom: 8 }}><div style={{ fontSize: 15, fontWeight: 900 }}>{line.heading}</div><div style={{ color: v.muted, fontSize: 12 }}>{line.period || line.body}</div></div>)}
+      </div>
+    </>);
+  }
+
+  const threeCol = kind === 'stack' || kind === 'project';
+  return shell(<>
+    {header(62, 78, 800)}
+    <div style={{ position: 'absolute', left: 62, right: 62, top: threeCol ? 198 : 188, display: 'grid', gridTemplateColumns: threeCol ? 'repeat(3, 1fr)' : '1fr 1fr', gap: threeCol ? 28 : 42 }}>
+      {data.slice(0, threeCol ? 3 : 4).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${idx === 1 && !threeCol ? v.accent : v.soft}`, paddingTop: 20, minHeight: threeCol ? 180 : 132 }}>
+        <div style={{ color: idx % 2 === 0 ? v.accent : v.muted, fontSize: 13, fontWeight: 950, letterSpacing: '0.04em' }}>{threeCol ? ['CONCEPT', 'PROBLEM', 'SOLUTION'][idx] || line.role : line.role || line.period || `SECTION ${idx + 1}`}</div>
+        <div style={{ marginTop: 16, fontSize: 18, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+        <div style={{ marginTop: 14, color: v.ink, fontSize: 13.4, lineHeight: 1.55, ...textClamp(threeCol ? 5 : 4) }}>{line.body || (line.bullets || []).join(' / ')}</div>
+        {kind === 'stack' ? <div style={{ marginTop: 14, height: 3, background: '#EEF3FA' }}><div style={{ width: `${78 - idx * 8}%`, height: '100%', background: v.accent }} /></div> : null}
+      </div>)}
+    </div>
+  </>);
+}
+
 function renderTimelineSlide(slide, t, v, index) {
+  return renderTimelineReferenceSlide(slide, t, v, index);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = acceptedLines(slide);
   const mood = acceptedSlideMood(slide, index);
@@ -1840,7 +3521,20 @@ const CASE_STUDY_REFERENCE_VARIANTS = [
 
 function caseStudyVariantForIndex(slide, index) {
   if (slide.layout === 'closing') return 'closing';
-  return CASE_STUDY_REFERENCE_VARIANTS[Math.abs(Number(index) || 0) % CASE_STUDY_REFERENCE_VARIANTS.length];
+  if (slide.layout === 'cover' || slide.layout === 'section') return 'dark-title-1';
+  const source = cleanPortfolioText(`${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const hasAny = (...words) => words.some(word => source.includes(word));
+  if (slide.proposalVariant === 'contents' || hasAny('contents', 'index', 'toc')) return 'case-toc';
+  if (slide.layout === 'experience' || hasAny('execution', 'build log', 'build', 'project', 'process log', 'representative experience')) return 'case-project';
+  if ((slide.metrics || []).length || hasAny('impact', 'metric', 'kpi', 'result', 'proof', 'before / after', 'before/after', 'evidence')) return 'case-impact';
+  if (hasAny('problem', 'context', 'user insight', 'constraint')) return 'case-problem';
+  if (hasAny('decision', 'trade-off', 'tradeoff', 'risk')) return 'case-decision';
+  if (hasAny('learning', 'growth point', 'case note')) return 'case-learning';
+  if (hasAny('next', 'roadmap', 'next move')) return 'case-next';
+  if (hasAny('fit', 'role scope', 'skill match', 'interview hook', 'collaboration')) return 'case-fit';
+  if (hasAny('overview', 'snapshot', 'opening signal')) return 'case-snapshot';
+  const fallback = ['case-snapshot', 'case-problem', 'case-decision', 'case-impact', 'case-learning', 'case-next', 'case-fit'];
+  return fallback[Math.abs(Number(index) || 0) % fallback.length] || CASE_STUDY_REFERENCE_VARIANTS[Math.abs(Number(index) || 0) % CASE_STUDY_REFERENCE_VARIANTS.length];
 }
 
 function renderCaseStudyReferenceSlide(slide, t, v, index) {
@@ -1859,26 +3553,34 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
     </div>
   );
 
-  const darkTitle = title => (
+  const darkTitle = title => {
+    const acRgb = hexToRgb(v.accent);
+    const acGlow = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.4)`;
+    const acGlow2 = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.25)`;
+    return (
     <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', overflow: 'hidden', fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: -60, top: -60, width: 180, height: 120, borderRadius: '50%', background: 'radial-gradient(circle, rgba(153,38,0,0.4), rgba(153,38,0,0))' }} />
-      <div style={{ position: 'absolute', right: -10, bottom: -20, width: 220, height: 160, borderRadius: '50%', background: 'radial-gradient(circle, rgba(135,0,193,0.3), rgba(135,0,193,0))' }} />
+      <div style={{ position: 'absolute', left: -60, top: -60, width: 180, height: 120, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow}, rgba(0,0,0,0))` }} />
+      <div style={{ position: 'absolute', right: -10, bottom: -20, width: 220, height: 160, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow2}, rgba(0,0,0,0))` }} />
       <div style={{ position: 'absolute', left: 276, top: 222, width: 64, height: 22, borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,0.92), rgba(211,219,236,0.78))' }} />
       <div style={{ position: 'absolute', left: 100, right: 100, top: 246, textAlign: 'center' }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: 44, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title || slide.title}</div>
       </div>
     </div>
-  );
+    );
+  };
 
-  const statPill = (value, label, accent = '#2B90FF') => (
-    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '58px 1fr', gap: 12, alignItems: 'center' }}>
-      <div style={{ width: 58, height: 58, borderRadius: '50%', background: accent === '#2B90FF' ? 'radial-gradient(circle at 30% 28%, #6EC1FF, #2B90FF)' : 'radial-gradient(circle at 35% 30%, #9D9EFF, #4A4FCA)' }} />
-      <div>
-        <div style={{ fontSize: 18, lineHeight: 1.05, fontWeight: 950, color: accent, ...textClamp(1) }}>{value}</div>
-        <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, fontWeight: 800, color: v.ink, ...textClamp(2) }}>{label}</div>
+  const statPill = (value, label, accentOverride) => {
+    const pillAccent = accentOverride || v.accent;
+    return (
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '58px 1fr', gap: 12, alignItems: 'center' }}>
+        <div style={{ width: 58, height: 58, borderRadius: '50%', background: pillAccent }} />
+        <div>
+          <div style={{ fontSize: 18, lineHeight: 1.05, fontWeight: 950, color: pillAccent, ...textClamp(1) }}>{value}</div>
+          <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, fontWeight: 800, color: v.ink, ...textClamp(2) }}>{label}</div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const mockCard = (caption, height = 112, tone = 0) => (
     <div style={{ textAlign: 'center' }}>
@@ -1924,29 +3626,443 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
     </div>
   );
 
+  const caseLines = lines.length ? lines : [{ heading: slide.sectionLabel || 'Case', body: slide.subtitle || slide.title || 'Evidence' }];
+  const caseMetrics = metrics.length ? metrics : [
+    { label: 'Problem', value: caseLines[0]?.heading || 'Defined' },
+    { label: 'Action', value: caseLines[1]?.heading || 'Built' },
+    { label: 'Result', value: caseLines[2]?.heading || 'Verified' },
+  ];
+
   if (variant === 'closing') return darkTitle(slide.title || 'THANK YOU');
   if (variant.startsWith('dark-title')) return darkTitle();
 
+  if (slide.layout === 'cs-closing') return darkTitle(slide.title || 'THANK YOU');
+
+  if (slide.layout === 'cs-cover') {
+    const acRgb = hexToRgb(v.accent);
+    const acGlow = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.4)`;
+    const acGlow2 = `rgba(${acRgb.red},${acRgb.green},${acRgb.blue},0.22)`;
+    const titleLines = (slide.title || '').split('\n');
+    const tagBullets = (slide.bullets || []).filter(Boolean).slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', overflow: 'hidden', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: -70, top: -50, width: 220, height: 160, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow}, rgba(0,0,0,0))` }} />
+        <div style={{ position: 'absolute', right: -30, bottom: -40, width: 260, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${acGlow2}, rgba(0,0,0,0))` }} />
+        <div style={{ position: 'absolute', left: 64, top: 56, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 56, height: 14, borderRadius: 4, background: v.accent, boxShadow: `0 0 14px ${v.accent}66` }} />
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 950 }}>{slide.sectionLabel || 'CASE STUDY'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 64, right: 64, top: 188 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 48, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.01em', whiteSpace: 'pre-line', ...textClamp(4) }}>{titleLines.join('\n')}</div>
+          {slide.subtitle ? <div style={{ marginTop: 18, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.7)', fontWeight: 700, maxWidth: 720, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        </div>
+        {tagBullets.length ? (
+          <div style={{ position: 'absolute', left: 64, right: 64, bottom: 56, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {tagBullets.map((bullet, idx) => (
+              <div key={idx} style={{ padding: '8px 16px', borderRadius: 999, background: idx === 0 ? v.accent : 'rgba(255,255,255,0.08)', color: idx === 0 ? '#FFFFFF' : 'rgba(255,255,255,0.78)', fontSize: 11.5, fontWeight: 900, letterSpacing: '0.14em', border: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.18)' }}>{String(bullet).toUpperCase()}</div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-contents') {
+    const tocItems = items.length ? items : caseLines;
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 54, bottom: 54, width: 220, borderRight: '1px solid rgba(255,255,255,0.16)' }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.28em', fontWeight: 950 }}>CASE FILE</div>
+          <div style={{ position: 'absolute', left: 0, bottom: 0, fontFamily: t.fonts.heading, fontSize: 64, lineHeight: 0.92, fontWeight: 950, letterSpacing: '-0.02em' }}>INDEX</div>
+        </div>
+        <div style={{ position: 'absolute', left: 316, top: 62, right: 54, bottom: 54 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 38, lineHeight: 1.06, fontWeight: 950, ...textClamp(2) }}>{slide.title || 'Contents'}</div>
+          <div style={{ marginTop: 22, display: 'grid', gap: 8 }}>
+            {tocItems.slice(0, 6).map((item, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 10, alignItems: 'center', minHeight: 46, padding: '8px 0', borderBottom: idx < Math.min(tocItems.length, 6) - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none' }}>
+                <div style={{ fontSize: 14, fontWeight: 950, color: idx === 0 ? v.accent : 'rgba(255,255,255,0.42)' }}>{String(idx + 1).padStart(2, '0')}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{item.heading || item.title}</div>
+                  {item.body ? <div style={{ marginTop: 2, fontSize: 11.5, lineHeight: 1.4, color: 'rgba(255,255,255,0.55)', fontWeight: 700, ...textClamp(1) }}>{item.body}</div> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-technical') {
+    const techItems = items.slice(0, 6);
+    const heroMetric = metrics[0] || null;
+    const cols = techItems.length > 4 ? 2 : techItems.length <= 2 ? 1 : 2;
+    const rows = Math.max(1, Math.ceil(techItems.length / cols));
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'TECHNICAL EXCELLENCE'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        {heroMetric ? (
+          <div style={{ position: 'absolute', left: 54, top: 170, width: 290, bottom: 54, borderRadius: 22, background: v.dark, color: '#FFFFFF', padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: cardShadow }}>
+            <div>
+              <div style={{ color: v.accent, fontSize: 11, letterSpacing: '0.22em', fontWeight: 950 }}>HERO METRIC</div>
+              <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.72)', fontWeight: 800, ...textClamp(3) }}>{heroMetric.label || 'Impact'}</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.12, fontWeight: 950, color: v.accent, ...textClamp(3) }}>{acceptedMetricText(heroMetric)}</div>
+              {heroMetric.before && heroMetric.after ? (
+                <div style={{ marginTop: 8, fontSize: 11, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)', fontWeight: 850 }}>BEFORE → AFTER</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <div style={{ position: 'absolute', left: heroMetric ? 368 : 54, right: 54, top: 170, bottom: 54, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 12 }}>
+          {techItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            return (
+              <div key={idx} style={{ borderRadius: 16, background: v.card, border: `1px solid ${v.soft}`, padding: '14px 16px', boxShadow: cardShadow, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 950 }}>{icon || (idx + 1)}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 950, color: v.ink, ...textClamp(1) }}>{item.heading}</div>
+                  <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(3) }}>{item.body}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-skillmap') {
+    const skillItems = items.slice(0, 4);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'TECHNICAL SUMMARY'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 168, bottom: 50, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 14 }}>
+          {skillItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            const bullets = splitBulletLines(item.body);
+            const isPrimary = idx === 0;
+            return (
+              <div key={idx} style={{ borderRadius: 18, background: isPrimary ? v.dark : v.card, color: isPrimary ? '#FFFFFF' : v.ink, border: `1px solid ${isPrimary ? v.dark : v.soft}`, padding: '18px 20px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: isPrimary ? `${v.accent}33` : `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 950 }}>{icon || (idx + 1)}</div>
+                  <div style={{ fontSize: 16, fontWeight: 950, ...textClamp(1) }}>{item.heading}</div>
+                </div>
+                <div style={{ marginTop: 12, display: 'grid', gap: 6, overflow: 'hidden' }}>
+                  {bullets.slice(0, 4).map((line, lineIdx) => (
+                    <div key={lineIdx} style={{ display: 'grid', gridTemplateColumns: '8px 1fr', gap: 8, alignItems: 'start' }}>
+                      <div style={{ marginTop: 6, width: 5, height: 5, borderRadius: '50%', background: v.accent }} />
+                      <div style={{ fontSize: 11.5, lineHeight: 1.5, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.78)' : v.muted, ...textClamp(2) }}>{line}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-journey') {
+    const phases = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'GROWTH NARRATIVE'}</div>
+          <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 220, bottom: 50, display: 'grid', gap: 12 }}>
+          {phases.map((phase, idx) => {
+            const tag = phase.role || phase.period || `PHASE 0${idx + 1}`;
+            const isAccent = idx === 1;
+            const isDarkRow = idx === 0;
+            return (
+              <div key={idx} style={{ borderRadius: 16, background: isDarkRow ? v.dark : isAccent ? v.accent : v.card, color: isDarkRow || isAccent ? '#FFFFFF' : v.ink, border: `1px solid ${isDarkRow ? v.dark : isAccent ? v.accent : v.soft}`, padding: '16px 22px', boxShadow: cardShadow, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 18, alignItems: 'center' }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.22em', fontWeight: 950, color: isDarkRow ? v.accent : isAccent ? '#FFFFFF' : v.accent, ...textClamp(1) }}>{tag}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 950, ...textClamp(1) }}>{phase.heading}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isDarkRow ? 'rgba(255,255,255,0.74)' : isAccent ? 'rgba(255,255,255,0.88)' : v.muted, ...textClamp(2) }}>{phase.body}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-contribution') {
+    const contribItems = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'NEXT CONTRIBUTION'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 184, bottom: 50, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {contribItems.map((item, idx) => {
+            const tag = item.role || item.period || `Commit ${idx + 1}`;
+            const isPrimary = idx === 1;
+            return (
+              <div key={idx} style={{ borderRadius: 20, background: isPrimary ? v.dark : v.card, color: isPrimary ? '#FFFFFF' : v.ink, border: `1px solid ${isPrimary ? v.dark : v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'inline-flex', alignSelf: 'flex-start', padding: '4px 10px', borderRadius: 999, background: isPrimary ? `${v.accent}33` : `${v.accent}1f`, color: v.accent, fontSize: 10.5, letterSpacing: '0.16em', fontWeight: 950, ...textClamp(1) }}>{tag}</div>
+                <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 19, lineHeight: 1.18, fontWeight: 950, ...textClamp(3) }}>{item.heading}</div>
+                <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.74)' : v.muted, flex: 1, ...textClamp(7) }}>{item.body}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (slide.layout === 'cs-retrospective') {
+    const retroItems = items.slice(0, 3);
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'RETROSPECTIVE'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 180, bottom: 50, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          {retroItems.map((item, idx) => {
+            const icon = item.role || item.period || '';
+            return (
+              <div key={idx} style={{ borderRadius: 18, background: v.card, border: `1px solid ${v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 950 }}>{icon || '•'}</div>
+                <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 17, lineHeight: 1.2, fontWeight: 950, color: v.ink, ...textClamp(3) }}>{item.heading}</div>
+                <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: v.muted, flex: 1, ...textClamp(8) }}>{item.body}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-toc') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 42, top: 42, bottom: 42, width: 210, borderRight: '1px solid rgba(255,255,255,0.16)' }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>CASE FILE</div>
+          <div style={{ position: 'absolute', left: 0, bottom: 0, fontFamily: t.fonts.heading, fontSize: 60, lineHeight: 0.92, fontWeight: 950 }}>INDEX</div>
+        </div>
+        <div style={{ position: 'absolute', left: 306, top: 54, right: 54 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 42, lineHeight: 1.05, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+          <div style={{ marginTop: 26, display: 'grid', gap: 12 }}>
+            {caseLines.slice(0, 5).map((line, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '54px 1fr 160px', alignItems: 'center', minHeight: 56, borderBottom: '1px solid rgba(255,255,255,0.14)' }}>
+                <div style={{ fontSize: 18, color: idx === 0 ? v.accent : 'rgba(255,255,255,0.42)', fontWeight: 950 }}>{String(idx + 1).padStart(2, '0')}</div>
+                <div style={{ fontSize: 19, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
+                <div style={{ fontSize: 12, lineHeight: 1.35, color: 'rgba(255,255,255,0.58)', textAlign: 'right', ...textClamp(2) }}>{line.body || line.period}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-snapshot') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 46, width: 86, height: 12, borderRadius: 999, background: v.accent }} />
+        <div style={{ position: 'absolute', left: 54, top: 84, width: 500 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>{slide.sectionLabel || 'CASE SNAPSHOT'}</div>
+          <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 42, lineHeight: 1.06, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 612, top: 64, right: 56, bottom: 58, display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gap: 14 }}>
+          {caseLines.slice(0, 3).map((line, idx) => (
+            <div key={idx} style={{ borderRadius: idx === 1 ? 8 : 24, background: idx === 0 ? v.dark : v.card, color: idx === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${idx === 0 ? v.dark : v.soft}`, padding: 22, boxShadow: cardShadow }}>
+              <div style={{ color: idx === 0 ? v.accent : v.muted, fontSize: 11, letterSpacing: '0.16em', fontWeight: 950 }}>SIGNAL {idx + 1}</div>
+              <div style={{ marginTop: 10, fontSize: 20, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(2) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-problem') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 338, background: v.dark, color: '#FFFFFF', padding: '48px 42px' }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>PROBLEM</div>
+          <div style={{ marginTop: 28, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(4) }}>{slide.title}</div>
+          <div style={{ position: 'absolute', left: 42, right: 42, bottom: 44, color: 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.55, ...textClamp(5) }}>{slide.subtitle || caseLines[0]?.body}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 398, top: 62, right: 64, bottom: 58 }}>
+          {caseLines.slice(0, 4).map((line, idx) => (
+            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '72px 1fr', minHeight: 92, alignItems: 'start', borderBottom: idx < 3 ? `1px solid ${v.soft}` : 'none', padding: '0 0 20px 0', marginBottom: 18 }}>
+              <div style={{ width: 42, height: 42, borderRadius: idx === 0 ? '50%' : 10, background: idx === 0 ? v.accent : v.soft, display: 'grid', placeItems: 'center', color: idx === 0 ? '#FFFFFF' : v.ink, fontWeight: 950 }}>{idx + 1}</div>
+              <div>
+                <div style={{ fontSize: 21, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+                <div style={{ marginTop: 8, color: v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{line.body || line.period}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-decision') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 42, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'DECISION LOG'}</div>
+          <div style={{ marginTop: 14, fontFamily: t.fonts.heading, fontSize: 36, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 54, right: 54, top: 166, bottom: 58, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          {caseLines.slice(0, 2).map((line, idx) => (
+            <div key={idx} style={{ borderRadius: idx === 0 ? 26 : 6, background: idx === 0 ? v.card : v.dark, color: idx === 0 ? v.ink : '#FFFFFF', padding: 28, border: `1px solid ${idx === 0 ? v.soft : v.dark}`, boxShadow: cardShadow }}>
+              <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>{idx === 0 ? 'CHOSEN' : 'TRADE-OFF'}</div>
+              <div style={{ marginTop: 56, fontSize: 28, lineHeight: 1.1, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div>
+              <div style={{ marginTop: 16, color: idx === 0 ? v.muted : 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.5, ...textClamp(5) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-project') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 42, top: 38, bottom: 38, width: 194, borderRadius: 24, background: v.dark, color: '#FFFFFF', padding: 24 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>PROJECT</div>
+          <div style={{ position: 'absolute', left: 24, right: 24, bottom: 26, fontSize: 26, lineHeight: 1.05, fontWeight: 950, ...textClamp(4) }}>{slide.sectionLabel || 'Execution'}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 278, top: 46, right: 54 }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+          {slide.subtitle ? <div style={{ marginTop: 10, color: v.muted, fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div> : null}
+        </div>
+        <div style={{ position: 'absolute', left: 278, right: 54, top: 166, bottom: 54, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+          {caseLines.slice(0, 4).map((line, idx) => (
+            <div key={idx} style={{ borderRadius: 18, background: idx === 0 ? v.dark : v.card, color: idx === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${idx === 0 ? v.dark : v.soft}`, padding: 20, boxShadow: cardShadow }}>
+              <div style={{ color: idx === 0 ? v.accent : v.muted, fontSize: 11, letterSpacing: '0.16em', fontWeight: 950 }}>{['DEFINE', 'BUILD', 'VERIFY', 'SHIP'][idx] || `STEP ${idx + 1}`}</div>
+              <div style={{ marginTop: 16, fontSize: 20, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 8, color: idx === 0 ? 'rgba(255,255,255,0.68)' : v.muted, fontSize: 12, lineHeight: 1.45, ...textClamp(3) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-impact') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 48, color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>IMPACT PROOF</div>
+        <div style={{ position: 'absolute', left: 54, top: 96, width: 470, fontFamily: t.fonts.heading, fontSize: 40, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 560, right: 54, top: 82, bottom: 62, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {caseMetrics.slice(0, 4).map((metric, idx) => (
+            <div key={idx} style={{ borderTop: `4px solid ${idx === 0 ? v.accent : 'rgba(255,255,255,0.16)'}`, paddingTop: 18 }}>
+              <div style={{ fontSize: 34, lineHeight: 1.05, fontWeight: 300, color: idx === 0 ? v.accent : '#FFFFFF', ...textClamp(1) }}>{acceptedMetricText(metric)}</div>
+              <div style={{ marginTop: 10, color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 1.35, fontWeight: 850, ...textClamp(2) }}>{metric.label || 'Result'}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-learning') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>{slide.sectionLabel || 'LEARNING'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 36, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 108, right: 108, top: 176, display: 'grid', gap: 12 }}>
+          {caseLines.slice(0, 3).map((line, idx) => (
+            <div key={idx} style={{ marginLeft: idx * 54, marginRight: idx * 54, minHeight: 82, borderRadius: 18, background: idx === 0 ? v.dark : idx === 1 ? v.accent : v.card, color: idx === 0 ? '#FFFFFF' : idx === 1 ? '#FFFFFF' : v.ink, padding: '18px 24px', boxShadow: cardShadow }}>
+              <div style={{ fontSize: 18, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(2) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-next') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 54, top: 48, width: 310 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>NEXT STEP</div>
+          <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: 36, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 410, right: 58, top: 100, height: 330 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 164, height: 3, background: v.soft }} />
+          {caseLines.slice(0, 4).map((line, idx) => (
+            <div key={idx} style={{ position: 'absolute', left: idx * 126, top: idx % 2 ? 188 : 44, width: 118 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: idx === 0 ? v.accent : v.dark, marginBottom: 12 }} />
+              <div style={{ fontSize: 16, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div>
+              <div style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.42, ...textClamp(3) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'case-fit') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 52, top: 44, right: 52 }}>
+          <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>{slide.sectionLabel || 'ROLE FIT'}</div>
+          <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 78, top: 190, width: 270, height: 270, borderRadius: '50%', background: v.dark, color: '#FFFFFF', display: 'grid', placeItems: 'center', textAlign: 'center', padding: 34 }}>
+          <div>
+            <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>FIT</div>
+            <div style={{ marginTop: 12, fontSize: 24, lineHeight: 1.1, fontWeight: 950, ...textClamp(3) }}>{caseLines[0]?.heading || slide.sectionLabel}</div>
+          </div>
+        </div>
+        <div style={{ position: 'absolute', left: 428, right: 62, top: 182, display: 'grid', gap: 12 }}>
+          {caseLines.slice(1, 4).map((line, idx) => (
+            <div key={idx} style={{ borderRadius: 16, background: v.card, border: `1px solid ${v.soft}`, padding: '18px 22px', boxShadow: cardShadow }}>
+              <div style={{ fontSize: 18, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
+              <div style={{ marginTop: 6, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{line.body || line.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (variant === 'profile') {
     return (
-      <div style={{ position: 'absolute', inset: 0, background: '#7B7F92', color: v.ink, fontFamily: t.fonts.body }}>
-        <div style={{ position: 'absolute', left: 28, top: 28, width: 262, height: 484, borderRadius: 140, background: 'rgba(54,62,122,0.34)' }} />
+      <div style={{ position: 'absolute', inset: 0, background: v.dark, color: v.ink, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 28, top: 28, width: 262, height: 484, borderRadius: 140, background: `${v.accent}22` }} />
         <div style={{ position: 'absolute', left: 326, top: 34, width: 594, height: 448, borderRadius: 36, background: 'rgba(255,255,255,0.88)', boxShadow: cardShadow }} />
-        <div style={{ position: 'absolute', left: 80, top: 86, width: 170, height: 170, borderRadius: '50%', background: '#28327A' }} />
+        <div style={{ position: 'absolute', left: 80, top: 86, width: 170, height: 170, borderRadius: '50%', background: v.accent }} />
         <div style={{ position: 'absolute', left: 128, top: 58, width: 74, height: 74, borderRadius: '50%', background: '#0B0D12' }} />
-        <div style={{ position: 'absolute', left: 74, top: 322, width: 190, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.04, fontWeight: 950, color: '#28327A', ...textClamp(2) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 74, top: 322, width: 190, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.04, fontWeight: 950, color: '#FFFFFF', ...textClamp(2) }}>{slide.title}</div>
         <div style={{ position: 'absolute', left: 54, bottom: 56, width: 212, fontSize: 14, lineHeight: 1.35, color: 'rgba(255,255,255,0.62)', fontWeight: 700 }}>#사용자중심 #입체적사고 #문제정의 #목적지향 #회복탄력성 #팀워크</div>
         <div style={{ position: 'absolute', left: 152, top: 236, width: 258, borderRadius: 18, background: '#FFFFFF', padding: '14px 16px', boxShadow: '0 12px 22px rgba(35,44,86,0.14)' }}>
-          <div style={{ fontSize: 12, fontWeight: 900, color: '#2B90FF', textAlign: 'center' }}>나의 경력과 강점 요약</div>
+          <div style={{ fontSize: 12, fontWeight: 900, color: v.accent, textAlign: 'center' }}>나의 경력과 강점 요약</div>
           <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.55, fontWeight: 700, color: '#404762', textAlign: 'center', ...textClamp(3) }}>{slide.subtitle || '경력, 역할, 툴, 프로젝트 요약을 한 장에서 안정적으로 보여주는 소개형 슬라이드'}</div>
         </div>
         <div style={{ position: 'absolute', left: 372, top: 76, width: 516, display: 'grid', gap: 22 }}>
           <div>
-            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: '#28327A' }}>Work</div>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: v.accent }}>Work</div>
             <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {lines.slice(0, 4).map((line, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 12, alignItems: 'start' }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 14, background: '#0B0D12' }} />
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: v.accent }} />
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 900, color: '#21264F', ...textClamp(1) }}>{line.heading}</div>
                     <div style={{ marginTop: 4, fontSize: 12, color: '#6B7395', fontWeight: 800, ...textClamp(2) }}>{line.body || line.period}</div>
@@ -1956,10 +4072,10 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             </div>
           </div>
           <div>
-            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: '#28327A' }}>Tools</div>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 900, color: v.accent }}>Tools</div>
             <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {['Figma', 'GA', 'DataGrip', 'Notion', 'Channel', 'Power BI', 'Jira', 'Slack'].map((tool, idx) => (
-                <div key={tool} style={{ borderRadius: 12, background: 'rgba(255,255,255,0.82)', padding: '12px 10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: idx % 2 ? '#6B7395' : '#28327A' }}>{tool}</div>
+                <div key={tool} style={{ borderRadius: 12, background: 'rgba(255,255,255,0.82)', padding: '12px 10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: idx % 2 ? '#6B7395' : '#404762' }}>{tool}</div>
               ))}
             </div>
           </div>
@@ -1974,7 +4090,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
     return (
       <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
         <div style={{ position: 'absolute', left: 52, top: 44 }}>
-          <div style={{ fontSize: 22, fontWeight: 950, color: '#1F84F0' }}>{variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS'}</div>
+          <div style={{ fontSize: 22, fontWeight: 950, color: v.accent }}>{variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS'}</div>
           <div style={{ marginTop: 6, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.06, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
         </div>
         <div style={{ position: 'absolute', left: 130, right: 130, top: 180, display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 44 }}>
@@ -2009,7 +4125,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
       {variant === 'result-customer' || variant === 'result-chart'
         ? <div style={{ display: 'flex', gap: 20, height: '100%', alignItems: 'center' }}>
             {statPill(acceptedMetricText(metrics[0] || { value: '300%' }), metrics[0]?.label || '리소스 효율')}
-            {statPill(acceptedMetricText(metrics[1] || { value: '97.8%' }), metrics[1]?.label || '동일 건 감소', '#4A4FCA')}
+            {statPill(acceptedMetricText(metrics[1] || { value: '97.8%' }), metrics[1]?.label || '동일 건 감소')}
           </div>
         : variant === 'result-table'
           ? <div style={{ display: 'grid', gap: 8 }}>
@@ -2024,7 +4140,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             </div>
           : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, height: '100%', alignItems: 'center' }}>
               {statPill(acceptedMetricText(metrics[0] || { value: '5→25명' }), metrics[0]?.label || '팀 증원')}
-              {statPill(acceptedMetricText(metrics[1] || { value: 'KR to Global' }), metrics[1]?.label || '선례 확산', '#4A4FCA')}
+              {statPill(acceptedMetricText(metrics[1] || { value: 'KR to Global' }), metrics[1]?.label || '선례 확산')}
             </div>}
     </div>
   );
@@ -2044,7 +4160,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
       {variant === 'result-gallery' || variant === 'result-dashboard' || variant === 'result-dashboard-metric' || variant === 'result-guide' || variant === 'result-customer' || variant === 'result-table' || variant === 'result-review' || variant === 'result-chart'
         ? rightBottomPanel
         : <div style={{ position: 'absolute', left: 590, top: 304, width: 330, height: 126, borderRadius: 22, background: 'rgba(252,252,255,0.95)', border: panelBorder, boxShadow: cardShadow, padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {metrics.slice(0, 2).map((metric, idx) => <div key={idx}>{statPill(acceptedMetricText(metric), metric.label || '핵심 성과', idx ? '#4A4FCA' : '#2B90FF')}</div>)}
+            {metrics.slice(0, 2).map((metric, idx) => <div key={idx}>{statPill(acceptedMetricText(metric), metric.label || '핵심 성과')}</div>)}
           </div>}
     </div>
   );
@@ -3538,7 +5654,357 @@ function drawAcceptedSectionScenePptx(s, slide, t, v, i, W, H) {
   return false;
 }
 
+function narrPptBase(s, W, H, darkBg = false) {
+  const bg = darkBg ? '0F172A' : 'FFFFFF';
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: bg }, line: { color: bg } });
+}
+function narrPptRule(s, acc, x, y) { s.addShape('rect', { x, y, w: 0.68, h: 0.05, fill: { color: acc }, line: { color: acc } }); }
+function narrPptLabel(s, text, t, acc, x, y) { addPptText(s, text.toUpperCase(), { x, y, w: 3.5, h: 0.16, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: acc, charSpacing: 2.5, fit: 'shrink' }); }
+
+function drawNarrativeCoverPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  s.addShape('rect', { x: 0, y: 0, w: W * 0.62, h: H, fill: { color: 'F8FAFC' }, line: { color: 'F8FAFC' } });
+  s.addShape('rect', { x: W * 0.62, y: 0, w: W * 0.38, h: H, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  s.addShape('rect', { x: W * 0.56, y: 0, w: 0.65, h: H, fill: { color: acc }, line: { color: acc } });
+  addPptText(s, safePptText(slide.title || ''), { x: 0.82, y: 0.75, w: W * 0.52, h: 2.8, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: '0F172A', fit: 'shrink' });
+  s.addShape('rect', { x: 0.82, y: 3.7, w: 0.68, h: 0.05, fill: { color: acc }, line: { color: acc } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.82, y: 3.88, w: W * 0.5, h: 0.28, fontFace: t.fonts.body, fontSize: 11, color: '475569', fit: 'shrink' });
+  addPptText(s, safePptText((slide.sectionLabel || 'KIM YUSHIN PORTFOLIO').toUpperCase()), { x: 0.82, y: H - 0.95, w: 3.5, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: acc, charSpacing: 1.5 });
+  const chips = (slide.bullets || ['React', 'Node.js', 'Firebase', 'AI API', 'TypeScript']).slice(0, 6);
+  chips.forEach((chip, idx) => {
+    const y = 0.72 + idx * 0.88;
+    s.addShape('rect', { x: W * 0.68, y, w: 2.6, h: 0.6, fill: { color: '1E2D3D' }, line: { color: '1E2D3D' } });
+    addPptText(s, safePptText(chip), { x: W * 0.68 + 0.18, y: y + 0.17, w: 2.2, h: 0.26, fontFace: 'Courier New', fontSize: 10.5, bold: true, color: 'E2E8F0', fit: 'shrink' });
+  });
+}
+
+function drawNarrativeProfilePptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.68, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.6);
+  narrPptLabel(s, 'PROFILE', t, acc, 0.8, 1.95);
+  const edu = (slide.items || []).filter(Boolean);
+  edu.slice(0, 2).forEach((item, idx) => {
+    const y = 2.3 + idx * 1.1;
+    narrPptLabel(s, item.role || item.period || 'EDUCATION', t, acc, 0.8, y);
+    addPptText(s, safePptText(item.heading || ''), { x: 0.8, y: y + 0.25, w: 4.8, h: 0.3, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: 0.8, y: y + 0.62, w: 4.8, h: 0.28, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
+  });
+  narrPptLabel(s, 'AWARDS & ACHIEVEMENTS', t, acc, 6.2, 1.95);
+  const awards = (slide.metrics || []).slice(0, 3);
+  awards.forEach((m, idx) => {
+    const y = 2.3 + idx * 1.25;
+    addPptText(s, safePptText(m.label || ''), { x: 6.2, y, w: 5.4, h: 0.3, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(m.body || ''), { x: 6.2, y: y + 0.35, w: 5.4, h: 0.24, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), fit: 'shrink' });
+  });
+  if (slide.subtitle) {
+    s.addShape('rect', { x: 6.2, y: 5.05, w: 5.8, h: 0.012, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    addPptText(s, safePptText(slide.subtitle), { x: 6.2, y: 5.3, w: 5.6, h: 0.9, fontFace: t.fonts.body, fontSize: 9.5, italic: true, color: hex(v.ink), fit: 'shrink' });
+  }
+}
+
+function drawNarrativePhilosophyPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.68, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.58);
+  const items = (slide.items || []).slice(0, 3);
+  const icons = ['+', '—', '×'];
+  items.forEach((item, idx) => {
+    const x = 0.8 + idx * 3.95;
+    s.addShape('rect', { x, y: 2.05, w: 3.65, h: 3.15, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    s.addShape('rect', { x, y: 2.05, w: 3.65, h: 0.04, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, icons[idx], { x: x + 0.25, y: 2.35, w: 0.6, h: 0.5, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: acc });
+    addPptText(s, (item.heading || '').toUpperCase(), { x: x + 0.25, y: 3.05, w: 3.2, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.ink), charSpacing: 0.8 });
+    addPptText(s, safePptText(item.body || ''), { x: x + 0.25, y: 3.42, w: 3.15, h: 1.55, fontFace: t.fonts.body, fontSize: 9, color: '334155', fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 0, y: H - 0.82, w: W, h: 0.82, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.68, w: W - 1.6, h: 0.48, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
+}
+
+function drawNarrativeSkillsPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.68, w: W - 1.6, h: 0.55, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.38);
+  const groups = (slide.items || []).slice(0, 6);
+  groups.forEach((g, idx) => {
+    const col = idx % 3;
+    const row = Math.floor(idx / 3);
+    const x = 0.8 + col * 3.95;
+    const y = 1.8 + row * 2.0;
+    narrPptLabel(s, g.period || g.heading || `GROUP ${idx+1}`, t, acc, x, y);
+    const bullets = (g.bullets?.length ? g.bullets : [g.heading, g.body].filter(Boolean)).slice(0, 4);
+    bullets.forEach((b, bi) => {
+      const bx = x + (bi % 2) * 1.75;
+      const by = y + 0.28 + Math.floor(bi / 2) * 0.42;
+      s.addShape('rect', { x: bx, y: by, w: 1.6, h: 0.3, fill: { color: 'FFFFFF' }, line: { color: 'CBD5E1', width: 0.5 } });
+      s.addShape('rect', { x: bx, y: by, w: 0.04, h: 0.3, fill: { color: acc }, line: { color: acc } });
+      addPptText(s, safePptText(b), { x: bx + 0.1, y: by + 0.06, w: 1.45, h: 0.18, fontFace: 'Courier New', fontSize: 7.2, color: '334155', fit: 'shrink' });
+    });
+  });
+  s.addShape('rect', { x: 0, y: H - 0.75, w: W, h: 0.75, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.62, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.5, color: 'E2E8F0', fit: 'shrink' });
+}
+
+function drawNarrativeProblemPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.68, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.55);
+  narrPptLabel(s, 'THE PROBLEM', t, acc, 0.8, 1.88);
+  const problems = (slide.items || []).slice(0, 3);
+  problems.forEach((p, idx) => {
+    const y = 2.2 + idx * 1.0;
+    addPptText(s, safePptText(p.body || ''), { x: 1.05, y, w: 4.4, h: 0.72, fontFace: t.fonts.body, fontSize: 9.5, color: '334155', fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 6.1, y: 1.88, w: 3.9, h: 4.0, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+  [['시간 낭비', '+'], ['일관성 부족', '='], ['취업 준비의\n가장 큰 장벽', '']].forEach(([text, op], idx) => {
+    addPptText(s, text, { x: 6.4, y: 2.3 + idx * 1.08, w: 3.2, h: 0.55, fontFace: t.fonts.body, fontSize: 10.5, color: idx === 2 ? acc : '64748B', bold: idx === 2, align: 'center', fit: 'shrink' });
+    if (op) addPptText(s, op, { x: 7.5, y: 2.78 + idx * 1.08, w: 1.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: acc, align: 'center' });
+  });
+  s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+}
+
+function drawNarrativeProjectPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  s.addShape('rect', { x: 0, y: 0, w: W * 0.38, h: H, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  s.addShape('rect', { x: W * 0.34, y: 0, w: 0.55, h: H, fill: { color: acc }, line: { color: acc } });
+  s.addShape('rect', { x: W * 0.38, y: 0, w: W * 0.62, h: H, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } });
+  addPptText(s, safePptText((slide.sectionLabel || '').toUpperCase()), { x: 0.5, y: 0.75, w: W * 0.3, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: acc, charSpacing: 2 });
+  addPptText(s, safePptText(slide.title || ''), { x: 0.5, y: 1.2, w: W * 0.3, h: 2.5, fontFace: t.fonts.heading, fontSize: 32, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.5, y: 3.85, w: W * 0.3, h: 0.75, fontFace: t.fonts.body, fontSize: 9, color: '94A3B8', fit: 'shrink' });
+  const details = (slide.items || []).slice(0, 3);
+  const startX = W * 0.4 + 0.2;
+  details.forEach((d, idx) => {
+    const y = 0.65 + idx * 1.35;
+    narrPptLabel(s, d.heading || '', t, acc, startX, y);
+    s.addShape('rect', { x: startX, y: y + 0.22, w: W * 0.55, h: 0.012, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } });
+    addPptText(s, safePptText(d.body || ''), { x: startX, y: y + 0.38, w: W * 0.55, h: 0.65, fontFace: t.fonts.body, fontSize: 9.5, color: idx === 0 ? '334155' : hex(v.ink), bold: idx > 0, fit: 'shrink' });
+  });
+  narrPptLabel(s, 'TECH STACK', t, acc, startX, 4.6);
+  s.addShape('rect', { x: startX, y: 4.82, w: W * 0.55, h: 0.012, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } });
+  const chips = (slide.bullets || []).slice(0, 9);
+  chips.forEach((chip, ci) => {
+    const cx = startX + (ci % 3) * 2.1;
+    const cy = 4.98 + Math.floor(ci / 3) * 0.48;
+    s.addShape('rect', { x: cx, y: cy, w: 1.9, h: 0.32, fill: { color: 'FFFFFF' }, line: { color: 'CBD5E1', width: 0.5 } });
+    addPptText(s, safePptText(chip), { x: cx + 0.08, y: cy + 0.07, w: 1.74, h: 0.18, fontFace: 'Courier New', fontSize: 7.5, color: '475569', fit: 'shrink' });
+  });
+}
+
+function drawNarrativeChallengePptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.78, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.55);
+  const all = (slide.items || []).slice(0, 6);
+  const problems = all.filter(it => it.heading?.startsWith('Problem'));
+  const actions = all.filter(it => it.heading?.startsWith('Action') || it.heading?.startsWith('Solution'));
+  narrPptLabel(s, 'THE PROBLEM', t, acc, 0.8, 1.88);
+  problems.forEach((p, idx) => {
+    addPptText(s, safePptText(p.body || ''), { x: 1.05, y: 2.2 + idx * 1.0, w: 4.5, h: 0.72, fontFace: t.fonts.body, fontSize: 9.5, color: '334155', fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 5.85, y: 1.82, w: 0.03, h: 4.5, fill: { color: acc }, line: { color: acc } });
+  narrPptLabel(s, 'CORE TASKS', t, acc, 6.1, 1.88);
+  actions.forEach((a, idx) => {
+    const y = 2.2 + idx * 1.2;
+    s.addShape('rect', { x: 6.1, y, w: 5.5, h: 1.0, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    addPptText(s, String(idx+1).padStart(2,'0'), { x: 6.28, y: y + 0.1, w: 0.42, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc });
+    const parts = (a.body || '').split('→');
+    addPptText(s, safePptText(parts[0] || ''), { x: 6.28, y: y + 0.38, w: 5.1, h: 0.28, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    if (parts[1]) addPptText(s, '→ ' + parts[1].trim(), { x: 6.28, y: y + 0.68, w: 5.1, h: 0.22, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
+  });
+}
+
+function drawNarrativeArchitecturePptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.52);
+  const items = (slide.items || []).slice(0, 4);
+  items.forEach((item, idx) => {
+    const col = idx % 2, row = Math.floor(idx / 2);
+    const x = 0.8 + col * 6.1, y = 1.88 + row * 1.82;
+    s.addShape('rect', { x, y, w: 5.8, h: 1.6, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    s.addShape('rect', { x: x + 0.18, y: y + 0.18, w: 0.55, h: 0.34, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+    addPptText(s, String(idx+1).padStart(2,'0'), { x: x + 0.18, y: y + 0.22, w: 0.55, h: 0.2, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc, align: 'center' });
+    addPptText(s, safePptText(item.heading || ''), { x: x + 0.9, y: y + 0.22, w: 4.65, h: 0.28, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: acc, fit: 'shrink' });
+    const parts = (item.body || '').split('→');
+    addPptText(s, safePptText(parts[0] || ''), { x: x + 0.18, y: y + 0.72, w: 5.4, h: 0.38, fontFace: t.fonts.body, fontSize: 9, color: '64748B', fit: 'shrink' });
+    if (parts[1]) addPptText(s, '→ ' + parts[1].trim(), { x: x + 0.18, y: y + 1.15, w: 5.4, h: 0.3, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+  });
+  if (slide.subtitle) {
+    s.addShape('rect', { x: 0.8, y: H - 0.92, w: W - 1.6, h: 0.72, fill: { color: 'F8FAFC' }, line: { color: acc } });
+    s.addShape('rect', { x: 0.8, y: H - 0.92, w: 0.04, h: 0.72, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, 'CORE INSIGHT', { x: 0.98, y: H - 0.88, w: 2.0, h: 0.18, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 1.5 });
+    addPptText(s, safePptText(slide.subtitle), { x: 0.98, y: H - 0.65, w: W - 2.1, h: 0.32, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc, fit: 'shrink' });
+  }
+}
+
+function drawNarrativeResultsPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.52);
+  const all = (slide.items || []).slice(0, 7);
+  const deliverables = all.slice(0, 4);
+  const growth = all.slice(4, 7);
+  narrPptLabel(s, 'KEY DELIVERABLES', t, acc, 0.8, 1.85);
+  deliverables.forEach((d, idx) => {
+    addPptText(s, '✓', { x: 0.8, y: 2.18 + idx * 0.88, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
+    addPptText(s, safePptText(d.heading || ''), { x: 1.2, y: 2.18 + idx * 0.88, w: 5.0, h: 0.55, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 6.6, y: 1.82, w: 5.0, h: 4.8, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, 'GROWTH POINTS', { x: 6.85, y: 2.05, w: 4.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: '94A3B8', charSpacing: 2 });
+  growth.forEach((g, idx) => {
+    addPptText(s, '→', { x: 6.85, y: 2.55 + idx * 1.1, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc });
+    addPptText(s, safePptText(g.heading || ''), { x: 7.28, y: 2.55 + idx * 1.1, w: 4.1, h: 0.72, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
+  });
+}
+
+function drawNarrativeAwardsPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.55, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.35);
+  const all = (slide.items || []);
+  const awards = all.filter(a => !a.heading?.toLowerCase().includes('toeic') && !a.heading?.toLowerCase().includes('language')).slice(0, 3);
+  const lang = all.find(a => a.heading?.toLowerCase().includes('toeic') || a.period?.toLowerCase().includes('language')) || all.slice(-1)[0];
+  narrPptLabel(s, 'AWARDS', t, acc, 0.8, 1.72);
+  awards.forEach((a, idx) => {
+    const y = 2.05 + idx * 1.38;
+    s.addShape('rect', { x: 0.8, y, w: 5.5, h: 1.18, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    s.addShape('rect', { x: 0.8, y, w: 0.04, h: 1.18, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, safePptText(a.heading || ''), { x: 1.08, y: y + 0.2, w: 4.95, h: 0.32, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(a.body || ''), { x: 1.08, y: y + 0.58, w: 4.95, h: 0.45, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+  });
+  narrPptLabel(s, 'LANGUAGE', t, acc, 6.7, 1.72);
+  if (lang) {
+    s.addShape('rect', { x: 6.7, y: 2.05, w: 4.9, h: 2.5, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    s.addShape('rect', { x: 6.7, y: 2.05, w: 0.04, h: 2.5, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, safePptText(lang.heading || ''), { x: 6.98, y: 2.28, w: 4.3, h: 0.32, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(lang.body || ''), { x: 6.98, y: 2.76, w: 4.3, h: 1.5, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+  }
+}
+
+function drawNarrativeTimelinePptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.52);
+  const items = (slide.items || []).slice(0, 5);
+  items.forEach((item, idx) => {
+    const y = 1.85 + idx * 0.9;
+    addPptText(s, safePptText(item.period || `202${1+idx}`), { x: 0.8, y, w: 1.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: acc, fit: 'shrink' });
+    s.addShape('rect', { x: 1.98, y, w: 0.05, h: 0.62, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, safePptText(item.heading || ''), { x: 2.2, y, w: 9.2, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: 2.2, y: y + 0.32, w: 9.2, h: 0.28, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+}
+
+function drawNarrativeSummaryPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.52);
+  const items = (slide.items || []).slice(0, 3);
+  items.forEach((item, idx) => {
+    const x = 0.8 + idx * 3.95;
+    s.addShape('rect', { x, y: 1.88, w: 3.65, h: 4.5, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    s.addShape('rect', { x, y: 1.88, w: 3.65, h: 0.042, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, String(idx+1).padStart(2,'0'), { x: x + 0.2, y: 2.12, w: 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: acc });
+    addPptText(s, safePptText(item.heading || ''), { x: x + 0.2, y: 2.72, w: 3.25, h: 0.62, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: x + 0.2, y: 3.52, w: 3.25, h: 1.62, fontFace: t.fonts.body, fontSize: 8.8, color: hex(v.muted), fit: 'shrink' });
+    s.addShape('rect', { x: x + 0.2, y: 5.28, w: 2.8, h: 0.38, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+    addPptText(s, 'PROVEN IN: ' + (item.period || item.role || '').toUpperCase(), { x: x + 0.28, y: 5.36, w: 2.62, h: 0.22, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: 'E2E8F0', fit: 'shrink' });
+  });
+}
+
+function drawNarrativeConnectionPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.55, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.32);
+  const headers = ['PROJECT', 'CORE TECH', 'WHAT I LEARNED', 'CONNECTION TO NEXT'];
+  const colW = [1.6, 2.2, 2.8, 3.4];
+  let cx = 0.8;
+  s.addShape('rect', { x: 0.8, y: 1.65, w: W - 1.6, h: 0.48, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  headers.forEach((h, hi) => {
+    addPptText(s, h, { x: cx + 0.14, y: 1.72, w: colW[hi] - 0.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: '94A3B8', charSpacing: 1 });
+    cx += colW[hi];
+  });
+  const items = (slide.items || []).slice(0, 3);
+  items.forEach((item, idx) => {
+    const y = 2.25 + idx * 1.15;
+    s.addShape('rect', { x: 0.8, y: y + 0.92, w: W - 1.6, h: 0.012, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } });
+    let rowX = 0.8;
+    addPptText(s, safePptText(item.heading || ''), { x: rowX + 0.14, y, w: colW[0] - 0.2, h: 0.38, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    rowX += colW[0];
+    addPptText(s, safePptText(item.body || ''), { x: rowX + 0.14, y, w: colW[1] - 0.2, h: 0.72, fontFace: t.fonts.body, fontSize: 8.5, color: acc, fit: 'shrink' });
+    rowX += colW[1];
+    addPptText(s, safePptText(item.period || ''), { x: rowX + 0.14, y, w: colW[2] - 0.2, h: 0.52, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    rowX += colW[2];
+    addPptText(s, safePptText(item.role || ''), { x: rowX + 0.14, y, w: colW[3] - 0.2, h: 0.52, fontFace: t.fonts.body, fontSize: 9, color: acc, fit: 'shrink' });
+  });
+  s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+}
+
+function drawNarrativeRoadmapPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  narrPptBase(s, W, H);
+  addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
+  narrPptRule(s, acc, 0.8, 1.52);
+  const items = (slide.items || []).slice(0, 3);
+  items.forEach((item, idx) => {
+    const y = 1.88 + idx * 1.0;
+    s.addShape('rect', { x: 0.8, y, w: 0.04, h: 0.72, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, (item.period || item.role || ['SHORT-TERM', 'MID-TERM', 'LONG-TERM'][idx]).toUpperCase(), { x: 1.1, y, w: 1.4, h: 0.22, fontFace: t.fonts.body, fontSize: 8.2, bold: true, color: acc, charSpacing: 1 });
+    addPptText(s, safePptText(item.body || ''), { x: 2.75, y, w: 8.8, h: 0.58, fontFace: t.fonts.body, fontSize: 11, color: hex(v.ink), fit: 'shrink' });
+  });
+  if (slide.subtitle) {
+    s.addShape('rect', { x: 0.8, y: 5.1, w: W - 1.6, h: 1.6, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+    addPptText(s, safePptText(slide.subtitle), { x: 1.1, y: 5.3, w: W - 2.2, h: 1.2, fontFace: t.fonts.body, fontSize: 11, italic: true, color: 'E2E8F0', fit: 'shrink', align: 'left' });
+  }
+}
+
+function drawNarrativeClosingPptx(s, slide, t, v, W, H) {
+  const acc = hex(v.accent);
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  addPptText(s, safePptText(slide.title || ''), { x: 1.2, y: 1.05, w: W - 2.4, h: 1.85, fontFace: t.fonts.heading, fontSize: 28, bold: true, italic: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+  s.addShape('rect', { x: W / 2 - 0.38, y: 3.08, w: 0.76, h: 0.05, fill: { color: acc }, line: { color: acc } });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 1.5, y: 3.35, w: W - 3.0, h: 0.4, fontFace: t.fonts.body, fontSize: 11.5, bold: true, color: acc, align: 'center', fit: 'shrink' });
+  const contacts = (slide.bullets || []).slice(0, 3);
+  contacts.forEach((c, idx) => {
+    const cx = 2.2 + idx * 3.35;
+    addPptText(s, safePptText(c), { x: cx, y: 4.05, w: 3.0, h: 0.35, fontFace: t.fonts.body, fontSize: 9.5, color: 'CBD5E1', align: 'center', fit: 'shrink' });
+  });
+  const chips = (slide.items || []).slice(0, 7);
+  chips.forEach((chip, idx) => {
+    const cx = 1.0 + (idx % 4) * 2.65;
+    const cy = 4.85 + Math.floor(idx / 4) * 0.62;
+    s.addShape('rect', { x: cx, y: cy, w: 2.4, h: 0.42, fill: { color: '0F172A' }, line: { color: idx === 2 ? acc : '334155' } });
+    addPptText(s, safePptText(chip.heading || ''), { x: cx + 0.1, y: cy + 0.1, w: 2.2, h: 0.22, fontFace: 'Courier New', fontSize: 8.5, color: idx === 2 ? acc : 'CBD5E1', align: 'center', fit: 'shrink' });
+  });
+}
+
 function drawNarrativePptx(s, slide, t, v, i, W, H) {
+  const NARR_PPT = {
+    'narrative-cover': drawNarrativeCoverPptx, 'narrative-profile': drawNarrativeProfilePptx,
+    'narrative-philosophy': drawNarrativePhilosophyPptx, 'narrative-skills': drawNarrativeSkillsPptx,
+    'narrative-problem': drawNarrativeProblemPptx, 'narrative-project': drawNarrativeProjectPptx,
+    'narrative-challenge': drawNarrativeChallengePptx, 'narrative-architecture': drawNarrativeArchitecturePptx,
+    'narrative-results': drawNarrativeResultsPptx, 'narrative-awards': drawNarrativeAwardsPptx,
+    'narrative-timeline': drawNarrativeTimelinePptx, 'narrative-summary': drawNarrativeSummaryPptx,
+    'narrative-connection': drawNarrativeConnectionPptx, 'narrative-roadmap': drawNarrativeRoadmapPptx,
+    'narrative-closing': drawNarrativeClosingPptx,
+  };
+  if (NARR_PPT[slide.layout]) return NARR_PPT[slide.layout](s, slide, t, v, W, H);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = pptAcceptedLines(slide);
   const mood = acceptedSlideMood(slide, i);
@@ -3606,12 +6072,247 @@ function drawNarrativePptx(s, slide, t, v, i, W, H) {
   }
 }
 
+function drawStarBg(s, v, W, H) {
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+}
+
+function drawStarCoverPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  addPptText(s, 'STAT / STAR', { x: 0.62, y: 0.44, w: 2.2, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.95, w: 4.9, h: 1.95, fontFace: t.fonts.heading, fontSize: 44, bold: true, color: hex(v.dark), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 3.1, w: 4.8, h: 0.65, fontFace: t.fonts.body, fontSize: 10.5, color: hex(v.muted) });
+  ['S', 'T', 'A', 'R'].forEach((lbl, idx) => {
+    s.addShape('ellipse', { x: 0.62 + idx * 0.66, y: 4.0, w: 0.46, h: 0.46, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, lbl, { x: 0.62 + idx * 0.66, y: 4.08, w: 0.46, h: 0.2, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark), align: 'center' });
+  });
+  const items = slide.items || [];
+  const fills = [v.dark, v.card, v.card, v.accent];
+  const fgColors = ['FFFFFF', hex(v.ink), hex(v.ink), hex(v.dark)];
+  items.slice(0, 4).forEach((item, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = 6.35 + col * 3.55;
+    const y = 0.62 + row * 3.25;
+    s.addShape('roundRect', { x, y, w: 3.25, h: 2.9, fill: { color: hex(fills[idx]) }, line: { color: idx === 1 || idx === 2 ? hex(v.soft) : hex(fills[idx]) }, rectRadius: 0.2 });
+    s.addShape('ellipse', { x: x + 0.28, y: y + 0.28, w: 0.48, h: 0.48, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
+    addPptText(s, ['S', 'T', 'A', 'R'][idx], { x: x + 0.28, y: y + 0.33, w: 0.48, h: 0.2, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
+    addPptText(s, ['Situation', 'Task', 'Action', 'Result'][idx], { x: x + 0.95, y: y + 0.35, w: 1.8, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: fgColors[idx], transparency: 40 });
+    addPptText(s, item.heading || '', { x: x + 0.28, y: y + 1.1, w: 2.65, h: 0.45, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: fgColors[idx] });
+    addPptText(s, item.body || '', { x: x + 0.28, y: y + 1.6, w: 2.65, h: 0.88, fontFace: t.fonts.body, fontSize: 8.5, color: fgColors[idx], transparency: 18 });
+  });
+}
+
+function drawStarIdentityPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  addPptText(s, (slide.sectionLabel || 'PROFESSIONAL IDENTITY').toUpperCase(), { x: 0.62, y: 0.42, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.82, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(v.dark) });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.0, h: 0.25, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const items = slide.items || [];
+  const cW = (W - 1.54) / 3;
+  const icons = ['🎓', '🎯', '⚡'];
+  items.slice(0, 3).forEach((item, idx) => {
+    const x = 0.62 + idx * (cW + 0.15);
+    s.addShape('roundRect', { x, y: 2.55, w: cW, h: H - 3.0, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
+    s.addShape('roundRect', { x: x + 0.28, y: 2.82, w: 0.62, h: 0.62, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.1 });
+    addPptText(s, icons[idx] || '■', { x: x + 0.28, y: 2.9, w: 0.62, h: 0.3, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
+    addPptText(s, item.heading || '', { x: x + 0.28, y: 3.65, w: cW - 0.56, h: 0.52, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: x + 0.28, y: 4.25, w: cW - 0.56, h: H - 4.72, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  });
+}
+
+function drawStarTimelinePptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  addPptText(s, (slide.sectionLabel || 'EXPERIENCE TIMELINE').toUpperCase(), { x: 0.62, y: 0.42, w: 5.0, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.82, w: 11.8, h: 1.0, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
+  s.addShape('rect', { x: 0.82, y: 2.45, w: W - 1.64, h: 0.04, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  const items = slide.items || [];
+  const n = Math.max(1, Math.min(4, items.length));
+  const cW = (W - 1.44) / n;
+  items.slice(0, 4).forEach((item, idx) => {
+    const x = 0.62 + idx * (cW + 0.05);
+    const cx = x + cW / 2;
+    s.addShape('ellipse', { x: cx - 0.1, y: 2.36, w: 0.2, h: 0.2, fill: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, line: { color: hex(v.accent) } });
+    s.addShape('roundRect', { x, y: 2.75, w: cW - 0.05, h: H - 3.22, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.15 });
+    addPptText(s, item.period || `Phase ${idx + 1}`, { x: x + 0.22, y: 3.0, w: cW - 0.44, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.muted), charSpacing: 1 });
+    addPptText(s, item.heading || '', { x: x + 0.22, y: 3.28, w: cW - 0.44, h: 0.52, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: x + 0.22, y: 3.86, w: cW - 0.44, h: H - 4.32, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  });
+}
+
+function drawStarPhaseBadgePptx(s, t, v, x, y, phase, label) {
+  const badgeW = Math.min(4.2, (label || '').length * 0.115 + 0.9);
+  s.addShape('roundRect', { x, y, w: badgeW, h: 0.32, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.16 });
+  addPptText(s, label || phase, { x: x + 0.1, y: y + 0.05, w: badgeW - 0.2, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.dark), charSpacing: 0.5 });
+  s.addShape('ellipse', { x: x + badgeW + 0.1, y: y - 0.02, w: 0.34, h: 0.34, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  addPptText(s, phase, { x: x + badgeW + 0.1, y: y + 0.05, w: 0.34, h: 0.18, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: hex(v.accent), align: 'center' });
+}
+
+function drawStarSituationPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'S', slide.sectionLabel || 'SITUATION');
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.5, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const metrics = (slide.metrics || []).slice(0, 2);
+  const bodyW = metrics.length ? W - 3.15 : W - 1.24;
+  s.addShape('roundRect', { x: 0.62, y: 2.55, w: bodyW, h: H - 3.0, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.2 });
+  addPptText(s, 'SITUATION', { x: 0.9, y: 2.85, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.body || slide.subtitle || '', { x: 0.9, y: 3.2, w: bodyW - 0.56, h: H - 3.66, fontFace: t.fonts.body, fontSize: 11, color: 'FFFFFF' });
+  if (metrics.length) {
+    metrics.forEach((m, idx) => {
+      const mH = (H - 3.1) / 2 - 0.08;
+      const my = 2.55 + idx * (mH + 0.08);
+      const mx = W - 2.55;
+      s.addShape('roundRect', { x: mx, y: my, w: 2.16, h: mH, fill: { color: idx === 0 ? hex(v.accent) : hex(v.card) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, rectRadius: 0.16 });
+      addPptText(s, m.value || '', { x: mx + 0.18, y: my + 0.22, w: 1.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.dark) });
+      addPptText(s, m.label || '', { x: mx + 0.18, y: my + 0.82, w: 1.8, h: 0.28, fontFace: t.fonts.body, fontSize: 9, bold: true, color: idx === 0 ? hex(v.dark) : hex(v.muted) });
+    });
+  }
+}
+
+function drawStarTaskPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'T', slide.sectionLabel || 'TASK');
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
+  const items = slide.items || [];
+  const cW = (W - 1.54) / 3;
+  items.slice(0, 3).forEach((item, idx) => {
+    const x = 0.62 + idx * (cW + 0.15);
+    s.addShape('roundRect', { x, y: 2.3, w: cW, h: H - 2.75, fill: { color: hex(v.card) }, line: { color: hex(v.accent), size: 1.2 }, rectRadius: 0.18 });
+    addPptText(s, item.period || `TASK ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.24, y: 2.58, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.muted), charSpacing: 1 });
+    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.88, w: cW - 0.48, h: 0.55, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: x + 0.24, y: 3.5, w: cW - 0.48, h: H - 3.98, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  });
+}
+
+function drawStarActionPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'A', slide.sectionLabel || 'ACTION');
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
+  const items = slide.items || [];
+  const rH = (H - 3.0) / 3 - 0.1;
+  items.slice(0, 3).forEach((item, idx) => {
+    const y = 2.35 + idx * (rH + 0.1);
+    s.addShape('roundRect', { x: 0.62, y, w: W - 1.24, h: rH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.14 });
+    s.addShape('roundRect', { x: 0.86, y: y + (rH - 0.52) / 2, w: 0.65, h: 0.52, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.1 });
+    addPptText(s, item.period || String(idx + 1).padStart(2, '0'), { x: 0.86, y: y + (rH - 0.52) / 2 + 0.12, w: 0.65, h: 0.22, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.accent), align: 'center' });
+    addPptText(s, item.heading || '', { x: 1.72, y: y + 0.1, w: W - 2.56, h: 0.3, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: 1.72, y: y + 0.44, w: W - 2.56, h: rH - 0.56, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  });
+}
+
+function drawStarResultPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'R', slide.sectionLabel || 'RESULT');
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
+  const metrics = (slide.metrics || []).slice(0, 3);
+  const hasBody = !!slide.body;
+  const metricH = hasBody ? H - 4.28 : H - 2.78;
+  const mCards = metrics.length ? metrics : [{ label: '성과', value: '달성' }];
+  const cW = (W - 1.54) / Math.min(3, mCards.length);
+  mCards.slice(0, 3).forEach((m, idx) => {
+    const x = 0.62 + idx * (cW + 0.05);
+    s.addShape('roundRect', { x, y: 2.35, w: cW - 0.05, h: metricH, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.18 });
+    addPptText(s, m.value || '', { x: x + 0.26, y: 2.7, w: cW - 0.57, h: 0.72, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
+    addPptText(s, m.label || '', { x: x + 0.26, y: 3.5, w: cW - 0.57, h: 0.28, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.dark) });
+    if (m.body) addPptText(s, m.body, { x: x + 0.26, y: 3.85, w: cW - 0.57, h: metricH - 1.62, fontFace: t.fonts.body, fontSize: 9, color: hex(v.dark), transparency: 40 });
+  });
+  if (hasBody) {
+    s.addShape('roundRect', { x: 0.62, y: H - 1.6, w: W - 1.24, h: 1.22, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.16 });
+    addPptText(s, 'KEY TAKEAWAY', { x: 0.9, y: H - 1.46, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
+    addPptText(s, slide.body, { x: 0.9, y: H - 1.22, w: W - 1.8, h: 0.72, fontFace: t.fonts.body, fontSize: 11, color: 'FFFFFF' });
+  }
+}
+
+function drawStarQAPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  addPptText(s, (slide.sectionLabel || 'PREDICTED Q&A').toUpperCase(), { x: 0.62, y: 0.44, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.84, w: 11.8, h: 0.95, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
+  const items = slide.items || [];
+  const hW = (W - 1.74) / 2;
+  items.slice(0, 2).forEach((item, idx) => {
+    const x = 0.62 + idx * (hW + 0.1);
+    s.addShape('roundRect', { x, y: 2.0, w: hW, h: H - 2.45, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
+    s.addShape('roundRect', { x: x + 0.24, y: 2.26, w: 0.42, h: 0.38, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.08 });
+    addPptText(s, 'Q', { x: x + 0.24, y: 2.31, w: 0.42, h: 0.22, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.accent), align: 'center' });
+    addPptText(s, item.heading || '', { x: x + 0.82, y: 2.26, w: hW - 1.06, h: 0.72, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: hex(v.dark) });
+    s.addShape('rect', { x: x + 0.24, y: 3.1, w: hW - 0.48, h: 0.02, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    s.addShape('roundRect', { x: x + 0.24, y: 3.26, w: 0.42, h: 0.38, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.08 });
+    addPptText(s, 'A', { x: x + 0.24, y: 3.31, w: 0.42, h: 0.22, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.dark), align: 'center' });
+    addPptText(s, item.body || '', { x: x + 0.82, y: 3.26, w: hW - 1.06, h: H - 3.8, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  });
+}
+
+function drawStarAwardsPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  s.addShape('ellipse', { x: 0.62, y: 0.28, w: 0.56, h: 0.56, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  addPptText(s, '🏆', { x: 0.62, y: 0.36, w: 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
+  addPptText(s, (slide.sectionLabel || 'HONORS & RECOGNITION').toUpperCase(), { x: 1.35, y: 0.38, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 1.35, y: 0.6, w: 10.5, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
+  const items = slide.items || [];
+  const cW = (W - 1.54) / 3;
+  items.slice(0, 3).forEach((item, idx) => {
+    const x = 0.62 + idx * (cW + 0.15);
+    s.addShape('roundRect', { x, y: 1.52, w: cW, h: H - 1.97, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
+    addPptText(s, item.period || item.role || '', { x: x + 0.24, y: 1.78, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.muted), charSpacing: 1 });
+    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.06, w: cW - 0.48, h: 0.55, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: x + 0.24, y: 2.68, w: cW - 0.48, h: H - 3.15, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  });
+}
+
+function drawStarRoadmapPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  s.addShape('ellipse', { x: 0.62, y: 0.28, w: 0.56, h: 0.56, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  addPptText(s, '🚀', { x: 0.62, y: 0.36, w: 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
+  addPptText(s, (slide.sectionLabel || 'FUTURE ROADMAP').toUpperCase(), { x: 1.35, y: 0.38, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 1.35, y: 0.6, w: 10.5, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
+  const items = slide.items || [];
+  const cW = (W - 1.54) / 3;
+  items.slice(0, 3).forEach((item, idx) => {
+    const x = 0.62 + idx * (cW + 0.15);
+    s.addShape('roundRect', { x, y: 1.52, w: cW, h: H - 1.97, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.18 });
+    addPptText(s, item.period || `Phase ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.24, y: 1.78, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.dark), transparency: 30, charSpacing: 1 });
+    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.06, w: cW - 0.48, h: 0.58, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
+    addPptText(s, item.body || '', { x: x + 0.24, y: 2.72, w: cW - 0.48, h: H - 3.18, fontFace: t.fonts.body, fontSize: 10, color: hex(v.dark), transparency: 38 });
+  });
+}
+
+function drawStarClosingPptx(s, slide, t, v, W, H) {
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  const bW = 2.1;
+  s.addShape('roundRect', { x: (W - bW) / 2, y: 1.35, w: bW, h: 0.4, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.2 });
+  addPptText(s, 'THANK YOU', { x: (W - bW) / 2, y: 1.42, w: bW, h: 0.24, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.dark), align: 'center', charSpacing: 3 });
+  addPptText(s, slide.title || '감사합니다', { x: 0.9, y: 2.05, w: W - 1.8, h: 1.65, fontFace: t.fonts.heading, fontSize: 52, bold: true, color: hex(v.accent), align: 'center' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.0, y: 3.95, w: W - 2.0, h: 0.42, fontFace: t.fonts.body, fontSize: 11.5, color: 'CFCFCF', align: 'center' });
+  const bullets = slide.bullets || [];
+  if (bullets.length) {
+    const bItemW = Math.min(2.6, (W - 1.4) / bullets.length);
+    const startX = (W - bItemW * bullets.length - 0.1 * (bullets.length - 1)) / 2;
+    bullets.slice(0, 5).forEach((b, idx) => {
+      const bx = startX + idx * (bItemW + 0.1);
+      s.addShape('roundRect', { x: bx, y: 4.72, w: bItemW, h: 0.4, fill: { color: 'FFFFFF', transparency: 88 }, line: { color: 'FFFFFF', transparency: 78 }, rectRadius: 0.2 });
+      addPptText(s, b, { x: bx, y: 4.78, w: bItemW, h: 0.26, fontFace: t.fonts.body, fontSize: 8.5, color: 'FFFFFF', align: 'center', transparency: 20 });
+    });
+  }
+}
+
 function drawStarPptx(s, slide, t, v, i, W, H) {
-  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const l = slide.layout;
+  if (l === 'star-cover') return drawStarCoverPptx(s, slide, t, v, W, H);
+  if (l === 'star-identity') return drawStarIdentityPptx(s, slide, t, v, W, H);
+  if (l === 'star-timeline') return drawStarTimelinePptx(s, slide, t, v, W, H);
+  if (l === 'star-situation') return drawStarSituationPptx(s, slide, t, v, W, H);
+  if (l === 'star-task') return drawStarTaskPptx(s, slide, t, v, W, H);
+  if (l === 'star-action') return drawStarActionPptx(s, slide, t, v, W, H);
+  if (l === 'star-result') return drawStarResultPptx(s, slide, t, v, W, H);
+  if (l === 'star-qa') return drawStarQAPptx(s, slide, t, v, W, H);
+  if (l === 'star-awards') return drawStarAwardsPptx(s, slide, t, v, W, H);
+  if (l === 'star-roadmap') return drawStarRoadmapPptx(s, slide, t, v, W, H);
+  if (l === 'star-closing') return drawStarClosingPptx(s, slide, t, v, W, H);
+  const isCover = l === 'cover' || l === 'section';
   const lines = pptAcceptedLines(slide);
   const mood = acceptedSlideMood(slide, i);
   if (!isCover && mood !== 'toc' && mood !== 'closing') return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STAT / STAR');
-  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+  drawStarBg(s, v, W, H);
   if (!isCover && mood === 'toc') {
     s.addShape('roundRect', { x: 0.65, y: 0.65, w: 3.9, h: 6.1, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.22 });
     addPptText(s, 'EVIDENCE MAP', { x: 1.0, y: 1.0, w: 2.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
@@ -3627,26 +6328,10 @@ function drawStarPptx(s, slide, t, v, i, W, H) {
     });
     return;
   }
-  if (!isCover && mood === 'process') {
-    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-    addPptText(s, slide.sectionLabel || 'STAR DETAIL', { x: 0.68, y: 0.58, w: 2.2, h: 0.2, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 3 });
-    addPptText(s, slide.title || '', { x: 0.68, y: 1.15, w: 5.4, h: 1.4, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: 'FFFFFF' });
-    ['S', 'T', 'A', 'R'].forEach((label, idx) => {
-      const y = 0.8 + idx * 1.55;
-      const fill = idx === 3 ? v.accent : 'FFFFFF';
-      s.addShape('roundRect', { x: 7.0, y, w: 5.2, h: 1.18, fill: { color: hex(fill), transparency: idx === 3 ? 0 : 88 }, line: { color: idx === 3 ? hex(fill) : 'FFFFFF', transparency: idx === 3 ? 0 : 100 }, rectRadius: 0.14 });
-      s.addShape('ellipse', { x: 7.28, y: y + 0.26, w: 0.52, h: 0.52, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
-      addPptText(s, label, { x: 7.28, y: y + 0.39, w: 0.52, h: 0.16, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
-      addPptText(s, lines[idx]?.heading || '', { x: 8.05, y: y + 0.2, w: 3.6, h: 0.25, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: idx === 3 ? hex(v.dark) : 'FFFFFF' });
-      addPptText(s, lines[idx]?.body || '', { x: 8.05, y: y + 0.52, w: 3.6, h: 0.3, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 3 ? hex(v.dark) : 'CFCFCF' });
-    });
-    return;
-  }
   if (!isCover) return drawVariedAcceptedPptx(s, slide, t, v, i, W, H, 'STAT / STAR');
   addPptText(s, 'STAT / STAR', { x: 0.58, y: 0.48, w: 2.2, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.ink), charSpacing: 2 });
-  addPptText(s, String(i + 1).padStart(2, '0'), { x: W - 1.05, y: 0.48, w: 0.5, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), align: 'right' });
-  addPptText(s, slide.title || '', { x: 0.58, y: 1.15, w: 4.5, h: isCover ? 2.4 : 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 34 : 24, bold: true, color: hex(v.ink), fit: 'shrink' });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.58, y: isCover ? 3.8 : 2.75, w: 4.2, h: 0.75, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  addPptText(s, slide.title || '', { x: 0.58, y: 1.15, w: 4.5, h: 2.4, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.58, y: 3.8, w: 4.2, h: 0.75, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
   const labels = ['S', 'T', 'A', 'R'];
   labels.forEach((label, idx) => {
     const col = idx % 2;
@@ -3664,7 +6349,558 @@ function drawStarPptx(s, slide, t, v, i, W, H) {
   });
 }
 
+// ── KPI Dashboard dedicated PPTX draw functions ─────────────────────────────
+
+function kpiPptBase(s, W, H) {
+  const bg = '0E1727'; const blue = '3182FF';
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: bg }, line: { color: bg } });
+  for (let gx = 0; gx <= W; gx += 0.42) s.addShape('rect', { x: gx, y: 0, w: 0.003, h: H, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
+  for (let gy = 0; gy <= H; gy += 0.42) s.addShape('rect', { x: 0, y: gy, w: W, h: 0.003, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
+}
+
+function kpiPptHeader(s, t, label, title, y = 0.62, w = 8.5, labelColor = '3182FF') {
+  const mono = 'Consolas'; const ink = 'EAF2FF';
+  addPptText(s, label, { x: 0.82, y, w: 5.0, h: 0.18, fontFace: mono, fontSize: 8.4, bold: true, color: labelColor, charSpacing: 2.4, fit: 'shrink' });
+  addPptText(s, title, { x: 0.82, y: y + 0.64, w, h: 0.72, fontFace: t.fonts.heading || 'Malgun Gothic', fontSize: dynamicFontPt(title, 30, { min: 22, max: 34 }), bold: true, color: ink, fit: 'shrink' });
+}
+
+function kpiPptRule(s, x, y, w, color = '31405A') {
+  s.addShape('rect', { x, y, w, h: 0.01, fill: { color, transparency: 8 }, line: { color, transparency: 100 } });
+}
+
+function kpiPptMetricRow(s, t, cards, dataRows, top) {
+  const mono = 'Consolas'; const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3';
+  const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  cards.forEach((m, idx) => {
+    const x = 0.82 + idx * 4.05;
+    kpiPptRule(s, x, top, 3.45);
+    addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
+    addPptText(s, pptAcceptedMetricText(m), { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: tf, fontSize: 31, bold: true, color: mint, fit: 'shrink' });
+    addPptText(s, safePptText(dataRows[idx]?.body || m.body || ''), { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: tb, fontSize: 8.2, color: muted, fit: 'shrink' });
+  });
+}
+
+function drawKpiCoverPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const ink = 'EAF2FF';
+  const title = safePptText(slide.title || 'Portfolio');
+  const subtitle = safePptText(slide.subtitle || '');
+  kpiPptBase(s, W, H);
+  addPptText(s, 'PERFORMANCE DASHBOARD', { x: 0.82, y: 0.22, w: 4.2, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: blue, charSpacing: 2.8 });
+  s.addShape('ellipse', { x: 0.83, y: 0.5, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
+  addPptText(s, 'SYSTEM ONLINE', { x: 0.98, y: 0.47, w: 1.5, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6 });
+  addPptText(s, 'DATA SYNCED', { x: 5.35, y: 0.47, w: 1.8, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6 });
+  addPptText(s, 'SECURE ACCESS', { x: 10.65, y: 0.47, w: 1.5, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6, align: 'right' });
+  addPptText(s, title, { x: 0.82, y: 0.8, w: 8.2, h: 1.55, fontFace: tf, fontSize: 44, bold: true, color: ink, fit: 'shrink' });
+  addPptText(s, subtitle || '2021-2026 Growth Metrics & Strategic Impact', { x: 0.82, y: 2.95, w: 6.9, h: 0.24, fontFace: mono, fontSize: 14, bold: true, color: mint, fit: 'shrink' });
+  kpiPptRule(s, 0.82, 6.15, 11.7);
+  ['VERSION', 'CORE COMPETENCY', 'FOCUS AREA', 'STATUS'].forEach((h, idx) => {
+    const x = 0.82 + idx * 3.05;
+    addPptText(s, h, { x, y: 6.45, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.4, color: muted });
+    addPptText(s, (slide.bullets || [])[idx] || ['3.0.0-PRO', 'AI Architecture & Full-Stack', 'Growth Metrics', 'Ready for Impact'][idx], { x, y: 6.68, w: 2.4, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  });
+}
+
+function drawKpiExecutivePptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'Performance Overview');
+  const label = safePptText(slide.sectionLabel || 'EXECUTIVE SUMMARY').toUpperCase();
+  const cards = (slide.metrics || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.62, 8.5);
+  cards.forEach((m, idx) => {
+    const x = 0.82 + idx * 3.05;
+    s.addShape('rect', { x, y: 2.45, w: 2.82, h: 1.35, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
+    addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x: x + 0.18, y: 2.65, w: 2.2, h: 0.14, fontFace: mono, fontSize: 7, bold: true, color: blue, charSpacing: 0.8 });
+    addPptText(s, pptAcceptedMetricText(m), { x: x + 0.18, y: 3.0, w: 2.2, h: 0.42, fontFace: tf, fontSize: 26, bold: true, color: mint, fit: 'shrink' });
+    addPptText(s, safePptText(m.body || ''), { x: x + 0.18, y: 3.52, w: 2.4, h: 0.18, fontFace: tb, fontSize: 7.5, color: muted, fit: 'shrink' });
+  });
+  addPptText(s, 'COMPETENCY DISTRIBUTION', { x: 0.82, y: 6.25, w: 3.0, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+  s.addShape('rect', { x: 0.82, y: 6.55, w: 11.7, h: 0.28, fill: { color: '1E2E45' }, line: { color: '1E2E45' } });
+  s.addShape('rect', { x: 0.82, y: 6.55, w: 9.1, h: 0.28, fill: { color: mint }, line: { color: mint } });
+}
+
+function drawKpiSkillsPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const line = '31405A';
+  const title = safePptText(slide.title || 'Core Competency Analysis');
+  const label = safePptText(slide.sectionLabel || 'SKILL ARCHITECTURE').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.62, 8.5);
+  items.forEach((item, idx) => {
+    const x = 0.82 + (idx % 2) * 6.0;
+    const y = 2.45 + Math.floor(idx / 2) * 1.65;
+    kpiPptRule(s, x, y, 5.55, line);
+    addPptText(s, (item.period || item.role || `COMPETENCY ${idx + 1}`).toUpperCase(), { x, y: y + 0.25, w: 3.0, h: 0.14, fontFace: mono, fontSize: 7.2, bold: true, color: idx % 2 ? mint : blue, charSpacing: 0.8 });
+    [item.heading, item.body].filter(Boolean).slice(0, 2).forEach((skill, j) => {
+      const pct = 95 - idx * 3 - j * 5;
+      addPptText(s, safePptText(skill), { x, y: y + 0.62 + j * 0.42, w: 3.9, h: 0.16, fontFace: tb, fontSize: 8.8, color: 'FFFFFF', fit: 'shrink' });
+      addPptText(s, `${pct}%`, { x: x + 4.65, y: y + 0.62 + j * 0.42, w: 0.7, h: 0.16, fontFace: tb, fontSize: 8.2, color: 'FFFFFF', align: 'right' });
+      s.addShape('rect', { x, y: y + 0.86 + j * 0.42, w: 5.35, h: 0.035, fill: { color: '24344D' }, line: { color: '24344D' } });
+      s.addShape('rect', { x, y: y + 0.86 + j * 0.42, w: 5.35 * pct / 100, h: 0.035, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+    });
+  });
+}
+
+function drawKpiTimelinePptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E';
+  const title = safePptText(slide.title || 'Performance Timeline');
+  const label = safePptText(slide.sectionLabel || 'GROWTH ANALYTICS').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 7.8);
+  kpiPptRule(s, 0.85, 3.45, 11.4, blue);
+  items.forEach((item, idx) => {
+    const x = 1.0 + idx * 3.0;
+    const top = idx % 2 === 0;
+    s.addShape('ellipse', { x: x - 0.08, y: 3.35, w: 0.2, h: 0.2, fill: { color: blue }, line: { color: '081326', width: 2 } });
+    addPptText(s, safePptText(item.period || `0${idx + 1}`), { x: x - 0.55, y: top ? 2.05 : 3.75, w: 1.2, h: 0.2, fontFace: mono, fontSize: 11, bold: true, color: mint, align: 'center' });
+    addPptText(s, safePptText(item.heading), { x: x - 0.9, y: top ? 2.48 : 4.18, w: 1.9, h: 0.24, fontFace: tf, fontSize: 11, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+    addPptText(s, safePptText(item.body), { x: x - 0.9, y: top ? 2.85 : 4.55, w: 1.9, h: 0.32, fontFace: tb, fontSize: 7.2, color: 'A9C7E8', align: 'center', fit: 'shrink' });
+  });
+}
+
+function drawKpiProjectPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'Project');
+  const subtitle = safePptText(slide.subtitle || '');
+  const label = safePptText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 7.2);
+  addPptText(s, subtitle || items[0]?.period || 'AI-Driven Platform', { x: 0.82, y: 2.2, w: 6.5, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
+  kpiPptRule(s, 0.82, 2.75, 6.8, line);
+  addPptText(s, 'CORE MISSION', { x: 0.82, y: 2.95, w: 1.6, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue, charSpacing: 0.5 });
+  addPptText(s, safePptText(items[0]?.body || items[0]?.heading || subtitle), { x: 0.82, y: 3.35, w: 6.6, h: 0.82, fontFace: tb, fontSize: 13, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  s.addShape('rect', { x: 7.9, y: 2.75, w: 4.5, h: 1.45, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
+  addPptText(s, safePptText(items[1]?.heading || 'Lead Developer'), { x: 8.1, y: 2.97, w: 2.8, h: 0.24, fontFace: tf, fontSize: 14, bold: true, color: blue, fit: 'shrink' });
+  items.slice(1, 4).forEach((item, idx) => addPptText(s, `✓ ${safePptText(item.body || item.heading)}`, { x: 8.1, y: 3.32 + idx * 0.28, w: 3.8, h: 0.16, fontFace: tb, fontSize: 8.8, color: 'A9C7E8', fit: 'shrink' }));
+  kpiPptRule(s, 0.82, 6.15, 11.7, line);
+  ['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].forEach((h, idx) => {
+    const x = 0.82 + idx * 3.1;
+    addPptText(s, h, { x, y: 6.35, w: 1.4, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
+    addPptText(s, safePptText(items[idx]?.period || items[idx]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production Ready', 'Impact Verified'][idx]), { x, y: 6.62, w: 2.5, h: 0.18, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  });
+}
+
+function drawKpiMetricsPptx(s, slide, t, W, H) {
+  const mono = 'Consolas';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'KPI Dashboard');
+  const label = safePptText(slide.sectionLabel || 'KPI METRICS').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Efficiency', value: '85%', body: 'Measured performance' },
+    { label: 'Reliability', value: '99.9%', body: 'System stability' },
+    { label: 'Impact', value: '94%', body: 'Business impact' },
+  ];
+  const chartTitle = safePptText((slide.items || [])[0]?.heading || 'VALUE DELIVERY TREND').toUpperCase();
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.4);
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
+  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, chartTitle, { x: 1.05, y: 4.83, w: 5.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, 'TOTAL IMPACT VERIFIED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
+  [0.55, 0.82, 1.1, 0.74].forEach((h, idx) => {
+    const x = 1.72 + idx * 2.25;
+    s.addShape('rect', { x, y: 6.1 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+    s.addShape('rect', { x: x + 0.92, y: 6.1 - Math.max(0.25, h - 0.25), w: 0.76, h: Math.max(0.25, h - 0.25), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
+  });
+}
+
+function drawKpiComparisonPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const line = '31405A';
+  const title = safePptText(slide.title || 'Before vs After');
+  const label = safePptText(slide.sectionLabel || 'COMPARISON').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.8);
+  const drawSide = (x, heading, sideItems, good) => {
+    addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
+    sideItems.slice(0, 2).forEach((item, idx) => {
+      const y = 2.92 + idx * 0.92;
+      s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: '0E1727', transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
+      addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
+      addPptText(s, safePptText(item.heading), { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: tf, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
+      addPptText(s, safePptText(item.body), { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: tb, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+    });
+    kpiPptRule(s, x, 4.4, 4.9, line);
+    addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+    addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: tf, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+  };
+  drawSide(1.12, 'BEFORE: MANUAL PROCESS', items.slice(0, 2), false);
+  s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
+  drawSide(7.05, 'AFTER: AI-DRIVEN WORKFLOW', items.slice(2, 4).length ? items.slice(2, 4) : items.slice(0, 2), true);
+}
+
+function drawKpiTechnicalPptx(s, slide, t, W, H) {
+  const mono = 'Consolas';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'Technical Performance KPI');
+  const label = safePptText(slide.sectionLabel || 'TECHNICAL KPI').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'System Uptime', value: '99.9%', body: 'High availability' },
+    { label: 'API Success', value: '99.95%', body: 'Error-free operations' },
+    { label: 'Security Score', value: 'A+', body: 'Zero vulnerabilities' },
+  ];
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.4, muted);
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
+  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'RESPONSE LATENCY TREND', { x: 1.05, y: 4.83, w: 4.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, 'PERFORMANCE OPTIMIZED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  const lineY = [6.1, 5.82, 5.54, 5.26, 4.98];
+  lineY.forEach(y => kpiPptRule(s, 1.35, y, 10.45, '2C3B55'));
+  [30, 55, 42, 70, 60, 85, 78].forEach((h, idx) => {
+    const normH = h / 100 * 1.1;
+    const x = 1.6 + idx * 1.45;
+    s.addShape('ellipse', { x, y: 6.1 - normH, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
+    if (idx < 6) {
+      const nx = 1.6 + (idx + 1) * 1.45;
+      const ny = 6.1 - [30, 55, 42, 70, 60, 85][idx + 1 < 7 ? idx + 1 : idx] / 100 * 1.1;
+      s.addShape('rect', { x, y: 6.1 - normH, w: nx - x, h: 0.015, fill: { color: blue }, line: { color: blue } });
+    }
+  });
+}
+
+function drawKpiRiskPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const amber = 'F59E0B'; const line = '31405A';
+  const title = safePptText(slide.title || 'Risk Management & Mitigation');
+  const label = safePptText(slide.sectionLabel || 'RISK MANAGEMENT').toUpperCase();
+  const items = (slide.items || []).slice(0, 4);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.3, amber);
+  items.slice(0, 2).forEach((item, idx) => {
+    const x = 0.82 + idx * 6.15;
+    kpiPptRule(s, x, 2.55, 5.55, line);
+    addPptText(s, idx ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT', { x, y: 2.88, w: 2.6, h: 0.15, fontFace: mono, fontSize: 7.2, bold: true, color: idx ? mint : amber, charSpacing: 0.7 });
+    addPptText(s, safePptText(item.heading), { x, y: 3.45, w: 4.7, h: 0.26, fontFace: tf, fontSize: 14, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(item.body), { x, y: 3.95, w: 5.2, h: 0.52, fontFace: tb, fontSize: 9.2, color: 'A9C7E8', fit: 'shrink' });
+    s.addShape('rect', { x, y: 4.85, w: 5.55, h: 0.52, fill: { color: '0E1727', transparency: 100 }, line: { color: line, transparency: 4 } });
+    addPptText(s, `MITIGATION: ${safePptText(item.period || 'Verified control')}\nRESULT: ${idx ? '80% Risk Reduction' : '100% Prevention'}`, { x: x + 0.18, y: 5.0, w: 4.9, h: 0.2, fontFace: mono, fontSize: 7.5, bold: true, color: blue, fit: 'shrink' });
+  });
+  addPptText(s, 'SYSTEM INTEGRITY INDEX', { x: 0.82, y: 6.05, w: 2.2, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+  s.addShape('rect', { x: 0.82, y: 6.35, w: 11.7, h: 0.32, fill: { color: '223149' }, line: { color: '223149' } });
+  s.addShape('rect', { x: 0.82, y: 6.35, w: 10.7, h: 0.32, fill: { color: mint }, line: { color: mint } });
+}
+
+function drawKpiCumulativePptx(s, slide, t, W, H) {
+  const mono = 'Consolas';
+  const blue = '3182FF'; const mint = '19C58E'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'Cumulative Impact Analysis');
+  const label = safePptText(slide.sectionLabel || 'CUMULATIVE IMPACT').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Projects', value: '03', body: '주요 경험' },
+    { label: 'Skills', value: '12+', body: '기술 스택' },
+    { label: 'Awards', value: '02', body: '수상/인증' },
+  ];
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.4);
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
+  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'CUMULATIVE PERFORMANCE COMPARISON', { x: 1.05, y: 4.83, w: 5.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, '3 PROJECTS VERIFIED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
+  [65, 82, 90].forEach((h, idx) => {
+    const bh = h / 100 * 1.5;
+    const mh = Math.max(0.2, bh - 0.2);
+    const x = 1.72 + idx * 3.5;
+    s.addShape('rect', { x, y: 6.1 - bh, w: 0.76, h: bh, fill: { color: blue }, line: { color: blue } });
+    s.addShape('rect', { x: x + 0.92, y: 6.1 - mh, w: 0.76, h: mh, fill: { color: mint }, line: { color: mint } });
+  });
+}
+
+function drawKpiRoadmapPptx(s, slide, t, W, H) {
+  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const blue = '3182FF'; const mint = '19C58E'; const panel = '172338'; const line = '31405A';
+  const title = safePptText(slide.title || 'Future Growth KPI & Roadmap');
+  const label = safePptText(slide.sectionLabel || 'VISION & GROWTH').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Next Milestone', value: 'Q3', body: '다음 성장 목표' },
+    { label: 'Skill Target', value: 'AI+', body: '확장할 기술 스택' },
+    { label: 'Project Impact', value: '×3', body: '목표 임팩트' },
+  ];
+  const phases = (slide.items || []).slice(0, 3);
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 0.8, 8.4);
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
+  s.addShape('rect', { x: 0.82, y: 4.75, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'TECHNICAL GROWTH ROADMAP', { x: 1.08, y: 5.02, w: 3.0, h: 0.16, fontFace: mono, fontSize: 7.5, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  phases.forEach((phase, idx) => {
+    const x = 1.15 + idx * 3.75;
+    s.addShape('rect', { x, y: 5.55, w: 0.02, h: 0.55, fill: { color: blue }, line: { color: blue } });
+    addPptText(s, safePptText(phase.period || `PHASE ${idx + 1}`), { x: x + 0.18, y: 5.42, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue });
+    addPptText(s, safePptText(phase.heading), { x: x + 0.18, y: 5.65, w: 2.7, h: 0.2, fontFace: tf, fontSize: 10.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(phase.body), { x: x + 0.18, y: 5.92, w: 2.8, h: 0.28, fontFace: tb, fontSize: 7.2, color: 'A9C7E8', fit: 'shrink' });
+  });
+}
+
+function drawKpiClosingPptx(s, slide, t, W, H) {
+  const mono = 'Consolas';
+  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const line = '31405A';
+  const title = safePptText(slide.title || 'Thank You for Your Time');
+  const subtitle = safePptText(slide.subtitle || '');
+  const label = safePptText(slide.sectionLabel || 'FINAL REPORT').toUpperCase();
+  const rawMetrics = (slide.metrics || []).slice(0, 3);
+  const metricCards = rawMetrics.length ? rawMetrics : [
+    { label: 'Total Efficiency', value: '85% UP' },
+    { label: 'System Stability', value: '99.9%' },
+    { label: 'AI Innovation', value: '94% ACC' },
+  ];
+  const bullets = slide.bullets || [];
+  kpiPptBase(s, W, H);
+  kpiPptHeader(s, t, label, title, 1.18, 8.6);
+  if (subtitle) addPptText(s, subtitle, { x: 0.82, y: 3.25, w: 7.2, h: 0.24, fontFace: mono, fontSize: 12, bold: true, color: mint, fit: 'shrink' });
+  kpiPptMetricRow(s, t, metricCards, metricCards, 4.0);
+  kpiPptRule(s, 0.82, 6.2, 11.7, line);
+  (bullets.length ? bullets : ['yushin.kim@example.com', 'github.com/yushinkim', 'portfolio link', 'Seoul, KR']).slice(0, 4).forEach((item, idx) => {
+    const x = 0.82 + idx * 3.0;
+    addPptText(s, ['EMAIL', 'GITHUB', 'PORTFOLIO', 'LOCATION'][idx], { x, y: 6.45, w: 1.3, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
+    addPptText(s, safePptText(item), { x, y: 6.68, w: 2.45, h: 0.18, fontFace: mono, fontSize: 8.8, bold: true, color: blue, fit: 'shrink' });
+  });
+}
+
+function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
+  const lines = pptAcceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const mood = acceptedSlideMood(slide, i);
+  const source = safePptText(`${slide.layout || ''} ${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const hasAny = terms => terms.some(term => source.includes(term));
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const title = safePptText(slide.title || 'Performance Dashboard');
+  const subtitle = safePptText(slide.subtitle || '');
+  const label = safePptText(slide.sectionLabel || (isCover ? 'PERFORMANCE DASHBOARD' : 'EXECUTIVE SUMMARY')).toUpperCase();
+  const data = lines.length ? lines : [
+    { heading: 'Efficiency', body: subtitle || title, period: '85%' },
+    { heading: 'Reliability', body: 'System stability and operational quality', period: '99.9%' },
+    { heading: 'Impact', body: 'Business impact and technical execution', period: '94%' },
+  ];
+  let kind = kpiReferenceSequenceKind(i);
+  if (isCover) kind = 'cover';
+  else if (slide.layout === 'closing' || slide.proposalVariant === 'closing' || mood === 'closing' || hasAny(['thank', 'final'])) kind = 'closing';
+  else if (hasAny(['before', 'after', 'workflow', 'transformation', 'manual', 'traditional'])) kind = 'beforeAfter';
+  else if (hasAny(['risk', 'audit', 'mitigation', 'security', 'integrity', 'vulnerability', 'bias', 'debt'])) kind = 'risk';
+  else if (hasAny(['timeline', 'growth analytics', 'milestone'])) kind = 'timeline';
+  else if (hasAny(['skill', 'competency', 'architecture', 'stack'])) kind = 'skills';
+  else if (hasAny(['project case', 'case ', 'core mission', 'platform']) || slide.layout === 'experience') kind = 'project';
+  else if (hasAny(['roadmap', 'future', 'vision', 'growth'])) kind = 'roadmap';
+  else if (metrics.length || mood === 'metric' || hasAny(['kpi', 'dashboard', 'performance', 'impact', 'overview', 'summary'])) kind = kpiReferenceSequenceKind(i) === 'closing' ? 'dashboard' : kpiReferenceSequenceKind(i);
+
+  const bg = '0E1727';
+  const ink = 'EAF2FF';
+  const muted = '7E93B3';
+  const blue = '3182FF';
+  const mint = '19C58E';
+  const amber = 'F59E0B';
+  const panel = '172338';
+  const line = '31405A';
+  const mono = 'Consolas';
+  const titleFont = t.fonts.heading || 'Malgun Gothic';
+
+  const addBase = () => {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: bg }, line: { color: bg } });
+    for (let x = 0; x <= W; x += 0.42) {
+      s.addShape('rect', { x, y: 0, w: 0.003, h: H, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
+    }
+    for (let y = 0; y <= H; y += 0.42) {
+      s.addShape('rect', { x: 0, y, w: W, h: 0.003, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
+    }
+  };
+  const addHeader = (y = 0.62, w = 8.5) => {
+    addPptText(s, label, { x: 0.82, y, w: 4.5, h: 0.18, fontFace: mono, fontSize: 8.4, bold: true, color: kind === 'risk' ? amber : blue, charSpacing: 2.4, fit: 'shrink' });
+    addPptText(s, title, { x: 0.82, y: y + 0.64, w, h: 0.72, fontFace: titleFont, fontSize: dynamicFontPt(title, 30, { min: 22, max: 34 }), bold: true, color: ink, fit: 'shrink' });
+  };
+  const addRule = (x, y, w, color = line) => s.addShape('rect', { x, y, w, h: 0.01, fill: { color, transparency: 8 }, line: { color, transparency: 100 } });
+  const metricCards = (metrics.length ? metrics : data.map((lineItem, idx) => ({
+    label: lineItem.heading || ['Efficiency', 'Reliability', 'Impact'][idx],
+    value: lineItem.period || ['85%', '99.9%', '94%'][idx],
+  }))).slice(0, 3);
+  const addMetricRow = (top = 2.55) => {
+    metricCards.forEach((m, idx) => {
+      const x = 0.82 + idx * 4.05;
+      addRule(x, top, 3.45);
+      addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
+      addPptText(s, pptAcceptedMetricText(m), { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: titleFont, fontSize: 31, bold: true, color: mint, fit: 'shrink' });
+      addPptText(s, data[idx]?.body || subtitle || 'Measured portfolio performance signal', { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: t.fonts.body, fontSize: 8.2, color: muted, fit: 'shrink' });
+    });
+  };
+  const addChart = (chartTitle = 'VALUE DELIVERY TREND', note = 'TOTAL IMPACT VERIFIED') => {
+    s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+    addPptText(s, chartTitle, { x: 1.05, y: 4.83, w: 4.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+    addPptText(s, note, { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+    [0, 1, 2, 3, 4].forEach(row => addRule(1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
+    [0.55, 0.82, 1.1, 0.74].forEach((h, idx) => {
+      const x = 1.72 + idx * 2.25;
+      s.addShape('rect', { x, y: 6.1 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+      s.addShape('rect', { x: x + 0.92, y: 6.1 - Math.max(0.25, h - 0.25), w: 0.76, h: Math.max(0.25, h - 0.25), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
+    });
+  };
+
+  addBase();
+
+  if (kind === 'cover') {
+    addPptText(s, 'PERFORMANCE DASHBOARD', { x: 0.82, y: 0.22, w: 4.2, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: blue, charSpacing: 2.8 });
+    s.addShape('ellipse', { x: 0.83, y: 0.5, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
+    addPptText(s, 'SYSTEM ONLINE', { x: 0.98, y: 0.47, w: 1.5, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6 });
+    addPptText(s, 'DATA SYNCED', { x: 5.35, y: 0.47, w: 1.8, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6 });
+    addPptText(s, 'SECURE ACCESS', { x: 10.65, y: 0.47, w: 1.5, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6, align: 'right' });
+    addPptText(s, title, { x: 0.82, y: 0.8, w: 8.2, h: 1.55, fontFace: titleFont, fontSize: 44, bold: true, color: ink, fit: 'shrink' });
+    addPptText(s, subtitle || '2021-2026 Growth Metrics & Strategic Impact', { x: 0.82, y: 2.95, w: 6.9, h: 0.24, fontFace: mono, fontSize: 14, bold: true, color: mint, fit: 'shrink' });
+    addRule(0.82, 6.15, 11.7);
+    ['VERSION', 'CORE COMPETENCY', 'FOCUS AREA', 'STATUS'].forEach((h, idx) => {
+      const x = 0.82 + idx * 3.05;
+      addPptText(s, h, { x, y: 6.45, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.4, color: muted });
+      addPptText(s, (slide.bullets || [])[idx] || ['3.0.0-PRO', 'AI Architecture & Full-Stack', 'Growth Metrics', 'Ready for Impact'][idx], { x, y: 6.68, w: 2.4, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'timeline') {
+    addHeader(0.8, 7.8);
+    addRule(0.85, 3.45, 11.4, blue);
+    data.slice(0, 4).forEach((lineItem, idx) => {
+      const x = 1.0 + idx * 3.0;
+      const top = idx % 2 === 0;
+      s.addShape('ellipse', { x: x - 0.08, y: 3.35, w: 0.2, h: 0.2, fill: { color: blue }, line: { color: '081326', width: 2 } });
+      addPptText(s, lineItem.period || ['2021', '2023', '2025', '2026'][idx], { x: x - 0.55, y: top ? 2.05 : 3.75, w: 1.2, h: 0.2, fontFace: mono, fontSize: 11, bold: true, color: mint, align: 'center' });
+      addPptText(s, lineItem.heading, { x: x - 0.9, y: top ? 2.48 : 4.18, w: 1.9, h: 0.24, fontFace: titleFont, fontSize: 11, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+      addPptText(s, lineItem.body, { x: x - 0.9, y: top ? 2.85 : 4.55, w: 1.9, h: 0.32, fontFace: t.fonts.body, fontSize: 7.2, color: 'A9C7E8', align: 'center', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'skills') {
+    addHeader(0.8, 7.8);
+    data.slice(0, 4).forEach((lineItem, idx) => {
+      const x = 0.82 + (idx % 2) * 6.0;
+      const y = 2.45 + Math.floor(idx / 2) * 1.65;
+      addRule(x, y, 5.55);
+      addPptText(s, (lineItem.period || lineItem.role || `COMPETENCY ${idx + 1}`).toUpperCase(), { x, y: y + 0.25, w: 3.0, h: 0.14, fontFace: mono, fontSize: 7.2, bold: true, color: idx % 2 ? mint : blue, charSpacing: 0.8 });
+      [lineItem.heading, lineItem.body].filter(Boolean).slice(0, 2).forEach((item, j) => {
+        const pct = 95 - idx * 3 - j * 5;
+        addPptText(s, item, { x, y: y + 0.62 + j * 0.42, w: 3.9, h: 0.16, fontFace: t.fonts.body, fontSize: 8.8, color: 'FFFFFF', fit: 'shrink' });
+        addPptText(s, `${pct}%`, { x: x + 4.65, y: y + 0.62 + j * 0.42, w: 0.7, h: 0.16, fontFace: t.fonts.body, fontSize: 8.2, color: 'FFFFFF', align: 'right' });
+        s.addShape('rect', { x, y: y + 0.86 + j * 0.42, w: 5.35, h: 0.035, fill: { color: '24344D' }, line: { color: '24344D' } });
+        s.addShape('rect', { x, y: y + 0.86 + j * 0.42, w: 5.35 * pct / 100, h: 0.035, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+      });
+    });
+    return;
+  }
+
+  if (kind === 'project') {
+    addHeader(0.8, 7.2);
+    addPptText(s, subtitle || data[0]?.period || 'AI-Driven Platform', { x: 0.82, y: 2.2, w: 6.5, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
+    addRule(0.82, 2.75, 6.8);
+    addPptText(s, 'CORE MISSION', { x: 0.82, y: 2.95, w: 1.6, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue, charSpacing: 0.5 });
+    addPptText(s, data[0]?.body || data[0]?.heading || subtitle, { x: 0.82, y: 3.35, w: 6.6, h: 0.82, fontFace: t.fonts.body, fontSize: 13, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    s.addShape('rect', { x: 7.9, y: 2.75, w: 4.5, h: 1.45, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
+    addPptText(s, data[1]?.heading || 'Lead Developer', { x: 8.1, y: 2.97, w: 2.8, h: 0.24, fontFace: titleFont, fontSize: 14, bold: true, color: blue, fit: 'shrink' });
+    data.slice(1, 4).forEach((lineItem, idx) => addPptText(s, `✓ ${lineItem.body || lineItem.heading}`, { x: 8.1, y: 3.32 + idx * 0.28, w: 3.8, h: 0.16, fontFace: t.fonts.body, fontSize: 8.8, color: 'A9C7E8', fit: 'shrink' }));
+    addRule(0.82, 6.15, 11.7);
+    ['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].forEach((h, idx) => {
+      const x = 0.82 + idx * 3.1;
+      addPptText(s, h, { x, y: 6.35, w: 1.4, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
+      addPptText(s, data[idx]?.period || data[idx]?.heading || ['2026.04 - 2026.05', 'React, Node.js, Firebase', 'Production Ready', 'Impact Verified'][idx], { x, y: 6.62, w: 2.5, h: 0.18, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'beforeAfter') {
+    addHeader(0.8, 8.8);
+    const drawSide = (x, heading, sideLines, good) => {
+      addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
+      sideLines.slice(0, 2).forEach((lineItem, idx) => {
+        const y = 2.92 + idx * 0.92;
+        s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: bg, transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
+        addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
+        addPptText(s, lineItem.heading, { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: titleFont, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
+        addPptText(s, lineItem.body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: t.fonts.body, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+      });
+      addRule(x, 4.4, 4.9);
+      addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+      addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: titleFont, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+    };
+    drawSide(1.12, 'BEFORE: MANUAL PROCESS', data.slice(0, 2), false);
+    s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
+    drawSide(7.05, 'AFTER: AI-DRIVEN WORKFLOW', data.slice(2, 4).length ? data.slice(2, 4) : data.slice(0, 2), true);
+    return;
+  }
+
+  if (kind === 'risk') {
+    addHeader(0.8, 8.3);
+    data.slice(0, 2).forEach((lineItem, idx) => {
+      const x = 0.82 + idx * 6.15;
+      addRule(x, 2.55, 5.55);
+      addPptText(s, idx ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT', { x, y: 2.88, w: 2.6, h: 0.15, fontFace: mono, fontSize: 7.2, bold: true, color: idx ? mint : amber, charSpacing: 0.7 });
+      addPptText(s, lineItem.heading, { x, y: 3.45, w: 4.7, h: 0.26, fontFace: titleFont, fontSize: 14, bold: true, color: 'FFFFFF', fit: 'shrink' });
+      addPptText(s, lineItem.body, { x, y: 3.95, w: 5.2, h: 0.52, fontFace: t.fonts.body, fontSize: 9.2, color: 'A9C7E8', fit: 'shrink' });
+      s.addShape('rect', { x, y: 4.85, w: 5.55, h: 0.52, fill: { color: bg, transparency: 100 }, line: { color: line, transparency: 4 } });
+      addPptText(s, `MITIGATION: ${lineItem.period || 'Verified control'}\nRESULT: ${idx ? '80% Risk Reduction' : '100% Prevention'}`, { x: x + 0.18, y: 5.0, w: 4.9, h: 0.2, fontFace: mono, fontSize: 7.5, bold: true, color: blue, fit: 'shrink' });
+    });
+    addPptText(s, 'SYSTEM INTEGRITY INDEX', { x: 0.82, y: 6.05, w: 2.2, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+    s.addShape('rect', { x: 0.82, y: 6.35, w: 11.7, h: 0.32, fill: { color: '223149' }, line: { color: '223149' } });
+    s.addShape('rect', { x: 0.82, y: 6.35, w: 10.7, h: 0.32, fill: { color: mint }, line: { color: mint } });
+    return;
+  }
+
+  if (kind === 'roadmap') {
+    addHeader(0.8, 8.4);
+    addMetricRow(2.45);
+    s.addShape('rect', { x: 0.82, y: 4.75, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
+    addPptText(s, 'TECHNICAL GROWTH ROADMAP', { x: 1.08, y: 5.02, w: 3.0, h: 0.16, fontFace: mono, fontSize: 7.5, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+    data.slice(0, 3).forEach((lineItem, idx) => {
+      const x = 1.15 + idx * 3.75;
+      s.addShape('rect', { x, y: 5.55, w: 0.02, h: 0.55, fill: { color: blue }, line: { color: blue } });
+      addPptText(s, lineItem.period || `PHASE ${idx + 1}`, { x: x + 0.18, y: 5.42, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue });
+      addPptText(s, lineItem.heading, { x: x + 0.18, y: 5.65, w: 2.7, h: 0.2, fontFace: titleFont, fontSize: 10.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+      addPptText(s, lineItem.body, { x: x + 0.18, y: 5.92, w: 2.8, h: 0.28, fontFace: t.fonts.body, fontSize: 7.2, color: 'A9C7E8', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'closing') {
+    addHeader(1.18, 8.6);
+    addPptText(s, subtitle || 'Full-Stack Engineer & System Architect', { x: 0.82, y: 3.25, w: 7.2, h: 0.24, fontFace: mono, fontSize: 12, bold: true, color: mint, fit: 'shrink' });
+    addMetricRow(4.0);
+    addRule(0.82, 6.2, 11.7);
+    (slide.bullets?.length ? slide.bullets : ['yushin.kim@example.com', 'github.com/yushinkim', 'portfolio link', 'Seoul, South Korea']).slice(0, 4).forEach((item, idx) => {
+      const x = 0.82 + idx * 3.0;
+      addPptText(s, ['EMAIL', 'GITHUB', 'PORTFOLIO', 'LOCATION'][idx], { x, y: 6.45, w: 1.3, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
+      addPptText(s, item, { x, y: 6.68, w: 2.45, h: 0.18, fontFace: mono, fontSize: 8.8, bold: true, color: blue, fit: 'shrink' });
+    });
+    return;
+  }
+
+  addHeader(0.8, 8.4);
+  addMetricRow(2.45);
+  addChart(hasAny(['recruitment']) ? 'RECRUITMENT FUNNEL EFFICIENCY' : 'VALUE DELIVERY TREND', 'TOTAL IMPACT VERIFIED');
+}
+
 function drawKpiDashboardPptx(s, slide, t, v, i, W, H) {
+  const l = slide.layout;
+  if (l === 'kpi-cover') return drawKpiCoverPptx(s, slide, t, W, H);
+  if (l === 'kpi-executive') return drawKpiExecutivePptx(s, slide, t, W, H);
+  if (l === 'kpi-skills') return drawKpiSkillsPptx(s, slide, t, W, H);
+  if (l === 'kpi-timeline') return drawKpiTimelinePptx(s, slide, t, W, H);
+  if (l === 'kpi-project') return drawKpiProjectPptx(s, slide, t, W, H);
+  if (l === 'kpi-metrics') return drawKpiMetricsPptx(s, slide, t, W, H);
+  if (l === 'kpi-comparison') return drawKpiComparisonPptx(s, slide, t, W, H);
+  if (l === 'kpi-technical') return drawKpiTechnicalPptx(s, slide, t, W, H);
+  if (l === 'kpi-risk') return drawKpiRiskPptx(s, slide, t, W, H);
+  if (l === 'kpi-cumulative') return drawKpiCumulativePptx(s, slide, t, W, H);
+  if (l === 'kpi-roadmap') return drawKpiRoadmapPptx(s, slide, t, W, H);
+  if (l === 'kpi-closing') return drawKpiClosingPptx(s, slide, t, W, H);
+  return drawKpiReferencePptx(s, slide, t, v, i, W, H);
   const metrics = (slide.metrics || pptAcceptedLines(slide).flatMap(line => line.metrics || [])).slice(0, 4);
   const lines = pptAcceptedLines(slide);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
@@ -3723,7 +6959,214 @@ function drawKpiDashboardPptx(s, slide, t, v, i, W, H) {
   addPptText(s, lines[0]?.body || '성과를 만든 실행 근거를 함께 제시합니다.', { x: 9.2, y: 5.5, w: 2.45, h: 0.5, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: '03101C' });
 }
 
+function drawTimelineReferencePptx(s, slide, t, v, i, W, H) {
+  const lines = pptAcceptedLines(slide);
+  const metrics = (slide.metrics || lines.flatMap(line => line.metrics || [])).slice(0, 4);
+  const mood = acceptedSlideMood(slide, i);
+  const source = safePptText(`${slide.layout || ''} ${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
+  const hasAny = terms => terms.some(term => source.includes(term));
+  const title = safePptText(slide.title || 'Portfolio');
+  const subtitle = safePptText(slide.subtitle || '');
+  const label = safePptText(slide.sectionLabel || 'GROWTH ARCHIVE');
+  const data = lines.length ? lines : [
+    { heading: 'Experience', body: subtitle || title, period: '' },
+    { heading: 'Memory', body: 'Structured records and reusable evidence', period: '' },
+    { heading: 'Value', body: 'Practical impact for teams and users', period: '' },
+  ];
+
+  const isCover = slide.layout === 'cover' || slide.layout === 'section';
+  const TL_KIND_PPT = { 'timeline-cover': 'cover', 'timeline-philosophy': 'philosophy', 'timeline-profile': 'profile', 'timeline-master': 'timeline', 'timeline-stack': 'stack', 'timeline-project': 'project', 'timeline-architecture': 'detail', 'timeline-challenge': 'detail', 'timeline-detail': 'detail', 'timeline-outcomes': 'metrics', 'timeline-awards': 'awards', 'timeline-growth': 'detail', 'timeline-roadmap': 'roadmap', 'timeline-closing': 'closing' };
+  let kind = TL_KIND_PPT[slide.layout];
+  if (!kind) {
+    kind = 'detail';
+    if (isCover) kind = 'cover';
+    else if (slide.layout === 'closing' || slide.proposalVariant === 'closing' || hasAny(['thank', 'closing'])) kind = 'closing';
+    else if (hasAny(['profile', 'key metrics', 'education', 'language', 'focus'])) kind = 'profile';
+    else if (hasAny(['timeline', 'journey', 'archive', 'history', 'milestone'])) kind = 'timeline';
+    else if (hasAny(['roadmap', 'vision', 'future', 'phase'])) kind = 'roadmap';
+    else if (hasAny(['award', 'honor', 'recognition', 'prize'])) kind = 'awards';
+    else if (hasAny(['metric', 'outcome', 'result', 'score', 'kpi', 'satisfaction']) || metrics.length) kind = 'metrics';
+    else if (hasAny(['stack', 'frontend', 'backend', 'engineering', 'technical'])) kind = 'stack';
+    else if (hasAny(['project', 'case', 'launch', 'development'])) kind = 'project';
+    else if (mood === 'toc') kind = 'philosophy';
+    else if (mood === 'metric') kind = 'metrics';
+  }
+
+  const bg = hex(v.bg);
+  const ink = hex(v.ink);
+  const muted = hex(v.muted);
+  const accent = hex(v.accent);
+  const soft = hex(v.soft);
+  const card = hex(v.card || '#F7FAFF');
+  const dark = hex(v.dark);
+
+  const addBase = (darkMode = false) => {
+    const base = darkMode ? dark : bg;
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: base }, line: { color: base } });
+    if (!darkMode) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.07, fill: { color: accent }, line: { color: accent } });
+    if (!darkMode) {
+      s.addShape('ellipse', { x: W / 2 - 0.11, y: H - 0.28, w: 0.22, h: 0.22, fill: { color: bg, transparency: 100 }, line: { color: '0F9AAA', width: 1.4 } });
+      addPptText(s, 'G', { x: W / 2 - 0.075, y: H - 0.255, w: 0.15, h: 0.08, fontFace: t.fonts.heading, fontSize: 7, bold: true, color: '0F9AAA', align: 'center' });
+    }
+  };
+
+  const addHeader = (y = 0.9, width = 8.4) => {
+    addPptText(s, label.toUpperCase(), { x: 0.85, y, w: 4.4, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 3, fit: 'shrink' });
+    addPptText(s, title, { x: 0.85, y: y + 0.5, w: width, h: 0.88, fontFace: t.fonts.heading, fontSize: dynamicFontPt(title, 28, { min: 20, max: 34 }), bold: true, color: ink, fit: 'shrink' });
+    if (subtitle) addPptText(s, subtitle, { x: 0.85, y: y + 1.34, w: width - 0.4, h: 0.36, fontFace: t.fonts.body, fontSize: 10.5, color: muted, fit: 'shrink' });
+  };
+
+  const addTopRule = (x, y, w, color = soft) => {
+    s.addShape('rect', { x, y, w, h: 0.012, fill: { color }, line: { color } });
+  };
+
+  if (kind === 'closing') {
+    addBase(true);
+    s.addShape('rect', { x: W / 2 - 0.42, y: 1.42, w: 0.84, h: 0.04, fill: { color: accent }, line: { color: accent } });
+    addPptText(s, title || 'Thank You for Your Time', { x: 1.35, y: 2.35, w: W - 2.7, h: 0.72, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+    addPptText(s, subtitle || data[0]?.body || '', { x: 2.1, y: 3.35, w: W - 4.2, h: 0.52, fontFace: t.fonts.body, fontSize: 13, color: 'A9C7E8', align: 'center', fit: 'shrink' });
+    s.addShape('rect', { x: 1.95, y: 4.75, w: W - 3.9, h: 0.01, fill: { color: '31405A' }, line: { color: '31405A' } });
+    data.slice(0, 3).forEach((line, idx) => {
+      const x = 2.25 + idx * 3.35;
+      addPptText(s, (line.period || line.heading || ['EMAIL', 'GITHUB', 'PORTFOLIO'][idx]).toUpperCase(), { x, y: 5.3, w: 2.35, h: 0.16, fontFace: t.fonts.body, fontSize: 7.8, bold: true, color: accent, charSpacing: 3, align: 'center' });
+      addPptText(s, line.body || line.heading || '', { x: x - 0.35, y: 5.75, w: 3.05, h: 0.2, fontFace: t.fonts.body, fontSize: 10, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+    });
+    return;
+  }
+
+  addBase(false);
+
+  if (kind === 'cover') {
+    s.addShape('rect', { x: 0.13, y: 0, w: 0.08, h: H, fill: { color: accent }, line: { color: accent } });
+    addPptText(s, label.toUpperCase() || '2021 - 2026 GROWTH ARCHIVE', { x: 1.15, y: 0.86, w: 5.2, h: 0.2, fontFace: t.fonts.body, fontSize: 10, bold: true, color: accent, charSpacing: 3 });
+    addPptText(s, title, { x: 1.15, y: 1.8, w: 6.5, h: 1.55, fontFace: t.fonts.heading, fontSize: 37, bold: true, color: ink, fit: 'shrink' });
+    if (subtitle) addPptText(s, subtitle, { x: 1.15, y: 4.08, w: 6.5, h: 0.35, fontFace: t.fonts.body, fontSize: 14, color: muted, fit: 'shrink' });
+    data.slice(0, 3).forEach((line, idx) => {
+      const x = 1.15 + idx * 2.15;
+      addTopRule(x, 5.55, 1.12, soft);
+      addPptText(s, (line.period || ['CANDIDATE', 'ROLE', 'EDUCATION'][idx]).toUpperCase(), { x, y: 5.88, w: 1.6, h: 0.15, fontFace: t.fonts.body, fontSize: 6.7, bold: true, color: muted, charSpacing: 1.5 });
+      addPptText(s, line.heading || line.body || '', { x, y: 6.22, w: 1.85, h: 0.22, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: ink, fit: 'shrink' });
+    });
+    s.addShape('freeform', { x: W - 3.3, y: 3.3, w: 3.3, h: 4.2, fill: { color: 'F6F9FD' }, line: { color: 'F6F9FD' }, pptxShape: 'rtTriangle' });
+    return;
+  }
+
+  if (kind === 'profile') {
+    addPptText(s, 'PROFILE', { x: 0.85, y: 1.05, w: 1.6, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 3 });
+    addPptText(s, title, { x: 0.85, y: 1.45, w: 4.6, h: 0.48, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: ink, fit: 'shrink' });
+    s.addShape('rect', { x: 6.45, y: 0.9, w: 0.01, h: 5.7, fill: { color: soft }, line: { color: soft } });
+    data.slice(0, 3).forEach((line, idx) => {
+      const y = 2.25 + idx * 1.05;
+      addPptText(s, (line.period || line.role || ['EDUCATION', 'LANGUAGE', 'FOCUS'][idx]).toUpperCase(), { x: 0.85, y, w: 2.0, h: 0.14, fontFace: t.fonts.body, fontSize: 6.7, bold: true, color: muted, charSpacing: 1.5, fit: 'shrink' });
+      addPptText(s, line.heading, { x: 0.85, y: y + 0.28, w: 4.3, h: 0.24, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: ink, fit: 'shrink' });
+      addPptText(s, line.body, { x: 0.85, y: y + 0.68, w: 4.4, h: 0.26, fontFace: t.fonts.body, fontSize: 8.2, color: muted, fit: 'shrink' });
+    });
+    addPptText(s, 'KEY METRICS', { x: 6.7, y: 1.05, w: 2.2, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 3 });
+    const metricList = (metrics.length ? metrics : [
+      { label: 'Production Projects', value: '5+' },
+      { label: 'TOEIC Score', value: '900' },
+      { label: 'Documentation Rate', value: '100%' },
+    ]).slice(0, 3);
+    metricList.forEach((metric, idx) => {
+      const y = 1.9 + idx * 1.55;
+      addPptText(s, pptAcceptedMetricText(metric), { x: 6.7, y, w: 2.3, h: 0.44, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: accent, fit: 'shrink' });
+      addPptText(s, metric.label || data[idx]?.heading || 'Metric', { x: 6.7, y: y + 0.68, w: 3.0, h: 0.2, fontFace: t.fonts.heading, fontSize: 9.4, bold: true, color: ink, fit: 'shrink' });
+      addPptText(s, metric.body || data[idx]?.body || '', { x: 6.7, y: y + 1.02, w: 4.0, h: 0.26, fontFace: t.fonts.body, fontSize: 7.6, color: muted, fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'timeline') {
+    addPptText(s, 'MASTER TIMELINE', { x: 0.85, y: 1.1, w: 2.2, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 3 });
+    addPptText(s, title, { x: 0.85, y: 1.6, w: 6.4, h: 0.58, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: ink, fit: 'shrink' });
+    s.addShape('rect', { x: 0.85, y: 3.08, w: W - 1.7, h: 0.018, fill: { color: soft }, line: { color: soft } });
+    data.slice(0, 5).forEach((line, idx) => {
+      const x = 1.65 + idx * ((W - 3.3) / 4);
+      const top = idx % 2 === 0;
+      s.addShape('ellipse', { x: x - 0.065, y: 3.0, w: 0.13, h: 0.13, fill: { color: accent }, line: { color: accent } });
+      addPptText(s, line.period || `STEP ${idx + 1}`, { x: x - 0.82, y: top ? 1.36 : 3.48, w: 1.65, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: accent, align: 'center', fit: 'shrink' });
+      addPptText(s, line.heading, { x: x - 0.95, y: top ? 1.78 : 3.88, w: 1.9, h: 0.26, fontFace: t.fonts.heading, fontSize: 8.8, bold: true, color: ink, align: 'center', fit: 'shrink' });
+      addPptText(s, line.body, { x: x - 0.95, y: top ? 2.16 : 4.26, w: 1.9, h: 0.46, fontFace: t.fonts.body, fontSize: 7.4, color: muted, align: 'center', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'metrics') {
+    addHeader(1.0, 7.4);
+    const metricList = metrics.length ? metrics : data.slice(0, 3).map(line => ({ label: line.heading, value: line.period || line.body }));
+    metricList.slice(0, 3).forEach((m, idx) => {
+      const x = 0.85 + idx * 4.0;
+      addTopRule(x, 2.35, 3.2, soft);
+      addPptText(s, pptAcceptedMetricText(m), { x, y: 3.02, w: 2.7, h: 0.48, fontFace: t.fonts.heading, fontSize: 31, bold: true, color: accent, fit: 'shrink' });
+      addPptText(s, m?.label || data[idx]?.heading || 'Result', { x, y: 3.8, w: 2.7, h: 0.24, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: ink, fit: 'shrink' });
+      addPptText(s, data[idx]?.body || '', { x, y: 4.25, w: 2.95, h: 0.32, fontFace: t.fonts.body, fontSize: 8.2, color: muted, fit: 'shrink' });
+    });
+    s.addShape('rect', { x: 0.85, y: 5.0, w: W - 1.7, h: 0.01, fill: { color: soft }, line: { color: soft } });
+    data.slice(0, 2).forEach((line, idx) => {
+      const x = 0.85 + idx * 6.0;
+      addPptText(s, idx === 0 ? 'TECHNICAL ACHIEVEMENTS' : 'QUALITATIVE FEEDBACK', { x, y: 5.38, w: 3.6, h: 0.2, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: idx === 0 ? muted : accent, charSpacing: 1, fit: 'shrink' });
+      addPptText(s, line.body || line.heading, { x, y: 5.75, w: 4.8, h: 0.48, fontFace: t.fonts.body, fontSize: 8.8, color: ink, fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (kind === 'roadmap') {
+    addHeader(1.0, 8.5);
+    data.slice(0, 3).forEach((line, idx) => {
+      const x = 0.85 + idx * 4.0;
+      addTopRule(x, 2.5, 3.25, soft);
+      addPptText(s, `PHASE ${String(idx + 1).padStart(2, '0')}`, { x, y: 2.88, w: 2.8, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 1.4, fit: 'shrink' });
+      addPptText(s, line.heading, { x, y: 3.22, w: 3.1, h: 0.32, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: ink, fit: 'shrink' });
+      const bullets = (line.body || '').split(/[\/;•]/).filter(Boolean).slice(0, 3);
+      (bullets.length ? bullets : [line.body]).slice(0, 3).forEach((bullet, bIdx) => {
+        addPptText(s, '›', { x, y: 3.85 + bIdx * 0.55, w: 0.18, h: 0.18, fontFace: t.fonts.heading, fontSize: 16, color: accent });
+        addPptText(s, bullet, { x: x + 0.28, y: 3.86 + bIdx * 0.55, w: 2.85, h: 0.34, fontFace: t.fonts.body, fontSize: 8.6, color: ink, fit: 'shrink' });
+      });
+    });
+    return;
+  }
+
+  if (kind === 'awards') {
+    addHeader(1.05, 8.0);
+    const first = data[0] || {};
+    s.addShape('rect', { x: 0.9, y: 2.45, w: W - 1.8, h: 2.38, fill: { color: 'F6F8FC' }, line: { color: 'F6F8FC' } });
+    s.addShape('rect', { x: 0.9, y: 2.45, w: 0.055, h: 2.38, fill: { color: accent }, line: { color: accent } });
+    addPptText(s, first.period || '2026.05', { x: 1.2, y: 2.8, w: 1.6, h: 0.2, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: accent });
+    addPptText(s, first.heading || title, { x: 1.2, y: 3.35, w: 6.2, h: 0.36, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: ink, fit: 'shrink' });
+    addPptText(s, first.body || subtitle, { x: 1.2, y: 4.0, w: 10.4, h: 0.46, fontFace: t.fonts.body, fontSize: 8.6, color: ink, fit: 'shrink' });
+    data.slice(1, 5).forEach((line, idx) => {
+      const x = 0.9 + (idx % 2) * 5.8;
+      const y = 5.05 + Math.floor(idx / 2) * 0.58;
+      addPptText(s, line.heading, { x, y, w: 3.8, h: 0.2, fontFace: t.fonts.heading, fontSize: 9.8, bold: true, color: ink, fit: 'shrink' });
+      addPptText(s, line.period || line.body, { x, y: y + 0.25, w: 4.8, h: 0.16, fontFace: t.fonts.body, fontSize: 7.6, color: muted, fit: 'shrink' });
+      addTopRule(x, y + 0.48, 4.9, soft);
+    });
+    return;
+  }
+
+  const threeCol = kind === 'stack' || kind === 'project' || kind === 'philosophy';
+  addHeader(1.0, 8.9);
+  const cols = threeCol ? 3 : 2;
+  const gap = threeCol ? 0.32 : 0.58;
+  const colW = threeCol ? 3.55 : 5.3;
+  const startY = threeCol ? 2.55 : 2.48;
+  data.slice(0, threeCol ? 3 : 4).forEach((line, idx) => {
+    const x = 0.85 + (idx % cols) * (colW + gap);
+    const y = startY + Math.floor(idx / cols) * 1.7;
+    const role = kind === 'project' ? ['CONCEPT', 'PROBLEM', 'SOLUTION'][idx] : (kind === 'philosophy' ? ['EXPERIENCE', 'MEMORY', 'VALUE'][idx] : (line.period || line.role || `SECTION ${idx + 1}`));
+    addTopRule(x, y, colW, idx === 1 && !threeCol ? accent : soft);
+    addPptText(s, role || `SECTION ${idx + 1}`, { x, y: y + 0.25, w: colW, h: 0.18, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: idx % 2 === 0 ? accent : muted, charSpacing: 0.5, fit: 'shrink' });
+    addPptText(s, line.heading, { x, y: y + 0.65, w: colW - 0.1, h: 0.28, fontFace: t.fonts.heading, fontSize: 12.2, bold: true, color: ink, fit: 'shrink' });
+    addPptText(s, line.body || '', { x, y: y + 1.05, w: colW - 0.1, h: threeCol ? 0.72 : 0.54, fontFace: t.fonts.body, fontSize: 8.3, color: ink, fit: 'shrink' });
+    if (kind === 'stack') {
+      s.addShape('rect', { x, y: y + 1.64, w: colW, h: 0.035, fill: { color: 'EEF3FA' }, line: { color: 'EEF3FA' } });
+      s.addShape('rect', { x, y: y + 1.64, w: colW * (0.92 - idx * 0.07), h: 0.035, fill: { color: accent }, line: { color: accent } });
+    }
+  });
+}
+
 function drawTimelinePptx(s, slide, t, v, i, W, H) {
+  return drawTimelineReferencePptx(s, slide, t, v, i, W, H);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = pptAcceptedLines(slide);
   const mood = acceptedSlideMood(slide, i);
@@ -3972,22 +7415,371 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
 
   const addDarkTitle = (title) => {
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-    s.addShape('ellipse', { x: -0.5, y: -0.3, w: 2.2, h: 1.2, fill: { color: '992600', transparency: 68 }, line: { color: '992600', transparency: 100 } });
-    s.addShape('ellipse', { x: W - 2.0, y: H - 1.35, w: 2.6, h: 1.5, fill: { color: '8700C1', transparency: 74 }, line: { color: '8700C1', transparency: 100 } });
+    s.addShape('ellipse', { x: -0.5, y: -0.3, w: 2.2, h: 1.2, fill: { color: hex(v.accent), transparency: 58 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.0, y: H - 1.35, w: 2.6, h: 1.5, fill: { color: hex(v.accent), transparency: 68 }, line: { color: hex(v.accent), transparency: 100 } });
     s.addShape('roundRect', { x: 3.85, y: 3.15, w: 0.62, h: 0.2, fill: { color: 'FFFFFF', transparency: 6 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.04 });
     addPptText(s, safePptText(title || slide.title || 'CASE STUDY'), { x: 1.4, y: 3.45, w: W - 2.8, h: 0.8, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
   };
 
+  const caseLines = lines.length ? lines : [{ heading: slide.sectionLabel || 'Case', body: slide.subtitle || slide.title || 'Evidence' }];
+  const caseMetrics = metrics.length ? metrics : [
+    { label: 'Problem', value: caseLines[0]?.heading || 'Defined' },
+    { label: 'Action', value: caseLines[1]?.heading || 'Built' },
+    { label: 'Result', value: caseLines[2]?.heading || 'Verified' },
+  ];
+
   if (variant === 'closing') return addDarkTitle(slide.title || 'THANK YOU');
   if (variant.startsWith('dark-title')) return addDarkTitle();
 
+  // ── cs-* explicit layouts (buildCaseStudyReferenceDeck) ──
+  if (slide.layout === 'cs-closing') return addDarkTitle(slide.title || 'THANK YOU');
+
+  if (slide.layout === 'cs-cover') {
+    const titleText = safePptText(slide.title);
+    const tagBullets = (slide.bullets || []).filter(Boolean).slice(0, 4).map(safePptText).filter(Boolean);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('ellipse', { x: -1.0, y: -0.7, w: 3.0, h: 2.2, fill: { color: hex(v.accent), transparency: 60 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.4, y: H - 1.95, w: 3.6, h: 2.8, fill: { color: hex(v.accent), transparency: 78 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('roundRect', { x: 0.89, y: 0.78, w: 0.78, h: 0.19, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.05 });
+    addPptText(s, safePptText(slide.sectionLabel || 'CASE STUDY'), { x: 1.83, y: 0.74, w: 6.0, h: 0.24, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 4 });
+    addPptText(s, titleText, { x: 0.89, y: 2.55, w: W - 1.78, h: 2.5, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', valign: 'top', breakLine: true });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 0.89, y: 5.15, w: 10.0, h: 1.0, fontFace: t.fonts.body, fontSize: 11, color: 'B8C0D5' });
+    }
+    if (tagBullets.length) {
+      let pillX = 0.89;
+      tagBullets.forEach((bullet, idx) => {
+        const isPrimary = idx === 0;
+        const text = bullet.toUpperCase();
+        const pillW = Math.min(2.6, 0.55 + text.length * 0.13);
+        if (pillX + pillW > W - 0.89) return;
+        s.addShape('roundRect', { x: pillX, y: 6.72, w: pillW, h: 0.36, fill: { color: isPrimary ? hex(v.accent) : 'FFFFFF', transparency: isPrimary ? 0 : 92 }, line: { color: isPrimary ? hex(v.accent) : 'FFFFFF', transparency: isPrimary ? 100 : 82 }, rectRadius: 0.18 });
+        addPptText(s, text, { x: pillX, y: 6.75, w: pillW, h: 0.3, fontFace: t.fonts.body, fontSize: 8, bold: true, color: isPrimary ? 'FFFFFF' : 'D8DEEA', align: 'center', charSpace: 1.6 });
+        pillX += pillW + 0.14;
+      });
+    }
+    return;
+  }
+
+  if (slide.layout === 'cs-contents') {
+    const tocItems = items.length ? items : caseLines.map(line => ({ heading: line.heading, body: line.body }));
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('rect', { x: 3.8, y: 0.75, w: 0.012, h: H - 1.5, fill: { color: 'FFFFFF', transparency: 84 }, line: { color: 'FFFFFF', transparency: 100 } });
+    addPptText(s, 'CASE FILE', { x: 0.75, y: 0.78, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(v.accent), charSpace: 3.5 });
+    addPptText(s, 'INDEX', { x: 0.75, y: 5.8, w: 3.0, h: 0.86, fontFace: t.fonts.heading, fontSize: 50, bold: true, color: 'FFFFFF' });
+    addPptText(s, safePptText(slide.title || 'Contents'), { x: 4.4, y: 0.86, w: W - 5.2, h: 0.86, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: 'FFFFFF' });
+    tocItems.slice(0, 6).forEach((item, idx) => {
+      const y = 1.95 + idx * 0.75;
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: 4.4, y, w: 0.6, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 58 });
+      addPptText(s, safePptText(item.heading || item.title), { x: 5.05, y, w: 5.8, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: 'FFFFFF' });
+      if (item.body) {
+        addPptText(s, safePptText(item.body), { x: 5.05, y: y + 0.32, w: 7.4, h: 0.26, fontFace: t.fonts.body, fontSize: 9, color: 'AEB7C7' });
+      }
+      if (idx < Math.min(tocItems.length, 6) - 1) {
+        s.addShape('rect', { x: 4.4, y: y + 0.7, w: W - 5.2, h: 0.005, fill: { color: 'FFFFFF', transparency: 88 }, line: { color: 'FFFFFF', transparency: 100 } });
+      }
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-technical') {
+    const techItems = items.slice(0, 6);
+    const heroMetric = metrics[0] || null;
+    const cols = techItems.length > 4 ? 2 : techItems.length <= 2 ? 1 : 2;
+    const rows = Math.max(1, Math.ceil(techItems.length / cols));
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'TECHNICAL EXCELLENCE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const gridLeft = heroMetric ? 5.15 : 0.75;
+    const gridW = W - gridLeft - 0.75;
+    const gridTop = 2.36, gridBottom = H - 0.75;
+    const gridH = gridBottom - gridTop;
+    if (heroMetric) {
+      s.addShape('roundRect', { x: 0.75, y: gridTop, w: 4.0, h: gridH, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.22 });
+      addPptText(s, 'HERO METRIC', { x: 1.05, y: gridTop + 0.32, w: 3.4, h: 0.2, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.accent), charSpace: 3 });
+      addPptText(s, safePptText(heroMetric.label || 'Impact'), { x: 1.05, y: gridTop + 0.7, w: 3.4, h: 0.8, fontFace: t.fonts.body, fontSize: 10.5, color: 'B8C0D5' });
+      addPptText(s, safePptText(acceptedMetricText(heroMetric)), { x: 1.05, y: gridTop + gridH - 1.55, w: 3.4, h: 0.95, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.accent) });
+      if (heroMetric.before && heroMetric.after) {
+        addPptText(s, 'BEFORE → AFTER', { x: 1.05, y: gridTop + gridH - 0.5, w: 3.4, h: 0.2, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF', transparency: 50, charSpace: 2 });
+      }
+    }
+    const cellW = (gridW - (cols - 1) * 0.18) / cols;
+    const cellH = (gridH - (rows - 1) * 0.18) / rows;
+    techItems.forEach((item, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = gridLeft + col * (cellW + 0.18);
+      const y = gridTop + row * (cellH + 0.18);
+      const icon = safePptText(item.role || item.period || '') || String(idx + 1);
+      s.addShape('roundRect', { x, y, w: cellW, h: cellH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
+      s.addShape('roundRect', { x: x + 0.22, y: y + 0.22, w: 0.5, h: 0.5, fill: { color: hex(v.accent), transparency: 80 }, line: { color: hex(v.accent), transparency: 80 }, rectRadius: 0.1 });
+      addPptText(s, icon, { x: x + 0.22, y: y + 0.32, w: 0.5, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.85, y: y + 0.22, w: cellW - 1.07, h: 0.34, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: hex(v.ink) });
+      addPptText(s, safePptText(item.body), { x: x + 0.85, y: y + 0.6, w: cellW - 1.07, h: cellH - 0.82, fontFace: t.fonts.body, fontSize: 8.5, color: hex(v.muted) });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-skillmap') {
+    const skillItems = items.slice(0, 4);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'TECHNICAL SUMMARY'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const gridTop = 2.33, gridBottom = H - 0.7;
+    const gridLeft = 0.75, gridRight = W - 0.75;
+    const cellW = (gridRight - gridLeft - 0.2) / 2;
+    const cellH = (gridBottom - gridTop - 0.2) / 2;
+    skillItems.forEach((item, idx) => {
+      const col = idx % 2, row = Math.floor(idx / 2);
+      const x = gridLeft + col * (cellW + 0.2);
+      const y = gridTop + row * (cellH + 0.2);
+      const isPrimary = idx === 0;
+      const icon = safePptText(item.role || item.period || '') || String(idx + 1);
+      const bullets = splitBulletLines(item.body);
+      s.addShape('roundRect', { x, y, w: cellW, h: cellH, fill: { color: isPrimary ? hex(v.dark) : hex(v.card) }, line: { color: isPrimary ? hex(v.dark) : hex(v.soft) }, rectRadius: 0.22 });
+      s.addShape('roundRect', { x: x + 0.28, y: y + 0.28, w: 0.46, h: 0.46, fill: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, line: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, rectRadius: 0.1 });
+      addPptText(s, icon, { x: x + 0.28, y: y + 0.37, w: 0.46, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.86, y: y + 0.32, w: cellW - 1.1, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: isPrimary ? 'FFFFFF' : hex(v.ink) });
+      bullets.slice(0, 4).forEach((line, bi) => {
+        const by = y + 0.96 + bi * 0.34;
+        s.addShape('ellipse', { x: x + 0.32, y: by + 0.11, w: 0.08, h: 0.08, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+        addPptText(s, safePptText(line), { x: x + 0.5, y: by - 0.02, w: cellW - 0.7, h: 0.32, fontFace: t.fonts.body, fontSize: 9, color: isPrimary ? 'D8DEEA' : hex(v.muted) });
+      });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-journey') {
+    const phases = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'GROWTH NARRATIVE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.9, w: W - 1.5, h: 0.78, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink) });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 0.75, y: 1.78, w: W - 1.5, h: 0.5, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+    }
+    const rowTop = 2.6, rowBottom = H - 0.7;
+    const rowGap = 0.18;
+    const rowH = (rowBottom - rowTop - rowGap * 2) / 3;
+    phases.forEach((phase, idx) => {
+      const y = rowTop + idx * (rowH + rowGap);
+      const isAccent = idx === 1;
+      const isDarkRow = idx === 0;
+      const fill = isDarkRow ? hex(v.dark) : isAccent ? hex(v.accent) : hex(v.card);
+      const border = isDarkRow ? hex(v.dark) : isAccent ? hex(v.accent) : hex(v.soft);
+      const fg = isDarkRow || isAccent ? 'FFFFFF' : hex(v.ink);
+      const muted = isDarkRow ? 'B8C0D5' : isAccent ? 'FFFFFF' : hex(v.muted);
+      const tagColor = isDarkRow ? hex(v.accent) : isAccent ? 'FFFFFF' : hex(v.accent);
+      const tag = safePptText(phase.role || phase.period || '') || `PHASE 0${idx + 1}`;
+      s.addShape('roundRect', { x: 0.75, y, w: W - 1.5, h: rowH, fill: { color: fill }, line: { color: border }, rectRadius: 0.18 });
+      addPptText(s, tag, { x: 1.05, y: y + 0.32, w: 1.85, h: 0.3, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: tagColor, charSpace: 2.8 });
+      addPptText(s, safePptText(phase.heading), { x: 3.0, y: y + 0.22, w: W - 3.75, h: 0.42, fontFace: t.fonts.heading, fontSize: 14.5, bold: true, color: fg });
+      addPptText(s, safePptText(phase.body), { x: 3.0, y: y + 0.72, w: W - 3.75, h: rowH - 0.92, fontFace: t.fonts.body, fontSize: 10, color: muted });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-contribution') {
+    const contribItems = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'NEXT CONTRIBUTION'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink) });
+    const colTop = 2.56, colBottom = H - 0.7;
+    const colLeft = 0.75, colRight = W - 0.75;
+    const gap = 0.2;
+    const colW = (colRight - colLeft - gap * 2) / 3;
+    const colH = colBottom - colTop;
+    contribItems.forEach((item, idx) => {
+      const x = colLeft + idx * (colW + gap);
+      const isPrimary = idx === 1;
+      const fill = isPrimary ? hex(v.dark) : hex(v.card);
+      const border = isPrimary ? hex(v.dark) : hex(v.soft);
+      const fg = isPrimary ? 'FFFFFF' : hex(v.ink);
+      const muted = isPrimary ? 'B8C0D5' : hex(v.muted);
+      const tag = safePptText(item.role || item.period || '') || `Commit ${idx + 1}`;
+      s.addShape('roundRect', { x, y: colTop, w: colW, h: colH, fill: { color: fill }, line: { color: border }, rectRadius: 0.24 });
+      const tagW = Math.min(colW - 0.6, 1.5 + tag.length * 0.06);
+      s.addShape('roundRect', { x: x + 0.32, y: colTop + 0.3, w: tagW, h: 0.3, fill: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, line: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, rectRadius: 0.14 });
+      addPptText(s, tag, { x: x + 0.32, y: colTop + 0.34, w: tagW, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.accent), align: 'center', charSpace: 1.8 });
+      addPptText(s, safePptText(item.heading), { x: x + 0.32, y: colTop + 0.88, w: colW - 0.64, h: 1.1, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: fg });
+      addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.1, w: colW - 0.64, h: colH - 2.3, fontFace: t.fonts.body, fontSize: 10, color: muted });
+    });
+    return;
+  }
+
+  if (slide.layout === 'cs-retrospective') {
+    const retroItems = items.slice(0, 3);
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'RETROSPECTIVE'), { x: 0.75, y: 0.62, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 3 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.92, w: W - 1.5, h: 0.92, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink) });
+    const colTop = 2.5, colBottom = H - 0.7;
+    const colLeft = 0.75, colRight = W - 0.75;
+    const gap = 0.2;
+    const colW = (colRight - colLeft - gap * 2) / 3;
+    const colH = colBottom - colTop;
+    retroItems.forEach((item, idx) => {
+      const x = colLeft + idx * (colW + gap);
+      const icon = safePptText(item.role || item.period || '') || '•';
+      s.addShape('roundRect', { x, y: colTop, w: colW, h: colH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.22 });
+      s.addShape('roundRect', { x: x + 0.32, y: colTop + 0.3, w: 0.6, h: 0.6, fill: { color: hex(v.accent), transparency: 82 }, line: { color: hex(v.accent), transparency: 82 }, rectRadius: 0.14 });
+      addPptText(s, icon, { x: x + 0.32, y: colTop + 0.42, w: 0.6, h: 0.36, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: hex(v.accent), align: 'center' });
+      addPptText(s, safePptText(item.heading), { x: x + 0.32, y: colTop + 1.18, w: colW - 0.64, h: 0.96, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.ink) });
+      addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.28, w: colW - 0.64, h: colH - 2.48, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+    });
+    return;
+  }
+
+  if (variant === 'case-toc') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    s.addShape('rect', { x: 2.95, y: 0.6, w: 0.01, h: H - 1.2, fill: { color: 'FFFFFF', transparency: 84 }, line: { color: 'FFFFFF', transparency: 100 } });
+    addPptText(s, 'CASE FILE', { x: 0.58, y: 0.62, w: 1.6, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 2, fit: 'shrink' });
+    addPptText(s, 'INDEX', { x: 0.58, y: 5.6, w: 2.0, h: 0.56, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(slide.title), { x: 3.55, y: 0.72, w: 8.8, h: 0.76, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    caseLines.slice(0, 5).forEach((line, idx) => {
+      const y = 1.9 + idx * 0.72;
+      s.addShape('rect', { x: 3.55, y: y + 0.58, w: 8.6, h: 0.01, fill: { color: 'FFFFFF', transparency: 84 }, line: { color: 'FFFFFF', transparency: 100 } });
+      addPptText(s, String(idx + 1).padStart(2, '0'), { x: 3.55, y, w: 0.46, h: 0.18, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: idx === 0 ? hex(v.accent) : '888888' });
+      addPptText(s, safePptText(line.heading), { x: 4.18, y: y - 0.02, w: 4.8, h: 0.26, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: 'FFFFFF', fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: 9.25, y: y - 0.02, w: 2.8, h: 0.26, fontFace: t.fonts.body, fontSize: 7.2, color: 'AEB7C7', align: 'right', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-snapshot') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('roundRect', { x: 0.75, y: 0.62, w: 1.18, h: 0.12, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.04 });
+    addPptText(s, safePptText(slide.sectionLabel || 'CASE SNAPSHOT'), { x: 0.75, y: 1.12, w: 2.2, h: 0.16, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpace: 1.4 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 1.48, w: 5.9, h: 1.12, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(slide.subtitle), { x: 0.75, y: 2.78, w: 5.4, h: 0.56, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
+    caseLines.slice(0, 3).forEach((line, idx) => {
+      const y = 0.85 + idx * 1.78;
+      const dark = idx === 0;
+      s.addShape('roundRect', { x: 8.1, y, w: 4.25, h: 1.38, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: idx === 1 ? 0.05 : 0.16 });
+      addPptText(s, `SIGNAL ${idx + 1}`, { x: 8.38, y: y + 0.22, w: 1.5, h: 0.14, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: dark ? hex(v.accent) : hex(v.muted), charSpace: 1 });
+      addPptText(s, safePptText(line.heading), { x: 8.38, y: y + 0.52, w: 3.65, h: 0.24, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: dark ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: 8.38, y: y + 0.86, w: 3.55, h: 0.28, fontFace: t.fonts.body, fontSize: 7.2, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-problem') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('rect', { x: 0, y: 0, w: 4.7, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'PROBLEM', { x: 0.58, y: 0.68, w: 1.3, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.6 });
+    addPptText(s, safePptText(slide.title), { x: 0.58, y: 1.34, w: 3.45, h: 1.28, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(slide.subtitle || caseLines[0]?.body), { x: 0.58, y: 5.45, w: 3.45, h: 0.7, fontFace: t.fonts.body, fontSize: 8, color: 'B8C0D5', fit: 'shrink' });
+    caseLines.slice(0, 4).forEach((line, idx) => {
+      const y = 0.88 + idx * 1.35;
+      s.addShape('ellipse', { x: 5.45, y, w: 0.45, h: 0.45, fill: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.soft) } });
+      addPptText(s, String(idx + 1), { x: 5.45, y: y + 0.12, w: 0.45, h: 0.12, fontFace: t.fonts.heading, fontSize: 7, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink), align: 'center' });
+      addPptText(s, safePptText(line.heading), { x: 6.2, y: y - 0.02, w: 5.5, h: 0.24, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: 6.2, y: y + 0.34, w: 5.45, h: 0.36, fontFace: t.fonts.body, fontSize: 7.6, color: hex(v.muted), fit: 'shrink' });
+      if (idx < 3) s.addShape('rect', { x: 6.2, y: y + 0.92, w: 5.45, h: 0.01, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    });
+    return;
+  }
+
+  if (variant === 'case-decision') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'DECISION LOG'), { x: 0.75, y: 0.62, w: 2.3, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 1.0, w: 8.7, h: 0.68, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+    caseLines.slice(0, 2).forEach((line, idx) => {
+      const x = 0.75 + idx * 6.0;
+      const dark = idx === 1;
+      s.addShape('roundRect', { x, y: 2.25, w: 5.55, h: 3.95, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: dark ? 0.04 : 0.2 });
+      addPptText(s, idx === 0 ? 'CHOSEN' : 'TRADE-OFF', { x: x + 0.35, y: 2.62, w: 1.6, h: 0.14, fontFace: t.fonts.body, fontSize: 7.2, bold: true, color: hex(v.accent), charSpace: 1.3 });
+      addPptText(s, safePptText(line.heading), { x: x + 0.35, y: 3.52, w: 4.7, h: 0.62, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: dark ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: x + 0.35, y: 4.42, w: 4.72, h: 0.85, fontFace: t.fonts.body, fontSize: 8, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-project') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    s.addShape('roundRect', { x: 0.58, y: 0.55, w: 2.72, h: 6.25, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.18 });
+    addPptText(s, 'PROJECT', { x: 0.9, y: 0.88, w: 1.4, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
+    addPptText(s, safePptText(slide.sectionLabel || 'Execution'), { x: 0.9, y: 5.55, w: 1.92, h: 0.62, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(slide.title), { x: 3.8, y: 0.7, w: 8.4, h: 0.72, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(slide.subtitle), { x: 3.8, y: 1.46, w: 7.8, h: 0.26, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), fit: 'shrink' });
+    caseLines.slice(0, 4).forEach((line, idx) => {
+      const x = 3.8 + (idx % 2) * 4.45;
+      const y = 2.15 + Math.floor(idx / 2) * 1.95;
+      const dark = idx === 0;
+      s.addShape('roundRect', { x, y, w: 4.0, h: 1.55, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: 0.12 });
+      addPptText(s, ['DEFINE', 'BUILD', 'VERIFY', 'SHIP'][idx] || `STEP ${idx + 1}`, { x: x + 0.22, y: y + 0.22, w: 1.5, h: 0.14, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: dark ? hex(v.accent) : hex(v.muted), charSpace: 1 });
+      addPptText(s, safePptText(line.heading), { x: x + 0.22, y: y + 0.58, w: 3.45, h: 0.24, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: dark ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: x + 0.22, y: y + 0.92, w: 3.4, h: 0.32, fontFace: t.fonts.body, fontSize: 7, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-impact') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'IMPACT PROOF', { x: 0.75, y: 0.72, w: 2.0, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.6 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 1.28, w: 5.6, h: 1.05, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    caseMetrics.slice(0, 4).forEach((metric, idx) => {
+      const x = 7.05 + (idx % 2) * 2.7;
+      const y = 1.05 + Math.floor(idx / 2) * 2.25;
+      s.addShape('rect', { x, y, w: 2.1, h: 0.04, fill: { color: idx === 0 ? hex(v.accent) : 'FFFFFF', transparency: idx === 0 ? 0 : 82 }, line: { color: 'FFFFFF', transparency: 100 } });
+      addPptText(s, pptAcceptedMetricText(metric), { x, y: y + 0.35, w: 2.3, h: 0.36, fontFace: t.fonts.heading, fontSize: 20, color: idx === 0 ? hex(v.accent) : 'FFFFFF', fit: 'shrink' });
+      addPptText(s, safePptText(metric.label || 'Result'), { x, y: y + 0.92, w: 2.2, h: 0.32, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: 'AEB7C7', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-learning') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'LEARNING'), { x: 0.75, y: 0.62, w: 2.2, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 0.98, w: 10.8, h: 0.72, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
+    caseLines.slice(0, 3).forEach((line, idx) => {
+      const x = 1.55 + idx * 0.7;
+      const y = 2.2 + idx * 1.15;
+      const w = 10.2 - idx * 1.4;
+      const fill = idx === 0 ? hex(v.dark) : idx === 1 ? hex(v.accent) : hex(v.card);
+      s.addShape('roundRect', { x, y, w, h: 0.92, fill: { color: fill }, line: { color: fill }, rectRadius: 0.12 });
+      addPptText(s, safePptText(line.heading), { x: x + 0.28, y: y + 0.18, w: w - 0.56, h: 0.2, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 2 ? hex(v.ink) : 'FFFFFF', fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: x + 0.28, y: y + 0.48, w: w - 0.56, h: 0.22, fontFace: t.fonts.body, fontSize: 7.2, color: idx === 2 ? hex(v.muted) : 'E9EEF8', fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-next') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, 'NEXT STEP', { x: 0.75, y: 0.72, w: 1.8, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
+    addPptText(s, safePptText(slide.title), { x: 0.75, y: 1.18, w: 3.65, h: 1.05, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: hex(v.ink), fit: 'shrink' });
+    s.addShape('rect', { x: 5.25, y: 3.72, w: 6.75, h: 0.03, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+    caseLines.slice(0, 4).forEach((line, idx) => {
+      const x = 5.25 + idx * 1.75;
+      const y = idx % 2 ? 4.05 : 2.1;
+      s.addShape('ellipse', { x, y: idx % 2 ? 3.58 : 3.45, w: 0.24, h: 0.24, fill: { color: idx === 0 ? hex(v.accent) : hex(v.dark) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.dark) } });
+      addPptText(s, safePptText(line.heading), { x, y, w: 1.35, h: 0.36, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x, y: y + 0.5, w: 1.35, h: 0.42, fontFace: t.fonts.body, fontSize: 6.8, color: hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
+  if (variant === 'case-fit') {
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
+    addPptText(s, safePptText(slide.sectionLabel || 'ROLE FIT'), { x: 0.72, y: 0.62, w: 2.2, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
+    addPptText(s, safePptText(slide.title), { x: 0.72, y: 1.0, w: 10.8, h: 0.68, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: hex(v.ink), fit: 'shrink' });
+    s.addShape('ellipse', { x: 1.05, y: 2.65, w: 2.7, h: 2.7, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'FIT', { x: 1.82, y: 3.3, w: 1.15, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), align: 'center', charSpace: 1.4 });
+    addPptText(s, safePptText(caseLines[0]?.heading || slide.sectionLabel), { x: 1.42, y: 3.68, w: 1.95, h: 0.55, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
+    caseLines.slice(1, 4).forEach((line, idx) => {
+      const y = 2.45 + idx * 1.15;
+      s.addShape('roundRect', { x: 5.2, y, w: 6.7, h: 0.86, fill: { color: hex(v.card) }, line: { color: hex(v.soft), transparency: 10 }, rectRadius: 0.1 });
+      addPptText(s, safePptText(line.heading), { x: 5.48, y: y + 0.16, w: 5.9, h: 0.18, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: 5.48, y: y + 0.44, w: 5.85, h: 0.22, fontFace: t.fonts.body, fontSize: 7.2, color: hex(v.muted), fit: 'shrink' });
+    });
+    return;
+  }
+
   if (variant === 'profile') {
-    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: '7B7F92' }, line: { color: '7B7F92' } });
+    s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
     s.addShape('roundRect', { x: 3.2, y: 0.45, w: 5.95, h: 6.0, fill: { color: 'FFFFFF', transparency: 10 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.22 });
-    s.addShape('ellipse', { x: 0.82, y: 1.15, w: 1.45, h: 1.45, fill: { color: '28327A' }, line: { color: '28327A' } });
-    addPptText(s, safePptText(slide.title || '프로필 소개'), { x: 0.72, y: 4.0, w: 2.1, h: 0.72, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: '28327A', fit: 'shrink' });
+    s.addShape('ellipse', { x: 0.82, y: 1.15, w: 1.45, h: 1.45, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, safePptText(slide.title || '프로필 소개'), { x: 0.72, y: 4.0, w: 2.1, h: 0.72, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.accent), fit: 'shrink' });
     addPptText(s, '#사용자중심 #문제정의 #팀워크', { x: 0.72, y: 6.15, w: 2.2, h: 0.42, fontFace: t.fonts.body, fontSize: 8, color: 'DFE3EF', fit: 'shrink' });
-    addPptText(s, 'Work', { x: 3.65, y: 0.95, w: 1.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: '28327A' });
+    addPptText(s, 'Work', { x: 3.65, y: 0.95, w: 1.0, h: 0.22, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(v.accent) });
     lines.slice(0, 4).forEach((line, idx) => {
       const x = 3.65 + (idx % 2) * 2.55;
       const y = 1.45 + Math.floor(idx / 2) * 1.05;
@@ -4009,7 +7801,7 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
     const count = variant === 'projects-3' ? 3 : 2;
     const source = (items.length ? items : lines).slice(0, count);
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
-    addPptText(s, variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS', { x: 0.72, y: 0.62, w: 2.0, h: 0.22, fontFace: t.fonts.body, fontSize: 11, bold: true, color: '1F84F0' });
+    addPptText(s, variant === 'projects-3' ? 'MAIN PROJECTS' : 'SIDE PROJECTS', { x: 0.72, y: 0.62, w: 2.0, h: 0.22, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(v.accent) });
     addPptText(s, safePptText(slide.title || '프로젝트 요약'), { x: 0.72, y: 0.92, w: 4.0, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.ink), fit: 'shrink' });
     source.forEach((entry, idx) => {
       const colW = count === 3 ? 3.3 : 4.8;

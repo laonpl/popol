@@ -16,7 +16,12 @@ export default function AiPptExport() {
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState(STAGE.CHOOSE);
-  const initTemplate = searchParams.get('template') || 'proposal';
+  const initTemplateParam = searchParams.get('template') || 'proposal';
+  const initLayoutParam = searchParams.get('layout') || searchParams.get('layoutId');
+  const layoutIds = SLIDE_LAYOUTS.map(layout => layout.id);
+  const initTemplateIsLayout = layoutIds.includes(initTemplateParam) && initTemplateParam !== 'standard';
+  const initLayout = initLayoutParam || (initTemplateIsLayout ? initTemplateParam : 'standard');
+  const initTemplate = initTemplateIsLayout ? 'proposal' : initTemplateParam;
   const autostart = searchParams.get('autostart') === 'true';
   const [templateId, setTemplateId] = useState(initTemplate);
   const [customFile, setCustomFile] = useState(null);
@@ -32,7 +37,7 @@ export default function AiPptExport() {
   const fileInputRef = useRef(null);
 
   const autoStartFiredRef = useRef(false);
-  const [layoutId, setLayoutId] = useState('standard');
+  const [layoutId, setLayoutId] = useState(initLayout);
 
   useEffect(() => {
     (async () => {
@@ -213,46 +218,49 @@ export default function AiPptExport() {
 }
 
 // ── 레이아웃 썸네일 미리보기 ─────────────────────────────────────────────
-function LayoutThumb({ layoutId }) {
+function LayoutThumb({ layoutId, colors }) {
+  const ac = colors?.accent || '#FF4F1A';
+  const dk = colors?.headBg || colors?.side || '#1F1D20';
+  const bg = colors?.bg || '#F6F6F7';
+  const card = colors?.card || '#FFFFFF';
+  const line = colors?.line || '#E8E8EA';
+
   if (layoutId === 'standard') {
     return (
-      <div className="w-full h-full p-2 flex flex-col gap-1">
-        <div className="w-full flex-shrink-0 h-[32%] rounded bg-slate-800 flex items-end px-2 pb-1.5 gap-1">
-          <div className="w-10 h-1.5 bg-white/70 rounded" />
-          <div className="w-6 h-1 bg-white/30 rounded" />
+      <div className="w-full h-full p-2 flex flex-col gap-1" style={{ background: bg }}>
+        <div className="w-full flex-shrink-0 h-[32%] rounded flex items-end px-2 pb-1.5 gap-1" style={{ background: dk }}>
+          <div className="w-10 h-1.5 rounded" style={{ background: 'rgba(255,255,255,0.7)' }} />
+          <div className="w-6 h-1 rounded" style={{ background: 'rgba(255,255,255,0.3)' }} />
         </div>
         <div className="flex gap-1 flex-1">
-          <div className="flex-1 rounded bg-white border border-gray-200 p-1.5 flex flex-col gap-0.5">
-            <div className="w-full h-1 bg-gray-300 rounded" />
-            <div className="w-3/4 h-1 bg-gray-200 rounded" />
-            <div className="w-full h-1 bg-gray-200 rounded" />
-            <div className="w-5/6 h-1 bg-gray-200 rounded" />
-          </div>
-          <div className="flex-1 rounded bg-white border border-gray-200 p-1.5 flex flex-col gap-0.5">
-            <div className="w-full h-1 bg-gray-300 rounded" />
-            <div className="w-2/3 h-1 bg-gray-200 rounded" />
-            <div className="w-full h-1 bg-gray-200 rounded" />
-          </div>
+          {[0, 1].map(i => (
+            <div key={i} className="flex-1 rounded p-1.5 flex flex-col gap-0.5" style={{ background: card, border: `1px solid ${line}` }}>
+              <div className="w-full h-1 rounded" style={{ background: ac, opacity: 0.7 }} />
+              <div className="w-3/4 h-1 rounded" style={{ background: line }} />
+              <div className="w-full h-1 rounded" style={{ background: line }} />
+              {i === 0 && <div className="w-5/6 h-1 rounded" style={{ background: line }} />}
+            </div>
+          ))}
         </div>
       </div>
     );
   }
   if (layoutId === 'narrative') {
     return (
-      <div className="w-full h-full p-2 bg-[#1f1d20] flex flex-col justify-between">
+      <div className="w-full h-full p-2 flex flex-col justify-between" style={{ background: dk }}>
         <div className="flex justify-between items-start">
-          <div className="w-14 h-2 bg-orange-500 rounded" />
-          <div className="w-7 h-1 bg-white/30 rounded" />
+          <div className="w-14 h-2 rounded" style={{ background: ac }} />
+          <div className="w-7 h-1 rounded" style={{ background: 'rgba(255,255,255,0.3)' }} />
         </div>
         <div className="space-y-1">
-          <div className="w-24 h-2 bg-white rounded" />
-          <div className="w-16 h-1 bg-white/45 rounded" />
+          <div className="w-24 h-2 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
+          <div className="w-16 h-1 rounded" style={{ background: 'rgba(255,255,255,0.45)' }} />
         </div>
         <div className="grid grid-cols-4 gap-1 items-end">
           {[2, 3, 4, 5].map((h, i) => (
-            <div key={i} className="rounded-t bg-white/20 p-1" style={{ height: `${h * 12}px` }}>
-              <div className="w-3 h-3 rounded-full bg-orange-500 mb-1" />
-              <div className="w-full h-1 bg-white/50 rounded" />
+            <div key={i} className="rounded-t p-1" style={{ height: `${h * 12}px`, background: 'rgba(255,255,255,0.15)' }}>
+              <div className="w-3 h-3 rounded-full mb-1" style={{ background: ac }} />
+              <div className="w-full h-1 rounded" style={{ background: 'rgba(255,255,255,0.5)' }} />
             </div>
           ))}
         </div>
@@ -261,12 +269,12 @@ function LayoutThumb({ layoutId }) {
   }
   if (layoutId === 'star') {
     return (
-      <div className="w-full h-full p-2 bg-white grid grid-cols-2 gap-1.5">
+      <div className="w-full h-full p-2 grid grid-cols-2 gap-1.5" style={{ background: bg }}>
         {['S', 'T', 'A', 'R'].map((label, i) => (
-          <div key={label} className={`rounded-lg border p-1.5 ${i === 3 ? 'bg-orange-500 border-orange-500' : 'bg-gray-50 border-gray-200'}`}>
-            <div className={`w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold ${i === 3 ? 'bg-white text-orange-600' : 'bg-slate-900 text-white'}`}>{label}</div>
-            <div className={`mt-2 h-1 rounded ${i === 3 ? 'bg-white/80' : 'bg-gray-300'}`} />
-            <div className={`mt-1 h-1 rounded w-2/3 ${i === 3 ? 'bg-white/55' : 'bg-gray-200'}`} />
+          <div key={label} className="rounded-lg p-1.5" style={{ background: i === 3 ? ac : card, border: `1px solid ${i === 3 ? ac : line}` }}>
+            <div className="w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold" style={{ background: i === 3 ? 'rgba(255,255,255,0.9)' : dk, color: i === 3 ? ac : '#FFFFFF' }}>{label}</div>
+            <div className="mt-2 h-1 rounded" style={{ background: i === 3 ? 'rgba(255,255,255,0.8)' : line }} />
+            <div className="mt-1 h-1 rounded w-2/3" style={{ background: i === 3 ? 'rgba(255,255,255,0.5)' : line }} />
           </div>
         ))}
       </div>
@@ -274,37 +282,37 @@ function LayoutThumb({ layoutId }) {
   }
   if (layoutId === 'kpi-dashboard') {
     return (
-      <div className="w-full h-full p-2 bg-slate-50 grid grid-cols-3 gap-1.5">
-        <div className="col-span-2 rounded-lg bg-slate-900 p-2 flex flex-col justify-end">
-          <div className="w-16 h-4 bg-white rounded" />
-          <div className="w-10 h-1 bg-white/40 rounded mt-1" />
+      <div className="w-full h-full p-2 grid grid-cols-3 gap-1.5" style={{ background: '#0E1727' }}>
+        <div className="col-span-2 rounded-lg p-2 flex flex-col justify-end" style={{ background: dk }}>
+          <div className="w-16 h-4 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
+          <div className="w-10 h-1 rounded mt-1" style={{ background: 'rgba(255,255,255,0.4)' }} />
         </div>
-        <div className="rounded-lg bg-orange-500 p-2 flex flex-col justify-end">
-          <div className="w-8 h-4 bg-white rounded" />
+        <div className="rounded-lg p-2 flex flex-col justify-end" style={{ background: ac }}>
+          <div className="w-8 h-4 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
         </div>
-        <div className="rounded-lg bg-white border border-gray-200 p-1.5">
-          <div className="w-full h-1 bg-gray-300 rounded mb-1" />
-          <div className="h-8 bg-gradient-to-t from-orange-100 to-orange-500 rounded" />
+        <div className="rounded-lg p-1.5" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
+          <div className="w-full h-1 rounded mb-1" style={{ background: 'rgba(255,255,255,0.3)' }} />
+          <div className="h-8 rounded" style={{ background: `linear-gradient(to top, ${ac}44, ${ac})` }} />
         </div>
-        <div className="rounded-lg bg-white border border-gray-200 p-1.5">
-          <div className="w-8 h-8 rounded-full border-4 border-slate-900 mx-auto" />
+        <div className="rounded-lg p-1.5 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
+          <div className="w-8 h-8 rounded-full border-4 mx-auto" style={{ borderColor: ac }} />
         </div>
-        <div className="rounded-lg bg-white border border-gray-200 p-1.5 flex items-end gap-1">
-          {[5, 8, 4].map((h, i) => <div key={i} className="flex-1 rounded-t bg-slate-900" style={{ height: `${h * 4}px` }} />)}
+        <div className="rounded-lg p-1.5 flex items-end gap-1" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
+          {[5, 8, 4].map((h, i) => <div key={i} className="flex-1 rounded-t" style={{ height: `${h * 4}px`, background: i % 2 ? ac : 'rgba(255,255,255,0.4)' }} />)}
         </div>
       </div>
     );
   }
   if (layoutId === 'timeline') {
     return (
-      <div className="w-full h-full p-3 bg-white flex items-center">
+      <div className="w-full h-full p-3 flex items-center" style={{ background: bg }}>
         <div className="relative w-full h-20">
-          <div className="absolute left-2 right-2 top-1/2 border-t-2 border-dotted border-gray-300" />
+          <div className="absolute left-2 right-2 top-1/2 border-t-2 border-dotted" style={{ borderColor: line }} />
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="absolute -translate-x-1/2" style={{ left: `${10 + i * 27}%`, top: i % 2 ? 44 : 4 }}>
-              <div className={`w-8 h-8 rounded-full ${i === 2 ? 'bg-orange-500' : 'bg-slate-900'} border-4 border-white shadow`} />
-              <div className="w-12 h-1 bg-gray-300 rounded mt-1" />
-              <div className="w-8 h-1 bg-gray-200 rounded mt-1" />
+              <div className="w-8 h-8 rounded-full border-4 shadow" style={{ background: i === 2 ? ac : dk, borderColor: bg }} />
+              <div className="w-12 h-1 rounded mt-1" style={{ background: line }} />
+              <div className="w-8 h-1 rounded mt-1" style={{ background: line }} />
             </div>
           ))}
         </div>
@@ -313,20 +321,20 @@ function LayoutThumb({ layoutId }) {
   }
   if (layoutId === 'case-study') {
     return (
-      <div className="w-full h-full p-2 bg-[#f6f6f7] grid grid-cols-[0.9fr_1.1fr] gap-2">
-        <div className="rounded-lg bg-slate-900 p-2 flex flex-col justify-between">
-          <div className="w-10 h-2 bg-orange-500 rounded" />
+      <div className="w-full h-full p-2 grid grid-cols-[0.9fr_1.1fr] gap-2" style={{ background: bg }}>
+        <div className="rounded-lg p-2 flex flex-col justify-between" style={{ background: dk }}>
+          <div className="w-10 h-2 rounded" style={{ background: ac }} />
           <div>
-            <div className="w-16 h-2 bg-white rounded" />
-            <div className="w-10 h-1 bg-white/40 rounded mt-1" />
+            <div className="w-16 h-2 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
+            <div className="w-10 h-1 rounded mt-1" style={{ background: 'rgba(255,255,255,0.4)' }} />
           </div>
         </div>
         <div className="grid grid-rows-3 gap-1.5">
-          {['Problem', 'Build', 'Impact'].map((label, i) => (
-            <div key={label} className={`rounded-lg p-1.5 ${i === 2 ? 'bg-orange-500' : 'bg-white border border-gray-200'}`}>
-              <div className={`w-10 h-1 rounded ${i === 2 ? 'bg-white' : 'bg-slate-900'}`} />
-              <div className={`w-full h-1 rounded mt-1 ${i === 2 ? 'bg-white/55' : 'bg-gray-200'}`} />
-              <div className={`w-2/3 h-1 rounded mt-1 ${i === 2 ? 'bg-white/35' : 'bg-gray-200'}`} />
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-lg p-1.5" style={{ background: i === 2 ? ac : card, border: `1px solid ${i === 2 ? ac : line}` }}>
+              <div className="w-10 h-1 rounded" style={{ background: i === 2 ? 'rgba(255,255,255,0.9)' : dk }} />
+              <div className="w-full h-1 rounded mt-1" style={{ background: i === 2 ? 'rgba(255,255,255,0.55)' : line }} />
+              <div className="w-2/3 h-1 rounded mt-1" style={{ background: i === 2 ? 'rgba(255,255,255,0.35)' : line }} />
             </div>
           ))}
         </div>
@@ -353,8 +361,19 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
   // 실시간 미리보기: 호버 중인 팔레트 > 선택된 팔레트
   const previewId = hoveredPalette || templateId;
   const previewTemplate = getComposedTemplate(layoutId, previewId);
+  const previewColors = previewTemplate.colors;
   const previewPalette = COLOR_PALETTES.find(p => p.id === previewId);
-  const SAMPLE_SLIDE = { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' };
+  const selectedPaletteColors = getComposedTemplate(layoutId, templateId).colors;
+
+  const LAYOUT_SAMPLE_SLIDES = {
+    'standard': { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' },
+    'narrative': { layout: 'narrative-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STORY PORTFOLIO' },
+    'star': { layout: 'star-cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차', sectionLabel: 'STAT / STAR' },
+    'kpi-dashboard': { layout: 'kpi-cover', title: '홍길동', subtitle: 'AI · 풀스택 개발자', sectionLabel: 'PERFORMANCE DASHBOARD' },
+    'timeline': { layout: 'timeline-cover', title: '홍길동', subtitle: '성장 곡선을 숫자로 증명합니다', sectionLabel: 'TIMELINE' },
+    'case-study': { layout: 'cs-cover', title: '사용자 경험을 기술로 설계하는\n프론트엔드 개발자, 홍길동', subtitle: '단순 구현을 넘어 최적의 의사결정으로 문제를 해결합니다.', sectionLabel: 'TECHNICAL CASE STUDY', bullets: ['홍길동', '프론트엔드'] },
+  };
+  const SAMPLE_SLIDE = LAYOUT_SAMPLE_SLIDES[layoutId] || LAYOUT_SAMPLE_SLIDES['standard'];
   const PREVIEW_W = 540;
 
   // ── 팔레트 선택 단계 ────────────────────────────────────────────────────
@@ -439,18 +458,25 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
 
           {/* Right: 실시간 슬라이드 미리보기 */}
           <div className="flex-1 space-y-2">
-            <p className="text-xs font-medium text-gray-400">
-              미리보기 — <span className="text-gray-700 font-semibold">{previewPalette?.name}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-gray-400">
+                미리보기 — <span className="font-semibold" style={{ color: previewColors?.accent || '#FF4F1A' }}>{previewPalette?.name}</span>
+              </p>
+              <div className="flex gap-1">
+                {[previewColors?.headBg, previewColors?.accent, previewColors?.bg].filter(Boolean).map((c, i) => (
+                  <span key={i} style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: c, border: '1px solid rgba(0,0,0,0.12)' }} />
+                ))}
+              </div>
+            </div>
             <div
               style={{
                 width: PREVIEW_W,
                 height: Math.round(PREVIEW_W * 9 / 16),
                 overflow: 'hidden',
                 borderRadius: 12,
-                boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
-                border: '1px solid rgba(0,0,0,0.07)',
-                transition: 'box-shadow 0.15s',
+                boxShadow: `0 4px 24px rgba(0,0,0,0.15)`,
+                border: `2px solid ${previewColors?.accent || 'rgba(0,0,0,0.07)'}44`,
+                transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
             >
               <SlidePreview
@@ -507,7 +533,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
             {/* 썸네일 */}
             <div className="w-full h-32 rounded-lg mb-3 bg-gray-50 border border-surface-200 overflow-hidden flex items-center justify-center">
               {layout.available
-                ? <LayoutThumb layoutId={layout.id} />
+                ? <LayoutThumb layoutId={layout.id} colors={selectedPaletteColors} />
                 : <Lock size={22} className="text-gray-300" />
               }
             </div>
