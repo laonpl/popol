@@ -1046,7 +1046,7 @@ export default function StructuredResult() {
         setEditingSections(autoEdit);
       }
       // Load images & jobAnalysis from Firestore (navState doesn't include them)
-      (async () => {
+      if (!navState.isTutorialDemo) (async () => {
         try {
           const docSnap = await getDoc(doc(db, 'experiences', id));
           if (docSnap.exists()) {
@@ -2012,10 +2012,20 @@ export default function StructuredResult() {
     <div className="animate-fadeIn w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between mb-4">
-        <Link to="/app/experience" className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
-          <ArrowLeft size={15} /> 경험 목록으로
-        </Link>
-        {viewOnly ? (
+        {navState?.isTutorialDemo ? (
+          <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
+            <ArrowLeft size={15} /> 튜토리얼로 돌아가기
+          </Link>
+        ) : (
+          <Link to="/app/experience" className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
+            <ArrowLeft size={15} /> 경험 목록으로
+          </Link>
+        )}
+        {navState?.isTutorialDemo ? (
+          <span className="px-4 py-2 text-[12px] font-semibold text-primary-600 bg-primary-50 rounded-lg border border-primary-100">
+            가상 경험 예시 화면 (저장되지 않음)
+          </span>
+        ) : viewOnly ? (
           <button
             onClick={() => {
               openAllSections();

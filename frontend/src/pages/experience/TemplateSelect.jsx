@@ -1094,11 +1094,13 @@ export default function TemplateSelect() {
       actionLabel: '예시 정보 채우기',
       onAction: fillTutorialBasics,
       preview: <p>실제 저장 없이 화면에만 샘플 값이 입력됩니다.</p>,
+      onEnter: () => setStep(1),
     },
     {
       selector: '[data-tour="create-to-data"]',
       title: '자료 수집으로 눌러서 다음 단계로 이동해보세요',
       body: '기본 정보가 채워졌다면 자료 수집 단계로 넘어갑니다. 여기서 파일, 링크, 직접 입력 자료를 넣을 수 있습니다.',
+      onEnter: () => { if (!title.trim() || !startDate || !jobCategory) fillTutorialBasics(); setStep(1); },
     },
     {
       selector: '[data-tour="create-text-input"]',
@@ -1106,6 +1108,7 @@ export default function TemplateSelect() {
       body: '튜토리얼에서는 파일 업로드 대신 짧은 샘플 텍스트를 넣고, 이 내용에서 핵심 경험이 추출되는 과정을 보여드립니다.',
       actionLabel: '예시 자료 입력하기',
       onAction: fillTutorialInput,
+      onEnter: moveTutorialToDataStep,
       onPrev: () => setStep(1),
     },
     {
@@ -1113,28 +1116,43 @@ export default function TemplateSelect() {
       title: 'AI 경험 추출을 눌러서 만들어지는 과정을 확인해보세요',
       body: '이 버튼을 누르면 예시 자료가 처리되고, 핵심 경험 후보가 CARL 구조로 정리되는 과정을 화면에서 보여드립니다.',
       preview: <p>튜토리얼 실행 중에는 실제 AI 호출이나 DB 저장을 하지 않습니다.</p>,
+      onEnter: moveTutorialToDataStep,
+      onPrev: () => { clearTutorialTimers(); setTutorialExtracting(false); },
     },
     {
       selector: '[data-tour="create-moment-list"]',
       title: '추출된 가상 경험을 눌러서 확인해보세요',
       body: '예시 자료에서 경험 카드가 생성되었습니다. 왼쪽 목록에서 선택하면 제목, 행동, 성과, 배운 점을 확인하고 수정할 수 있습니다.',
+      onEnter: () => { if (moments.length === 0 && !tutorialExtracting) runTutorialExtraction(); },
       onPrev: () => { clearTutorialTimers(); setTutorialExtracting(false); setMoments([]); setStep(2); },
     },
     {
       selector: '[data-tour="create-manual-add"]',
       title: '새 경험 추가를 눌러서 직접 만드는 예시도 확인해보세요',
       body: 'AI가 추출한 경험 외에도 직접 경험을 추가할 수 있습니다. 버튼을 눌러서 미리 채워진 작성 폼을 열어보세요.',
+      onEnter: () => {
+        setIsCreatingNew(false);
+        if (moments.length === 0) {
+          const m = createTutorialMoment('tutorial-fast');
+          setMoments([m]);
+          setCurrentMomentIdx(0);
+          setStep(4);
+        }
+      },
     },
     {
       selector: '[data-tour="create-manual-form"]',
       title: '가상 경험을 눌러서 목록에 추가해보세요',
       body: '폼에는 제목, 배경, 행동, 결과, 배운 점이 샘플로 채워져 있습니다. 아래 버튼을 누르면 경험 목록에 하나 더 추가됩니다.',
+      onEnter: openTutorialManualForm,
       onPrev: () => setIsCreatingNew(false),
     },
     {
       selector: '[data-tour="create-final-submit"]',
       title: '검토가 끝나면 구조화를 시작합니다',
       body: '실제 사용에서는 이 버튼을 눌러 경험을 저장하고 포트폴리오 섹션을 생성합니다. 이 버튼을 직접 눌러 튜토리얼 완료 흐름을 확인해보세요.',
+      onEnter: () => setIsCreatingNew(false),
+      onPrev: openTutorialManualForm,
     },
   ];
 
