@@ -148,19 +148,22 @@ function normalizePortfolio(p) {
 }
 
 // ── 2) 템플릿 슬라이드 분류 ──────────────────────────────────────────────────
+// 한국어 포트폴리오 템플릿의 다양한 변형(표지/커버/메인/Hero, 사례/케이스/주요 경험 등)을 잡기 위해
+// 키워드를 충분히 넓혀둠. 매칭은 점수 가산식이므로 키워드 중복(예: '소개'가 cover/about/project에 모두 등장)은
+// scoreFor에서 합산되어 가장 강한 신호가 이김 — 중복을 두려워하지 말 것.
 const KIND_KEYWORDS = {
-  cover:     ['표지', '커버', '포트폴리오', 'portfolio', '이름', 'profile', '프로필'],
-  about:     ['소개', '자기소개', '가치관', '비전', '미션', 'about', 'values', '강점', 'introduction'],
-  skills:    ['기술', '스킬', '스택', '역량', '도구', '프레임워크', '언어', 'skill', 'stack', 'tool', 'framework', 'tech'],
-  project:   ['프로젝트', 'project', '작업물', '소개', '개요', 'overview', 'case study', 'work'],
-  metric:    ['지표', '수치', '차트', '그래프', '데이터', 'kpi', 'metric', '%', 'before', 'after', '↑', '↓', '증가', '감소'],
-  problem:   ['문제', '배경', '이슈', 'problem', 'issue', 'background', '핵심행동', '진행', '과정', 'task', 'process', 'action', '해결', 'solution', 'ideate', 'prototype', 'develop', 'test', 'iteration', 'research'],
-  result:    ['결과', '성과', '결과물', 'result', 'output', 'achievement', '산출물'],
-  growth:    ['성장', '배운', '회고', '학습', 'growth', 'learning', 'retrospect', '나의 역량', 'competency'],
-  experience:['경력', '경험', '활동', '인턴', '업무', 'experience', 'career', 'work'],
-  education: ['학력', '교육', '학교', '전공', '학과', 'education', 'degree'],
-  awards:    ['수상', '상', '자격', '인증', 'award', 'certificate', 'license'],
-  contact:   ['연락처', '이메일', '문의', 'contact', 'email', '@'],
+  cover:     ['표지', '커버', '포트폴리오', 'portfolio', '이름', 'profile', '프로필', '메인', 'main', 'hero', 'intro', '소개합니다', '안녕하세요', 'opening'],
+  about:     ['소개', '자기소개', '가치관', '비전', '미션', 'about', 'values', '강점', 'introduction', '저는', 'who am i', 'who i am', '핵심 가치', 'philosophy', '나를'],
+  skills:    ['기술', '스킬', '스택', '역량', '도구', '프레임워크', '언어', 'skill', 'stack', 'tool', 'framework', 'tech', 'expertise', '전문성', '핵심 역량', 'core competency', 'capability', '능력'],
+  project:   ['프로젝트', 'project', '작업물', '개요', 'overview', 'case study', 'case', 'work', '사례', '케이스', '주요 경험', '대표 프로젝트', '프로젝트 사례', '프로젝트 #', '01', '02', '03', 'representative'],
+  metric:    ['지표', '수치', '차트', '그래프', '데이터', 'kpi', 'metric', '%', 'before', 'after', '↑', '↓', '증가', '감소', '임팩트', 'impact', '전환', '효율', '절감', '개선', '배', 'x배', 'roi', 'mau', 'dau', '향상', '단축', '달성'],
+  problem:   ['문제', '배경', '이슈', 'problem', 'issue', 'background', '핵심행동', '진행', '과정', 'task', 'process', 'action', '해결', 'solution', 'ideate', 'prototype', 'develop', 'test', 'iteration', 'research', '도전', 'challenge', '접근', 'approach', 'how', '실행', '수행'],
+  result:    ['결과', '성과', '결과물', 'result', 'output', 'achievement', '산출물', '효과', '임팩트', 'impact', '달성', 'outcome', '성취', '완성', 'delivered'],
+  growth:    ['성장', '배운', '회고', '학습', 'growth', 'learning', 'retrospect', '나의 역량', 'competency', 'lesson', 'takeaway', 'reflection', '교훈', '회고록', 'what i learned', '깨달은'],
+  experience:['경력', '경험', '활동', '인턴', '업무', 'experience', 'career', 'work history', '재직', '이력', 'history', 'timeline'],
+  education: ['학력', '교육', '학교', '전공', '학과', 'education', 'degree', '졸업', 'university', 'school', '대학', '학위'],
+  awards:    ['수상', '상', '자격', '인증', 'award', 'certificate', 'license', '인정', 'recognition', '취득', 'achievement', '자격증'],
+  contact:   ['연락처', '이메일', '문의', 'contact', 'email', '@', '연결', 'reach out', 'get in touch', '메일', 'thank you', 'thanks', '감사합니다', 'final', '마무리', 'closing'],
 };
 
 function classifySlideKind(tplSlide) {
@@ -443,29 +446,41 @@ function buildSlots(layout, step) {
   return slots;
 }
 
+// 박스의 originalText / 폰트 크기 / 글자 한도를 보고 의도(metric/title/tag/...)를 추론.
+// Why: 같은 슬라이드에 비슷한 크기의 박스가 여럿 있을 때, 어느 박스가 무엇을 위한 자리인지
+// 정확히 구분되어야 Gemini가 엉뚱한 자리에 텍스트를 넣지 않는다. 한국어 변형·단위·번호 패턴을 충분히 인식.
 function inferSlotIntent(box, { maxFont, maxChars, originalText }) {
   const fontPt = Math.round(box.fontPt || 14);
   const text = originalText.toLowerCase();
+  const trimmed = originalText.trim();
   const has = (...words) => words.some(w => text.includes(w));
+  // 한국어/영문 단계 라벨(IDEATE/Phase 1/1단계/STEP 01 등)
+  const isStageLabel = has('ideate', 'prototype', 'develop', 'test', 'research', 'define', 'discover',
+    'phase', 'step', '단계', '①', '②', '③', '④', '⑤')
+    || /^(phase|step|stage)\s*\d/i.test(trimmed)
+    || /^\d+\s*단계$/.test(trimmed);
+  if (isStageLabel) return { hint: 'heading', semanticRole: 'stage' };
 
-  if (has('ideate', 'prototype', 'develop', 'test', 'research', 'define', 'discover')) {
-    return { hint: 'heading', semanticRole: 'stage' };
-  }
-  if (has('metric', 'kpi', '성과', '지표', 'before', 'after') || /^[+\-]?\d+([.,]\d+)?(%|ms|s|배|개|원|회|점|위)?$/.test(originalText.trim())) {
+  // 숫자/단위/증감 화살표 — 한국어 단위(명/건/억/만/주/일/시간 등) 보강
+  const isNumeric = /^[+\-]?\d+([.,]\d+)?(%|%p|ms|s|배|개|원|회|점|위|명|건|억|만|주|일|시간|분|x|X|K|M|B|kg|MB|GB|TB|↑|↓|→)?$/.test(trimmed)
+    || /^[↑↓→]\s*[+\-]?\d/.test(trimmed)
+    || /^\d+([.,]\d+)?\s*(→|->|to)\s*\d/.test(trimmed);
+  if (isNumeric || has('metric', 'kpi', '성과', '지표', 'before', 'after', '임팩트', 'impact', '전환', '효율', '절감', '향상')) {
     return { hint: 'metric', semanticRole: 'metric' };
   }
-  if (has('tech', 'stack', 'skill', 'tools', '기술', '스택', '도구')) {
+  if (has('tech', 'stack', 'skill', 'tools', '기술', '스택', '도구', '프레임워크', '언어', 'framework', 'expertise')) {
     return { hint: maxChars <= 20 ? 'tag' : 'body', semanticRole: 'tech' };
   }
-  if (has('period', 'date', 'role', '기간', '역할')) {
+  if (has('period', 'date', 'role', '기간', '역할', '소속', '회사', 'company', '날짜', 'when', 'where')) {
     return { hint: 'heading', semanticRole: 'meta' };
   }
-  if (has('link', 'url', 'github', 'demo', '링크')) {
+  if (has('link', 'url', 'github', 'demo', '링크', 'live', 'website', 'http')) {
     return { hint: 'body', semanticRole: 'link' };
   }
   if (box.role === 'title' || (maxFont > 0 && fontPt >= maxFont * 0.9 && fontPt >= 24)) {
     return { hint: 'title', semanticRole: 'title' };
   }
+  // 큰 폰트 + 작은 글자수 한도 → 메트릭 자리 (예: 한 화면에 "85%"만 들어가는 큰 칸)
   if (fontPt >= 28 && maxChars <= 14) {
     return { hint: 'metric', semanticRole: 'metric' };
   }

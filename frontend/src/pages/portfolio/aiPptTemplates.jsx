@@ -2431,21 +2431,21 @@ function renderKpiMetrics(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 34, height: 150, border: `1px solid ${line}`, background: panel, padding: '16px 22px' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>{chartTitle}</div>
-        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>TOTAL IMPACT VERIFIED</div>
-        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
-          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
-          {[46, 72, 88, 64].map((h, i) => (
+        <div style={{ position: 'absolute', right: 22, top: 16, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>TOTAL IMPACT VERIFIED</div>
+        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 24, height: 82 }}>
+          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 18, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+          {[38, 58, 72, 52].map((h, i) => (
             <div key={i} style={{ position: 'absolute', left: 0, bottom: 0 }}>
               <div style={{ position: 'absolute', left: 64 + i * 160, bottom: 0, width: 76, height: h, background: i % 2 ? mint : blue }} />
               <div style={{ position: 'absolute', left: 64 + i * 160 + 86, bottom: 0, width: 76, height: Math.max(18, h - 24), background: 'rgba(126,147,179,0.34)' }} />
@@ -2519,19 +2519,19 @@ function renderKpiTechnical(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: muted, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 34, height: 150, border: `1px solid ${line}`, background: panel, padding: '16px 22px', overflow: 'hidden' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>RESPONSE LATENCY TREND</div>
-        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>PERFORMANCE OPTIMIZED</div>
-        <svg style={{ position: 'absolute', left: 22, bottom: 20, width: '92%', height: 110 }} viewBox="0 0 900 110">
+        <div style={{ position: 'absolute', right: 22, top: 16, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>PERFORMANCE OPTIMIZED</div>
+        <svg style={{ position: 'absolute', left: 22, bottom: 20, width: '92%', height: 86 }} viewBox="0 0 900 110">
           {[0, 1, 2, 3, 4].map(i => <line key={i} x1="0" y1={20 + i * 22} x2="900" y2={20 + i * 22} stroke="rgba(126,147,179,0.18)" strokeWidth="1" />)}
           <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={blue} strokeWidth="2.5" />
           {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="5" fill={mint} />)}
@@ -2594,21 +2594,21 @@ function renderKpiCumulative(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 34, height: 150, border: `1px solid ${line}`, background: panel, padding: '16px 22px' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>CUMULATIVE PERFORMANCE COMPARISON</div>
-        <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>3 PROJECTS VERIFIED</div>
-        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
-          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
-          {[65, 82, 90].map((h, i) => (
+        <div style={{ position: 'absolute', right: 22, top: 16, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>3 PROJECTS VERIFIED</div>
+        <div style={{ position: 'absolute', left: 42, right: 26, bottom: 24, height: 82 }}>
+          {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 18, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+          {[54, 68, 74].map((h, i) => (
             <div key={i} style={{ position: 'absolute', bottom: 0 }}>
               <div style={{ position: 'absolute', left: 30 + i * 270, bottom: 0, width: 58, height: h, background: blue }} />
               <div style={{ position: 'absolute', left: 100 + i * 270, bottom: 0, width: 58, height: Math.max(20, h - 20), background: mint }} />
@@ -2642,18 +2642,18 @@ function renderKpiRoadmap(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 236, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `GOAL ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 155, border: `1px solid ${line}`, background: panel, padding: '22px 26px' }}>
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 34, height: 150, border: `1px solid ${line}`, background: panel, padding: '18px 26px' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 11, letterSpacing: '0.08em' }}>TECHNICAL GROWTH ROADMAP</div>
-        <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
+        <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
           {phaseData.map((phase, i) => (
             <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}>
               <div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{phase.period || `PHASE ${i + 1}`}</div>
@@ -2778,25 +2778,25 @@ function renderKpiReferenceSlide(slide, t, v, index) {
     value: line.period || ['85%', '99.9%', '94%'][i],
   }))).slice(0, 3);
 
-  const metricRow = (top = 236) => (
+  const metricRow = (top = 218) => (
     <div style={{ position: 'absolute', left: 58, right: 58, top, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
       {metricCards.map((m, i) => (
-        <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24, minHeight: 120 }}>
+        <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
           <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || data[i]?.heading || `KPI ${i + 1}`).toUpperCase()}</div>
-          <div style={{ marginTop: 18, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricText(m, ['85%', '99.9%', '94%'][i]), 44), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricText(m, ['85%', '99.9%', '94%'][i])}</div>
-          <div style={{ marginTop: 12, color: muted, fontSize: 13, lineHeight: 1.35, ...textClamp(2) }}>{data[i]?.body || subtitle || 'Measured portfolio performance signal'}</div>
+          <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricText(m, ['85%', '99.9%', '94%'][i]), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricText(m, ['85%', '99.9%', '94%'][i])}</div>
+          <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{data[i]?.body || subtitle || 'Measured portfolio performance signal'}</div>
         </div>
       ))}
     </div>
   );
 
   const chartPanel = (titleText = 'PERFORMANCE TREND', note = 'TOTAL IMPACT VERIFIED') => (
-    <div style={{ position: 'absolute', left: 58, right: 58, bottom: 40, height: 180, border: `1px solid ${line}`, background: panel, padding: '20px 22px' }}>
+    <div style={{ position: 'absolute', left: 58, right: 58, bottom: 34, height: 150, border: `1px solid ${line}`, background: panel, padding: '16px 22px' }}>
       <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>{titleText}</div>
-      <div style={{ position: 'absolute', right: 22, top: 20, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>{note}</div>
-      <div style={{ position: 'absolute', left: 42, right: 26, bottom: 30, height: 100 }}>
-        {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 22, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
-        {[46, 72, 88, 64].map((h, i) => (
+      <div style={{ position: 'absolute', right: 22, top: 16, color: mint, fontFamily: mono, fontSize: 10, fontWeight: 800 }}>{note}</div>
+      <div style={{ position: 'absolute', left: 42, right: 26, bottom: 24, height: 82 }}>
+        {[0, 1, 2, 3, 4].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: i * 18, height: 1, background: 'rgba(126,147,179,0.18)' }} />)}
+        {[38, 58, 72, 52].map((h, i) => (
           <div key={i} style={{ position: 'absolute', left: 0, bottom: 0 }}>
             <div style={{ position: 'absolute', left: 64 + i * 160, bottom: 0, width: 76, height: h, background: i % 2 ? mint : blue }} />
             <div style={{ position: 'absolute', left: 64 + i * 160 + 86, bottom: 0, width: 76, height: Math.max(18, h - 24), background: 'rgba(126,147,179,0.34)' }} />
@@ -2926,7 +2926,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
   if (kind === 'roadmap') {
     return shell(<>
       {header(58, 800)}
-      {metricRow(236)}
+      {metricRow(218)}
       <div style={{ position: 'absolute', left: 58, right: 58, bottom: 50, height: 140, border: `1px solid ${line}`, background: panel, padding: '22px 26px' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 11, letterSpacing: '0.08em' }}>TECHNICAL GROWTH ROADMAP</div>
         <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
@@ -2950,7 +2950,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
 
   return shell(<>
     {header(58, 800)}
-    {metricRow(236)}
+    {metricRow(218)}
     {chartPanel(hasAny('recruitment') ? 'RECRUITMENT FUNNEL EFFICIENCY' : 'VALUE DELIVERY TREND', 'TOTAL IMPACT VERIFIED')}
   </>);
 }
@@ -6404,9 +6404,9 @@ function kpiPptMetricRow(s, t, cards, dataRows, top) {
     const x = 0.82 + idx * 4.05;
     const dv = safePptText(metricDisplayValue(m));
     kpiPptRule(s, x, top, 3.45);
-    addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
-    addPptText(s, dv, { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: tf, fontSize: kpiMetricValueFontPt(dv, 31), bold: true, color: mint, fit: 'shrink' });
-    addPptText(s, safePptText(dataRows[idx]?.body || m.body || ''), { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: tb, fontSize: 8.2, color: muted, fit: 'shrink' });
+    addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.2, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
+    addPptText(s, dv, { x, y: top + 0.62, w: 2.5, h: 0.5, fontFace: tf, fontSize: kpiMetricValueFontPt(dv, 29), bold: true, color: mint, fit: 'shrink' });
+    addPptText(s, safePptText(dataRows[idx]?.body || m.body || ''), { x, y: top + 1.22, w: 3.1, h: 0.28, fontFace: tb, fontSize: 7.8, color: muted, fit: 'shrink' });
   });
 }
 
@@ -6532,15 +6532,15 @@ function drawKpiMetricsPptx(s, slide, t, W, H) {
   const chartTitle = safePptText((slide.items || [])[0]?.heading || 'VALUE DELIVERY TREND').toUpperCase();
   kpiPptBase(s, W, H);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
-  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
-  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
-  addPptText(s, chartTitle, { x: 1.05, y: 4.83, w: 5.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
-  addPptText(s, 'TOTAL IMPACT VERIFIED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
-  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
-  [0.55, 0.82, 1.1, 0.74].forEach((h, idx) => {
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
+  s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, chartTitle, { x: 1.05, y: 5.07, w: 5.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, 'TOTAL IMPACT VERIFIED', { x: 9.45, y: 5.07, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.22 - row * 0.24, 10.45, '2C3B55'));
+  [0.45, 0.65, 0.86, 0.58].forEach((h, idx) => {
     const x = 1.72 + idx * 2.25;
-    s.addShape('rect', { x, y: 6.1 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
-    s.addShape('rect', { x: x + 0.92, y: 6.1 - Math.max(0.25, h - 0.25), w: 0.76, h: Math.max(0.25, h - 0.25), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
+    s.addShape('rect', { x, y: 6.22 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+    s.addShape('rect', { x: x + 0.92, y: 6.22 - Math.max(0.2, h - 0.18), w: 0.76, h: Math.max(0.2, h - 0.18), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
   });
 }
 
@@ -6583,20 +6583,20 @@ function drawKpiTechnicalPptx(s, slide, t, W, H) {
   ];
   kpiPptBase(s, W, H);
   kpiPptHeader(s, t, label, title, 0.8, 8.4, muted);
-  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
-  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
-  addPptText(s, 'RESPONSE LATENCY TREND', { x: 1.05, y: 4.83, w: 4.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
-  addPptText(s, 'PERFORMANCE OPTIMIZED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
-  const lineY = [6.1, 5.82, 5.54, 5.26, 4.98];
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
+  s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'RESPONSE LATENCY TREND', { x: 1.05, y: 5.07, w: 4.0, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, 'PERFORMANCE OPTIMIZED', { x: 9.45, y: 5.07, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  const lineY = [6.22, 5.98, 5.74, 5.5, 5.26];
   lineY.forEach(y => kpiPptRule(s, 1.35, y, 10.45, '2C3B55'));
   [30, 55, 42, 70, 60, 85, 78].forEach((h, idx) => {
-    const normH = h / 100 * 1.1;
+    const normH = h / 100 * 0.95;
     const x = 1.6 + idx * 1.45;
-    s.addShape('ellipse', { x, y: 6.1 - normH, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
+    s.addShape('ellipse', { x, y: 6.22 - normH, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
     if (idx < 6) {
       const nx = 1.6 + (idx + 1) * 1.45;
-      const ny = 6.1 - [30, 55, 42, 70, 60, 85][idx + 1 < 7 ? idx + 1 : idx] / 100 * 1.1;
-      s.addShape('rect', { x, y: 6.1 - normH, w: nx - x, h: 0.015, fill: { color: blue }, line: { color: blue } });
+      const ny = 6.22 - [30, 55, 42, 70, 60, 85][idx + 1 < 7 ? idx + 1 : idx] / 100 * 0.95;
+      s.addShape('rect', { x, y: 6.22 - normH, w: nx - x, h: 0.015, fill: { color: blue }, line: { color: blue } });
     }
   });
 }
@@ -6636,17 +6636,17 @@ function drawKpiCumulativePptx(s, slide, t, W, H) {
   ];
   kpiPptBase(s, W, H);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
-  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
-  s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
-  addPptText(s, 'CUMULATIVE PERFORMANCE COMPARISON', { x: 1.05, y: 4.83, w: 5.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
-  addPptText(s, '3 PROJECTS VERIFIED', { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
-  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
+  s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'CUMULATIVE PERFORMANCE COMPARISON', { x: 1.05, y: 5.07, w: 5.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  addPptText(s, '3 PROJECTS VERIFIED', { x: 9.45, y: 5.07, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+  [0, 1, 2, 3, 4].forEach(row => kpiPptRule(s, 1.35, 6.22 - row * 0.24, 10.45, '2C3B55'));
   [65, 82, 90].forEach((h, idx) => {
-    const bh = h / 100 * 1.5;
+    const bh = h / 100 * 1.15;
     const mh = Math.max(0.2, bh - 0.2);
     const x = 1.72 + idx * 3.5;
-    s.addShape('rect', { x, y: 6.1 - bh, w: 0.76, h: bh, fill: { color: blue }, line: { color: blue } });
-    s.addShape('rect', { x: x + 0.92, y: 6.1 - mh, w: 0.76, h: mh, fill: { color: mint }, line: { color: mint } });
+    s.addShape('rect', { x, y: 6.22 - bh, w: 0.76, h: bh, fill: { color: blue }, line: { color: blue } });
+    s.addShape('rect', { x: x + 0.92, y: 6.22 - mh, w: 0.76, h: mh, fill: { color: mint }, line: { color: mint } });
   });
 }
 
@@ -6664,15 +6664,15 @@ function drawKpiRoadmapPptx(s, slide, t, W, H) {
   const phases = (slide.items || []).slice(0, 3);
   kpiPptBase(s, W, H);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
-  kpiPptMetricRow(s, t, metricCards, metricCards, 2.45);
-  s.addShape('rect', { x: 0.82, y: 4.75, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
-  addPptText(s, 'TECHNICAL GROWTH ROADMAP', { x: 1.08, y: 5.02, w: 3.0, h: 0.16, fontFace: mono, fontSize: 7.5, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+  kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
+  s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
+  addPptText(s, 'TECHNICAL GROWTH ROADMAP', { x: 1.08, y: 5.08, w: 3.0, h: 0.16, fontFace: mono, fontSize: 7.5, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
   phases.forEach((phase, idx) => {
     const x = 1.15 + idx * 3.75;
-    s.addShape('rect', { x, y: 5.55, w: 0.02, h: 0.55, fill: { color: blue }, line: { color: blue } });
-    addPptText(s, safePptText(phase.period || `PHASE ${idx + 1}`), { x: x + 0.18, y: 5.42, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue });
-    addPptText(s, safePptText(phase.heading), { x: x + 0.18, y: 5.65, w: 2.7, h: 0.2, fontFace: tf, fontSize: 10.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
-    addPptText(s, safePptText(phase.body), { x: x + 0.18, y: 5.92, w: 2.8, h: 0.28, fontFace: tb, fontSize: 7.2, color: 'A9C7E8', fit: 'shrink' });
+    s.addShape('rect', { x, y: 5.55, w: 0.02, h: 0.5, fill: { color: blue }, line: { color: blue } });
+    addPptText(s, safePptText(phase.period || `PHASE ${idx + 1}`), { x: x + 0.18, y: 5.4, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue });
+    addPptText(s, safePptText(phase.heading), { x: x + 0.18, y: 5.62, w: 2.7, h: 0.2, fontFace: tf, fontSize: 10.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, safePptText(phase.body), { x: x + 0.18, y: 5.88, w: 2.8, h: 0.28, fontFace: tb, fontSize: 7.2, color: 'A9C7E8', fit: 'shrink' });
   });
 }
 
@@ -6756,24 +6756,24 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
     label: lineItem.heading || ['Efficiency', 'Reliability', 'Impact'][idx],
     value: lineItem.period || ['85%', '99.9%', '94%'][idx],
   }))).slice(0, 3);
-  const addMetricRow = (top = 2.55) => {
+  const addMetricRow = (top = 2.25) => {
     metricCards.forEach((m, idx) => {
       const x = 0.82 + idx * 4.05;
       addRule(x, top, 3.45);
-      addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.25, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
-      { const dv = safePptText(metricDisplayValue(m)); addPptText(s, dv, { x, y: top + 0.78, w: 2.5, h: 0.55, fontFace: titleFont, fontSize: kpiMetricValueFontPt(dv, 31), bold: true, color: mint, fit: 'shrink' }); }
-      addPptText(s, data[idx]?.body || subtitle || 'Measured portfolio performance signal', { x, y: top + 1.48, w: 3.1, h: 0.35, fontFace: t.fonts.body, fontSize: 8.2, color: muted, fit: 'shrink' });
+      addPptText(s, safePptText(m.label || `KPI ${idx + 1}`).toUpperCase(), { x, y: top + 0.2, w: 2.8, h: 0.16, fontFace: mono, fontSize: 7.2, bold: true, color: blue, charSpacing: 0.8, fit: 'shrink' });
+      { const dv = safePptText(metricDisplayValue(m)); addPptText(s, dv, { x, y: top + 0.62, w: 2.5, h: 0.5, fontFace: titleFont, fontSize: kpiMetricValueFontPt(dv, 29), bold: true, color: mint, fit: 'shrink' }); }
+      addPptText(s, data[idx]?.body || subtitle || 'Measured portfolio performance signal', { x, y: top + 1.22, w: 3.1, h: 0.28, fontFace: t.fonts.body, fontSize: 7.8, color: muted, fit: 'shrink' });
     });
   };
   const addChart = (chartTitle = 'VALUE DELIVERY TREND', note = 'TOTAL IMPACT VERIFIED') => {
-    s.addShape('rect', { x: 0.82, y: 4.55, w: 11.7, h: 2.05, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
-    addPptText(s, chartTitle, { x: 1.05, y: 4.83, w: 4.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
-    addPptText(s, note, { x: 9.45, y: 4.83, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
-    [0, 1, 2, 3, 4].forEach(row => addRule(1.35, 6.1 - row * 0.28, 10.45, '2C3B55'));
-    [0.55, 0.82, 1.1, 0.74].forEach((h, idx) => {
+    s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
+    addPptText(s, chartTitle, { x: 1.05, y: 5.07, w: 4.5, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
+    addPptText(s, note, { x: 9.45, y: 5.07, w: 2.6, h: 0.16, fontFace: mono, fontSize: 7.4, bold: true, color: mint, align: 'right', fit: 'shrink' });
+    [0, 1, 2, 3, 4].forEach(row => addRule(1.35, 6.22 - row * 0.24, 10.45, '2C3B55'));
+    [0.45, 0.65, 0.86, 0.58].forEach((h, idx) => {
       const x = 1.72 + idx * 2.25;
-      s.addShape('rect', { x, y: 6.1 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
-      s.addShape('rect', { x: x + 0.92, y: 6.1 - Math.max(0.25, h - 0.25), w: 0.76, h: Math.max(0.25, h - 0.25), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
+      s.addShape('rect', { x, y: 6.22 - h, w: 0.76, h, fill: { color: idx % 2 ? mint : blue }, line: { color: idx % 2 ? mint : blue } });
+      s.addShape('rect', { x: x + 0.92, y: 6.22 - Math.max(0.2, h - 0.18), w: 0.76, h: Math.max(0.2, h - 0.18), fill: { color: muted, transparency: 55 }, line: { color: muted, transparency: 100 } });
     });
   };
 
@@ -6886,7 +6886,7 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
 
   if (kind === 'roadmap') {
     addHeader(0.8, 8.4);
-    addMetricRow(2.45);
+    addMetricRow(2.25);
     s.addShape('rect', { x: 0.82, y: 4.75, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
     addPptText(s, 'TECHNICAL GROWTH ROADMAP', { x: 1.08, y: 5.02, w: 3.0, h: 0.16, fontFace: mono, fontSize: 7.5, bold: true, color: 'A9C7E8', charSpacing: 0.8 });
     data.slice(0, 3).forEach((lineItem, idx) => {
@@ -6913,7 +6913,7 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
   }
 
   addHeader(0.8, 8.4);
-  addMetricRow(2.45);
+  addMetricRow(2.25);
   addChart(hasAny(['recruitment']) ? 'RECRUITMENT FUNNEL EFFICIENCY' : 'VALUE DELIVERY TREND', 'TOTAL IMPACT VERIFIED');
 }
 
