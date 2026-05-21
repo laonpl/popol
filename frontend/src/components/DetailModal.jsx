@@ -22,7 +22,7 @@ function parseStarText(content) {
   return Object.keys(result).length > 0 ? result : null;
 }
 
-export default function DetailModal({ type, data, onClose, closeLabel = '닫기' }) {
+export default function DetailModal({ type, data, onClose, closeLabel = '닫기', onViewFull }) {
   const [experienceMap, setExperienceMap] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -242,7 +242,15 @@ export default function DetailModal({ type, data, onClose, closeLabel = '닫기'
           )}
         </div>
 
-        <div className="p-4 border-t border-surface-200 flex justify-end">
+        <div className="p-4 border-t border-surface-200 flex items-center justify-between">
+          {onViewFull ? (
+            <button
+              onClick={onViewFull}
+              className="px-5 py-2.5 text-sm font-semibold text-primary-600 hover:bg-primary-50 rounded-xl transition-colors"
+            >
+              경험 전체 보기 →
+            </button>
+          ) : <span />}
           <button
             onClick={onClose}
             className="px-5 py-2.5 text-sm text-gray-500 hover:bg-surface-100 rounded-xl transition-colors"

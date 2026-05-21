@@ -82,9 +82,16 @@ function createTutorialExperience() {
     structuredResult: {
       projectOverview: {
         role: 'PM / 프론트엔드',
+        goal: '학생들이 놓치는 공지를 줄이고 반복 확인 시간을 낮추는 것',
         summary: '학생들이 놓치던 공지 확인 흐름을 개선하기 위해 가설 수립, 인터뷰, 프로토타입 검증을 진행했습니다.',
         duration: `${year}.03 ~ ${year}.06`,
+        techStack: ['Figma', 'React', 'Firebase'],
       },
+      intro: '학생들이 공지를 확인하는 과정에서 반복적으로 놓치는 지점을 발견하고 개선 프로젝트를 시작했습니다. 여러 채널에 분산된 공지가 문제였습니다.',
+      task: '인터뷰 질문 설계, 문제 패턴 정리, 핵심 화면 프로토타입 제작을 맡았습니다. 팀 내에서 PM과 프론트엔드 역할을 겸했습니다.',
+      process: '12명의 사용자를 인터뷰하고 주요 불편을 3가지 흐름으로 묶어 우선순위를 정했습니다. 각 흐름별로 핵심 화면을 설계하고 빠르게 프로토타입을 제작했습니다.',
+      output: '테스트 만족도 4.6/5를 기록했고 공지 확인 누락률을 32% 낮추는 개선안을 도출했습니다. 팀 전체 리뷰에서 즉시 적용 가능한 안으로 채택되었습니다.',
+      growth: '정성 인터뷰를 실제 화면 구조와 성과 지표로 연결하는 경험을 얻었습니다. 수치 없이 체감만으로 문제를 정의했을 때와 달리 설득력이 크게 높아졌습니다.',
       keyExperiences: [
         { title: '인터뷰 12건으로 문제 패턴 정리', metric: '공지 확인 누락률 32% 감소' },
         { title: '핵심 화면 3개를 빠르게 프로토타입 제작', metric: '테스트 만족도 4.6/5' },
@@ -375,19 +382,19 @@ export default function ExperienceHub() {
       title: '새 경험 추가를 눌러서 작성 화면으로 들어가보세요',
       body: '이 버튼을 누르면 실제 새 경험 작성 화면으로 이동하고, 다음 화면에서 가상 경험이 만들어지는 과정을 이어서 보여드립니다.',
       preview: <p>실제 저장이나 AI 호출 없이, 작성 화면 안에서 샘플 경험 생성 흐름을 확인합니다.</p>,
-      hideNav: true,
     },
     {
       selector: '[data-tour="experience-demo-bar"]',
       title: '생성된 경험을 눌러서 확인해보세요',
-      body: '가상 경험이 타임라인 맨 위에 추가되었습니다. 바를 클릭하면 상세 내용을 볼 수 있습니다. 확인 후 돌아오면 다음 단계로 이어집니다.',
-      preview: <p>키워드, 성과, 역할 정보가 함께 들어간 예시라서 저장 없이 바로 확인할 수 있습니다.</p>,
+      body: '가상 경험이 타임라인 맨 위에 추가되었습니다. 바를 클릭하면 상세 내용을 볼 수 있고, "경험 전체 보기"를 누르면 실제 경험 편집 화면이 어떻게 구성되는지 확인할 수 있습니다.',
+      preview: <p>키워드, 성과, 역할 정보가 함께 들어간 예시라서 저장 없이 전체 화면을 살펴볼 수 있습니다.</p>,
       onEnter: showTutorialDemo,
     },
     {
       selector: '[data-tour="experience-view-toggle"]',
       title: '표 보기를 눌러서 비교해보세요',
       body: '타임라인에서 기간을 확인했다면 표 보기로 바꿔보세요. 키워드와 성과를 한 줄씩 비교하기 좋아집니다.',
+      onEnter: () => setViewMode('timeline'),
     },
     {
       selector: '[data-tour="experience-demo-row"]',
@@ -397,8 +404,10 @@ export default function ExperienceHub() {
         const demo = tutorialDemoExperience || createTutorialExperience();
         setTutorialDemoExperience(demo);
         setTutorialDemoBuildStep('ready');
+        setEditingId(null);
         setViewMode('table');
       },
+      onPrev: () => setViewMode('timeline'),
     },
     {
       selector: '[data-tour="experience-edit-panel"]',
@@ -411,11 +420,20 @@ export default function ExperienceHub() {
         setViewMode('table');
         startEditing(demo);
       },
+      onPrev: () => setEditingId(null),
     },
     {
       selector: '[data-tour="experience-sort"]',
       title: '정렬을 눌러서 보는 순서를 바꿔보세요',
       body: '직접 정렬, 최신순, 기간순, 즐겨찾기순을 눌러서 경험 목록을 원하는 관점으로 다시 볼 수 있습니다.',
+      onEnter: () => setEditingId(null),
+      onPrev: () => {
+        const demo = tutorialDemoExperience || createTutorialExperience();
+        setTutorialDemoExperience(demo);
+        setTutorialDemoBuildStep('ready');
+        setViewMode('table');
+        startEditing(demo);
+      },
     },
   ], [navigate, dismissTutorial, showTutorialDemo, tutorialDemoExperience]);
 
@@ -915,6 +933,20 @@ export default function ExperienceHub() {
               tutorialRef.current?.next();
             }
           }}
+          onViewFull={detailData.isTutorialDemo ? () => {
+            setDetailData(null);
+            setTutorialDetailOpen(false);
+            navigate('/app/experience/structured/tutorial-demo-experience?view=true', {
+              state: {
+                analysis: detailData.structuredResult,
+                title: detailData.title,
+                framework: 'STRUCTURED',
+                content: { rawInput: '' },
+                isTutorialDemo: true,
+                backUrl: '/app/experience?tutorial=1&step=2',
+              },
+            });
+          } : undefined}
         />
       )}
       {exportData && (

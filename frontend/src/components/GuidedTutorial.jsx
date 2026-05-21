@@ -60,19 +60,26 @@ const GuidedTutorial = forwardRef(function GuidedTutorial({ visible, steps = [],
         hasScrolledToTarget = true;
         target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
       }
-      setRect(getTargetRect(stepSelector));
+      const newRect = getTargetRect(stepSelector);
+      setRect(prev => {
+        if (!prev && !newRect) return prev;
+        if (!prev || !newRect) return newRect;
+        if (prev.top === newRect.top && prev.left === newRect.left &&
+            prev.width === newRect.width && prev.height === newRect.height) return prev;
+        return newRect;
+      });
     };
 
     const timer = window.setTimeout(measure, 220);
     const lateTimer = window.setTimeout(measure, 900);
     const finalTimer = window.setTimeout(measure, 1700);
-    const interval = window.setInterval(measure, 160);
-    const stopInterval = window.setTimeout(() => window.clearInterval(interval), 2600);
+    const interval = window.setInterval(measure, 500);
+    const stopInterval = window.setTimeout(() => window.clearInterval(interval), 3000);
     const observer = typeof MutationObserver !== 'undefined'
       ? new MutationObserver(measure)
       : null;
 
-    observer?.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer?.observe(document.body, { childList: true, subtree: true });
     measure();
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, true);
