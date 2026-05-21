@@ -3165,18 +3165,22 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
 
   if (kind === 'timeline') {
     const marks = data.slice(0, 5);
+    const lineY = 318;
+    const upperTop = 204;
+    const lowerTop = 344;
     return shell(<>
       <div style={{ position: 'absolute', left: 62, top: 82, color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>MASTER TIMELINE</div>
-      <div style={{ position: 'absolute', left: 62, top: 120, width: 460, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 62, right: 62, top: 276, height: 2, background: v.soft }} />
+      <div style={{ position: 'absolute', left: 62, top: 120, width: 520, fontFamily: t.fonts.heading, fontSize: 32, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 62, right: 62, top: lineY, height: 2, background: v.soft }} />
       {marks.map((line, idx) => {
         const x = 126 + idx * 158;
         const top = idx % 2 === 0;
-        return <div key={idx} style={{ position: 'absolute', left: x - 80, top: top ? 112 : 306, width: 170, textAlign: 'center' }}>
-          <div style={{ position: 'absolute', left: 80, top: top ? 158 : -42, width: 10, height: 10, borderRadius: '50%', background: v.accent }} />
-          <div style={{ color: v.accent, fontSize: 16, fontWeight: 950 }}>{line.period || `Phase ${idx + 1}`}</div>
-          <div style={{ marginTop: 16, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-          <div style={{ marginTop: 10, color: v.muted, fontSize: 12, lineHeight: 1.42, ...textClamp(3) }}>{line.body}</div>
+        const cardTop = top ? upperTop : lowerTop;
+        return <div key={idx} style={{ position: 'absolute', left: x - 80, top: cardTop, width: 170, textAlign: 'center' }}>
+          <div style={{ position: 'absolute', left: 80, top: lineY - cardTop - 4, width: 10, height: 10, borderRadius: '50%', background: v.accent }} />
+          <div style={{ minHeight: 20, color: v.accent, fontSize: 15, lineHeight: 1.15, fontWeight: 950, ...textClamp(1) }}>{line.period || `Phase ${idx + 1}`}</div>
+          <div style={{ marginTop: 12, minHeight: 34, fontSize: 13.5, lineHeight: 1.22, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
+          <div style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.38, ...textClamp(3) }}>{line.body}</div>
         </div>;
       })}
     </>);
@@ -7109,15 +7113,16 @@ function drawTimelineReferencePptx(s, slide, t, v, i, W, H) {
 
   if (kind === 'timeline') {
     addPptText(s, 'MASTER TIMELINE', { x: 0.85, y: 1.1, w: 2.2, h: 0.18, fontFace: t.fonts.body, fontSize: 8, bold: true, color: accent, charSpacing: 3 });
-    addPptText(s, title, { x: 0.85, y: 1.6, w: 6.4, h: 0.58, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: ink, fit: 'shrink' });
-    s.addShape('rect', { x: 0.85, y: 3.08, w: W - 1.7, h: 0.018, fill: { color: soft }, line: { color: soft } });
+    addPptText(s, title, { x: 0.85, y: 1.6, w: 7.1, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: ink, fit: 'shrink' });
+    s.addShape('rect', { x: 0.85, y: 4.02, w: W - 1.7, h: 0.018, fill: { color: soft }, line: { color: soft } });
     data.slice(0, 5).forEach((line, idx) => {
       const x = 1.65 + idx * ((W - 3.3) / 4);
       const top = idx % 2 === 0;
-      s.addShape('ellipse', { x: x - 0.065, y: 3.0, w: 0.13, h: 0.13, fill: { color: accent }, line: { color: accent } });
-      addPptText(s, line.period || `STEP ${idx + 1}`, { x: x - 0.82, y: top ? 1.36 : 3.48, w: 1.65, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: accent, align: 'center', fit: 'shrink' });
-      addPptText(s, line.heading, { x: x - 0.95, y: top ? 1.78 : 3.88, w: 1.9, h: 0.26, fontFace: t.fonts.heading, fontSize: 8.8, bold: true, color: ink, align: 'center', fit: 'shrink' });
-      addPptText(s, line.body, { x: x - 0.95, y: top ? 2.16 : 4.26, w: 1.9, h: 0.46, fontFace: t.fonts.body, fontSize: 7.4, color: muted, align: 'center', fit: 'shrink' });
+      const itemY = top ? 2.58 : 4.48;
+      s.addShape('ellipse', { x: x - 0.065, y: 3.955, w: 0.13, h: 0.13, fill: { color: accent }, line: { color: accent } });
+      addPptText(s, line.period || `STEP ${idx + 1}`, { x: x - 0.82, y: itemY, w: 1.65, h: 0.22, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: accent, align: 'center', fit: 'shrink' });
+      addPptText(s, line.heading, { x: x - 0.95, y: itemY + 0.36, w: 1.9, h: 0.4, fontFace: t.fonts.heading, fontSize: 8.4, bold: true, color: ink, align: 'center', fit: 'shrink' });
+      addPptText(s, line.body, { x: x - 0.95, y: itemY + 0.86, w: 1.9, h: 0.48, fontFace: t.fonts.body, fontSize: 7.1, color: muted, align: 'center', fit: 'shrink' });
     });
     return;
   }
