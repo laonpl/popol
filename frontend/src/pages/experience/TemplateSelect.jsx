@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Globe, Github,
@@ -1316,17 +1316,16 @@ export default function TemplateSelect() {
     const handleDeleteAndMove = (id) => {
       deleteMoment(id);
       setCurrentMomentIdx(prev => Math.max(0, Math.min(prev, moments.length - 2)));
-      setEditingMomentId(null);
     };
 
     return (
       <>
       {createTutorialOverlay}
-      <div className="animate-fadeIn max-w-[1180px] mx-auto" style={{ zoom: '0.75' }}>
+      <div className="animate-fadeIn max-w-[95%] 2xl:max-w-[1920px] mx-auto">
         {/* 뒤로가기 */}
         <button
           onClick={() => setStep(2)}
-          className="inline-flex items-center gap-1.5 text-[19px] text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-bluewood-400 hover:text-bluewood-700 mb-6 transition-colors"
         >
           <ArrowLeft size={14} /> 자료 수집으로
         </button>
@@ -1368,11 +1367,11 @@ export default function TemplateSelect() {
           </div>
         ) : (
           /* 3컬럼 레이아웃 */
-          <div className="flex gap-5 mb-6 items-start">
+          <div className="flex gap-8 lg:gap-10 mb-6 items-start">
 
             {/* 사이드바 */}
-            <div className="w-[196px] flex-shrink-0" data-tour="create-moment-list">
-              <p className="text-[19px] font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
+            <div className="w-[240px] flex-shrink-0" data-tour="create-moment-list">
+              <p className="text-sm font-medium text-bluewood-400 mb-2 px-0.5 uppercase tracking-wide">경험 목록</p>
               <div className="flex flex-col gap-px mb-2">
                 {moments.map((m, idx) => {
                   const isMissing = m.description?.includes('(미확인');
@@ -1741,7 +1740,7 @@ export default function TemplateSelect() {
 
             {/* ── 심화 Q&A 패널 (3번째 컬럼) ── */}
             {currentM && deepQuestions.length > 0 && (
-              <div className="w-[268px] flex-shrink-0 sticky top-6">
+              <div className="w-[320px] flex-shrink-0 sticky top-6">
                 <div className="bg-white rounded-xl border border-surface-200 overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">
                     <span className="text-[20px] font-semibold text-bluewood-800">내용 심화하기</span>
