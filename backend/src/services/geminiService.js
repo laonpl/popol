@@ -14,6 +14,7 @@ import {
   buildOverviewPrompt,
   buildSingleKeyExperiencePrompt,
   buildMetaPrompt,
+  buildRefineKeyExperiencePrompt,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -273,6 +274,25 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
 
   console.log(`[경험분석] ✓ 완료: keyExperiences ${keyExperiences.length}개`);
   return result;
+}
+
+/**
+ * 사용자 자유 보강 메모 기반 핵심 경험 보강 (B 방식)
+ */
+export async function refineKeyExperience(currentExp, freeFormText) {
+  if (!freeFormText || freeFormText.trim().length === 0) {
+    return currentExp;
+  }
+  
+  const prompt = buildRefineKeyExperiencePrompt(currentExp, freeFormText);
+  const text = await callProFirst(prompt, 'RefineKeyExp');
+  const refined = parseJSON(text);
+  
+  // 차트 타입 등 기본값 유지
+  refined.chartType = refined.chartType || currentExp.chartType || 'horizontalBar';
+  
+  console.log(`[RefineKeyExp] ✓ 보강 완료`);
+  return refined;
 }
 
 /**

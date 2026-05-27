@@ -1765,20 +1765,33 @@ export default function StructuredResult() {
 
   /* ── 포트폴리오 내보내기 섹션 목록 초기화 ── */
   useEffect(() => {
-    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: s.key, label: s.label, type: 'job' }));
+    const jobSects = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(s => ({ key: `job-${s.key}`, label: s.label, type: 'job' }));
     const baseSects = SECTION_KEYS.map(k => ({ key: k, label: SECTION_META[k].label, type: 'base' }));
-    const allSects = [...jobSects, ...baseSects];
+    const allSects = [
+      { key: 'project-meta', label: '프로젝트 정보', type: 'meta' },
+      { key: 'key-experiences', label: '핵심 경험 & 성과', type: 'summary' },
+      { key: 'market-research', label: '시장/지표 리서치', type: 'research' },
+      ...jobSects, 
+      ...baseSects
+    ];
     setExportOrder(allSects.map(s => s.key));
     const enabled = {};
     allSects.forEach(s => { enabled[s.key] = true; });
     setExportEnabled(enabled);
-    setExportCustomSections(prev => {
-      if (prev.length > 0) return prev;
+
+    if (!experience?.structuredResult?.exportConfig) {
       const defaults = buildDefaultExportSections();
-      setActiveExportSectionKey(defaults[0]?.key || null);
-      return defaults;
-    });
-  }, [jobCategory, experience?.id]);
+      setExportCustomSections(defaults);
+      setActiveExportSectionKey(prev => prev || defaults[0]?.key || null);
+    } else {
+      setExportCustomSections(prev => {
+        if (prev.length > 0) return prev;
+        const defaults = buildDefaultExportSections();
+        setActiveExportSectionKey(defaults[0]?.key || null);
+        return defaults;
+      });
+    }
+  }, [jobCategory, experience?.id, experience?.structuredResult?.exportConfig, editedContent, editedOverview, editedKeyExperiences, editedResearch, editedJobSpecific, editedKeywords]);
 
   /* 포트폴리오 내보내기 핸들러 */
   const handleExportToPortfolio = () => {

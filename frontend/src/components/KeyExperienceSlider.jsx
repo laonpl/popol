@@ -1,6 +1,7 @@
-﻿import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2, Sparkles } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
+import useExperienceStore from '../stores/experienceStore';
 
 /* ================================================================
    KeyExperienceSlider
@@ -929,10 +930,27 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   const [editing, setEditing] = useState(false);
   const [localExp, setLocalExp] = useState(null);
   const [deletedStack, setDeletedStack] = useState([]);
+  const [freeFormText, setFreeFormText] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+  const refineKeyExperience = useExperienceStore(s => s.refineKeyExperience);
   const touchStartX = useRef(null);
   const stateRef = useRef({});
   const handlersRef = useRef({});
   stateRef.current = { current, editing, localExp, deletedStack, keyExperiences };
+
+  const handleRefine = async () => {
+    if (!freeFormText.trim() || !localExp) return;
+    setIsRefining(true);
+    try {
+      const refined = await refineKeyExperience(localExp, freeFormText);
+      setLocalExp(prev => ({ ...prev, ...refined }));
+      setFreeFormText('');
+    } catch (err) {
+      alert(err.message || 'AI 보강에 실패했습니다.');
+    } finally {
+      setIsRefining(false);
+    }
+  };
 
   const _setEditing = (val) => { setEditing(val); onEditingChange?.(val); };
   const _setCurrent = (val) => { setCurrent(val); onCurrentChange?.(val); };
@@ -1159,6 +1177,34 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
           )}
         </div>
       </div>
+      )}
+
+      {/* 자유 프롬프트 보강 (편집 모드 시) */}
+      {editing && (
+        <div className="mb-4 p-4 rounded-xl border border-primary-200 bg-primary-50/50">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[13px] font-bold text-primary-700 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-primary-500" />
+              자유 보강 메모 (AI 자동 분석)
+            </label>
+            <button
+              onClick={handleRefine}
+              disabled={!freeFormText?.trim() || isRefining}
+              className="px-3 py-1.5 text-[12px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              {isRefining ? '분석 중...' : '보강하기'}
+            </button>
+          </div>
+          <textarea
+            value={freeFormText}
+            onChange={e => setFreeFormText(e.target.value)}
+            placeholder="예: 매출 30% 증가시켰고, 사용자 리텐션은 기존 20%에서 45%로 개선했습니다. 초기 예상과 달리 네트워크 비용이 문제라서..."
+            className="w-full h-20 px-3 py-2 text-[13px] rounded-lg border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
+          />
+          <p className="mt-1.5 text-[11px] text-primary-600/70">
+            성과나 내용을 자유롭게 적어주시면 AI가 아래 항목들을 자동으로 보완해줍니다.
+          </p>
+        </div>
       )}
 
       {/* 슬라이드 */}

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { analyzeExperience, extractMoments } from '../services/geminiService.js';
+import { analyzeExperience, extractMoments, refineKeyExperience } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
@@ -92,6 +92,22 @@ router.post('/extract-moments', authMiddleware, async (req, res, next) => {
     const moments = await extractMoments(rawText, title);
     res.json({ moments });
   } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/refine-key-experience - 자유 텍스트 기반 핵심 경험 보강
+router.post('/refine-key-experience', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { currentExp, freeFormText } = req.body;
+    if (!freeFormText || !currentExp) {
+      return res.status(400).json({ error: '데이터가 부족합니다' });
+    }
+    const refined = await refineKeyExperience(currentExp, freeFormText);
+    res.json(refined);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
     next(error);
   }
 });

@@ -214,6 +214,14 @@ const useExperienceStore = create((set, get) => ({
     return data; // { moments: [...] }
   },
 
+  /** 자유 텍스트 기반 핵심 경험 보강 */
+  refineKeyExperience: async (currentExp, freeFormText) => {
+    const { data } = await api.post('/experience/refine-key-experience', {
+      currentExp, freeFormText,
+    }, { timeout: 60000 });
+    return data;
+  },
+
   // ── 히스토리 관련 ──────────────────────────────────
   // 스냅샷을 히스토리에 push (최대 20개 유지)
   pushEditSnapshot: (experienceId, snapshot) => {
