@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { auth } from '../config/firebase';
 
+// [주의] Vercel 배포 시 VITE_API_URL 환경변수를 빈 값으로 두어야 Vercel의 Rewrite(vercel.json)가 올바르게 작동하여 CORS 에러를 방지할 수 있습니다.
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 120000,

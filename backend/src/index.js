@@ -88,8 +88,9 @@ app.use(cors({
       console.warn(`[CORS Blocked] Origin: ${origin} (Normalized: ${normalizedOrigin})`);
       // 에러 객체를 전달하는 대신 false를 전달하여 헤더를 설정하지 않게 함
       cb(null, false);
-    }
   },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
   optionsSuccessStatus: 200
 }));

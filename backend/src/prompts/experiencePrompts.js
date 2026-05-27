@@ -526,3 +526,43 @@ JSON만 응답:
 {"projectOverview":{"summary":"","background":"","goal":"","role":"","team":"","duration":"","techStack":[]},"keyExperiences":[{"title":"","metric":"","metricLabel":"","beforeMetric":"","afterMetric":"","context":"","action":"","result":"","learning":"","keywords":[]}],"intro":"","overview":"","task":"","process":"","output":"","growth":"","competency":"","keywords":[],"followUpQuestions":[],"highlights":[]}
 `;
 }
+
+// ============================================================
+// 자유 프롬프트 기반 핵심 경험 보강 (B 방식)
+// ============================================================
+export function buildRefineKeyExperiencePrompt(currentExp, freeFormText) {
+  return `당신은 Google·Amazon·Meta·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가입니다.
+사용자가 입력한 "자유 보강 메모"를 바탕으로, 기존 핵심 경험의 내용을 보완하고 다듬어주세요.
+
+${NO_HALLUCINATION_RULES}
+${METRIC_FILTER_GUIDELINES}
+${WRITING_QUALITY_RULES}
+${GLOBAL_PORTFOLIO_TECHNIQUES}
+
+[기존 핵심 경험 데이터]
+${JSON.stringify(currentExp, null, 2)}
+
+[사용자 자유 보강 메모]
+${freeFormText}
+
+[지시사항]
+1. 기존 데이터(context, action, result, learning 등)를 최대한 보존하되, 사용자의 메모 내용에 맞게 문맥을 자연스럽게 수정/보강하세요.
+2. 수치(metric, beforeMetric, afterMetric)가 추가되거나 변경되어야 한다면, 이를 추출해 해당 필드에 반영하세요.
+3. 빈 필드가 있다면 자유 보강 메모를 바탕으로 채우되, 없으면 억지로 만들지 마세요.
+4. 반드시 CARL 구조(Context, Action, Result, Learning)와 XYZ 공식, 임팩트 위주로 다듬으세요.
+
+아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON, 1개 객체만):
+{
+  "title": "능동동사+성과가 담긴 20자 이내 제목",
+  "metric": "원본의 핵심 수치 (예: 72%, 340ms, 3일→1일). 없으면 빈 문자열",
+  "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간 단축)",
+  "beforeMetric": "개선 전 수치 (있으면)",
+  "afterMetric": "개선 후 수치 (있으면)",
+  "context": "비즈니스 문제+스케일(Scope of Impact) 포함, 2~3문장",
+  "action": "Trade-off+Ownership+Bias for Action 포함, 2~3문장",
+  "result": "XYZ 공식+Second-Order Effect 체인, 수치 포함, 2~3문장",
+  "learning": "Counter-Intuitive Insight 패턴, 역량 변화 구체화, 1~2문장",
+  "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
+  "chartType": "horizontalBar"
+}`;
+}
