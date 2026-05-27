@@ -448,7 +448,7 @@ export function SlidePreview({ slide, template, scale = 1, index = 0 }) {
 function kpiPaletteColors(t) {
   const c = t.colors || {};
   const paletteAccent = c.accent ? normalizeHexColor(c.accent) : null;
-  if (paletteAccent && paletteAccent !== '#FF4F1A') {
+  if (paletteAccent) {
     return { blue: paletteAccent, mint: c.kpi ? normalizeHexColor(c.kpi) : '#19C58E' };
   }
   return { blue: '#3182FF', mint: '#19C58E' };
@@ -504,28 +504,26 @@ function acceptedVisual(t) {
   };
   const visual = map[id] || map.narrative;
   const paletteAccent = c.accent ? normalizeHexColor(c.accent) : null;
-  const isNonDefault = paletteAccent && paletteAccent !== '#FF4F1A';
+  const isNonDefault = !!paletteAccent;
   const accent = isNonDefault ? paletteAccent : visual.accent;
-  const paletteDark = c.side ? normalizeHexColor(c.side) : (c.headBg ? normalizeHexColor(c.headBg) : null);
-  const isCaseStudy = id === 'case-study';
-  const bg = (isCaseStudy && isNonDefault && c.bg) ? normalizeHexColor(c.bg) : visual.bg;
-  const ink = (isCaseStudy && isNonDefault) ? readableTextOn(bg, visual.ink) : visual.ink;
-  const muted = (isCaseStudy && isNonDefault && c.muted) ? normalizeHexColor(c.muted) : visual.muted;
-  const soft = (isCaseStudy && isNonDefault && c.line) ? normalizeHexColor(c.line) : visual.soft;
-  const card = (isCaseStudy && isNonDefault)
-    ? (relativeLuminance(bg) > 0.5 ? '#FFFFFF' : hexLighten(bg, 0.15))
+  const bg = (isNonDefault && c.bg) ? normalizeHexColor(c.bg) : visual.bg;
+  const ink = isNonDefault ? readableTextOn(bg, c.sub || visual.ink) : visual.ink;
+  const muted = isNonDefault ? mutedTextOn(bg, c.muted || visual.muted) : visual.muted;
+  const soft = (isNonDefault && c.line) ? normalizeHexColor(c.line) : visual.soft;
+  const card = isNonDefault
+    ? normalizeHexColor(c.card || (relativeLuminance(bg) > 0.5 ? '#FFFFFF' : hexLighten(bg, 0.15)), relativeLuminance(bg) > 0.5 ? '#FFFFFF' : hexLighten(bg, 0.15))
     : (visual.card || (relativeLuminance(bg) < 0.28 ? c.dark2 : '#FFFFFF'));
   const dark = visual.dark;
   const resolvedDark = (() => {
-    if (isCaseStudy && isNonDefault) {
-      const palHb = c.headBg ? normalizeHexColor(c.headBg) : null;
-      const palSide = c.side ? normalizeHexColor(c.side) : null;
-      if (palHb && relativeLuminance(palHb) < 0.5) return palHb;
-      if (palSide && relativeLuminance(palSide) < 0.5) return palSide;
-      if (paletteAccent && relativeLuminance(paletteAccent) < 0.5) return paletteAccent;
-      return '#1C1C1E';
+    if (isNonDefault) {
+      const candidates = [c.dark, c.headBg, c.side, c.dark2, paletteAccent]
+        .filter(Boolean)
+        .map(value => normalizeHexColor(value));
+      const readableDark = candidates.find(value => relativeLuminance(value) < 0.5 && isReadable(SAFE_TEXT_LIGHT, value, 4.5));
+      if (readableDark) return readableDark;
+      return relativeLuminance(bg) < 0.5 ? bg : '#1C1C1E';
     }
-    return (isNonDefault && paletteDark && relativeLuminance(paletteDark) < 0.2) ? paletteDark : dark;
+    return dark;
   })();
   return {
     ...visual,
@@ -539,6 +537,16 @@ function acceptedVisual(t) {
     card,
     font: t.fonts?.heading || visual.font,
   };
+}
+
+function usesNonDefaultPalette(t) {
+  const c = t?.colors || {};
+  const proposal = getTemplate('proposal').colors || {};
+  return ['bg', 'accent', 'side', 'headBg', 'dark', 'line'].some(key => {
+    const current = c[key] ? normalizeHexColor(c[key]) : null;
+    const base = proposal[key] ? normalizeHexColor(proposal[key]) : null;
+    return current && base && current !== base;
+  });
 }
 
 function acceptedLinesLegacy(slide) {
@@ -5311,8 +5319,8 @@ function drawCover(s, slide, t, W, H) {
     if (hint === 'sidebar-right') {
       s.addShape('rect', { x: W * 0.62, y: 0, w: W * 0.38, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
       s.addShape('rect', { x: 0.7, y: H / 2 - 1.0, w: 0.7, h: 0.07, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-      s.addText(slide.title || '', { x: 0.7, y: H / 2 - 0.8, w: W * 0.6 - 1.0, h: 2.0, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 34, bold: true, color: hex(c.titleColor || c.accent) });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 1.0, w: W * 0.6 - 1.0, h: 1.0, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub) });
+      s.addText(slide.title || '', { x: 0.7, y: H / 2 - 0.8, w: W * 0.6 - 1.0, h: 2.0, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 34, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 1.0, w: W * 0.6 - 1.0, h: 1.0, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
       return;
     }
     if (hint === 'header-top' || hint === 'footer-bottom') {
@@ -5320,14 +5328,14 @@ function drawCover(s, slide, t, W, H) {
       s.addShape('rect', { x: 0, y: isTop ? 0 : H - 1.2, w: W, h: 1.2, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
       const cy = H / 2 - 1.0;
       s.addText('PORTFOLIO', { x: 1.0, y: cy, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
-      s.addText(slide.title || '', { x: 1.0, y: cy + 0.4, w: W - 2.0, h: 1.4, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent) });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.0, y: cy + 1.9, w: W - 2.0, h: 1.0, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub) });
+      s.addText(slide.title || '', { x: 1.0, y: cy + 0.4, w: W - 2.0, h: 1.4, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.0, y: cy + 1.9, w: W - 2.0, h: 1.0, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
       s.addShape('rect', { x: 1.0, y: cy + 2.85, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
       return;
     }
     if (hint === 'minimal') {
-      s.addText(slide.title || '', { x: 1.1, y: H / 2 - 1.2, w: W - 2.2, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent) });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.1, y: H / 2 + 0.4, w: W - 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub) });
+      s.addText(slide.title || '', { x: 1.1, y: H / 2 - 1.2, w: W - 2.2, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.1, y: H / 2 + 0.4, w: W - 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
       s.addShape('rect', { x: 1.1, y: H / 2 + 1.3, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
       return;
     }
@@ -5335,35 +5343,35 @@ function drawCover(s, slide, t, W, H) {
     s.addShape('rect', { x: 0, y: 0, w: W * 0.42, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText('PORTFOLIO', { x: 0.7, y: 0.7, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 30, charSpacing: 6 });
     s.addShape('rect', { x: 0.7, y: H - 3.4, w: 0.7, h: 0.07, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
-    s.addText(slide.title || '', { x: 0.7, y: H - 3.2, w: W * 0.42 - 1.0, h: 2.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(sideFg), valign: 'top' });
+    s.addText(slide.title || '', { x: 0.7, y: H - 3.2, w: W * 0.42 - 1.0, h: 2.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
     if (slide.subtitle) {
       s.addText('SUBTITLE', { x: W * 0.42 + 0.6, y: H / 2 - 0.8, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
-      s.addText(slide.subtitle, { x: W * 0.42 + 0.6, y: H / 2 - 0.4, w: W * 0.58 - 1.2, h: 1.6, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub) });
+      s.addText(slide.subtitle, { x: W * 0.42 + 0.6, y: H / 2 - 0.4, w: W * 0.58 - 1.2, h: 1.6, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
     }
     return;
   }
   if (t.style === 'centered') {
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.bg) }, line: { color: hex(c.bg) } });
     s.addShape('rect', { x: W / 2 - 0.8, y: H / 2 - 1.0, w: 1.6, h: 0.02, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-    s.addText(slide.title || '', { x: 1, y: H / 2 - 0.7, w: W - 2, h: 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 36, bold: true, color: hex(c.accent), align: 'center' });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: 1, y: H / 2 + 0.5, w: W - 2, h: 0.6, fontFace: t.fonts.body, fontSize: 16, italic: true, color: hex(c.sub), align: 'center' });
+    s.addText(slide.title || '', { x: 1, y: H / 2 - 0.7, w: W - 2, h: 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 36, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
+    if (slide.subtitle) s.addText(slide.subtitle, { x: 1, y: H / 2 + 0.5, w: W - 2, h: 0.6, fontFace: t.fonts.body, fontSize: 16, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
     s.addShape('rect', { x: W / 2 - 0.8, y: H / 2 + 1.2, w: 1.6, h: 0.02, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
     return;
   }
   if (t.style === 'block') {
     s.addShape('rect', { x: 0, y: 0, w: W * 0.45, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
-    s.addText(slide.title || '', { x: 0.5, y: H - 2.2, w: W * 0.45 - 1, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg) });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: W * 0.45 + 0.5, y: H / 2 - 0.5, w: W * 0.55 - 1, h: 1.2, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sub) });
+    s.addText(slide.title || '', { x: 0.5, y: H - 2.2, w: W * 0.45 - 1, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+    if (slide.subtitle) s.addText(slide.subtitle, { x: W * 0.45 + 0.5, y: H / 2 - 0.5, w: W * 0.55 - 1, h: 1.2, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sub), fit: 'shrink' });
     return;
   }
   // modern
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addShape('rect', { x: 0.7, y: H / 2 - 1.4, w: 0.6, h: 0.05, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
-  s.addText(slide.title || '', { x: 0.7, y: H / 2 - 1.2, w: W - 1.4, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg) });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 0.5, w: W - 1.4, h: 0.6, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sideFg) });
+  s.addText(slide.title || '', { x: 0.7, y: H / 2 - 1.2, w: W - 1.4, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 0.5, w: W - 1.4, h: 0.6, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sideFg), fit: 'shrink' });
 }
 
-function drawProposalDots(s, c, W, x = 9.0, y = 4.2) {
+function drawProposalDots(s, colorHex, W, x = 9.0, y = 4.2) {
   for (let row = 0; row < 11; row += 1) {
     for (let col = 0; col < 18; col += 1) {
       if (col < row * 1.25) continue;
@@ -5373,8 +5381,8 @@ function drawProposalDots(s, c, W, x = 9.0, y = 4.2) {
         y: y + row * 0.13,
         w: size,
         h: size,
-        fill: { color: hex(c.accent), transparency: Math.min(82, col * 4) },
-        line: { color: hex(c.accent), transparency: 100 },
+        fill: { color: colorHex, transparency: Math.min(82, col * 4) },
+        line: { color: colorHex, transparency: 100 },
       });
     }
   }
@@ -5384,11 +5392,12 @@ function drawProposalCoverLegacy(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
-  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT) });
+  const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
+  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
-  s.addText(slide.subtitle || '경험을 기준으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF' });
-  s.addText(slide.title || '포트폴리오 솔루션', { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  drawProposalDots(s, c, W);
+  s.addText(slide.subtitle || '경험을 기준으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
+  s.addText(pptProposalTextParts(slide.title || '포트폴리오 솔루션', 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: 34, bold: true, fit: 'shrink' });
+  drawProposalDots(s, accentOnDark, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
 }
 
@@ -5408,11 +5417,12 @@ function drawProposalCover(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
-  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT) });
+  const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
+  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
-  s.addText(slide.subtitle || '경험과 성과를 기반으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF' });
-  s.addText(slide.title || '포트폴리오', { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  drawProposalDots(s, c, W);
+  s.addText(slide.subtitle || '경험과 성과를 기반으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
+  s.addText(pptProposalTextParts(slide.title || '포트폴리오', 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: 34, bold: true, fit: 'shrink' });
+  drawProposalDots(s, accentOnDark, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
 }
 
@@ -6037,7 +6047,7 @@ function drawNarrativePptx(s, slide, t, v, i, W, H) {
     'narrative-connection': drawNarrativeConnectionPptx, 'narrative-roadmap': drawNarrativeRoadmapPptx,
     'narrative-closing': drawNarrativeClosingPptx,
   };
-  if (NARR_PPT[slide.layout]) return NARR_PPT[slide.layout](s, slide, t, v, W, H);
+  if (!usesNonDefaultPalette(t) && NARR_PPT[slide.layout]) return NARR_PPT[slide.layout](s, slide, t, v, W, H);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = pptAcceptedLines(slide);
   const mood = acceptedSlideMood(slide, i);
@@ -6384,16 +6394,36 @@ function drawStarPptx(s, slide, t, v, i, W, H) {
 
 // ── KPI Dashboard dedicated PPTX draw functions ─────────────────────────────
 
-function kpiPptBase(s, W, H) {
-  const bg = '0E1727'; const blue = '3182FF';
+function kpiPptColors(t) {
+  const c = t?.colors || {};
+  const { blue, mint } = kpiPaletteColors(t);
+  const bg = c.dark || c.side || '#0E1727';
+  const panel = c.dark2 || hexLighten(bg, 0.08);
+  const line = c.line || hexLighten(blue, 0.55);
+  const muted = c.muted || '#7E93B3';
+  return {
+    bg: hex(bg),
+    blue: hex(blue),
+    mint: hex(mint),
+    muted: hex(muted),
+    panel: hex(panel),
+    line: hex(line),
+    ink: hex(readableTextOn(bg, '#EAF2FF')),
+    title: hex(readableTextOn(bg, c.sub || '#EAF2FF')),
+  };
+}
+
+function kpiPptBase(s, W, H, t) {
+  const { bg, blue } = kpiPptColors(t);
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: bg }, line: { color: bg } });
   for (let gx = 0; gx <= W; gx += 0.42) s.addShape('rect', { x: gx, y: 0, w: 0.003, h: H, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
   for (let gy = 0; gy <= H; gy += 0.42) s.addShape('rect', { x: 0, y: gy, w: W, h: 0.003, fill: { color: blue, transparency: 94 }, line: { color: blue, transparency: 100 } });
 }
 
 function kpiPptHeader(s, t, label, title, y = 0.62, w = 8.5, labelColor = '3182FF') {
-  const mono = 'Consolas'; const ink = 'EAF2FF';
-  addPptText(s, label, { x: 0.82, y, w: 5.0, h: 0.18, fontFace: mono, fontSize: 8.4, bold: true, color: labelColor, charSpacing: 2.4, fit: 'shrink' });
+  const mono = 'Consolas'; const { title: ink, blue } = kpiPptColors(t);
+  const resolvedLabelColor = labelColor === '3182FF' ? blue : labelColor;
+  addPptText(s, label, { x: 0.82, y, w: 5.0, h: 0.18, fontFace: mono, fontSize: 8.4, bold: true, color: resolvedLabelColor, charSpacing: 2.4, fit: 'shrink' });
   addPptText(s, title, { x: 0.82, y: y + 0.64, w, h: 0.72, fontFace: t.fonts.heading || 'Malgun Gothic', fontSize: dynamicFontPt(title, 30, { min: 22, max: 34 }), bold: true, color: ink, fit: 'shrink' });
 }
 
@@ -6402,7 +6432,7 @@ function kpiPptRule(s, x, y, w, color = '31405A') {
 }
 
 function kpiPptMetricRow(s, t, cards, dataRows, top) {
-  const mono = 'Consolas'; const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3';
+  const mono = 'Consolas'; const { blue, mint, muted } = kpiPptColors(t);
   const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
   cards.forEach((m, idx) => {
     const x = 0.82 + idx * 4.05;
@@ -6416,10 +6446,10 @@ function kpiPptMetricRow(s, t, cards, dataRows, top) {
 
 function drawKpiCoverPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const ink = 'EAF2FF';
+  const { blue, mint, muted, title: ink } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Portfolio');
   const subtitle = safePptText(slide.subtitle || '');
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   addPptText(s, 'PERFORMANCE DASHBOARD', { x: 0.82, y: 0.22, w: 4.2, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: blue, charSpacing: 2.8 });
   s.addShape('ellipse', { x: 0.83, y: 0.5, w: 0.08, h: 0.08, fill: { color: mint }, line: { color: mint } });
   addPptText(s, 'SYSTEM ONLINE', { x: 0.98, y: 0.47, w: 1.5, h: 0.14, fontFace: mono, fontSize: 6.5, color: muted, charSpacing: 0.6 });
@@ -6437,11 +6467,11 @@ function drawKpiCoverPptx(s, slide, t, W, H) {
 
 function drawKpiExecutivePptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Performance Overview');
   const label = safePptText(slide.sectionLabel || 'EXECUTIVE SUMMARY').toUpperCase();
   const cards = (slide.metrics || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.62, 8.5);
   cards.forEach((m, idx) => {
     const x = 0.82 + idx * 3.05;
@@ -6458,11 +6488,11 @@ function drawKpiExecutivePptx(s, slide, t, W, H) {
 
 function drawKpiSkillsPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const line = '31405A';
+  const { blue, mint, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Core Competency Analysis');
   const label = safePptText(slide.sectionLabel || 'SKILL ARCHITECTURE').toUpperCase();
   const items = (slide.items || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.62, 8.5);
   items.forEach((item, idx) => {
     const x = 0.82 + (idx % 2) * 6.0;
@@ -6481,11 +6511,11 @@ function drawKpiSkillsPptx(s, slide, t, W, H) {
 
 function drawKpiTimelinePptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E';
+  const { blue, mint } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Performance Timeline');
   const label = safePptText(slide.sectionLabel || 'GROWTH ANALYTICS').toUpperCase();
   const items = (slide.items || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 7.8);
   kpiPptRule(s, 0.85, 3.45, 11.4, blue);
   items.forEach((item, idx) => {
@@ -6500,12 +6530,12 @@ function drawKpiTimelinePptx(s, slide, t, W, H) {
 
 function drawKpiProjectPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Project');
   const subtitle = safePptText(slide.subtitle || '');
   const label = safePptText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
   const items = (slide.items || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 7.2);
   addPptText(s, subtitle || items[0]?.period || 'AI-Driven Platform', { x: 0.82, y: 2.2, w: 6.5, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
   kpiPptRule(s, 0.82, 2.75, 6.8, line);
@@ -6524,7 +6554,7 @@ function drawKpiProjectPptx(s, slide, t, W, H) {
 
 function drawKpiMetricsPptx(s, slide, t, W, H) {
   const mono = 'Consolas';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'KPI Dashboard');
   const label = safePptText(slide.sectionLabel || 'KPI METRICS').toUpperCase();
   const rawMetrics = (slide.metrics || []).slice(0, 3);
@@ -6534,7 +6564,7 @@ function drawKpiMetricsPptx(s, slide, t, W, H) {
     { label: 'Impact', value: '94%', body: 'Business impact' },
   ];
   const chartTitle = safePptText((slide.items || [])[0]?.heading || 'VALUE DELIVERY TREND').toUpperCase();
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
   kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
   s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
@@ -6550,11 +6580,11 @@ function drawKpiMetricsPptx(s, slide, t, W, H) {
 
 function drawKpiComparisonPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const line = '31405A';
+  const { blue, mint, muted, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Before vs After');
   const label = safePptText(slide.sectionLabel || 'COMPARISON').toUpperCase();
   const items = (slide.items || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.8);
   const drawSide = (x, heading, sideItems, good) => {
     addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
@@ -6576,7 +6606,7 @@ function drawKpiComparisonPptx(s, slide, t, W, H) {
 
 function drawKpiTechnicalPptx(s, slide, t, W, H) {
   const mono = 'Consolas';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Technical Performance KPI');
   const label = safePptText(slide.sectionLabel || 'TECHNICAL KPI').toUpperCase();
   const rawMetrics = (slide.metrics || []).slice(0, 3);
@@ -6585,7 +6615,7 @@ function drawKpiTechnicalPptx(s, slide, t, W, H) {
     { label: 'API Success', value: '99.95%', body: 'Error-free operations' },
     { label: 'Security Score', value: 'A+', body: 'Zero vulnerabilities' },
   ];
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.4, muted);
   kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
   s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
@@ -6607,11 +6637,11 @@ function drawKpiTechnicalPptx(s, slide, t, W, H) {
 
 function drawKpiRiskPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const amber = 'F59E0B'; const line = '31405A';
+  const { blue, mint, muted, line } = kpiPptColors(t); const amber = 'F59E0B';
   const title = safePptText(slide.title || 'Risk Management & Mitigation');
   const label = safePptText(slide.sectionLabel || 'RISK MANAGEMENT').toUpperCase();
   const items = (slide.items || []).slice(0, 4);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.3, amber);
   items.slice(0, 2).forEach((item, idx) => {
     const x = 0.82 + idx * 6.15;
@@ -6629,7 +6659,7 @@ function drawKpiRiskPptx(s, slide, t, W, H) {
 
 function drawKpiCumulativePptx(s, slide, t, W, H) {
   const mono = 'Consolas';
-  const blue = '3182FF'; const mint = '19C58E'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Cumulative Impact Analysis');
   const label = safePptText(slide.sectionLabel || 'CUMULATIVE IMPACT').toUpperCase();
   const rawMetrics = (slide.metrics || []).slice(0, 3);
@@ -6638,7 +6668,7 @@ function drawKpiCumulativePptx(s, slide, t, W, H) {
     { label: 'Skills', value: '12+', body: '기술 스택' },
     { label: 'Awards', value: '02', body: '수상/인증' },
   ];
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
   kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
   s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.75, fill: { color: panel, transparency: 8 }, line: { color: line, transparency: 8 } });
@@ -6656,7 +6686,7 @@ function drawKpiCumulativePptx(s, slide, t, W, H) {
 
 function drawKpiRoadmapPptx(s, slide, t, W, H) {
   const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
-  const blue = '3182FF'; const mint = '19C58E'; const panel = '172338'; const line = '31405A';
+  const { blue, mint, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Future Growth KPI & Roadmap');
   const label = safePptText(slide.sectionLabel || 'VISION & GROWTH').toUpperCase();
   const rawMetrics = (slide.metrics || []).slice(0, 3);
@@ -6666,7 +6696,7 @@ function drawKpiRoadmapPptx(s, slide, t, W, H) {
     { label: 'Project Impact', value: '×3', body: '목표 임팩트' },
   ];
   const phases = (slide.items || []).slice(0, 3);
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 8.4);
   kpiPptMetricRow(s, t, metricCards, metricCards, 2.25);
   s.addShape('rect', { x: 0.82, y: 4.85, w: 11.7, h: 1.55, fill: { color: panel, transparency: 10 }, line: { color: line, transparency: 8 } });
@@ -6682,7 +6712,7 @@ function drawKpiRoadmapPptx(s, slide, t, W, H) {
 
 function drawKpiClosingPptx(s, slide, t, W, H) {
   const mono = 'Consolas';
-  const blue = '3182FF'; const mint = '19C58E'; const muted = '7E93B3'; const line = '31405A';
+  const { blue, mint, muted, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Thank You for Your Time');
   const subtitle = safePptText(slide.subtitle || '');
   const label = safePptText(slide.sectionLabel || 'FINAL REPORT').toUpperCase();
@@ -6693,7 +6723,7 @@ function drawKpiClosingPptx(s, slide, t, W, H) {
     { label: 'AI Innovation', value: '94% ACC' },
   ];
   const bullets = slide.bullets || [];
-  kpiPptBase(s, W, H);
+  kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 1.18, 8.6);
   if (subtitle) addPptText(s, subtitle, { x: 0.82, y: 3.25, w: 7.2, h: 0.24, fontFace: mono, fontSize: 12, bold: true, color: mint, fit: 'shrink' });
   kpiPptMetricRow(s, t, metricCards, metricCards, 4.0);
@@ -6731,14 +6761,8 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
   else if (hasAny(['roadmap', 'future', 'vision', 'growth'])) kind = 'roadmap';
   else if (metrics.length || mood === 'metric' || hasAny(['kpi', 'dashboard', 'performance', 'impact', 'overview', 'summary'])) kind = kpiReferenceSequenceKind(i) === 'closing' ? 'dashboard' : kpiReferenceSequenceKind(i);
 
-  const bg = '0E1727';
-  const ink = 'EAF2FF';
-  const muted = '7E93B3';
-  const blue = '3182FF';
-  const mint = '19C58E';
+  const { bg, title: ink, muted, blue, mint, panel, line } = kpiPptColors(t);
   const amber = 'F59E0B';
-  const panel = '172338';
-  const line = '31405A';
   const mono = 'Consolas';
   const titleFont = t.fonts.heading || 'Malgun Gothic';
 
@@ -7406,10 +7430,14 @@ function drawProposalHeader(s, slide, t, i, W, isDark) {
   const section = slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : '제안서');
   const titleColor = isDark ? 'FFFFFF' : hex(c.sub);
   const titleSize = dynamicFontPt(slide.title, 24, { min: 18, max: 25 });
+  const bg = isDark ? c.dark : c.bg;
+  const accentColor = pptVisibleOn(bg, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
+  
   s.addShape('roundRect', { x: 0.72, y: 0.35, w: 1.45, h: 0.32, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' }, rectRadius: 0.14 });
-  s.addShape('ellipse', { x: 0.82, y: 0.46, w: 0.08, h: 0.08, fill: { color: pptVisibleOn('#FFFFFF', c.accent, c.dark) }, line: { color: pptVisibleOn('#FFFFFF', c.accent, c.dark) } });
+  s.addShape('ellipse', { x: 0.82, y: 0.46, w: 0.08, h: 0.08, fill: { color: accentColor }, line: { color: accentColor } });
   s.addText(section, { x: 0.95, y: 0.4, w: 1.0, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: pptTextOn('#FFFFFF', c.sub) });
-  addPptText(s, slide.title || section, { x: 0.95, y: 0.88, w: W - 1.9, h: 0.88, fontFace: t.fonts.heading, fontSize: titleSize, bold: true, color: titleColor, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
+  
+  s.addText(pptProposalTextParts(slide.title || section, titleColor, accentColor, { fontFace: t.fonts.heading }), { x: 0.95, y: 0.88, w: W - 1.9, h: 0.88, fontSize: titleSize, bold: true, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
   if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: isDark ? 'D4D4D8' : hex(c.sub), align: 'center', fit: 'shrink' });
 }
 
@@ -7933,8 +7961,10 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
 function drawProposal(s, slide, t, i, W, H) {
   const c = t.colors;
   const isDark = slide.dark || slide.layout === 'closing' || (slide.layout === 'experience' && slide.layout_type === 'CENTER_METRIC');
+  const bg = isDark ? c.dark : c.bg;
+  const accentColor = pptVisibleOn(bg, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: isDark ? hex(c.dark) : hex(c.bg) }, line: { color: isDark ? hex(c.dark) : hex(c.bg) } });
-  if (isDark) drawProposalDots(s, c, W, 9.4, 0.9);
+  if (isDark) drawProposalDots(s, accentColor, W, 9.4, 0.9);
   drawProposalHeader(s, slide, t, i, W, isDark);
   const x = 0.72, y = 2.7, w = W - 1.44, h = H - 3.2;
   if (drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark)) {
@@ -8585,8 +8615,8 @@ function drawDocument(s, slide, t, i, W, H, M) {
     s.addShape('rect', { x: sideX, y: 0, w: SIDE_W, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText(String(i + 1).padStart(2, '0'), { x: sideX + 0.4, y: 0.5, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), charSpacing: 4 });
     s.addShape('rect', { x: sideX + 0.4, y: 0.95, w: 0.4, h: 0.04, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
-    s.addText(slide.title || '', { x: sideX + 0.4, y: 1.1, w: SIDE_W - 0.8, h: 1.6, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(sideFg), valign: 'top' });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: sideX + 0.4, y: 2.7, w: SIDE_W - 0.8, h: 0.8, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg) });
+    s.addText(slide.title || '', { x: sideX + 0.4, y: 1.1, w: SIDE_W - 0.8, h: 1.6, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
+    if (slide.subtitle) s.addText(slide.subtitle, { x: sideX + 0.4, y: 2.7, w: SIDE_W - 0.8, h: 0.8, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), fit: 'shrink' });
     drawBody(s, slide, t, bodyX, M, bodyW, H - M * 2, 'document');
     return;
   }
@@ -8597,12 +8627,12 @@ function drawDocument(s, slide, t, i, W, H, M) {
     const headerY = isFooter ? H - headerH : 0;
     s.addShape('rect', { x: 0, y: headerY, w: W, h: headerH, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText(String(i + 1).padStart(2, '0'), { x: 0.7, y: headerY + 0.2, w: 1.5, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 40, charSpacing: 4 });
-    s.addText(slide.title || '', { x: 0.7, y: headerY + 0.45, w: W - 1.6, h: 0.8, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(sideFg), valign: 'middle' });
+    s.addText(slide.title || '', { x: 0.7, y: headerY + 0.45, w: W - 1.6, h: 0.8, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(sideFg), valign: 'middle', fit: 'shrink' });
     s.addShape('rect', { x: W - 0.85, y: headerY + 0.35, w: 0.06, h: 0.6, fill: { color: hex(c.accent2 || c.accent) }, line: { color: hex(c.accent2 || c.accent) } });
     const bodyTop = isFooter ? 0.6 : headerH + 0.3;
     let by = bodyTop;
     if (slide.subtitle) {
-      s.addText(slide.subtitle, { x: 0.7, y: by, w: W - 1.4, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), italic: true });
+      s.addText(slide.subtitle, { x: 0.7, y: by, w: W - 1.4, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), italic: true, fit: 'shrink' });
       by += 0.55;
     }
     const bodyBottom = isFooter ? H - headerH - 0.3 : H - 0.4;
@@ -8612,8 +8642,8 @@ function drawDocument(s, slide, t, i, W, H, M) {
 
   // minimal
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.9, y: 0.7, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 4 });
-  s.addText(slide.title || '', { x: 0.9, y: 1.0, w: W - 1.8, h: 0.9, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(c.titleColor || c.accent) });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.9, y: 1.95, w: W - 1.8, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub) });
+  s.addText(slide.title || '', { x: 0.9, y: 1.0, w: W - 1.8, h: 0.9, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.9, y: 1.95, w: W - 1.8, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), fit: 'shrink' });
   s.addShape('rect', { x: 0.9, y: 2.5, w: 0.5, h: 0.04, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
   drawBody(s, slide, t, 0.9, 2.75, W - 1.8, H - 3.15, 'document');
 }
@@ -8625,8 +8655,8 @@ function drawModern(s, slide, t, i, W, H, M) {
   s.addShape('rect', { x: 0, y: 0, w: SIDE, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.4, y: 0.5, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg), charSpacing: 3 });
   s.addShape('rect', { x: 0.4, y: 0.85, w: 0.4, h: 0.04, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
-  s.addText(slide.title || '', { x: 0.4, y: 1.0, w: SIDE - 0.6, h: 1.6, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(c.sideFg), valign: 'top' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 2.5, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg) });
+  s.addText(slide.title || '', { x: 0.4, y: 1.0, w: SIDE - 0.6, h: 1.6, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(c.sideFg), valign: 'top', fit: 'shrink' });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 2.5, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg), fit: 'shrink' });
   drawBody(s, slide, t, SIDE + 0.4, M, W - SIDE - 0.8, H - M * 2, 'modern');
   s.addText(String(i + 1), { x: W - 0.7, y: H - 0.4, w: 0.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, color: hex(c.muted), align: 'right' });
 }
@@ -8636,9 +8666,9 @@ function drawClassic(s, slide, t, i, W, H, M) {
   const c = t.colors;
   s.addText(`Chapter ${i + 1}`, { x: M, y: M, w: W - M * 2, h: 0.3, fontFace: t.fonts.body, fontSize: 9, color: hex(c.muted), align: 'center', charSpacing: 4 });
   s.addShape('rect', { x: W / 2 - 0.5, y: M + 0.4, w: 1, h: 0.015, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-  s.addText(slide.title || '', { x: M, y: M + 0.5, w: W - M * 2, h: 0.7, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(c.accent), align: 'center' });
+  s.addText(slide.title || '', { x: M, y: M + 0.5, w: W - M * 2, h: 0.7, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
   s.addShape('rect', { x: W / 2 - 0.5, y: M + 1.25, w: 1, h: 0.015, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: M, y: M + 1.35, w: W - M * 2, h: 0.4, fontFace: t.fonts.body, fontSize: 12, italic: true, color: hex(c.sub), align: 'center' });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: M, y: M + 1.35, w: W - M * 2, h: 0.4, fontFace: t.fonts.body, fontSize: 12, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
   drawBody(s, slide, t, M + 0.3, M + 2.0, W - (M + 0.3) * 2, H - M - 2.4, 'classic');
   s.addText(`— ${i + 1} —`, { x: 0, y: H - 0.4, w: W, h: 0.25, fontFace: t.fonts.heading, fontSize: 10, color: hex(c.muted), align: 'center' });
 }
@@ -8649,8 +8679,8 @@ function drawCreative(s, slide, t, i, W, H, M) {
   const SIDE = 3.6;
   s.addShape('rect', { x: 0, y: 0, w: SIDE, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.4, y: 0.4, w: SIDE - 0.6, h: 1.5, fontFace: t.fonts.heading, fontSize: 80, bold: true, color: hex(c.sideFg), transparency: 80 });
-  s.addText(slide.title || '', { x: 0.4, y: 1.7, w: SIDE - 0.6, h: 1.4, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(c.sideFg) });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 3.0, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sideFg) });
+  s.addText(slide.title || '', { x: 0.4, y: 1.7, w: SIDE - 0.6, h: 1.4, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 3.0, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sideFg), fit: 'shrink' });
   s.addShape('rect', { x: 0.4, y: H - 0.8, w: 0.6, h: 0.06, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
   drawBody(s, slide, t, SIDE + 0.4, M, W - SIDE - 0.8, H - M * 2, 'creative');
 }
@@ -8678,26 +8708,26 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
       // 헤더
       if (variant === 'classic') {
         s.addShape('rect', { x: x0, y, w, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-        s.addText(it.heading || '', { x: x0, y: y + 0.05, w: w * 0.7, h: 0.35, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent) });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y + 0.05, w: w * 0.3, h: 0.35, fontFace: t.fonts.body, fontSize: 10, italic: true, color: hex(c.muted), align: 'right' });
+        s.addText(it.heading || '', { x: x0, y: y + 0.05, w: w * 0.7, h: 0.35, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
+        s.addText(it.period || '', { x: x0 + w * 0.7, y: y + 0.05, w: w * 0.3, h: 0.35, fontFace: t.fonts.body, fontSize: 10, italic: true, color: hex(c.muted), align: 'right', fit: 'shrink' });
         s.addShape('rect', { x: x0, y: y + 0.45, w, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
       } else if (variant === 'creative') {
         s.addShape('roundRect', { x: x0, y, w, h: 0.42, fill: { color: hex(c.line) }, line: { color: hex(c.line) }, rectRadius: 0.06 });
-        s.addText(it.heading || '', { x: x0 + 0.15, y: y, w: w * 0.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), valign: 'middle' });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3 - 0.15, h: 0.42, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), valign: 'middle', align: 'right' });
+        s.addText(it.heading || '', { x: x0 + 0.15, y: y, w: w * 0.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), valign: 'middle', fit: 'shrink' });
+        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3 - 0.15, h: 0.42, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), valign: 'middle', align: 'right', fit: 'shrink' });
       } else if (variant === 'document') {
         s.addShape('rect', { x: x0, y, w: 0.06, h: 0.5, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-        s.addText(it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.7, h: 0.5, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: hex(c.titleColor || c.accent), valign: 'middle' });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3, h: 0.5, fontFace: t.fonts.body, fontSize: 12, color: hex(c.sub), valign: 'middle', align: 'right' });
+        s.addText(it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.7, h: 0.5, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: hex(c.titleColor || c.accent), valign: 'middle', fit: 'shrink' });
+        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3, h: 0.5, fontFace: t.fonts.body, fontSize: 12, color: hex(c.sub), valign: 'middle', align: 'right', fit: 'shrink' });
       } else {
         s.addShape('rect', { x: x0, y, w: 0.04, h: 0.42, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-        s.addText(it.heading || '', { x: innerX, y, w: innerW * 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent) });
-        s.addText(it.period || '', { x: innerX + innerW * 0.7, y, w: innerW * 0.3, h: 0.4, fontFace: t.fonts.body, fontSize: 10, color: hex(c.muted), align: 'right' });
+        s.addText(it.heading || '', { x: innerX, y, w: innerW * 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
+        s.addText(it.period || '', { x: innerX + innerW * 0.7, y, w: innerW * 0.3, h: 0.4, fontFace: t.fonts.body, fontSize: 10, color: hex(c.muted), align: 'right', fit: 'shrink' });
       }
 
       let cy = y + 0.55;
-      if (it.role) { s.addText(it.role, { x: innerX, y: cy, w: innerW, h: 0.28, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.sub) }); cy += 0.28; }
-      if (it.body) { s.addText(it.body, { x: innerX, y: cy, w: innerW, h: 0.5, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sub) }); cy += 0.45; }
+      if (it.role) { s.addText(it.role, { x: innerX, y: cy, w: innerW, h: 0.28, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.sub), fit: 'shrink' }); cy += 0.28; }
+      if (it.body) { s.addText(it.body, { x: innerX, y: cy, w: innerW, h: 0.5, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sub), fit: 'shrink' }); cy += 0.45; }
 
       if (Array.isArray(it.bullets) && it.bullets.length) {
         const bulletObjs = it.bullets.slice(0, 3).map(b => ({ text: b, options: { bullet: { code: variant === 'classic' ? '2014' : '25CF' } } }));
@@ -8746,13 +8776,16 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
 }
 
 function withPptSafeFonts(template) {
-  const safeFont = '맑은 고딕';
+  // 미리보기와 동일한 폰트를 사용해 배치·글자크기가 일치하도록 보존.
+  // Pretendard가 설치되지 않은 PC에서는 맑은 고딕으로 자동 폴백.
+  const heading = template.fonts?.heading || 'Pretendard';
+  const body = template.fonts?.body || 'Pretendard';
   return {
     ...template,
     fonts: {
       ...template.fonts,
-      heading: safeFont,
-      body: safeFont,
+      heading,
+      body,
     },
   };
 }
@@ -8771,6 +8804,18 @@ function safePptText(value) {
     .replace(/�/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function pptProposalTextParts(text, defaultColor, accentColor, baseOpts = {}) {
+  const value = safePptText(text);
+  if (!value) return '';
+  const words = value.split(' ');
+  if (words.length < 2) return [{ text: value, options: { ...baseOpts, color: defaultColor } }];
+  const last = words.pop();
+  return [
+    { text: words.join(' ') + ' ', options: { ...baseOpts, color: defaultColor } },
+    { text: last, options: { ...baseOpts, color: accentColor } }
+  ];
 }
 
 function normalizePptLines(lines) {
@@ -8812,7 +8857,7 @@ function addPptText(s, value, options = {}) {
   }
   s.addText(safePptText(value), {
     ...textOptions,
-    fontFace: textOptions.fontFace || 'Malgun Gothic',
+    fontFace: textOptions.fontFace || 'Pretendard',
     fit: textOptions.fit || 'shrink',
   });
 }
