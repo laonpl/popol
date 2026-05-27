@@ -71,6 +71,20 @@ if (process.env.FRONTEND_URL) {
   });
 }
 
+function isAllowedOrigin(origin) {
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  if (allowedOrigins.some(allowed => allowed === origin || allowed === normalizedOrigin)) {
+    return true;
+  }
+
+  try {
+    const { protocol, hostname } = new URL(normalizedOrigin);
+    return protocol === 'https:' && hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 app.use(cors({
   origin: (origin, cb) => {
     // 서버 간 요청(origin=undefined) 허용
@@ -78,9 +92,7 @@ app.use(cors({
 
     // 슬래시 유무에 관계없이 체크
     const normalizedOrigin = origin.replace(/\/$/, '');
-    const isAllowed = allowedOrigins.some(allowed => 
-      allowed === origin || allowed === normalizedOrigin
-    );
+    const isAllowed = isAllowedOrigin(origin);
 
     if (isAllowed) {
       cb(null, true);

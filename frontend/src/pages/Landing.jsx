@@ -10,6 +10,7 @@ import {
   MapPin, Phone, Mail
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
+import { getApiBaseUrl } from '../services/apiBase';
 
 const BRAND_ICONS = {
   KakaoTalk: '/brand-icons/kakaotalk.svg',
@@ -130,7 +131,7 @@ export default function Landing() {
     setWaitlistStatus({ type: 'loading', message: '' });
 
     try {
-      const baseURL = import.meta.env.VITE_API_URL || '/api';
+      const baseURL = getApiBaseUrl();
       const res = await fetch(`${baseURL}/waitlist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

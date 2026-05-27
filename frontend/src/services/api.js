@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { auth } from '../config/firebase';
+import { getApiBaseUrl } from './apiBase';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getApiBaseUrl(),
   timeout: 120000,
 });
 
