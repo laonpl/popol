@@ -5,7 +5,7 @@ import { getApiBaseUrl } from './apiBase';
 // [주의] Vercel 배포 시 VITE_API_URL 환경변수를 빈 값으로 두어야 Vercel의 Rewrite(vercel.json)가 올바르게 작동하여 CORS 에러를 방지할 수 있습니다.
 const api = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 120000,
+  timeout: 300000,
 });
 
 /**

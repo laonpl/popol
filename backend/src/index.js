@@ -110,10 +110,10 @@ app.use(cors({
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// 요청 타임아웃: 2분 (AI 호출 포함 대기열 대기 시간 고려)
+// 요청 타임아웃: 5분 (URL 수집 + AI 호출 + 대기열 대기 시간 고려)
 app.use('/api', (req, res, next) => {
-  req.setTimeout(120000);
-  res.setTimeout(120000);
+  req.setTimeout(300000);
+  res.setTimeout(300000);
   next();
 });
 
@@ -162,6 +162,9 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`✅ POPOL Backend 서버 실행 중 → http://localhost:${PORT}`);
 });
+
+server.requestTimeout = 300000;
+server.headersTimeout = 310000;
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

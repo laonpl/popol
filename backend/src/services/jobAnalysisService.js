@@ -1,4 +1,4 @@
-import { generateWithRetry, callProFirst, parseJSON } from './geminiService.js';
+import { generateWithRetry, callProFirst, callProFirstWithSearch, parseJSON } from './geminiService.js';
 import {
   buildSingleSectionTailorPrompt,
   buildSingleCoverLetterAnswerPrompt,
@@ -354,12 +354,114 @@ ${text.substring(0, 8000)}
   }
 }`;
 
-  const raw = await callProFirst(prompt, 'AnalyzeJobPosting');
+  const raw = await callProFirst(prompt, 'AnalyzeJobPosting', { callTimeoutMs: 180000 });
   const parsed = parseJSON(raw);
   return enrichPortfolioRequirements(parsed, text);
 }
 
 // ── 경험-요구사항 매칭 ─────────────────────────────────
+export async function analyzeJobPostingFromUrl(url, context = '') {
+  const prompt = `채용시장 전문 분석가입니다. 아래 채용공고 URL과 보조 정보를 바탕으로 실제 공고 내용을 찾아 분석해 구조화된 JSON으로 추출하세요.
+검색 가능한 공개 정보와 채용공고 페이지의 제목/본문/기업 정보를 우선 활용하세요. 페이지 접근이 제한되면 URL, 기업명, 모집분야, 공개 채용 정보 기반으로 보수적으로 분석하세요.
+
+채용공고 URL:
+${url}
+
+보조 정보:
+${context || '(없음)'}
+
+분석 지침:
+1. company, position, deadline은 URL/공고/보조 정보에서 확인되는 값을 우선 사용하세요.
+2. 공고에 명시된 주요업무, 필수요건, 우대요건, 기술스택, 제출서류를 최대한 구체적으로 추출하세요.
+3. 공고 원문을 확인하기 어려운 항목은 지어내지 말고 공개 기업 정보와 직무 관행을 기준으로 보수적으로 작성하세요.
+4. portfolioRequirements는 required/format/content/submission 항목별로 작성하세요.
+5. 산업 트렌드는 해당 기업과 직무 맥락에 맞게 3개 이상 작성하세요.
+6. 포트폴리오나 자소서 작성 시 중요한 핵심 문구는 <u>강조 태그</u>를 사용할 수 있습니다.
+
+반드시 아래 JSON 형식으로만 응답:
+{
+  "company": "",
+  "position": "",
+  "tasks": [],
+  "requirements": { "essential": [], "preferred": [] },
+  "skills": [],
+  "skillImportance": [{ "skill": "", "weight": 8, "reason": "" }],
+  "applicationFormat": {
+    "documents": [],
+    "questions": [{ "question": "", "maxLength": 500 }],
+    "fileConstraints": { "maxSize": null, "format": null }
+  },
+  "deadline": null,
+  "workConditions": {
+    "salary": null,
+    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "benefits": [],
+    "location": null
+  },
+  "coreValues": [],
+  "companyAnalysis": {
+    "overview": "",
+    "industry": "",
+    "businessAreas": [],
+    "recentTrends": "",
+    "culture": "",
+    "strengths": [],
+    "weaknesses": [],
+    "competitors": [{ "name": "", "comparison": "" }],
+    "companySize": { "employees": "", "revenue": "", "founded": "" },
+    "homepage": null
+  },
+  "positionAnalysis": {
+    "roleDescription": "",
+    "growthPath": "",
+    "keyCompetencies": [{ "name": "", "weight": 8, "description": "" }],
+    "dailyTasks": "",
+    "challengeLevel": { "score": 7, "description": "" }
+  },
+  "applicationStrategy": {
+    "motivationPoints": [{ "point": "", "how": "" }],
+    "passingStrategy": [{ "strategy": "", "description": "" }],
+    "appealPoints": [],
+    "cautionPoints": [],
+    "portfolioTips": []
+  },
+  "industryTrends": [{ "trend": "", "description": "", "impact": "", "keywords": [], "level": "growing", "opportunity": "", "threat": "" }],
+  "fitScoreFactors": [
+    { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
+    { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
+    { "factor": "인재상 부합도", "maxScore": 20, "description": "" },
+    { "factor": "성장 잠재력", "maxScore": 15, "description": "" },
+    { "factor": "문화 적합도", "maxScore": 10, "description": "" }
+  ],
+  "portfolioRequirements": {
+    "required": [],
+    "format": [],
+    "content": [],
+    "submission": ""
+  }
+}`;
+
+  const sourceText = [url, context].filter(Boolean).join('\n');
+  try {
+    const raw = await callProFirstWithSearch(prompt, 'AnalyzeJobPostingFromUrl');
+    const parsed = parseJSON(raw);
+    return {
+      ...enrichPortfolioRequirements(parsed, sourceText),
+      _sourceType: 'url-search',
+    };
+  } catch (err) {
+    console.warn('[AnalyzeJobPostingFromUrl] URL 검색 분석 실패, 기본 분석으로 대체:', err.message);
+    let hostname = '';
+    try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+    return buildFallbackJobAnalysis({
+      company: hostname || '지원 기업',
+      position: '채용공고',
+      deadline: '',
+      sourceType: 'url-search-fallback',
+    });
+  }
+}
+
 export async function analyzeJobFromDetails({ company, position, deadline }) {
   const normalizedCompany = String(company || '').trim();
   const normalizedPosition = String(position || '').trim();
@@ -447,9 +549,20 @@ ${syntheticPosting}
   }
 }`;
 
-  const raw = await callProFirst(prompt, 'AnalyzeJobFromDetails');
-  const parsed = parseJSON(raw);
-  const enriched = enrichPortfolioRequirements(parsed, syntheticPosting);
+  let enriched;
+  try {
+    const raw = await callProFirst(prompt, 'AnalyzeJobFromDetails');
+    const parsed = parseJSON(raw);
+    enriched = enrichPortfolioRequirements(parsed, syntheticPosting);
+  } catch (err) {
+    console.warn('[AnalyzeJobFromDetails] AI 분석 실패, 기본 분석으로 대체:', err.message);
+    enriched = buildFallbackJobAnalysis({
+      company: normalizedCompany,
+      position: normalizedPosition,
+      deadline: normalizedDeadline,
+      sourceType: 'manual-entry-fallback',
+    });
+  }
 
   return {
     ...enriched,
@@ -457,6 +570,90 @@ ${syntheticPosting}
     position: enriched.position || normalizedPosition,
     deadline: enriched.deadline || normalizedDeadline || null,
     _sourceType: 'manual-entry',
+  };
+}
+
+function buildFallbackJobAnalysis({ company, position, deadline, sourceType = 'manual-entry' }) {
+  const isDevRole = /(개발|엔지니어|프로그래|백엔드|프론트|풀스택|devops|데이터|AI|ML)/i.test(position);
+  const isDesignRole = /(디자인|designer|ux|ui|브랜드|콘텐츠)/i.test(position);
+  const skills = isDevRole
+    ? ['문제 해결', '협업', '기술 문서화', '성능 개선']
+    : isDesignRole
+      ? ['사용자 이해', '문제 정의', '시각화', '협업']
+      : ['문제 해결', '커뮤니케이션', '데이터 기반 의사결정', '협업'];
+  const portfolioContent = isDevRole
+    ? ['주요 프로젝트 2~3개', '본인 기여 범위와 사용 기술', '성과 지표와 개선 결과', 'GitHub 또는 배포 링크']
+    : isDesignRole
+      ? ['대표 프로젝트 2~3개', '문제 정의와 리서치 과정', '프로토타입과 결과물', '성과 또는 사용자 피드백']
+      : ['직무 관련 프로젝트 또는 활동', '본인 역할과 의사결정 과정', '정량/정성 성과', '지원 직무와의 연결점'];
+
+  return {
+    company,
+    position,
+    tasks: [`${position} 직무와 관련된 핵심 업무 수행`, '부서 및 이해관계자와 협업', '성과 개선을 위한 실행 계획 수립'],
+    requirements: {
+      essential: skills.slice(0, 3).map(skill => `${skill} 역량`),
+      preferred: ['지원 기업/산업에 대한 이해', '관련 프로젝트 경험'],
+    },
+    skills,
+    skillImportance: skills.map((skill, index) => ({ skill, weight: Math.max(6, 9 - index), reason: `${position} 직무 수행에 필요한 기본 역량입니다.` })),
+    applicationFormat: {
+      documents: ['지원서', '포트폴리오'],
+      questions: [],
+      fileConstraints: { maxSize: null, format: 'PDF 권장' },
+    },
+    deadline: deadline || null,
+    workConditions: {
+      salary: null,
+      estimatedSalaryRange: { min: null, max: null, unit: '만원/연봉', basis: '공고 원문 확인 필요' },
+      benefits: [],
+      location: null,
+    },
+    coreValues: ['주도성', '협업', '성장 가능성'],
+    companyAnalysis: {
+      overview: `${company} 지원을 위한 기본 분석입니다. 실제 공고 원문이 없거나 AI 분석이 실패해, 입력한 기업명과 모집분야를 기준으로 보수적으로 정리했습니다.`,
+      industry: '',
+      businessAreas: [],
+      recentTrends: `${company}의 최근 제품, 서비스, 채용 페이지를 확인해 포트폴리오의 문제 정의와 성과 표현을 맞추는 것이 좋습니다.`,
+      culture: '공개된 인재상과 채용 안내를 기준으로 협업 방식, 주도성, 성장 가능성을 강조하세요.',
+      strengths: [`${company}와 ${position}의 연결점을 포트폴리오 첫 화면에서 명확히 보여줄 수 있습니다.`],
+      weaknesses: ['공고 세부 요건이 부족하면 세부 기술 스택과 평가 기준을 놓칠 수 있습니다.'],
+      competitors: [],
+      companySize: { employees: '', revenue: '', founded: '' },
+      homepage: null,
+    },
+    positionAnalysis: {
+      roleDescription: `${position} 직무는 지원 기업의 문제를 실제 결과물로 해결한 경험을 보여주는 것이 중요합니다.`,
+      growthPath: '입사 후에는 직무 전문성을 기반으로 프로젝트 리딩과 문제 해결 범위를 넓히는 방향을 제시하세요.',
+      keyCompetencies: skills.map((skill, index) => ({ name: skill, weight: Math.max(6, 9 - index), description: `${position} 포트폴리오에서 사례로 증명하면 좋은 역량입니다.` })),
+      dailyTasks: `${position} 관련 실행, 협업, 결과 분석 업무가 중심이 될 가능성이 높습니다.`,
+      challengeLevel: { score: 7, description: '기업과 직무에 맞는 실무 사례를 구체적으로 제시해야 경쟁력이 생깁니다.' },
+    },
+    applicationStrategy: {
+      motivationPoints: [{ point: `${company}의 서비스/사업 방향과 본인 경험을 연결`, how: '지원동기 첫 문단에서 기업명과 직무 문제를 직접 언급하세요.' }],
+      passingStrategy: [{ strategy: '핵심 프로젝트 전면 배치', description: `${position}와 가장 가까운 프로젝트를 앞쪽에 배치하세요.` }],
+      appealPoints: skills.slice(0, 3),
+      cautionPoints: ['기업명만 바꾼 일반 포트폴리오처럼 보이지 않도록 구체적 연결 문장을 넣으세요.'],
+      portfolioTips: portfolioContent,
+    },
+    industryTrends: [
+      { trend: 'AI 기반 업무 생산성', description: '대부분의 직무에서 AI 도구 활용과 자동화 이해가 중요해지고 있습니다.', impact: `${position} 업무에서도 반복 작업 효율화와 데이터 기반 판단을 어필할 수 있습니다.`, keywords: ['AI', '자동화', '생산성'], level: 'growing', opportunity: '도구 활용 경험을 구체적으로 제시하면 차별화됩니다.', threat: '도구 이름만 나열하면 실무 역량으로 보이지 않을 수 있습니다.' },
+      { trend: '성과 중심 포트폴리오', description: '채용 과정에서 결과물뿐 아니라 문제 해결 과정과 성과 지표를 함께 봅니다.', impact: '프로젝트의 목표, 역할, 결과를 수치와 함께 정리해야 합니다.', keywords: ['성과', '문제해결', '임팩트'], level: 'stable', opportunity: '정량 지표가 있으면 설득력이 커집니다.', threat: '과장된 수치는 신뢰를 떨어뜨릴 수 있습니다.' },
+    ],
+    fitScoreFactors: [
+      { factor: '직무 경험 관련성', maxScore: 30, description: `${position}와 직접 연결되는 경험 비중` },
+      { factor: '기업 이해도', maxScore: 25, description: `${company}의 사업과 인재상 반영 수준` },
+      { factor: '성과 증명력', maxScore: 25, description: '결과물과 수치 기반 성과 제시 수준' },
+      { factor: '협업/커뮤니케이션', maxScore: 20, description: '팀 내 역할과 의사결정 과정 설명 수준' },
+    ],
+    portfolioRequirements: {
+      required: ['포트폴리오 또는 주요 업무 결과물'],
+      format: ['PDF 형식 권장', '링크 제출 가능 여부는 공고 확인 필요'],
+      content: portfolioContent,
+      submission: '채용 플랫폼의 지원 절차에 따라 제출',
+    },
+    _sourceType: sourceType,
+    _analysisWarning: 'AI 상세 분석에 실패해 기본 분석으로 대체했습니다.',
   };
 }
 

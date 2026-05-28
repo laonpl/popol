@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, X, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe, ClipboardPaste } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
@@ -15,6 +15,94 @@ function toCleanList(value) {
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/<\/?u>/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+}
+
+function firstFilled(...values) {
+  return values.find(v => typeof v === 'string' && v.trim())?.trim() || '';
+}
+
+function normalizeAnalysisForDisplay(analysis) {
+  const company = analysis?.company || '해당 기업';
+  const position = analysis?.position || '지원 직무';
+  const skills = toCleanList(analysis?.skills);
+  const tasks = toCleanList(analysis?.tasks);
+  const essential = toCleanList(analysis?.requirements?.essential);
+  const preferred = toCleanList(analysis?.requirements?.preferred);
+  const coreValues = toCleanList(analysis?.coreValues);
+  const rawCompany = analysis?.companyAnalysis || {};
+  const rawPosition = analysis?.positionAnalysis || {};
+  const rawStrategy = analysis?.applicationStrategy || {};
+
+  const companyAnalysis = {
+    ...rawCompany,
+    overview: firstFilled(
+      rawCompany.overview,
+      `${company}의 채용 공고를 기준으로 ${position} 직무에서 요구하는 역량과 포트폴리오 방향을 정리했습니다.`
+    ),
+    industry: firstFilled(rawCompany.industry, skills.length ? `${skills.slice(0, 3).join(', ')} 관련 직무 영역` : ''),
+    businessAreas: toCleanList(rawCompany.businessAreas),
+    strengths: toCleanList(rawCompany.strengths).length
+      ? toCleanList(rawCompany.strengths)
+      : [
+          `${position}와 직접 연결되는 프로젝트 성과를 앞쪽에 배치하면 적합도를 빠르게 보여줄 수 있습니다.`,
+          skills.length ? `${skills.slice(0, 3).join(', ')} 역량을 근거와 함께 제시하는 것이 유리합니다.` : '',
+        ].filter(Boolean),
+    weaknesses: toCleanList(rawCompany.weaknesses).length
+      ? toCleanList(rawCompany.weaknesses)
+      : ['공고에서 확인되지 않은 기업 세부 정보는 단정하지 말고, 실제 경험과 직무 요구사항의 연결로 보완하세요.'],
+    competitors: Array.isArray(rawCompany.competitors) ? rawCompany.competitors : [],
+    culture: firstFilled(rawCompany.culture, coreValues.length ? `${coreValues.slice(0, 3).join(', ')} 키워드를 자기소개와 프로젝트 설명에 자연스럽게 반영하세요.` : ''),
+    recentTrends: firstFilled(rawCompany.recentTrends, tasks.length ? `${tasks.slice(0, 3).join(', ')} 업무 흐름과 관련된 경험을 최신 사례처럼 보여주는 구성이 좋습니다.` : ''),
+  };
+
+  const positionAnalysis = {
+    ...rawPosition,
+    roleDescription: firstFilled(rawPosition.roleDescription, `${position} 직무는 ${tasks.slice(0, 3).join(', ') || '공고의 주요 업무'} 수행 역량을 중심으로 평가될 가능성이 높습니다.`),
+    dailyTasks: firstFilled(rawPosition.dailyTasks, tasks.join(', ')),
+    keyCompetencies: Array.isArray(rawPosition.keyCompetencies) && rawPosition.keyCompetencies.length
+      ? rawPosition.keyCompetencies
+      : skills.slice(0, 5).map((skill, index) => ({
+          name: skill,
+          weight: Math.max(6, 9 - index),
+          description: `${position} 포트폴리오에서 근거 사례로 보여주면 좋은 역량입니다.`,
+        })),
+    growthPath: firstFilled(rawPosition.growthPath, `${position} 직무와 가까운 프로젝트를 중심으로 문제 정의, 실행, 결과를 단계적으로 보여주세요.`),
+    challengeLevel: rawPosition.challengeLevel || { score: 7, description: '요구 역량과 실제 경험의 연결이 선명할수록 평가자가 빠르게 이해할 수 있습니다.' },
+  };
+
+  const applicationStrategy = {
+    ...rawStrategy,
+    motivationPoints: Array.isArray(rawStrategy.motivationPoints) && rawStrategy.motivationPoints.length
+      ? rawStrategy.motivationPoints
+      : [{ point: `${company}의 ${position} 요구사항과 본인의 경험을 직접 연결`, how: '첫 화면과 주요 프로젝트 설명에서 공고 키워드를 반복적으로 드러내세요.' }],
+    appealPoints: toCleanList(rawStrategy.appealPoints).length
+      ? toCleanList(rawStrategy.appealPoints)
+      : [...skills.slice(0, 4), ...essential.slice(0, 2)].slice(0, 5),
+    portfolioTips: toCleanList(rawStrategy.portfolioTips).length
+      ? toCleanList(rawStrategy.portfolioTips)
+      : [
+          '주요 프로젝트마다 문제 상황, 본인 역할, 결과 지표를 함께 작성',
+          skills.length ? `요구 기술(${skills.slice(0, 4).join(', ')})을 사용한 근거 사례 강조` : '',
+          '기업명만 바꾼 일반 포트폴리오처럼 보이지 않도록 직무 요구사항 문구를 자연스럽게 반영',
+        ].filter(Boolean),
+    cautionPoints: toCleanList(rawStrategy.cautionPoints).length
+      ? toCleanList(rawStrategy.cautionPoints)
+      : ['공고에 없는 기업 정보나 성과를 단정적으로 쓰지 말고 검증 가능한 경험 위주로 작성하세요.'],
+  };
+
+  const industryTrends = Array.isArray(analysis?.industryTrends) && analysis.industryTrends.length
+    ? analysis.industryTrends
+    : [
+        {
+          trend: `${position} 직무의 실무 역량 검증 강화`,
+          description: '채용 과정에서 단순 기술 나열보다 실제 문제를 어떻게 해결했는지 확인하는 비중이 커지고 있습니다.',
+          impact: '포트폴리오에는 결과물 이미지나 링크뿐 아니라 의사결정 과정과 개선 결과를 함께 담는 것이 좋습니다.',
+          keywords: skills.slice(0, 4),
+          level: 'growing',
+        },
+      ];
+
+  return { companyAnalysis, positionAnalysis, applicationStrategy, industryTrends };
 }
 
 export function buildDisplayPortfolioRequirements(analysis) {
@@ -96,6 +184,9 @@ export function buildDisplayPortfolioRequirements(analysis) {
 }
 
 export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = false }) {
+  const [mode, setMode] = useState(compact ? 'details' : 'url');
+  const [url, setUrl] = useState('');
+  const [text, setText] = useState('');
   const [company, setCompany] = useState('');
   const [position, setPosition] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -104,6 +195,8 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
   const [showSites, setShowSites] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('');
+
+  const detectedSite = JOB_SITES.find(s => url.includes(s.domain));
 
   const STAGES = [
     { at: 0, label: '기업 분석 중...' },
@@ -128,40 +221,74 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
   }, [loading]);
 
   const handleAnalyze = async () => {
-    if (!company.trim() || !position.trim() || !deadline.trim()) return;
+    const trimmedUrl = url.trim();
+    const trimmedText = text.trim();
+    const trimmedCompany = company.trim();
+    const trimmedPosition = position.trim();
+    const trimmedDeadline = deadline.trim();
+
+    if (mode === 'url' && !trimmedUrl) return;
+    if (mode === 'text' && trimmedText.length < 100) return;
+    if (mode === 'details' && (!trimmedCompany || !trimmedPosition || !trimmedDeadline)) return;
 
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.post('/job/analyze', {
-        company: company.trim(),
-        position: position.trim(),
-        deadline: deadline.trim(),
-      });
+      const payload = {
+        company: trimmedCompany || undefined,
+        position: trimmedPosition || undefined,
+        deadline: trimmedDeadline || undefined,
+      };
+      if (mode === 'url') payload.url = trimmedUrl;
+      if (mode === 'text') payload.text = trimmedText;
+
+      const { data } = await api.post('/job/analyze', payload, { timeout: 300000 });
       onAnalysisComplete(data.analysis);
     } catch (err) {
       setError(err.response?.data?.error || '채용공고 분석에 실패했습니다');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const canSubmit = company.trim() && position.trim() && deadline.trim();
+  const canSubmit =
+    mode === 'url'
+      ? !!url.trim()
+      : mode === 'text'
+        ? text.trim().length >= 100
+        : !!(company.trim() && position.trim() && deadline.trim());
   const fieldClassName = 'w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors bg-white';
+  const tabClass = (active) => `flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold transition-colors ${active ? 'bg-white text-primary-700 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-700'}`;
 
   return (
     <div className="space-y-5">
       {!compact && (
         <div className="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3">
-          <p className="text-[13px] font-semibold text-primary-700">링크 없이 분석할 수 있어요</p>
+          <p className="text-[13px] font-semibold text-primary-700">공고 링크 또는 기본 정보로 분석할 수 있어요</p>
           <p className="text-[12px] text-bluewood-400 mt-1 leading-relaxed">
-            지원할 기업명, 모집분야, 지원서 접수 기간을 입력하면 그 정보를 바탕으로 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 정리합니다.
+            공고 링크를 넣으면 해당 공고 원문을 우선 분석하고, 기업명/모집분야/접수 기간은 보조 정보로 반영합니다.
           </p>
         </div>
       )}
 
       {!compact && (
+        <div className="flex bg-surface-100 rounded-xl p-1">
+          <button type="button" onClick={() => setMode('url')} className={tabClass(mode === 'url')}>
+            <Globe size={14} /> 공고 링크
+          </button>
+          <button type="button" onClick={() => setMode('text')} className={tabClass(mode === 'text')}>
+            <ClipboardPaste size={14} /> 공고 붙여넣기
+          </button>
+          <button type="button" onClick={() => setMode('details')} className={tabClass(mode === 'details')}>
+            <Search size={14} /> 기본 정보
+          </button>
+        </div>
+      )}
+
+      {!compact && mode === 'url' && (
         <div className="relative flex justify-center">
           <button
+            type="button"
             onClick={() => setShowSites(!showSites)}
             className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-400 border border-surface-200 rounded-lg hover:border-bluewood-300 hover:text-bluewood-700 bg-white transition-colors"
           >
@@ -189,38 +316,66 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
         </div>
       )}
 
-      <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
-        <div className="space-y-1.5">
-          <p className="text-[12px] font-semibold text-bluewood-600">기업명</p>
-          <input
-            value={company}
-            onChange={e => setCompany(e.target.value)}
-            placeholder="예: 네이버"
-            className={fieldClassName}
-          />
+      {mode === 'url' && (
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+              placeholder="https:// 지원할 공고 링크를 입력하세요"
+              className={`${fieldClassName} ${detectedSite ? 'pr-28' : ''}`}
+            />
+            {detectedSite && (
+              <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
+                {detectedSite.name}
+              </span>
+            )}
+          </div>
+          {!compact && (
+            <div className="grid gap-3 md:grid-cols-3">
+              <input value={company} onChange={e => setCompany(e.target.value)} placeholder="기업명 보조 입력 (선택)" className={fieldClassName} />
+              <input value={position} onChange={e => setPosition(e.target.value)} placeholder="모집분야 보조 입력 (선택)" className={fieldClassName} />
+              <input value={deadline} onChange={e => setDeadline(e.target.value)} placeholder="접수 기간 보조 입력 (선택)" className={fieldClassName} />
+            </div>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <p className="text-[12px] font-semibold text-bluewood-600">모집분야</p>
-          <input
-            value={position}
-            onChange={e => setPosition(e.target.value)}
-            placeholder="예: 백엔드 개발자"
-            className={fieldClassName}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-[12px] font-semibold text-bluewood-600">지원서 접수 기간</p>
-          <input
-            value={deadline}
-            onChange={e => setDeadline(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-            placeholder="예: 2026.05.12 ~ 2026.05.26"
-            className={fieldClassName}
-          />
-        </div>
-      </div>
+      )}
 
-      {/* 로딩 프로그레스 */}
+      {mode === 'text' && (
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="채용공고 내용을 붙여넣으세요. 100자 이상 입력하면 분석할 수 있습니다."
+          rows={compact ? 4 : 7}
+          className={`${fieldClassName} resize-none`}
+        />
+      )}
+
+      {mode === 'details' && (
+        <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
+          <div className="space-y-1.5">
+            <p className="text-[12px] font-semibold text-bluewood-600">기업명</p>
+            <input value={company} onChange={e => setCompany(e.target.value)} placeholder="예: 카카오" className={fieldClassName} />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[12px] font-semibold text-bluewood-600">모집분야</p>
+            <input value={position} onChange={e => setPosition(e.target.value)} placeholder="예: 백엔드 개발자" className={fieldClassName} />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[12px] font-semibold text-bluewood-600">지원서 접수 기간</p>
+            <input
+              value={deadline}
+              onChange={e => setDeadline(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+              placeholder="예: 2026.05.12 ~ 2026.05.26"
+              className={fieldClassName}
+            />
+          </div>
+        </div>
+      )}
+
       {loading && (
         <div className="bg-primary-50 border border-primary-100 rounded-xl p-6 space-y-4">
           <div className="text-center">
@@ -228,10 +383,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
             <p className="text-[13px] font-semibold text-primary-700">{progressStage}</p>
           </div>
           <div className="w-full bg-primary-100 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-2 rounded-full bg-primary-600 transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-2 rounded-full bg-primary-600 transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             {STAGES.slice(0, 4).map((s, i) => (
@@ -252,18 +404,19 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
         </p>
       )}
 
-      {/* 버튼 */}
       {!loading && (
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleAnalyze}
             disabled={!canSubmit}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary-100"
           >
-            기업 분석하기
+            {mode === 'url' ? '공고 링크로 기업 분석하기' : mode === 'text' ? '공고 내용으로 기업 분석하기' : '기업 분석하기'}
           </button>
           {onSkip && (
             <button
+              type="button"
               onClick={onSkip}
               className="px-5 py-3 text-[14px] font-medium text-bluewood-400 hover:text-bluewood-700 rounded-lg hover:bg-surface-100 border border-surface-200 transition-colors"
             >
@@ -285,10 +438,12 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
 
   if (!analysis) return null;
 
-  const ca = analysis.companyAnalysis || {};
-  const pa = analysis.positionAnalysis || {};
-  const as_ = analysis.applicationStrategy || {};
-  const trends = analysis.industryTrends || [];
+  const {
+    companyAnalysis: ca,
+    positionAnalysis: pa,
+    applicationStrategy: as_,
+    industryTrends: trends,
+  } = normalizeAnalysisForDisplay(analysis);
   const portfolioReq = buildDisplayPortfolioRequirements(analysis);
 
   const tabs = [

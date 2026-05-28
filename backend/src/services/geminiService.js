@@ -100,11 +100,11 @@ async function callProFirstWithSearch(prompt, label) {
   try {
     return await callProFirst(prompt, label, {
       config: { tools: [{ googleSearch: {} }] },
-      callTimeoutMs: 120000,
+      callTimeoutMs: 180000,
     });
   } catch (err) {
     console.warn(`[${label}] 검색 grounding 실패 → 일반 분석으로 전환:`, err.message);
-    return await callProFirst(prompt, `${label}-NoSearch`, { callTimeoutMs: 120000 });
+    return await callProFirst(prompt, `${label}-NoSearch`, { callTimeoutMs: 180000 });
   }
 }
 
@@ -113,7 +113,7 @@ async function callProFirstWithSearch(prompt, label) {
 export { generateWithRetry };
 
 // Pro 우선 + 자동 Lite 폴백 — jobAnalysisService 등 외부 서비스에서 사용
-export { callProFirst };
+export { callProFirst, callProFirstWithSearch };
 
 // JSON 파싱 헬퍼 — 외부 서비스 공용
 export { parseJSON };

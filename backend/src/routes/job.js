@@ -3,6 +3,7 @@ import { adminDb as db } from '../config/firebase.js';
 import {
   scrapeJobPosting,
   analyzeJobPosting,
+  analyzeJobPostingFromUrl,
   analyzeJobFromDetails,
   matchExperiencesToJob,
   generateTailoredCoverLetter,
@@ -112,33 +113,56 @@ router.post('/analyze', authMiddleware, async (req, res) => {
     const position = typeof req.body?.position === 'string' ? req.body.position.trim() : '';
     const deadline = typeof req.body?.deadline === 'string' ? req.body.deadline.trim() : '';
     const hasManualInfo = Boolean(company && position && deadline);
+    const hasAnyManualInfo = Boolean(company || position || deadline);
     if (!url && !text && !hasManualInfo) {
       return res.status(400).json({ error: 'URL 또는 채용공고 텍스트가 필요합니다' });
     }
 
-    if (hasManualInfo) {
+    if (!url && !text && hasManualInfo) {
       const analysis = await analyzeJobFromDetails({ company, position, deadline });
       return res.json({ analysis });
     }
 
     let postingText = text;
     let scrapedUrl = null;
+    let scrapeFailed = false;
+    let safeUrl = '';
 
     // URL이 있으면 SSRF 검증 후 스크래핑
     if (url && !text) {
-      let safeUrl;
       try {
         safeUrl = validateJobUrl(url);
       } catch (e) {
         return res.status(400).json({ error: e.message });
       }
       scrapedUrl = maskUrl(safeUrl);
-      postingText = await scrapeJobPosting(safeUrl);
+      try {
+        postingText = await scrapeJobPosting(safeUrl);
+      } catch (e) {
+        scrapeFailed = true;
+        console.warn('[Job] 스크래핑 실패, URL 검색 기반 분석으로 전환:', e.message);
+        postingText = `채용공고 URL: ${safeUrl}`;
+      }
+    }
+
+    if (hasAnyManualInfo) {
+      postingText = [
+        '사용자 입력 보조 정보:',
+        company ? `기업명: ${company}` : '',
+        position ? `모집분야: ${position}` : '',
+        deadline ? `지원서 접수 기간: ${deadline}` : '',
+        '',
+        '채용공고 원문:',
+        postingText,
+      ].filter(Boolean).join('\n');
     }
 
     // Gemini로 구조화 분석
-    const analysis = await analyzeJobPosting(postingText);
+    const analysis = scrapeFailed && safeUrl
+      ? await analyzeJobPostingFromUrl(safeUrl, postingText)
+      : await analyzeJobPosting(postingText);
     analysis._scrapedUrl = scrapedUrl;
+    if (scrapeFailed) analysis._scrapeWarning = '공고 페이지 직접 수집에 실패해 URL 검색 기반으로 분석했습니다.';
 
     res.json({ analysis });
   } catch (err) {

@@ -14,7 +14,7 @@ export async function analyzeJob({ url, text, company, position, deadline } = {}
   if (company) payload.company = company.trim();
   if (position) payload.position = position.trim();
   if (deadline) payload.deadline = deadline.trim();
-  const { data } = await api.post('/job/analyze', payload);
+  const { data } = await api.post('/job/analyze', payload, { timeout: 300000 });
   return data; // { analysis, ... }
 }
 
