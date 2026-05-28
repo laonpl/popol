@@ -240,8 +240,9 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
     const portfolio = { id: snap.id, ...snap.data() };
     if (portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
 
+    if (!Array.isArray(portfolio.experiences)) portfolio.experiences = [];
     const experienceIds = Array.isArray(portfolio.experienceIds) ? portfolio.experienceIds : [];
-    if (experienceIds.length > 0) {
+    if (portfolio.experiences.length === 0 && experienceIds.length > 0) {
       const expSnaps = await Promise.all(
         experienceIds.slice(0, 12).map(eid => adminDb.collection('experiences').doc(eid).get())
       );
@@ -250,13 +251,6 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
         .map(s => ({ id: s.id, ...s.data() }))
         .filter(exp => exp.userId === req.user.uid);
       portfolio.experiences = linkedExperiences.length ? linkedExperiences : (portfolio.experiences || []);
-    }
-    if (!Array.isArray(portfolio.experiences) || portfolio.experiences.length === 0) {
-      const expSnap = await adminDb.collection('experiences')
-        .where('userId', '==', req.user.uid)
-        .limit(12)
-        .get();
-      portfolio.experiences = expSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     }
     const deck = await generateAiPptDeck({ portfolio, templateHint: templateHint || 'standard:proposal', customTemplate: customTemplate || null });
     res.json({ deck });

@@ -40,33 +40,108 @@ function sanitizePortfolioText(value) {
 
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {
   const layoutMode = getPptLayoutMode(templateHint);
-  if (customTemplate) {
-    try {
-      const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate });
-      const text = await withTimeout(callGeminiPro(prompt), 90000);
-      const customDeck = parseJSON(text);
-      if (customDeck && Array.isArray(customDeck.slides) && customDeck.slides.length > 0) return customDeck;
-    } catch (err) {
-      console.warn('[AiPptDeck] 커스텀 템플릿 생성 실패 — 결정적 deck 폴백:', err.message);
-    }
-  }
   const acceptedLayoutDeck = buildAcceptedLayoutDeckFromPortfolio(portfolio, layoutMode);
-  if (acceptedLayoutDeck) return acceptedLayoutDeck;
+  if (acceptedLayoutDeck) return sanitizeDeckToPortfolioSource(acceptedLayoutDeck, portfolio);
 
   const useProposalDeck = isProposalTemplateHint(templateHint);
   const baseDeck = useProposalDeck ? buildProposalDeckFromPortfolio(portfolio) : buildDeckFromPortfolio(portfolio);
-  if (useProposalDeck) return baseDeck;
-
-  let polished = null;
-  try {
-    const prompt = buildAiPptAnalyzePrompt({ portfolio, templateHint, baseDeck });
-    const text = await withTimeout(callGeminiPro(prompt), 90000);
-    polished = parseJSON(text);
-  } catch (err) {
-    console.warn('[AiPptDeck] AI polish 실패 — 결정적 deck 사용:', err.message);
-  }
-  return mergeDecksWithPolish(baseDeck, polished);
+  return sanitizeDeckToPortfolioSource(baseDeck, portfolio);
 }
+
+function sanitizeDeckToPortfolioSource(deck, portfolio) {
+  if (!deck || !Array.isArray(deck.slides)) return deck;
+  const source = buildPortfolioSourceIndex(portfolio);
+  const cleanText = (value, max = 220) => {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    if (isPortfolioSourceBound(text, source)) return text.slice(0, max);
+    return '';
+  };
+  const cleanMetric = (metric = {}) => {
+    const label = cleanText(metric.label, 60);
+    const value = cleanText(metric.value, 80);
+    const before = cleanText(metric.before, 60);
+    const after = cleanText(metric.after, 60);
+    if (!label && !value && !before && !after) return null;
+    return { ...metric, label, value, before, after };
+  };
+  const cleanItem = (item = {}) => {
+    const rawHeading = String(item.heading || '').trim();
+    const heading = cleanText(rawHeading, 80) || (rawHeading.length <= 12 ? rawHeading.slice(0, 80) : '');
+    const period = cleanText(item.period, 50);
+    const role = cleanText(item.role, 60);
+    const body = cleanText(item.body, 220);
+    const bullets = Array.isArray(item.bullets) ? item.bullets.map(b => cleanText(b, 160)).filter(Boolean) : [];
+    const metrics = Array.isArray(item.metrics) ? item.metrics.map(cleanMetric).filter(Boolean) : [];
+    return { ...item, heading, period, role, body, bullets, metrics };
+  };
+  return {
+    ...deck,
+    slides: deck.slides.map(slide => ({
+      ...slide,
+      subtitle: cleanText(slide.subtitle, 160),
+      bullets: Array.isArray(slide.bullets) ? slide.bullets.map(b => cleanText(b, 160)).filter(Boolean) : slide.bullets,
+      items: Array.isArray(slide.items) ? slide.items.map(cleanItem) : slide.items,
+      metrics: Array.isArray(slide.metrics) ? slide.metrics.map(cleanMetric).filter(Boolean) : slide.metrics,
+      table: Array.isArray(slide.table)
+        ? slide.table.map((row, rowIndex) => Array.isArray(row)
+          ? row.map(cell => rowIndex === 0 ? String(cell || '').slice(0, 60) : cleanText(cell, 120))
+          : row)
+        : slide.table,
+      notes: cleanText(slide.notes, 300),
+    })),
+  };
+}
+
+function buildPortfolioSourceIndex(portfolio) {
+  const chunks = [];
+  const visit = (value) => {
+    if (value == null) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      chunks.push(String(value));
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.entries(value).forEach(([key, child]) => {
+        if (['id', 'userId', 'createdAt', 'updatedAt', 'template', 'thumbnail'].includes(key)) return;
+        visit(child);
+      });
+    }
+  };
+  visit(portfolio);
+  const text = chunks.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const tokens = new Set((text.match(/[a-z0-9가-힣]{2,}/gi) || []).map(t => t.toLowerCase()));
+  const numbers = new Set((text.match(/\d+(?:[.,]\d+)?%?/g) || []).map(t => t.replace(/,/g, '')));
+  return { text, tokens, numbers };
+}
+
+function isPortfolioSourceBound(text, source) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return true;
+  if (normalized.length <= 12) return true;
+  if (!source.text) return false;
+  if (source.text.includes(normalized)) return true;
+
+  const textNumbers = (normalized.match(/\d+(?:[.,]\d+)?%?/g) || []).map(t => t.replace(/,/g, ''));
+  if (textNumbers.length && !textNumbers.some(n => source.numbers.has(n))) return false;
+
+  const tokens = (normalized.match(/[a-z0-9가-힣]{2,}/gi) || []).map(t => t.toLowerCase());
+  if (!tokens.length) return normalized.length <= 30;
+  const meaningful = tokens.filter(t => !SOURCE_STOPWORDS.has(t));
+  const compareTokens = meaningful.length ? meaningful : tokens;
+  const hits = compareTokens.filter(t => source.tokens.has(t) || source.text.includes(t));
+  const required = normalized.length > 45 ? 2 : 1;
+  return hits.length >= Math.min(required, compareTokens.length);
+}
+
+const SOURCE_STOPWORDS = new Set([
+  'portfolio', 'project', 'experience', 'skill', 'skills', 'role', 'result', 'action',
+  'before', 'after', 'week', 'phase', 'core', 'fit', 'growth', 'impact', 'evidence',
+]);
 
 function getPptLayoutMode(templateHint) {
   const hint = String(templateHint || '').toLowerCase().trim();

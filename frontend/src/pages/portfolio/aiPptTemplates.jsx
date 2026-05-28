@@ -5280,6 +5280,7 @@ export async function exportDeckToPptx(deck, templateOrId, fileName) {
   for (let i = 0; i < (deck.slides || []).length; i += 1) {
     const slide = deck.slides[i];
     const s = pptx.addSlide();
+
     s.background = { color: hex(c.bg) };
 
     if (t.style === 'proposal' && t.layoutId && t.layoutId !== 'standard') {
