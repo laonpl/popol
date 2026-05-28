@@ -137,31 +137,9 @@ function createSlideDeckSection(blocks = [], enabled = true, label = '상세 슬
 }
 
 function moveSlidesToStandaloneSection(sections = []) {
-  const cleanedSections = [];
-  const slideBlocks = [];
-  let deckMeta = null;
-
-  sections.map(normalizeExportSection).forEach(section => {
-    const blocks = section.blocks.map(normalizePortfolioBlock).filter(Boolean);
-    if (isSlideDeckSection(section)) {
-      deckMeta = section;
-      slideBlocks.push(...blocks.filter(block => block.type === 'slide'));
-      return;
-    }
-
-    const textAndImageBlocks = [];
-    blocks.forEach(block => {
-      if (block.type === 'slide') slideBlocks.push(block);
-      else textAndImageBlocks.push(block);
-    });
-    cleanedSections.push(normalizeExportSection({ ...section, blocks: textAndImageBlocks, content: portfolioBlocksToText(textAndImageBlocks) }));
-  });
-
-  if (slideBlocks.length > 0 || deckMeta) {
-    cleanedSections.push(createSlideDeckSection(slideBlocks, deckMeta?.enabled !== false, deckMeta?.label || '상세 슬라이드'));
-  }
-
-  return cleanedSections;
+  // 원래는 모든 섹션에서 슬라이드를 뽑아내서 맨 뒤로 강제 고정하는 로직이었으나,
+  // 이제는 섹션 순서를 사용자가 마음대로 이동할 수 있도록 원본을 그대로 반환합니다.
+  return sections.map(normalizeExportSection);
 }
 
 function PortfolioBlockViewer({ blocks = [], compact = false }) {
@@ -1706,28 +1684,50 @@ export default function StructuredResult() {
 
   const updateSlideDeck = (updater) => {
     setExportCustomSections(prev => {
-      const sections = moveSlidesToStandaloneSection(prev);
-      const deckIndex = sections.findIndex(isSlideDeckSection);
-      const deck = deckIndex >= 0 ? sections[deckIndex] : createSlideDeckSection([]);
-      const nextDeck = normalizeExportSection(updater(deck));
-      if (deckIndex >= 0) return sections.map((section, index) => index === deckIndex ? nextDeck : section);
-      return [...sections, nextDeck];
+      const sections = [...prev];
+      let deckIndex = -1;
+      // 가장 마지막에 있는 슬라이드 섹션을 찾습니다 (가장 최근에 작업한 곳)
+      for (let i = sections.length - 1; i >= 0; i--) {
+        if (isSlideDeckSection(sections[i])) {
+          deckIndex = i;
+          break;
+        }
+      }
+      
+      if (deckIndex >= 0) {
+        const deck = sections[deckIndex];
+        const nextDeck = normalizeExportSection(updater(deck));
+        return sections.map((section, index) => index === deckIndex ? nextDeck : section);
+      } else {
+        const nextDeck = normalizeExportSection(updater(createSlideDeckSection([])));
+        return [...sections, nextDeck];
+      }
     });
   };
 
-  const addExportSlideBlock = (slideKey) => {
+  const addExportSlideBlock = (slideKey, mode = 'merge') => {
     const slideBlock = buildCurrentSlideBlock(slideKey);
-    updateSlideDeck(deck => {
-      const blocks = [...deck.blocks.filter(block => block.type === 'slide'), slideBlock];
-      return createSlideDeckSection(blocks, true, deck.label || '상세 슬라이드');
-    });
-    toast.success('상세 슬라이드에 추가되었습니다');
+    
+    if (mode === 'new') {
+      const key = `slide-${Date.now()}`;
+      const newSection = createSlideDeckSection([slideBlock], true, `${SECTION_META[slideKey]?.label || '상세 슬라이드'}`);
+      newSection.key = key;
+      setExportCustomSections(prev => [...prev, newSection]);
+      setActiveExportSectionKey(key);
+      toast.success('새 섹션으로 추가되었습니다');
+    } else {
+      updateSlideDeck(deck => {
+        const blocks = [...deck.blocks.filter(block => block.type === 'slide'), slideBlock];
+        return createSlideDeckSection(blocks, deck.enabled !== false, deck.label || '상세 슬라이드');
+      });
+      toast.success('기존 슬라이드 섹션에 추가되었습니다');
+    }
   };
 
   const addAllExportSlideBlocks = () => {
     const blocks = SECTION_KEYS.map(buildCurrentSlideBlock);
-    updateSlideDeck(deck => createSlideDeckSection(blocks, true, deck.label || '상세 슬라이드'));
-    toast.success('7개 상세 슬라이드를 구성했습니다');
+    updateSlideDeck(deck => createSlideDeckSection(blocks, deck.enabled !== false, deck.label || '상세 슬라이드'));
+    toast.success('7개 상세 슬라이드를 모두 구성했습니다');
   };
 
   const addExportImageBlock = async (sectionKey, file) => {
@@ -2022,7 +2022,7 @@ export default function StructuredResult() {
 
   return (
     <>
-    <div className="animate-fadeIn w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+    <div className="animate-fadeIn w-full max-w-[95%] 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 pb-16">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between mb-4">
         {navState?.isTutorialDemo ? (
@@ -2118,7 +2118,7 @@ export default function StructuredResult() {
       {renderDetailSlides()}
 
       {/* ── 메인 + 우측 기업분석 사이드바 ── */}
-      <div className="flex gap-5 items-start">
+      <div className="flex gap-6 sm:gap-8 lg:gap-10 items-start">
         {/* 메인 콘텐츠 */}
         <div className="flex-1 min-w-0">
 
@@ -2253,9 +2253,9 @@ export default function StructuredResult() {
          ╚══════════════════════════════════════════════╝ */}
       {(editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (
         <div className="mt-5 border border-surface-200 overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-surface-200 bg-white">
+          <div className="flex items-center justify-between gap-4 px-6 sm:px-8 py-5 border-b border-surface-200 bg-white">
             <div>
-              <h2 className="text-[13px] font-bold text-primary-600">시장/지표 리서치</h2>
+              <h2 className="text-[14px] font-bold text-primary-600">시장/지표 리서치</h2>
               <p className="mt-1 text-[13px] text-bluewood-400">외부 자료는 비교 기준으로만 쓰고, 실제 프로젝트 수치는 직접 검증해 반영하세요.</p>
             </div>
             {!viewOnly && (
@@ -2267,7 +2267,7 @@ export default function StructuredResult() {
             )}
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="p-6 sm:p-8 space-y-6">
             <div>
               <p className="mb-2 text-[13px] font-bold text-bluewood-700">프로젝트와 연결되는 시장 맥락</p>
               <textarea
@@ -2789,16 +2789,26 @@ export default function StructuredResult() {
                           <LayoutGrid size={13} /> 7개 자동 구성
                         </button>
                       </div>
-                      <div className="mt-4 grid grid-cols-2 gap-1.5">
+                      <div className="mt-5 grid grid-cols-2 gap-2">
                         {SECTION_KEYS.map(slideKey => (
-                          <button
-                            key={slideKey}
-                            type="button"
-                            onClick={() => addExportSlideBlock(slideKey)}
-                            className="rounded-lg bg-primary-50 px-2 py-1.5 text-left text-[12px] font-bold text-bluewood-600 ring-1 ring-primary-100 hover:bg-white"
-                          >
-                            {SECTION_META[slideKey].num} {SECTION_META[slideKey].label}
-                          </button>
+                          <div key={slideKey} className="group relative flex rounded-xl bg-primary-50 ring-1 ring-primary-100 hover:bg-white overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => addExportSlideBlock(slideKey, 'new')}
+                              className="flex-1 py-2 px-2 text-left text-[12px] font-bold text-bluewood-600 transition-colors hover:bg-primary-100/50"
+                              title="새로운 섹션으로 분리해서 추가"
+                            >
+                              {SECTION_META[slideKey].num} {SECTION_META[slideKey].label}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addExportSlideBlock(slideKey, 'merge')}
+                              className="flex items-center justify-center px-2 border-l border-primary-100 text-bluewood-400 hover:bg-primary-100 hover:text-primary-700 transition-colors"
+                              title="기존 섹션 뒤에 겹치기(병합)"
+                            >
+                              <Plus size={13} strokeWidth={3} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                       {slideDeckBlocks.length > 0 ? (
