@@ -21,6 +21,30 @@ export const TEMPLATES = [
   },
   // ── 기본 합격자 스타일 (3가지) ──
   {
+    id: 'beige-minimal',
+    name: 'Beige Minimal',
+    description: 'Warm beige, charcoal text, terracotta accent portfolio style',
+    style: 'proposal',
+    category: 'theme',
+    colors: {
+      bg: '#F5F2ED',
+      accent: '#D4A373',
+      sub: '#2C2C2C',
+      muted: '#4A4A4A',
+      line: '#DDD5CB',
+      side: '#2C2C2C',
+      sideFg: '#F5F2ED',
+      kpi: '#8B9A8B',
+      headBg: '#2C2C2C',
+      headFg: '#F5F2ED',
+      card: '#E8E4DE',
+      dark: '#2C2C2C',
+      dark2: '#3A3732',
+      neutral: '#8B9A8B',
+    },
+    fonts: { heading: 'Playfair Display', body: 'Pretendard', mono: 'Fira Code' },
+  },
+  {
     id: 'modern',
     name: '모던 (Modern)',
     description: '다크 사이드바 + 산세리프, IT/스타트업 합격자 스타일',
@@ -145,6 +169,79 @@ export const COLOR_PALETTES = TEMPLATES.map(t => ({
   colors: t.colors,
   fonts: t.fonts,
 }));
+
+export const NOTION_PPT_STYLE_CONFIG = {
+  themeId: 'beige-minimal',
+  slide: { width: 13.333, height: 7.5, safeArea: 0.83 },
+  colors: {
+    background: '#F5F2ED',
+    surface: '#E8E4DE',
+    contentBox: '#FFFFFF',
+    textPrimary: '#2C2C2C',
+    textSecondary: '#4A4A4A',
+    accent: '#D4A373',
+    subAccent: '#8B9A8B',
+    line: '#DDD5CB',
+  },
+  fonts: {
+    headline: 'Playfair Display',
+    body: 'Pretendard',
+    technical: 'Fira Code',
+  },
+  typography: {
+    title: { min: 30, max: 42 },
+    body: { min: 14, max: 18 },
+    caption: { min: 9, max: 12 },
+  },
+};
+
+export function applyTheme(slide, template = getTemplate('beige-minimal')) {
+  const colors = template?.colors || {};
+  const bg = colors.bg || NOTION_PPT_STYLE_CONFIG.colors.background;
+  slide.background = { color: hex(bg) };
+  slide.addShape('rect', {
+    x: 0,
+    y: 0,
+    w: NOTION_PPT_STYLE_CONFIG.slide.width,
+    h: NOTION_PPT_STYLE_CONFIG.slide.height,
+    fill: { color: hex(bg) },
+    line: { color: hex(bg) },
+  });
+}
+
+export function autoFitText(text, boxSize = {}, options = {}) {
+  const min = options.min ?? 14;
+  const max = options.max ?? 42;
+  const width = Math.max(1, Number(boxSize.w || 4));
+  const height = Math.max(0.4, Number(boxSize.h || 1));
+  const len = String(text || '').replace(/\s+/g, ' ').trim().length;
+  if (!len) return max;
+  const capacity = width * height * 18;
+  const ratio = Math.min(1, len / Math.max(1, capacity));
+  return Math.round(max - (max - min) * ratio);
+}
+
+export function renderContentBox(slide, content, opts = {}, template = getTemplate('beige-minimal')) {
+  const box = {
+    x: opts.x ?? NOTION_PPT_STYLE_CONFIG.slide.safeArea,
+    y: opts.y ?? 1.5,
+    w: opts.w ?? 11.7,
+    h: opts.h ?? 4.5,
+  };
+  drawPptContentCard(slide, template, box.x, box.y, box.w, box.h, false);
+  if (content) {
+    addPptText(slide, content, {
+      x: box.x + 0.3,
+      y: box.y + 0.28,
+      w: box.w - 0.6,
+      h: box.h - 0.56,
+      fontFace: template.fonts?.body || NOTION_PPT_STYLE_CONFIG.fonts.body,
+      fontSize: autoFitText(content, box, { min: 14, max: 18 }),
+      color: hex(template.colors?.sub || NOTION_PPT_STYLE_CONFIG.colors.textPrimary),
+      fit: 'shrink',
+    });
+  }
+}
 
 // ── 합격 포트폴리오형 슬라이드 레이아웃 구조 ──
 export const SLIDE_LAYOUTS = [
@@ -1587,8 +1684,8 @@ function renderNarrativeChallenge(slide, t, v) {
       {narrLabel('CORE TASKS', v)}
       {actions.map((a, i) => <div key={i} style={{ marginTop: 12, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
         <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
-        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 900 }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
-        {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B' }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
+        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 900, ...textClamp(3) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B', ...textClamp(1) }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
     {slide.subtitle ? <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ fontSize: 16 }}>📈</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div> : null}
@@ -1619,9 +1716,9 @@ function renderNarrativeArchitecture(slide, t, v) {
 
 function renderNarrativeResults(slide, t, v) {
   const acc = narrAccent(v);
-  const all = (slide.items || []).slice(0, 7);
-  const deliverables = all.slice(0, 4);
-  const growth = all.slice(4, 7);
+  const deliverables = (slide.items || []).slice(0, 4);
+  // bullets 필드를 GROWTH POINTS 전용으로 사용 (items[4:7] slice 방식 폐기 — sanitize 오버필터 문제)
+  const growth = (slide.bullets || []).slice(0, 3);
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
       <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
@@ -1633,7 +1730,7 @@ function renderNarrativeResults(slide, t, v) {
     </div>
     <div style={{ position: 'absolute', right: 60, top: 190, width: 310, background: '#0F172A', borderRadius: 8, padding: '20px 22px' }}>
       <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>GROWTH POINTS</div>
-      {growth.map((g, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12.5, color: '#E2E8F0', lineHeight: 1.5, ...textClamp(3) }}>{g.heading}</div></div>)}
+      {growth.map((g, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12.5, color: '#E2E8F0', lineHeight: 1.5, ...textClamp(3) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
     </div>
   </>);
 }
@@ -1641,8 +1738,10 @@ function renderNarrativeResults(slide, t, v) {
 function renderNarrativeAwards(slide, t, v) {
   const acc = narrAccent(v);
   const all = (slide.items || []);
-  const awards = all.filter(a => !a.period?.toLowerCase().includes('language') && !a.heading?.toLowerCase().includes('toeic') && !a.heading?.toLowerCase().includes('language'));
-  const lang = all.find(a => a.period?.toLowerCase().includes('language') || a.heading?.toLowerCase().includes('toeic') || a.heading?.toLowerCase().includes('language')) || all.slice(-1)[0];
+  const isLang = (a) => a.period?.toLowerCase().includes('language') || a.heading?.toLowerCase().includes('toeic') || a.heading?.toLowerCase().includes('language');
+  const awards = all.filter(a => !isLang(a));
+  // 어학 항목이 실제로 있을 때만 LANGUAGE 컬럼 표시 (단일 수상이 양쪽에 중복되는 문제 방지)
+  const lang = all.find(isLang) || null;
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
       <div style={{ fontSize: 32, fontWeight: 950 }}>{slide.title}</div>
@@ -5764,7 +5863,7 @@ function drawNarrativePhilosophyPptx(s, slide, t, v, W, H) {
     addPptText(s, safePptText(item.body || ''), { x: x + 0.25, y: 3.42, w: 3.15, h: 1.55, fontFace: t.fonts.body, fontSize: 9, color: '334155', fit: 'shrink' });
   });
   s.addShape('rect', { x: 0, y: H - 0.82, w: W, h: 0.82, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.68, w: W - 1.6, h: 0.48, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
+  addPptText(s, pptFooterText(slide, 'NARRATIVE'), { x: 0.8, y: H - 0.68, w: W - 1.6, h: 0.48, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'E2E8F0', fit: 'shrink' });
 }
 
 function drawNarrativeSkillsPptx(s, slide, t, v, W, H) {
@@ -5789,7 +5888,7 @@ function drawNarrativeSkillsPptx(s, slide, t, v, W, H) {
     });
   });
   s.addShape('rect', { x: 0, y: H - 0.75, w: W, h: 0.75, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.62, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.5, color: 'E2E8F0', fit: 'shrink' });
+  addPptText(s, pptFooterText(slide, 'SKILLS'), { x: 0.8, y: H - 0.62, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: 'E2E8F0', fit: 'shrink' });
 }
 
 function drawNarrativeProblemPptx(s, slide, t, v, W, H) {
@@ -5809,7 +5908,7 @@ function drawNarrativeProblemPptx(s, slide, t, v, W, H) {
     if (op) addPptText(s, op, { x: 7.5, y: 2.78 + idx * 1.08, w: 1.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: acc, align: 'center' });
   });
   s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+  addPptText(s, pptFooterText(slide, 'PROBLEM'), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: 'E2E8F0', fit: 'shrink' });
 }
 
 function drawNarrativeProjectPptx(s, slide, t, v, W, H) {
@@ -5893,9 +5992,8 @@ function drawNarrativeResultsPptx(s, slide, t, v, W, H) {
   narrPptBase(s, W, H);
   addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
   narrPptRule(s, acc, 0.8, 1.52);
-  const all = (slide.items || []).slice(0, 7);
-  const deliverables = all.slice(0, 4);
-  const growth = all.slice(4, 7);
+  const deliverables = (slide.items || []).slice(0, 4);
+  const growth = (slide.bullets || []).slice(0, 3);
   narrPptLabel(s, 'KEY DELIVERABLES', t, acc, 0.8, 1.85);
   deliverables.forEach((d, idx) => {
     addPptText(s, '✓', { x: 0.8, y: 2.18 + idx * 0.88, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
@@ -5904,8 +6002,9 @@ function drawNarrativeResultsPptx(s, slide, t, v, W, H) {
   s.addShape('rect', { x: 6.6, y: 1.82, w: 5.0, h: 4.8, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, 'GROWTH POINTS', { x: 6.85, y: 2.05, w: 4.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: '94A3B8', charSpacing: 2 });
   growth.forEach((g, idx) => {
+    const gText = typeof g === 'string' ? g : (g.heading || '');
     addPptText(s, '→', { x: 6.85, y: 2.55 + idx * 1.1, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc });
-    addPptText(s, safePptText(g.heading || ''), { x: 7.28, y: 2.55 + idx * 1.1, w: 4.1, h: 0.72, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
+    addPptText(s, safePptText(gText), { x: 7.28, y: 2.55 + idx * 1.1, w: 4.1, h: 0.72, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
   });
 }
 
@@ -5915,8 +6014,9 @@ function drawNarrativeAwardsPptx(s, slide, t, v, W, H) {
   addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.55, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.ink), fit: 'shrink' });
   narrPptRule(s, acc, 0.8, 1.35);
   const all = (slide.items || []);
-  const awards = all.filter(a => !a.heading?.toLowerCase().includes('toeic') && !a.heading?.toLowerCase().includes('language')).slice(0, 3);
-  const lang = all.find(a => a.heading?.toLowerCase().includes('toeic') || a.period?.toLowerCase().includes('language')) || all.slice(-1)[0];
+  const isPptLang = (a) => a.heading?.toLowerCase().includes('toeic') || a.heading?.toLowerCase().includes('language') || a.period?.toLowerCase().includes('language');
+  const awards = all.filter(a => !isPptLang(a)).slice(0, 3);
+  const lang = all.find(isPptLang) || null;
   narrPptLabel(s, 'AWARDS', t, acc, 0.8, 1.72);
   awards.forEach((a, idx) => {
     const y = 2.05 + idx * 1.38;
@@ -5948,7 +6048,7 @@ function drawNarrativeTimelinePptx(s, slide, t, v, W, H) {
     addPptText(s, safePptText(item.body || ''), { x: 2.2, y: y + 0.32, w: 9.2, h: 0.28, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
   });
   s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+  addPptText(s, pptFooterText(slide, 'IMPACT'), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: 'E2E8F0', fit: 'shrink' });
 }
 
 function drawNarrativeSummaryPptx(s, slide, t, v, W, H) {
@@ -5996,7 +6096,7 @@ function drawNarrativeConnectionPptx(s, slide, t, v, W, H) {
     addPptText(s, safePptText(item.role || ''), { x: rowX + 0.14, y, w: colW[3] - 0.2, h: 0.52, fontFace: t.fonts.body, fontSize: 9, color: acc, fit: 'shrink' });
   });
   s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, color: 'E2E8F0', fit: 'shrink' });
+  addPptText(s, pptFooterText(slide, 'GROWTH'), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: 'E2E8F0', fit: 'shrink' });
 }
 
 function drawNarrativeRoadmapPptx(s, slide, t, v, W, H) {
@@ -6048,7 +6148,7 @@ function drawNarrativePptx(s, slide, t, v, i, W, H) {
     'narrative-connection': drawNarrativeConnectionPptx, 'narrative-roadmap': drawNarrativeRoadmapPptx,
     'narrative-closing': drawNarrativeClosingPptx,
   };
-  if (!usesNonDefaultPalette(t) && NARR_PPT[slide.layout]) return NARR_PPT[slide.layout](s, slide, t, v, W, H);
+  if (NARR_PPT[slide.layout]) return NARR_PPT[slide.layout](s, slide, t, v, W, H);
   const isCover = slide.layout === 'cover' || slide.layout === 'section';
   const lines = pptAcceptedLines(slide);
   const mood = acceptedSlideMood(slide, i);
@@ -7428,18 +7528,18 @@ function drawCaseStudyDeckPptx(s, slide, t, v, i, W, H) {
 
 function drawProposalHeader(s, slide, t, i, W, isDark) {
   const c = t.colors;
-  const section = slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : '제안서');
+  const section = shortPptText(slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : 'PORTFOLIO'), 20);
   const titleColor = isDark ? 'FFFFFF' : hex(c.sub);
-  const titleSize = dynamicFontPt(slide.title, 24, { min: 18, max: 25 });
+  const titleSize = dynamicFontPt(slide.title, 36, { min: 30, max: 40 });
   const bg = isDark ? c.dark : c.bg;
   const accentColor = pptVisibleOn(bg, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
   
-  s.addShape('roundRect', { x: 0.72, y: 0.35, w: 1.45, h: 0.32, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' }, rectRadius: 0.14 });
+  s.addShape('roundRect', { x: 0.72, y: 0.35, w: 2.0, h: 0.34, fill: { color: isDark ? 'FFFFFF' : hex(c.card || '#FFFFFF'), transparency: isDark ? 0 : 8 }, line: { color: isDark ? 'FFFFFF' : hex(c.line || '#E8E8EA'), transparency: 15 }, rectRadius: 0.14 });
   s.addShape('ellipse', { x: 0.82, y: 0.46, w: 0.08, h: 0.08, fill: { color: accentColor }, line: { color: accentColor } });
-  s.addText(section, { x: 0.95, y: 0.4, w: 1.0, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: pptTextOn('#FFFFFF', c.sub) });
+  s.addText(section, { x: 0.95, y: 0.4, w: 1.55, h: 0.18, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: isDark ? pptTextOn('#FFFFFF', c.sub) : hex(c.sub), fit: 'shrink' });
   
-  s.addText(pptProposalTextParts(slide.title || section, titleColor, accentColor, { fontFace: t.fonts.heading }), { x: 0.95, y: 0.88, w: W - 1.9, h: 0.88, fontSize: titleSize, bold: true, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: isDark ? 'D4D4D8' : hex(c.sub), align: 'center', fit: 'shrink' });
+  s.addText(pptProposalTextParts(slide.title || section, titleColor, accentColor, { fontFace: t.fonts.heading }), { x: 0.95, y: 0.84, w: W - 1.9, h: 0.96, fontSize: titleSize, bold: true, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, shortPptText(slide.subtitle, 84), { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 12, bold: true, color: isDark ? 'D4D4D8' : hex(c.muted || c.sub), align: 'center', fit: 'shrink' });
 }
 
 function drawCaseStudyProposalPptx(s, slide, t, v, i, W, H) {
@@ -7967,7 +8067,8 @@ function drawProposal(s, slide, t, i, W, H) {
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: isDark ? hex(c.dark) : hex(c.bg) }, line: { color: isDark ? hex(c.dark) : hex(c.bg) } });
   if (isDark) drawProposalDots(s, accentColor, W, 9.4, 0.9);
   drawProposalHeader(s, slide, t, i, W, isDark);
-  const x = 0.72, y = 2.7, w = W - 1.44, h = H - 3.2;
+  const x = 0.82, y = 2.48, w = W - 1.64, h = H - 3.15;
+  drawPptContentCard(s, t, 0.55, 2.25, W - 1.1, H - 2.9, isDark);
   if (drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark)) {
     // variant 전용 렌더러에서 처리됨
   } else if (slide.layout === 'experience') {
@@ -8805,6 +8906,33 @@ function safePptText(value) {
     .replace(/�/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function shortPptText(value, max = 20) {
+  const text = safePptText(value);
+  if (text.length <= max) return text;
+  return text.slice(0, Math.max(0, max - 1)).trim() + '…';
+}
+
+function pptFooterText(slide, fallback = 'PORTFOLIO') {
+  return shortPptText(slide?.sectionLabel || slide?.layout || fallback, 20).toUpperCase();
+}
+
+function drawPptContentCard(s, t, x, y, w, h, isDark = false) {
+  if (isDark) return;
+  const c = t.colors || {};
+  const fill = c.card || '#FFFFFF';
+  const line = c.line || '#E8E8EA';
+  s.addShape('roundRect', {
+    x,
+    y,
+    w,
+    h,
+    fill: { color: hex(fill), transparency: 8 },
+    line: { color: hex(line), transparency: 12, width: 0.75 },
+    rectRadius: 0.12,
+    shadow: { type: 'outer', color: 'B8B2A8', blur: 1, angle: 45, distance: 1, opacity: 0.08 },
+  });
 }
 
 function pptProposalTextParts(text, defaultColor, accentColor, baseOpts = {}) {

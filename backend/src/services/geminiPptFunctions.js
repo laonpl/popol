@@ -1,5 +1,6 @@
 // AI PPT 생성 함수 — geminiService.js 에 re-export 됨
 import { buildAiPptAnalyzePrompt, buildAiPptRevisePrompt } from '../prompts/portfolioPrompts.js';
+import { generateWithRetry } from '../config/geminiClient.js';
 
 // 이 파일에서 필요한 내부 헬퍼들은 geminiService.js 의 것을 쓸 수 없으므로 직접 정의
 function parseJSON(text, pattern = /\{[\s\S]*\}/) {
@@ -41,11 +42,578 @@ function sanitizePortfolioText(value) {
 export async function generateAiPptDeck({ portfolio, templateHint, customTemplate }) {
   const layoutMode = getPptLayoutMode(templateHint);
   const acceptedLayoutDeck = buildAcceptedLayoutDeckFromPortfolio(portfolio, layoutMode);
-  if (acceptedLayoutDeck) return sanitizeDeckToPortfolioSource(acceptedLayoutDeck, portfolio);
+  if (acceptedLayoutDeck) {
+    const safeDeck = sanitizeDeckToPortfolioSource(acceptedLayoutDeck, portfolio);
+    return optimizeDeckDensity(safeDeck);
+  }
 
-  const useProposalDeck = isProposalTemplateHint(templateHint);
-  const baseDeck = useProposalDeck ? buildProposalDeckFromPortfolio(portfolio) : buildDeckFromPortfolio(portfolio);
-  return sanitizeDeckToPortfolioSource(baseDeck, portfolio);
+  const orchestrated = orchestrateNotionPortfolioForPpt(portfolio);
+  const baseDeck = buildNarrativeFallbackDeck(orchestrated, templateHint);
+
+  try {
+    const prompt = buildNotionToPptSystemPrompt({ orchestrated, templateHint, customTemplate, baseDeck });
+    const text = await generateWithRetry(prompt, {
+      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1500,
+      callTimeoutMs: 90000,
+      config: {
+        temperature: 0.35,
+        responseMimeType: 'application/json',
+      },
+    });
+    const parsed = parseJSON(text);
+    const deck = normalizeNarrativeGeminiDeck(parsed, baseDeck, orchestrated);
+    return optimizeDeckDensity(deck);
+  } catch (error) {
+    console.warn('[AI PPT] Gemini narrative deck generation failed. Falling back to deterministic deck:', error?.message || error);
+    return optimizeDeckDensity(baseDeck);
+  }
+}
+
+/**
+ * 결정론적 accepted-layout deck 을 AI 로 "문구만" 서사화한다.
+ * 구조(id·layout·proposalVariant·dark·순서)와 사실 필드(metrics·role·period)는 원본 그대로 두고,
+ * AI 가 다듬은 산문(title·subtitle·body·bullets·details)만 골라 덮어쓴다.
+ * 실패/타임아웃 시 원본 deck 을 그대로 반환(기존 동작 유지).
+ */
+function cleanText(value, max = 800) {
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'string') return sanitizePortfolioText(value).replace(/\s+/g, ' ').trim().slice(0, max);
+  if (Array.isArray(value)) return value.map(v => cleanText(v, max)).filter(Boolean).join(' ').slice(0, max);
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([key]) => !['id', 'userId', 'createdAt', 'updatedAt'].includes(key))
+      .map(([, child]) => cleanText(child, max))
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max);
+  }
+  return '';
+}
+
+function normalizeSkillNames(list) {
+  return (Array.isArray(list) ? list : [])
+    .map(item => typeof item === 'string' ? item : (item?.name || item?.title || item?.label || item?.skill || ''))
+    .map(item => cleanText(item, 36))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeGoals(goals, valuesEssay) {
+  if (Array.isArray(goals)) {
+    return goals.map(goal => typeof goal === 'string' ? goal : (goal?.title || goal?.body || goal?.description || goal?.content || ''))
+      .map(goal => cleanText(goal, 120))
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+  return cleanText(valuesEssay, 360)
+    .split(/[.!?。！？\n]+/)
+    .map(sentence => cleanText(sentence, 120))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function extractProblemSignals(portfolio, projects) {
+  const raw = [
+    cleanText(portfolio.yooptaContent, 1200),
+    cleanText(portfolio.valuesEssayBlocks, 800),
+    cleanText(portfolio.valuesEssay, 600),
+    cleanText(portfolio.about, 400),
+    ...projects.flatMap(project => [...(project.problem || []), project.body]),
+  ].join(' ');
+  const sentences = raw
+    .split(/[.!?。！？\n]+/)
+    .map(sentence => cleanText(sentence, 120))
+    .filter(sentence => sentence.length >= 8);
+  return Array.from(new Set(sentences)).slice(0, 5);
+}
+
+function orchestrateNotionPortfolioForPpt(portfolio = {}) {
+  const projects = normalizeExperiences(portfolio).slice(0, 5);
+  const primaryProject = projects.find(project => project.metrics?.length || project.problem?.length || project.result?.length) || projects[0] || null;
+  const skills = portfolio.skills || {};
+  const skillGroups = [
+    { label: 'Languages', skills: normalizeSkillNames(skills.languages) },
+    { label: 'Frameworks', skills: normalizeSkillNames(skills.frameworks) },
+    { label: 'Tools', skills: normalizeSkillNames(skills.tools) },
+    { label: 'Others', skills: normalizeSkillNames(skills.others || skills.certificates) },
+  ].filter(group => group.skills.length);
+  const goals = normalizeGoals(portfolio.goals, portfolio.valuesEssay);
+  const target = `${cleanText(portfolio.targetCompany, 40)} ${cleanText(portfolio.targetPosition, 40)}`.trim();
+  const userName = cleanText(portfolio.userName || portfolio.name || portfolio.nameKo, 40) || '지원자';
+  const headline = cleanText(portfolio.headline || portfolio.title || target, 90);
+  const problemSignals = extractProblemSignals(portfolio, projects);
+
+  return {
+    profile: {
+      userName,
+      headline,
+      title: cleanText(portfolio.title, 90),
+      target,
+      contact: portfolio.contact || {},
+    },
+    intro: {
+      positioning: [headline, target].filter(Boolean).join(' · ') || `${userName} 포트폴리오`,
+      valueProposition: problemSignals[0] || primaryProject?.body || headline || '문제를 구조화하고 실행으로 증명하는 지원자',
+    },
+    problem: {
+      essence: problemSignals[0] || primaryProject?.problem?.[0] || primaryProject?.body || '',
+      signals: problemSignals,
+    },
+    caseStudy: primaryProject,
+    projects,
+    skillMap: skillGroups.map(group => ({
+      ...group,
+      evidence: projects
+        .filter(project => group.skills.some(skill => cleanText(project.keywords || []).toLowerCase().includes(skill.toLowerCase()) || cleanText(project.body).toLowerCase().includes(skill.toLowerCase())))
+        .map(project => project.heading)
+        .slice(0, 2),
+    })),
+    vision: {
+      goals,
+      contribution: goals[0] || (target ? `${target}에서 검증 가능한 결과를 만드는 실행 계획` : '학습을 실무 성과로 연결하는 실행 계획'),
+    },
+  };
+}
+
+function buildNotionToPptSystemPrompt({ orchestrated, templateHint, customTemplate, baseDeck }) {
+  return `You are a senior full-stack engineer, data architect, career coach, and presentation designer.
+You convert Notion-style portfolio data into a professional SlideDeck JSON for pptxgenjs rendering.
+
+Think internally step by step, but output only valid JSON.
+
+Transformation framework:
+1. Intro: combine userName and headline into a sharp value proposition.
+2. Problem: extract the root discomfort or inefficiency from yooptaContent/problem signals.
+3. Deep Dive: choose the strongest project and rewrite it as Situation, Constraint, Decision, Result.
+4. Skill Map: group skills by practical usage and connect them to projects.
+5. Vision: turn goals into concrete actions for the target company or role.
+
+Constraints:
+- Return 7 to 9 slides.
+- Each slide must stay under 300 total characters.
+- Max 4 bullets or items per slide.
+- Convert casual Notion wording into concise business action verbs.
+- Do not invent companies, dates, awards, numbers, tools, or metrics.
+- Use layoutType on every slide: cover, split, grid, highlight, case-study, skill-map, timeline, closing.
+- Use sectionLabel/footer keywords under 20 characters. Never put a full sentence in sectionLabel.
+- Prefer visual structure over long prose.
+
+Slide schema:
+{
+  "meta": { "title": string, "subtitle": string, "theme": "beige-minimal" },
+  "slides": [
+    {
+      "id": "s1",
+      "layout": "cover|proposal|experience|skills|values|contact|closing",
+      "layoutType": "cover|split|grid|highlight|case-study|skill-map|timeline|closing",
+      "proposalVariant": "threeCards|comparison|darkStats|caseGrid|timeline|stageCards|closing",
+      "sectionLabel": "20 chars max",
+      "title": "slide headline",
+      "subtitle": "short supporting line",
+      "bullets": ["max 4"],
+      "items": [{ "heading": "short", "role": "short", "period": "short", "body": "short", "bullets": ["max 3"], "metrics": [{ "label": "short", "value": "short", "before": "", "after": "" }] }],
+      "details": { "problem": ["max 3"], "action": ["max 3"], "result": ["max 3"] },
+      "highlight_metric": { "label": "short", "value": "short", "before": "", "after": "" },
+      "notes": ""
+    }
+  ]
+}
+
+Preferred base flow:
+${JSON.stringify(baseDeck).slice(0, 5000)}
+
+Template hint:
+${templateHint || 'standard:beige-minimal'}
+
+Custom template hint:
+${customTemplate ? JSON.stringify(customTemplate).slice(0, 1200) : 'none'}
+
+Orchestrated Notion portfolio data:
+${JSON.stringify(orchestrated).slice(0, 9000)}
+
+Output valid JSON only.`;
+}
+
+function layoutTypeToProposalVariant(layoutType, fallback = 'threeCards') {
+  const map = {
+    cover: '',
+    split: 'comparison',
+    grid: 'threeCards',
+    highlight: 'darkStats',
+    'case-study': 'caseGrid',
+    'skill-map': 'caseGrid',
+    timeline: 'timeline',
+    closing: 'closing',
+  };
+  return map[layoutType] ?? fallback;
+}
+
+function normalizeDeckItem(item = {}) {
+  return {
+    heading: cleanText(item.heading || item.title, 48),
+    period: cleanText(item.period || item.date, 32),
+    role: cleanText(item.role || item.label, 42),
+    body: cleanText(item.body || item.description || item.content, 110),
+    bullets: (Array.isArray(item.bullets) ? item.bullets : [])
+      .map(bullet => cleanText(bullet, 70))
+      .filter(Boolean)
+      .slice(0, 3),
+    metrics: (Array.isArray(item.metrics) ? item.metrics : [])
+      .map(metric => ({
+        label: cleanText(metric?.label, 30),
+        value: cleanText(metric?.value, 26),
+        before: cleanText(metric?.before, 18),
+        after: cleanText(metric?.after, 18),
+      }))
+      .filter(metric => metric.label || metric.value || metric.before || metric.after)
+      .slice(0, 3),
+  };
+}
+
+function normalizeNarrativeGeminiDeck(parsed, fallbackDeck, orchestrated) {
+  const rawSlides = Array.isArray(parsed?.slides) ? parsed.slides : [];
+  if (!rawSlides.length) return fallbackDeck;
+  const slides = rawSlides.slice(0, 10).map((slide, index) => {
+    const layoutType = cleanText(slide.layoutType || slide.visualHint || (index === 0 ? 'cover' : 'grid'), 24);
+    const layout = ['cover', 'proposal', 'experience', 'skills', 'values', 'contact', 'closing'].includes(slide.layout)
+      ? slide.layout
+      : (layoutType === 'cover' ? 'cover' : layoutType === 'closing' ? 'closing' : layoutType === 'case-study' ? 'experience' : 'proposal');
+    const proposalVariant = cleanText(slide.proposalVariant || layoutTypeToProposalVariant(layoutType), 32);
+    const details = slide.details && typeof slide.details === 'object'
+      ? {
+        problem: (Array.isArray(slide.details.problem) ? slide.details.problem : []).map(v => cleanText(v, 70)).filter(Boolean).slice(0, 3),
+        action: (Array.isArray(slide.details.action) ? slide.details.action : []).map(v => cleanText(v, 70)).filter(Boolean).slice(0, 3),
+        result: (Array.isArray(slide.details.result) ? slide.details.result : []).map(v => cleanText(v, 70)).filter(Boolean).slice(0, 3),
+      }
+      : undefined;
+    const highlightMetric = slide.highlight_metric || slide.highlightMetric || null;
+    return {
+      id: `s${index + 1}`,
+      layout,
+      layoutType,
+      proposalVariant,
+      sectionLabel: cleanText(slide.sectionLabel || layoutType, 20),
+      title: cleanText(slide.title, 72),
+      subtitle: cleanText(slide.subtitle, 96),
+      bullets: (Array.isArray(slide.bullets) ? slide.bullets : []).map(bullet => cleanText(bullet, 70)).filter(Boolean).slice(0, 4),
+      items: (Array.isArray(slide.items) ? slide.items : []).map(normalizeDeckItem).filter(item => item.heading || item.body).slice(0, 4),
+      metrics: (Array.isArray(slide.metrics) ? slide.metrics : []).map(metric => ({
+        label: cleanText(metric?.label, 30),
+        value: cleanText(metric?.value, 26),
+        before: cleanText(metric?.before, 18),
+        after: cleanText(metric?.after, 18),
+      })).filter(metric => metric.label || metric.value || metric.before || metric.after).slice(0, 4),
+      details,
+      layout_type: details ? 'SPLIT_HALF' : undefined,
+      highlight_metric: highlightMetric ? {
+        label: cleanText(highlightMetric.label, 30),
+        value: cleanText(highlightMetric.value, 26),
+        before: cleanText(highlightMetric.before, 18),
+        after: cleanText(highlightMetric.after, 18),
+      } : undefined,
+      dark: layoutType === 'highlight' || slide.dark === true,
+      notes: cleanText(slide.notes, 180),
+    };
+  });
+
+  if (!slides.some(slide => slide.layout === 'closing')) {
+    slides.push(buildNarrativeClosingSlide(orchestrated, `s${slides.length + 1}`));
+  }
+
+  return {
+    meta: {
+      title: cleanText(parsed?.meta?.title || fallbackDeck.meta?.title || orchestrated.intro.positioning, 90),
+      subtitle: cleanText(parsed?.meta?.subtitle || fallbackDeck.meta?.subtitle || orchestrated.profile.target, 90),
+      theme: 'beige-minimal',
+      engine: 'notion-narrative-v2',
+    },
+    slides,
+  };
+}
+
+function buildNarrativeClosingSlide(orchestrated, id = 's9') {
+  const contact = orchestrated.profile.contact || {};
+  const bullets = [
+    contact.email && `Email · ${contact.email}`,
+    contact.github && `GitHub · ${contact.github}`,
+    contact.website && `Web · ${contact.website}`,
+    contact.phone && `Phone · ${contact.phone}`,
+  ].filter(Boolean).slice(0, 4);
+  return {
+    id,
+    layout: 'closing',
+    layoutType: 'closing',
+    proposalVariant: 'closing',
+    sectionLabel: 'CONTACT',
+    title: 'Thank You',
+    subtitle: orchestrated.vision.contribution,
+    bullets: bullets.length ? bullets : [orchestrated.profile.userName, orchestrated.profile.target].filter(Boolean),
+    dark: true,
+  };
+}
+
+function buildNarrativeFallbackDeck(orchestrated, templateHint) {
+  const p = orchestrated;
+  const project = p.caseStudy || {};
+  const skillItems = p.skillMap.length
+    ? p.skillMap.slice(0, 4).map(group => ({
+      heading: group.label,
+      role: group.evidence?.[0] || 'Project Evidence',
+      body: group.evidence?.length ? `${group.skills.slice(0, 4).join(', ')} · ${group.evidence.join(', ')}` : group.skills.slice(0, 5).join(', '),
+      bullets: group.skills.slice(0, 4),
+      metrics: [],
+    }))
+    : [{ heading: 'Execution', body: p.intro.valueProposition, bullets: [] }];
+  const metric = project.metrics?.[0] || null;
+  const slides = [
+    {
+      id: 's1',
+      layout: 'cover',
+      layoutType: 'cover',
+      sectionLabel: 'INTRO',
+      title: p.intro.positioning,
+      subtitle: p.intro.valueProposition,
+      bullets: ['PROBLEM', 'DECISION', 'IMPACT'],
+    },
+    {
+      id: 's2',
+      layout: 'proposal',
+      layoutType: 'highlight',
+      proposalVariant: 'darkStats',
+      sectionLabel: 'PROBLEM',
+      title: '해결해야 할 불편함을 먼저 정의했습니다',
+      subtitle: p.problem.essence,
+      metrics: [
+        { label: '핵심 문제', value: p.problem.signals.length ? `${p.problem.signals.length}개` : '1개' },
+        { label: '대표 경험', value: p.projects.length ? `${p.projects.length}건` : '정리됨' },
+        metric || { label: '검증 지표', value: '경험 기반' },
+      ],
+      dark: true,
+    },
+    {
+      id: 's3',
+      layout: 'experience',
+      layoutType: 'case-study',
+      proposalVariant: 'caseGrid',
+      sectionLabel: 'CASE',
+      title: project.heading || '핵심 프로젝트 Deep Dive',
+      subtitle: project.role || project.period || p.profile.target,
+      layout_type: metric ? 'SPLIT_HALF' : 'STACK_LIST',
+      highlight_metric: metric || undefined,
+      details: {
+        problem: (project.problem?.length ? project.problem : [p.problem.essence]).filter(Boolean).slice(0, 3),
+        action: (project.action?.length ? project.action : project.bullets || []).filter(Boolean).slice(0, 3),
+        result: (project.result?.length ? project.result : (project.metrics || []).map(m => `${m.label} ${m.value}`)).filter(Boolean).slice(0, 3),
+      },
+      items: [project].filter(Boolean).map(item => ({
+        heading: item.heading,
+        period: item.period,
+        role: item.role,
+        body: item.body,
+        bullets: item.bullets || [],
+        metrics: item.metrics || [],
+      })),
+    },
+    {
+      id: 's4',
+      layout: 'proposal',
+      layoutType: 'grid',
+      proposalVariant: 'threeCards',
+      sectionLabel: 'DECISION',
+      title: '의사결정은 실행 근거로 설명합니다',
+      subtitle: '상황, 제약, 선택 기준을 분리해 설득력을 만듭니다',
+      items: [
+        { heading: 'Situation', body: project.problem?.[0] || p.problem.essence },
+        { heading: 'Constraint', body: project.body || project.role || '제한된 조건에서 우선순위를 정리' },
+        { heading: 'Decision', body: project.action?.[0] || project.bullets?.[0] || '실행 가능한 단위로 해결책 선택' },
+      ],
+    },
+    {
+      id: 's5',
+      layout: 'skills',
+      layoutType: 'skill-map',
+      proposalVariant: 'caseGrid',
+      sectionLabel: 'SKILLS',
+      title: '기술은 프로젝트 연결 고리로 보여줍니다',
+      subtitle: '단순 나열이 아니라 활용 맥락 중심으로 재그룹화했습니다',
+      items: skillItems,
+    },
+    {
+      id: 's6',
+      layout: 'proposal',
+      layoutType: 'timeline',
+      proposalVariant: 'timeline',
+      sectionLabel: 'GROWTH',
+      title: '경험은 다음 기여 계획으로 이어집니다',
+      subtitle: p.vision.contribution,
+      items: (p.vision.goals.length ? p.vision.goals : ['문제 정의', '빠른 실행', '성과 측정', '반복 개선'])
+        .slice(0, 4)
+        .map((goal, index) => ({ heading: goal, period: `Step ${index + 1}`, body: index === 0 ? p.profile.target : p.intro.valueProposition })),
+    },
+    buildNarrativeClosingSlide(p, 's7'),
+  ];
+  return {
+    meta: {
+      title: p.intro.positioning,
+      subtitle: p.profile.target,
+      theme: templateHint || 'beige-minimal',
+      engine: 'notion-narrative-v2-fallback',
+    },
+    slides,
+  };
+}
+
+const SLIDE_TEXT_LIMIT = 300;
+const SHORT_TEXT_LIMIT = 50;
+const BODY_TEXT_LIMIT = 95;
+const DETAIL_TEXT_LIMIT = 70;
+
+function compactSlideText(value, max = SHORT_TEXT_LIMIT) {
+  const text = sanitizePortfolioText(String(value || ''))
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= max) return text;
+  const sentence = text
+    .split(/(?<=[.!?。！？])\s+|[。！？.!?]\s*/)
+    .map(s => s.trim())
+    .find(s => s && s.length <= max);
+  return sentence || `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function slideTextLength(slide = {}) {
+  const parts = [
+    slide.title,
+    slide.subtitle,
+    ...(Array.isArray(slide.bullets) ? slide.bullets : []),
+    ...(Array.isArray(slide.items) ? slide.items.flatMap(item => [
+      item.heading,
+      item.role,
+      item.period,
+      item.body,
+      ...(Array.isArray(item.bullets) ? item.bullets : []),
+      ...(Array.isArray(item.metrics) ? item.metrics.flatMap(m => [m.label, m.value, m.before, m.after]) : []),
+    ]) : []),
+    ...(slide.details ? [
+      ...(Array.isArray(slide.details.problem) ? slide.details.problem : []),
+      ...(Array.isArray(slide.details.action) ? slide.details.action : []),
+      ...(Array.isArray(slide.details.result) ? slide.details.result : []),
+    ] : []),
+  ];
+  return parts.filter(Boolean).join(' ').length;
+}
+
+function optimizeSlideContent(slide = {}) {
+  const optimized = {
+    ...slide,
+    sectionLabel: compactSlideText(slide.sectionLabel || slide.layout || '', 20),
+    title: compactSlideText(slide.title, 64),
+    subtitle: compactSlideText(slide.subtitle, 82),
+  };
+  if (Array.isArray(slide.bullets)) {
+    optimized.bullets = slide.bullets
+      .map(b => compactSlideText(b, SHORT_TEXT_LIMIT))
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+  if (Array.isArray(slide.items)) {
+    optimized.items = slide.items.slice(0, 4).map(item => ({
+      ...item,
+      heading: compactSlideText(item.heading, 42),
+      period: compactSlideText(item.period, 28),
+      role: compactSlideText(item.role, 36),
+      body: compactSlideText(item.body, BODY_TEXT_LIMIT),
+      bullets: Array.isArray(item.bullets)
+        ? item.bullets.map(b => compactSlideText(b, DETAIL_TEXT_LIMIT)).filter(Boolean).slice(0, 3)
+        : [],
+      metrics: Array.isArray(item.metrics)
+        ? item.metrics.slice(0, 3).map(metric => ({
+          ...metric,
+          label: compactSlideText(metric.label, 28),
+          value: compactSlideText(metric.value, 24),
+          before: compactSlideText(metric.before, 18),
+          after: compactSlideText(metric.after, 18),
+        })).filter(metric => metric.label || metric.value || metric.before || metric.after)
+        : [],
+    }));
+  }
+  if (slide.details && typeof slide.details === 'object') {
+    optimized.details = {
+      problem: (Array.isArray(slide.details.problem) ? slide.details.problem : [])
+        .map(v => compactSlideText(v, DETAIL_TEXT_LIMIT)).filter(Boolean).slice(0, 3),
+      action: (Array.isArray(slide.details.action) ? slide.details.action : [])
+        .map(v => compactSlideText(v, DETAIL_TEXT_LIMIT)).filter(Boolean).slice(0, 3),
+      result: (Array.isArray(slide.details.result) ? slide.details.result : [])
+        .map(v => compactSlideText(v, DETAIL_TEXT_LIMIT)).filter(Boolean).slice(0, 3),
+    };
+  }
+  optimized.density = {
+    chars: slideTextLength(optimized),
+    limit: SLIDE_TEXT_LIMIT,
+  };
+  return optimized;
+}
+
+function splitDenseSlide(slide = {}) {
+  const isStructural = ['cover', 'closing', 'section'].includes(slide.layout) || slide.proposalVariant === 'contents';
+  const needsItemSplit = Array.isArray(slide.items) && slide.items.length > 4;
+  const needsBulletSplit = Array.isArray(slide.bullets) && slide.bullets.length > 4;
+  if (isStructural || (!needsItemSplit && !needsBulletSplit && slideTextLength(slide) <= SLIDE_TEXT_LIMIT)) return [slide];
+
+  if (needsItemSplit) {
+    const chunks = [];
+    for (let i = 0; i < slide.items.length; i += 4) chunks.push(slide.items.slice(i, i + 4));
+    return chunks.map((items, index) => ({
+      ...slide,
+      id: `${slide.id || 'slide'}_${index + 1}`,
+      title: `${slide.title || ''} (${index + 1}/${chunks.length})`,
+      items,
+      notes: [slide.notes, 'autoSplit:true'].filter(Boolean).join(' '),
+    }));
+  }
+
+  if (needsBulletSplit) {
+    const chunks = [];
+    for (let i = 0; i < slide.bullets.length; i += 4) chunks.push(slide.bullets.slice(i, i + 4));
+    return chunks.map((bullets, index) => ({
+      ...slide,
+      id: `${slide.id || 'slide'}_${index + 1}`,
+      title: `${slide.title || ''} (${index + 1}/${chunks.length})`,
+      bullets,
+      notes: [slide.notes, 'autoSplit:true'].filter(Boolean).join(' '),
+    }));
+  }
+
+  return [{ ...slide, notes: [slide.notes, 'summarizedForDensity:true'].filter(Boolean).join(' ') }];
+}
+
+function optimizeDeckDensity(deck) {
+  if (!deck || !Array.isArray(deck.slides)) return deck;
+  // 합격형 reference deck(narrative/star/kpi/timeline/case-study)은 고정 레이아웃 + 자체 truncation 을 쓴다.
+  // splitDenseSlide 가 keyword bullets>4·items>4 슬라이드를 쪼개면서 OVERVIEW/제목이 (1/3)(2/3)... 중복 생성되는 문제 방지.
+  if (typeof deck.meta?.templateMode === 'string' && deck.meta.templateMode.startsWith('accepted-')) {
+    return deck;
+  }
+  const slides = deck.slides
+    .flatMap(splitDenseSlide)
+    .map(optimizeSlideContent)
+    .map((slide, index) => ({ ...slide, id: `s${index + 1}` }));
+  return {
+    ...deck,
+    meta: {
+      ...(deck.meta || {}),
+      densityPolicy: {
+        maxCharsPerSlide: SLIDE_TEXT_LIMIT,
+        maxBulletsOrItems: 4,
+        maxSentenceChars: SHORT_TEXT_LIMIT,
+      },
+    },
+    slides,
+  };
 }
 
 function sanitizeDeckToPortfolioSource(deck, portfolio) {
@@ -126,9 +694,11 @@ function isPortfolioSourceBound(text, source) {
   if (!source.text) return false;
   if (source.text.includes(normalized)) return true;
 
+  // 수치 허위 차단(핵심 가드): 텍스트에 숫자가 있는데 원문에 그 숫자가 하나도 없으면 버림.
   const textNumbers = (normalized.match(/\d+(?:[.,]\d+)?%?/g) || []).map(t => t.replace(/,/g, ''));
   if (textNumbers.length && !textNumbers.some(n => source.numbers.has(n))) return false;
 
+  // 토큰 매칭: 원문 토큰과 충분히 겹쳐야 통과 (긴 문장일수록 더 엄격) → 지어낸 내용 차단.
   const tokens = (normalized.match(/[a-z0-9가-힣]{2,}/gi) || []).map(t => t.toLowerCase());
   if (!tokens.length) return normalized.length <= 30;
   const meaningful = tokens.filter(t => !SOURCE_STOPWORDS.has(t));
@@ -616,17 +1186,30 @@ function buildNarrativeDeckFromPortfolio(p) {
       { heading: 'After', body: primary.action?.[0] || expPoint(0, '문제를 쪼개고 실행 기준을 세워 결과로 연결했습니다') },
     ] },
     { id: 's5', layout: 'proposal', sectionLabel: '전환점', proposalVariant: 'timeline', title: '경험은 이렇게 누적되었습니다', subtitle: '각 경험이 다음 경험의 판단 기준으로 이어지는 구조입니다', items: expItems.slice(0, 5).map(e => ({ heading: e.heading, period: e.period || e.role, body: e.body || e.bullets?.[0] || '' })) },
-    makeExperienceSlide('s6', '대표 장면', `첫 번째 전환점: ${expAt(0).heading || '대표 경험'}`, expAt(0), '문제 정의에서 실행으로 넘어간 장면'),
-    makeExperienceSlide('s7', '대표 장면', `두 번째 전환점: ${expAt(1).heading || '확장 경험'}`, expAt(1), '성과를 재현 가능한 방식으로 확장한 장면'),
-    { id: 's8', layout: 'proposal', sectionLabel: '성과 증거', proposalVariant: 'graphCallout', title: '성과는 흐름으로 누적되었습니다', subtitle: '단일 결과가 아니라 문제 해결 범위가 확장된 흔적을 보여줍니다', bullets: pickBullets(['문제 범위 확장', '실행 속도 개선', '협업 품질 향상']) },
-    { id: 's9', layout: 'proposal', sectionLabel: '직무 연결', proposalVariant: 'venn', title: '이 스토리가 지원 직무와 만나는 지점입니다', subtitle: '경험의 의미를 회사와 직무의 언어로 번역합니다', items: [
+    // 경험 수만큼 슬라이드 생성 — expAt(0)/expAt(1) 고정 대신 expItems 전체 순회
+    ...expItems.slice(0, 5).map((e, idx) => makeExperienceSlide(
+      `s${6 + idx}`,
+      `대표 장면 ${idx + 1}`,
+      e.heading || `경험 ${idx + 1}`,
+      e,
+      e.role || e.period || '',
+    )),
+  ];
+  // 경험 슬라이드 수에 맞춰 후속 슬라이드 id 동적 결정
+  const expSlideCount = Math.min(expItems.length, 5);
+  const afterExp = (offset) => `s${6 + expSlideCount + offset}`;
+  slides.push(
+    { id: afterExp(0), layout: 'proposal', sectionLabel: '성과 증거', proposalVariant: 'graphCallout', title: '성과는 흐름으로 누적되었습니다', subtitle: '단일 결과가 아니라 문제 해결 범위가 확장된 흔적을 보여줍니다',
+      bullets: (primary.bullets?.length ? primary.bullets : ['문제 범위 확장', '실행 속도 개선', '협업 품질 향상']).slice(0, 4) },
+    { id: afterExp(1), layout: 'proposal', sectionLabel: '직무 연결', proposalVariant: 'venn', title: '이 스토리가 지원 직무와 만나는 지점입니다', subtitle: '경험의 의미를 회사와 직무의 언어로 번역합니다', items: [
       { heading: `${userName}의 경험`, body: strengths[0] || expPoint(0, '문제 해결 경험') },
       { heading: target || '지원 직무', body: '필요 역량과 역할 기대' },
       { heading: '기여 메시지', body: firstMetric.label ? `${firstMetric.label} 중심의 검증된 실행력` : '성과로 검증한 실행력' },
     ] },
-    { id: 's10', layout: 'proposal', sectionLabel: '다음 기여', proposalVariant: 'gantt', title: '입사 후에는 이렇게 확장하겠습니다', subtitle: '합격자 포트폴리오의 마지막은 다짐보다 실행 계획이어야 합니다', items: ['맥락 파악', '대표 경험 적용', '핵심 과제 실행', '성과 회고'].map((heading, i) => ({ heading, role: ['Week 1', 'Week 2-3', 'Week 3-5', 'Week 6+'][i], body: pickBullets()[i] || '업무 기준에 맞춰 실행' })) },
-    buildClosingSlide(ctx, 's11'),
-  ];
+    { id: afterExp(2), layout: 'proposal', sectionLabel: '다음 기여', proposalVariant: 'gantt', title: '입사 후에는 이렇게 확장하겠습니다', subtitle: '합격자 포트폴리오의 마지막은 다짐보다 실행 계획이어야 합니다',
+      items: ['맥락 파악', '대표 경험 적용', '핵심 과제 실행', '성과 회고'].map((heading, i) => ({ heading, role: ['Week 1', 'Week 2-3', 'Week 3-5', 'Week 6+'][i], body: primary.bullets?.[i] || '업무 기준에 맞춰 실행' })) },
+    buildClosingSlide(ctx, afterExp(3)),
+  );
   return finalizeAcceptedDeck({ title: `${userName} 스토리형 포트폴리오`, subtitle: target, accentColor: '#FF4F1A', templateMode: 'accepted-narrative' }, slides, ctx, 'narrative');
 }
 
@@ -933,9 +1516,33 @@ function refItem(heading, body, period = '', role = '', bullets = []) {
   return { heading, body, period, role, bullets };
 }
 
+// 경험 추출 단계가 남긴 플레이스홀더/제너릭 필러. 슬라이드에 그대로 노출되면 안 됨.
+const REF_PLACEHOLDER_RE = /작성\s*필요|원본에\s*없음|^\(?\s*예\s*[:：]|수상 및 인증 내역|학력 및 전공 정보|링크형 포트폴리오에 입력된|포트폴리오에 입력된/;
+
+function stripPlaceholder(value) {
+  const s = String(value || '').replace(/\s+/g, ' ').trim();
+  return REF_PLACEHOLDER_RE.test(s) ? '' : s;
+}
+
 function refText(value, fallback = '', max = 120) {
-  const text = String(value || fallback || '').replace(/\s+/g, ' ').trim();
+  const text = stripPlaceholder(value) || stripPlaceholder(fallback);
   return text.length > max ? text.slice(0, max) : text;
+}
+
+// 카드형 슬롯용 truncation. 문장/쉼표/어미/공백 경계에서 잘라 "…" 중간 끊김을 피한다.
+function clipSentence(value, max = 64) {
+  const t = String(value || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const punct = Math.max(head.lastIndexOf('. '), head.lastIndexOf('? '), head.lastIndexOf('! '));
+  if (punct >= max * 0.5) return head.slice(0, punct + 1).trim();
+  const comma = Math.max(head.lastIndexOf(', '), head.lastIndexOf(','), head.lastIndexOf('·'), head.lastIndexOf('、'));
+  if (comma >= max * 0.55) return head.slice(0, comma).trim();
+  const eomi = head.match(/^[\s\S]*(?:하고|되어|하여|되고|으로|에서|다|고|며|함|음|됨)(?=[\s),.]|$)/);
+  if (eomi && eomi[0].length >= max * 0.55) return eomi[0].trim();
+  const sp = head.lastIndexOf(' ');
+  if (sp >= max * 0.6) return head.slice(0, sp).trim();
+  return head.trim();
 }
 
 function skillLabel(value) {
@@ -996,7 +1603,8 @@ function portfolioValueItems(ctx) {
 }
 
 function portfolioContactBullets(ctx) {
-  return ctx.contactBullets.length ? ctx.contactBullets : referenceContactBullets(ctx);
+  // 실제 연락처만 사용. 없으면 가짜 샘플 대신 이름만 표시(허위 연락처 유입 방지).
+  return ctx.contactBullets.length ? ctx.contactBullets : [ctx.userName].filter(Boolean);
 }
 
 function expMetric(exp, index, fallback) {
@@ -1020,14 +1628,6 @@ function projectRiskItems(exp) {
     refItem('Decision', exp.action?.[0] || exp.bullets?.[0] || '문제를 해결하기 위해 선택한 접근 방식', 'Mitigation'),
     refItem('Execution', exp.action?.[1] || exp.bullets?.[1] || '실행 과정과 담당 역할', 'Process'),
     refItem('Result', exp.result?.[0] || exp.metrics?.[0]?.label || '결과와 배운 점', 'Outcome'),
-  ];
-}
-
-function referenceContactBullets(ctx) {
-  return ctx.contactBullets.length ? ctx.contactBullets : [
-    'Email - yushin@example.com',
-    'GitHub - github.com/yushin-dev',
-    'Portfolio - fitpoly.kr',
   ];
 }
 
@@ -1631,254 +2231,175 @@ function buildStarReferenceDeck(ctx) {
 }
 
 function buildNarrativeReferenceDeck(ctx) {
-  const userName = ctx.userName || 'Kim Yushin';
-  const target = ctx.target || ctx.portfolio?.headline || ctx.portfolio?.title || 'Full-Stack Developer';
-  const projectA = ctx.expAt(0);
-  const projectB = ctx.expAt(1);
-  const projectC = ctx.expAt(2);
+  // 전부 사용자 데이터 기반. 하드코딩 샘플(POPOL/WINNOW/Boilerplate/GCSC 등) 금지.
+  // 데이터가 없는 슬라이드/항목은 채우지 않고 생략한다 → 남의 내용 유입·공백 방지.
+  const userName = ctx.userName || '지원자';
+  const target = ctx.target || ctx.portfolio?.headline || ctx.portfolio?.title || '';
   const education = portfolioEducationItems(ctx);
   const awards = portfolioAwardItems(ctx);
   const goals = portfolioGoalItems(ctx);
   const values = portfolioValueItems(ctx);
   const skillGroups = portfolioSkillGroups(ctx);
-  const pName = (exp, fb) => (exp.heading && !/^경험|^대표/.test(exp.heading)) ? exp.heading : fb;
-  const pBody = (exp, fb) => exp.body || exp.bullets?.[0] || fb;
-  const slides = [
-    {
-      layout: 'narrative-cover',
-      sectionLabel: `${userName} PORTFOLIO`,
-      title: ctx.portfolio?.headline || `사용자 문제를\n코드로 해결하는\n${target}`,
-      subtitle: `AI × Full-Stack × UX`,
-      bullets: skillGroups.slice(0, 5).map(g => g.heading).filter(Boolean),
-    },
-    {
+  const projects = ctx.expItems.slice(0, 5); // 실제 경험 수만큼만
+  const slides = [];
+
+  // 1) Cover
+  slides.push({
+    layout: 'narrative-cover',
+    sectionLabel: `${userName} PORTFOLIO`,
+    title: ctx.portfolio?.headline || ctx.portfolio?.title || (target ? target : `${userName} 포트폴리오`),
+    subtitle: target,
+    bullets: skillGroups.slice(0, 5).map(g => g.heading).filter(Boolean),
+  });
+
+  // 2) Profile — 학력/가치관/수상 중 하나라도 있을 때만
+  if (education.length || ctx.portfolio?.valuesEssay || awards.length) {
+    slides.push({
       layout: 'narrative-profile',
       sectionLabel: 'Profile',
-      title: ctx.portfolio?.headline || `경험과 기술, 두 가지를 모두 설계하는 개발자`,
-      items: [
-        education[0] || refItem(userName, target, 'Education'),
-        ...(education.slice(1, 2)),
-      ],
-      metrics: (awards.length ? awards.slice(0, 3) : [
-        refItem('GCSC 대상', '구글 학생 개발자 커뮤니티 최고상', 'Award'),
-        refItem('창업경진대회 최우수상', '실제 서비스 기획 및 개발 역량 인정', 'Award'),
-      ]).slice(0, 3).map(a => refMetric(a.heading, a.period || 'Award', a.body)),
+      title: ctx.portfolio?.headline || `${userName}의 배경`,
+      items: education.slice(0, 2).length ? education.slice(0, 2) : [refItem(userName, target || '지원자', 'Profile')],
+      metrics: awards.slice(0, 3).map(a => refMetric(a.heading, a.period || 'Award', a.body)),
       subtitle: ctx.portfolio?.valuesEssay ? `"${refText(ctx.portfolio.valuesEssay, '', 80)}"` : '',
-    },
-    {
+    });
+  }
+
+  // 3) Philosophy — 가치관 데이터가 있을 때만
+  if (values.length) {
+    slides.push({
       layout: 'narrative-philosophy',
       sectionLabel: 'Philosophy',
-      title: '경험 · 추억 · 가치 — 내가 개발하는 이유',
-      items: (values.length ? values : [
-        refItem('Experience', '직접 부딪히며 배운 것만이 진짜 역량이 된다'),
-        refItem('Memory', '함께 만든 결과물은 성장의 증거로 남는다'),
-        refItem('Value', '기술은 사람의 문제를 해결할 때 의미를 가진다'),
-      ]).slice(0, 3),
-      subtitle: ctx.portfolio?.about || '취업 준비생으로서 직접 겪은 비효율이 프로젝트의 출발점이 되었다. 내가 불편했던 것을 내가 해결한다.',
-    },
-    {
+      title: '내가 일하는 방식과 가치관',
+      items: values.slice(0, 3),
+      subtitle: refText(ctx.portfolio?.about, '', 120),
+    });
+  }
+
+  // 4) Skills — 기술 데이터가 있을 때만
+  if (skillGroups.length) {
+    slides.push({
       layout: 'narrative-skills',
       sectionLabel: 'Technical Skills',
-      title: '풀스택을 아우르는 기술 역량 맵',
+      title: '기술 역량 맵',
       items: skillGroups.slice(0, 6),
-      subtitle: `${target} · 프론트부터 배포까지 혼자서 전 과정을 책임질 수 있는 풀스택 개발자`,
-    },
-    {
-      layout: 'narrative-problem',
-      sectionLabel: '문제의 시작',
-      title: `"${pBody(projectA, '취업 준비, 왜 이렇게 비효율적인가?')}"`,
-      items: [
-        refItem('Problem 01', projectA.problem?.[0] || '취업 준비생은 동일한 경험을 지원 직무마다 다르게 정리해야 한다'),
-        refItem('Problem 02', projectA.problem?.[1] || '포트폴리오, 자기소개서, 이력서를 각각 따로 작성하는 반복 작업'),
-        refItem('Problem 03', projectA.problem?.[2] || '단순 텍스트 편집기로는 핵심 역량 추출이 어렵다'),
-      ],
-      subtitle: '이 문제를 직접 겪은 개발자가 직접 해결책을 만들기로 결심했다.',
-    },
-    {
+      subtitle: target,
+    });
+  }
+
+  // 5) 프로젝트별 슬라이드 — 각 경험의 "자기 데이터"만 사용 (플레이스홀더 제거)
+  const pad = (n) => String(n).padStart(2, '0');
+  const metricText = (m) => `${stripPlaceholder(m.label)} ${m.value || (m.before && m.after ? `${m.before}→${m.after}` : '')}`.trim();
+  projects.forEach((proj, idx) => {
+    const label = `Project ${pad(idx + 1)}`;
+    const pname = stripPlaceholder(proj.heading) || `프로젝트 ${idx + 1}`;
+    const body = stripPlaceholder(proj.body);
+    const period = stripPlaceholder(proj.period);
+    const role = stripPlaceholder(proj.role);
+    const problems = (proj.problem || []).map(stripPlaceholder).filter(Boolean);
+    const actions = (proj.action || []).map(stripPlaceholder).filter(Boolean);
+    const results = (proj.result || []).map(stripPlaceholder).filter(Boolean);
+    const learnings = (proj.learning || []).map(stripPlaceholder).filter(Boolean);
+    const projBullets = (proj.bullets || []).map(stripPlaceholder).filter(Boolean);
+    const metricLines = (proj.metrics || []).map(metricText).filter(Boolean);
+
+    // 5-1) Overview — subtitle(좌측)에는 역할, items(우측)에는 Overview/기간. body 를 양쪽에 중복 금지.
+    const overviewItems = [
+      body && refItem('Overview', body),
+      period && refItem('기간', period),
+    ].filter(Boolean);
+    slides.push({
       layout: 'narrative-project',
-      sectionLabel: 'Project 01',
-      title: pName(projectA, 'POPOL'),
-      subtitle: pBody(projectA, 'AI 기반 포트폴리오 자동 생성 플랫폼'),
-      items: [
-        refItem('Overview', projectA.body || 'AI 기반 포트폴리오 자동 생성 플랫폼'),
-        refItem('기간', projectA.period || '2026년 4월'),
-        refItem('역할', projectA.role || '풀스택 개발 (프론트엔드 + 백엔드 전담)'),
-      ],
-      bullets: (skillGroups[0]?.bullets || ['React', 'Node.js', 'Zustand', 'Firebase', 'JWT', 'Axios', 'Express', 'TailwindCSS']).slice(0, 9),
-    },
-    {
-      layout: 'narrative-challenge',
-      sectionLabel: 'Project 01',
-      title: `${pName(projectA, 'POPOL')} · 문제의 시작`,
-      items: [
-        refItem('Problem 01', projectA.problem?.[0] || '사용자들은 자신의 다양한 경험을 일관성 있게 정리하는 데 많은 시간을 소모'),
-        refItem('Problem 02', projectA.problem?.[1] || '각 지원 직무에 맞게 포트폴리오를 변형하는 반복 작업이 큰 부담'),
-        refItem('Problem 03', projectA.problem?.[2] || '단순 편집기를 넘어 AI가 핵심 역량을 추출해주는 도구가 필요했다'),
-        refItem('Action 01', projectA.action?.[0] || '경험 CRUD UI 구축 → AI 분석 파이프라인 설계'),
-        refItem('Action 02', projectA.action?.[1] || 'Google OAuth + JWT 보안 인증 체계 구현'),
-        refItem('Action 03', projectA.action?.[2] || '멀티 포맷 문서 Export 기능 개발'),
-      ],
-    },
-    {
-      layout: 'narrative-architecture',
-      sectionLabel: 'Project 01',
-      title: `${pName(projectA, 'POPOL')} · 전환점`,
-      items: [
-        refItem('프론트엔드', projectA.action?.[0] || 'Vite 기반 React 환경 선택 → 빠른 개발 속도 확보'),
-        refItem('상태 관리', projectA.action?.[1] || 'Redux 대신 Zustand 채택 → 보일러플레이트 없이 직관적 상태 공유'),
-        refItem('인증 설계', projectA.action?.[2] || 'Firebase Admin SDK로 Google OAuth 토큰 검증 → 서버 JWT 발행'),
-        refItem('백엔드', projectA.action?.[3] || 'Node.js + Express 사용 → 가볍고 확장성 있는 API 서버 구축'),
-      ],
-      subtitle: projectA.result?.[0] || '상태 비저장(Stateless) 인증 방식으로 서버 부하를 줄이고 확장성을 확보했다',
-    },
-    {
-      layout: 'narrative-results',
-      sectionLabel: 'Project 01',
-      title: `${pName(projectA, 'POPOL')} · 성과`,
-      items: [
-        refItem('Google OAuth 기반 회원가입/로그인 기능', projectA.result?.[0] || '완료'),
-        refItem('경험 CRUD 및 AI 분석 요청 기능', projectA.result?.[1] || '완료'),
-        refItem('포트폴리오 및 자기소개서 생성/관리 기능', projectA.result?.[2] || '완료'),
-        refItem('멀티 포맷 Export 기능 (PDF, Word 등)', ''),
-        refItem('React + Node.js 풀스택 설계 역량 전체 향상', ''),
-        refItem('JWT 기반 인증 흐름 직접 설계 → 보안 이해 심화', ''),
-        refItem('AI 비즈니스 요구사항을 실제 API 연동으로 구체화', ''),
-      ],
-    },
-    {
-      layout: 'narrative-project',
-      sectionLabel: 'Project 02',
-      title: pName(projectB, 'WINNOW'),
-      subtitle: pBody(projectB, 'Google Gemini AI 기반 채용 공고 자동 생성 플랫폼'),
-      items: [
-        refItem('Overview', projectB.body || 'Google Gemini AI를 연동하여 채용 공고(JD)를 자동으로 생성하고 관리하는 플랫폼'),
-        refItem('기간', projectB.period || '2026년 5월'),
-        refItem('역할', projectB.role || '개발자 (프론트엔드 개발, Firebase/Google AI 연동, Vercel 배포 전담)'),
-      ],
-      bullets: ['Vite', 'Firebase Authentication', 'Firestore', 'Google AI (Gemini API)', 'Vercel'],
-    },
-    {
-      layout: 'narrative-challenge',
-      sectionLabel: 'Project 02',
-      title: `${pName(projectB, 'WINNOW')} · 문제의 시작`,
-      items: [
-        refItem('Problem 01', projectB.problem?.[0] || '채용 공고 작성은 반복적이고 시간이 많이 소요되는 업무'),
-        refItem('Problem 02', projectB.problem?.[1] || '핵심 키워드만으로 완성도 높은 공고 초안을 생성하는 도구가 없었다'),
-        refItem('Problem 03', projectB.problem?.[2] || '사용자별 생성된 공고를 저장하고 관리할 수 있는 시스템 필요'),
-        refItem('Action 01', projectB.action?.[0] || 'Google Gemini AI API 연동 → 텍스트 생성 기능 구현'),
-        refItem('Action 02', projectB.action?.[1] || 'Firebase Auth + Firestore 사용자별 데이터 관리'),
-        refItem('Action 03', projectB.action?.[2] || 'Vercel CI/CD 파이프라인 설정 및 배포 자동화'),
-      ],
-    },
-    {
-      layout: 'narrative-architecture',
-      sectionLabel: 'Project 02',
-      title: `${pName(projectB, 'WINNOW')} · 전환점`,
-      items: [
-        refItem('개발 전략', projectB.action?.[0] || '빠른 프로토타이핑과 개발 생산성 최우선 → Vite 선택'),
-        refItem('AI 연동', projectB.action?.[1] || 'Google Gemini API로 텍스트 생성 기능 구현 → 실전 외부 API 연동 경험'),
-        refItem('인프라', projectB.action?.[2] || 'Firebase(BaaS) 활용 → 서버리스 아키텍처로 인프라 관리 부담 최소화'),
-        refItem('배포', projectB.action?.[3] || 'Vercel CI/CD 파이프라인 → 코드 푸시만으로 자동 배포 완성'),
-      ],
-      subtitle: projectB.result?.[0] || 'Firebase 같은 BaaS를 활용하면 최소한의 리소스로 MVP를 신속하게 구축하고 시장 반응을 검증할 수 있다',
-    },
-    {
-      layout: 'narrative-results',
-      sectionLabel: 'Project 02',
-      title: `${pName(projectB, 'WINNOW')} · 성과`,
-      items: [
-        refItem('UX 개선 및 버그 수정 22% 달성', projectB.result?.[0] || ''),
-        refItem('채용 대시보드 기능 개선', projectB.result?.[1] || ''),
-        refItem('프롬프트 엔지니어링으로 AI 분석 정확도 개선', ''),
-        refItem('빌드 실패 긴급 대응 경험', ''),
-        refItem('외부 AI API(Google Gemini) 실전 연동 경험 획득', ''),
-        refItem('Firebase와 같은 서버리스 아키텍처로 전체 개발 주기 단축', ''),
-        refItem('Vite 환경 구성부터 Vercel 배포 자동화까지 풀스택 시야 확장', ''),
-      ],
-    },
-    {
-      layout: 'narrative-project',
-      sectionLabel: 'Project 03',
-      title: pName(projectC, 'React-Vite Boilerplate'),
-      subtitle: pBody(projectC, '개발자를 위한 표준 개발 환경 템플릿'),
-      items: [
-        refItem('Overview', projectC.body || 'React와 Vite를 사용하는 개발자들을 위해 즉시 사용 가능한 최소 기능의 개발 환경 템플릿 제공'),
-        refItem('기간', projectC.period || '2026년 5월'),
-        refItem('역할', projectC.role || '개발 환경 설계 및 보일러플레이트 구축'),
-      ],
-      bullets: ['React', 'Vite', 'ESLint', 'Babel', 'SWC', 'TypeScript'],
-    },
-    {
-      layout: 'narrative-challenge',
-      sectionLabel: 'Project 03',
-      title: `${pName(projectC, 'Boilerplate')} · 반복되는 초기 설정 비효율을 표준화로 해결하다`,
-      items: [
-        refItem('Problem 01', projectC.problem?.[0] || '개발자들은 새 프로젝트마다 Vite, React, ESLint 등을 연동하는 반복 작업을 수행'),
-        refItem('Problem 02', projectC.problem?.[1] || '초기 설정에 소요되는 시간이 실제 개발 생산성을 저하시킴'),
-        refItem('Solution 01', projectC.action?.[0] || 'React와 Vite 최신 버전 기반으로 최적의 조합 연구'),
-        refItem('Solution 02', projectC.action?.[1] || '빠른 리프레시를 위해 Babel 기반과 SWC 기반 두 가지 옵션 제공'),
-        refItem('Solution 03', projectC.action?.[2] || 'TypeScript + typescript-eslint 통합으로 프로덕션 앱 안정성 확보'),
-      ],
-      subtitle: projectC.result?.[0] || '개발 환경 최적화와 표준화 경험 → 기술적 제약과 요구사항을 이해하고 최적 솔루션을 기획하는 역량 강화',
-    },
-    {
+      sectionLabel: label,
+      title: pname,
+      subtitle: role,
+      items: overviewItems.length ? overviewItems : [refItem('Overview', body || pname)],
+      bullets: (proj.keywords || []).map(stripPlaceholder).filter(Boolean).slice(0, 8),
+    });
+
+    // 5-2) 문제 & 해결
+    // THE PROBLEM: proj.problem(context). CORE TASKS: actions(없으면 bullets).
+    // clipSentence 로 문장/어절 경계에서 잘라 "…" 중간 끊김 방지.
+    // THE PROBLEM: context(problems) 우선. 비면 개요 첫 문장으로 채워 빈칸 방지.
+    const problemRaw = problems.length ? problems : (body ? [body] : []);
+    const problemSrc = problemRaw.slice(0, 3).map(p => clipSentence(p, 72));   // THE PROBLEM 360px×3줄
+    const actionSrc = (actions.length ? actions : projBullets).slice(0, 3).map(a => clipSentence(a, 58)); // CORE TASKS 300px×3줄
+    const challengeItems = [
+      ...problemSrc.map((p, i) => refItem(`Problem ${pad(i + 1)}`, p)),
+      ...actionSrc.map((a, i) => refItem(`Action ${pad(i + 1)}`, a)),
+    ];
+    if (challengeItems.length) {
+      slides.push({
+        layout: 'narrative-challenge',
+        sectionLabel: label,
+        title: `${pname} · 문제와 해결`,
+        items: challengeItems,
+      });
+    }
+
+    // 5-3) 성과
+    // items → KEY DELIVERABLES (results)
+    // bullets → GROWTH POINTS (learning 우선, 없으면 actions/bullets)
+    const deliverables = results.slice(0, 4).map(r => clipSentence(r, 52));  // KEY DELIVERABLES 360px×2줄
+    const growthSrc = learnings.length ? learnings : (actions.length ? actions : projBullets);
+    const growthPoints = growthSrc.slice(0, 3).map(a => clipSentence(a, 58)); // GROWTH POINTS 310px×3줄
+    if (deliverables.length || growthPoints.length) {
+      slides.push({
+        layout: 'narrative-results',
+        sectionLabel: label,
+        title: `${pname} · 성과`,
+        items: deliverables.map(r => refItem(r, '')),
+        bullets: growthPoints,  // GROWTH POINTS 전용 — items 와 분리하여 sanitize 오버필터 방지
+        metrics: (proj.metrics || []).slice(0, 4),
+      });
+    }
+  });
+
+  // 6) Awards — 있을 때만
+  if (awards.length) {
+    slides.push({
       layout: 'narrative-awards',
       sectionLabel: 'Awards & Recognition',
-      title: '교실 밖에서도 증명한 실력 — 수상과 어학 성취',
-      items: (awards.length ? awards : [
-        refItem('GCSC 대상', '구글 학생 개발자 커뮤니티 최고상'),
-        refItem('창업경진대회 최우수상', '실제 서비스 기획 및 개발 역량 인정'),
-        refItem('TOEIC 900점', '(2023.03 취득)\n글로벌 기술 문서 독해 및 협업 역량 보유', 'Language'),
-      ]).slice(0, 5),
-    },
-    {
+      title: '수상 및 활동 성과',
+      items: awards.slice(0, 5),
+    });
+  }
+
+  // 7) Growth — 경험이 2개 이상일 때만
+  if (projects.length >= 2) {
+    slides.push({
       layout: 'narrative-timeline',
       sectionLabel: 'Growth Curve',
-      title: '문제를 발견하고 → 직접 해결하며 → 더 큰 문제에 도전하는 성장 곡선',
-      items: ctx.expItems.slice(0, 5).map(exp => refItem(exp.heading, exp.body || exp.bullets?.[0] || exp.role, exp.period || exp.role)),
-      subtitle: '매 프로젝트마다 더 복잡한 문제를 더 효율적인 방법으로 해결해왔다',
-    },
-    {
-      layout: 'narrative-summary',
-      sectionLabel: 'Core Competencies',
-      title: `세 가지 핵심 역량으로 정의되는 개발자, ${userName}`,
-      items: [
-        refItem('풀스택 설계력', '프론트엔드(React/Vite/TypeScript)부터 백엔드(Node.js/Express), 배포(Vercel)까지 전 과정을 혼자 설계하고 구현할 수 있다.', 'POPOL'),
-        refItem('AI API 연동 실전 경험', 'Google Gemini AI, Firebase AI 서비스를 실제 서비스에 연동하여 비즈니스 요구사항을 기술로 구현한 경험 보유.', 'WINNOW'),
-        refItem('개발 환경 최적화 역량', 'Vite + TypeScript + ESLint + SWC 조합으로 개발 생산성을 극대화하는 표준 환경을 설계하고 공유할 수 있다.', 'BOILERPLATE'),
-      ],
-    },
-    {
-      layout: 'narrative-connection',
-      sectionLabel: 'Project Connection',
-      title: '세 프로젝트가 연결되어 만들어진 하나의 역량 체계',
-      items: [
-        refItem('POPOL', 'React\nNode.js\nJWT', '풀스택 아키텍처 설계', 'AI API 연동의 기초'),
-        refItem('WINNOW', 'Gemini AI\nFirebase\nVercel', '외부 AI 연동 · BaaS + CI/CD', '개발 환경 최적화의 필요성 인식'),
-        refItem('Boilerplate', 'Vite\nTypeScript\nESLint', '표준화와 생산성', '팀 협업 및 오픈소스 기여 역량'),
-      ],
-      subtitle: '각 프로젝트는 독립적이지 않다. 이전 경험이 다음 문제를 더 잘 해결하게 만들었다.',
-    },
-    {
+      title: '경험이 이어져 온 흐름',
+      items: projects.map(exp => refItem(
+        exp.heading,
+        stripPlaceholder(exp.body) || exp.bullets?.[0] || stripPlaceholder(exp.role),
+        stripPlaceholder(exp.period) || stripPlaceholder(exp.role) || '',
+      )),
+      subtitle: '',
+    });
+  }
+
+  // 8) Vision/Roadmap — 목표 데이터가 있을 때만
+  if (goals.length) {
+    slides.push({
       layout: 'narrative-roadmap',
       sectionLabel: 'Vision',
-      title: '다음 기여 — 더 큰 문제를 더 좋은 팀과 함께 해결하고 싶다',
-      items: (goals.length ? goals : [
-        refItem('Short-Term Growth', `귀사의 서비스에서 사용자 문제를 발굴하고, React + AI 기반 솔루션으로 빠르게 기여`, 'SHORT-TERM'),
-        refItem('Mid-Term Expansion', `팀의 개발 생산성을 높이는 표준화된 아키텍처와 개발 환경 구축에 기여`, 'MID-TERM'),
-        refItem('Long-Term Vision', `사용자 경험 데이터를 AI로 분석하고 서비스를 개선하는 풀사이클 개발자로 성장`, 'LONG-TERM'),
-      ]).slice(0, 3),
-      subtitle: '"저는 문제를 발견하면 직접 해결하는 개발자입니다.\n귀사의 문제를 저의 다음 프로젝트로 삼고 싶습니다."',
-    },
-    {
-      layout: 'narrative-closing',
-      sectionLabel: 'Thank You',
-      title: '"경험에서 배우고, 기술로 해결하며,\n함께 성장하는 개발자가 되겠습니다."',
-      subtitle: `${userName} — ${ctx.portfolio?.headline || `사용자 문제를 코드로 해결하는 ${target}`}`,
-      bullets: portfolioContactBullets(ctx),
-      items: skillGroups.slice(0, 6).map(g => refItem(`#${g.heading.replace(/\s+/g, '')}`, g.heading)),
-    },
-  ];
+      title: '입사 후 기여 방향',
+      items: goals.slice(0, 3),
+      subtitle: '',
+    });
+  }
+
+  // 9) Closing
+  slides.push({
+    layout: 'narrative-closing',
+    sectionLabel: 'Thank You',
+    title: '감사합니다',
+    subtitle: `${userName}${target ? ` — ${target}` : ''}`,
+    bullets: portfolioContactBullets(ctx),
+    items: skillGroups.slice(0, 6).map(g => refItem(`#${g.heading.replace(/\s+/g, '')}`, g.heading)),
+  });
+
   return normalizeReferenceSlides(slides);
 }
 
@@ -2390,9 +2911,11 @@ function normalizeExperiences(p) {
       bullets,
       metrics,
       keywords,
-      problem: keyExperiences.map(k => compact(k.situation, 76)).filter(Boolean).slice(0, 3),
-      action: keyExperiences.map(k => compact(k.action, 76)).filter(Boolean).slice(0, 3),
-      result: keyExperiences.map(k => compact(k.result, 76)).filter(Boolean).slice(0, 3),
+      // 추출 스키마의 실제 필드는 context (situation 은 구버전 호환). problem 이 비던 핵심 버그.
+      problem: keyExperiences.map(k => compact(k.context || k.situation || k.problem, 110)).filter(Boolean).slice(0, 3),
+      action: keyExperiences.map(k => compact(k.action, 110)).filter(Boolean).slice(0, 3),
+      result: keyExperiences.map(k => compact(k.result, 110)).filter(Boolean).slice(0, 3),
+      learning: keyExperiences.map(k => compact(k.learning, 110)).filter(Boolean).slice(0, 3),
     };
   }).filter(e => e.heading || e.bullets.length || e.metrics.length);
 }
@@ -2457,7 +2980,7 @@ function buildDeckFromPortfolio(p) {
     const metrics = keyExps.slice(0, 3).map(k => ({ label: k.metricLabel || k.title || '', value: k.metric || '', before: k.beforeMetric || '', after: k.afterMetric || '' })).filter(m => m.label || m.value);
     if (!itemBullets.length && keyExps.length) itemBullets = keyExps.slice(0, 4).map(k => k.result || k.action || k.title).filter(Boolean);
     const compact = (s, max = 80) => sanitizePortfolioText(String(s || '')).replace(/\s+/g, ' ').trim().slice(0, max);
-    const problem = keyExps.map(k => compact(k.situation)).filter(Boolean).slice(0, 3);
+    const problem = keyExps.map(k => compact(k.context || k.situation || k.problem)).filter(Boolean).slice(0, 3);
     const action = keyExps.map(k => compact(k.action)).filter(Boolean).slice(0, 3);
     const result = keyExps.map(k => compact(k.result)).filter(Boolean).slice(0, 3);
     if (!problem.length && !action.length && !result.length && itemBullets.length) {
