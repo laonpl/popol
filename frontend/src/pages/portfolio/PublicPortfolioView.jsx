@@ -1,9 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
   Loader2, Code, Tag, X
 } from 'lucide-react';
+import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+import { FRAMEWORKS } from '../../stores/experienceStore';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
@@ -122,26 +124,26 @@ export default function PublicPortfolioView() {
   useEffect(() => {
     const load = async () => {
       try {
-        // 1차: doc ID로 직접 조회
-        const snap = await getDoc(doc(db, 'portfolios', id));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.isPublic) {
-            setPortfolio({ id: snap.id, ...data });
-          } else {
-            setError('비공개 포트폴리오입니다.');
-          }
+        // 1차: customSlug로 조회 (우선순위)
+        const q = query(
+          collection(db, 'portfolios'),
+          where('customSlug', '==', id),
+          where('isPublic', '==', true)
+        );
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const d = qSnap.docs[0];
+          setPortfolio({ id: d.id, ...d.data() });
         } else {
-          // 2차: customSlug로 조회
-          const q = query(
-            collection(db, 'portfolios'),
-            where('customSlug', '==', id),
-            where('isPublic', '==', true)
-          );
-          const qSnap = await getDocs(q);
-          if (!qSnap.empty) {
-            const d = qSnap.docs[0];
-            setPortfolio({ id: d.id, ...d.data() });
+          // 2차: doc ID로 직접 조회
+          const snap = await getDoc(doc(db, 'portfolios', id));
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.isPublic) {
+              setPortfolio({ id: snap.id, ...data });
+            } else {
+              setError('비공개 포트폴리오입니다.');
+            }
           } else {
             setError('포트폴리오를 찾을 수 없습니다.');
           }
@@ -316,9 +318,14 @@ export default function PublicPortfolioView() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
               {p.experiences.map((e, i) => {
                 const st = STATUS_MAP[e.status] || STATUS_MAP.finished;
+                const sr = e.structuredResult || {};
+                const overview = sr.projectOverview || {};
+                const cardSummary = overview.summary || sr.intro || e.description || '';
+                const cardRole = overview.role || e.role || '';
+                const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
                 return (
-                  <button key={i} onClick={() => setSelectedExp(e)} className="group bg-white rounded-xl border border-gray-200 overflow-hidden text-left hover:shadow-md transition-all">
-                    <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative">
+                  <button key={i} onClick={() => setSelectedExp(e)} className="group bg-white rounded-xl border border-gray-200 overflow-hidden text-left hover:shadow-md transition-all flex flex-col">
+                    <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative flex-shrink-0">
                       {e.thumbnailUrl ? (
                         <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -326,12 +333,19 @@ export default function PublicPortfolioView() {
                       )}
                       {e.date && <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[12px] px-1.5 py-0.5 rounded">{e.date}</span>}
                     </div>
-                    <div className="p-3">
-                      <h4 className="text-sm font-bold text-gray-800 line-clamp-2 mb-1.5">{e.title || '(제목 없음)'}</h4>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className={`w-2 h-2 rounded-full ${st.cls}`} />
-                        <span className="text-[13px] text-gray-500">{st.label}</span>
-                      </div>
+                    <div className="p-3 flex-1 flex flex-col">
+                      <h4 className="text-sm font-bold text-gray-800 line-clamp-2 mb-1">{e.title || '(제목 없음)'}</h4>
+                      {cardRole && <p className="text-[11px] text-blue-600 font-medium mb-1 truncate">{cardRole}</p>}
+                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mb-1.5">{cardSummary}</p>}
+                      {cardTech.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {cardTech.slice(0, 3).map((t, ti) => (
+                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium border border-green-100">
+                              {typeof t === 'string' ? t : t?.name || ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -528,15 +542,36 @@ export default function PublicPortfolioView() {
             <div className="px-10 py-8 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><span className="w-1.5 h-6 bg-violet-500 rounded-full inline-block" /> 프로젝트 / 경험</h2>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {p.experiences.map((e, i) => (
-                  <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all">
-                    <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden relative">
-                      {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      : <div className="w-full h-full flex items-center justify-center"><span className="text-3xl opacity-40">📋</span></div>}
-                    </div>
-                    <div className="p-3"><h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title}</h4><p className="text-xs text-gray-400">{e.date}</p></div>
-                  </button>
-                ))}
+                {p.experiences.map((e, i) => {
+                  const sr = e.structuredResult || {};
+                  const overview = sr.projectOverview || {};
+                  const cardSummary = overview.summary || sr.intro || e.description || '';
+                  const cardRole = overview.role || e.role || '';
+                  const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
+                  const stMap = { expected: 'bg-blue-500', doing: 'bg-green-500', finished: 'bg-gray-400' };
+                  return (
+                    <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
+                      <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden relative flex-shrink-0">
+                        {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        : <div className="w-full h-full flex items-center justify-center"><span className="text-3xl opacity-40">📋</span></div>}
+                        <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${stMap[e.status] || stMap.finished}`} />
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col">
+                        <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                        <p className="text-xs text-gray-400">{e.date || ''}</p>
+                        {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
+                        {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                        {cardTech.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {cardTech.slice(0, 3).map((t, ti) => (
+                              <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -648,15 +683,33 @@ export default function PublicPortfolioView() {
           {(p.experiences || []).length > 0 && (
             <div className="px-10 pb-8">
               <h3 className="font-bold text-lg text-[#2d2a26] mb-4">🎨 프로젝트</h3>
-              <div className="grid grid-cols-3 gap-4">{p.experiences.map((e, i) => (
-                <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all">
-                  <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
-                    {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨'][i % 3]}</div>}
-                  </div>
-                  <div className="p-3"><h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1">{e.title}</h4><p className="text-xs text-[#8a8578]">{e.date}</p></div>
-                </button>
-              ))}</div>
+              <div className="grid grid-cols-3 gap-4">
+                {p.experiences.map((e, i) => {
+                  const sr = e.structuredResult || {};
+                  const overview = sr.projectOverview || {};
+                  const cardSummary = overview.summary || sr.intro || e.description || '';
+                  const cardRole = overview.role || e.role || '';
+                  return (
+                    <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all flex flex-col">
+                      <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden flex-shrink-0">
+                        {e.thumbnailUrl ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨'][i % 3]}</div>}
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col">
+                        <h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                        <p className="text-xs text-[#8a8578]">{e.date || ''}</p>
+                        {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
+                        {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                        {(e.classify || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
+                            <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
+                          ))}</div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
           {/* Skills */}
@@ -751,15 +804,22 @@ export default function PublicPortfolioView() {
               <div className="relative">
                 <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
                 <div className="space-y-4">
-                  {[...(p.experiences || [])].sort((a, b) => (b.period || '').localeCompare(a.period || '')).map((exp, i) => (
-                    <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setSelectedExp(exp)}>
-                      <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-0.5 z-10 border-2 border-white ${exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'}`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">{exp.title}</p>
-                        <p className="text-xs text-gray-400">{exp.period} {exp.role ? `· ${exp.role}` : ''}</p>
+                  {[...(p.experiences || [])].sort((a, b) => (b.period || '').localeCompare(a.period || '')).map((exp, i) => {
+                    const sr = exp.structuredResult || {};
+                    const overview = sr.projectOverview || {};
+                    const cardSummary = overview.summary || sr.intro || exp.description || '';
+                    const cardRole = overview.role || exp.role || '';
+                    return (
+                      <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setSelectedExp(exp)}>
+                        <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-1 z-10 border-2 border-white ${exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'}`} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
+                          <p className="text-xs text-gray-400">{exp.period || exp.date || ''} {cardRole ? `· ${cardRole}` : ''}</p>
+                          {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-1">{cardSummary}</p>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -790,140 +850,238 @@ export default function PublicPortfolioView() {
 
       {/* Experience Detail Modal */}
       {selectedExp && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedExp(null)}>
-          <div className="bg-white rounded-2xl max-w-[720px] w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* 헤더 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-              <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{selectedExp.title}</h3>
-              <button onClick={() => setSelectedExp(null)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 flex-shrink-0">
-                <X size={18} />
-              </button>
+        <PublicExperienceDetailModal
+          exp={selectedExp}
+          onClose={() => setSelectedExp(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Public Experience Detail Modal (동일한 스타일로 공유 링크에서도 사용) ──
+function PublicExperienceDetailModal({ exp, onClose }) {
+  const fw = exp.framework && FRAMEWORKS[exp.framework];
+  const hasSections = (exp.sections || []).some(s => s.title && s.content);
+  const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
+  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(Boolean);
+
+  const structured = exp?.structuredResult || {};
+  const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
+    acc[k] = (typeof structured[k] === 'string' ? structured[k] : '') || '';
+    return acc;
+  }, {});
+  const hasStructuredSections = EXP_SECTION_KEYS.some(k => sectionContents[k]?.trim());
+
+  // Firestore에서 이미지 로드 (experienceId가 있을 때)
+  const [allImages, setAllImages] = useState([]);
+  const [sectionImages, setSectionImages] = useState({});
+  const [imageConfig, setImageConfig] = useState({});
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  useEffect(() => {
+    const expId = exp?.experienceId;
+    if (!expId) { setImagesLoaded(true); return; }
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'experiences', expId));
+        if (snap.exists()) {
+          const data = snap.data();
+          setAllImages(data.images || []);
+          setSectionImages(data.sectionImages || {});
+          setImageConfig(data.imageConfig || {});
+        }
+      } catch {}
+      setImagesLoaded(true);
+    })();
+  }, [exp?.experienceId]);
+
+  // 섹션 내 이미지 렌더링
+  const renderSectionImages = (sectionKey, position) => {
+    const imgIndices = sectionImages[sectionKey] || [];
+    const sizeMap = { sm: 'max-w-[140px]', md: 'max-w-[280px]', lg: 'max-w-full' };
+    const filtered = imgIndices.map((imgIdx, pos) => ({ imgIdx, pos })).filter(({ imgIdx }) => {
+      const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+      return (cfg.position || 'below') === position;
+    });
+    if (filtered.length === 0) return null;
+    return (
+      <div className={`flex flex-wrap gap-3 ${position === 'above' ? 'mb-3' : 'mt-3'}`}>
+        {filtered.map(({ imgIdx }) => {
+          const img = allImages[imgIdx];
+          if (!img) return null;
+          const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
+          const size = cfg.size || 'md';
+          return (
+            <div key={`${sectionKey}-${imgIdx}`} className={sizeMap[size] || sizeMap.md}>
+              <img src={img.url} alt={img.name || '이미지'} className="w-full rounded-lg border border-gray-200 shadow-sm" />
             </div>
+          );
+        })}
+      </div>
+    );
+  };
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* 썸네일 */}
-              {selectedExp.thumbnailUrl && (
-                <div className="w-full h-44 rounded-xl overflow-hidden bg-gray-50">
-                  <img src={selectedExp.thumbnailUrl} alt={selectedExp.title} className="w-full h-full object-cover" />
-                </div>
-              )}
+  const overview = structured.projectOverview || {};
+  const coverImg = structured.exportConfig?.coverImg || exp.thumbnailUrl || null;
+  const duration = overview.duration || exp.date || '';
+  const role = overview.role || exp.role || '';
+  const techStack = (overview.techStack?.length > 0 ? overview.techStack : null)
+    || (exp.skills?.length > 0 ? exp.skills : null)
+    || [];
+  const keywords = exp.keywords || [];
+  const goal = overview.goal || '';
 
-              {/* 기본 정보 */}
-              {(() => {
-                const team = selectedExp.structuredResult?.projectOverview?.team;
-                const duration = selectedExp.structuredResult?.projectOverview?.duration;
-                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
-                const items = [
-                  selectedExp.date && { icon: '📅', text: selectedExp.date },
-                  selectedExp.role && !isPlaceholder(selectedExp.role) && { icon: '👤', text: selectedExp.role },
-                  !isPlaceholder(team) && { icon: '👥', text: team },
-                  !isPlaceholder(duration) && { icon: '⏱', text: duration },
-                ].filter(Boolean);
-                if (items.length === 0) return null;
-                return (
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                    {items.map((item, i) => <span key={i}>{item.icon} {item.text}</span>)}
-                  </div>
-                );
-              })()}
+  // 섹션 목록
+  const exportCfg = structured.exportConfig;
+  const sectionsToRender = (() => {
+    if (exportCfg?.sections?.length > 0) {
+      return exportCfg.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content, key: s.key }));
+    }
+    if (hasSections) {
+      return (exp.sections || []).filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content, key: s.title }));
+    }
+    if (hasStructuredSections) {
+      return EXP_SECTION_KEYS.filter(k => sectionContents[k]?.trim()).map(k => ({ label: EXP_SECTION_META[k].label, content: sectionContents[k], key: k }));
+    }
+    return [];
+  })();
 
-              {/* 스킬 태그 */}
-              {((selectedExp.skills?.length ? selectedExp.skills : (selectedExp.structuredResult?.projectOverview?.techStack || [])).length > 0) && (
-                <div className="flex flex-wrap gap-1.5">
-                  {(selectedExp.skills?.length ? selectedExp.skills : selectedExp.structuredResult.projectOverview.techStack).map((s, i) => (
-                    <span key={i} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
-                      {typeof s === 'string' ? s : s?.name}
-                    </span>
-                  ))}
-                </div>
-              )}
+  const FIELD_ACCENTS = [
+    'border-l-red-400', 'border-l-amber-400', 'border-l-green-400',
+    'border-l-blue-400', 'border-l-purple-400',
+  ];
 
-              {/* 설명 */}
-              {(() => {
-                const desc = selectedExp.description || selectedExp.structuredResult?.projectOverview?.summary || '';
-                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
-                if (!desc || isPlaceholder(desc)) return null;
-                return (
-                  <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-4 whitespace-pre-line">{desc}</p>
-                );
-              })()}
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl max-w-[1400px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* 커버 이미지 영역 */}
+        <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-40' : 'h-10'} bg-gray-50`}>
+          {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
+            <X size={16} />
+          </button>
+        </div>
 
-              {/* structuredResult 상세 섹션 */}
-              {(() => {
-                const structured = selectedExp.structuredResult || {};
-                const isPlaceholder = (v) => !v || v.includes('[작성 필요]') || v.includes('원본에 없음') || v.includes('작성 필요');
-                const hasSections = EXP_SECTION_KEYS.some(k => {
-                  const v = typeof structured[k] === 'string' ? structured[k] : '';
-                  return v.trim() && !isPlaceholder(v);
-                });
-                if (!hasSections) return null;
-                return (
-                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="divide-y divide-gray-100">
-                      {EXP_SECTION_KEYS.map(key => {
-                        const meta = EXP_SECTION_META[key];
-                        const val = typeof structured[key] === 'string' ? structured[key] : '';
-                        if (!val?.trim() || isPlaceholder(val)) return null;
-                        return (
-                          <div key={key}>
-                            <div className="flex items-center gap-3 px-5 py-2.5 bg-gray-50">
-                              <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-500 text-white flex items-center justify-center text-[13px] font-bold">
-                                {meta.num}
-                              </span>
-                              <span className="text-[15px] font-bold text-blue-700">{meta.label}</span>
-                            </div>
-                            <div className="px-5 py-3 pl-[60px]">
-                              <p className="text-[15px] text-gray-700 leading-[1.85] whitespace-pre-wrap">{val}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* keyExperiences */}
-              {(selectedExp.structuredResult?.keyExperiences || []).length > 0 && (
+        {/* 문서 본문 */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-12 pb-10 pt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+              
+              {/* 좌측 영역: 제목 + 메타 프로퍼티 + 핵심 경험 */}
+              <div className="lg:col-span-6 space-y-6">
                 <div>
-                  <h4 className="text-sm font-bold text-gray-700 mb-3">핵심 경험 &amp; 성과</h4>
-                  <div className="space-y-2">
-                    {selectedExp.structuredResult.keyExperiences.map((ke, ki) => (
-                      <div key={ki} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <p className="text-sm font-semibold text-gray-800">{ke.title}</p>
-                        {ke.metric && <p className="text-xs text-green-600 font-bold mt-0.5">{ke.metric}</p>}
-                        {ke.description && <p className="text-xs text-gray-500 mt-1">{ke.description}</p>}
+                  <h1 className="text-[28px] font-extrabold text-blue-600 leading-tight">
+                    {exp.title || '(제목 없음)'}
+                  </h1>
+                </div>
+
+                {/* 프로퍼티 테이블 */}
+                <div className="space-y-2 border-b border-gray-200 pb-5">
+                  {duration && (
+                    <div className="flex items-center gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">기간</span>
+                      <span className="text-[15px] text-gray-700">{duration}</span>
+                    </div>
+                  )}
+                  {role && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
+                      <span className="text-[15px] text-gray-700 leading-relaxed">{role}</span>
+                    </div>
+                  )}
+                  {techStack.length > 0 && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {techStack.map((t, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[14px]">
+                            {typeof t === 'string' ? t : t?.name || ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {keywords.length > 0 && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {keywords.slice(0, 6).map((kw, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[14px] font-medium">
+                            {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {goal && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
+                      <span className="text-[15px] text-gray-700 leading-relaxed">{goal}</span>
+                    </div>
+                  )}
+                  {exp.link && (
+                    <div className="flex items-center gap-4">
+                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">링크</span>
+                      <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-blue-600 hover:underline">
+                        <ExternalLink size={12} /> {exp.link}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* 핵심 경험 슬라이드 */}
+                {keyExperiences.length > 0 && (
+                  <div>
+                    <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+                    <KeyExperienceSlider keyExperiences={keyExperiences} />
+                  </div>
+                )}
+              </div>
+
+              {/* 우측 영역: 상세 섹션 본문 (또는 프레임워크 기반 상세) */}
+              <div className="lg:col-span-6 space-y-6 lg:border-l lg:border-gray-100 lg:pl-12">
+                {sectionsToRender.length > 0 && (
+                  <div className="space-y-7">
+                    {sectionsToRender.map((sec, i) => (
+                      <div key={i}>
+                        <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-2 mb-3">
+                          {sec.label}
+                        </h2>
+                        {imagesLoaded && renderSectionImages(sec.key, 'above')}
+                        <p className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                        {imagesLoaded && renderSectionImages(sec.key, 'below')}
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* 커스텀 섹션 (exp.sections) */}
-              {(selectedExp.sections || []).length > 0 && (
-                <div className="space-y-3">
-                  {selectedExp.sections.map((sec, i) => (
-                    sec.content?.trim() ? (
-                      <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                        {sec.title && <h4 className="text-sm font-bold text-gray-800 mb-2">{sec.title}</h4>}
-                        <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">{sec.content}</p>
-                      </div>
-                    ) : null
-                  ))}
-                </div>
-              )}
+                {/* 프레임워크 기반 상세 */}
+                {sectionsToRender.length === 0 && hasFramework && (
+                  <div className="space-y-4">
+                    {fw.fields.map((field, idx) => {
+                      const val = exp.frameworkContent[field.key];
+                      if (!val) return null;
+                      return (
+                        <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
+                          <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
+                          <p className="text-[16px] text-gray-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {/* 링크 */}
-              {selectedExp.link && (
-                <a href={selectedExp.link} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-                  <ExternalLink size={14} /> 링크 보기
-                </a>
-              )}
+                {/* 아무 내용도 없을 때 */}
+                {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
+                )}
+              </div>
+
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

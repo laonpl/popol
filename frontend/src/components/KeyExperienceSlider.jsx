@@ -31,7 +31,7 @@ function HintText({ value, onEdit, className = '' }) {
 /* ── 뷰 모드 텍스트: 힌트면 HintText, 아니면 일반 텍스트 ── */
 function ViewText({ value, onEdit, className = '' }) {
   if (isHint(value)) return <HintText value={value} onEdit={onEdit} />;
-  return <p className={`text-[15px] text-gray-500 leading-[1.7] ${className}`}>{stripMd(value)}</p>;
+  return <p className={`text-[15px] text-gray-500 leading-[1.7] max-h-[140px] overflow-y-auto custom-scrollbar pr-1 ${className}`}>{stripMd(value)}</p>;
 }
 
 /* 경험별 고유 색상 팔레트 — 읽기/편집 공통 사용 */
@@ -780,91 +780,226 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
   if (!exp) return null;
 
   const [chartOpen, setChartOpen] = useState(false);
+  const isEditing = editing;
 
   return (
-    <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
-      {editing && (
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-primary-600 shadow-sm">
-          편집 중
+    <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }} className="p-0">
+      {/* 헤더: 번호(혹은 편집 중 배지) + 제목 편집 + 성과 지표 편집 */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          {isEditing ? (
+            <span className="flex-shrink-0 px-2.5 py-0.5 rounded-md bg-primary-50 text-primary-600 text-[10px] font-black border border-primary-100 uppercase tracking-wider mt-1.5 shadow-sm">
+              편집 중
+            </span>
+          ) : (
+            <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-[11px] font-black flex items-center justify-center mt-1" style={{ backgroundColor: theme.accent || PRIMARY }}>
+              ★
+            </span>
+          )}
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500 block mb-1">
+              {theme.label}
+            </span>
+            <EditableText
+              value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h3"
+              className="text-[20px] sm:text-[24px] font-extrabold text-bluewood-900 leading-snug"
+              editing={isEditing} onChange={onChange}
+            />
+          </div>
         </div>
-      )}
-      {/* 섹션 라벨 + 헤딩 */}
-      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500">
-        {theme.label}
-      </span>
-      <div className="mt-4 mb-5 flex items-start gap-4">
-        <span className="mt-1 h-14 w-[3px] flex-shrink-0 bg-primary-500" />
-        <EditableText
-          value={exp.title} field="title" placeholder="제목을 입력하세요" tag="h2"
-          className="text-[26px] sm:text-[32px] font-extrabold text-bluewood-900 leading-[1.18]"
-          editing={editing} onChange={onChange}
-        />
+        {/* 성과 지표 편집 */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {isEditing ? (
+            <div className="flex flex-col gap-1 items-end">
+              <span className="text-[10px] font-bold text-bluewood-400">성과 지표</span>
+              <input
+                value={isHint(exp.metric) ? '' : (exp.metric || '')}
+                onChange={e => onChange('metric', e.target.value)}
+                placeholder={isHint(exp.metric) ? exp.metric.replace(/\[작성 필요\]\s*/, '') : "예: 21% 상승"}
+                className={`w-[120px] text-right text-[13px] font-black px-2 py-1 rounded-lg border focus:ring-1 focus:ring-primary-200 outline-none`}
+                style={{ color: theme.accent || PRIMARY, borderColor: `${theme.accent || PRIMARY}30` }}
+              />
+            </div>
+          ) : (
+            exp.metric && !isHint(exp.metric) && (
+              <span className="text-[13px] font-black px-3 py-1 rounded-lg text-white whitespace-nowrap"
+                style={{ backgroundColor: theme.accent || PRIMARY }}>
+                {stripMd(exp.metric)}
+              </span>
+            )
+          )}
+        </div>
       </div>
 
-      {/* 카드 레이아웃: 좌측 대형 + 우측 2개 */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
+      {/* 본문: CARL 왼쪽 | 차트 오른쪽 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px] gap-6">
 
-        {/* ===== 좌측 대형 카드: 메트릭 + 비교 그래프 ===== */}
-        <div className="rounded-[8px] border border-white/80 bg-white/72 p-5 shadow-sm flex flex-col gap-2">
-          <EditableText
-            value={exp.metricLabel} field="metricLabel" placeholder="지표 설명 (예: API 응답 시간)"
-            className="text-[16px] sm:text-[18px] font-bold text-bluewood-900 leading-snug"
-            editing={editing} onChange={onChange}
-          />
+        {/* CARL 목록 */}
+        <div className="space-y-4">
+          {/* C 상황 */}
+          <div className="flex gap-2.5 items-start">
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+              style={{ backgroundColor: theme.accent || PRIMARY }}>
+              C
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">상황 (Situation)</span>
+              <EditableArea
+                value={exp.situation || exp.context} field="situation" placeholder="상황을 입력하세요"
+                rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
+              />
+            </div>
+          </div>
 
-          <EditableText
-            value={exp.metric} field="metric" placeholder="성과 지표 (예: 40% 단축)"
-            className="text-[24px] sm:text-[28px] font-black text-primary-600"
-            editing={editing} onChange={onChange}
-          />
+          {/* A 행동 */}
+          <div className="flex gap-2.5 items-start">
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+              style={{ backgroundColor: theme.accent || PRIMARY }}>
+              A
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">행동 (Action)</span>
+              <EditableArea
+                value={exp.action} field="action" placeholder="행동을 입력하세요"
+                rows={isEditing ? 4 : 3} editing={isEditing} onChange={onChange}
+              />
+            </div>
+          </div>
 
-          <EditableArea value={exp.result} field="result" placeholder="결과 설명" rows={3} editing={editing} onChange={onChange} />
+          {/* R 결과 */}
+          <div className="flex gap-2.5 items-start">
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+              style={{ backgroundColor: theme.accent || PRIMARY }}>
+              R
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">결과 (Result)</span>
+              <EditableArea
+                value={exp.result} field="result" placeholder="결과를 입력하세요"
+                rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
+              />
+            </div>
+          </div>
+
+          {/* L 학습 */}
+          <div className="flex gap-2.5 items-start">
+            <span className="flex-shrink-0 w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center mt-1.5"
+              style={{ backgroundColor: theme.accent || PRIMARY }}>
+              L
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black text-bluewood-400 uppercase tracking-[0.12em] block mb-1">학습 (Learning)</span>
+              <EditableArea
+                value={exp.learning} field="learning" placeholder="배운 점을 입력하세요"
+                rows={isEditing ? 3 : 2} editing={isEditing} onChange={onChange}
+              />
+            </div>
+          </div>
+
+          {/* 키워드 */}
+          <div className="pt-2">
+            {isEditing ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold text-bluewood-400">키워드 (쉼표로 구분)</span>
+                <input
+                  value={(exp.keywords || []).join(', ')}
+                  onChange={e => onChange('keywords', e.target.value.split(',').map(k => k.trim()).filter(Boolean))}
+                  placeholder="예: 정보 구조, 우선순위, 사용자 경험"
+                  className={`w-full text-[13px] px-3 py-1.5 rounded-lg border focus:ring-1 focus:ring-primary-200 outline-none`}
+                  style={{ color: theme.accent || PRIMARY, borderColor: `${theme.accent || PRIMARY}30` }}
+                />
+              </div>
+            ) : (
+              (exp.keywords || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {exp.keywords.map((k, ki) => (
+                    <span key={ki} className="px-2.5 py-1 text-[11px] font-medium bg-surface-50 border border-surface-200 text-bluewood-500 rounded-full">
+                      {k}
+                    </span>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* 차트 + 지표 설정 */}
+        <div className="flex flex-col gap-3 rounded-xl border border-surface-200 bg-surface-50/40 p-4 h-fit">
+          <div className="space-y-2">
+            {isEditing ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-bluewood-400">지표 설명</span>
+                <input
+                  value={exp.metricLabel || ''}
+                  onChange={e => onChange('metricLabel', e.target.value)}
+                  placeholder="예: API 응답 시간"
+                  className={`w-full text-[13px] px-3 py-1 rounded-lg border focus:ring-1 focus:ring-primary-200 outline-none`}
+                  style={{ color: theme.accent || PRIMARY, borderColor: `${theme.accent || PRIMARY}30` }}
+                />
+              </div>
+            ) : (
+              exp.metricLabel && (
+                <p className="text-[14px] font-bold text-bluewood-900 leading-snug">{exp.metricLabel}</p>
+              )
+            )}
+          </div>
 
           {/* 비교 바 차트 */}
-          <div className="mt-auto pt-2">
-            {(isHint(exp.beforeMetric) || isHint(exp.afterMetric)) && !editing ? (
+          <div className="pt-2">
+            {(isHint(exp.beforeMetric) || isHint(exp.afterMetric)) && !isEditing ? (
               <div className="flex flex-col gap-2">
                 <HintText value={isHint(exp.beforeMetric) ? exp.beforeMetric : exp.afterMetric}
                   onEdit={() => onChange && onChange('_editHint', 'beforeMetric')} />
               </div>
             ) : (
-              <MetricCompareChart exp={exp} accent={theme.accent} />
+              <MetricCompareChart exp={exp} accent={theme.accent || PRIMARY} />
             )}
           </div>
 
-          {/* 편집 시 차트 설정 (접힘 토글) */}
-          {editing && (
-            <div className="border-t border-gray-200 mt-2 pt-2">
-              <button
-                onClick={() => setChartOpen(o => !o)}
-                className="text-[12px] font-bold text-bluewood-300 hover:text-primary-600 transition-colors"
-              >
-                차트 설정 {chartOpen ? '▲' : '▼'}
-              </button>
+          {/* 차트 설정 토글 */}
+          {isEditing && (
+            <div className="border-t border-surface-200 mt-2 pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-bluewood-400">비교 수치 설정</span>
+                <button
+                  onClick={() => setChartOpen(o => !o)}
+                  className="text-[11px] font-bold text-primary-600 hover:underline"
+                >
+                  {chartOpen ? '설정 닫기 ▲' : '설정 열기 ▼'}
+                </button>
+              </div>
+
               {chartOpen && (
-                <div className="mt-2 space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
-                      onChange={e => onChange('beforeMetric', e.target.value)}
-                      placeholder={isHint(exp.beforeMetric) ? exp.beforeMetric.replace(/\[작성 필요\]\s*/, '') : "개선 전 (예: 800ms)"}
-                      className={`flex-1 text-[13px] text-bluewood-600 ${inlineBase}`}
-                    />
-                    <input
-                      value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
-                      onChange={e => onChange('afterMetric', e.target.value)}
-                      placeholder={isHint(exp.afterMetric) ? exp.afterMetric.replace(/\[작성 필요\]\s*/, '') : "개선 후 (예: 480ms)"}
-                      className={`flex-1 text-[13px] ${inlineBase}`}
-                      style={{ color: theme.accent }}
-                    />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-bold text-bluewood-400">개선 전 (Before)</span>
+                      <input
+                        value={isHint(exp.beforeMetric) ? '' : (exp.beforeMetric || '')}
+                        onChange={e => onChange('beforeMetric', e.target.value)}
+                        placeholder="예: 800ms"
+                        className="text-[12px] px-2.5 py-1.5 border border-surface-200 rounded-lg outline-none focus:ring-1 focus:ring-primary-200"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-bold text-bluewood-400">개선 후 (After)</span>
+                      <input
+                        value={isHint(exp.afterMetric) ? '' : (exp.afterMetric || '')}
+                        onChange={e => onChange('afterMetric', e.target.value)}
+                        placeholder="예: 480ms"
+                        className="text-[12px] px-2.5 py-1.5 border border-surface-200 rounded-lg outline-none focus:ring-1 focus:ring-primary-200 font-bold"
+                        style={{ color: theme.accent || PRIMARY }}
+                      />
+                    </div>
                   </div>
+
                   <div className="flex flex-wrap gap-1">
                     {CHART_TYPES.map(ct => (
                       <button key={ct.id}
                         onClick={() => onChange('chartType', ct.id)}
-                        className={`px-2 py-0.5 rounded-md border text-[12px] font-medium transition-all ${
+                        className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition-all ${
                           (exp.chartType || 'horizontalBar') === ct.id
-                            ? 'border-primary-200 bg-primary-50 text-primary-700'
+                            ? 'border-primary-200 bg-primary-50 text-primary-700 font-semibold'
                             : 'border-surface-200 bg-white text-bluewood-400 hover:border-bluewood-300'
                         }`}>
                         {ct.label}
@@ -877,43 +1012,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
           )}
         </div>
 
-        {/* ===== 우측 카드 2개 ===== */}
-        <div className="flex flex-col gap-3">
-          {/* 문제 상황 */}
-          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">문제 상황</p>
-            <EditableArea value={exp.situation} field="situation" placeholder="문제 상황을 입력하세요" rows={5} editing={editing} onChange={onChange} />
-          </div>
-
-          {/* 핵심 행동 */}
-          <div className="flex-1 border-l-[3px] border-primary-500 bg-white/78 px-4 py-3 shadow-sm">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">핵심 행동</p>
-            <EditableArea value={exp.action} field="action" placeholder="핵심 행동을 입력하세요" rows={5} editing={editing} onChange={onChange} />
-          </div>
-
-          {/* 학습한 역량 */}
-          <div className="flex-1 border-l-[3px] border-amber-400 bg-amber-50/60 px-4 py-3 shadow-sm">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">학습한 역량</p>
-            <EditableArea value={exp.learning} field="learning" placeholder="이 경험에서 얻은 핵심 역량을 입력하세요" rows={4} editing={editing} onChange={onChange} />
-          </div>
-        </div>
       </div>
-
-      {/* 키워드 */}
-      {(exp.keywords || []).length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          {exp.keywords.map((k, i) => (
-            <span key={i} className="px-3 py-1 rounded-full text-[13px] font-semibold border"
-              style={{
-                color: theme.accent,
-                borderColor: `${theme.accent}30`,
-                backgroundColor: `${theme.accent}08`,
-              }}>
-              {k}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

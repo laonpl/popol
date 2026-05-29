@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
@@ -77,6 +77,7 @@ export default function NotionPortfolioPreview() {
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [customSlug, setCustomSlug] = useState('');
+  const activeSlug = customSlug || id;
   const previewTutorialKey = user?.uid ? `portfolio-preview-tutorial-${user.uid}` : null;
   const forcePreviewTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
   const { visible: previewTutorialVisible, dismiss: dismissPreviewTutorial } = useOnboarding(previewTutorialKey, { force: forcePreviewTutorial });
@@ -223,13 +224,13 @@ export default function NotionPortfolioPreview() {
                 </button>
               </div>
               {isPublic && (
-                <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+                <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${activeSlug}`}</p>
               )}
             </div>
             {isPublic && (
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+                  navigator.clipboard.writeText(`${window.location.origin}/p/${activeSlug}`);
                   setLinkCopied(true);
                   toast.success('링크가 복사되었습니다!');
                   setTimeout(() => setLinkCopied(false), 2000);
@@ -347,13 +348,13 @@ export default function NotionPortfolioPreview() {
               </button>
             </div>
             {isPublic && (
-              <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${id}`}</p>
+              <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${activeSlug}`}</p>
             )}
           </div>
           {isPublic && (
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+                navigator.clipboard.writeText(`${window.location.origin}/p/${activeSlug}`);
                 setLinkCopied(true);
                 toast.success('링크가 복사되었습니다!');
                 setTimeout(() => setLinkCopied(false), 2000);
@@ -535,11 +536,17 @@ export default function NotionPortfolioPreview() {
               {p.experiences.map((e, i) => {
                 const statusMap = { expected: { label: 'Expected', cls: 'bg-blue-500' }, doing: { label: 'Doing', cls: 'bg-green-500' }, finished: { label: 'Finished', cls: 'bg-red-500' } };
                 const st = statusMap[e.status] || statusMap.finished;
+                const sr = e.structuredResult || {};
+                const overview = sr.projectOverview || {};
+                const cardSummary = overview.summary || sr.intro || e.description || '';
+                const cardRole = overview.role || e.role || '';
+                const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
+                const topAchievement = (sr.keyExperiences || [])[0];
                 return (
                   <button key={i} onClick={() => setSelectedExp(e)}
-                    className="group bg-white rounded-xl border border-surface-200 overflow-hidden text-left hover:shadow-md hover:border-surface-300 transition-all">
+                    className="group bg-white rounded-xl border border-surface-200 overflow-hidden text-left hover:shadow-md hover:border-surface-300 transition-all flex flex-col">
                     {/* Thumbnail */}
-                    <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative">
+                    <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative flex-shrink-0">
                       {e.thumbnailUrl ? (
                         <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -552,16 +559,34 @@ export default function NotionPortfolioPreview() {
                       )}
                     </div>
                     {/* Card body */}
-                    <div className="p-3">
-                      <h4 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 mb-1.5">{e.title || '(제목 없음)'}</h4>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className={`w-2 h-2 rounded-full ${st.cls}`} />
-                        <span className="text-[13px] text-gray-500">{st.label}</span>
-                      </div>
-                      {(e.classify || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {e.classify.map((tag, ti) => (
-                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[12px]">{tag}</span>
+                    <div className="p-3 flex-1 flex flex-col">
+                      <h4 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 mb-1">{e.title || '(제목 없음)'}</h4>
+                      {cardRole && (
+                        <p className="text-[11px] text-primary-600 font-medium mb-1 truncate">{cardRole}</p>
+                      )}
+                      {cardSummary && (
+                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mb-1.5">{cardSummary}</p>
+                      )}
+                      {cardTech.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {cardTech.slice(0, 3).map((t, ti) => (
+                            <span key={ti} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px] font-medium border border-green-100">
+                              {typeof t === 'string' ? t : t?.name || ''}
+                            </span>
+                          ))}
+                          {cardTech.length > 3 && <span className="text-[10px] text-gray-400">+{cardTech.length - 3}</span>}
+                        </div>
+                      )}
+                      {topAchievement && (
+                        <div className="mt-auto pt-1.5 border-t border-surface-100">
+                          <p className="text-[10px] text-emerald-600 font-semibold line-clamp-1">🏆 {topAchievement.title}</p>
+                          {topAchievement.metric && <p className="text-[10px] text-emerald-500 line-clamp-1">{topAchievement.metric}</p>}
+                        </div>
+                      )}
+                      {!topAchievement && (e.classify || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-auto pt-1">
+                          {e.classify.slice(0, 3).map((tag, ti) => (
+                            <span key={ti} className="px-1.5 py-0.5 bg-surface-100 text-gray-500 rounded text-[10px]">{tag}</span>
                           ))}
                         </div>
                       )}
@@ -1172,10 +1197,15 @@ function AcademicLayout({ p, setSelectedExp }) {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {p.experiences.map((e, i) => {
                 const stMap = { expected: 'bg-blue-500', doing: 'bg-green-500', finished: 'bg-gray-400' };
+                const sr = e.structuredResult || {};
+                const overview = sr.projectOverview || {};
+                const cardSummary = overview.summary || sr.intro || e.description || '';
+                const cardRole = overview.role || e.role || '';
+                const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
                 return (
                   <button key={i} onClick={() => setSelectedExp(e)}
-                    className="group text-left bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-lg hover:border-blue-200 transition-all">
-                    <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden relative">
+                    className="group text-left bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-lg hover:border-blue-200 transition-all flex flex-col">
+                    <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden relative flex-shrink-0">
                       {e.thumbnailUrl ? (
                         <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -1183,10 +1213,19 @@ function AcademicLayout({ p, setSelectedExp }) {
                       )}
                       <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${stMap[e.status] || stMap.finished}`} />
                     </div>
-                    <div className="p-3">
+                    <div className="p-3 flex-1 flex flex-col">
                       <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
                       <p className="text-xs text-gray-400">{e.date || ''}</p>
-                      {(e.classify || []).length > 0 && (
+                      {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
+                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                      {cardTech.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {cardTech.slice(0, 3).map((t, ti) => (
+                            <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-medium">{typeof t === 'string' ? t : t?.name || ''}</span>
+                          ))}
+                        </div>
+                      )}
+                      {cardTech.length === 0 && (e.classify || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">{e.classify.slice(0, 3).map((t, ti) => (
                           <span key={ti} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[12px]">{t}</span>
                         ))}</div>
@@ -1427,27 +1466,35 @@ function AshleyLayout({ p, setSelectedExp }) {
           <div className="px-10 pb-8">
             <h3 className="font-bold text-lg text-[#2d2a26] mb-4">프로젝트</h3>
             <div className="grid grid-cols-3 gap-4">
-              {p.experiences.map((e, i) => (
+              {p.experiences.map((e, i) => {
+                const sr = e.structuredResult || {};
+                const overview = sr.projectOverview || {};
+                const cardSummary = overview.summary || sr.intro || e.description || '';
+                const cardRole = overview.role || e.role || '';
+                return (
                 <button key={i} onClick={() => setSelectedExp(e)}
-                  className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all">
-                  <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
+                  className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all flex flex-col">
+                  <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden flex-shrink-0">
                     {e.thumbnailUrl ? (
                       <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨','💡','📊','🚀'][i % 6]}</div>
                     )}
                   </div>
-                  <div className="p-3">
+                  <div className="p-3 flex-1 flex flex-col">
                     <h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
                     <p className="text-xs text-[#8a8578]">{e.date || ''}</p>
+                    {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
+                    {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
                     {(e.classify || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">{e.classify.slice(0, 2).map((t, ti) => (
-                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[12px]">{t}</span>
+                      <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
+                        <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
                       ))}</div>
                     )}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1647,9 +1694,9 @@ function ExperienceDetailModal({ exp, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
-      <div data-tour="portfolio-detail-modal" className="bg-white rounded-xl max-w-[720px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div data-tour="portfolio-detail-modal" className="bg-white rounded-xl max-w-[1400px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* 커버 이미지 영역 */}
-        <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-44' : 'h-10'} bg-surface-50`}>
+        <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-40' : 'h-10'} bg-surface-50`}>
           {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
           <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
             <X size={16} />
@@ -1657,111 +1704,123 @@ function ExperienceDetailModal({ exp, onClose }) {
         </div>
 
         {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto"><div className="px-6 pb-10 pt-6">
-          {/* 제목 */}
-          <h1 className="text-[32px] font-extrabold text-primary-600 leading-tight mb-7">
-            {exp.title || '(제목 없음)'}
-          </h1>
-
-          {/* 프로퍼티 */}
-          <div className="mb-7 space-y-2 border-b border-surface-200 pb-5">
-            {duration && (
-              <div className="flex items-center gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">기간</span>
-                <span className="text-[15px] text-bluewood-700">{duration}</span>
-              </div>
-            )}
-            {role && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
-                <span className="text-[15px] text-bluewood-700 leading-relaxed">{role}</span>
-              </div>
-            )}
-            {techStack.length > 0 && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {techStack.map((t, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[14px]">
-                      {typeof t === 'string' ? t : t?.name || ''}
-                    </span>
-                  ))}
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-12 pb-10 pt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+              
+              {/* 좌측 영역: 제목 + 메타 프로퍼티 + 핵심 경험 */}
+              <div className="lg:col-span-6 space-y-6">
+                <div>
+                  <h1 className="text-[28px] font-extrabold text-primary-600 leading-tight">
+                    {exp.title || '(제목 없음)'}
+                  </h1>
                 </div>
-              </div>
-            )}
-            {keywords.length > 0 && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {keywords.slice(0, 6).map((kw, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[14px] font-medium">
-                      {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
-                    </span>
-                  ))}
+
+                {/* 프로퍼티 테이블 */}
+                <div className="space-y-2 border-b border-surface-200 pb-5">
+                  {duration && (
+                    <div className="flex items-center gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">기간</span>
+                      <span className="text-[15px] text-bluewood-700">{duration}</span>
+                    </div>
+                  )}
+                  {role && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">역할</span>
+                      <span className="text-[15px] text-bluewood-700 leading-relaxed">{role}</span>
+                    </div>
+                  )}
+                  {techStack.length > 0 && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">기술</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {techStack.map((t, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-surface-100 text-bluewood-600 rounded text-[14px]">
+                            {typeof t === 'string' ? t : t?.name || ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {keywords.length > 0 && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">키워드</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {keywords.slice(0, 6).map((kw, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[14px] font-medium">
+                            {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {goal && (
+                    <div className="flex items-start gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
+                      <span className="text-[15px] text-bluewood-700 leading-relaxed">{goal}</span>
+                    </div>
+                  )}
+                  {exp.link && (
+                    <div className="flex items-center gap-4">
+                      <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">링크</span>
+                      <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
+                        <ExternalLink size={12} /> {exp.link}
+                      </a>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            {goal && (
-              <div className="flex items-start gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0 mt-0.5">목표</span>
-                <span className="text-[15px] text-bluewood-700 leading-relaxed">{goal}</span>
-              </div>
-            )}
-            {exp.link && (
-              <div className="flex items-center gap-4">
-                <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">링크</span>
-                <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
-                  <ExternalLink size={12} /> {exp.link}
-                </a>
-              </div>
-            )}
-          </div>
 
-          {/* 핵심 경험 슬라이드 */}
-          {keyExperiences.length > 0 && (
-            <div className="mb-7">
-              <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
-              <KeyExperienceSlider keyExperiences={keyExperiences} />
-            </div>
-          )}
-
-          {/* 섹션 본문 */}
-          {sectionsToRender.length > 0 && (
-            <div className="space-y-7">
-              {sectionsToRender.map((sec, i) => (
-                <div key={i}>
-                  <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
-                    {sec.label}
-                  </h2>
-                  {imagesLoaded && renderSectionImages(sec.key, 'above')}
-                  <p className="text-[16px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
-                  {imagesLoaded && renderSectionImages(sec.key, 'below')}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 프레임워크 기반 상세 (sections·structuredResult 없을 때만 표시) */}
-          {sectionsToRender.length === 0 && hasFramework && (
-            <div className="space-y-4">
-              {fw.fields.map((field, idx) => {
-                const val = exp.frameworkContent[field.key];
-                if (!val) return null;
-                return (
-                  <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
-                    <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
-                    <p className="text-[16px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                {/* 핵심 경험 슬라이드 */}
+                {keyExperiences.length > 0 && (
+                  <div>
+                    <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
+                    <KeyExperienceSlider keyExperiences={keyExperiences} />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </div>
 
-          {/* 아무 내용도 없을 때 */}
-          {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
-          )}
-        </div></div>
+              {/* 우측 영역: 상세 섹션 본문 (또는 프레임워크 기반 상세) */}
+              <div className="lg:col-span-6 space-y-6 lg:border-l lg:border-surface-100 lg:pl-12">
+                {sectionsToRender.length > 0 && (
+                  <div className="space-y-7">
+                    {sectionsToRender.map((sec, i) => (
+                      <div key={i}>
+                        <h2 className="text-[14px] font-bold uppercase tracking-widest text-bluewood-400 border-b border-surface-200 pb-2 mb-3">
+                          {sec.label}
+                        </h2>
+                        {imagesLoaded && renderSectionImages(sec.key, 'above')}
+                        <p className="text-[16px] text-bluewood-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
+                        {imagesLoaded && renderSectionImages(sec.key, 'below')}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 프레임워크 기반 상세 (sections·structuredResult 없을 때만 표시) */}
+                {sectionsToRender.length === 0 && hasFramework && (
+                  <div className="space-y-4">
+                    {fw.fields.map((field, idx) => {
+                      const val = exp.frameworkContent[field.key];
+                      if (!val) return null;
+                      return (
+                        <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
+                          <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
+                          <p className="text-[16px] text-bluewood-700 leading-[1.8] whitespace-pre-line">{val}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 아무 내용도 없을 때 */}
+                {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1870,20 +1929,26 @@ function TimelineLayout({ p, setSelectedExp }) {
             <div className="relative">
               <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
               <div className="space-y-4">
-                {sortedExperiences.map((exp, i) => (
-                  <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
-                    onClick={() => setSelectedExp(exp)}>
-                    <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-0.5 z-10 border-2 border-white ${
-                      exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'
-                    }`} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-800">{exp.title}</p>
-                      <p className="text-xs text-gray-400">{exp.period} {exp.role ? `· ${exp.role}` : ''}</p>
-                      {exp.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{exp.description}</p>}
+                {sortedExperiences.map((exp, i) => {
+                  const sr = exp.structuredResult || {};
+                  const overview = sr.projectOverview || {};
+                  const cardSummary = overview.summary || sr.intro || exp.description || '';
+                  const cardRole = overview.role || exp.role || '';
+                  return (
+                    <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+                      onClick={() => setSelectedExp(exp)}>
+                      <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-1 z-10 border-2 border-white ${
+                        exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
+                        <p className="text-xs text-gray-400">{exp.period || exp.date || ''} {cardRole ? `· ${cardRole}` : ''}</p>
+                        {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-1">{cardSummary}</p>}
+                      </div>
+                      {exp.framework && <span className="px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500 flex-shrink-0">{exp.framework}</span>}
                     </div>
-                    {exp.framework && <span className="px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500">{exp.framework}</span>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
