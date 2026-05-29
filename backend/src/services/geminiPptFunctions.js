@@ -1529,6 +1529,21 @@ function refText(value, fallback = '', max = 120) {
   return text.length > max ? text.slice(0, max) : text;
 }
 
+// 긴 설명형 경험 제목에서 간결한 프로젝트명만 추출. 슬라이드 제목이 설명 전체로 길어지는 문제 방지.
+// 예: "KKSC 동아리 창설 - 가천대학교 학생들의..." → "KKSC 동아리 창설"
+//     "...친밀도를 위한 QRious (2등 수상)" → "QRious (2등 수상)"
+//     "...딥페이크 방지 Aegis" → "Aegis"
+function projectName(heading) {
+  let h = stripPlaceholder(heading);
+  if (!h) return '';
+  if (h.includes(' - ')) h = h.split(' - ')[0].trim();        // "이름 - 설명" → 이름
+  if (h.length <= 24) return h;                                 // 이미 짧으면 그대로
+  // 끝에 붙은 영문 제품명(+괄호 부가설명) 추출: QRious, Fitpoly, Aegis 등
+  const m = h.match(/([A-Za-z][A-Za-z0-9.+\-]*(?:\s[A-Za-z0-9.+\-]+){0,2})(\s*\([^)]*\))?\s*$/);
+  if (m && m[1] && m[1].length >= 3) return `${m[1]}${m[2] || ''}`.trim();
+  return clipSentence(h, 24);                                   // 영문명 없으면 깔끔히 컷
+}
+
 // 카드형 슬롯용 truncation. 문장/쉼표/어미/공백 경계에서 잘라 "…" 중간 끊김을 피한다.
 function clipSentence(value, max = 64) {
   const t = String(value || '').replace(/\s+/g, ' ').trim();
@@ -2243,12 +2258,19 @@ function buildNarrativeReferenceDeck(ctx) {
   const projects = ctx.expItems.slice(0, 5); // 실제 경험 수만큼만
   const slides = [];
 
-  // 1) Cover
+  // 표지용 깔끔한 지원 라인 — 회사/직무 원문에서 분석 메모( - , ※, (...) )를 떼고 "회사 · 직무"로.
+  const coverLine = (s) => stripPlaceholder(s).split(/\s*(?:[-–—]\s|[(※\[])/)[0].trim();
+  const coverCompany = coverLine(ctx.portfolio?.targetCompany);
+  const coverPosition = coverLine(ctx.portfolio?.targetPosition);
+  const coverSubtitle = [coverCompany, coverPosition].filter(Boolean).join(' · ')
+    || coverLine(ctx.portfolio?.headline) || coverLine(target);
+
+  // 1) Cover — 제목은 이름 기반, 부제는 깔끔한 지원 라인
   slides.push({
     layout: 'narrative-cover',
     sectionLabel: `${userName} PORTFOLIO`,
-    title: ctx.portfolio?.headline || ctx.portfolio?.title || (target ? target : `${userName} 포트폴리오`),
-    subtitle: target,
+    title: `${userName}의 포트폴리오`,
+    subtitle: coverSubtitle ? `${coverSubtitle} 지원` : `${userName}의 경험과 역량`,
     bullets: skillGroups.slice(0, 5).map(g => g.heading).filter(Boolean),
   });
 
@@ -2291,10 +2313,10 @@ function buildNarrativeReferenceDeck(ctx) {
   const metricText = (m) => `${stripPlaceholder(m.label)} ${m.value || (m.before && m.after ? `${m.before}→${m.after}` : '')}`.trim();
   projects.forEach((proj, idx) => {
     const label = `Project ${pad(idx + 1)}`;
-    const pname = stripPlaceholder(proj.heading) || `프로젝트 ${idx + 1}`;
+    const pname = projectName(proj.heading) || `프로젝트 ${idx + 1}`;
     const body = stripPlaceholder(proj.body);
     const period = stripPlaceholder(proj.period);
-    const role = stripPlaceholder(proj.role);
+    const role = clipSentence(stripPlaceholder(proj.role), 72); // 좌측 subtitle 잘림 방지
     const problems = (proj.problem || []).map(stripPlaceholder).filter(Boolean);
     const actions = (proj.action || []).map(stripPlaceholder).filter(Boolean);
     const results = (proj.result || []).map(stripPlaceholder).filter(Boolean);
@@ -2303,8 +2325,9 @@ function buildNarrativeReferenceDeck(ctx) {
     const metricLines = (proj.metrics || []).map(metricText).filter(Boolean);
 
     // 5-1) Overview — subtitle(좌측)에는 역할, items(우측)에는 Overview/기간. body 를 양쪽에 중복 금지.
+    const overviewBody = clipSentence(body, 108); // 우측 OVERVIEW 3줄 잘림 방지
     const overviewItems = [
-      body && refItem('Overview', body),
+      overviewBody && refItem('Overview', overviewBody),
       period && refItem('기간', period),
     ].filter(Boolean);
     slides.push({
@@ -2312,7 +2335,7 @@ function buildNarrativeReferenceDeck(ctx) {
       sectionLabel: label,
       title: pname,
       subtitle: role,
-      items: overviewItems.length ? overviewItems : [refItem('Overview', body || pname)],
+      items: overviewItems.length ? overviewItems : [refItem('Overview', overviewBody || pname)],
       bullets: (proj.keywords || []).map(stripPlaceholder).filter(Boolean).slice(0, 8),
     });
 
@@ -2321,8 +2344,14 @@ function buildNarrativeReferenceDeck(ctx) {
     // clipSentence 로 문장/어절 경계에서 잘라 "…" 중간 끊김 방지.
     // THE PROBLEM: context(problems) 우선. 비면 개요 첫 문장으로 채워 빈칸 방지.
     const problemRaw = problems.length ? problems : (body ? [body] : []);
-    const problemSrc = problemRaw.slice(0, 3).map(p => clipSentence(p, 72));   // THE PROBLEM 360px×3줄
-    const actionSrc = (actions.length ? actions : projBullets).slice(0, 3).map(a => clipSentence(a, 58)); // CORE TASKS 300px×3줄
+    const problemSrc = problemRaw.slice(0, 3).map(p => clipSentence(p, 130));   // 완전한 문장 우선 (fit:shrink 가 축소)
+    // CORE TASKS: actions 우선, 부족하면 bullets 로 보강해 여러 개 표시 (20자 prefix 로 중복 제거)
+    const actionPool = [...actions];
+    for (const b of projBullets) {
+      if (actionPool.length >= 3) break;
+      if (!actionPool.some(a => a.slice(0, 20) === b.slice(0, 20))) actionPool.push(b);
+    }
+    const actionSrc = actionPool.slice(0, 3).map(a => clipSentence(a, 120));
     const challengeItems = [
       ...problemSrc.map((p, i) => refItem(`Problem ${pad(i + 1)}`, p)),
       ...actionSrc.map((a, i) => refItem(`Action ${pad(i + 1)}`, a)),
@@ -2339,9 +2368,9 @@ function buildNarrativeReferenceDeck(ctx) {
     // 5-3) 성과
     // items → KEY DELIVERABLES (results)
     // bullets → GROWTH POINTS (learning 우선, 없으면 actions/bullets)
-    const deliverables = results.slice(0, 4).map(r => clipSentence(r, 52));  // KEY DELIVERABLES 360px×2줄
+    const deliverables = results.slice(0, 4).map(r => clipSentence(r, 90));  // 완전한 문장 우선 (fit:shrink 가 축소)
     const growthSrc = learnings.length ? learnings : (actions.length ? actions : projBullets);
-    const growthPoints = growthSrc.slice(0, 3).map(a => clipSentence(a, 58)); // GROWTH POINTS 310px×3줄
+    const growthPoints = growthSrc.slice(0, 3).map(a => clipSentence(a, 120));
     if (deliverables.length || growthPoints.length) {
       slides.push({
         layout: 'narrative-results',
@@ -2395,7 +2424,7 @@ function buildNarrativeReferenceDeck(ctx) {
     layout: 'narrative-closing',
     sectionLabel: 'Thank You',
     title: '감사합니다',
-    subtitle: `${userName}${target ? ` — ${target}` : ''}`,
+    subtitle: `${userName}${coverSubtitle ? ` — ${coverSubtitle} 지원` : ''}`,
     bullets: portfolioContactBullets(ctx),
     items: skillGroups.slice(0, 6).map(g => refItem(`#${g.heading.replace(/\s+/g, '')}`, g.heading)),
   });
@@ -2912,10 +2941,11 @@ function normalizeExperiences(p) {
       metrics,
       keywords,
       // 추출 스키마의 실제 필드는 context (situation 은 구버전 호환). problem 이 비던 핵심 버그.
-      problem: keyExperiences.map(k => compact(k.context || k.situation || k.problem, 110)).filter(Boolean).slice(0, 3),
-      action: keyExperiences.map(k => compact(k.action, 110)).filter(Boolean).slice(0, 3),
-      result: keyExperiences.map(k => compact(k.result, 110)).filter(Boolean).slice(0, 3),
-      learning: keyExperiences.map(k => compact(k.learning, 110)).filter(Boolean).slice(0, 3),
+      // 캡 150 — 완전한 문장이 중간에 안 잘리도록 충분히 확보 (표시 맞춤은 clipSentence + PPTX fit:shrink).
+      problem: keyExperiences.map(k => compact(k.context || k.situation || k.problem, 150)).filter(Boolean).slice(0, 3),
+      action: keyExperiences.map(k => compact(k.action, 150)).filter(Boolean).slice(0, 3),
+      result: keyExperiences.map(k => compact(k.result, 150)).filter(Boolean).slice(0, 3),
+      learning: keyExperiences.map(k => compact(k.learning, 150)).filter(Boolean).slice(0, 3),
     };
   }).filter(e => e.heading || e.bullets.length || e.metrics.length);
 }

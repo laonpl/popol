@@ -848,6 +848,27 @@ function acceptedSectionKind(slide) {
 
 function prepareAcceptedSlide(slide) {
   const layout = typeof slide.layout === 'string' ? slide.layout : '';
+  // narrative/star/kpi/timeline reference 레이아웃은 백엔드에서 이미 슬롯별로 정제·클립됨.
+  // 여기서 다시 자르면 (items 4개 컷 → CORE TASKS 1개, heading 32자 컷 → "제품의 효용…") 문제 발생.
+  // 길이 컷·개수 컷 없이 클린징만 하고, 실제 박스 맞춤은 PPTX fit:'shrink' / CSS textClamp 에 맡긴다.
+  if (/^(narrative|star|kpi|timeline)-/.test(layout)) {
+    const clean = (v) => cleanPortfolioText(v);
+    return {
+      ...slide,
+      title: clean(slide.title),
+      subtitle: clean(slide.subtitle),
+      sectionLabel: clean(slide.sectionLabel || ''),
+      bullets: (slide.bullets || []).map(clean).filter(Boolean),
+      items: (slide.items || []).map(item => ({
+        ...item,
+        heading: clean(item.heading),
+        role: clean(item.role),
+        period: clean(item.period),
+        body: clean(item.body),
+        bullets: (item.bullets || []).map(clean).filter(Boolean),
+      })),
+    };
+  }
   const isCsLayout = layout.startsWith('cs-');
   const itemLimit = isCsLayout ? 6 : 4;
   const bodyLimit = isCsLayout ? 260 : 88;
@@ -1641,7 +1662,7 @@ function renderNarrativeProject(slide, t, v) {
       <div style={{ position: 'absolute', top: 0, bottom: 0, left: '36%', right: 0, background: '#FFFFFF' }} />
       <div style={{ position: 'absolute', left: 40, top: 60, width: '28%' }}>
         <div style={{ color: acc, fontSize: 11, letterSpacing: '0.22em', fontWeight: 850 }}>{slide.sectionLabel?.toUpperCase()}</div>
-        <div style={{ marginTop: 14, fontSize: 42, fontWeight: 950, color: '#FFFFFF', lineHeight: 1.1, ...textClamp(3) }}>{slide.title}</div>
+        <div style={{ marginTop: 14, fontSize: dynamicFontPx(slide.title || '', 42, { min: 20, max: 42 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.12, ...textClamp(7) }}>{slide.title}</div>
         <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div>
       </div>
       <div style={{ position: 'absolute', left: '40%', top: 52, right: 52, bottom: 52 }}>
@@ -1670,21 +1691,21 @@ function renderNarrativeChallenge(slide, t, v) {
   const actions = all.filter(it => it.heading?.startsWith('Action') || it.heading?.startsWith('Solution'));
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, top: 188, width: 360 }}>
       {narrLabel('THE PROBLEM', v)}
       {problems.map((p, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ fontSize: 15, marginTop: 1 }}>{'🕐📄🤖'[i] || '•'}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.55, color: '#334155', ...textClamp(3) }}>{p.body}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155', ...textClamp(5) }}>{p.body}</div>
       </div>)}
     </div>
     <div style={{ position: 'absolute', right: 60, top: 188, width: 300, borderLeft: `2px solid ${acc}`, paddingLeft: 20 }}>
       {narrLabel('CORE TASKS', v)}
-      {actions.map((a, i) => <div key={i} style={{ marginTop: 12, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
+      {actions.map((a, i) => <div key={i} style={{ marginTop: 10, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
         <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
-        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 900, ...textClamp(3) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(4) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
         {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B', ...textClamp(1) }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
@@ -1697,7 +1718,7 @@ function renderNarrativeArchitecture(slide, t, v) {
   const items = (slide.items || []).slice(0, 4);
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, right: 60, top: 188, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -1721,16 +1742,16 @@ function renderNarrativeResults(slide, t, v) {
   const growth = (slide.bullets || []).slice(0, 3);
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, top: 190, width: 360 }}>
       {narrLabel('KEY DELIVERABLES', v)}
-      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 12, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 13.5, fontWeight: 850, color: '#0F172A', ...textClamp(2) }}>{d.heading}</div></div>)}
+      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.45, color: '#0F172A', ...textClamp(4) }}>{d.heading}</div></div>)}
     </div>
     <div style={{ position: 'absolute', right: 60, top: 190, width: 310, background: '#0F172A', borderRadius: 8, padding: '20px 22px' }}>
       <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>GROWTH POINTS</div>
-      {growth.map((g, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12.5, color: '#E2E8F0', lineHeight: 1.5, ...textClamp(3) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
+      {growth.map((g, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12, color: '#E2E8F0', lineHeight: 1.45, ...textClamp(4) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
     </div>
   </>);
 }
@@ -1763,7 +1784,7 @@ function renderNarrativeTimeline(slide, t, v) {
   const items = (slide.items || []).slice(0, 5);
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, right: 60, top: 188, bottom: 64 }}>
@@ -1782,7 +1803,7 @@ function renderNarrativeSummary(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, right: 60, top: 188, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
@@ -1802,7 +1823,7 @@ function renderNarrativeConnection(slide, t, v) {
   const headers = ['PROJECT', 'CORE TECH', 'WHAT I LEARNED', 'CONNECTION TO NEXT'];
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, right: 60, top: 188 }}>
@@ -1826,7 +1847,7 @@ function renderNarrativeRoadmap(slide, t, v) {
   const labels = ['SHORT-TERM', 'MID-TERM', 'LONG-TERM'];
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
-      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 22, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(2) }}>{slide.title}</div>
+      <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
     <div style={{ position: 'absolute', left: 60, right: 60, top: 190, bottom: 80 }}>
@@ -5948,17 +5969,17 @@ function drawNarrativeChallengePptx(s, slide, t, v, W, H) {
   const actions = all.filter(it => it.heading?.startsWith('Action') || it.heading?.startsWith('Solution'));
   narrPptLabel(s, 'THE PROBLEM', t, acc, 0.8, 1.88);
   problems.forEach((p, idx) => {
-    addPptText(s, safePptText(p.body || ''), { x: 1.05, y: 2.2 + idx * 1.0, w: 4.5, h: 0.72, fontFace: t.fonts.body, fontSize: 9.5, color: '334155', fit: 'shrink' });
+    addPptText(s, safePptText(p.body || ''), { x: 1.05, y: 2.18 + idx * 1.45, w: 4.6, h: 1.3, fontFace: t.fonts.body, fontSize: 10, color: '334155', valign: 'top', fit: 'shrink' });
   });
-  s.addShape('rect', { x: 5.85, y: 1.82, w: 0.03, h: 4.5, fill: { color: acc }, line: { color: acc } });
+  s.addShape('rect', { x: 5.85, y: 1.82, w: 0.03, h: 4.8, fill: { color: acc }, line: { color: acc } });
   narrPptLabel(s, 'CORE TASKS', t, acc, 6.1, 1.88);
   actions.forEach((a, idx) => {
-    const y = 2.2 + idx * 1.2;
-    s.addShape('rect', { x: 6.1, y, w: 5.5, h: 1.0, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
-    addPptText(s, String(idx+1).padStart(2,'0'), { x: 6.28, y: y + 0.1, w: 0.42, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc });
+    const y = 2.18 + idx * 1.5;
+    s.addShape('rect', { x: 6.1, y, w: 5.5, h: 1.35, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
+    addPptText(s, String(idx+1).padStart(2,'0'), { x: 6.28, y: y + 0.12, w: 0.42, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc });
     const parts = (a.body || '').split('→');
-    addPptText(s, safePptText(parts[0] || ''), { x: 6.28, y: y + 0.38, w: 5.1, h: 0.28, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
-    if (parts[1]) addPptText(s, '→ ' + parts[1].trim(), { x: 6.28, y: y + 0.68, w: 5.1, h: 0.22, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
+    addPptText(s, safePptText(parts[0] || ''), { x: 6.28, y: y + 0.4, w: 5.15, h: 0.85, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), valign: 'top', fit: 'shrink' });
+    if (parts[1]) addPptText(s, '→ ' + parts[1].trim(), { x: 6.28, y: y + 1.0, w: 5.15, h: 0.3, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
   });
 }
 
@@ -5996,15 +6017,15 @@ function drawNarrativeResultsPptx(s, slide, t, v, W, H) {
   const growth = (slide.bullets || []).slice(0, 3);
   narrPptLabel(s, 'KEY DELIVERABLES', t, acc, 0.8, 1.85);
   deliverables.forEach((d, idx) => {
-    addPptText(s, '✓', { x: 0.8, y: 2.18 + idx * 0.88, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
-    addPptText(s, safePptText(d.heading || ''), { x: 1.2, y: 2.18 + idx * 0.88, w: 5.0, h: 0.55, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, '✓', { x: 0.8, y: 2.2 + idx * 1.12, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
+    addPptText(s, safePptText(d.heading || ''), { x: 1.2, y: 2.2 + idx * 1.12, w: 5.0, h: 1.0, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.ink), valign: 'top', fit: 'shrink' });
   });
   s.addShape('rect', { x: 6.6, y: 1.82, w: 5.0, h: 4.8, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, 'GROWTH POINTS', { x: 6.85, y: 2.05, w: 4.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: '94A3B8', charSpacing: 2 });
   growth.forEach((g, idx) => {
     const gText = typeof g === 'string' ? g : (g.heading || '');
-    addPptText(s, '→', { x: 6.85, y: 2.55 + idx * 1.1, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc });
-    addPptText(s, safePptText(gText), { x: 7.28, y: 2.55 + idx * 1.1, w: 4.1, h: 0.72, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', fit: 'shrink' });
+    addPptText(s, '→', { x: 6.85, y: 2.5 + idx * 1.4, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc });
+    addPptText(s, safePptText(gText), { x: 7.28, y: 2.5 + idx * 1.4, w: 4.1, h: 1.15, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', valign: 'top', fit: 'shrink' });
   });
 }
 
