@@ -25,6 +25,28 @@ body {
   display: none; /* Chrome, Safari */
 }
 
+/* Custom scrollbar - to show thin scrollbar when needed */
+.custom-scrollbar {
+  scrollbar-width: thin !important; /* Firefox */
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent !important; /* Firefox gray thumb */
+  -ms-overflow-style: auto !important;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 6px !important;
+  height: 6px !important;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.4) !important;
+  border-radius: 9999px !important;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.6) !important;
+}
+
 /* Highlight colors for experience analysis */
 .highlight-core {
   background-color: rgba(0, 47, 108, 0.12);
