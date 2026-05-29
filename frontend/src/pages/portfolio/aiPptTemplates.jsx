@@ -851,7 +851,7 @@ function prepareAcceptedSlide(slide) {
   // narrative/star/kpi/timeline reference 레이아웃은 백엔드에서 이미 슬롯별로 정제·클립됨.
   // 여기서 다시 자르면 (items 4개 컷 → CORE TASKS 1개, heading 32자 컷 → "제품의 효용…") 문제 발생.
   // 길이 컷·개수 컷 없이 클린징만 하고, 실제 박스 맞춤은 PPTX fit:'shrink' / CSS textClamp 에 맡긴다.
-  if (/^(narrative|star|kpi|timeline)-/.test(layout)) {
+  if (/^(narrative|star|kpi|timeline|cs)-/.test(layout)) {
     const clean = (v) => cleanPortfolioText(v);
     return {
       ...slide,
@@ -1705,7 +1705,7 @@ function renderNarrativeChallenge(slide, t, v) {
       {narrLabel('CORE TASKS', v)}
       {actions.map((a, i) => <div key={i} style={{ marginTop: 10, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
         <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
-        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(4) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(5) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
         {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B', ...textClamp(1) }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
@@ -1747,11 +1747,11 @@ function renderNarrativeResults(slide, t, v) {
     </div>
     <div style={{ position: 'absolute', left: 60, top: 190, width: 360 }}>
       {narrLabel('KEY DELIVERABLES', v)}
-      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.45, color: '#0F172A', ...textClamp(4) }}>{d.heading}</div></div>)}
+      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.45, color: '#0F172A', ...textClamp(5) }}>{d.heading}</div></div>)}
     </div>
     <div style={{ position: 'absolute', right: 60, top: 190, width: 310, background: '#0F172A', borderRadius: 8, padding: '20px 22px' }}>
       <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>GROWTH POINTS</div>
-      {growth.map((g, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12, color: '#E2E8F0', lineHeight: 1.45, ...textClamp(4) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
+      {growth.map((g, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12, color: '#E2E8F0', lineHeight: 1.45, ...textClamp(5) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
     </div>
   </>);
 }
