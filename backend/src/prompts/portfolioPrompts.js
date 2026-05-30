@@ -251,7 +251,25 @@ ${(expText || '등록된 경험 없음').substring(0, 2000)}
 export function buildAiPptAnalyzePrompt({ portfolio, templateHint, customTemplate, baseDeck }) {
   if (baseDeck && Array.isArray(baseDeck.slides) && baseDeck.slides.length) {
     const target = `${portfolio.targetCompany || ''} ${portfolio.targetPosition || ''}`.trim();
-    return `포트폴리오형 PPT 편집자입니다. 아래 1번 템플릿 deck의 문구만 다듬어주세요.
+    return `You are a senior career coach and UI/UX portfolio designer who has reviewed thousands of winning IT portfolios.
+Your mission is to rewrite the provided deck text so it becomes a clear growth narrative, not a data dump.
+
+Narrative arc to preserve across the deck:
+1. Intro: one-line positioning and core value proposition.
+2. Problem: the technical or business problem behind each project.
+3. Decision: the chosen solution, tradeoff, and why it was reasonable.
+4. Impact: quantitative or qualitative result grounded in the source data.
+5. Vision: what the candidate learned and how that becomes future contribution.
+
+Density rules:
+- One slide = one message.
+- Keep bullets/items to 3-4 per slide.
+- Keep each sentence under 50 Korean characters or 18 English words when possible.
+- Keep sectionLabel/footer keywords under 20 characters. Never put a full sentence in the footer.
+- If a slide is too dense, compress first; if compression loses logic, mark notes with "shouldSplit:true".
+- Do not invent metrics, companies, awards, dates, tools, or roles. Refine wording only from the source.
+
+포트폴리오형 PPT 편집자입니다. 아래 1번 템플릿 deck의 문구만 다듬어주세요.
 
 원칙(반드시 지킬 것):
 - 슬라이드의 id, layout, sectionLabel, proposalVariant, dark, table, metrics, 순서 그대로 유지
@@ -314,7 +332,29 @@ function _buildAiPptAnalyzePromptLegacy({ portfolio, templateHint, customTemplat
   const customHint = customTemplate
     ? `사용자가 업로드한 템플릿의 슬라이드 흐름:\n${JSON.stringify(customTemplate).substring(0, 1500)}`
     : '';
-  return `당신은 합격자 포트폴리오 PPT 컨설턴트입니다. 아래 포트폴리오 데이터를 분석해
+  return `You are a professional career coach and senior UI/UX presentation designer.
+Create a PPT deck JSON that converts a Notion-style document into a presentation story.
+
+Core mission:
+- Build a clear growth narrative: Intro -> Problem -> Decision -> Impact -> Vision.
+- Translate long document sections into slide scenes.
+- Each slide should make one sharp point, not list every field.
+- Use only provided facts. You may polish wording, but must not invent missing metrics or history.
+
+Slide mapping guide:
+- Cover: userName/headline -> one-line positioning.
+- Case Study: experiences/yooptaContent -> Problem, constraint, decision, result.
+- Skill Map: skills -> group by practical use case, not a flat list.
+- Growth: goals/valuesEssay -> connect past learning to future contribution.
+
+Content constraints:
+- 8-12 slides unless the data clearly needs fewer.
+- Max 3-4 bullets/items per slide.
+- Keep one sentence under 50 Korean characters or 18 English words.
+- Keep sectionLabel/footer keywords under 20 characters. Never put a full sentence in the footer.
+- If source content is long, summarize aggressively or split into Part 1 / Part 2.
+
+당신은 합격자 포트폴리오 PPT 컨설턴트입니다. 아래 포트폴리오 데이터를 분석해
 "${templateHint || 'modern'}" 톤의 PPT 슬라이드 8~12장으로 재구성하세요.
 
 핵심 원칙:

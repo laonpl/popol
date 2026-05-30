@@ -16,12 +16,12 @@ export default function AiPptExport() {
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState(STAGE.CHOOSE);
-  const initTemplateParam = searchParams.get('template') || 'proposal';
+  const initTemplateParam = searchParams.get('template') || 'beige-minimal';
   const initLayoutParam = searchParams.get('layout') || searchParams.get('layoutId');
   const layoutIds = SLIDE_LAYOUTS.map(layout => layout.id);
   const initTemplateIsLayout = layoutIds.includes(initTemplateParam) && initTemplateParam !== 'standard';
   const initLayout = initLayoutParam || (initTemplateIsLayout ? initTemplateParam : 'standard');
-  const initTemplate = initTemplateIsLayout ? 'proposal' : initTemplateParam;
+  const initTemplate = initTemplateIsLayout ? 'beige-minimal' : initTemplateParam;
   const autostart = searchParams.get('autostart') === 'true';
   const [templateId, setTemplateId] = useState(initTemplate);
   const [customFile, setCustomFile] = useState(null);
