@@ -4690,6 +4690,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const extra = p.extracurricular || {};
   const [hoveredSection, setHoveredSection] = useState(null);
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
+  const [showAddBlockMenu, setShowAddBlockMenu] = useState(false);
   const [sectionDragging, setSectionDragging] = useState(null);
   const [sectionDropTarget, setSectionDropTarget] = useState(null);
   const [blockDragging, setBlockDragging] = useState(null);
@@ -4855,7 +4856,15 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       e.stopPropagation();
       const from = parseInt(e.dataTransfer.getData('application/x-fitpoly-custom-block') || e.dataTransfer.getData('blockIdx'), 10);
       if (!isNaN(from) && from !== index) {
-        update('customBlocks', reorderItems(p.customBlocks || [], from, index));
+        // 화면은 CSS order로 정렬되므로 드롭한 블록의 order를 대상 위치로 옮긴다
+        const band = buildBand();
+        const tPos = band.findIndex(it => it.kind === 'block' && it.idx === index);
+        const targetOrder = getCustomBlockOrder(index);
+        const above = tPos > 0 ? band[tPos - 1] : null;
+        const newOrder = above ? (above.order + targetOrder) / 2 : targetOrder - 1;
+        const blocks = [...(p.customBlocks || [])];
+        blocks[from] = { ...blocks[from], order: newOrder };
+        update('customBlocks', blocks);
       }
       setBlockDragging(null);
       setBlockDropTarget(null);
@@ -4881,6 +4890,47 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hiddenSectionKey = (key) => {
     if (!hiddenSections.includes(key)) update('hiddenSections', [...hiddenSections, key]);
   };
+
+  // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
+  // 재정렬 가능한 섹션은 order 0..N, 자유 블록은 숫자 order를 받아 그 사이에 위치.
+  const reorderableBandKeys = REORDERABLE_SECTION_MAP.notion;
+  const getCustomBlockOrder = (idx) => {
+    const block = (p.customBlocks || [])[idx];
+    return typeof block?.order === 'number' ? block.order : reorderableBandKeys.length + idx;
+  };
+  // 밴드(재정렬 섹션 + 자유 블록)를 화면 순서대로 정렬한 목록
+  const buildBand = () => {
+    const items = [];
+    reorderableBandKeys.forEach(key => {
+      if (hiddenSections.includes(key) || !sections.includes(key)) return;
+      items.push({ kind: 'section', key, order: getSectionOrder(key) });
+    });
+    (p.customBlocks || []).forEach((_, idx) => items.push({ kind: 'block', idx, order: getCustomBlockOrder(idx) }));
+    return items.sort((a, b) => a.order - b.order);
+  };
+  // 자유 블록을 위(-1)/아래(+1)로 한 칸 이동 — 섹션 order는 건드리지 않고 블록 order만 중간값으로 조정
+  const moveCustomBlock = (idx, dir) => {
+    const band = buildBand();
+    const pos = band.findIndex(it => it.kind === 'block' && it.idx === idx);
+    if (pos < 0) return;
+    let newOrder;
+    if (dir < 0) {
+      if (pos === 0) return;
+      const above = band[pos - 1];
+      const aboveAbove = band[pos - 2];
+      newOrder = aboveAbove ? (aboveAbove.order + above.order) / 2 : above.order - 1;
+    } else {
+      if (pos === band.length - 1) return;
+      const below = band[pos + 1];
+      const belowBelow = band[pos + 2];
+      newOrder = belowBelow ? (below.order + belowBelow.order) / 2 : below.order + 1;
+    }
+    const blocks = [...(p.customBlocks || [])];
+    blocks[idx] = { ...blocks[idx], order: newOrder };
+    update('customBlocks', blocks);
+  };
+  // 새 블록은 밴드 맨 아래에 추가
+  const nextBlockOrder = () => buildBand().reduce((max, it) => Math.max(max, it.order), reorderableBandKeys.length - 1) + 1;
 
   return (
     <div className="flex gap-4 items-start">
@@ -5624,13 +5674,15 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* Custom Blocks */}
         {(p.customBlocks || []).map((block, i) => (
-          <section key={i} {...getCustomBlockDndProps(i, block)}>
+          <section key={i} {...getCustomBlockDndProps(i, block)} style={{ order: getCustomBlockOrder(i) }}>
             <div className="absolute -top-1 right-0 flex items-center gap-1">
               <span {...getCustomBlockHandleProps(i, getCustomBlockLabel(block, i))} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-opacity" title="드래그하여 이동"><GripVertical size={14} /></span>
+              <button onClick={() => moveCustomBlock(i, -1)} className="text-gray-300 hover:text-primary-600 transition-colors" title="위로 이동"><ChevronUp size={14} /></button>
+              <button onClick={() => moveCustomBlock(i, 1)} className="text-gray-300 hover:text-primary-600 transition-colors" title="아래로 이동"><ChevronDown size={14} /></button>
               <button onClick={() => {
                 const blocks = [...(p.customBlocks || [])]; blocks.splice(i, 1);
                 update('customBlocks', blocks);
-              }} className="text-gray-300 hover:text-red-400 transition-opacity">
+              }} className="text-gray-300 hover:text-red-400 transition-opacity" title="삭제">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -5787,8 +5839,44 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </section>
         ))}
 
+        {/* 블록/섹션 추가 — 템플릿에 얽매이지 않고 자유롭게 섹션을 늘립니다 */}
+        <div className="relative mt-2" style={{ order: 9998 }}>
+          <button onClick={() => setShowAddBlockMenu(prev => !prev)}
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-surface-200 rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors">
+            <Plus size={16} /> 블록 / 섹션 추가
+          </button>
+          {showAddBlockMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowAddBlockMenu(false)} />
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-2 w-64">
+                <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
+                {[
+                  { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '새 섹션 제목' },
+                  { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
+                  { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
+                  { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분선' },
+                ].map(item => (
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '', order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
+                    <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600">{item.icon}</span>
+                    <div><p className="text-sm font-medium text-gray-800">{item.label}</p><p className="text-[12px] text-gray-400">{item.desc}</p></div>
+                  </button>
+                ))}
+                <div className="border-t border-surface-100 mt-1 pt-1">
+                  <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
+                  <button onClick={() => { addToArray('customBlocks', { type: 'project', content: [], order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
+                    <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600"><Briefcase size={14} /></span>
+                    <div><p className="text-sm font-medium text-gray-800">프로젝트 / 경험</p><p className="text-[12px] text-gray-400">카드 갤러리, 경험 DB에서 불러오기</p></div>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {hiddenSections.some(sectionKey => sections.includes(sectionKey)) && (
-          <div className="rounded-xl border border-dashed border-surface-200 bg-surface-50/70 px-4 py-3">
+          <div className="rounded-xl border border-dashed border-surface-200 bg-surface-50/70 px-4 py-3" style={{ order: 9999 }}>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-gray-500">숨긴 섹션</span>
               {hiddenSections.filter(sectionKey => sections.includes(sectionKey)).map(sectionKey => (

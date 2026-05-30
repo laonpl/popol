@@ -443,25 +443,45 @@ export default function ExperienceHub() {
       ref={tutorialRef}
       visible={tutorialVisible}
       steps={experienceTutorialSteps}
-      onSkip={() => dismissTutorial(false)}
-      onNeverShow={() => dismissTutorial(true)}
+      onSkip={() => { dismissTutorial(false); setTutorialDemoExperience(null); setTutorialDemoBuildStep('idle'); }}
+      onNeverShow={() => { dismissTutorial(true); setTutorialDemoExperience(null); setTutorialDemoBuildStep('idle'); }}
       initialStep={tutorialInitialStep}
       onStepChange={setTutorialCurrentStep}
     />
     <div className="animate-fadeIn max-w-[1240px] mx-auto">
-      {/* ═══ 헤더 ═══ */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em]">경험 정리</h1>
-          <p className="text-[15px] text-bluewood-400 mt-1">
-            <span className="text-primary-600 font-bold">{displayExperiences.length}</span>개의 경험이 정리되어 있습니다
-          </p>
+      {/* ═══ 페이지 헤더 ═══ */}
+      <div className="mb-8">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h1 className="text-[34px] font-extrabold text-gray-900 tracking-[-0.03em] leading-tight">경험 정리</h1>
+            <p className="text-[16px] text-gray-500 mt-2 font-medium">
+              {displayExperiences.length > 0
+                ? <><span className="text-primary-600 font-bold text-[18px]">{displayExperiences.length}</span>개의 경험이 타임라인에 쌓여있어요</>
+                : '첫 경험을 추가하고 나만의 아카이브를 시작해보세요'}
+            </p>
+          </div>
+          <Link
+            data-tour="experience-new"
+            to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
+            onClick={() => {
+              if (tutorialVisible && tutorialCurrentStep === 0) {
+                dismissTutorial(false);
+                setTutorialDemoExperience(null);
+                setTutorialDemoBuildStep('idle');
+              }
+            }}
+            className="flex items-center gap-2 px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shrink-0"
+          >
+            <Plus size={16} />
+            새 경험 추가
+          </Link>
         </div>
-        <div className="flex items-center gap-2">
+        {/* 컨트롤 바 */}
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => { navigate('/app/experience?tutorial=1'); showTutorial(); }}
-            className="px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
+            className="px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
           >
             튜토리얼 보기
           </button>
@@ -470,20 +490,20 @@ export default function ExperienceHub() {
             <button
               data-tour="experience-sort"
               onClick={() => setSortDropOpen(v => !v)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-surface-200 rounded-lg text-[13px] font-medium text-bluewood-600 hover:border-surface-300 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-600 hover:border-gray-300 transition-colors"
             >
               <ArrowUpDown size={13} />
               {currentSortLabel}
               <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
             </button>
             {sortDropOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-30 py-1 min-w-[120px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1.5 min-w-[130px]">
                 {SORT_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[13px] font-medium transition-colors ${
-                      sortBy === opt.value ? 'text-primary-600 bg-surface-50 font-semibold' : 'text-bluewood-600 hover:bg-surface-50'
+                    className={`w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                      sortBy === opt.value ? 'text-primary-600 bg-primary-50 font-semibold' : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     {opt.label}
@@ -494,11 +514,11 @@ export default function ExperienceHub() {
           </div>
 
           {/* 뷰 전환 */}
-          <div data-tour="experience-view-toggle" className="flex items-center gap-0.5 border border-surface-200 rounded-lg p-1 bg-white">
+          <div data-tour="experience-view-toggle" className="flex items-center gap-0.5 border border-gray-200 rounded-xl p-1 bg-white">
             <button
               onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
-                viewMode === 'timeline' ? 'bg-primary-600 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                viewMode === 'timeline' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
               }`}
             >
               <CalendarDays size={13} />타임라인
@@ -508,26 +528,13 @@ export default function ExperienceHub() {
                 setViewMode('table');
                 if (tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${
-                viewMode === 'table' ? 'bg-primary-600 text-white' : 'text-bluewood-400 hover:text-bluewood-700'
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                viewMode === 'table' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
               }`}
             >
               <List size={13} />표
             </button>
           </div>
-
-          {/* 새 경험 추가 버튼 */}
-          <Link
-            data-tour="experience-new"
-            to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
-            onClick={() => {
-              if (tutorialVisible && tutorialCurrentStep === 0) dismissTutorial(false);
-            }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[15px] font-semibold hover:bg-primary-700 transition-colors"
-          >
-            <Plus size={16} />
-            새 경험 추가
-          </Link>
         </div>
       </div>
 
@@ -541,9 +548,9 @@ export default function ExperienceHub() {
         <>
           {/* ═══ 간트 타임라인 ═══ */}
           {viewMode === 'timeline' && ganttData && (
-            <div className="bg-white border border-surface-100 rounded-xl overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               {/* 타임라인 헤더 */}
-              <div className="px-6 py-4 flex items-center justify-between border-b border-surface-100">
+              <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
                 <div className="flex items-center gap-3">
                   {/* 년도 드롭다운 */}
                   <div className="relative" ref={yearDropdownRef}>
@@ -595,14 +602,14 @@ export default function ExperienceHub() {
               </div>
 
               {/* 간트 본체 */}
-              <div ref={timelineRef} style={{ transform: 'scale(0.9)', transformOrigin: 'top left', width: '111.11%', overflow: 'visible' }}>
-                <div>
+              <div ref={timelineRef} className="overflow-x-auto">
+                <div style={{ minWidth: '840px' }}>
                   <div className="relative">
                     {/* 월 헤더 */}
                     <div className="flex border-b border-surface-100">
                       {ganttData.months.map((m, i) => (
                         <div key={`${m.year}-${m.month}`} className="flex-1 border-r border-surface-100 px-2 pt-1 pb-2">
-                          <span className="text-[12px] font-medium text-bluewood-300">{MONTH_NAMES[m.month]}</span>
+                          <span className="text-[12px] text-gray-500 font-semibold">{MONTH_NAMES[m.month]}</span>
                         </div>
                       ))}
                     </div>
@@ -671,7 +678,7 @@ export default function ExperienceHub() {
                               <div className="relative">
                                 <div
                                   className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
-                                    isSelected ? 'ring-2 ring-offset-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'
+                                    isSelected ? 'ring-2 ring-offset-1 ring-primary-500 shadow-md' : 'hover:shadow-md'
                                   }`}
                                   onClick={() => {
                                     if (tutorialVisible && tutorialCurrentStep === 1 && exp.isTutorialDemo) {
@@ -722,27 +729,24 @@ export default function ExperienceHub() {
 
           {/* ═══ 경험 목록 (테이블) ═══ */}
           {viewMode === 'table' && (
-            <div className="border border-surface-100 rounded-xl overflow-hidden bg-white">
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
               {/* 테이블 헤더 */}
-              <div className="grid grid-cols-[24px_24px_44px_1fr_150px_130px_110px_80px] items-center gap-3 px-5 py-3 border-b border-surface-100 bg-surface-50/40">
+              <div className="grid grid-cols-[28px_28px_48px_1fr_160px_140px_72px] items-center gap-3 px-6 py-3.5 border-b border-gray-100 bg-gray-50">
                 <span></span>
                 <span></span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">순서</span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">프로젝트</span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">키워드</span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">기간</span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em]">성과</span>
-                <span className="text-[12px] font-bold text-bluewood-300 uppercase tracking-[0.14em] text-right">관리</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">#</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">프로젝트</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">키워드</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">기간</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em] text-right">관리</span>
               </div>
 
               {/* 테이블 바디 */}
-              <div className="divide-y divide-surface-100">
+              <div className="divide-y divide-gray-100">
                 {sortedExperiences.map((exp, idx) => {
                   const theme = COLOR_PALETTES[colorPalette][idx % 3];
                   const overview = exp.structuredResult?.projectOverview || {};
                   const displayKeywords = exp.keywords || exp.structuredResult?.keywords || [];
-                  const keyExps = exp.structuredResult?.keyExperiences || [];
-                  const metric = keyExps[0]?.metric;
                   const { start, end } = parsePeriod(exp);
                   const periodStr = `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')} – ${end.getFullYear()}.${String(end.getMonth() + 1).padStart(2, '0')}`;
                   const isSelected = selectedId === exp.id;
@@ -822,10 +826,10 @@ export default function ExperienceHub() {
                       onDoubleClick={() => {
                         if (!exp.isTutorialDemo) navigate(`/app/experience/structured/${exp.id}?view=true`);
                       }}
-                      className={`group grid grid-cols-[24px_24px_44px_1fr_150px_130px_110px_80px] items-center gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 ${
+                      className={`group grid grid-cols-[28px_28px_48px_1fr_160px_140px_72px] items-center gap-3 px-6 py-4 cursor-pointer transition-all duration-150 ${
                         isDragging ? 'opacity-40' : ''
-                      } ${isOver && !isDragging ? 'border-t-2 border-t-bluewood-400' : ''
-                      } ${isSelected ? `${theme.light}` : 'hover:bg-surface-50/40'}`}
+                      } ${isOver && !isDragging ? 'border-t-2 border-t-primary-400' : ''
+                      } ${isSelected ? 'bg-primary-50/60' : 'hover:bg-gray-50'}`}
                       onClick={() => {
                         if (tutorialVisible && tutorialCurrentStep === 3 && exp.isTutorialDemo) {
                           startEditing(exp);
@@ -837,7 +841,7 @@ export default function ExperienceHub() {
                     >
                       {/* 드래그 핸들 — 모든 모드에서 활성화 */}
                       <div
-                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-bluewood-200 hover:text-bluewood-500"
+                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-600"
                         onMouseDown={e => e.stopPropagation()}
                       >
                         <GripVertical size={14} />
@@ -861,8 +865,8 @@ export default function ExperienceHub() {
 
                       {/* 프로젝트 */}
                       <div className="min-w-0 overflow-hidden">
-                        <p className="text-[15px] font-semibold text-bluewood-800 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
-                        <p className="text-[13px] text-bluewood-400 truncate mt-0.5 block w-full">
+                        <p className="text-[15px] font-bold text-gray-900 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
+                        <p className="text-[13px] text-gray-400 truncate mt-0.5 block w-full">
                           {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
                         </p>
                       </div>
@@ -870,23 +874,18 @@ export default function ExperienceHub() {
                       {/* 키워드 */}
                       <div className="flex flex-wrap gap-1 overflow-hidden max-h-[36px]">
                         {displayKeywords.slice(0, 2).map((k, i) => (
-                          <span key={i} className="px-1.5 py-0.5 bg-surface-100 text-bluewood-500 rounded text-[12px] font-medium truncate max-w-[60px]">{k}</span>
+                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[11px] font-semibold truncate max-w-[64px]">{k}</span>
                         ))}
                       </div>
 
                       {/* 기간 */}
-                      <span className="text-[13px] text-bluewood-500 font-medium truncate">{periodStr}</span>
-
-                      {/* 성과 */}
-                      <span className="text-[13px] font-semibold text-bluewood-600 truncate">
-                        {metric ? stripMd(metric) : '–'}
-                      </span>
+                      <span className="text-[13px] text-gray-600 font-medium tabular-nums truncate">{periodStr}</span>
 
                       {/* 관리 */}
                       <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={(e) => startEditing(exp, e)}
-                          className="p-1.5 text-bluewood-300 hover:text-bluewood-700 hover:bg-surface-100 rounded-md transition-colors"
+                          className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                           title="이름/기간 수정"
                         >
                           <Pencil size={13} />
@@ -903,7 +902,7 @@ export default function ExperienceHub() {
                             }
                             if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id);
                           }}
-                          className="p-1.5 text-bluewood-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                           title="삭제"
                         >
                           <Trash2 size={13} />
@@ -991,18 +990,40 @@ export default function ExperienceHub() {
 
 function EmptyState() {
   return (
-    <div className="text-center py-20">
-      <div className="inline-flex items-center justify-center w-16 h-16 bg-surface-100 rounded-2xl mb-4">
-        <FolderOpen size={28} className="text-gray-400" />
+    <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+      {/* 일러스트 영역 */}
+      <div className="relative mb-8">
+        <div className="w-24 h-24 bg-primary-50 rounded-3xl flex items-center justify-center shadow-sm">
+          <FolderOpen size={40} className="text-primary-400" />
+        </div>
+        <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center border-2 border-white shadow-sm">
+          <Star size={14} className="text-yellow-400 fill-yellow-400" />
+        </div>
       </div>
-      <h3 className="text-lg font-bold mb-2">아직 정리된 경험이 없습니다</h3>
-      <p className="text-gray-400 text-sm mb-6">프레임워크를 선택하고 첫 경험을 정리해보세요</p>
+
+      <h3 className="text-[24px] font-extrabold text-gray-900 mb-3 tracking-tight">첫 경험을 기록해보세요</h3>
+      <p className="text-[16px] text-gray-400 mb-2 font-medium max-w-[360px]">
+        경험을 정리하면 AI가 핵심 역량과 성과를 구조화해드립니다
+      </p>
+      <p className="text-[14px] text-gray-300 mb-8 font-medium">
+        프로젝트, 인턴십, 동아리, 수업 모두 경험이에요
+      </p>
+
+      {/* 미리보기 힌트 카드들 */}
+      <div className="flex gap-3 mb-8 flex-wrap justify-center">
+        {['프로젝트', '인턴쉽', '동아리', '수업/강의'].map((tag, i) => (
+          <span key={i} className="px-3 py-1.5 bg-gray-50 text-gray-500 rounded-full text-[13px] font-semibold border border-gray-100">
+            {tag}
+          </span>
+        ))}
+      </div>
+
       <Link
         to="/app/experience/new"
-        className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+        className="inline-flex items-center gap-2 px-7 py-3.5 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-all shadow-sm hover:shadow-md"
       >
-        <Plus size={18} />
-        새 경험 추가
+        <Plus size={17} />
+        첫 경험 추가하기
       </Link>
     </div>
   );
