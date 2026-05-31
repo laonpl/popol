@@ -817,9 +817,16 @@ export default function NotionPortfolioPreview() {
               <p className="text-sm text-gray-400">아직 작성된 가치관이 없습니다</p>
             )}
           </section>
-        </div>
 
-        <CustomPortfolioBlocks blocks={p.customBlocks} variant="notion" />
+          {/* 자유 블록 — 편집기에서 지정한 order 위치에 끼워넣어 표시 */}
+          {(p.customBlocks || []).map((block, i) => (
+            hasCustomBlockContent(block) ? (
+              <section key={`cb-${i}`} className="mb-10" style={{ order: typeof block.order === 'number' ? block.order : 5 + i }}>
+                <CustomPortfolioBlocks blocks={[block]} variant="notion-bare" />
+              </section>
+            ) : null
+          ))}
+        </div>
 
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 border-t border-surface-100 flex items-center justify-between text-xs text-gray-400">
@@ -984,11 +991,14 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
 
   const warm = variant === 'ashley';
   const dark = variant === 'timeline';
+  const bare = variant === 'notion-bare'; // 밴드 안에 개별 배치될 때: 외부 패딩/구분선 제거
   const outerClass = warm
     ? 'px-10 pb-8 space-y-4'
     : dark
       ? 'px-8 py-6 border-b border-surface-100 space-y-5'
-      : 'px-10 py-8 border-b border-surface-100 space-y-5';
+      : bare
+        ? 'space-y-5'
+        : 'px-10 py-8 border-b border-surface-100 space-y-5';
   const cardClass = warm
     ? 'rounded-xl border border-[#e8e4dc] bg-white p-6'
     : dark

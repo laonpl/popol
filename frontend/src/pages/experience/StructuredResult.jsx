@@ -972,6 +972,8 @@ export default function StructuredResult() {
   const [exportCustomSections, setExportCustomSections] = useState([]);
   const [activeExportSectionKey, setActiveExportSectionKey] = useState(null);
   const [exportCoverImg, setExportCoverImg] = useState(null);
+  const [exportDragKey, setExportDragKey] = useState(null);
+  const [exportOverKey, setExportOverKey] = useState(null);
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
@@ -1458,6 +1460,21 @@ export default function StructuredResult() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [viewOnly, id]);
 
+  // ←/→ 화살표로 섹션 슬라이드 이동 (입력/수정 중에는 무시)
+  useEffect(() => {
+    const onArrow = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      setSectionSlideIdx(i => e.key === 'ArrowLeft'
+        ? Math.max(0, i - 1)
+        : Math.min(SECTION_COUNT - 1, i + 1));
+    };
+    window.addEventListener('keydown', onArrow);
+    return () => window.removeEventListener('keydown', onArrow);
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     const sliderDraft = sliderRef.current?.saveEditing?.();
@@ -1867,6 +1884,37 @@ export default function StructuredResult() {
     });
   };
 
+  /* ── 포트폴리오 미리보기 패널 D&D 핸들러 ── */
+  const handleExportDragStart = (key, e) => {
+    setExportDragKey(key);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+  };
+  const handleExportDragOver = (key, e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setExportOverKey(key);
+  };
+  const handleExportDrop = (targetKey, e) => {
+    e.preventDefault();
+    if (!exportDragKey || exportDragKey === targetKey) { setExportDragKey(null); setExportOverKey(null); return; }
+    setExportCustomSections(prev => {
+      const fromIdx = prev.findIndex(s => s.key === exportDragKey);
+      const toIdx = prev.findIndex(s => s.key === targetKey);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+    setExportDragKey(null);
+    setExportOverKey(null);
+  };
+  const handleExportDragEnd = () => {
+    setExportDragKey(null);
+    setExportOverKey(null);
+  };
+
   /* 페이지 전체 품질 체크리스트 */
   const qualityChecks = [
     { id: 'title',          label: '슬라이드 제목/프로젝트명', targetSlide: 0, check: () => !!editedTitle.trim(), tip: '소개 슬라이드의 제목은 프로젝트명보다 한 단계 구체적으로, 문제와 결과가 보이게 다듬어 주세요.' },
@@ -1914,13 +1962,21 @@ export default function StructuredResult() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-surface-200">
-        <div className="flex items-center justify-between px-6 py-3 border-b border-surface-200 bg-white">
-          <span className="text-[13px] text-bluewood-300 font-medium">{filledCount}/{SECTION_COUNT} 완성</span>
+        <div className="flex items-center justify-between gap-3 px-6 py-3 border-b border-surface-200 bg-white">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600">
+              <span className="tabular-nums">{SECTION_META[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].num}</span>
+              <span className="text-primary-300">·</span>
+              <span className="truncate">{SECTION_META[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].label}</span>
+            </span>
+            <span className="hidden sm:inline text-[13px] text-bluewood-300 font-medium tabular-nums">{filledCount}/{SECTION_COUNT} 완성</span>
+          </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSectionSlideIdx(i => Math.max(0, i - 1))}
             disabled={sectionSlideIdx === 0}
-            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            title="이전 슬라이드 (←)"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-bluewood-500 transition-all">
             <ChevronLeft size={15} />
           </button>
           <div className="flex items-center gap-1.5 px-2">
@@ -1931,8 +1987,9 @@ export default function StructuredResult() {
                 <button
                   key={key}
                   onClick={() => setSectionSlideIdx(index)}
-                  title={SECTION_META[key].label}
-                  className={`h-2 rounded-full transition-all ${index === sectionSlideIdx ? 'w-6 bg-primary-600' : done ? 'w-2 bg-caribbean-400' : 'w-2 bg-surface-300 hover:bg-bluewood-300'}`}
+                  title={`${SECTION_META[key].num} · ${SECTION_META[key].label}`}
+                  aria-label={`${SECTION_META[key].label} 슬라이드로 이동`}
+                  className={`h-2 rounded-full transition-all duration-300 hover:scale-y-150 ${index === sectionSlideIdx ? 'w-6 bg-primary-600' : done ? 'w-2 bg-caribbean-400' : 'w-2 bg-surface-300 hover:bg-bluewood-300'}`}
                 />
               );
             })}
@@ -1941,7 +1998,8 @@ export default function StructuredResult() {
           <button
             onClick={() => setSectionSlideIdx(i => Math.min(SECTION_COUNT - 1, i + 1))}
             disabled={sectionSlideIdx === SECTION_COUNT - 1}
-            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            title="다음 슬라이드 (→)"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-bluewood-500 transition-all">
             <ChevronRight size={15} />
           </button>
         </div>
@@ -1987,8 +2045,8 @@ export default function StructuredResult() {
           };
 
           return (
+            <div key={key} className="animate-fadeIn">
             <PortfolioSectionSlide
-              key={key}
               sectionKey={key}
               meta={meta}
               overview={editedOverview}
@@ -2013,6 +2071,7 @@ export default function StructuredResult() {
               setDropTarget={setDropTarget}
               handleSectionDrop={handleSectionDrop}
             />
+            </div>
           );
         })}
       </div>
@@ -2024,7 +2083,8 @@ export default function StructuredResult() {
     <>
     <div className="animate-fadeIn w-full max-w-[95%] 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 pb-16">
       {/* 상단 네비 + 저장/수정 */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
         {navState?.isTutorialDemo ? (
           <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
             <ArrowLeft size={15} /> 튜토리얼로 돌아가기
@@ -2034,6 +2094,12 @@ export default function StructuredResult() {
             <ArrowLeft size={15} /> 경험 목록으로
           </Link>
         )}
+        {!viewOnly && !navState?.isTutorialDemo && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">
+            <PenLine size={12} /> 편집 중
+          </span>
+        )}
+        </div>
         {navState?.isTutorialDemo ? (
           <span className="px-4 py-2 text-[12px] font-semibold text-primary-600 bg-primary-50 rounded-lg border border-primary-100">
             가상 경험 예시 화면 (저장되지 않음)
@@ -2050,27 +2116,29 @@ export default function StructuredResult() {
             수정하기
           </button>
         ) : (
-          <div className="flex items-center gap-2">
-            {/* 텍스트 히스토리 undo/redo */}
-            <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-lg text-[13px] hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              <RotateCcw size={14} />
-            </button>
-            <button onClick={handleRedo} disabled={!canRedo(id)} title="다시 실행 (Ctrl+Y)"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-surface-200 text-bluewood-500 rounded-lg text-[13px] hover:bg-surface-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              <RotateCw size={14} />
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* 되돌리기/다시실행 그룹 */}
+            <div className="inline-flex items-center rounded-xl border border-surface-200 bg-white p-0.5">
+              <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)" aria-label="되돌리기"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-bluewood-500 hover:bg-surface-50 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all">
+                <RotateCcw size={14} />
+              </button>
+              <button onClick={handleRedo} disabled={!canRedo(id)} title="다시 실행 (Ctrl+Y)" aria-label="다시 실행"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-bluewood-500 hover:bg-surface-50 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all">
+                <RotateCw size={14} />
+              </button>
+            </div>
 
-            {/* 구분선 + 핵심경험 슬라이더 컨트롤 */}
+            {/* 핵심 경험 슬라이더 컨트롤 그룹 */}
             {editedKeyExperiences.length > 0 && (
-              <>
-                <div className="w-px h-6 bg-surface-200 mx-1" />
+              <div className="inline-flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-2.5 py-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-bluewood-300">핵심 경험</span>
                 {/* 인디케이터 */}
                 <div className="flex items-center gap-1">
                   {editedKeyExperiences.map((_, i) => {
                     const colors = ['#ef4444', '#2563eb', '#7c3aed'];
                     return (
-                      <button key={i} onClick={() => sliderRef.current?.goTo(i)} className="p-0.5">
+                      <button key={i} onClick={() => sliderRef.current?.goTo(i)} className="p-0.5" aria-label={`${i + 1}번 핵심 경험`}>
                         <div className={`h-[6px] rounded-full transition-all duration-300 ${i === sliderCurrent ? 'w-5' : 'w-[6px] hover:w-3'}`}
                           style={{ backgroundColor: i === sliderCurrent ? colors[i % 3] : '#d1d5db' }} />
                       </button>
@@ -2078,38 +2146,40 @@ export default function StructuredResult() {
                   })}
                 </div>
                 <span className="text-xs text-bluewood-400 tabular-nums font-medium">{sliderCurrent + 1}/{editedKeyExperiences.length}</span>
-                <button onClick={() => sliderRef.current?.goPrev()}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
-                  <ChevronLeft size={16} className="text-bluewood-500" />
-                </button>
-                <button onClick={() => sliderRef.current?.goNext()}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-200 hover:bg-surface-50 active:scale-95 transition-all">
-                  <ChevronRight size={16} className="text-bluewood-500" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => sliderRef.current?.goPrev()} aria-label="이전 핵심 경험"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-200 text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 transition-all">
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button onClick={() => sliderRef.current?.goNext()} aria-label="다음 핵심 경험"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-200 text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 transition-all">
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+                <div className="w-px h-5 bg-surface-200" />
                 {/* 삭제된 항목 되돌리기 */}
                 {sliderDeletedCount > 0 && (
                   <button onClick={() => sliderRef.current?.undoDelete()}
-                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all shadow-sm">
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 active:scale-95 transition-all">
                     <Undo2 size={12} /> ({sliderDeletedCount})
                   </button>
                 )}
-                <button onClick={() => sliderRef.current?.deleteSlide()}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 transition-all">
+                <button onClick={() => sliderRef.current?.deleteSlide()} title="현재 핵심 경험 삭제"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 active:scale-95 transition-all">
                   <Trash2 size={13} /> 삭제
                 </button>
-                <div className="w-px h-6 bg-surface-200 mx-1" />
-              </>
+              </div>
             )}
 
-            <button onClick={handleSave} disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? '저장 중...' : '저장하기'}
-            </button>
             <button
               onClick={() => setShowExportPanel(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[13px] font-medium hover:bg-surface-50 transition-colors">
-              포트폴리오 미리보기
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
+              <Eye size={14} /> 미리보기
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? '저장 중...' : '저장하기'}
             </button>
           </div>
         )}
@@ -2514,7 +2584,7 @@ export default function StructuredResult() {
 
       {/* 작성 완성도 플로팅 패널 */}
       {showQualityPanel ? (
-        <div className="fixed bottom-5 right-5 z-40 w-[min(360px,calc(100vw-40px))] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+        <div className="animate-fadeIn fixed bottom-5 left-5 z-40 w-[min(340px,calc(100vw-40px))] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
           <div className="flex items-center justify-between border-b border-surface-100 px-4 py-3">
             <div>
               <p className="text-[13px] font-extrabold text-primary-600">작성 완성도</p>
@@ -2563,7 +2633,7 @@ export default function StructuredResult() {
       ) : (
         <button
           onClick={() => setShowQualityPanel(true)}
-          className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white px-4 py-3 text-[13px] font-extrabold text-primary-600 shadow-[0_14px_35px_rgba(15,23,42,0.16)] hover:bg-primary-50"
+          className="fixed bottom-5 left-5 z-40 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white px-4 py-3 text-[13px] font-extrabold text-primary-600 shadow-[0_14px_35px_rgba(15,23,42,0.16)] hover:bg-primary-50 active:scale-95 transition-transform"
         >
           <Check size={15} /> 작성 완성도 {qualityPct}%
         </button>
@@ -2577,16 +2647,21 @@ export default function StructuredResult() {
             onClick={e => e.stopPropagation()}
           >
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-7 py-5 border-b border-surface-200 flex-shrink-0 bg-white">
-              <div>
-                <h3 className="text-[18px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
-                <p className="text-[13px] text-bluewood-400 mt-1">경험 페이지의 내용을 자유롭게 더하고 빼서 포트폴리오용 페이지를 구성하세요</p>
-              </div>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 flex-shrink-0 bg-white">
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-primary-50 px-3 py-1.5 text-[13px] font-bold text-primary-600">{enabledExportSections.length}개 섹션 선택됨</span>
+                <h3 className="text-[16px] font-extrabold text-bluewood-900">포트폴리오 미리보기</h3>
+                <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600">{enabledExportSections.length}개 선택됨</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveExportConfig}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-primary-700 transition-colors"
+                >
+                  구성 저장하기
+                </button>
                 <button
                   onClick={() => setShowExportPanel(false)}
-                  className="text-[13px] text-bluewood-400 hover:text-bluewood-700 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
+                  className="text-[13px] text-bluewood-400 hover:text-bluewood-700 px-3 py-2 rounded-lg hover:bg-surface-100 transition-colors"
                 >
                   닫기
                 </button>
@@ -2597,244 +2672,274 @@ export default function StructuredResult() {
             <div className="flex flex-1 min-h-0">
 
               {/* 왼쪽: 섹션 구성 */}
-              <div className="w-[320px] flex-shrink-0 bg-surface-50 border-r border-surface-200 flex flex-col">
-                <div className="px-5 py-4 flex-shrink-0 border-b border-surface-200">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[12px] font-black text-bluewood-400 uppercase tracking-widest">페이지 구성</p>
-                    <button
-                      onClick={resetExportSectionsFromPage}
-                      className="text-[12px] font-bold text-bluewood-400 hover:text-primary-600"
-                    >
-                      원본 다시 불러오기
+              <div className="w-[260px] flex-shrink-0 bg-white border-r border-surface-200 flex flex-col">
+                <div className="px-4 pt-4 pb-3 flex-shrink-0 border-b border-surface-100">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-[13px] font-extrabold text-bluewood-800">페이지 구성</p>
+                    <button onClick={resetExportSectionsFromPage} className="text-[11px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">
+                      초기화
                     </button>
                   </div>
                   <button
                     onClick={addExportSection}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary-100 bg-white px-3 py-2.5 text-[13px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary-200 bg-primary-50/50 px-3 py-2 text-[12px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
                   >
-                    <Plus size={14} /> 빈 섹션 추가
+                    <Plus size={13} /> 빈 섹션 추가
                   </button>
+                  <p className="mt-2 text-[10px] text-bluewood-300 text-center">⠿ 드래그로 순서 변경 · 체크로 표시 여부 설정</p>
                 </div>
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
                   {normalizedExportSections.map((section, index) => {
                     const normalizedSection = normalizeExportSection(section);
                     const active = activeExportSection?.key === section.key;
                     const enabled = section.enabled !== false;
-                    const empty = !normalizedSection.content?.trim() && !normalizedSection.blocks?.some(block => block.type === 'image' || block.type === 'slide');
                     const slideDeck = isSlideDeckSection(normalizedSection);
-                    const previewText = slideDeck
-                      ? `${normalizedSection.blocks.filter(block => block.type === 'slide').length}개 슬라이드`
-                      : (sanitizeTextValue(normalizedSection.content) || `${normalizedSection.blocks.length}개 블록`);
+                    const isDragging = exportDragKey === section.key;
+                    const isOver = exportOverKey === section.key && !isDragging;
+                    const typeColor = slideDeck ? 'text-primary-500' : section.type === 'custom' ? 'text-amber-600' : section.type === 'job' ? 'text-caribbean-600' : 'text-bluewood-300';
+                    const typeLabel = slideDeck ? '슬라이드' : section.type === 'custom' ? '직접' : section.type === 'job' ? '직군' : '경험';
                     return (
-                      <button
+                      <div
                         key={section.key}
-                        type="button"
-                        onClick={() => setActiveExportSectionKey(section.key)}
-                        className={`group w-full rounded-xl border p-3 text-left transition-all ${active ? 'border-primary-200 bg-white shadow-sm ring-1 ring-primary-100' : enabled ? 'border-surface-200 bg-white hover:border-bluewood-200' : 'border-transparent bg-white/45 opacity-60 hover:opacity-100'}`}
+                        draggable
+                        onDragStart={e => handleExportDragStart(section.key, e)}
+                        onDragOver={e => handleExportDragOver(section.key, e)}
+                        onDrop={e => handleExportDrop(section.key, e)}
+                        onDragEnd={handleExportDragEnd}
+                        className={`transition-opacity ${isDragging ? 'opacity-30' : ''}`}
                       >
-                        <div className="flex items-start gap-2.5">
-                          <span className={`mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md ${enabled ? 'bg-primary-600 text-white' : 'border border-surface-300 bg-white text-transparent'}`}
-                            onClick={event => { event.stopPropagation(); updateExportSection(section.key, { enabled: !enabled }); }}
+                        <div
+                          onClick={() => setActiveExportSectionKey(section.key)}
+                          className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-all select-none ${
+                            active ? 'bg-primary-50 ring-1 ring-primary-200' :
+                            isOver ? 'bg-primary-50/60 ring-1 ring-primary-300' :
+                            enabled ? 'hover:bg-surface-50' :
+                            'opacity-40 hover:opacity-70'
+                          }`}
+                        >
+                          <GripVertical size={13} className="flex-shrink-0 cursor-grab text-bluewood-200 group-hover:text-bluewood-400 transition-colors" />
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); updateExportSection(section.key, { enabled: !enabled }); }}
+                            className={`flex-shrink-0 inline-flex h-4 w-4 items-center justify-center rounded transition-colors ${
+                              enabled ? 'bg-primary-600 text-white' : 'border border-surface-300 bg-white hover:border-primary-300'
+                            }`}
                           >
-                            <Check size={12} strokeWidth={3} />
+                            {enabled && <Check size={9} strokeWidth={3.5} />}
+                          </button>
+                          <span className="text-[10px] font-black text-bluewood-200 tabular-nums flex-shrink-0">{String(index + 1).padStart(2, '0')}</span>
+                          <span className={`flex-1 text-[12px] font-semibold truncate min-w-0 ${active ? 'text-primary-700' : 'text-bluewood-700'}`}>
+                            {section.label || '제목 없는 섹션'}
                           </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                              <p className="truncate text-[13px] font-extrabold text-bluewood-800">{section.label || '제목 없는 섹션'}</p>
-                            </div>
-                            <p className="mt-1 line-clamp-2 break-all text-[12px] leading-relaxed text-bluewood-400">{empty ? '내용 없음' : previewText}</p>
-                          </div>
+                          <span className={`flex-shrink-0 text-[10px] font-bold ${typeColor}`}>{typeLabel}</span>
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); removeExportSection(section.key); }}
+                            className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded opacity-0 group-hover:opacity-100 text-bluewood-200 hover:bg-red-50 hover:text-red-500 transition-all"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </div>
-                        <div className="mt-3 flex items-center justify-between gap-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${slideDeck ? 'bg-primary-50 text-primary-600' : section.type === 'custom' ? 'bg-amber-50 text-amber-700' : section.type === 'job' ? 'bg-caribbean-50 text-caribbean-700' : 'bg-surface-100 text-bluewood-400'}`}>{slideDeck ? '슬라이드' : section.type === 'custom' ? '직접 추가' : section.type === 'job' ? '직군 특화' : '경험 데이터'}</span>
-                          <div className="flex items-center gap-1">
-                            <button onClick={event => { event.stopPropagation(); moveExportCustomSection(section.key, -1); }} disabled={index === 0} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-700 disabled:opacity-20"><MoveUp size={13} /></button>
-                            <button onClick={event => { event.stopPropagation(); moveExportCustomSection(section.key, 1); }} disabled={index === normalizedExportSections.length - 1} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-700 disabled:opacity-20"><MoveDown size={13} /></button>
-                            <button onClick={event => { event.stopPropagation(); removeExportSection(section.key); }} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
 
                 {/* 하단 버튼 */}
-                <div className="px-4 py-4 border-t border-surface-200 flex-shrink-0 space-y-2">
+                <div className="px-3 py-3 border-t border-surface-100 flex-shrink-0 space-y-2">
                   <button
                     onClick={handleSaveExportConfig}
-                    className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-[14px] font-bold transition-colors"
+                    className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-[13px] font-bold transition-colors shadow-sm shadow-primary-100"
                   >
                     구성 저장하기
                   </button>
                   <button
                     onClick={handleExportToPortfolio}
-                    className="w-full py-2.5 border border-primary-100 bg-white text-primary-600 rounded-xl text-[13px] font-bold hover:bg-primary-50 transition-colors"
+                    className="w-full py-2 border border-surface-200 bg-white text-bluewood-600 rounded-xl text-[12px] font-bold hover:bg-surface-50 transition-colors"
                   >
                     포트폴리오에 추가하기
                   </button>
                   <button
                     onClick={() => setShowExportPanel(false)}
-                    className="w-full py-2 text-[13px] text-bluewood-400 hover:text-bluewood-700 transition-colors"
+                    className="w-full py-1.5 text-[12px] text-bluewood-300 hover:text-bluewood-600 transition-colors"
                   >
-                    취소
+                    닫기
                   </button>
                 </div>
               </div>
 
               {/* 오른쪽: 편집 + 미리보기 */}
-              <div className="flex-1 overflow-y-auto bg-[#f7f9fb]">
-                <div className="grid min-h-full grid-cols-1 gap-4 p-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
-                      <p className="text-[12px] font-black uppercase tracking-widest text-bluewood-300">편집 중인 섹션</p>
-                      {activeExportSection ? (
-                        <div className="mt-4 space-y-3">
-                          <input
-                            value={activeExportSection.label || ''}
-                            onChange={e => updateExportSection(activeExportSection.key, { label: e.target.value })}
-                            className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-[15px] font-extrabold text-bluewood-900 outline-none focus:ring-2 focus:ring-primary-100"
-                            placeholder="섹션 제목"
-                          />
-                          {!activeIsSlideDeck && <div className="flex flex-wrap gap-2">
-                            <button onClick={() => addExportTextBlock(activeExportSection.key)} className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[12px] font-bold text-bluewood-500 hover:bg-surface-50">
-                              <Plus size={13} /> 텍스트
-                            </button>
-                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[12px] font-bold text-bluewood-500 hover:bg-surface-50">
-                              <ImagePlus size={13} /> 사진
-                              <input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) addExportImageBlock(activeExportSection.key, file); }} />
-                            </label>
-                          </div>}
-                          {activeIsSlideDeck && (
-                            <div className="rounded-xl border border-primary-100 bg-primary-50/35 px-3 py-3 text-[13px] font-bold text-primary-600">
-                              현재 {slideDeckBlocks.length}개 슬라이드가 구성되어 있습니다.
-                            </div>
+              <div className="flex-1 overflow-y-auto bg-[#f5f6f8]">
+                <div className="grid min-h-full grid-cols-1 gap-4 p-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+                  <div className="space-y-3">
+
+                    {/* 섹션 편집 */}
+                    <div className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-100 bg-surface-50/60">
+                        <div className="flex-1 min-w-0">
+                          {activeExportSection ? (
+                            <input
+                              value={activeExportSection.label || ''}
+                              onChange={e => updateExportSection(activeExportSection.key, { label: e.target.value })}
+                              className="w-full bg-transparent text-[14px] font-extrabold text-bluewood-900 outline-none placeholder:text-bluewood-300"
+                              placeholder="섹션 제목을 입력하세요"
+                            />
+                          ) : (
+                            <p className="text-[13px] font-bold text-bluewood-400">섹션을 선택하세요</p>
                           )}
-                          {!activeIsSlideDeck && <div className="space-y-2">
-                            {(activeExportSection.blocks || []).map((block, blockIndex) => {
-                              const isFirst = blockIndex === 0;
-                              const isLast = blockIndex === activeExportSection.blocks.length - 1;
-                              return (
-                                <div key={block.id} className="rounded-xl border border-surface-200 bg-white p-3">
-                                  <div className="mb-2 flex items-center justify-between gap-2">
-                                    <span className="text-[11px] font-black uppercase tracking-widest text-bluewood-300">{block.type === 'image' ? 'IMAGE' : block.type === 'slide' ? 'SLIDE' : 'TEXT'}</span>
-                                    <div className="flex items-center gap-1">
-                                      <button onClick={() => moveExportBlock(activeExportSection.key, block.id, -1)} disabled={isFirst} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveUp size={13} /></button>
-                                      <button onClick={() => moveExportBlock(activeExportSection.key, block.id, 1)} disabled={isLast} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveDown size={13} /></button>
-                                      <button onClick={() => removeExportBlock(activeExportSection.key, block.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                                    </div>
-                                  </div>
-                                  {block.type === 'image' ? (
-                                    <div className="space-y-2">
-                                      <img src={block.content} alt={block.alt || ''} className="max-h-52 w-full rounded-lg border border-surface-200 object-contain" />
-                                      <div className="flex items-center gap-1.5">
-                                        {['45%', '70%', '100%'].map(width => (
-                                          <button key={width} onClick={() => updateExportBlock(activeExportSection.key, block.id, { width })} className={`rounded-md px-2 py-1 text-[11px] font-bold ${block.width === width ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}>{width}</button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : block.type === 'slide' ? (
-                                    <div className="rounded-lg bg-[#f7f9fb] p-3 ring-1 ring-surface-200">
-                                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-bluewood-300">{block.kicker || block.label}</p>
-                                      <p className="mt-1 break-words text-[14px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</p>
-                                      {block.subtitle && <p className="mt-1.5 line-clamp-3 text-[12px] leading-relaxed text-bluewood-500">{block.subtitle}</p>}
-                                    </div>
-                                  ) : (
-                                    <textarea
-                                      value={sanitizeTextValue(block.content || '')}
-                                      onChange={e => updateExportBlock(activeExportSection.key, block.id, { content: e.target.value })}
-                                      className="min-h-[150px] w-full resize-y rounded-xl border border-surface-200 bg-white px-3 py-3 text-[13px] leading-[1.75] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-100"
-                                      placeholder="포트폴리오에 보여줄 내용을 자유롭게 작성하세요"
-                                    />
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {(activeExportSection.blocks || []).length === 0 && (
-                              <button onClick={() => addExportTextBlock(activeExportSection.key)} className="w-full rounded-xl border border-dashed border-surface-300 py-8 text-[13px] font-semibold text-bluewood-300 hover:bg-surface-50">첫 텍스트 블록 추가</button>
-                            )}
-                          </div>}
-                          <div className="flex items-center justify-between gap-2">
+                        </div>
+                        {activeExportSection && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             <button
                               onClick={() => updateExportSection(activeExportSection.key, { enabled: activeExportSection.enabled === false })}
-                              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-bold transition-colors ${activeExportSection.enabled === false ? 'bg-surface-100 text-bluewood-400 hover:bg-surface-200' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'}`}
+                              className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${activeExportSection.enabled === false ? 'bg-surface-100 text-bluewood-400' : 'bg-primary-50 text-primary-600'}`}
                             >
-                              {activeExportSection.enabled === false ? <EyeOff size={14} /> : <Eye size={14} />}
-                              {activeExportSection.enabled === false ? '숨김 상태' : '표시 중'}
+                              {activeExportSection.enabled === false ? <EyeOff size={11} /> : <Eye size={11} />}
+                              {activeExportSection.enabled === false ? '숨김' : '표시'}
                             </button>
                             <button
                               onClick={() => removeExportSection(activeExportSection.key)}
-                              className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[13px] font-bold text-red-600 hover:bg-red-100"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-500 transition-colors"
                             >
-                              <Trash2 size={14} /> 삭제
+                              <Trash2 size={12} />
                             </button>
                           </div>
+                        )}
+                      </div>
+
+                      {activeExportSection ? (
+                        <div className="p-4 space-y-3">
+                          {!activeIsSlideDeck && (
+                            <div className="flex gap-2">
+                              <button onClick={() => addExportTextBlock(activeExportSection.key)} className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-surface-50 px-2.5 py-1.5 text-[12px] font-semibold text-bluewood-500 hover:bg-white hover:border-surface-300 transition-colors">
+                                <Plus size={12} /> 텍스트 블록
+                              </button>
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-surface-200 bg-surface-50 px-2.5 py-1.5 text-[12px] font-semibold text-bluewood-500 hover:bg-white hover:border-surface-300 transition-colors">
+                                <ImagePlus size={12} /> 사진
+                                <input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) addExportImageBlock(activeExportSection.key, file); }} />
+                              </label>
+                            </div>
+                          )}
+                          {activeIsSlideDeck && (
+                            <div className="rounded-xl bg-primary-50 px-3 py-2.5 text-[12px] font-semibold text-primary-600">
+                              슬라이드 덱 — {slideDeckBlocks.length}개 구성됨. 아래 슬라이드 추가 패널에서 관리하세요.
+                            </div>
+                          )}
+                          {!activeIsSlideDeck && (
+                            <div className="space-y-2">
+                              {(activeExportSection.blocks || []).map((block, blockIndex) => {
+                                const isFirst = blockIndex === 0;
+                                const isLast = blockIndex === activeExportSection.blocks.length - 1;
+                                return (
+                                  <div key={block.id} className="rounded-xl border border-surface-200 bg-white">
+                                    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-surface-100">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-bluewood-300">{block.type === 'image' ? '사진' : block.type === 'slide' ? '슬라이드' : '텍스트'}</span>
+                                      <div className="flex items-center gap-0.5">
+                                        <button onClick={() => moveExportBlock(activeExportSection.key, block.id, -1)} disabled={isFirst} className="inline-flex h-6 w-6 items-center justify-center rounded text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveUp size={11} /></button>
+                                        <button onClick={() => moveExportBlock(activeExportSection.key, block.id, 1)} disabled={isLast} className="inline-flex h-6 w-6 items-center justify-center rounded text-bluewood-300 hover:bg-surface-100 disabled:opacity-20"><MoveDown size={11} /></button>
+                                        <button onClick={() => removeExportBlock(activeExportSection.key, block.id)} className="inline-flex h-6 w-6 items-center justify-center rounded text-bluewood-200 hover:bg-red-50 hover:text-red-500"><Trash2 size={11} /></button>
+                                      </div>
+                                    </div>
+                                    <div className="p-3">
+                                      {block.type === 'image' ? (
+                                        <div className="space-y-2">
+                                          <img src={block.content} alt={block.alt || ''} className="max-h-40 w-full rounded-lg border border-surface-200 object-contain" />
+                                          <div className="flex items-center gap-1">
+                                            {['45%', '70%', '100%'].map(width => (
+                                              <button key={width} onClick={() => updateExportBlock(activeExportSection.key, block.id, { width })} className={`rounded px-2 py-0.5 text-[10px] font-bold ${block.width === width ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}>{width}</button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ) : block.type === 'slide' ? (
+                                        <div className="rounded-lg bg-surface-50 p-2.5 ring-1 ring-surface-200">
+                                          <p className="text-[10px] font-black uppercase text-bluewood-300">{block.kicker || block.label}</p>
+                                          <p className="mt-0.5 text-[13px] font-extrabold leading-snug text-bluewood-900">{block.title || block.label}</p>
+                                          {block.subtitle && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-bluewood-500">{block.subtitle}</p>}
+                                        </div>
+                                      ) : (
+                                        <textarea
+                                          value={sanitizeTextValue(block.content || '')}
+                                          onChange={e => updateExportBlock(activeExportSection.key, block.id, { content: e.target.value })}
+                                          className="min-h-[120px] w-full resize-y rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-[12px] leading-[1.75] text-bluewood-700 outline-none focus:ring-2 focus:ring-primary-100"
+                                          placeholder="포트폴리오에 보여줄 내용을 작성하세요"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {(activeExportSection.blocks || []).length === 0 && (
+                                <button onClick={() => addExportTextBlock(activeExportSection.key)} className="w-full rounded-xl border border-dashed border-surface-300 py-6 text-[12px] font-semibold text-bluewood-300 hover:bg-surface-50">+ 텍스트 블록 추가</button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="mt-4 rounded-xl border border-dashed border-surface-300 py-12 text-center text-[13px] font-semibold text-bluewood-300">왼쪽에서 섹션을 선택하거나 새 섹션을 추가하세요</div>
+                        <div className="px-4 py-10 text-center text-[12px] font-semibold text-bluewood-300">왼쪽에서 섹션을 클릭하면 여기서 편집할 수 있습니다</div>
                       )}
                     </div>
 
-                    <div className="rounded-2xl border border-primary-100 bg-white p-5 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
+                    {/* 슬라이드 추가 */}
+                    <div className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-100 bg-surface-50/60">
                         <div>
-                          <p className="text-[12px] font-black uppercase tracking-widest text-primary-500">상세 슬라이드</p>
-                          <p className="mt-1 text-[13px] font-bold text-bluewood-500">{slideDeckBlocks.length}개 슬라이드</p>
+                          <p className="text-[13px] font-extrabold text-bluewood-800">슬라이드 추가</p>
+                          <p className="text-[11px] text-bluewood-400 mt-0.5">{slideDeckBlocks.length > 0 ? `${slideDeckBlocks.length}개 구성됨` : '아직 없음'}</p>
                         </div>
                         <button
                           type="button"
                           onClick={addAllExportSlideBlocks}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-[12px] font-bold text-white hover:bg-primary-700"
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors"
                         >
-                          <LayoutGrid size={13} /> 7개 자동 구성
+                          <LayoutGrid size={11} /> 전체 자동 구성
                         </button>
                       </div>
-                      <div className="mt-5 grid grid-cols-2 gap-2">
+
+                      <div className="p-3 space-y-1">
+                        <div className="flex items-center gap-2 px-2 pb-2 text-[10px] font-bold text-bluewood-300 border-b border-surface-100 mb-1">
+                          <span className="flex-1">섹션</span>
+                          <span className="w-14 text-center text-primary-500">개별 추가</span>
+                          <span className="w-8 text-center text-bluewood-400">덱 +</span>
+                        </div>
                         {SECTION_KEYS.map(slideKey => (
-                          <div key={slideKey} className="group relative flex rounded-xl bg-primary-50 ring-1 ring-primary-100 hover:bg-white overflow-hidden">
+                          <div key={slideKey} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-50 group transition-colors">
+                            <span className="text-[10px] font-black text-bluewood-200 tabular-nums w-5">{SECTION_META[slideKey].num}</span>
+                            <span className="flex-1 text-[12px] font-semibold text-bluewood-600 truncate">{SECTION_META[slideKey].label}</span>
                             <button
                               type="button"
                               onClick={() => addExportSlideBlock(slideKey, 'new')}
-                              className="flex-1 py-2 px-2 text-left text-[12px] font-bold text-bluewood-600 transition-colors hover:bg-primary-100/50"
-                              title="새로운 섹션으로 분리해서 추가"
+                              className="w-14 rounded-lg border border-surface-200 py-1 text-[11px] font-bold text-bluewood-500 hover:bg-white hover:border-primary-200 hover:text-primary-600 transition-colors text-center"
                             >
-                              {SECTION_META[slideKey].num} {SECTION_META[slideKey].label}
+                              개별
                             </button>
                             <button
                               type="button"
                               onClick={() => addExportSlideBlock(slideKey, 'merge')}
-                              className="flex items-center justify-center px-2 border-l border-primary-100 text-bluewood-400 hover:bg-primary-100 hover:text-primary-700 transition-colors"
-                              title="기존 섹션 뒤에 겹치기(병합)"
+                              className="inline-flex h-6 w-8 items-center justify-center rounded-lg bg-surface-100 text-bluewood-400 hover:bg-primary-600 hover:text-white transition-colors"
+                              title="슬라이드 덱에 합치기"
                             >
-                              <Plus size={13} strokeWidth={3} />
+                              <Plus size={11} strokeWidth={3} />
                             </button>
                           </div>
                         ))}
                       </div>
-                      {slideDeckBlocks.length > 0 ? (
-                        <div className="mt-4 space-y-3">
-                          <PortfolioSlideDeck blocks={slideDeckBlocks} compact />
-                          <div className="space-y-2">
-                            {slideDeckBlocks.map((block, index) => (
-                              <div key={block.id} className="flex items-center gap-2 rounded-xl border border-surface-200 bg-surface-50 px-3 py-2">
-                                <span className="text-[11px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                                <p className="min-w-0 flex-1 truncate text-[12px] font-extrabold text-bluewood-800">{block.title || block.label || '상세 슬라이드'}</p>
-                                <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, -1)} disabled={index === 0} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveUp size={13} /></button>
-                                <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, 1)} disabled={index === slideDeckBlocks.length - 1} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveDown size={13} /></button>
-                                <button onClick={() => removeExportBlock(SLIDE_DECK_SECTION_KEY, block.id)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                              </div>
-                            ))}
-                          </div>
+
+                      {slideDeckBlocks.length > 0 && (
+                        <div className="border-t border-surface-100 px-3 pb-3 pt-2 space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-bluewood-300 px-1 pb-1">구성된 슬라이드</p>
+                          {slideDeckBlocks.map((block, index) => (
+                            <div key={block.id} className="flex items-center gap-2 rounded-lg border border-surface-100 bg-surface-50 px-2.5 py-1.5">
+                              <span className="text-[10px] font-black text-bluewood-200 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                              <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-bluewood-700">{block.title || block.label || '슬라이드'}</p>
+                              <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, -1)} disabled={index === 0} className="inline-flex h-5 w-5 items-center justify-center rounded text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveUp size={10} /></button>
+                              <button onClick={() => moveExportBlock(SLIDE_DECK_SECTION_KEY, block.id, 1)} disabled={index === slideDeckBlocks.length - 1} className="inline-flex h-5 w-5 items-center justify-center rounded text-bluewood-300 hover:bg-white disabled:opacity-20"><MoveDown size={10} /></button>
+                              <button onClick={() => removeExportBlock(SLIDE_DECK_SECTION_KEY, block.id)} className="inline-flex h-5 w-5 items-center justify-center rounded text-bluewood-200 hover:bg-red-50 hover:text-red-500"><Trash2 size={10} /></button>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
-                        <div className="mt-4 rounded-xl border border-dashed border-primary-100 bg-primary-50/35 py-8 text-center text-[13px] font-semibold text-bluewood-300">추가된 상세 슬라이드가 없습니다</div>
                       )}
                     </div>
 
-                    <div className="rounded-2xl border border-primary-100 bg-white p-5 shadow-sm">
-                      <p className="text-[13px] font-extrabold text-primary-600">구성 팁</p>
-                      <p className="mt-2 text-[13px] leading-relaxed text-bluewood-500">왼쪽에서 필요 없는 섹션은 체크를 해제하거나 삭제하고, 강조하고 싶은 내용은 새 섹션으로 분리해 포트폴리오 흐름을 직접 만들 수 있습니다.</p>
-                    </div>
                   </div>
 
                   <div className="rounded-[18px] border border-surface-200 bg-white shadow-sm overflow-hidden">
@@ -2873,28 +2978,52 @@ export default function StructuredResult() {
                     </div>
 
                     <div className="mx-auto max-w-[1040px] px-8 py-8 lg:px-12 lg:py-10">
-                      <input
-                        value={editedTitle}
-                        onChange={e => setEditedTitle(sanitizeTextValue(e.target.value))}
-                        className="mb-7 w-full bg-transparent text-[32px] font-extrabold leading-tight text-primary-700 outline-none placeholder:text-bluewood-200"
-                        placeholder="프로젝트 제목"
-                      />
+                      <div className="mb-6 flex items-end gap-3">
+                        <input
+                          value={editedTitle}
+                          onChange={e => setEditedTitle(sanitizeTextValue(e.target.value))}
+                          className="flex-1 bg-transparent text-[28px] font-extrabold leading-tight text-primary-700 outline-none placeholder:text-bluewood-200"
+                          placeholder="프로젝트 제목"
+                        />
+                        <span className="flex-shrink-0 mb-1 text-[11px] font-semibold text-bluewood-300 whitespace-nowrap">⠿ 드래그로 순서 변경</span>
+                      </div>
 
                       <div className="space-y-4">
                         {enabledExportSections.map((section, index) => {
                           const slideDeck = isSlideDeckSection(section);
+                          const isDraggingRight = exportDragKey === section.key;
+                          const isOverRight = exportOverKey === section.key && !isDraggingRight;
                           return (
                             <div
                               key={section.key}
                               role="button"
                               tabIndex={0}
+                              draggable
+                              onDragStart={e => handleExportDragStart(section.key, e)}
+                              onDragOver={e => handleExportDragOver(section.key, e)}
+                              onDrop={e => handleExportDrop(section.key, e)}
+                              onDragEnd={handleExportDragEnd}
                               onClick={() => setActiveExportSectionKey(section.key)}
                               onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setActiveExportSectionKey(section.key); }}
-                              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition-all ${activeExportSection?.key === section.key ? 'border-primary-200 bg-primary-50/40 ring-1 ring-primary-100' : 'border-surface-200 bg-white hover:border-bluewood-200'}`}
+                              className={`group w-full cursor-grab rounded-xl border p-4 text-left transition-all ${
+                                isDraggingRight ? 'opacity-40 border-surface-200 bg-white' :
+                                isOverRight ? 'border-primary-400 ring-2 ring-primary-200 bg-primary-50/20' :
+                                activeExportSection?.key === section.key ? 'border-primary-200 bg-primary-50/40 ring-1 ring-primary-100' :
+                                'border-surface-200 bg-white hover:border-bluewood-200'
+                              }`}
                             >
-                              <div className="mb-3 flex items-center gap-3 border-b border-surface-100 pb-3">
+                              <div className="mb-3 flex items-center gap-2 border-b border-surface-100 pb-3">
+                                <GripVertical size={14} className="flex-shrink-0 text-bluewood-200" />
                                 <span className="text-[12px] font-black text-bluewood-300 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                                <h2 className="text-[14px] font-extrabold text-bluewood-900">{section.label || '제목 없는 섹션'}</h2>
+                                <h2 className="flex-1 text-[14px] font-extrabold text-bluewood-900">{section.label || '제목 없는 섹션'}</h2>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); removeExportSection(section.key); }}
+                                  className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 text-bluewood-300 hover:bg-red-50 hover:text-red-500 transition-all"
+                                  title="섹션 삭제"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               </div>
                               {slideDeck ? (
                                 <PortfolioSlideDeck blocks={section.blocks || []} compact />
@@ -2954,11 +3083,13 @@ function ProjectTimeline({ experiences, currentId }) {
         {/* 토글 버튼 */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className={`w-full flex items-center justify-center mb-3 py-1.5 rounded-lg text-[14px] font-bold uppercase tracking-wider transition-colors ${
+          aria-label={expanded ? '타임라인 접기' : '타임라인 펼치기'}
+          title={expanded ? '접기' : '전체 경험 보기'}
+          className={`w-full flex items-center justify-center gap-1.5 mb-3 py-1.5 rounded-lg text-[12px] font-bold uppercase tracking-wider transition-colors ${
             expanded ? 'text-bluewood-700 hover:bg-surface-100' : 'text-bluewood-400 hover:bg-surface-100'
           }`}
         >
-          {expanded ? '▶' : '◀'}
+          {expanded ? (<><span>경험</span><ChevronRight size={15} /></>) : <ChevronLeft size={15} />}
         </button>
 
         <div className="relative">

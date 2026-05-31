@@ -42,8 +42,32 @@
     </noscript>
   </head>
   <body>
+    <style>
+      @keyframes fp-boot-spin { to { transform: rotate(360deg); } }
+      @keyframes fp-boot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+      #fp-boot {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 22px; background: #ffffff;
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+      #fp-boot .fp-boot-logo {
+        width: 52px; height: 52px; border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(0, 47, 108, 0.18);
+      }
+      #fp-boot .fp-boot-spin {
+        width: 30px; height: 30px;
+        border: 3px solid #e9edf3; border-top-color: #002F6C; border-radius: 50%;
+        animation: fp-boot-spin 0.7s linear infinite;
+      }
+      #fp-boot .fp-boot-label {
+        margin: 0; font-size: 14px; font-weight: 600; color: #5d7186;
+        letter-spacing: 0.01em; animation: fp-boot-pulse 1.4s ease-in-out infinite;
+      }
+    </style>
     <div id="root">
-      <main>
+      <!-- 검색엔진/크롤러용 콘텐츠 (사용자 화면에는 보이지 않음) -->
+      <main style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">
         <h1>FitPoly 스마트 포트폴리오 플랫폼</h1>
         <p>FitPoly는 흩어진 경험, 문서, 프로젝트 기록을 한곳에 정리하고 AI 분석으로 채용 공고에 맞는 포트폴리오 작성을 돕는 웹 서비스입니다.</p>
         <section>
@@ -60,6 +84,12 @@
           <a href="/privacy">개인정보처리방침</a>
         </nav>
       </main>
+      <!-- 로딩 스플래시: React 마운트 시 #root가 교체되며 자동 제거됨 -->
+      <div id="fp-boot">
+        <img class="fp-boot-logo" src="/logo.png" alt="FitPoly" width="52" height="52" />
+        <div class="fp-boot-spin"></div>
+        <p class="fp-boot-label">FitPoly 불러오는 중…</p>
+      </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

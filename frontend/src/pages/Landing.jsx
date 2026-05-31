@@ -268,11 +268,33 @@ export default function Landing() {
 
         {/* Center Text */}
         <div className={`relative z-10 text-center flex flex-col items-center justify-center transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} px-4 sm:px-6 -mt-6 sm:-mt-8 md:-mt-16`}>
-          <p className="text-[15px] sm:text-[18px] md:text-[20px] font-bold text-indigo-500 mb-3 sm:mb-4 md:mb-6">끝없이 쌓여가는 취업 준비 자료들</p>
-          <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-5 sm:mb-6 md:mb-8">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="text-[13px] sm:text-[14px] font-bold text-indigo-600">지금 베타 무료 이용 중</span>
+          </div>
+          <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1 mb-5 sm:mb-6">
             <span>여기저기 흩어진 경험들,</span>
             <span>어떻게 관리하고 계시나요?</span>
           </h1>
+          <p className="text-[15px] sm:text-[18px] text-gray-500 font-medium max-w-[480px] leading-relaxed mb-7 sm:mb-8 px-4">
+            카카오톡 대화, Notion, 파일까지 — 흩어진 자료를 AI가 하나의 경험 아카이브로 만들어줍니다
+          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              onClick={go}
+              className="w-full sm:w-auto bg-gray-900 text-white px-7 py-3.5 rounded-full text-[16px] font-bold hover:bg-black transition-colors shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2"
+            >
+              지금 무료로 시작하기
+              <ArrowRight size={16} />
+            </button>
+            <button
+              onClick={() => document.getElementById('feature-experience')?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full sm:w-auto text-gray-500 px-5 py-3 text-[15px] font-medium hover:text-gray-800 transition-colors flex items-center justify-center gap-1.5"
+            >
+              어떻게 작동하나요?
+              <ChevronDown size={15} />
+            </button>
+          </div>
         </div>
       </section>
 
@@ -427,18 +449,21 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Gray Box */}
-          <div className="bg-[#f8f9fa] rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
-            <h3 className="text-[20px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900 leading-[1.4] mb-3 sm:mb-4">
-              여기저기 흩어진 채널들,<br />
-              정리하지 않은 자료들이 쌓여가고 있진 않나요?
+          {/* Gray Box → 해결책 브릿지 */}
+          <div className="bg-gray-900 rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full mb-4 sm:mb-6">
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+              <span className="text-[13px] font-bold text-white/70">FitPoly의 해결책</span>
+            </div>
+            <h3 className="text-[20px] sm:text-[26px] md:text-[32px] font-extrabold text-white leading-[1.3] mb-4 sm:mb-5">
+              흩어진 자료, 한 곳에서<br />AI가 경험으로 정리해드립니다
             </h3>
-            <p className="text-[15px] sm:text-[17px] text-gray-500 leading-[1.6] mb-8 sm:mb-12 font-medium">
-              중요한 경험은 흩어진 채널 어딘가에서 잠들어 있어요.<br />
-              혹시 나도 잠든 자료의 무게를 안고 다니는 건 아닐까요?
+            <p className="text-[15px] sm:text-[17px] text-white/60 leading-[1.6] mb-8 sm:mb-10 font-medium max-w-[520px] mx-auto">
+              어떤 형식이든 괜찮아요. 카카오톡 대화, PDF, Notion 링크, 직접 입력까지—<br />
+              <span className="text-white/90 font-bold">12분 안에</span> 구조화된 경험 아카이브가 완성됩니다
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 md:gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 md:gap-4 mb-8 sm:mb-10">
               {[
                 { name: 'KakaoTalk', bg: 'bg-white' },
                 { name: 'Notion', bg: 'bg-white' },
@@ -451,11 +476,16 @@ export default function Landing() {
                 { name: 'PDF', bg: 'bg-white' },
                 { name: 'GitHub', bg: 'bg-[#181717]' },
               ].map((icon, i) => (
-                <div key={i} className={`w-10 h-10 sm:w-12 sm:h-12 md:w-[60px] md:h-[60px] ${icon.bg} rounded-xl sm:rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-gray-100 flex items-center justify-center`}>
-                  <BrandIcon name={icon.name} className={`${icon.name === 'KakaoTalk' ? 'w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10' : 'w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8'}`} />
+                <div key={i} className={`w-10 h-10 sm:w-12 sm:h-12 md:w-[56px] md:h-[56px] ${icon.bg} rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity`}>
+                  <BrandIcon name={icon.name} className={`${icon.name === 'KakaoTalk' ? 'w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9' : 'w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7'}`} />
                 </div>
               ))}
             </div>
+
+            <button onClick={go} className="bg-white text-gray-900 px-7 py-3.5 rounded-full text-[15px] font-bold hover:bg-gray-100 transition-colors shadow-lg inline-flex items-center gap-2">
+              지금 바로 경험 정리 시작하기
+              <ArrowRight size={15} />
+            </button>
           </div>
         </div>
       </section>
@@ -464,11 +494,20 @@ export default function Landing() {
       <section id="feature-experience" className="py-16 sm:py-20 md:py-24 bg-white">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
-            <span className="inline-block px-3 py-1 bg-primary-500 text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 1. 경험 정리</span>
-            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-primary-600 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
-              파편화된 다양한 파일을,<br />
-              <span className="text-primary-500">체계적인 경험 아카이브</span>로 정리해요
+            <div className="flex items-center gap-2 mb-4 sm:mb-5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+                핵심 기능 01
+              </span>
+              <span className="text-[13px] font-semibold text-primary-500">경험 정리</span>
+            </div>
+            <h2 className="text-[24px] sm:text-[32px] md:text-[40px] font-extrabold text-gray-900 leading-[1.25] mb-4" style={{ wordBreak: 'keep-all' }}>
+              흩어진 자료들을<br />
+              <span className="text-primary-600">하나의 경험 아카이브로</span>
             </h2>
+            <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
+              어떤 파일이든 업로드하면 AI가 내용을 분석해 구조화된 경험으로 정리해줍니다. 카카오톡 대화도, PDF도 모두 OK.
+            </p>
           </div>
 
           {/* 파일 업로드 */}
@@ -1145,13 +1184,19 @@ export default function Landing() {
       <section id="feature-portfolio" className="py-16 sm:py-20 md:py-24 bg-[#f8f9fc]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 xl:px-16">
           <div className="mb-10 sm:mb-14 md:mb-16">
-            <span className="inline-block px-3 py-1 bg-[#1B264F] text-white text-[13px] font-bold rounded-md mb-3 sm:mb-4 tracking-wide">핵심 기능 2. 기업 맞춤 포트폴리오</span>
-            <h2 className="text-[24px] sm:text-[32px] md:text-[38px] font-extrabold text-primary-600 leading-[1.3] mb-3" style={{ wordBreak: 'keep-all' }}>
-              기업을 분석하고,<br />
-              <span className="text-[#1B264F]">알맞는 포트폴리오를 자동 생성</span>해요
+            <div className="flex items-center gap-2 mb-4 sm:mb-5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-[12px] font-bold rounded-lg tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+                핵심 기능 02
+              </span>
+              <span className="text-[13px] font-semibold text-gray-600">기업 맞춤 포트폴리오</span>
+            </div>
+            <h2 className="text-[24px] sm:text-[32px] md:text-[40px] font-extrabold text-gray-900 leading-[1.25] mb-4" style={{ wordBreak: 'keep-all' }}>
+              채용공고 링크 하나로<br />
+              <span className="text-gray-900">맞춤 포트폴리오 자동 완성</span>
             </h2>
-            <p className="text-[14px] sm:text-[16px] text-bluewood-400 leading-relaxed">
-              We analyze job postings and generate tailored portfolios that match company requirements.
+            <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[560px] font-medium">
+              기업이 원하는 역량을 파악하고, 내 경험 중 가장 잘 맞는 것들로 포트폴리오를 조합해 드립니다.
             </p>
           </div>
 
@@ -1444,17 +1489,28 @@ export default function Landing() {
       <section className="py-20 sm:py-28 md:py-32 bg-white flex flex-col items-center text-center px-4 sm:px-6">
 
 
-        <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.25] mb-4 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
-          지금 예약하면,<br />
-          <span className="text-[#4F46E5]">3건 생성</span> 무료 쿠폰을 드려요.
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-6">
+          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+          <span className="text-[13px] font-bold text-indigo-600">베타 기간 한정 혜택</span>
+        </div>
+        <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.2] mb-5 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
+          지금 예약하면<br />
+          포트폴리오 <span className="text-indigo-600">3건을 무료</span>로 드려요
         </h2>
         <p className="text-[15px] sm:text-[17px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
-          이메일을 등록하시면 정식 출시 알림과 함께<br />
-          포트폴리오 <strong className="text-gray-700">3건을 무료로 생성</strong>할 수 있는 쿠폰을 보내드립니다.
+          이메일만 등록하면 정식 출시 시 알림과 함께 무료 쿠폰을 드립니다
         </p>
-        <p className="text-[13px] sm:text-[14px] text-gray-400 mb-8 sm:mb-10 font-medium">
-          선착순 한정 · 평균 제작 시간 12분
-        </p>
+        <div className="flex items-center gap-4 mb-8 sm:mb-10 flex-wrap justify-center">
+          <div className="flex items-center gap-1.5 text-[14px] text-gray-400 font-medium">
+            <Check size={14} className="text-green-500" /> 평균 제작 시간 12분
+          </div>
+          <div className="flex items-center gap-1.5 text-[14px] text-gray-400 font-medium">
+            <Check size={14} className="text-green-500" /> 신용카드 불필요
+          </div>
+          <div className="flex items-center gap-1.5 text-[14px] text-gray-400 font-medium">
+            <Check size={14} className="text-green-500" /> 선착순 한정
+          </div>
+        </div>
 
         <div className="w-full max-w-[480px] flex flex-col items-center px-0">
           <div className="w-full flex flex-col sm:flex-row gap-3">
