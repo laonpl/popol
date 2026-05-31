@@ -52,6 +52,15 @@ function directChildrenByLocalName(parent, localName) {
   return out;
 }
 
+const WATERMARK_RE = /템플릿\s*\d|template\s*\d|Project\s*\d|project\s*\d|샘플|sample|예시|lorem\s+ipsum|클릭하여|텍스트를?\s*입력|제목을?\s*입력|부제목을?\s*입력|click to (add|edit)/i;
+
+function readTxBodyText(txBody) {
+  let out = '';
+  const list = txBody.getElementsByTagNameNS(A_NS, 't');
+  for (let i = 0; i < list.length; i++) out += list.item(i).textContent || '';
+  return out.trim();
+}
+
 // spTree 를 재귀적으로 순회하여 sp/pic 노드를 yield (templateParser 와 동일).
 function* walkSpAndPic(node) {
   for (let i = 0; i < node.childNodes.length; i++) {
@@ -136,30 +145,39 @@ function sanitizeAllText(spTree, doc) {
       else p.appendChild(emptyR);
     }
 
-    // ③ normAutofit 강제 주입 (Auto-Shrink 안전망)
+    // ③ noAutofit 보장: normAutofit/spAutoFit 제거 → noAutofit 삽입.
+    // Why: normAutofit(Auto-Shrink)을 주입하면 PDF 변환기가 이를 무시하고 원본 폰트 크기로 렌더링,
+    // 박스를 넘치는 줄을 잘라버린다("글이 나오다가 마는" 현상).
+    // shrinkToFit으로 이미 맞는 폰트 크기를 sz에 직접 기록했으므로 normAutofit 필요 없음.
     const bodyPr = firstChild(txBody, A_NS, 'bodyPr');
     if (bodyPr) {
-      for (const tag of ['spAutoFit', 'noAutofit', 'normAutofit']) {
+      for (const tag of ['spAutoFit', 'normAutofit', 'noAutofit']) {
         const ex = firstChild(bodyPr, A_NS, tag);
         if (ex) bodyPr.removeChild(ex);
       }
-      bodyPr.appendChild(doc.createElementNS(A_NS, 'a:normAutofit'));
+      bodyPr.appendChild(doc.createElementNS(A_NS, 'a:noAutofit'));
     }
   }
   return savedStyles;
 }
 
-// ── 사진 제거 ──────────────────────────────────────────────────────────────────
-// 사용자가 웅로드한 템플릿의 sample 이미지(프로필 사진, 샘플 로고 등)가 출력물에 남지
-// 않도록 슬라이드의 모든 <p:pic> 논드를 제거. 디자인은 배경/장식 도형(<p:sp>) /
-// 레이아웃·마스터의 색·폰트로 보존되므로 큐레이터리시 틀이 크지 않다.
+// ── 사진 제거 (샘플/placeholder 사진만) ───────────────────────────────────────
+// 템플릿의 sample 이미지(프로필 사진 placeholder 등)는 제거하되,
+// 배경·장식 이미지(디자인 요소)는 보존한다.
+// 구별 기준: <p:nvPicPr> 아래 <p:nvPr><p:ph> 있으면 placeholder → 제거.
+//            ph 없는 pic은 디자인 요소 → 보존.
 function removeAllPicsFromSpTree(spTree) {
   const toRemove = [];
+  const isPlaceholderPic = (pic) => {
+    const nvPicPr = firstChild(pic, P_NS, 'nvPicPr');
+    const nvPr    = nvPicPr ? firstChild(nvPicPr, P_NS, 'nvPr') : null;
+    return nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
+  };
   const collectFromGroup = (group) => {
     for (let i = 0; i < group.childNodes.length; i++) {
       const c = group.childNodes.item(i);
       if (!c || c.nodeType !== 1) continue;
-      if (c.localName === 'pic') toRemove.push(c);
+      if (c.localName === 'pic' && isPlaceholderPic(c)) toRemove.push(c);
       else if (c.localName === 'grpSp') collectFromGroup(c);
     }
   };
@@ -299,16 +317,17 @@ function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
     }
   }
 
-  // <a:bodyPr> 에 normAutofit 주입: 텍스트가 박스를 초과할 경우 PowerPoint 가
-  // 자동으로 폰트를 추가 축소하도록 보장 (shrinkToFit 추정 오차의 안전망).
+  // noAutofit 유지: shrinkToFit이 계산한 sz(폰트 크기)가 이미 박스에 맞게 설정됐으므로
+  // normAutofit 필요 없음. normAutofit은 PDF 변환기가 무시해 잘림을 유발하므로 제거.
   const bodyPr = firstChild(txBody, A_NS, 'bodyPr');
   if (bodyPr) {
-    // 기존 spAutoFit / noAutofit 제거 후 normAutofit 삽입 (newText 유무 무관)
-    for (const tag of ['spAutoFit', 'noAutofit', 'normAutofit']) {
+    for (const tag of ['spAutoFit', 'normAutofit']) {
       const existing = firstChild(bodyPr, A_NS, tag);
       if (existing) bodyPr.removeChild(existing);
     }
-    bodyPr.appendChild(txBody.ownerDocument.createElementNS(A_NS, 'a:normAutofit'));
+    if (!firstChild(bodyPr, A_NS, 'noAutofit')) {
+      bodyPr.appendChild(txBody.ownerDocument.createElementNS(A_NS, 'a:noAutofit'));
+    }
   }
 
   // 기존 단락 모두 제거 (<a:bodyPr>, <a:lstStyle> 등은 보존)
@@ -443,6 +462,46 @@ export async function renderDeckInPlace(deck, originalBuffer) {
   for (const t of tplSlides) {
     zip.remove(t.sourceFile);
     if (t.sourceRelsFile && t.sourceRelsXml) zip.remove(t.sourceRelsFile);
+  }
+
+  // 5-b) 슬라이드 레이아웃/마스터 텍스트 초기화.
+  // 템플릿에 "템플릿 1" 같은 워터마크 텍스트가 레이아웃/마스터 XML에 있으면 모든 슬라이드에 표시됨.
+  // ph(placeholder) 없는 sp의 텍스트만 Force-Clear (placeholder는 슬라이드 컨텐츠 영역이라 유지).
+  const layoutMasterRE = /^ppt\/(slideLayouts\/slideLayout|slideMasters\/slideMaster)\d+\.xml$/;
+  for (const filePath of Object.keys(zip.files)) {
+    if (!layoutMasterRE.test(filePath)) continue;
+    const lmXml = await zip.file(filePath)?.async('string');
+    if (!lmXml) continue;
+    const lmDoc = parseXml(lmXml);
+    const cSld = firstChild(lmDoc.documentElement, P_NS, 'cSld');
+    const spTree = cSld ? firstChild(cSld, P_NS, 'spTree') : null;
+    if (!spTree) continue;
+    for (const node of walkSpAndPic(spTree)) {
+      if (node.localName !== 'sp') continue;
+      const txBody = firstChild(node, P_NS, 'txBody');
+      if (!txBody) continue;
+      const nvSpPr = firstChild(node, P_NS, 'nvSpPr');
+      const nvPr   = nvSpPr ? firstChild(nvSpPr, P_NS, 'nvPr') : null;
+      const ph     = nvPr   ? firstChild(nvPr, P_NS, 'ph')     : null;
+      if (ph && !WATERMARK_RE.test(readTxBodyText(txBody))) continue;
+      for (const p of directChildrenByLocalName(txBody, 'p')) {
+        const toRemove = [];
+        for (let k = 0; k < p.childNodes.length; k++) {
+          const c = p.childNodes.item(k);
+          if (c && c.nodeType === 1 && (c.localName === 'r' || c.localName === 'fld' || c.localName === 'br')) {
+            toRemove.push(c);
+          }
+        }
+        for (const c of toRemove) p.removeChild(c);
+        const emptyR = lmDoc.createElementNS(A_NS, 'a:r');
+        emptyR.appendChild(lmDoc.createElementNS(A_NS, 'a:rPr'));
+        emptyR.appendChild(lmDoc.createElementNS(A_NS, 'a:t'));
+        const endParaRPr = firstChild(p, A_NS, 'endParaRPr');
+        if (endParaRPr) p.insertBefore(emptyR, endParaRPr);
+        else p.appendChild(emptyR);
+      }
+    }
+    zip.file(filePath, serializeXml(lmDoc));
   }
 
   // 6) Slide Pruning: boxes 가 있는데 모두 비어있는 슬라이드 제외 (이미지 전용 슬라이드는 유지)

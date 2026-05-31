@@ -635,7 +635,9 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
   };
   const cleanItem = (item = {}) => {
     const rawHeading = String(item.heading || '').trim();
-    const heading = cleanText(rawHeading, 80) || (rawHeading.length <= 12 ? rawHeading.slice(0, 80) : '');
+    // cap 140: narrative-results 의 KEY DELIVERABLES 는 완결 문장(firstSentence 최대 135자)을 heading 에 담는다.
+    // 80자 컷은 "...잠재적 위"/"...정보 제공'을"처럼 문장을 중간에서 잘랐다. 프로젝트명·수상명 등은 상류에서 이미 짧게 캡됨.
+    const heading = cleanText(rawHeading, 140) || (rawHeading.length <= 12 ? rawHeading.slice(0, 140) : '');
     const period = cleanText(item.period, 50);
     const role = cleanText(item.role, 60);
     const body = cleanText(item.body, 220);
@@ -1084,7 +1086,13 @@ function buildProposalDeckFromPortfolio(p) {
 }
 
 function buildAcceptedLayoutDeckFromPortfolio(p, layoutMode) {
-  if (layoutMode === 'standard') return buildProposalDeckFromPortfolio(p);
+  if (layoutMode === 'standard') {
+    const ctx = buildDeckContext(p);
+    return finalizeAcceptedDeck(
+      { title: `${ctx.userName} 포트폴리오`, subtitle: ctx.target, accentColor: '#FF4F1A', templateMode: 'accepted-proposal' },
+      [], ctx, 'proposal'
+    );
+  }
   if (layoutMode === 'narrative') return buildNarrativeDeckFromPortfolio(p);
   if (layoutMode === 'star') return buildStarDeckFromPortfolio(p);
   if (layoutMode === 'kpi-dashboard') return buildKpiDashboardDeckFromPortfolio(p);
@@ -1515,6 +1523,12 @@ function finalizeAcceptedDeck(meta, slides, ctx, mode) {
     return {
       meta: { ...meta, templateMode: 'accepted-case-study', referenceSlideCount: 21 },
       slides: buildCaseStudyReferenceDeck(ctx),
+    };
+  }
+  if (mode === 'proposal') {
+    return {
+      meta: { ...meta, templateMode: 'accepted-proposal', referenceSlideCount: 18 },
+      slides: buildProposalReferenceDeck(ctx),
     };
   }
   return { meta, slides: expandAcceptedDeckToThirty(slides, ctx, mode) };
@@ -2112,7 +2126,7 @@ function buildNarrativeReferenceDeck(ctx) {
     const pname = projectName(proj.heading) || `프로젝트 ${idx + 1}`;
     const body = stripPlaceholder(proj.body);
     const period = stripPlaceholder(proj.period);
-    const role = clipSentence(stripPlaceholder(proj.role), 72); // 좌측 subtitle 잘림 방지
+    const role = firstSentence(stripPlaceholder(proj.role), 110); // 좌측 subtitle: 첫 완결 문장(중간 안 끊김)
     const problems = (proj.problem || []).map(stripPlaceholder).filter(Boolean);
     const actions = (proj.action || []).map(stripPlaceholder).filter(Boolean);
     const results = (proj.result || []).map(stripPlaceholder).filter(Boolean);
@@ -2164,9 +2178,10 @@ function buildNarrativeReferenceDeck(ctx) {
     // 5-3) 성과
     // items → KEY DELIVERABLES (results)
     // bullets → GROWTH POINTS (learning 우선, 없으면 actions/bullets)
-    const deliverables = results.slice(0, 4).map(r => firstSentence(r));  // 첫 완결 문장 1개
+    // 완결 문장 우선(135자): 미완성 절단("잠재적 위") 방지. 렌더는 fit-font로 폰트를 줄여 맞춤.
+    const deliverables = results.slice(0, 3).map(r => firstSentence(r, 135));
     const growthSrc = learnings.length ? learnings : (actions.length ? actions : projBullets);
-    const growthPoints = growthSrc.slice(0, 3).map(a => firstSentence(a));
+    const growthPoints = growthSrc.slice(0, 3).map(a => firstSentence(a, 135));
     if (deliverables.length || growthPoints.length) {
       slides.push({
         layout: 'narrative-results',
@@ -2197,7 +2212,7 @@ function buildNarrativeReferenceDeck(ctx) {
       title: '경험이 이어져 온 흐름',
       items: projects.map(exp => refItem(
         projectName(exp.heading),                                        // 간결한 프로젝트명
-        clipSentence(stripPlaceholder(exp.body) || exp.bullets?.[0] || '', 110), // 문장 단위로 깔끔히
+        firstSentence(stripPlaceholder(exp.body) || exp.bullets?.[0] || '', 140), // 첫 완결 문장 (2줄 박스에 맞춤, 중간 안 끊김)
         clipSentence(stripPlaceholder(exp.period), 20),                  // 좌측 칸은 기간만 (역할 fallback 제거 — 칸 깨짐 방지)
       )),
       subtitle: '',
@@ -2360,6 +2375,304 @@ function buildCaseStudyReferenceDeck(ctx) {
     layout: 'cs-closing',
     title: '감사합니다',
     subtitle: `${userName}${cleanTarget ? ` — ${cleanTarget} 지원` : ''}`,
+    bullets: portfolioContactBullets(ctx),
+  });
+
+  return normalizeReferenceSlides(slides);
+}
+
+function buildProposalReferenceDeck(ctx) {
+  const userName = ctx.userName || '지원자';
+  const cleanLine = (s) => stripPlaceholder(s).split(/\s*(?:[-–—]\s|[(※[])/)[0].trim();
+  const target = [cleanLine(ctx.portfolio?.targetCompany), cleanLine(ctx.portfolio?.targetPosition)].filter(Boolean).join(' · ')
+    || cleanLine(ctx.portfolio?.headline) || cleanLine(ctx.target);
+  const targetPosition = cleanLine(ctx.portfolio?.targetPosition) || '';
+
+  const education = portfolioEducationItems(ctx);
+  const awards = portfolioAwardItems(ctx);
+  const goals = portfolioGoalItems(ctx);
+  const skillGroups = portfolioSkillGroups(ctx);
+  const projects = ctx.expItems.slice(0, 5);
+  const fs = (v, fb = '') => firstSentence(v || '') || fb;
+
+  const allMetrics = ctx.expItems.flatMap(e => e.metrics || []).filter(m => m.label || m.value);
+  const firstMetric = allMetrics[0] || null;
+  const metricDisplay = (m) => m ? (m.before && m.after ? `${m.before} → ${m.after}` : (m.value || '성과')) : '성과 달성';
+  const allBullets = ctx.expItems.flatMap(e => e.bullets || []).filter(Boolean);
+  const strengths = ctx.strengths;
+  const primary = projects[0] || {};
+
+  const slides = [];
+
+  // Cover
+  slides.push({
+    layout: 'cover',
+    sectionLabel: 'INTRO',
+    title: target ? `${target} 지원 포트폴리오` : `${userName} 포트폴리오`,
+    subtitle: `${userName}이(가) 직접 정리한 경험 기반 자료입니다`,
+    bullets: ['EXPERIENCE', 'PERFORMANCE', 'FIT'],
+  });
+
+  // 목차
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '목차',
+    proposalVariant: 'contents',
+    title: '목차',
+    items: [
+      { heading: '01  지원자 소개', role: 'Introduction', body: `${userName}의 역량과 성장 흐름` },
+      { heading: '02  핵심 경험', role: 'Key Experience', body: `${projects.length || 1}건의 대표 경험과 성과 증거` },
+      { heading: '03  직무 적합성', role: 'Job Fit', body: targetPosition ? `${targetPosition} 요구와 연결되는 강점` : '지원 직무와 연결되는 강점' },
+      { heading: '04  성장 계획', role: 'Growth Plan', body: '입사 후 기여 방향과 단계별 실행 계획' },
+    ],
+  });
+
+  // ─── Chapter 1: 지원자 소개
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '지원자 소개',
+    proposalVariant: 'threeCards',
+    title: `${userName}을(를) 한 문장으로 설명하면 이렇습니다`,
+    subtitle: '지원 직무에서 가장 필요한 역량을 실제 경험으로 보여드립니다',
+    items: [
+      {
+        heading: primary.role || (strengths[0] ? strengths[0].split('·')[0].trim() : '실행력'),
+        body: fs(primary.body || primary.bullets?.[0]) || '문제를 직접 찾아 구조화하고 해결하는 방식으로 일해왔습니다',
+      },
+      {
+        heading: projectName(projects[1]?.heading) || projects[1]?.heading || (strengths[1] ? strengths[1].split('·')[0].trim() : '협업과 소통'),
+        body: fs(projects[1]?.body || projects[1]?.bullets?.[0]) || '팀 안에서 구체적인 역할을 맡아 함께 성과를 만들었습니다',
+      },
+      {
+        heading: firstMetric?.label || skillGroups[0]?.heading || '성장 지향',
+        body: firstMetric
+          ? `${metricDisplay(firstMetric)}의 성과를 경험했습니다`
+          : (skillGroups[0]?.heading || '경험을 통해 지속적으로 배우고 성장합니다'),
+      },
+    ],
+  });
+
+  if (projects.length) {
+    slides.push({
+      layout: 'proposal',
+      sectionLabel: '지원자 소개',
+      proposalVariant: 'timeline',
+      title: `${userName}의 경험이 이어져 온 흐름입니다`,
+      subtitle: '주요 경험이 어떻게 쌓이고 성장해왔는지 시간 순서로 보여드립니다',
+      items: projects.map(e => ({
+        heading: projectName(e.heading) || e.heading,
+        period: e.period || e.role,
+        body: fs(e.body || e.bullets?.[0]) || '',
+      })),
+    });
+  }
+
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '지원자 소개',
+    proposalVariant: 'darkStats',
+    dark: true,
+    title: `${userName}의 경험이 만든 성과입니다`,
+    subtitle: '수행한 경험에서 직접 확인된 수치와 역할을 핵심 지표로 제시합니다',
+    metrics: [
+      { label: '수행 경험 수', value: `${projects.length || 1}건` },
+      ...(allMetrics.slice(0, 2).map(m => ({ label: m.label || '성과 지표', value: metricDisplay(m) }))),
+      { label: '핵심 역량 키워드', value: `${skillGroups.length || strengths.length || 3}+` },
+    ].slice(0, 4),
+  });
+
+  if (education.length || awards.length) {
+    slides.push({
+      layout: 'proposal',
+      sectionLabel: '지원자 소개',
+      proposalVariant: 'conditionGrid',
+      title: `${userName}의 학력과 주요 성과입니다`,
+      subtitle: '기반 지식과 인증된 성과를 함께 확인합니다',
+      items: [...education.slice(0, 2), ...awards.slice(0, 2)].slice(0, 4),
+    });
+  }
+
+  if (skillGroups.length) {
+    slides.push({
+      layout: 'proposal',
+      sectionLabel: '지원자 소개',
+      proposalVariant: 'conditionGrid',
+      title: '보유 기술 역량입니다',
+      subtitle: '직무에서 즉시 활용 가능한 기술과 도구를 정리했습니다',
+      items: skillGroups.slice(0, 4),
+    });
+  }
+
+  // ─── Chapter 2: 핵심 경험
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '핵심 경험',
+    proposalVariant: projects.length ? 'splitPhotoList' : 'threeCards',
+    title: projects.length ? `${userName}의 대표 경험을 소개합니다` : '지원 직무와 연결되는 경험을 소개합니다',
+    subtitle: projects.length
+      ? '직무와 연결되는 경험을 역할·성과 중심으로 정리했습니다'
+      : '경험 정리 내용이 등록되면 이 슬라이드에 자동으로 구성됩니다',
+    items: projects.length
+      ? projects.slice(0, 3).map(e => ({
+          heading: projectName(e.heading) || e.heading,
+          role: e.role || e.period,
+          body: fs(e.body || e.bullets?.[0]) || '',
+        }))
+      : [
+          { heading: '상황과 문제', body: '어떤 맥락에서 어떤 문제를 마주했는지 설명합니다' },
+          { heading: '실행한 방법', body: '구체적으로 어떻게 접근하고 행동했는지 보여줍니다' },
+          { heading: '결과와 배움', body: '어떤 성과가 나왔고 무엇을 배웠는지 정리합니다' },
+        ],
+  });
+
+  projects.forEach((e) => {
+    const pname = projectName(e.heading) || e.heading;
+    const problemText = fs(e.problem?.[0] || e.body) || '해결이 필요한 문제를 정의하고 맥락을 파악했습니다';
+    const actionText = fs(e.action?.[0] || e.bullets?.[1] || e.bullets?.[0]) || '구체적인 방법으로 문제에 접근하고 실행했습니다';
+    const resultText = fs(e.result?.[0]) || (e.metrics?.[0] ? `${e.metrics[0].label}: ${metricDisplay(e.metrics[0])}` : fs(e.bullets?.[2])) || '수행 결과와 그 과정에서 얻은 배움을 정리했습니다';
+    const detailItems = [
+      { heading: '상황과 문제', body: problemText },
+      { heading: '실행한 방법', body: actionText },
+      { heading: '결과와 성과', body: resultText },
+    ];
+    if (e.metrics?.[0]) {
+      detailItems.push({ heading: '핵심 지표', body: `${e.metrics[0].label || '성과'}: ${metricDisplay(e.metrics[0])}` });
+    }
+    slides.push({
+      layout: 'proposal',
+      sectionLabel: '핵심 경험',
+      proposalVariant: 'stairSteps',
+      title: `${pname}에서 보여준 과정입니다`,
+      subtitle: [e.role, e.period].filter(Boolean).join(' · ') || pname,
+      items: detailItems.slice(0, 4),
+    });
+  });
+
+  // ─── Chapter 3: 직무 적합성
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '직무 적합성',
+    proposalVariant: 'venn',
+    title: '제 강점과 직무 요구가 만나는 지점입니다',
+    subtitle: '보유 역량과 지원 직무의 요구사항이 겹치는 핵심 포인트를 설명합니다',
+    items: [
+      {
+        heading: `${userName}의 강점`,
+        body: primary.role ? `${primary.role} 역할 기반의 실행 경험` : (strengths[0] || '문제 해결 중심의 실행 경험'),
+      },
+      {
+        heading: targetPosition ? `${targetPosition} 요구` : '직무 요구',
+        body: target ? `${target}에서 필요로 하는 역량과 역할` : '지원 직무에서 필요로 하는 역량과 역할',
+      },
+      {
+        heading: '연결 포인트',
+        body: firstMetric
+          ? `${firstMetric.label} 기반 성과 증명 (${metricDisplay(firstMetric)})`
+          : (fs(primary.bullets?.[0] || allBullets[0]) || '경험에서 검증된 역량이 직무 요구와 일치합니다'),
+      },
+    ],
+  });
+
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '직무 적합성',
+    proposalVariant: 'metricBars',
+    title: '경험에서 반복 확인된 직무 연결 역량입니다',
+    subtitle: '실제 수행 과정에서 검증된 역량과 지원 직무 요구사항의 연결점입니다',
+    bullets: allBullets.length >= 4
+      ? allBullets.slice(0, 5)
+      : [...allBullets, ...strengths.filter(s => !allBullets.includes(s))].slice(0, 5),
+  });
+
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '직무 적합성',
+    proposalVariant: 'conditionGrid',
+    title: `${targetPosition || target || '지원 직무'}에서 기여할 수 있는 가치입니다`,
+    subtitle: '경험에서 확인된 역량을 실제 직무 기여 방식으로 연결합니다',
+    items: [
+      {
+        heading: projectName(primary.heading) || primary.heading || '대표 경험 적용',
+        body: fs(primary.body || primary.bullets?.[0]) || '핵심 경험에서 쌓은 실행력을 즉시 적용합니다',
+      },
+      {
+        heading: projectName(projects[1]?.heading) || projects[1]?.heading || '협업 경험',
+        body: fs(projects[1]?.body || projects[1]?.bullets?.[0]) || '팀 안에서 역할을 명확히 하며 협업합니다',
+      },
+      {
+        heading: firstMetric?.label || '성과 창출',
+        body: firstMetric
+          ? `${metricDisplay(firstMetric)}의 성과를 만들어온 방식으로 기여합니다`
+          : '측정 가능한 목표를 설정하고 결과로 증명합니다',
+      },
+      {
+        heading: strengths[0] ? strengths[0].split('·')[0].trim() : '지속 성장',
+        body: fs(strengths[1]) || '경험에서 배운 것을 다음 과제에 적용하며 성장합니다',
+      },
+    ],
+  });
+
+  // ─── Chapter 4: 성장 계획
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '성장 계획',
+    proposalVariant: 'gantt',
+    title: '입사 후 단계별 기여 계획입니다',
+    subtitle: '경험을 바탕으로 빠르게 적응하고 실질적인 기여를 만들어 나가겠습니다',
+    items: [
+      { heading: '업무 이해 및 적응', role: '1~2주', body: '팀 문화와 업무 방식을 파악하고 즉시 활용 가능한 역량을 연결합니다' },
+      {
+        heading: '초기 기여 시작', role: '3~4주',
+        body: primary.heading
+          ? `${projectName(primary.heading) || primary.heading} 경험을 기반으로 실무에 기여를 시작합니다`
+          : '가장 자신 있는 영역부터 구체적인 기여를 시작합니다',
+      },
+      {
+        heading: '핵심 역할 수행', role: '2~3개월',
+        body: firstMetric
+          ? `${firstMetric.label} 수준의 성과를 목표로 핵심 과제를 수행합니다`
+          : '팀의 핵심 과제에 온전히 기여하며 성과를 만들어냅니다',
+      },
+      { heading: '성과 검토 및 확장', role: '3개월 이후', body: '초기 성과를 점검하고 다음 단계의 기여 영역을 확장합니다' },
+    ],
+  });
+
+  if (goals.length) {
+    slides.push({
+      layout: 'proposal',
+      sectionLabel: '성장 계획',
+      proposalVariant: 'stageCards',
+      title: '경험에서 이어지는 성장 목표입니다',
+      subtitle: '입사 후 단계적으로 실현해 나갈 방향을 정리했습니다',
+      items: goals.slice(0, 4),
+    });
+  }
+
+  slides.push({
+    layout: 'proposal',
+    sectionLabel: '성장 계획',
+    proposalVariant: 'promise',
+    title: '이 경험을 바탕으로 확실히 기여하겠습니다',
+    subtitle: '검증된 실행력과 성장 의지로 지속 가능한 성과를 만들어가겠습니다',
+    bullets: [
+      `${projectName(primary.heading) || primary.heading || '핵심 경험'}에서 확인한 실행 방식을 즉시 적용하겠습니다`,
+      firstMetric
+        ? `${firstMetric.label} 수준의 성과를 목표 기준으로 삼겠습니다`
+        : '측정 가능한 목표를 설정하고 결과로 증명하겠습니다',
+      strengths[0] || '팀과 함께 빠르게 적응하며 역할을 확장하겠습니다',
+    ],
+  });
+
+  // 마무리
+  slides.push({
+    layout: 'closing',
+    proposalVariant: 'closing',
+    dark: true,
+    sectionLabel: '마무리',
+    title: 'Thank You',
+    subtitle: target
+      ? `${userName}이(가) ${target}에 기여하겠습니다.`
+      : `${userName}이(가) 귀사에 기여하겠습니다.`,
     bullets: portfolioContactBullets(ctx),
   });
 

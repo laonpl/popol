@@ -45,9 +45,9 @@ router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, re
     const deck = await mapDeck({ portfolio, layout });
     const buf = await renderDeckInPlace(deck, req.file.buffer);
 
-    // Return JSON with preview data + base64 PPTX for client-side download
-    // 실제 출력 PPT 는 원본 템플릿의 sample 사진(<p:pic>)을 제거하므로
-    // 미리보기에서도 pics 는 빈 배열로 전달해 일치시킨다.
+    // 미리보기와 실제 PPTX 출력이 일치하도록:
+    // - placeholder pics(<p:ph>)는 renderer가 이미 제거 → 미리보기도 제외
+    // - 디자인 이미지(non-placeholder)는 PPTX에 보존되므로 미리보기에도 전달
     res.json({
       pptxBase64: buf.toString('base64'),
       deck,
@@ -56,7 +56,7 @@ router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, re
         index: s.index,
         bg: s.bg,
         decor: s.decor,
-        pics: [],
+        pics: (s.pics || []),   // 디자인 이미지 전달 (placeholder는 renderer에서 제거됨)
       })),
     });
   } catch (error) {

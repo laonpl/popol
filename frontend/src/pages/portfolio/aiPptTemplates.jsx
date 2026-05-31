@@ -424,6 +424,19 @@ function textClamp(lines = 2) {
   };
 }
 
+// HTML 미리보기용 fit-font: 박스(wPx×hPx)에 text 가 들어가는 px 폰트를 계산.
+// PPTX의 fitFontSizePt와 동일 원리 — 한글 전각폭(≈fontPx)으로 보수적 계산해 미리보기와 PPT를 일치시킨다.
+function fitFontPx(text, wPx, hPx, basePx, minPx = 8, lineHeight = 1.4) {
+  const str = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!str) return basePx;
+  for (let size = basePx; size >= minPx; size -= 0.5) {
+    const charsPerLine = Math.max(1, Math.floor(wPx / size));
+    const lines = Math.ceil(str.length / charsPerLine);
+    if (lines * size * lineHeight <= hPx) return size;
+  }
+  return minPx;
+}
+
 function fitText(lines = 2) {
   return { ...textClamp(lines), lineHeight: 1.35 };
 }
@@ -1662,8 +1675,8 @@ function renderNarrativeProject(slide, t, v) {
       <div style={{ position: 'absolute', top: 0, bottom: 0, left: '36%', right: 0, background: '#FFFFFF' }} />
       <div style={{ position: 'absolute', left: 40, top: 60, width: '28%' }}>
         <div style={{ color: acc, fontSize: 11, letterSpacing: '0.22em', fontWeight: 850 }}>{slide.sectionLabel?.toUpperCase()}</div>
-        <div style={{ marginTop: 14, fontSize: dynamicFontPx(slide.title || '', 42, { min: 20, max: 42 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.12, ...textClamp(7) }}>{slide.title}</div>
-        <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div>
+        <div style={{ marginTop: 14, fontSize: dynamicFontPx(slide.title || '', 42, { min: 20, max: 42 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.12, ...textClamp(5) }}>{slide.title}</div>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(6) }}>{slide.subtitle}</div>
       </div>
       <div style={{ position: 'absolute', left: '40%', top: 52, right: 52, bottom: 52 }}>
         {details.map((d, i) => <div key={i} style={{ marginBottom: 18 }}>
@@ -1694,18 +1707,18 @@ function renderNarrativeChallenge(slide, t, v) {
       <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
-    <div style={{ position: 'absolute', left: 60, top: 188, width: 360 }}>
+    <div style={{ position: 'absolute', left: 60, top: 188, bottom: 24, width: 360, overflow: 'hidden' }}>
       {narrLabel('THE PROBLEM', v)}
       {problems.map((p, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{ fontSize: 15, marginTop: 1 }}>{'🕐📄🤖'[i] || '•'}</div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155', ...textClamp(5) }}>{p.body}</div>
+        <div style={{ fontSize: 15, marginTop: 1, flexShrink: 0 }}>{'🕐📄🤖'[i] || '•'}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155', ...textClamp(4) }}>{p.body}</div>
       </div>)}
     </div>
-    <div style={{ position: 'absolute', right: 60, top: 188, width: 300, borderLeft: `2px solid ${acc}`, paddingLeft: 20 }}>
+    <div style={{ position: 'absolute', right: 60, top: 188, bottom: 24, width: 300, borderLeft: `2px solid ${acc}`, paddingLeft: 20, overflow: 'hidden' }}>
       {narrLabel('CORE TASKS', v)}
       {actions.map((a, i) => <div key={i} style={{ marginTop: 10, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
         <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
-        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(5) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(4) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
         {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B', ...textClamp(1) }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
@@ -1737,21 +1750,22 @@ function renderNarrativeArchitecture(slide, t, v) {
 
 function renderNarrativeResults(slide, t, v) {
   const acc = narrAccent(v);
-  const deliverables = (slide.items || []).slice(0, 4);
-  // bullets 필드를 GROWTH POINTS 전용으로 사용 (items[4:7] slice 방식 폐기 — sanitize 오버필터 문제)
+  // slice(0,3): 4개×5줄 = 427px > 여유 350px(top:190→bottom:20) → 잘림. 3개로 줄여 안전 확보.
+  const deliverables = (slide.items || []).slice(0, 3);
   const growth = (slide.bullets || []).slice(0, 3);
+  // 각 항목 최대 높이: textClamp(4) × 18.125px × 3항목 + 레이블 ≈ 273px ≤ 330px(여유공간)
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
       <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
-    <div style={{ position: 'absolute', left: 60, top: 190, width: 360 }}>
+    <div style={{ position: 'absolute', left: 60, top: 185, bottom: 24, width: 360, overflow: 'hidden' }}>
       {narrLabel('KEY DELIVERABLES', v)}
-      {deliverables.map((d, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1 }}>✓</div><div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.45, color: '#0F172A', ...textClamp(5) }}>{d.heading}</div></div>)}
+      {deliverables.map((d, i) => { const fs = fitFontPx(d.heading || '', 330, 92, 12.5, 8); return <div key={i} style={{ marginTop: 10, display: 'flex', gap: 10 }}><div style={{ color: acc, fontSize: 15, marginTop: 1, flexShrink: 0 }}>✓</div><div style={{ fontSize: fs, fontWeight: 800, lineHeight: 1.4, color: '#0F172A', ...textClamp(6) }}>{d.heading}</div></div>; })}
     </div>
-    <div style={{ position: 'absolute', right: 60, top: 190, width: 310, background: '#0F172A', borderRadius: 8, padding: '20px 22px' }}>
-      <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850 }}>GROWTH POINTS</div>
-      {growth.map((g, i) => <div key={i} style={{ marginTop: 11, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2 }}>→</div><div style={{ fontSize: 12, color: '#E2E8F0', lineHeight: 1.45, ...textClamp(5) }}>{typeof g === 'string' ? g : g.heading}</div></div>)}
+    <div style={{ position: 'absolute', right: 60, top: 190, bottom: 24, width: 310, background: '#0F172A', borderRadius: 8, padding: '18px 22px', overflow: 'hidden' }}>
+      <div style={{ color: '#94A3B8', fontSize: 11, letterSpacing: '0.18em', fontWeight: 850, flexShrink: 0 }}>GROWTH POINTS</div>
+      {growth.map((g, i) => { const gText = typeof g === 'string' ? g : g.heading; const fs = fitFontPx(gText || '', 245, 88, 12, 8); return <div key={i} style={{ marginTop: 11, display: 'flex', gap: 8 }}><div style={{ color: acc, fontSize: 13, marginTop: 2, flexShrink: 0 }}>→</div><div style={{ fontSize: fs, color: '#E2E8F0', lineHeight: 1.45, ...textClamp(6) }}>{gText}</div></div>; })}
     </div>
   </>);
 }
@@ -1781,17 +1795,17 @@ function renderNarrativeAwards(slide, t, v) {
 
 function renderNarrativeTimeline(slide, t, v) {
   const acc = narrAccent(v);
-  const items = (slide.items || []).slice(0, 5);
+  const items = (slide.items || []).slice(0, 4); // 4개까지: 5개는 288px 용량 초과(329px)
   return narrShell(<>
     <div style={{ position: 'absolute', left: 60, top: 52, right: 60 }}>
       <div style={{ fontSize: dynamicFontPx(slide.title || '', 30, { min: 17, max: 34 }), fontWeight: 950, lineHeight: 1.18, ...textClamp(3) }}>{slide.title}</div>
       {narrRule(v)}
     </div>
-    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, bottom: 64 }}>
-      {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+    <div style={{ position: 'absolute', left: 60, right: 60, top: 188, bottom: 64, overflow: 'hidden' }}>
+      {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
         <div style={{ width: 70, flexShrink: 0, color: acc, fontSize: 15, fontWeight: 950, paddingTop: 2 }}>{item.period || `202${1+i}`}</div>
-        <div style={{ width: 4, flexShrink: 0, background: acc, borderRadius: 2, alignSelf: 'stretch', minHeight: 40 }} />
-        <div><div style={{ fontSize: 14, fontWeight: 900, color: '#0F172A' }}>{item.heading}</div><div style={{ marginTop: 4, fontSize: 12.5, color: '#64748B', ...textClamp(2) }}>{item.body}</div></div>
+        <div style={{ width: 4, flexShrink: 0, background: acc, borderRadius: 2, alignSelf: 'stretch', minHeight: 36 }} />
+        <div><div style={{ fontSize: 13.5, fontWeight: 900, color: '#0F172A' }}>{item.heading}</div><div style={{ marginTop: 3, fontSize: 12, color: '#64748B', ...textClamp(2) }}>{item.body}</div></div>
       </div>)}
     </div>
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '12px 60px', display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ fontSize: 15 }}>🚀</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div>
@@ -5881,7 +5895,7 @@ function drawNarrativePhilosophyPptx(s, slide, t, v, W, H) {
     s.addShape('rect', { x, y: 2.05, w: 3.65, h: 0.04, fill: { color: acc }, line: { color: acc } });
     addPptText(s, icons[idx], { x: x + 0.25, y: 2.35, w: 0.6, h: 0.5, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: acc });
     addPptText(s, (item.heading || '').toUpperCase(), { x: x + 0.25, y: 3.05, w: 3.2, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.ink), charSpacing: 0.8 });
-    addPptText(s, safePptText(item.body || ''), { x: x + 0.25, y: 3.42, w: 3.15, h: 1.55, fontFace: t.fonts.body, fontSize: 9, color: '334155', fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: x + 0.25, y: 3.42, w: 3.15, h: 1.55, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(item.body || ''), 3.15, 1.5, 9, 7), color: '334155', valign: 'top', wrap: true, fit: null });
   });
   s.addShape('rect', { x: 0, y: H - 0.82, w: W, h: 0.82, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, pptFooterText(slide, 'NARRATIVE'), { x: 0.8, y: H - 0.68, w: W - 1.6, h: 0.48, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'E2E8F0', fit: 'shrink' });
@@ -5939,14 +5953,14 @@ function drawNarrativeProjectPptx(s, slide, t, v, W, H) {
   s.addShape('rect', { x: W * 0.38, y: 0, w: W * 0.62, h: H, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } });
   addPptText(s, safePptText((slide.sectionLabel || '').toUpperCase()), { x: 0.5, y: 0.75, w: W * 0.3, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: acc, charSpacing: 2 });
   addPptText(s, safePptText(slide.title || ''), { x: 0.5, y: 1.2, w: W * 0.3, h: 2.5, fontFace: t.fonts.heading, fontSize: 32, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.5, y: 3.85, w: W * 0.3, h: 0.75, fontFace: t.fonts.body, fontSize: 9, color: '94A3B8', fit: 'shrink' });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.5, y: 3.85, w: W * 0.3, h: 2.2, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(slide.subtitle || ''), W * 0.3, 2.1, 9, 6.5), color: '94A3B8', valign: 'top', wrap: true, fit: null });
   const details = (slide.items || []).slice(0, 3);
   const startX = W * 0.4 + 0.2;
   details.forEach((d, idx) => {
     const y = 0.65 + idx * 1.35;
     narrPptLabel(s, d.heading || '', t, acc, startX, y);
     s.addShape('rect', { x: startX, y: y + 0.22, w: W * 0.55, h: 0.012, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } });
-    addPptText(s, safePptText(d.body || ''), { x: startX, y: y + 0.38, w: W * 0.55, h: 0.65, fontFace: t.fonts.body, fontSize: 9.5, color: idx === 0 ? '334155' : hex(v.ink), bold: idx > 0, fit: 'shrink' });
+    addPptText(s, safePptText(d.body || ''), { x: startX, y: y + 0.38, w: W * 0.55, h: 0.85, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(d.body || ''), W * 0.55, 0.82, 9.5, 7), color: idx === 0 ? '334155' : hex(v.ink), bold: idx > 0, valign: 'top', wrap: true, fit: null });
   });
   narrPptLabel(s, 'TECH STACK', t, acc, startX, 4.6);
   s.addShape('rect', { x: startX, y: 4.82, w: W * 0.55, h: 0.012, fill: { color: 'E2E8F0' }, line: { color: 'E2E8F0' } });
@@ -5969,7 +5983,7 @@ function drawNarrativeChallengePptx(s, slide, t, v, W, H) {
   const actions = all.filter(it => it.heading?.startsWith('Action') || it.heading?.startsWith('Solution'));
   narrPptLabel(s, 'THE PROBLEM', t, acc, 0.8, 1.88);
   problems.forEach((p, idx) => {
-    addPptText(s, safePptText(p.body || ''), { x: 1.05, y: 2.18 + idx * 1.45, w: 4.6, h: 1.3, fontFace: t.fonts.body, fontSize: 10, color: '334155', valign: 'top', fit: 'shrink' });
+    addPptText(s, safePptText(p.body || ''), { x: 1.05, y: 2.18 + idx * 1.45, w: 4.6, h: 1.3, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(p.body || ''), 4.6, 1.28, 10, 7), color: '334155', valign: 'top', wrap: true, fit: null });
   });
   s.addShape('rect', { x: 5.85, y: 1.82, w: 0.03, h: 4.8, fill: { color: acc }, line: { color: acc } });
   narrPptLabel(s, 'CORE TASKS', t, acc, 6.1, 1.88);
@@ -5978,7 +5992,7 @@ function drawNarrativeChallengePptx(s, slide, t, v, W, H) {
     s.addShape('rect', { x: 6.1, y, w: 5.5, h: 1.35, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
     addPptText(s, String(idx+1).padStart(2,'0'), { x: 6.28, y: y + 0.12, w: 0.42, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: acc });
     const parts = (a.body || '').split('→');
-    addPptText(s, safePptText(parts[0] || ''), { x: 6.28, y: y + 0.4, w: 5.15, h: 0.85, fontFace: t.fonts.heading, fontSize: 9.5, bold: true, color: hex(v.ink), valign: 'top', fit: 'shrink' });
+    addPptText(s, safePptText(parts[0] || ''), { x: 6.28, y: y + 0.4, w: 5.15, h: 0.9, fontFace: t.fonts.heading, fontSize: fitFontSizePt(safePptText(parts[0] || ''), 5.15, 0.88, 9.5, 7), bold: true, color: hex(v.ink), valign: 'top', wrap: true, fit: null });
     if (parts[1]) addPptText(s, '→ ' + parts[1].trim(), { x: 6.28, y: y + 1.0, w: 5.15, h: 0.3, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
   });
 }
@@ -6013,19 +6027,19 @@ function drawNarrativeResultsPptx(s, slide, t, v, W, H) {
   narrPptBase(s, W, H);
   addPptText(s, safePptText(slide.title || ''), { x: 0.8, y: 0.65, w: W - 1.6, h: 0.75, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.ink), fit: 'shrink' });
   narrPptRule(s, acc, 0.8, 1.52);
-  const deliverables = (slide.items || []).slice(0, 4);
+  const deliverables = (slide.items || []).slice(0, 3);
   const growth = (slide.bullets || []).slice(0, 3);
   narrPptLabel(s, 'KEY DELIVERABLES', t, acc, 0.8, 1.85);
   deliverables.forEach((d, idx) => {
-    addPptText(s, '✓', { x: 0.8, y: 2.2 + idx * 1.12, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
-    addPptText(s, safePptText(d.heading || ''), { x: 1.2, y: 2.2 + idx * 1.12, w: 5.0, h: 1.0, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: hex(v.ink), valign: 'top', fit: 'shrink' });
+    addPptText(s, '✓', { x: 0.8, y: 2.2 + idx * 1.65, w: 0.28, h: 0.28, fontFace: t.fonts.body, fontSize: 11, bold: true, color: acc });
+    addPptText(s, safePptText(d.heading || ''), { x: 1.2, y: 2.2 + idx * 1.65, w: 5.0, h: 1.5, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(d.heading || ''), 5.0, 1.45, 9.5, 7), bold: true, color: hex(v.ink), valign: 'top', wrap: true, fit: null });
   });
-  s.addShape('rect', { x: 6.6, y: 1.82, w: 5.0, h: 4.8, fill: { color: '0F172A' }, line: { color: '0F172A' } });
+  s.addShape('rect', { x: 6.6, y: 1.82, w: 5.0, h: 5.35, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, 'GROWTH POINTS', { x: 6.85, y: 2.05, w: 4.2, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: '94A3B8', charSpacing: 2 });
   growth.forEach((g, idx) => {
     const gText = typeof g === 'string' ? g : (g.heading || '');
-    addPptText(s, '→', { x: 6.85, y: 2.5 + idx * 1.4, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc });
-    addPptText(s, safePptText(gText), { x: 7.28, y: 2.5 + idx * 1.4, w: 4.1, h: 1.15, fontFace: t.fonts.body, fontSize: 9, color: 'E2E8F0', valign: 'top', fit: 'shrink' });
+    addPptText(s, '→', { x: 6.85, y: 2.55 + idx * 1.58, w: 0.3, h: 0.28, fontFace: t.fonts.body, fontSize: 12, bold: true, color: acc, flexShrink: 0 });
+    addPptText(s, safePptText(gText), { x: 7.28, y: 2.55 + idx * 1.58, w: 4.1, h: 1.4, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(gText), 4.1, 1.38, 9, 6.5), color: 'E2E8F0', valign: 'top', wrap: true, fit: null });
   });
 }
 
@@ -6044,14 +6058,14 @@ function drawNarrativeAwardsPptx(s, slide, t, v, W, H) {
     s.addShape('rect', { x: 0.8, y, w: 5.5, h: 1.18, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
     s.addShape('rect', { x: 0.8, y, w: 0.04, h: 1.18, fill: { color: acc }, line: { color: acc } });
     addPptText(s, safePptText(a.heading || ''), { x: 1.08, y: y + 0.2, w: 4.95, h: 0.32, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(a.body || ''), { x: 1.08, y: y + 0.58, w: 4.95, h: 0.45, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+    addPptText(s, safePptText(a.body || ''), { x: 1.08, y: y + 0.58, w: 4.95, h: 0.45, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(a.body || ''), 4.95, 0.43, 9, 7), color: hex(v.muted), valign: 'top', wrap: true, fit: null });
   });
   narrPptLabel(s, 'LANGUAGE', t, acc, 6.7, 1.72);
   if (lang) {
     s.addShape('rect', { x: 6.7, y: 2.05, w: 4.9, h: 2.5, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0' } });
     s.addShape('rect', { x: 6.7, y: 2.05, w: 0.04, h: 2.5, fill: { color: acc }, line: { color: acc } });
     addPptText(s, safePptText(lang.heading || ''), { x: 6.98, y: 2.28, w: 4.3, h: 0.32, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(lang.body || ''), { x: 6.98, y: 2.76, w: 4.3, h: 1.5, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+    addPptText(s, safePptText(lang.body || ''), { x: 6.98, y: 2.76, w: 4.3, h: 1.5, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(lang.body || ''), 4.3, 1.45, 9, 7), color: hex(v.muted), valign: 'top', wrap: true, fit: null });
   }
 }
 
@@ -6062,11 +6076,11 @@ function drawNarrativeTimelinePptx(s, slide, t, v, W, H) {
   narrPptRule(s, acc, 0.8, 1.52);
   const items = (slide.items || []).slice(0, 5);
   items.forEach((item, idx) => {
-    const y = 1.85 + idx * 0.9;
+    const y = 1.85 + idx * 1.0;
     addPptText(s, safePptText(item.period || `202${1+idx}`), { x: 0.8, y, w: 1.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: acc, fit: 'shrink' });
-    s.addShape('rect', { x: 1.98, y, w: 0.05, h: 0.62, fill: { color: acc }, line: { color: acc } });
+    s.addShape('rect', { x: 1.98, y, w: 0.05, h: 0.72, fill: { color: acc }, line: { color: acc } });
     addPptText(s, safePptText(item.heading || ''), { x: 2.2, y, w: 9.2, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(item.body || ''), { x: 2.2, y: y + 0.32, w: 9.2, h: 0.28, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: 2.2, y: y + 0.32, w: 9.2, h: 0.6, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(item.body || ''), 9.2, 0.58, 9, 6.5), color: hex(v.muted), valign: 'top', wrap: true, fit: null });
   });
   s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, pptFooterText(slide, 'IMPACT'), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: 'E2E8F0', fit: 'shrink' });
@@ -6130,11 +6144,11 @@ function drawNarrativeRoadmapPptx(s, slide, t, v, W, H) {
     const y = 1.88 + idx * 1.0;
     s.addShape('rect', { x: 0.8, y, w: 0.04, h: 0.72, fill: { color: acc }, line: { color: acc } });
     addPptText(s, (item.period || item.role || ['SHORT-TERM', 'MID-TERM', 'LONG-TERM'][idx]).toUpperCase(), { x: 1.1, y, w: 1.4, h: 0.22, fontFace: t.fonts.body, fontSize: 8.2, bold: true, color: acc, charSpacing: 1 });
-    addPptText(s, safePptText(item.body || ''), { x: 2.75, y, w: 8.8, h: 0.58, fontFace: t.fonts.body, fontSize: 11, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: 2.75, y, w: 8.8, h: 0.58, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(item.body || ''), 8.8, 0.56, 11, 7), color: hex(v.ink), valign: 'top', wrap: true, fit: null });
   });
   if (slide.subtitle) {
     s.addShape('rect', { x: 0.8, y: 5.1, w: W - 1.6, h: 1.6, fill: { color: '0F172A' }, line: { color: '0F172A' } });
-    addPptText(s, safePptText(slide.subtitle), { x: 1.1, y: 5.3, w: W - 2.2, h: 1.2, fontFace: t.fonts.body, fontSize: 11, italic: true, color: 'E2E8F0', fit: 'shrink', align: 'left' });
+    addPptText(s, safePptText(slide.subtitle), { x: 1.1, y: 5.3, w: W - 2.2, h: 1.2, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(slide.subtitle), W - 2.2, 1.15, 11, 7), italic: true, color: 'E2E8F0', align: 'left', valign: 'top', wrap: true, fit: null });
   }
 }
 
@@ -9005,11 +9019,14 @@ function addPptText(s, value, options = {}) {
       rectRadius,
     });
   }
-  s.addText(safePptText(value), {
-    ...textOptions,
-    fontFace: textOptions.fontFace || 'Pretendard',
-    fit: textOptions.fit || 'shrink',
-  });
+  // fit:null → shrink 지정 안 함(normAutofit XML 없음). PDF 변환기가 normAutofit 무시하는 문제 방지.
+  // fitFontSizePt 로 미리 계산한 fontSize 와 함께 쓰면 "계산된 폰트로 고정, 자동축소 없음" 이 보장됨.
+  const fitVal = Object.prototype.hasOwnProperty.call(textOptions, 'fit') && textOptions.fit === null
+    ? undefined
+    : (textOptions.fit || 'shrink');
+  const opts = { ...textOptions, fontFace: textOptions.fontFace || 'Pretendard' };
+  if (fitVal !== undefined) opts.fit = fitVal;
+  s.addText(safePptText(value), opts);
 }
 
 function pptTextOn(background, preferred = SAFE_TEXT_DARK, minimum = 4.5) {
@@ -9031,6 +9048,24 @@ function hex(s) {
 // =====================================================================
 // [Phase 2/3] PPTX 출력용 — 동적 폰트 + Auto-Y + experience layout
 // =====================================================================
+
+// 박스(wIn×hIn)에 text가 통째로 들어가는 실제 fontSize(pt)를 계산해 박는다.
+// Why: pptxgenjs의 fit:'shrink'(<a:normAutofit/>)는 폰트 배율을 "뷰어가" 계산한다.
+// LibreOffice 등 PDF 변환기는 이를 무시하고 원본 크기로 그려 박스를 넘는 줄을 잘라버린다
+// ("글이 나오다가 마는" 현상). autofit에 의존하지 말고 실제 크기를 XML에 박아 어떤 변환기에서도 안 잘리게 한다.
+// 한글은 글자폭 ≈ fontSize(전각)로 보수적으로 계산(영문은 더 좁아 실제론 더 잘 들어감).
+function fitFontSizePt(text, wIn, hIn, base = 10, min = 6, lineHeight = 1.22) {
+  const str = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!str) return base;
+  for (let size = base; size >= min; size -= 0.5) {
+    const charWIn = size / 72;                                   // 전각 1글자 폭
+    const charsPerLine = Math.max(1, Math.floor(wIn / charWIn));
+    const lines = Math.ceil(str.length / charsPerLine);
+    const neededH = (lines * size * lineHeight) / 72;
+    if (neededH <= hIn) return size;
+  }
+  return min;
+}
 
 // 텍스트 길이로 PPTX 폰트 크기(pt) 결정
 function dynamicFontPt(text, baseSize, { min = 10, max = 24 } = {}) {

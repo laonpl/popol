@@ -346,9 +346,11 @@ async function extractSlide(zip, slideFile, slideIndex, themeColors) {
       const meta = extractShape(node, counter++, themeColors, zIndex);
       meta.shapeId = `slide${slideIndex}_${meta.shapeId}`;
       if (meta.w <= 0 || meta.h <= 0) continue;
-      // 채움색이 있지만 실제 텍스트 run이 없는 txBody는 색상 배경 도형(decor).
-      // AI가 내용을 채울 수 있는 박스는: 텍스트가 이미 있거나 채움색이 없는 경우만.
-      if (meta.hasTxBody && (meta.hasText || !meta.fill)) {
+      // hasTxBody 이면 항상 textBoxes — fill 여부 무관.
+      // Why: 채움색이 있고 현재 텍스트 없는 박스도 사용자가 비워둔 '입력용 칸'이다.
+      // 이전 조건(hasTxBody && (hasText || !fill))은 filled-background 빈 칸을
+      // decor로 분류해 콘텐츠를 못 받는 버그가 있었음.
+      if (meta.hasTxBody) {
         textBoxes.push(meta);
       } else if (meta.fill || (meta.lineColor && meta.lineWidthPt > 0)) {
         decor.push(meta);
