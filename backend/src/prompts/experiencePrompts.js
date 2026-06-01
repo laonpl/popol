@@ -429,6 +429,61 @@ ${contentText}
 }
 
 // ============================================================
+// 시장/지표 리서치 — 최신 뉴스·지표·논문 검색 그라운딩 기반 추천
+// ============================================================
+export function buildMetricsResearchPrompt({ title = '', sections = {}, keywords = [], projectOverview = {}, jobCategory = 'common' } = {}) {
+  const sectionText = Object.entries(sections || {})
+    .filter(([, v]) => v && String(v).trim())
+    .map(([k, v]) => `[${k}] ${String(v).slice(0, 800)}`)
+    .join('\n');
+  const ov = projectOverview || {};
+  const overviewText = [ov.summary, ov.goal, ov.role, Array.isArray(ov.techStack) ? ov.techStack.join(', ') : '']
+    .filter(Boolean).join(' | ');
+  const today = new Date().toISOString().slice(0, 10);
+
+  return `당신은 Google·Amazon·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가이자 시장 리서처입니다.
+아래 프로젝트/경험을 분석하고, **Google 검색으로 최신(2025~2026년) 뉴스·산업 지표·학술 논문**을 조사해, 이 사람이 포트폴리오와 면접에서 **의사결정 근거로 쓸 수 있는 핵심 지표**를 추천하세요.
+
+${NO_HALLUCINATION_RULES}
+
+${MARKET_RESEARCH_RULES}
+
+[추가 지시]
+- 오늘 날짜: ${today}. 가능한 한 최근(최신 1~2년) 자료를 우선하세요.
+- 조사 대상: ① 해당 도메인/직무의 최신 뉴스·트렌드 ② 업계 벤치마크·시장 지표 ③ 관련 학술 논문·기술 리포트.
+- 추천 지표는 이 프로젝트 도메인과 "${jobCategory}" 직무에서 실제 의사결정에 쓰일 5~8개로, 막연하지 않고 구체적·측정 가능해야 합니다.
+- sourceNotes에는 검색으로 확인한 실제 출처만 남기세요(제목·발행처·URL·확인일·어떤 판단에 쓰는지). URL을 확신 못 하면 만들지 말고 "[검증 필요]".
+
+프로젝트 제목: ${title}
+프로젝트 개요: ${overviewText}
+직무: ${jobCategory}
+관련 키워드: ${(keywords || []).join(', ')}
+경험 내용:
+${sectionText}
+
+아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
+{
+  "marketOverview": "이 프로젝트/직무와 연결되는 최신 시장·사용자·업계 맥락 요약 (조사 기반, 비교 기준으로만)",
+  "decisionMetrics": [
+    {
+      "metric": "의사결정에 쓸 지표명",
+      "whyItMatters": "이 프로젝트/직무에서 왜 중요한지 (최신 트렌드 근거 연결)",
+      "recommendedProxy": "사용자가 확인하거나 계산할 수 있는 프록시/계산식",
+      "researchBasis": "근거가 된 뉴스/지표/논문 요약 (출처는 sourceNotes로 연결). 불확실 시 [검증 필요]",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "sourceNotes": [
+    { "title": "자료 제목 또는 [검증 필요]", "publisher": "발행처", "url": "실제 URL 또는 [검증 필요]", "checkedAt": "${today}", "usage": "어느 판단/지표에 사용했는지" }
+  ],
+  "portfolioAngles": ["포트폴리오에서 강조하면 좋은 최신 시장/기술 관점 2~4개"],
+  "limitations": "자료 부족 또는 검증이 필요한 항목"
+}
+
+사용자의 프로젝트 성과를 외부 수치로 둔갑시키지 마세요. 순수 JSON만 출력하세요.`;
+}
+
+// ============================================================
 // 경험 순간 추출 (extractMoments) — 이미 작은 prompt
 // ============================================================
 export function buildExtractMomentsPrompt(rawText, title) {

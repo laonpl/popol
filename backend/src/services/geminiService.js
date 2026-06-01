@@ -15,6 +15,7 @@ import {
   buildSingleKeyExperiencePrompt,
   buildMetaPrompt,
   buildRefineKeyExperiencePrompt,
+  buildMetricsResearchPrompt,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -293,6 +294,36 @@ export async function refineKeyExperience(currentExp, freeFormText) {
   
   console.log(`[RefineKeyExp] ✓ 보강 완료`);
   return refined;
+}
+
+/**
+ * 시장/지표 리서치 — Google 검색 그라운딩으로 최신 뉴스·지표·논문을 조사해
+ * 의사결정용 지표를 추천. marketResearch 형태로 정규화하여 반환.
+ */
+export async function researchMarketMetrics(context = {}) {
+  const prompt = buildMetricsResearchPrompt(context);
+  const text = await callProFirstWithSearch(prompt, 'Research-Metrics');
+  const parsed = parseJSON(text) || {};
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  return {
+    marketOverview: typeof parsed.marketOverview === 'string' ? parsed.marketOverview : '',
+    decisionMetrics: arr(parsed.decisionMetrics).map(m => ({
+      metric: m?.metric || '',
+      whyItMatters: m?.whyItMatters || '',
+      recommendedProxy: m?.recommendedProxy || '',
+      researchBasis: m?.researchBasis || '',
+      confidence: m?.confidence || 'medium',
+    })).filter(m => m.metric),
+    sourceNotes: arr(parsed.sourceNotes).map(s => ({
+      title: s?.title || '',
+      publisher: s?.publisher || '',
+      url: s?.url || '',
+      checkedAt: s?.checkedAt || new Date().toISOString().slice(0, 10),
+      usage: s?.usage || '',
+    })).filter(s => s.title || s.url),
+    portfolioAngles: arr(parsed.portfolioAngles).filter(Boolean),
+    limitations: typeof parsed.limitations === 'string' ? parsed.limitations : '',
+  };
 }
 
 /**

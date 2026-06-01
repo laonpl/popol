@@ -309,6 +309,95 @@ const KW_CATEGORY_STYLES = {
 };
 const KW_CATEGORY_ORDER = ['tech', 'soft', 'leadership', 'planning', 'default'];
 
+/* ── 역량 인사이트 카드 ──
+   본문 하이라이트(type=핵심/파생/성장 + 근거 문장 + keywords)를 근거 중심 카드로 표시.
+   숫자 게이지 없이 "어떤 역량이 어떻게 발휘됐고 무엇을 배웠는지"를 보여준다.
+   - 핵심/파생/성장 그룹은 하이라이트 문장이 근거. 성장 그룹은 비면 learning/growth 텍스트로 보강.
+   - top-level keywords(기술/JD)는 역량이 아니라 하단 "관련 키워드" 칩으로 분리. */
+function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], growthText = '' }) {
+  const TYPE_ORDER = ['core', 'derived', 'growth'];
+  const clean = (s) => stripMarkdown(String(s || '')).trim();
+  const isDraft = (s) => !clean(s) || String(s).trim().startsWith('[작성 필요]');
+
+  const cardsByType = { core: [], derived: [], growth: [] };
+  const seen = { core: new Set(), derived: new Set(), growth: new Set() };
+  const pushCard = (type, text, kws = []) => {
+    const body = clean(text);
+    if (!body) return;
+    const sig = body.replace(/\s+/g, ' ').toLowerCase();
+    if (seen[type].has(sig)) return;
+    seen[type].add(sig);
+    cardsByType[type].push({ body, keywords: (kws || []).map(clean).filter(Boolean) });
+  };
+
+  (highlights || []).forEach(h => {
+    const t = TYPE_ORDER.includes(h.type) ? h.type : 'core';
+    pushCard(t, h.text, h.keywords);
+  });
+
+  // 성장 관점 보강: 핵심경험 learning → 없으면 growth 섹션 문장
+  (keyExperiences || []).forEach(ke => { if (!isDraft(ke.learning)) pushCard('growth', ke.learning); });
+  if (cardsByType.growth.length === 0) splitSentences(growthText, 3).forEach(s => pushCard('growth', s));
+
+  const relatedKeywords = [...new Set((keywords || []).map(clean).filter(Boolean))];
+
+  const groups = TYPE_ORDER
+    .map(t => ({ type: t, label: highlightColors[t].label, desc: highlightColors[t].desc, color: highlightColors[t].underline, cards: cardsByType[t] }))
+    .filter(g => g.cards.length > 0);
+
+  if (groups.length === 0 && relatedKeywords.length === 0) return null;
+
+  return (
+    <div className="border border-surface-100 rounded-[8px] overflow-hidden mb-5">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
+        <span className="px-2.5 py-1 bg-bluewood-800 text-white rounded-md text-[13px] font-bold tracking-wide uppercase">능력치</span>
+        <span className="text-[14px] font-semibold text-bluewood-700">역량 인사이트</span>
+        <span className="text-[14px] text-bluewood-300 ml-1">— 이 경험에서 발휘한 역량과 배운 점</span>
+      </div>
+
+      {groups.length > 0 && (
+        <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+          {groups.map(g => (
+            <div key={g.type}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
+                <span className="text-[13px] font-bold text-bluewood-700">{g.label}</span>
+                <span className="text-[12px] text-bluewood-300">{g.cards.length}</span>
+              </div>
+              <p className="text-[12px] text-bluewood-300 mb-3 leading-snug">{g.desc}</p>
+              <div className="space-y-2.5">
+                {g.cards.map((c, i) => (
+                  <div key={i} className="rounded-[6px] bg-surface-50/70 border-l-[3px] px-3.5 py-2.5" style={{ borderColor: g.color }}>
+                    {c.keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {c.keywords.map((k, ki) => (
+                          <span key={ki} className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>{k}</span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[13px] text-bluewood-700 leading-[1.7]" style={{ wordBreak: 'keep-all' }}>{c.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {relatedKeywords.length > 0 && (
+        <div className="px-6 py-4 border-t border-surface-100 bg-surface-50/30">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400 mb-2">관련 키워드 · 기술 스택</p>
+          <div className="flex flex-wrap gap-1.5">
+            {relatedKeywords.map((k, i) => (
+              <span key={i} className="px-2.5 py-1 rounded-full text-[12px] font-medium bg-white border border-surface-200 text-bluewood-600">{k}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function pickSectionFields(obj) {
   const result = {};
   for (const key of SECTION_KEYS) {
@@ -358,12 +447,6 @@ function splitSentences(text, limit = 3) {
   return parts.map(s => s.trim()).filter(Boolean).slice(0, limit);
 }
 
-function compactText(text, max = 150) {
-  const clean = stripMarkdown(text || '').replace(/\s+/g, ' ').trim();
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, max - 1).trim()}…`;
-}
-
 function extractMetricToken(text) {
   const match = String(text || '').match(/\d+[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점)/);
   return match?.[0] || '';
@@ -373,7 +456,7 @@ function makeSlideCard(label, title, body, metric = '') {
   return {
     label,
     title,
-    body: compactText(body, 120),
+    body: stripMarkdown(body || '').replace(/\s+/g, ' ').trim(),
     metric: metric || extractMetricToken(body),
   };
 }
@@ -472,8 +555,9 @@ function normalizeSectionSlide({ key, content, structured, research, keyExperien
     .slice(0, 3);
   return {
     kicker: fromAi.kicker || defaults.kicker || 'BACKGROUND',
-    headline: compactText(headline, 70),
-    subcopy: compactText(subcopy, 220),
+    // 잘림(…) 없이 전체 표시 — 한 화면에 다 보이도록 (스크롤 X)
+    headline: stripMarkdown(headline).replace(/\s+/g, ' ').trim(),
+    subcopy: stripMarkdown(subcopy).replace(/\s+/g, ' ').trim(),
     cards,
   };
 }
@@ -510,9 +594,9 @@ function PortfolioSectionSlide({
   const headlineRows = Math.max(3, Math.min(6, Math.ceil(Math.max(cleanHeadline.length, 1) / 22)));
   const subcopyRows = Math.max(2, Math.min(5, Math.ceil(Math.max(cleanSubcopy.length, 1) / 70)));
   const displayValue = isDraft ? cleanValue.replace(/^\[작성 필요\]\s*/, '').trim() : cleanValue;
-  const fallbackMetric = extractMetricToken(cleanValue);
-  const visibleCards = slide.cards.slice(0, 2);
+  const visibleCards = slide.cards.slice(0, 3);
   const hiddenCardCount = Math.max(0, slide.cards.length - visibleCards.length);
+  const accent = '#002F6C'; // 사이트 기본(네이비) — 색상 통일
   const introMetaItems = sectionKey === 'intro'
     ? [
       { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
@@ -524,14 +608,11 @@ function PortfolioSectionSlide({
     : [];
 
   return (
-    <div className="relative overflow-visible bg-[#f7f9fb]">
-      <div className="absolute inset-0 pointer-events-none opacity-[0.32]" style={{ background: 'radial-gradient(circle at 18% 12%, rgba(0,47,108,0.08), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.92), rgba(236,242,247,0.72))' }} />
+    <div className="relative bg-white">
       <div className="relative mx-auto max-w-[1180px] px-5 py-5 lg:px-6 lg:py-6">
-        <div className="relative min-h-[620px] overflow-visible rounded-[8px] border border-white/80 bg-white/82 shadow-[0_22px_70px_rgba(49,65,87,0.13)]">
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,47,108,0.035)_1px,transparent_1px),linear-gradient(0deg,rgba(0,47,108,0.025)_1px,transparent_1px)] bg-[size:72px_72px]" />
-          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary-50/70 blur-3xl" />
-          <div className="absolute -left-16 bottom-8 h-56 w-56 rounded-full bg-surface-100/70 blur-3xl" />
-          <div className="relative flex min-h-[620px] flex-col px-8 py-7 lg:px-10 lg:py-8">
+        <div className="relative overflow-hidden rounded-[14px] border border-surface-200 bg-white shadow-[0_10px_40px_rgba(49,65,87,0.08)]">
+          <div className="h-1 w-full" style={{ backgroundColor: accent }} />
+          <div className="relative flex min-h-[460px] flex-col px-8 py-7 lg:px-10 lg:py-9">
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0 flex-1">
                 {viewOnly ? (
@@ -545,7 +626,7 @@ function PortfolioSectionSlide({
                   />
                 )}
                 <div className="flex items-start gap-4">
-                  <span className="mt-1 h-14 w-[3px] flex-shrink-0 bg-primary-500" />
+                  <span className="mt-1 h-14 w-[3px] flex-shrink-0 rounded-full" style={{ backgroundColor: accent }} />
                   <div className="min-w-0">
                     {viewOnly ? (
                       <h3 className="max-w-[780px] break-words text-[25px] font-extrabold leading-[1.28] tracking-normal text-bluewood-900 lg:text-[30px]">
@@ -580,7 +661,7 @@ function PortfolioSectionSlide({
                 </div>
               </div>
               <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
-                <span className="rounded-full border border-primary-100 bg-white/70 px-3 py-1 text-[11px] font-black text-primary-600">{meta.num}</span>
+                <span className="rounded-full px-3 py-1 text-[11px] font-black text-white" style={{ backgroundColor: accent }}>{meta.num}</span>
                 <span className="max-w-[160px] text-[12px] font-bold leading-snug text-bluewood-400">{meta.label}</span>
                 {!viewOnly && (
                   <button
@@ -597,9 +678,9 @@ function PortfolioSectionSlide({
 
             <div className="mt-5 grid min-h-0 flex-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex min-w-0 flex-col">
-                  <div className={`rounded-[8px] border border-white/80 bg-white/72 p-4 shadow-sm ${isEditing ? 'ring-1 ring-primary-100' : ''}`}>
+                  <div className={`rounded-[10px] border border-surface-200 bg-surface-50/50 p-5 ${isEditing ? 'ring-1 ring-primary-100' : ''}`}>
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-300">DETAIL NOTE</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: accent }}>DETAIL</p>
                       {!viewOnly && <span className="text-[11px] font-bold text-primary-500">바로 수정 가능</span>}
                     </div>
                     {!viewOnly ? (
@@ -608,10 +689,10 @@ function PortfolioSectionSlide({
                         onChange={e => onChange(e.target.value)}
                         placeholder={field?.placeholder || '내용을 입력하세요'}
                         rows={8}
-                        className="min-h-[180px] w-full resize-y overflow-y-auto break-words bg-transparent text-[12px] leading-[1.65] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:bg-white/50"
+                        className="min-h-[180px] w-full resize-y overflow-y-auto break-words bg-transparent text-[13px] leading-[1.8] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:bg-white/50"
                       />
                     ) : displayValue ? (
-                      <div className="break-words text-[12px] leading-[1.65] text-bluewood-700 whitespace-pre-wrap">
+                      <div className="break-words text-[14px] leading-[1.85] text-bluewood-700 whitespace-pre-wrap">
                         <HighlightedText
                           text={displayValue}
                           highlights={(structured.highlights || []).filter(h => h.field === sectionKey)}
@@ -658,7 +739,7 @@ function PortfolioSectionSlide({
 
               <div className="flex min-h-0 flex-col gap-2.5">
                 {visibleCards.length > 0 ? visibleCards.map((card, index) => (
-                  <div key={index} className="min-h-0 border-l-[3px] border-primary-500 bg-white/78 px-3.5 py-3 shadow-sm">
+                  <div key={index} className="min-h-0 rounded-r-[8px] border-l-[3px] bg-white px-3.5 py-3 shadow-sm ring-1 ring-surface-100" style={{ borderColor: accent }}>
                     <div className="mb-1.5 flex items-center justify-between gap-3">
                       {viewOnly ? (
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{sanitizeTextValue(card.label || 'RESEARCH')}</p>
@@ -668,17 +749,6 @@ function PortfolioSectionSlide({
                           onChange={e => onSlideCardChange?.(sectionKey, index, 'label', e.target.value.toUpperCase(), card)}
                           className="w-24 bg-transparent text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300 outline-none placeholder:text-bluewood-200 focus:bg-white/70"
                           placeholder="LABEL"
-                        />
-                      )}
-                      {viewOnly && (card.metric || (index === 0 && fallbackMetric)) && (
-                        <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[12px] font-black text-primary-600">{sanitizeTextValue(card.metric || fallbackMetric)}</span>
-                      )}
-                      {!viewOnly && (
-                        <input
-                          value={sanitizeTextValue(card.metric || '')}
-                          onChange={e => onSlideCardChange?.(sectionKey, index, 'metric', e.target.value, card)}
-                          className="w-24 rounded-full bg-primary-50 px-2 py-0.5 text-right text-[12px] font-black text-primary-600 outline-none placeholder:text-primary-300"
-                          placeholder={index === 0 ? fallbackMetric || '수치' : '수치'}
                         />
                       )}
                     </div>
@@ -709,7 +779,7 @@ function PortfolioSectionSlide({
                     )}
                   </div>
                 )) : (
-                  <div className="border-l-[3px] border-primary-500 bg-white/78 px-4 py-5 shadow-sm">
+                  <div className="rounded-r-[8px] border-l-[3px] bg-white px-4 py-5 shadow-sm ring-1 ring-surface-100" style={{ borderColor: accent }}>
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">RESEARCH</p>
                     <p className="mt-2 text-[15px] font-extrabold text-bluewood-900">보강할 근거가 필요합니다</p>
                     <p className="mt-2 text-[12px] leading-[1.65] text-bluewood-500">시장 자료, 사용자 지표, 의사결정 기준을 추가하면 이 슬라이드가 더 설득력 있게 완성됩니다.</p>
@@ -976,7 +1046,8 @@ export default function StructuredResult() {
   const [exportOverKey, setExportOverKey] = useState(null);
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
-  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot } = useExperienceStore();
+  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics } = useExperienceStore();
+  const [researchingMetrics, setResearchingMetrics] = useState(false);
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -1177,6 +1248,46 @@ export default function StructuredResult() {
       ...prev,
       sourceNotes: prev.sourceNotes.map((item, i) => i === index ? { ...item, [field]: value } : item),
     }));
+  };
+
+  /* ── AI 시장/지표 리서치: 최신 자료 조사 → 기존 내용 보존 + 추천 추가 ── */
+  const handleResearchMetrics = async () => {
+    setResearchingMetrics(true);
+    try {
+      const res = await researchMarketMetrics({
+        title: editedTitle,
+        sections: editedContent,
+        keywords: editedKeywords,
+        projectOverview: editedOverview,
+        jobCategory,
+      });
+      const norm = s => String(s || '').trim().toLowerCase();
+      setEditedResearch(prev => {
+        const metricKeys = new Set(prev.decisionMetrics.map(m => norm(m.metric)));
+        const newMetrics = (res.decisionMetrics || []).filter(m => m.metric && !metricKeys.has(norm(m.metric)));
+        const srcKeys = new Set(prev.sourceNotes.map(s => norm(s.url) || norm(s.title)));
+        const newSources = (res.sourceNotes || []).filter(s => {
+          const k = norm(s.url) || norm(s.title);
+          return k && !srcKeys.has(k);
+        });
+        const angleKeys = new Set((prev.portfolioAngles || []).map(norm));
+        const newAngles = (res.portfolioAngles || []).filter(a => a && !angleKeys.has(norm(a)));
+        return {
+          ...prev,
+          marketOverview: prev.marketOverview?.trim() ? prev.marketOverview : (res.marketOverview || ''),
+          decisionMetrics: [...prev.decisionMetrics, ...newMetrics],
+          sourceNotes: [...prev.sourceNotes, ...newSources],
+          portfolioAngles: [...(prev.portfolioAngles || []), ...newAngles],
+          limitations: prev.limitations?.trim() ? prev.limitations : (res.limitations || ''),
+        };
+      });
+      const added = (res.decisionMetrics || []).length;
+      toast.success(added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'AI 지표 추천에 실패했습니다');
+    } finally {
+      setResearchingMetrics(false);
+    }
   };
 
   const toggleEditing = (key) => {
@@ -2208,6 +2319,14 @@ export default function StructuredResult() {
       </div>
       <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
 
+      {/* ── 역량 인사이트 (근거·배운점 카드) ── */}
+      <CompetencyMeter
+        highlights={structured.highlights}
+        keywords={editedKeywords}
+        keyExperiences={editedKeyExperiences}
+        growthText={editedContent.growth}
+      />
+
       {/* ╔══════════════════════════════════════════════╗
          ║  직군 특화 핵심 분석 섹션 (7개 섹션 위)       ║
          ╚══════════════════════════════════════════════╝ */}
@@ -2326,14 +2445,23 @@ export default function StructuredResult() {
           <div className="flex items-center justify-between gap-4 px-6 sm:px-8 py-5 border-b border-surface-200 bg-white">
             <div>
               <h2 className="text-[14px] font-bold text-primary-600">시장/지표 리서치</h2>
-              <p className="mt-1 text-[13px] text-bluewood-400">외부 자료는 비교 기준으로만 쓰고, 실제 프로젝트 수치는 직접 검증해 반영하세요.</p>
+              <p className="mt-1 text-[13px] text-bluewood-400">AI가 최신 뉴스·지표·논문을 조사해 의사결정 지표를 추천합니다. 외부 자료는 비교 기준으로만 쓰고, 실제 프로젝트 수치는 직접 검증하세요.</p>
             </div>
             {!viewOnly && (
-              <button
-                onClick={addDecisionMetric}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">
-                <Plus size={13} /> 지표 추가
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={handleResearchMetrics}
+                  disabled={researchingMetrics}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                  {researchingMetrics ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  {researchingMetrics ? '리서치 중...' : 'AI 지표 추천'}
+                </button>
+                <button
+                  onClick={addDecisionMetric}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">
+                  <Plus size={13} /> 지표 추가
+                </button>
+              </div>
             )}
           </div>
 
@@ -2431,13 +2559,25 @@ export default function StructuredResult() {
                             placeholder="발행처"
                             className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none"
                           />
-                          <input
-                            value={source.url}
-                            onChange={e => updateSourceNote(index, 'url', e.target.value)}
-                            readOnly={viewOnly}
-                            placeholder="URL 또는 [검증 필요]"
-                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none md:col-span-2"
-                          />
+                          {viewOnly && /^https?:\/\//.test(source.url || '') ? (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="md:col-span-2 inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-primary-600 hover:underline truncate"
+                            >
+                              <ExternalLink size={12} className="flex-shrink-0" />
+                              <span className="truncate">{source.url}</span>
+                            </a>
+                          ) : (
+                            <input
+                              value={source.url}
+                              onChange={e => updateSourceNote(index, 'url', e.target.value)}
+                              readOnly={viewOnly}
+                              placeholder="URL 또는 [검증 필요]"
+                              className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none md:col-span-2"
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
