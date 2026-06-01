@@ -749,7 +749,11 @@ function cleanPortfolioText(value) {
 function compactPortfolioText(value, max = 84) {
   const text = cleanPortfolioText(value);
   if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+  const head = text.slice(0, max + 1);
+  const sentenceEnd = Math.max(head.lastIndexOf('.'), head.lastIndexOf('!'), head.lastIndexOf('?'));
+  if (sentenceEnd >= Math.floor(max * 0.45)) return head.slice(0, sentenceEnd + 1).trim();
+  const boundary = Math.max(head.lastIndexOf(' · '), head.lastIndexOf(' '), head.lastIndexOf('/'), head.lastIndexOf('→'));
+  return (boundary >= Math.floor(max * 0.55) ? head.slice(0, boundary) : head.slice(0, max)).trim();
 }
 
 function cleanPortfolioTextKeepLines(value) {
@@ -769,7 +773,18 @@ function cleanPortfolioTextKeepLines(value) {
 function compactPortfolioTextKeepLines(value, max = 240) {
   const text = cleanPortfolioTextKeepLines(value);
   if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+  return text
+    .split('\n')
+    .reduce((lines, line) => {
+      const used = lines.join('\n').length;
+      if (used >= max) return lines;
+      const remaining = max - used - (lines.length ? 1 : 0);
+      if (remaining <= 0) return lines;
+      lines.push(compactPortfolioText(line, remaining));
+      return lines;
+    }, [])
+    .filter(Boolean)
+    .join('\n');
 }
 
 function splitBulletLines(value) {
@@ -903,6 +918,7 @@ function prepareAcceptedSlide(slide) {
   // 길이 컷·개수 컷 없이 클린징만 하고, 실제 박스 맞춤은 PPTX fit:'shrink' / CSS textClamp 에 맡긴다.
   if (/^(narrative|star|kpi|timeline|cs)-/.test(layout)) {
     const clean = (v) => cleanPortfolioText(v);
+    const cleanBody = (v) => cleanPortfolioTextKeepLines(v);
     return {
       ...slide,
       title: clean(slide.title),
@@ -914,18 +930,21 @@ function prepareAcceptedSlide(slide) {
         heading: clean(item.heading),
         role: clean(item.role),
         period: clean(item.period),
-        body: clean(item.body),
-        bullets: (item.bullets || []).map(clean).filter(Boolean),
+        body: cleanBody(item.body),
+        bullets: (item.bullets || []).map(cleanBody).filter(Boolean),
       })),
     };
   }
   const isCsLayout = layout.startsWith('cs-');
+  const isProposalExperience = layout === 'proposal' || layout === 'experience';
+  // 한 프로젝트를 적은 카드로 나눠 담는 레이아웃은 카드별 공간이 넓어 더 긴 본문 허용
+  const isSpaciousProposal = isProposalExperience && (slide.proposalVariant === 'resultMetric' || slide.proposalVariant === 'threeCards');
   const itemLimit = isCsLayout ? 6 : 4;
-  const bodyLimit = isCsLayout ? 260 : 88;
-  const headingLimit = isCsLayout ? 48 : 32;
+  const bodyLimit = isCsLayout ? 260 : isSpaciousProposal ? 360 : isProposalExperience ? 200 : 88;
+  const headingLimit = isCsLayout ? 48 : isProposalExperience ? 40 : 32;
   const periodLimit = isCsLayout ? 32 : 18;
-  const bulletLimit = isCsLayout ? 64 : 44;
-  const cleanBody = (value) => isCsLayout
+  const bulletLimit = isCsLayout ? 64 : isProposalExperience ? 80 : 44;
+  const cleanBody = (value) => isCsLayout || isProposalExperience
     ? compactPortfolioTextKeepLines(value, bodyLimit)
     : compactPortfolioText(value, bodyLimit);
   const cleanTitle = (value) => isCsLayout
@@ -2507,20 +2526,26 @@ function renderKpiSkills(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 222, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 38 }}>
-        {data.slice(0, 4).map((item, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 104 }}>
-            <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.08em', fontWeight: 800 }}>{(item.period || item.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-              {[item.heading, ...(item.bullets || []), item.body].filter(Boolean).slice(0, 2).map((skill, j) => (
-                <div key={j}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}><span>{skill}</span><span>{95 - i * 3 - j * 5}%</span></div>
-                  <div style={{ marginTop: 6, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue }} /></div>
-                </div>
-              ))}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 210, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+        {data.slice(0, 4).map((item, i) => {
+          const skills = [item.heading, ...(item.bullets || []), item.body].filter(Boolean).slice(0, 5);
+          return (
+            <div key={i} style={{ borderTop: `2px solid ${i % 2 ? mint : blue}`, paddingTop: 16, minHeight: 120 }}>
+              <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 800 }}>{(item.period || item.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
+              <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+                {skills.slice(0, 4).map((skill, j) => (
+                  <div key={j}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}>
+                      <span style={{ ...textClamp(1) }}>{skill}</span>
+                      <span style={{ marginLeft: 8, flexShrink: 0, color: j === 0 ? (i % 2 ? mint : blue) : '#A9C7E8', fontSize: 12, fontWeight: 900 }}>{95 - i * 3 - j * 5}%</span>
+                    </div>
+                    <div style={{ marginTop: 5, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue, opacity: 0.9 }} /></div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -2566,27 +2591,55 @@ function renderKpiProject(slide, t) {
   const title = cleanPortfolioText(slide.title || 'Project');
   const subtitle = cleanPortfolioText(slide.subtitle || '');
   const label = cleanPortfolioText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
-  const items = (slide.items || []).slice(0, 4);
-  const data = items.length ? items : [{ heading: 'Core Mission', body: subtitle || title }];
-  const side = data.slice(1, 4);
+  const items = (slide.items || []);
+  const pick = (re) => items.find(it => re.test(it.heading || ''));
+  const problemItem = pick(/problem|문제|overview/i) || items[0];
+  const actionItem = pick(/action|실행/i);
+  const resultItem = pick(/result|성과/i);
+  const roleItem = pick(/role|역할/i);
+  const periodItem = pick(/period|기간/i);
+  const problemBody = cleanPortfolioText(problemItem?.body || problemItem?.heading || subtitle);
+  // 우측 패널은 Action·Result 만 (없으면 Problem 외 항목으로 채움). 최대 2개로 제한해 겹침 방지.
+  let panelItems = [actionItem, resultItem].filter(Boolean);
+  if (!panelItems.length) panelItems = items.filter(it => it !== problemItem).slice(0, 2);
+  panelItems = panelItems.slice(0, 2);
+  const hasPanel = panelItems.length > 0;
+  const footerData = [
+    { label: 'TIMELINE', value: cleanPortfolioText(periodItem?.body || periodItem?.heading || '') },
+    { label: 'ROLE', value: cleanPortfolioText(roleItem?.body || roleItem?.heading || subtitle) },
+    { label: 'STATUS', value: resultItem ? 'Verified' : 'In Progress' },
+    { label: 'IMPACT', value: resultItem ? 'Achieved' : '—' },
+  ];
   return (
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
-      <div style={{ position: 'absolute', left: 58, top: 96, width: 720, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, top: 196, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{subtitle || data[0]?.period || 'AI-Driven Platform'}</div>
-      <div style={{ position: 'absolute', left: 58, top: 248, right: 390, height: 1, background: line }} />
-      <div style={{ position: 'absolute', left: 58, top: 270, width: 520 }}>
-        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>CORE MISSION</div>
-        <div style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700, ...textClamp(4) }}>{data[0]?.body || data[0]?.heading || subtitle}</div>
+      <div style={{ position: 'absolute', left: 58, top: 88, right: hasPanel ? 400 : 58, fontFamily: t.fonts.heading, fontSize: 38, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, top: 178, right: hasPanel ? 400 : 58, color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{subtitle || ''}</div>
+      <div style={{ position: 'absolute', left: 58, top: 218, right: hasPanel ? 400 : 58, height: 1, background: line }} />
+      {/* 좌측: 문제 정의 — flex로 높이 고정, 본문은 영역 안에서만 클램프 */}
+      <div style={{ position: 'absolute', left: 58, right: hasPanel ? 400 : 58, top: 236, bottom: 100, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800, flexShrink: 0 }}>CORE MISSION</div>
+        <div style={{ marginTop: 14, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ color: '#FFFFFF', fontSize: 15, lineHeight: 1.7, fontWeight: 600, whiteSpace: 'pre-line', ...textClamp(11) }}>{problemBody}</div>
+        </div>
       </div>
-      <div style={{ position: 'absolute', right: 58, top: 250, width: 330, border: '1px solid rgba(49,130,255,0.28)', background: 'rgba(23,35,56,0.38)', padding: 20 }}>
-        <div style={{ color: blue, fontSize: 21, fontWeight: 950 }}>{side[0]?.heading || 'Lead Developer'}</div>
-        {(side.length ? side : data).slice(0, 3).map((item, i) => <div key={i} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 14 }}>✓ {item.body || item.heading}</div>)}
-      </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 80, height: 1, background: line }} />
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.2fr', gap: 30 }}>
-        {['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].map((h, i) => (
-          <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{h}</div><div style={{ marginTop: 10, color: '#FFFFFF', fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{data[i]?.period || data[i]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production', 'Impact Verified'][i]}</div></div>
+      {/* 우측: Action/Result 패널 — 각 항목 flex:1 + overflow로 패널 높이 절대 초과 안 함 */}
+      {hasPanel && (
+        <div style={{ position: 'absolute', right: 58, width: 310, top: 236, bottom: 100, border: '1px solid rgba(49,130,255,0.28)', background: 'rgba(23,35,56,0.5)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+          {panelItems.map((item, i) => (
+            <div key={i} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: i ? '1px solid rgba(126,147,179,0.2)' : 'none', paddingTop: i ? 14 : 0 }}>
+              <div style={{ color: i ? mint : blue, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', flexShrink: 0 }}>{cleanPortfolioText(item.heading || '').toUpperCase()}</div>
+              <div style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 1.55, whiteSpace: 'pre-line', ...textClamp(8) }}>{cleanPortfolioText(item.body || item.heading || '')}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 72, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 28, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.4fr', gap: 20 }}>
+        {footerData.map(({ label: h, value }) => (
+          <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 9, letterSpacing: '0.1em' }}>{h}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontFamily: mono, fontSize: 12, fontWeight: 900, ...textClamp(2) }}>{value || '—'}</div></div>
         ))}
       </div>
     </div>
@@ -2609,13 +2662,13 @@ function renderKpiMetrics(slide, t) {
   return (
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
-      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, top: 90, fontFamily: t.fonts.heading, fontSize: 40, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 205, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
-            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          <div key={i} style={{ borderTop: `2px solid ${i % 2 ? mint : blue}`, paddingTop: 16, minHeight: 130 }}>
+            <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.1, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 10, color: '#A9C7E8', fontSize: 12.5, lineHeight: 1.45, ...textClamp(3) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
@@ -2652,12 +2705,12 @@ function renderKpiComparison(slide, t) {
       <div style={{ position: 'absolute', left: 88, top: 204, width: 385 }}>
         <div style={{ color: muted, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>BEFORE: MANUAL PROCESS</div>
         {lhs.map((item, i) => (
-          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+          <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${line}`, display: 'grid', placeItems: 'center', color: muted }}>□</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
           </div>
         ))}
-        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+        <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
           <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
           <div style={{ marginTop: 34, color: '#FFFFFF', fontSize: 28, fontWeight: 950 }}>300 MIN</div>
         </div>
@@ -2666,12 +2719,12 @@ function renderKpiComparison(slide, t) {
       <div style={{ position: 'absolute', right: 88, top: 204, width: 385 }}>
         <div style={{ color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>AFTER: AI-DRIVEN WORKFLOW</div>
         {(rhs.length ? rhs : lhs).map((item, i) => (
-          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+          <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${blue}`, display: 'grid', placeItems: 'center', color: blue }}>✓</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
           </div>
         ))}
-        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+        <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
           <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
           <div style={{ marginTop: 34, color: mint, fontSize: 28, fontWeight: 950 }}>10 MIN</div>
           <div style={{ marginTop: 16, display: 'inline-block', padding: '7px 12px', background: 'rgba(25,197,142,0.14)', color: mint, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>96.7% TIME REDUCTION</div>
@@ -4505,6 +4558,10 @@ function renderProposalBody(slide, t, isDark) {
     return <ProposalThreeCards items={items} c={c} isDark={isDark} />;
   }
 
+  if (variant === 'resultMetric') {
+    return <ProposalResultMetric items={items} metrics={slide.metrics || []} c={c} isDark={isDark} />;
+  }
+
   if (variant === 'splitPhotoList') {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: '42% 1fr', gap: 42, height: '100%', alignItems: 'center' }}>
@@ -4696,12 +4753,52 @@ function ProposalThreeCards({ items, c, isDark }) {
             </div>
             <div style={{ alignSelf: 'end' }}>
               <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
-              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, ...textClamp(5) }}>{item.body}</div>
+              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, whiteSpace: 'pre-line', ...textClamp(5) }}>{item.body}</div>
             </div>
             <div style={{ height: 4, width: '42%', borderRadius: 999, background: featured ? 'rgba(255,255,255,0.42)' : visibleColorOn(fill, c.accent, c.dark) }} />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ProposalResultMetric({ items, metrics, c, isDark }) {
+  const result = items[0] || {};
+  const validMetrics = (metrics || []).filter(m => m && (m.value || m.label)).slice(0, 3);
+  const hasMetrics = validMetrics.length > 0;
+  const pageBg = isDark ? c.dark : c.bg;
+  const cardFill = isDark ? c.dark2 : c.card;
+  const cardText = readableTextOn(cardFill, isDark ? SAFE_TEXT_LIGHT : c.sub);
+  const cardMuted = mutedTextOn(cardFill, isDark ? SAFE_MUTED_LIGHT : c.muted);
+  const accentOnCard = visibleColorOn(cardFill, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
+  const accentText = readableTextOn(c.accent, SAFE_TEXT_LIGHT);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: hasMetrics ? '1.15fr 1fr' : '1fr', gap: 22, height: '100%', alignItems: 'stretch' }}>
+      {/* 좌측: 결과와 성과 큰 카드 */}
+      <div style={{ borderRadius: 16, background: cardFill, color: cardText, padding: 30, display: 'flex', flexDirection: 'column', boxShadow: isDark ? '0 18px 40px rgba(0,0,0,0.22)' : '0 14px 34px rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <span style={{ width: 30, height: 30, borderRadius: '50%', background: c.accent, color: accentText, display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>✓</span>
+          <div style={{ fontSize: 17, fontWeight: 900, color: accentOnCard, ...textClamp(1) }}>{result.heading || '결과와 성과'}</div>
+        </div>
+        <div style={{ flex: 1, fontSize: 15, lineHeight: 1.7, color: cardText, whiteSpace: 'pre-line', ...textClamp(8) }}>{result.body}</div>
+      </div>
+      {/* 우측: 핵심 지표 메트릭 스택 */}
+      {hasMetrics && (
+        <div style={{ display: 'grid', gridTemplateRows: `repeat(${validMetrics.length}, 1fr)`, gap: 14 }}>
+          {validMetrics.map((m, i) => {
+            const fill = i === 0 ? c.accent : cardFill;
+            const fg = i === 0 ? accentText : cardText;
+            const labelColor = i === 0 ? readableTextOn(c.accent, SAFE_TEXT_LIGHT) : accentOnCard;
+            return (
+              <div key={i} style={{ borderRadius: 14, background: fill, color: fg, padding: '18px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', color: labelColor, opacity: 0.92, marginBottom: 6, ...textClamp(1) }}>{m.label || '핵심 지표'}</div>
+                <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.05, ...textClamp(2) }}>{m.value}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -4821,7 +4918,26 @@ function ProposalGantt({ items, c }) {
 }
 
 function ProposalStageCards({ items, c }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 8, height: '100%', alignItems: 'center' }}>{items.slice(0, 5).map((item, i) => { const fill = i === items.length - 1 ? c.accent : i < 2 ? c.neutral : c.dark; return <div key={i} style={{ height: 210, borderRadius: 12, background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.45, opacity: 0.9, ...textClamp(5) }}>{item.body}</div></div>; })}</div>;
+  const count = Math.min(5, items.length);
+  const cardHeight = count <= 3 ? 260 : count === 4 ? 240 : 210;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 10, height: '100%', alignItems: 'center' }}>
+      {items.slice(0, count).map((item, i) => {
+        const fill = i === count - 1 ? c.accent : i < 2 ? c.neutral : c.dark;
+        const fg = readableTextOn(fill, SAFE_TEXT_LIGHT);
+        const accentLabel = visibleColorOn(fill, c.accent, fg);
+        return (
+          <div key={i} style={{ height: cardHeight, borderRadius: 14, background: fill, color: fg, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
+            </div>
+            <div style={{ flex: 1, fontSize: 12.5, lineHeight: 1.55, opacity: 0.95, ...textClamp(7) }}>{item.body}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function ProposalPyramid({ items, c }) {
@@ -6702,26 +6818,57 @@ function drawKpiTimelinePptx(s, slide, t, W, H) {
 }
 
 function drawKpiProjectPptx(s, slide, t, W, H) {
-  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const mono = 'Consolas'; const tb = t.fonts.body || 'Malgun Gothic';
   const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Project');
   const subtitle = safePptText(slide.subtitle || '');
   const label = safePptText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
-  const items = (slide.items || []).slice(0, 4);
+  const items = slide.items || [];
+  const pick = (re) => items.find(it => re.test(it.heading || ''));
+  const problemItem = pick(/problem|문제|overview/i) || items[0];
+  const actionItem = pick(/action|실행/i);
+  const resultItem = pick(/result|성과/i);
+  const roleItem = pick(/role|역할/i);
+  const periodItem = pick(/period|기간/i);
+  let panelItems = [actionItem, resultItem].filter(Boolean);
+  if (!panelItems.length) panelItems = items.filter(it => it !== problemItem).slice(0, 2);
+  panelItems = panelItems.slice(0, 2);
+  const hasPanel = panelItems.length > 0;
+  const leftW = hasPanel ? 6.6 : 11.7;
   kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 7.2);
-  addPptText(s, subtitle || items[0]?.period || 'AI-Driven Platform', { x: 0.82, y: 2.2, w: 6.5, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
-  kpiPptRule(s, 0.82, 2.75, 6.8, line);
+  addPptText(s, subtitle || '', { x: 0.82, y: 2.2, w: leftW, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
+  kpiPptRule(s, 0.82, 2.75, leftW, line);
+  // 좌측: CORE MISSION (문제 정의) — 넓은 본문 영역
   addPptText(s, 'CORE MISSION', { x: 0.82, y: 2.95, w: 1.6, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue, charSpacing: 0.5 });
-  addPptText(s, safePptText(items[0]?.body || items[0]?.heading || subtitle), { x: 0.82, y: 3.35, w: 6.6, h: 0.82, fontFace: tb, fontSize: 13, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  s.addShape('rect', { x: 7.9, y: 2.75, w: 4.5, h: 1.45, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
-  addPptText(s, safePptText(items[1]?.heading || 'Lead Developer'), { x: 8.1, y: 2.97, w: 2.8, h: 0.24, fontFace: tf, fontSize: 14, bold: true, color: blue, fit: 'shrink' });
-  items.slice(1, 4).forEach((item, idx) => addPptText(s, `✓ ${safePptText(item.body || item.heading)}`, { x: 8.1, y: 3.32 + idx * 0.28, w: 3.8, h: 0.16, fontFace: tb, fontSize: 8.8, color: 'A9C7E8', fit: 'shrink' }));
+  const problemBody = safePptTextKeepLines(problemItem?.body || problemItem?.heading || subtitle);
+  const problemFont = fitFontSizePt(problemBody, leftW, 2.7, 12.5, 9, 1.25);
+  addPptText(s, problemBody, { x: 0.82, y: 3.32, w: leftW, h: 2.7, fontFace: tb, fontSize: problemFont, color: 'FFFFFF', breakLine: false, valign: 'top', fit: null, preserveLines: true });
+  // 우측: Action/Result 패널 — 항목별 높이 균등 분할
+  if (hasPanel) {
+    const px = 7.9; const pw = 4.5; const pyTop = 2.75; const pH = 3.3;
+    s.addShape('rect', { x: px, y: pyTop, w: pw, h: pH, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
+    const itemH = pH / panelItems.length;
+    panelItems.forEach((item, idx) => {
+      const iy = pyTop + idx * itemH;
+      addPptText(s, safePptText(item.heading || '').toUpperCase(), { x: px + 0.22, y: iy + 0.18, w: pw - 0.44, h: 0.18, fontFace: mono, fontSize: 8, bold: true, color: idx ? mint : blue, fit: 'shrink' });
+      const panelBody = safePptTextKeepLines(item.body || item.heading || '');
+      const panelH = itemH - 0.62;
+      const panelFont = fitFontSizePt(panelBody, pw - 0.44, panelH, 9, 7.5, 1.2);
+      addPptText(s, panelBody, { x: px + 0.22, y: iy + 0.46, w: pw - 0.44, h: panelH, fontFace: tb, fontSize: panelFont, color: 'FFFFFF', breakLine: false, valign: 'top', fit: null, preserveLines: true });
+    });
+  }
   kpiPptRule(s, 0.82, 6.15, 11.7, line);
-  ['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].forEach((h, idx) => {
+  const footer = [
+    ['TIMELINE', safePptText(periodItem?.body || periodItem?.heading || '')],
+    ['ROLE', safePptText(roleItem?.body || roleItem?.heading || subtitle)],
+    ['STATUS', resultItem ? 'Verified' : 'In Progress'],
+    ['IMPACT', resultItem ? 'Achieved' : '—'],
+  ];
+  footer.forEach(([h, value], idx) => {
     const x = 0.82 + idx * 3.1;
     addPptText(s, h, { x, y: 6.35, w: 1.4, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
-    addPptText(s, safePptText(items[idx]?.period || items[idx]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production Ready', 'Impact Verified'][idx]), { x, y: 6.62, w: 2.5, h: 0.18, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, value || '—', { x, y: 6.62, w: 2.7, h: 0.34, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', valign: 'top', fit: 'shrink' });
   });
 }
 
@@ -6762,15 +6909,17 @@ function drawKpiComparisonPptx(s, slide, t, W, H) {
   const drawSide = (x, heading, sideItems, good) => {
     addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
     sideItems.slice(0, 2).forEach((item, idx) => {
-      const y = 2.92 + idx * 0.92;
+      const y = 2.82 + idx * 1.2;
+      const body = safePptTextKeepLines(item.body);
+      const bodyFont = fitFontSizePt(body, 3.5, 0.62, 8.5, 7, 1.18);
       s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: '0E1727', transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
       addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
       addPptText(s, safePptText(item.heading), { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: tf, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
-      addPptText(s, safePptText(item.body), { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: tb, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+      addPptText(s, body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.62, fontFace: tb, fontSize: bodyFont, color: 'A9C7E8', breakLine: false, valign: 'top', fit: null, preserveLines: true });
     });
-    kpiPptRule(s, x, 4.4, 4.9, line);
-    addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
-    addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: tf, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+    kpiPptRule(s, x, 5.25, 4.9, line);
+    addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 5.48, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+    addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.85, w: 2.2, h: 0.32, fontFace: tf, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
   };
   drawSide(1.12, 'BEFORE: MANUAL PROCESS', items.slice(0, 2), false);
   s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
@@ -7052,15 +7201,17 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
     const drawSide = (x, heading, sideLines, good) => {
       addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
       sideLines.slice(0, 2).forEach((lineItem, idx) => {
-        const y = 2.92 + idx * 0.92;
+        const y = 2.82 + idx * 1.2;
+        const body = safePptTextKeepLines(lineItem.body);
+        const bodyFont = fitFontSizePt(body, 3.5, 0.62, 8.5, 7, 1.18);
         s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: bg, transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
         addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
         addPptText(s, lineItem.heading, { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: titleFont, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
-        addPptText(s, lineItem.body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: t.fonts.body, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+        addPptText(s, body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.62, fontFace: t.fonts.body, fontSize: bodyFont, color: 'A9C7E8', breakLine: false, valign: 'top', fit: null, preserveLines: true });
       });
-      addRule(x, 4.4, 4.9);
-      addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
-      addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: titleFont, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+      addRule(x, 5.25, 4.9);
+      addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 5.48, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+      addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.85, w: 2.2, h: 0.32, fontFace: titleFont, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
     };
     drawSide(1.12, 'BEFORE: MANUAL PROCESS', data.slice(0, 2), false);
     s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
@@ -8188,6 +8339,11 @@ function drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark) {
     return true;
   }
 
+  if (variant === 'resultMetric') {
+    drawResultMetricPptx(s, items[0] || {}, slide.metrics || [], t, x, y, w, h, isDark);
+    return true;
+  }
+
   if (variant === 'splitPhotoList') {
     s.addShape('roundRect', { x, y: y + 0.25, w: w * 0.4, h: h - 0.5, fill: { color: hex(c.dark), transparency: 10 }, line: { color: hex(c.dark), transparency: 100 }, rectRadius: 0.16 });
     drawListWithBadges(s, items.slice(0, 4), t, x + w * 0.46, y + 0.25, w * 0.5, h - 0.5);
@@ -8328,10 +8484,47 @@ function drawThreeCardsPptx(s, items, t, x, y, w, h, isDark) {
     s.addShape('ellipse', { x: cx + 0.28, y: y + 0.28, w: 0.34, h: 0.34, fill: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 78 : 0 }, line: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 100 : 0 } });
     addPptText(s, String(idx + 1).padStart(2, '0'), { x: cx + 0.28, y: y + 0.36, w: 0.34, h: 0.1, fontFace: t.fonts.heading, fontSize: 6.5, bold: true, color: fg, align: 'center', fit: 'shrink' });
     s.addShape('rect', { x: cx + 0.78, y: y + 0.44, w: cardW - 1.08, h: 0.02, fill: { color: featured ? fg : hex(c.line), transparency: featured ? 70 : 0 }, line: { color: featured ? fg : hex(c.line), transparency: 100 } });
-    addPptText(s, item.heading, { x: cx + 0.28, y: y + h - 1.42, w: cardW - 0.56, h: 0.42, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: fg, fit: 'shrink' });
-    addPptText(s, item.body, { x: cx + 0.28, y: y + h - 0.88, w: cardW - 0.56, h: 0.52, fontFace: t.fonts.body, fontSize: 8, color: muted, fit: 'shrink' });
+    addPptText(s, item.heading, { x: cx + 0.28, y: y + h - 2.0, w: cardW - 0.56, h: 0.42, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: fg, fit: 'shrink' });
+    const body = safePptTextKeepLines(item.body);
+    const bodyFont = fitFontSizePt(body, cardW - 0.56, 1.05, 8.5, 7, 1.2);
+    addPptText(s, body, { x: cx + 0.28, y: y + h - 1.45, w: cardW - 0.56, h: 1.05, fontFace: t.fonts.body, fontSize: bodyFont, color: muted, breakLine: false, valign: 'top', fit: null, preserveLines: true });
     s.addShape('roundRect', { x: cx + 0.28, y: y + h - 0.22, w: cardW * 0.34, h: 0.05, fill: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: featured ? 55 : 0 }, line: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: 100 }, rectRadius: 0.03 });
   });
+}
+
+function drawResultMetricPptx(s, result, metrics, t, x, y, w, h, isDark) {
+  const c = t.colors;
+  const valid = (metrics || []).filter(m => m && (m.value || m.label)).slice(0, 3);
+  const hasMetrics = valid.length > 0;
+  const cardFill = isDark ? c.dark2 : c.card;
+  const cardText = pptTextOn(cardFill, isDark ? SAFE_TEXT_LIGHT : c.sub);
+  const accentOnCard = pptVisibleOn(cardFill, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
+  const accentText = pptTextOn(c.accent, SAFE_TEXT_LIGHT);
+  const leftW = hasMetrics ? w * 0.56 : w;
+  // 좌측: 결과와 성과
+  s.addShape('roundRect', { x, y, w: leftW, h, fill: { color: hex(cardFill) }, line: { color: hex(cardFill) }, rectRadius: 0.12 });
+  s.addShape('ellipse', { x: x + 0.34, y: y + 0.34, w: 0.4, h: 0.4, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+  addPptText(s, '✓', { x: x + 0.34, y: y + 0.4, w: 0.4, h: 0.28, fontFace: t.fonts.body, fontSize: 13, bold: true, color: accentText, align: 'center' });
+  addPptText(s, result.heading || '결과와 성과', { x: x + 0.86, y: y + 0.38, w: leftW - 1.2, h: 0.4, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: accentOnCard, fit: 'shrink' });
+  const resultBody = safePptTextKeepLines(result.body || '');
+  const resultFont = fitFontSizePt(resultBody, leftW - 0.8, h - 1.4, 11, 8, 1.25);
+  addPptText(s, resultBody, { x: x + 0.4, y: y + 1.05, w: leftW - 0.8, h: h - 1.4, fontFace: t.fonts.body, fontSize: resultFont, color: cardText, breakLine: false, valign: 'top', lineSpacingMultiple: 1.3, fit: null, preserveLines: true });
+  // 우측: 핵심 지표 스택
+  if (hasMetrics) {
+    const mx = x + leftW + 0.26;
+    const mw = w - leftW - 0.26;
+    const gap = 0.2;
+    const mh = (h - gap * (valid.length - 1)) / valid.length;
+    valid.forEach((m, i) => {
+      const my = y + i * (mh + gap);
+      const fill = i === 0 ? c.accent : cardFill;
+      const fg = i === 0 ? accentText : cardText;
+      const labelColor = i === 0 ? accentText : accentOnCard;
+      s.addShape('roundRect', { x: mx, y: my, w: mw, h: mh, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.1 });
+      addPptText(s, m.label || '핵심 지표', { x: mx + 0.28, y: my + 0.22, w: mw - 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: labelColor, fit: 'shrink' });
+      addPptText(s, m.value || '', { x: mx + 0.28, y: my + 0.54, w: mw - 0.56, h: mh - 0.74, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: fg, valign: 'top', fit: 'shrink' });
+    });
+  }
 }
 
 function drawComparisonPptx(s, items, t, x, y, w, h) {
@@ -8980,6 +9173,21 @@ function safePptText(value) {
     .trim();
 }
 
+function safePptTextKeepLines(value) {
+  if (value == null) return '';
+  return String(value)
+    .normalize('NFC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/�/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    .trim();
+}
+
 function shortPptText(value, max = 20) {
   const text = safePptText(value);
   if (text.length <= max) return text;
@@ -9044,7 +9252,7 @@ function normalizePptItems(items) {
 }
 
 function addPptText(s, value, options = {}) {
-  const { fill, rectRadius = 0.06, ...textOptions } = options;
+  const { fill, rectRadius = 0.06, preserveLines = false, ...textOptions } = options;
   if (fill) {
     s.addShape('roundRect', {
       x: options.x,
@@ -9063,7 +9271,7 @@ function addPptText(s, value, options = {}) {
     : (textOptions.fit || 'shrink');
   const opts = { ...textOptions, fontFace: textOptions.fontFace || 'Pretendard' };
   if (fitVal !== undefined) opts.fit = fitVal;
-  s.addText(safePptText(value), opts);
+  s.addText(preserveLines ? safePptTextKeepLines(value) : safePptText(value), opts);
 }
 
 function pptTextOn(background, preferred = SAFE_TEXT_DARK, minimum = 4.5) {
@@ -9092,12 +9300,16 @@ function hex(s) {
 // ("글이 나오다가 마는" 현상). autofit에 의존하지 말고 실제 크기를 XML에 박아 어떤 변환기에서도 안 잘리게 한다.
 // 한글은 글자폭 ≈ fontSize(전각)로 보수적으로 계산(영문은 더 좁아 실제론 더 잘 들어감).
 function fitFontSizePt(text, wIn, hIn, base = 10, min = 6, lineHeight = 1.22) {
-  const str = String(text || '').replace(/\s+/g, ' ').trim();
+  const rows = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.replace(/[ \t]+/g, ' ').trim());
+  const str = rows.join('\n').trim();
   if (!str) return base;
   for (let size = base; size >= min; size -= 0.5) {
     const charWIn = size / 72;                                   // 전각 1글자 폭
     const charsPerLine = Math.max(1, Math.floor(wIn / charWIn));
-    const lines = Math.ceil(str.length / charsPerLine);
+    const lines = rows.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
     const neededH = (lines * size * lineHeight) / 72;
     if (neededH <= hIn) return size;
   }
