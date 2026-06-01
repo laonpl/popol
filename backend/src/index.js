@@ -12,7 +12,9 @@ import jobRoutes from './routes/job.js';
 import uploadRoutes from './routes/upload.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
+import billingRoutes from './routes/billing.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
+import { billingContextMiddleware } from './services/billingService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -116,6 +118,7 @@ app.use('/api', (req, res, next) => {
   res.setTimeout(300000);
   next();
 });
+app.use('/api', billingContextMiddleware);
 
 // 전체 API 일반 제한
 // 인증 라우트는 별도 OTP 제한을 사용하므로 전역 일반 제한에서 제외
@@ -138,6 +141,7 @@ app.use('/api/job', ...aiLimiters, jobRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {

@@ -2,7 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import {
   User, MapPin, Calendar, GraduationCap, Phone, Mail, Globe,
-  Code, Wrench, BookOpen, Check, X, Plus, Loader2, Search, Lock, Eye, EyeOff
+  Code, Wrench, BookOpen, Check, X, Plus, Loader2, Search, Lock, Eye, EyeOff, WalletCards
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
@@ -391,13 +391,23 @@ export default function ProfileSetup() {
                 포트폴리오 작성 시 자동으로 채워지는 기본 정보입니다. <span className="text-red-400">*</span>는 필수 항목입니다.
               </p>
             </div>
-            <button
-              onClick={handleSkipProfileSetup}
-              disabled={skipSaving}
-              className="flex-shrink-0 text-[13px] text-bluewood-300 hover:text-bluewood-600 transition-colors underline underline-offset-2"
-            >
-              {skipSaving ? '저장 중...' : '건너뛰기'}
-            </button>
+            <div className="flex items-center gap-4">
+              {profile && (
+                <button
+                  onClick={() => navigate('/app/settings/credits')}
+                  className="flex items-center gap-1.5 text-[13px] font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  <WalletCards size={14} /> 크레딧 충전
+                </button>
+              )}
+              <button
+                onClick={handleSkipProfileSetup}
+                disabled={skipSaving}
+                className="flex-shrink-0 text-[13px] text-bluewood-300 hover:text-bluewood-600 transition-colors underline underline-offset-2"
+              >
+                {skipSaving ? '저장 중...' : '건너뛰기'}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
+import { assertHasCredits, recordAiUsage } from '../services/billingService.js';
 
 let genAIClient = null;
 let _cachedGeminiConfig = null;
@@ -103,7 +104,9 @@ export async function callGitHubModelsFallback(prompt) {
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content;
+  const text = response.choices[0].message.content;
+  await recordAiUsage({ provider: 'github-models', model: 'gpt-4o-mini', usage: response.usage, prompt: safePrompt, output: text });
+  return text;
 }
 
 const MODEL_FALLBACKS = [
@@ -263,7 +266,16 @@ export function callGeminiModel(modelName, contents, timeoutMs = 90000, config =
     const request = { model: modelName, contents };
     if (config && Object.keys(config).length > 0) request.config = config;
     getGenAI().models.generateContent(request).then(
-      r => { clearTimeout(timer); resolve(extractGeminiText(r)); },
+      async r => {
+        clearTimeout(timer);
+        try {
+          const text = extractGeminiText(r);
+          await recordAiUsage({ provider: 'gemini', model: modelName, usage: r.usageMetadata, prompt: contents, output: text });
+          resolve(text);
+        } catch (error) {
+          reject(error);
+        }
+      },
       e => { clearTimeout(timer); reject(e); },
     );
   });
@@ -291,6 +303,8 @@ export async function generateWithRetry(prompt, options = {}) {
     callTimeoutMs = 90000,
     config = null,
   } = options;
+
+  await assertHasCredits();
 
   // 세마포어 획득 — 동시 호출 수 제한
   try {

@@ -1,6 +1,8 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
-import { Settings } from 'lucide-react';
+import { useEffect } from 'react';
+import { Coins, Settings } from 'lucide-react';
+import useCreditStore from '../stores/creditStore';
 
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
@@ -9,14 +11,22 @@ const navItems = [
 
 export default function Layout() {
   const { user, profile, signOut } = useAuthStore();
+  const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
+    clearWallet();
     navigate('/');
   };
 
   const displayName = profile?.nameKo || user?.displayName || '사용자';
+
+  useEffect(() => {
+    loadWallet({ silent: true }).catch(() => {});
+    window.addEventListener('credits:refresh', refreshWallet);
+    return () => window.removeEventListener('credits:refresh', refreshWallet);
+  }, [loadWallet, refreshWallet]);
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
@@ -49,6 +59,16 @@ export default function Layout() {
 
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
+            <button
+              onClick={() => navigate('/app/settings/credits')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
+              title="크레딧 충전"
+            >
+              <Coins size={14} />
+              <span className="text-xs font-bold tabular-nums">
+                {Math.max(0, Number(wallet?.balance || 0)).toLocaleString('ko-KR', { maximumFractionDigits: 0 })} C
+              </span>
+            </button>
             <span className="text-sm font-medium text-bluewood-700">
               {displayName}
             </span>
@@ -60,7 +80,7 @@ export default function Layout() {
               </div>
             )}
             <button
-              onClick={() => navigate('/app/profile-setup')}
+              onClick={() => navigate('/app/settings/credits')}
               className="p-1.5 text-bluewood-400 hover:text-primary-600 transition-colors"
               title="프로필 수정"
             >

@@ -47,7 +47,12 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined' && !response.config?.url?.includes('/billing/wallet')) {
+      window.dispatchEvent(new Event('credits:refresh'));
+    }
+    return response;
+  },
   (error) => {
     // 네트워크 오류 (ERR_CONNECTION_REFUSED / Network Error)
     if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
@@ -73,6 +78,12 @@ api.interceptors.response.use(
       rateLimitError.retryAfter = retryAfter || 60;
       rateLimitError.response = error.response;
       return Promise.reject(rateLimitError);
+    }
+    if (error.response?.status === 402) {
+      const creditError = new Error(error.response.data?.error || '크레딧이 부족합니다.');
+      creditError.isCreditError = true;
+      creditError.response = error.response;
+      return Promise.reject(creditError);
     }
     const msg = error.response?.data?.error || error.response?.data?.detail || error.message || '알 수 없는 오류';
     console.error('API 에러:', msg);

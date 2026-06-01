@@ -150,7 +150,9 @@ const KIND_KEYWORDS = {
   cover:     ['표지', '커버', '포트폴리오', 'portfolio', '이름', 'profile', '프로필', '메인', 'main', 'hero', 'intro', '소개합니다', '안녕하세요', 'opening'],
   about:     ['소개', '자기소개', '가치관', '비전', '미션', 'about', 'values', '강점', 'introduction', '저는', 'who am i', 'who i am', '핵심 가치', 'philosophy', '나를'],
   skills:    ['기술', '스킬', '스택', '역량', '도구', '프레임워크', '언어', 'skill', 'stack', 'tool', 'framework', 'tech', 'expertise', '전문성', '핵심 역량', 'core competency', 'capability', '능력'],
-  project:   ['프로젝트', 'project', '작업물', '개요', 'overview', 'case study', 'case', 'work', '사례', '케이스', '주요 경험', '대표 프로젝트', '프로젝트 사례', '프로젝트 #', '01', '02', '03', 'representative'],
+  // '01'/'02'/'03' 같은 순번 토큰은 목차(TOC)·인덱스 슬라이드와 오매칭되어 그 슬라이드를
+  // 'project'로 잘못 분류시킨다(→ 프로젝트 본문이 목차에 배정돼 빈칸→삭제되는 내용 손실). 제외.
+  project:   ['프로젝트', 'project', '작업물', '개요', 'overview', 'case study', 'case', 'work', '사례', '케이스', '주요 경험', '대표 프로젝트', '프로젝트 사례', 'representative'],
   metric:    ['지표', '수치', '차트', '그래프', '데이터', 'kpi', 'metric', '%', 'before', 'after', '↑', '↓', '증가', '감소', '임팩트', 'impact', '전환', '효율', '절감', '개선', '배', 'x배', 'roi', 'mau', 'dau', '향상', '단축', '달성'],
   problem:   ['문제', '배경', '이슈', 'problem', 'issue', 'background', '핵심행동', '진행', '과정', 'task', 'process', 'action', '해결', 'solution', 'ideate', 'prototype', 'develop', 'test', 'iteration', 'research', '도전', 'challenge', '접근', 'approach', 'how', '실행', '수행'],
   result:    ['결과', '성과', '결과물', 'result', 'output', 'achievement', '산출물', '효과', '임팩트', 'impact', '달성', 'outcome', '성취', '완성', 'delivered'],
@@ -377,8 +379,9 @@ const KIND_MATCH = {
   cover:              { cover: 100, generic: 50 },
   about:              { about: 100, cover: 35, generic: 60 },
   skills:             { skills: 100, project: 30, generic: 55 },
-  // 프로젝트 섹션 구분 — cover/about 스타일 (제목 위주의 단순 슬라이드) 선호
-  project_divider:    { cover: 100, about: 70, generic: 60, project: 50 },
+  // 프로젝트 섹션 구분 — 제목 위주의 단순 슬라이드 선호. cover 는 실제 표지와 겹쳐 "표지 반복"처럼
+  // 보이므로 낮춘다(about/generic/project 우선). 표지 중복의 핵심 원인.
+  project_divider:    { about: 80, generic: 72, project: 62, cover: 40 },
   // 프로젝트 카드/소개
   project_intro:      { project: 100, about: 50, generic: 60 },
   project_overview:   { project: 100, about: 50, generic: 60 },
@@ -400,9 +403,11 @@ const KIND_MATCH = {
   awards:             { awards: 100, education: 35, generic: 55 },
   contact:            { contact: 100, cover: 35, generic: 55 },
 };
-// 노션형 포트폴리오는 프로젝트당 최대 9슬라이드 → 페널티가 너무 크면 적합하지 않은
-// 템플릿으로 분산됨. 낮은 페널티 = 가장 적합한 템플릿을 우선 재사용.
-const REUSE_PENALTY = 5;
+// 같은 템플릿 슬라이드를 반복 사용하면 출력물이 "같은 슬라이드 여러 장"처럼 보인다(중복의 핵심).
+// 페널티를 키워 desired 섹션이 가능한 한 서로 다른 템플릿 슬라이드로 분산되게 한다.
+// (base 점수 30~100 범위 → 35면 한 번 재사용한 강매칭(100→65)이 미사용 약매칭(~60)과 비슷해져
+//  먼저 모든 슬라이드를 한 번씩 쓰고 부족할 때만 재사용)
+const REUSE_PENALTY = 35;
 
 export function planDeck(layout, portfolio) {
   const norm = normalizePortfolio(portfolio);
@@ -1281,44 +1286,179 @@ async function summarizeOverflow(deck) {
   if (applied) console.log(`[PPT-Mapper] 콘텐츠 피팅 적용: ${applied}/${jobs.length}개 박스 압축 완료`);
 }
 
-// ── 9) 메인: 결정론적 fill + 스마트 콘텐츠 피팅 ─────────────────────────────
-// Why: 슬라이드당 Gemini 호출은 토큰·시간이 많이 들고,
-//   AI가 박스를 오분류하면 디자인이 깨진다. 결정론적 폴백이 더 빠르고 안정적.
+// ── 8-c) 배치 LLM 매핑 (전체 슬라이드 1회 호출) ──────────────────────────────
+// 복잡한 업로드 템플릿(슬라이드당 박스 10+개)을 결정론 규칙만으로는 1~2개 박스만 채우게 된다.
+// 전체 슬라이드의 박스 구조 + 섹션 데이터를 한 번의 Gemini 호출로 보내 박스별 텍스트를 받아온다.
+// 결과는 "결정론 baseline 위에 검증 통과분만 덮어쓰기" 로 적용 → 호출 실패/누락 시 현행 동작 보장.
+function buildBatchMappingPrompt(items) {
+  const sections = [...new Set(items.map(it => it.sectionType))];
+  const guideLines = sections
+    .map(sec => `- ${sec}: ${(SECTION_GUIDE[sec] || '').split('\n')[0]}`)
+    .join('\n');
+  const slides = items.map(it => ({
+    slide_id: it.slideId,
+    section: it.sectionType,
+    data: it.ctx,
+    boxes: it.slots.map((s, i) => {
+      const b = { box_id: i, hint: s.hint, role: s.semanticRole, char_budget: s.maxChars };
+      if (s.semanticRole === 'stage' && s.originalText) b.stageLabel = s.originalText;
+      return b;
+    }),
+  }));
+  return `당신은 FitPoly의 수석 포트폴리오 디렉터이자 PPT 콘텐츠 매핑 모듈입니다.
+아래 여러 슬라이드의 텍스트 박스에 들어갈 한국어 텍스트를 한 번에 결정해 JSON 으로 반환하십시오.
+
+━━━ [절대 규칙] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. char_budget 은 권장 분량. 내용이 있으면 자르지 말고 자연스럽게 쓰되 char_budget 의 1.5배 초과 금지.
+   char_budget ≤ 6 박스는 "" 로 비워라.
+B. 각 슬라이드의 data 에 없는 회사·숫자·사실·수치 절대 창작 금지. data 에 맞는 값이 없으면 "".
+   '[작성 필요]','N/A','내용을 입력하세요' 같은 placeholder 절대 생성 금지.
+C. 같은 슬라이드 내 두 박스에 동일·유사·부분중복 text 금지. 한 사실/문장을 길이만 바꿔
+   여러 박스에 나눠 넣지 말 것. 적합한 내용이 없는 박스는 억지로 채우지 말고 "" 로 비워라.
+D. role 우선순위: title=핵심 제목(짧고 강하게) / metric=숫자·단위만(예 "309라인","98%") / tag=키워드 1~2개 /
+   heading=부제·카드 제목 / body=1~3문장 또는 동사 시작 bullet(줄바꿈 \\n) / meta="기간 · 역할" /
+   index·stage=빈 문자열("")로 두라(템플릿 번호·단계 라벨이므로 건드리지 않음).
+   ※ "속도","단축" 같은 단어 조각을 title 에 넣지 말 것 — title 은 완결된 핵심 문구만.
+E. 여러 heading/body 박스가 있으면 keyExperiences·problem·action·result 를 "카드별로 1건씩" 나누어
+   배치하라(한 카드 = 한 경험). 한 사실을 쪼개 여러 칸을 메우지 말 것. 채울 게 없으면 비워라.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[섹션별 의도]
+${guideLines}
+
+[슬라이드들 (각 슬라이드의 boxes 를 채울 것)]
+${JSON.stringify(slides)}
+
+[출력 스키마] JSON 만 반환 (마크다운 코드펜스 금지):
+{ "slides": [ { "slide_id": <입력 slide_id 그대로>, "boxes": [ { "box_id": <정수>, "text": "<문자열>", "emphasis": "<none|metric|title>" } ] } ] }`;
+}
+
+async function aiMapAllSlides(items) {
+  const out = new Map(); // `${slideId}:${boxId}` -> { text, emphasis }
+  if (!items.length) return out;
+  let parsed = null;
+  try {
+    // flash-lite 를 먼저(빠름 → 타임아웃 회피), flash 를 보강용으로. 큰 프롬프트라 타임아웃·재시도 넉넉히.
+    // 모두 실패하면 호출부에서 결정론 baseline 으로 자동 폴백되지만, 그 경우 채움이 희소해지므로
+    // 여기서 최대한 성공시키는 것이 "내용이 잘 담기는가"의 핵심.
+    const raw = await generateWithRetry(buildBatchMappingPrompt(items), {
+      models: ['gemini-2.5-flash-lite', 'gemini-2.5-flash'],
+      retries: 2,
+      callTimeoutMs: 150000,
+      config: { temperature: 0.25, responseMimeType: 'application/json' },
+    });
+    parsed = parseJSON(raw);
+  } catch (e) {
+    console.warn(`[PPT-Mapper] LLM 일괄 매핑 실패 → 결정론적 결과 유지: ${e?.message || e}`);
+    return out;
+  }
+  for (const sl of (parsed?.slides || [])) {
+    if (sl?.slide_id == null) continue;
+    for (const b of (sl.boxes || [])) {
+      if (b == null || b.box_id == null) continue;
+      out.set(`${sl.slide_id}:${b.box_id}`, { text: String(b.text || ''), emphasis: b.emphasis || 'none' });
+    }
+  }
+  return out;
+}
+
+// ── 9) 메인: 결정론 baseline + 배치 LLM 매핑 오버레이 + 스마트 콘텐츠 피팅 ───────
 export async function mapDeck({ portfolio, layout }) {
   const { norm, plan } = planDeck(layout, portfolio);
-  console.log(`[PPT-Mapper] ${plan.length}개 슬라이드 결정론적 매핑 (Gemini 없음, 즉시 처리)`);
 
   const normStr = (s) => s.toLowerCase().replace(/\s+/g, '').trim();
 
-  const deck = plan.map(step => {
+  // 1) 각 슬라이드의 컨텍스트/슬롯/결정론 baseline 준비
+  const prepared = plan.map((step, si) => {
     const ctx = buildContext(norm, step);
     const { slots, groupCount, groupAxis } = buildSlots(layout, step);
     const det = deterministicFallback(step, ctx, slots, { groupCount, groupAxis });
-    const slotMap = new Map((det.slots || []).map(s => [s.shapeId, s]));
+    return { si, step, ctx, slots, det };
+  });
+
+  // 2) 전체 슬라이드 1회 LLM 매핑 (실패 시 빈 Map → 결정론적 결과 그대로 사용)
+  console.log(`[PPT-Mapper] ${plan.length}개 슬라이드 LLM 일괄 매핑 시도`);
+  const aiMap = await aiMapAllSlides(prepared.map(p => ({
+    slideId: p.si, sectionType: p.step.sectionType, ctx: p.ctx, slots: p.slots,
+  })));
+  if (aiMap.size) console.log(`[PPT-Mapper] LLM 매핑 응답 ${aiMap.size}개 박스 수신 (검증 후 적용)`);
+
+  // 3) deck 빌드: 결정론 baseline 위에 검증 통과한 AI 텍스트만 덮어쓰기
+  const deck = prepared.map(({ si, step, ctx, slots, det }) => {
+    const detMap = new Map((det.slots || []).map(s => [s.shapeId, s]));
     const roleMap = new Map(slots.map(s => [s.shapeId, s.semanticRole]));
+    const ctxStr = JSON.stringify(ctx);
+
+    // shapeId → 최종 {text, emphasis}
+    const finalByShape = new Map();
+    slots.forEach((slot, i) => {
+      const base = detMap.get(slot.shapeId) || { text: '', emphasis: 'none' };
+      let text = (base.text || '').trim();
+      let emphasis = base.emphasis || 'none';
+      const ai = aiMap.get(`${si}:${i}`);
+      if (ai) {
+        const cand = cleanFill(ai.text);
+        const cap = slot.maxChars || 120;
+        // 검증: 비어있지 않고 / 장식·번호·단계 박스가 아니고 / 템플릿 원문 복사가 아니고 /
+        //       원본 데이터에 없는 숫자를 지어내지 않은 경우에만 채택. 아니면 결정론 baseline 유지.
+        const role = slot.semanticRole;
+        const ok = cand
+          && cap > 6
+          && role !== 'index' && role !== 'stage'
+          && !looksLikeOriginal(cand, slot.originalText)
+          && numbersSubsetOf(cand, ctxStr);
+        if (ok) {
+          text = cand;
+          if (ai.emphasis === 'metric') emphasis = 'metric';
+        }
+      }
+      finalByShape.set(slot.shapeId, { text, emphasis });
+    });
 
     const tpl = layout.slides[step.templateSlideIndex];
     const rawBoxes = (tpl.textBoxes || []).map(box => {
-      const slot = slotMap.get(box.shapeId);
+      const f = finalByShape.get(box.shapeId);
       return {
         ...box,
-        text: (slot?.text || '').trim(),
-        emphasis: slot?.emphasis || 'none',
+        text: (f?.text || '').trim(),
+        emphasis: f?.emphasis || 'none',
         semanticRole: roleMap.get(box.shapeId) || box.role,
       };
     });
 
-    // 슬라이드 내 중복 텍스트 제거 (2자 이상 — 짧은 숫자/% 중복도 제거)
+    // 슬라이드 내 중복 텍스트 제거.
+    // 1자 이상으로 낮춰 장식용 반복 숫자("3가지 핵심 문제" 디자인의 큰 "3" 등)도 1개만 남기고 제거한다.
+    // (동일 텍스트만 충돌 — "1","2","3"처럼 서로 다르면 모두 유지)
     const seen = new Map();
     const dedupedBoxes = rawBoxes.map(b => {
       const t = b.text || '';
-      if (t.length >= 2) {
+      if (t.length >= 1) {
         const key = normStr(t);
         if (key && seen.has(key)) return { ...b, text: '' };
         if (key) seen.set(key, true);
       }
       return b;
     });
+
+    // 근접 중복 제거: body/heading 박스끼리 한 텍스트가 다른 텍스트에 포함되면(부분문자열)
+    // 짧은 쪽을 비운다. LLM이 같은 내용을 길이만 달리해 여러 박스에 넣는 현상 정리.
+    // (metric/tag/title/index 는 숫자·키워드 강조용이라 substring 제거에서 제외)
+    const DUP_ROLES = new Set(['body', 'heading', 'result']);
+    const dupKeys = dedupedBoxes.map(b =>
+      (DUP_ROLES.has(b.semanticRole) && (b.text || '').trim().length >= 10) ? normStr(b.text) : null
+    );
+    for (let a = 0; a < dedupedBoxes.length; a++) {
+      if (!dupKeys[a]) continue;
+      for (let c = 0; c < dedupedBoxes.length; c++) {
+        if (a === c || !dupKeys[c]) continue;
+        // dupKeys[c] 가 dupKeys[a] 를 포함하고 더 길면 → a(짧은 쪽) 비움
+        if (dupKeys[c].length > dupKeys[a].length && dupKeys[c].includes(dupKeys[a])) {
+          dedupedBoxes[a] = { ...dedupedBoxes[a], text: '' };
+          dupKeys[a] = null;
+          break;
+        }
+      }
+    }
 
     return {
       planIndex: step.planIndex,

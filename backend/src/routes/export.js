@@ -18,6 +18,27 @@ const pptUpload = multer({
   },
 });
 
+// POST /api/export/ppt-theme - PPTX 파일에서 색·폰트 테마만 추출
+// 업로드 템플릿의 accent/bg/text/font 를 뽑아 내장 파이프라인에 넘긴다.
+router.post('/ppt-theme', authMiddleware, pptUpload.single('template'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'PPTX 파일이 필요합니다' });
+    const layout = await parsePptxLayout(req.file.buffer);
+    const { theme } = layout;
+    res.json({
+      bg:          theme.bg          || '#FFFFFF',
+      accent:      theme.accent      || '#3B82F6',
+      text:        theme.text        || '#111827',
+      heading:     theme.heading     || '#111827',
+      fontHeading: theme.headingFont || 'Pretendard',
+      fontBody:    theme.bodyFont    || 'Pretendard',
+    });
+  } catch (error) {
+    console.error('[POST /export/ppt-theme]', error);
+    next(error);
+  }
+});
+
 // POST /api/export/ppt - PPTX 템플릿 + 노션형 포트폴리오 → 완성된 PPTX
 // multipart/form-data: template(file, .pptx), portfolio(string, JSON)
 router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, res, next) => {

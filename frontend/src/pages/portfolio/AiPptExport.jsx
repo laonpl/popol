@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
-import { getComposedTemplate, SlidePreview, exportDeckToPptx, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
+import { getComposedTemplate, buildTemplateFromPptxTheme, SlidePreview, exportDeckToPptx, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 
@@ -32,8 +32,9 @@ export default function AiPptExport() {
   const [reviseInput, setReviseInput] = useState('');
   const [revising, setRevising] = useState(false);
   const [exporting, setExporting] = useState(false);
-  // Custom template state
+  // Custom template state (구버전 box-mapping 결과 — 하위호환용으로만 유지)
   const [customResult, setCustomResult] = useState(null); // { pptxBase64, deck, slideSize, layoutSlides }
+  const [pptxThemeTemplate, setPptxThemeTemplate] = useState(null); // 업로드 PPTX 테마로 만든 내장 템플릿
   const fileInputRef = useRef(null);
 
   const autoStartFiredRef = useRef(false);
@@ -71,18 +72,27 @@ export default function AiPptExport() {
     setStage(STAGE.ANALYZING);
     try {
       if (templateId === 'custom' && customFile) {
-        // 새 파이프라인: templateParser → geminiMapper → pptxRenderer
-        const form = new FormData();
-        form.append('template', customFile);
-        form.append('portfolio', JSON.stringify(portfolio));
-        const { data } = await api.post('/export/ppt', form, {
+        // 업로드 PPTX에서 색·폰트 추출 → 내장 파이프라인 그대로 사용
+        // (box-mapping 방식 제거 — 내장과 동일한 채움 품질 보장)
+        const themeForm = new FormData();
+        themeForm.append('template', customFile);
+        const { data: tokens } = await api.post('/export/ppt-theme', themeForm, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 600000, // Pro 2.5 병렬: 큐(31×4.1s=127s) + 마지막 슬라이드 AI(40s) ≈ 170s, 여유 있게 10분
         });
-        setCustomResult(data);
+        const tpl = buildTemplateFromPptxTheme(tokens, layoutId);
+        setPptxThemeTemplate(tpl);
+        // 내장 파이프라인과 동일하게 deck 생성
+        const { data } = await api.post('/portfolio/ai-ppt-analyze', {
+          portfolioId: id,
+          templateHint: `${layoutId}:proposal`,
+          customTemplate: null,
+        });
+        if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
+        setDeck(data.deck);
         setStage(STAGE.PREVIEW);
       } else {
-        // 1번 템플릿 파이프라인: 첨부 PPT형 제안서 deck 생성
+        setPptxThemeTemplate(null);
+        // 내장 템플릿 파이프라인
         const { data } = await api.post('/portfolio/ai-ppt-analyze', {
           portfolioId: id,
           templateHint: `${layoutId}:${templateId}`,
@@ -122,8 +132,10 @@ export default function AiPptExport() {
     if (!deck) return;
     setExporting(true);
     try {
-      const template = getComposedTemplate(layoutId, templateId);
-      const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${templateId}.pptx`;
+      // 업로드 PPTX 테마가 있으면 그걸 사용, 없으면 선택한 내장 팔레트 사용
+      const template = pptxThemeTemplate || getComposedTemplate(layoutId, templateId);
+      const suffix = pptxThemeTemplate ? 'custom' : templateId;
+      const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${suffix}.pptx`;
       await exportDeckToPptx(deck, template, fileName);
       toast.success('PPT 다운로드를 시작합니다');
     } catch (e) {
@@ -198,7 +210,7 @@ export default function AiPptExport() {
           ) : deck ? (
             <PreviewStage
               deck={deck}
-              template={getComposedTemplate(layoutId, templateId)}
+              template={pptxThemeTemplate || getComposedTemplate(layoutId, templateId)}
               portfolioId={id}
               selectedIdx={selectedSlideIdx}
               setSelectedIdx={setSelectedSlideIdx}
@@ -208,7 +220,7 @@ export default function AiPptExport() {
               onRevise={reviseSlide}
               onExport={handleExport}
               exporting={exporting}
-              onRegenerate={() => { setDeck(null); setSelectedSlideIdx(null); setStage(STAGE.CHOOSE); }}
+              onRegenerate={() => { setDeck(null); setSelectedSlideIdx(null); setPptxThemeTemplate(null); setStage(STAGE.CHOOSE); }}
             />
           ) : null}
         </>
@@ -574,6 +586,13 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
 // ── 템플릿 1/2/3 미리보기 (Notion 스타일 슬라이드) ───────────────────────
 function PreviewStage({ deck, template, portfolioId, selectedIdx, setSelectedIdx, reviseInput, setReviseInput, revising, onRevise, onExport, exporting, onRegenerate }) {
   const slides = deck.slides || [];
+  const [showClickGuide, setShowClickGuide] = useState(true);
+
+  const handleSlideClick = (index) => {
+    setShowClickGuide(false);
+    setSelectedIdx(selectedIdx === index ? null : index);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -604,7 +623,8 @@ function PreviewStage({ deck, template, portfolioId, selectedIdx, setSelectedIdx
             template={template}
             index={i}
             selected={selectedIdx === i}
-            onClick={() => setSelectedIdx(selectedIdx === i ? null : i)}
+            showClickGuide={showClickGuide && i === 0}
+            onClick={() => handleSlideClick(i)}
           />
         ))}
       </div>
@@ -641,22 +661,35 @@ function PreviewStage({ deck, template, portfolioId, selectedIdx, setSelectedIdx
   );
 }
 
-function SlideCard({ slide, template, index, selected, onClick }) {
+function SlideCard({ slide, template, index, selected, showClickGuide, onClick }) {
   const containerW = 540;
   const scale = containerW / 960;
   return (
     <button
       onClick={onClick}
-      className={`block text-left bg-white rounded-xl border-2 overflow-hidden transition-all hover:-translate-y-0.5 ${selected ? 'border-primary-500 ring-2 ring-primary-200' : 'border-surface-200'}`}
+      className={`relative isolate block text-left bg-white rounded-xl border-2 overflow-visible transition-all hover:-translate-y-0.5 ${selected ? 'border-primary-500 ring-2 ring-primary-200' : 'border-surface-200'} ${showClickGuide ? 'animate-ppt-slide-guide' : ''}`}
       style={{ width: '100%' }}
     >
-      <div style={{ width: '100%', height: 540 * scale, position: 'relative', overflow: 'hidden' }}>
-        <SlidePreview slide={slide} template={template} index={index} scale={scale} />
+      <div className="overflow-hidden rounded-[10px] bg-white">
+        <div style={{ width: '100%', height: 540 * scale, position: 'relative', overflow: 'hidden' }}>
+          <SlidePreview slide={slide} template={template} index={index} scale={scale} />
+        </div>
+        <div className="px-4 py-2 border-t border-surface-100 flex items-center justify-between text-xs">
+          <span className="font-medium text-gray-600">{index + 1}. {slide.title}</span>
+          <span className="text-gray-400">{slide.layout}</span>
+        </div>
       </div>
-      <div className="px-4 py-2 border-t border-surface-100 flex items-center justify-between text-xs">
-        <span className="font-medium text-gray-600">{index + 1}. {slide.title}</span>
-        <span className="text-gray-400">{slide.layout}</span>
-      </div>
+      {showClickGuide && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-primary-900/10">
+          <div className="animate-ppt-guide-card flex items-center gap-3 rounded-2xl border border-primary-100 bg-white/95 px-4 py-3 shadow-xl backdrop-blur-sm">
+            <MousePointerClick size={25} className="animate-ppt-pointer-tap shrink-0 text-primary-600" />
+            <div>
+              <div className="text-sm font-bold text-gray-800">슬라이드를 클릭해보세요</div>
+              <div className="mt-0.5 text-xs font-medium text-gray-500">원하는 부분을 AI에게 수정 요청할 수 있어요</div>
+            </div>
+          </div>
+        </div>
+      )}
     </button>
   );
 }

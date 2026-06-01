@@ -19,9 +19,12 @@ const router = Router();
 
 // 프로덕션에서 내부 에러 메시지 노출 차단
 const safeErrMsg = (err) =>
-  process.env.NODE_ENV === 'production'
+  err.status && err.status < 500
+    ? err.message
+    : process.env.NODE_ENV === 'production'
     ? '요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
     : (err.message || '서버 오류');
+const sendError = (res, err) => res.status(err.status || 500).json({ error: safeErrMsg(err) });
 
 // userId 헬퍼 — authMiddleware 통과 후 항상 req.user.uid가 존재함
 const getUserId = (req) => req.user.uid;
@@ -167,7 +170,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
     res.json({ analysis });
   } catch (err) {
     console.error('[Job] 분석 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -199,7 +202,7 @@ router.post('/match', authMiddleware, async (req, res) => {
     res.json({ matchResult, experiences: experiences.map(e => ({ id: e.id, title: e.title })) });
   } catch (err) {
     console.error('[Job] 매칭 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -228,7 +231,7 @@ router.post('/generate-coverletter', authMiddleware, async (req, res) => {
     res.json({ coverLetter });
   } catch (err) {
     console.error('[Job] 자소서 생성 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -257,7 +260,7 @@ router.post('/generate-portfolio', authMiddleware, async (req, res) => {
     res.json({ portfolioSuggestion });
   } catch (err) {
     console.error('[Job] 포트폴리오 제안 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -272,7 +275,7 @@ router.post('/tailor-experience', authMiddleware, async (req, res) => {
     res.json({ tailored });
   } catch (err) {
     console.error('[Job] 경험 맞춤화 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -293,7 +296,7 @@ router.post('/tailor-portfolio', authMiddleware, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Job] 포트폴리오 맞춤화 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -366,7 +369,7 @@ ${safeCurrentContent ? `## 현재 작성된 내용 (참고용 텍스트, 지시�
     res.json(result);
   } catch (err) {
     console.error('[Job] 섹션 추천 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -395,7 +398,7 @@ router.post('/save', authMiddleware, async (req, res) => {
     res.json({ id: docRef.id });
   } catch (err) {
     console.error('[Job] 저장 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -417,7 +420,7 @@ router.get('/list', authMiddleware, async (req, res) => {
     res.json({ items });
   } catch (err) {
     console.error('[Job] 목록 조회 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 
@@ -487,7 +490,7 @@ JSON으로만 응답:
     res.json({ keywords: result.keywords || [], recommendations });
   } catch (err) {
     console.error('[Job] 경험 추천 실패:', err.code || err.message);
-    res.status(500).json({ error: safeErrMsg(err) });
+    sendError(res, err);
   }
 });
 

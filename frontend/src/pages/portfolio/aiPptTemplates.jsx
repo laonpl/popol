@@ -464,6 +464,43 @@ export function getComposedTemplate(layoutId = 'standard', paletteId = 'proposal
 }
 
 /**
+ * 업로드 PPTX에서 추출한 테마 토큰(accent/bg/text/font)으로
+ * 선택한 내장 layoutId 에 색·폰트를 입혀 내장 파이프라인이 그대로 쓸 수 있는 템플릿을 반환.
+ * 내장 레이아웃의 그리기 코드를 100% 재사용하므로 채움 품질이 내장과 동일.
+ */
+export function buildTemplateFromPptxTheme(tokens = {}, layoutId = 'narrative') {
+  const bg      = normalizeHexColor(tokens.bg)      || '#FFFFFF';
+  const accent  = normalizeHexColor(tokens.accent)  || '#3B82F6';
+  const textRaw = normalizeHexColor(tokens.heading || tokens.text) || '#111827';
+  // 어두운 색이 있으면 dark/side 로, 없으면 accent 를 dark 대신 사용
+  const dark = relativeLuminance(textRaw) < 0.5 ? textRaw : (relativeLuminance(bg) > 0.5 ? '#1C1C1E' : bg);
+  const layoutBase = getTemplate('proposal');
+  return normalizeProposalTemplate({
+    ...layoutBase,
+    id: `pptx-theme-${layoutId}`,
+    name: `업로드 테마 (${layoutId})`,
+    layoutId,
+    colors: {
+      ...layoutBase.colors,
+      bg,
+      accent,
+      sub:    textRaw,
+      dark,
+      dark2:  dark,
+      side:   dark,
+      headBg: dark,
+      kpi:    accent,
+      line:   hexLighten(accent, 0.82),
+      card:   relativeLuminance(bg) > 0.5 ? hexLighten(accent, 0.94) : hexLighten(bg, 0.12),
+    },
+    fonts: {
+      heading: tokens.fontHeading || 'Pretendard',
+      body:    tokens.fontBody    || 'Pretendard',
+    },
+  }, layoutBase);
+}
+
+/**
  * 업로드한 PPTX의 디자인 토큰(extractPptxDesignTokens 결과)으로
  * 합격자 레이아웃(modern·sidebar)에 색·폰트를 입힌 가상 템플릿을 만든다.
  * 미리보기와 PptxGenJS 출력 모두 이 템플릿으로 동일하게 렌더링된다.

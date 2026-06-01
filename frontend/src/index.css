@@ -159,6 +159,41 @@ textarea {
   animation: pulse-check 0.5s ease-in-out;
 }
 
+/* PPT preview click guide */
+@keyframes ppt-slide-guide {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.16); }
+  50% { box-shadow: 0 0 0 9px rgba(59, 130, 246, 0.24); }
+}
+.animate-ppt-slide-guide {
+  animation: ppt-slide-guide 1.6s ease-in-out infinite;
+}
+
+@keyframes ppt-guide-card {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-ppt-guide-card {
+  animation: ppt-guide-card 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ppt-pointer-tap {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  45% { transform: translate(5px, 5px) scale(1); }
+  58% { transform: translate(5px, 5px) scale(0.82); }
+  72% { transform: translate(5px, 5px) scale(1); }
+}
+.animate-ppt-pointer-tap {
+  animation: ppt-pointer-tap 1.4s ease-in-out 0.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ppt-slide-guide,
+  .animate-ppt-guide-card,
+  .animate-ppt-pointer-tap {
+    animation: none;
+  }
+}
+
 /* Glass morphism utilities */
 .glass {
   background: rgba(255, 255, 255, 0.7);

@@ -11,11 +11,11 @@ function parseJSON(text, pattern = /\{[\s\S]*\}/) {
 }
 
 async function callGeminiPro(prompt) {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  return generateWithRetry(prompt, {
+    models: ['gemini-2.5-pro'],
+    retries: 1,
+    callTimeoutMs: 60000,
+  });
 }
 
 function withTimeout(promise, ms = 90000) {

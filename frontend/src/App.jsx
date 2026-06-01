@@ -23,6 +23,7 @@ const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfol
 const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfolioPreview'));
 const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfolioView'));
 const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
+const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 
 function PageLoader() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
           <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
           <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
+          <Route path="settings/credits" element={<CreditSettings />} />
         </Route>
       </Routes>
     </Suspense>

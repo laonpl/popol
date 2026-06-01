@@ -1,4 +1,5 @@
 import { adminAuth } from '../config/firebase.js';
+import { setBillingUser } from '../services/billingService.js';
 
 /**
  * 인증 미들웨어 — Firebase Admin SDK 기반 ID Token 검증
@@ -29,6 +30,7 @@ export async function authMiddleware(req, res, next) {
       uid: decodedToken.uid,
       email: decodedToken.email || null,
     };
+    setBillingUser(decodedToken.uid);
     next();
   } catch (err) {
     // 토큰 만료 / 위조 / 무효
