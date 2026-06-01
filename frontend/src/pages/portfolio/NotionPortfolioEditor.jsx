@@ -332,6 +332,39 @@ function insertTextIntoEditable(target, text) {
   return false;
 }
 
+function collectRichText(node) {
+  if (node == null) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(collectRichText).join('');
+  if (typeof node === 'object') {
+    return [node.text, collectRichText(node.children), collectRichText(node.value)]
+      .filter(Boolean)
+      .join('');
+  }
+  return '';
+}
+
+function richValueToPlainText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value
+      .filter(seg => seg?.type !== 'image')
+      .map(seg => sanitizePortfolioText(seg?.content || ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (typeof value === 'object') {
+    return Object.values(value)
+      .sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0))
+      .map(block => collectRichText(block?.value || block))
+      .map(sanitizePortfolioText)
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
 const EMPTY_PORTFOLIO = {
   templateType: 'notion',
   // Profile
@@ -457,10 +490,10 @@ const TEMPLATE_SECTION_MAP = {
 };
 
 const REORDERABLE_SECTION_MAP = {
-  ashley: ['skills', 'goals', 'values'],
-  academic: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
-  notion: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
-  timeline: ['activities', 'goals', 'skills'],
+  ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
+  academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  timeline: ['profile', 'education', 'curricular', 'activities', 'goals', 'skills', 'awards', 'contact'],
 };
 
 function createDragPreview(label, tone = 'default') {
@@ -497,6 +530,16 @@ function makeSectionOrderManager(templateId, sectionOrder, update) {
     getOrder: (key) => {
       const index = order.indexOf(key);
       return index >= 0 ? index : order.length;
+    },
+    move: (fromKey, toKey) => {
+      if (!fromKey || fromKey === toKey || !reorderable.includes(fromKey) || !reorderable.includes(toKey)) return;
+      const next = [...order];
+      const fromIndex = next.indexOf(fromKey);
+      const toIndex = next.indexOf(toKey);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      update('sectionOrder', next);
     },
     swap: (fromKey, toKey) => {
       if (!fromKey || fromKey === toKey || !reorderable.includes(fromKey) || !reorderable.includes(toKey)) return;
@@ -1061,6 +1104,16 @@ export default function NotionPortfolioEditor() {
       )}
 
       {/* ── Visual Mode: 대시보드 편집 (자세히보기와 동일 레이아웃) ── */}
+      <SectionWorkspacePanel
+        templateId={portfolio?.templateId}
+        sections={visibleSections}
+        hiddenSections={removableHiddenSections}
+        hiddenSectionKeys={portfolio?.hiddenSections || []}
+        sectionOrder={portfolio?.sectionOrder || []}
+        labels={portfolio?.customSectionLabels || {}}
+        update={update}
+      />
+
       <VisualEditor
         portfolio={portfolio}
         update={update}
@@ -1117,6 +1170,118 @@ function InlineTextarea({ value, onChange, placeholder, className = '' }) {
 }
 
 /* ── 스킬 추가 인풋 (모듈 레벨, 재사용) ── */
+function SectionWorkspacePanel({ templateId, sections, hiddenSections, hiddenSectionKeys, sectionOrder, labels, update }) {
+  const [draggingKey, setDraggingKey] = useState(null);
+  const [dropKey, setDropKey] = useState(null);
+  const draggingKeyRef = useRef(null);
+  const hoverTargetRef = useRef(null);
+  const allowed = TEMPLATE_SECTION_MAP[templateId] || TEMPLATE_SECTION_MAP.notion;
+  const hiddenKeys = Array.isArray(hiddenSectionKeys) ? hiddenSectionKeys : [];
+  const saved = Array.isArray(sectionOrder) ? sectionOrder.filter(key => allowed.includes(key)) : [];
+  const fullOrder = saved.length > 0
+    ? [...saved, ...allowed.filter(key => !saved.includes(key))]
+    : allowed;
+  const orderedSections = [...(sections || [])].sort((a, b) => fullOrder.indexOf(a.id) - fullOrder.indexOf(b.id));
+
+  const moveSection = (fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const next = [...fullOrder];
+    const fromIndex = next.indexOf(fromKey);
+    const toIndex = next.indexOf(toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    update('sectionOrder', next);
+  };
+
+  return (
+    <div className="mb-4 rounded-2xl border border-surface-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        {orderedSections.map(section => {
+          const Icon = section.icon || Type;
+          const labelValue = (labels || {})[section.id] || section.label || section.id;
+          return (
+            <div
+              key={section.id}
+              draggable
+              onDragStart={e => {
+                draggingKeyRef.current = section.id;
+                setDraggingKey(section.id);
+                e.dataTransfer.setData('application/x-fitpoly-section-outline', section.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setDragImage(createDragPreview(labelValue), 16, 16);
+              }}
+              onDragOver={e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setDropKey(section.id);
+                const fromKey = draggingKeyRef.current || draggingKey || e.dataTransfer.getData('application/x-fitpoly-section-outline');
+                if (fromKey && fromKey !== section.id && hoverTargetRef.current !== section.id) {
+                  hoverTargetRef.current = section.id;
+                  moveSection(fromKey, section.id);
+                }
+              }}
+              onDragLeave={e => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setDropKey(null);
+              }}
+              onDrop={e => {
+                e.preventDefault();
+                setDraggingKey(null);
+                setDropKey(null);
+                draggingKeyRef.current = null;
+                hoverTargetRef.current = null;
+              }}
+              onDragEnd={() => {
+                setDraggingKey(null);
+                setDropKey(null);
+                draggingKeyRef.current = null;
+                hoverTargetRef.current = null;
+              }}
+              className={`group flex min-w-[190px] max-w-full items-center gap-2 rounded-xl border px-2 py-1.5 shadow-sm transition-[transform,opacity,box-shadow,background-color,border-color] duration-200 ease-out ${
+                draggingKey === section.id
+                  ? 'scale-[0.97] border-primary-300 bg-primary-50/80 opacity-55 shadow-none'
+                  : dropKey === section.id
+                    ? 'translate-y-0 border-primary-300 bg-primary-50 shadow-md'
+                    : 'border-surface-200 bg-surface-50 hover:border-primary-200 hover:bg-white'
+              }`}
+            >
+              <GripVertical size={14} className="flex-shrink-0 cursor-grab text-gray-300 group-hover:text-primary-500" />
+              <Icon size={14} className="flex-shrink-0 text-gray-400" />
+              <input
+                value={labelValue}
+                onChange={e => update('customSectionLabels', { ...(labels || {}), [section.id]: e.target.value })}
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-gray-700 outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => update('hiddenSections', [...new Set([...hiddenKeys, section.id])])}
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-gray-300 hover:bg-red-50 hover:text-red-500"
+                title="Hide section"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {hiddenSections?.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-surface-100 pt-3">
+          {hiddenSections.map(section => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => update('hiddenSections', hiddenKeys.filter(key => key !== section.id))}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-surface-200 bg-white px-2.5 py-1 text-[12px] font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600"
+            >
+              <Plus size={11} /> {(labels || {})[section.id] || section.label || section.id}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SkillAddInput({ category, onAdd }) {
   const [val, setVal] = useState('');
   return (
@@ -2546,6 +2711,32 @@ function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
 
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
 // segments 형식: [{type:'text'|'image', content:string, width?:string}]
+const RICH_TEXT_SEGMENT_TYPES = [
+  { value: 'paragraph', label: 'Text', rows: 4, className: '' },
+  { value: 'heading1', label: 'Heading 1', rows: 1, className: 'text-2xl font-extrabold text-gray-900' },
+  { value: 'heading2', label: 'Heading 2', rows: 1, className: 'text-xl font-bold text-gray-900' },
+  { value: 'heading3', label: 'Heading 3', rows: 1, className: 'text-base font-bold text-gray-800' },
+  { value: 'bullet', label: 'Bullet', rows: 3, className: '' },
+  { value: 'numbered', label: 'Numbered', rows: 3, className: '' },
+  { value: 'todo', label: 'To-do', rows: 2, className: '' },
+  { value: 'quote', label: 'Quote', rows: 3, className: 'border-l-4 border-gray-300 pl-3 italic text-gray-600' },
+  { value: 'callout', label: 'Callout', rows: 3, className: 'bg-amber-50 border border-amber-100 text-amber-900' },
+  { value: 'code', label: 'Code', rows: 5, className: 'font-mono bg-gray-950 text-gray-100' },
+];
+
+function normalizeRichTextSegment(segment) {
+  if (!segment) return { type: 'text', variant: 'paragraph', content: '' };
+  if (segment.type === 'image') return segment;
+  const knownVariant = RICH_TEXT_SEGMENT_TYPES.some(item => item.value === segment.variant);
+  return {
+    ...segment,
+    type: 'text',
+    variant: knownVariant ? segment.variant : 'paragraph',
+    content: segment.content || '',
+    checked: !!segment.checked,
+  };
+}
+
 function RichContentEditor({ value, onChange, placeholder, textRows = 4, textClassName }) {
   const fileInputRef = useRef(null);
   const pendingInsertAfter = useRef(null);
@@ -2554,14 +2745,19 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
   // base64가 텍스트 세그먼트에 잘못 들어간 경우 자동 수정
   const rawSegs = Array.isArray(value) && value.length > 0
     ? value
-    : [{ type: 'text', content: typeof value === 'string' ? value : '' }];
+    : [{ type: 'text', variant: 'paragraph', content: typeof value === 'string' ? value : '' }];
   const segments = rawSegs.map(s =>
     s.type === 'text' && typeof s.content === 'string' && s.content.startsWith('data:image')
       ? { ...s, type: 'image' }
-      : s
+      : normalizeRichTextSegment(s)
   );
 
   const updateSeg = (i, changes) => onChange(segments.map((s, si) => si === i ? { ...s, ...changes } : s));
+  const insertSegmentAfter = (afterIdx, segment) => {
+    const next = [...segments];
+    next.splice(afterIdx + 1, 0, normalizeRichTextSegment(segment));
+    onChange(next);
+  };
 
   const insertImageAfter = (afterIdx) => {
     pendingInsertAfter.current = afterIdx;
@@ -2578,7 +2774,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
       const next = [...segments];
       next.splice(afterIdx + 1, 0, { type: 'image', content: b });
       if (!next[afterIdx + 2] || next[afterIdx + 2].type === 'image') {
-        next.splice(afterIdx + 2, 0, { type: 'text', content: '' });
+        next.splice(afterIdx + 2, 0, { type: 'text', variant: 'paragraph', content: '' });
       }
       onChange(next);
     } catch { toast.error('이미지 처리 실패'); }
@@ -2587,7 +2783,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
 
   const removeSeg = (i) => {
     const next = segments.filter((_, si) => si !== i);
-    onChange(next.length > 0 ? next : [{ type: 'text', content: '' }]);
+    onChange(next.length > 0 ? next : [{ type: 'text', variant: 'paragraph', content: '' }]);
   };
 
   const moveSeg = (from, to) => {
@@ -2623,6 +2819,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
   };
 
   const defaultTextClass = textClassName || 'w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-2 py-1 resize-y leading-relaxed';
+  const addTextAfter = (i, variant = 'paragraph') => insertSegmentAfter(i, { type: 'text', variant, content: '', checked: false });
 
   return (
     <div className="space-y-0.5">
@@ -2653,6 +2850,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
             setDragOver(null);
           }}
           data-rce-row="1"
+          data-no-block-drag="true"
           className={`relative group/rseg flex gap-1 items-start transition-all ${dragOver === i ? 'ring-2 ring-blue-300 rounded-lg bg-blue-50/50' : ''}`}
         >
           {/* 드래그 핸들 아이콘 */}
@@ -2667,18 +2865,58 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
           {/* 텍스트 세그먼트 */}
           {seg.type === 'text' && (
             <div className="flex-1 min-w-0">
+              <div className="mb-1 flex flex-wrap items-center gap-1 opacity-0 transition-opacity group-hover/rseg:opacity-100 focus-within:opacity-100">
+                <select
+                  value={seg.variant || 'paragraph'}
+                  onChange={e => updateSeg(i, { variant: e.target.value })}
+                  className="h-7 rounded-md border border-surface-200 bg-white px-2 text-[12px] font-medium text-gray-500 outline-none hover:border-primary-200"
+                >
+                  {RICH_TEXT_SEGMENT_TYPES.map(item => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+                {seg.variant === 'todo' && (
+                  <button
+                    type="button"
+                    onClick={() => updateSeg(i, { checked: !seg.checked })}
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${seg.checked ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-surface-200 text-gray-400 hover:text-emerald-600'}`}
+                    title="Toggle to-do"
+                  >
+                    <Check size={13} />
+                  </button>
+                )}
+                <button type="button" onClick={() => addTextAfter(i)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-surface-200 text-gray-400 hover:border-primary-200 hover:text-primary-600" title="Add text">
+                  <Plus size={13} />
+                </button>
+                <button type="button" onClick={() => addTextAfter(i, 'todo')} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-surface-200 text-gray-400 hover:border-emerald-200 hover:text-emerald-600" title="Add to-do">
+                  <Check size={13} />
+                </button>
+                <button type="button" onClick={() => insertImageAfter(i)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-surface-200 text-gray-400 hover:border-blue-200 hover:text-blue-600" title="Insert image">
+                  <ImageIcon size={13} />
+                </button>
+              </div>
+              {seg.variant === 'todo' && (
+                <input
+                  type="checkbox"
+                  checked={!!seg.checked}
+                  onChange={e => updateSeg(i, { checked: e.target.checked })}
+                  className="mr-2 inline-block h-4 w-4 rounded border-surface-300 align-middle text-primary-600 focus:ring-primary-200"
+                />
+              )}
+              {seg.variant === 'bullet' && <span className="mr-2 text-gray-400">•</span>}
+              {seg.variant === 'numbered' && <span className="mr-2 text-[13px] font-semibold text-gray-400">{i + 1}.</span>}
               <textarea
                 value={seg.content || ''}
                 onChange={e => updateSeg(i, { content: e.target.value })}
                 placeholder={i === 0 ? placeholder : '텍스트 입력...'}
-                rows={textRows}
-                className={defaultTextClass}
+                rows={seg.variant === 'paragraph' ? textRows : (RICH_TEXT_SEGMENT_TYPES.find(item => item.value === seg.variant)?.rows || textRows)}
+                className={`${defaultTextClass} ${RICH_TEXT_SEGMENT_TYPES.find(item => item.value === seg.variant)?.className || ''} ${seg.variant === 'todo' && seg.checked ? 'line-through text-gray-400' : ''}`}
               />
               {/* 이미지 삽입 버튼 — 항상 표시 */}
               <button
                 type="button"
                 onClick={() => insertImageAfter(i)}
-                className="flex items-center gap-1 mt-0.5 px-2 py-0.5 text-[13px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded border border-dashed border-gray-200 hover:border-blue-300 transition-all"
+                className="hidden"
                 title="이미지 삽입"
               >
                 <ImageIcon size={11} /> 이미지 삽입
@@ -2808,7 +3046,20 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   const ashleySectionOrderManager = makeSectionOrderManager('ashley', p.sectionOrder, update);
   const getAshleySectionOrder = ashleySectionOrderManager.getOrder;
-  const swapAshleySectionOrder = ashleySectionOrderManager.swap;
+  const moveAshleySectionOrder = ashleySectionOrderManager.move;
+  const ashleySectionHoverRef = useRef(null);
+  const handleAshleySectionDragOver = (e, sectionKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const from = e.dataTransfer.getData('text/plain');
+    if (from && from !== sectionKey && ashleySectionHoverRef.current !== sectionKey) {
+      ashleySectionHoverRef.current = sectionKey;
+      moveAshleySectionOrder(from, sectionKey);
+    }
+  };
+  const finishAshleySectionDrag = () => {
+    ashleySectionHoverRef.current = null;
+  };
   const moveAshleyCustomBlock = (from, to) => {
     const blocks = p.customBlocks || [];
     const next = reorderItems(blocks, from, to);
@@ -3219,8 +3470,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {/* 기술 */}
         {!hiddenSections.includes('skills') && (
         <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('skills') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'skills'); }}>
+          onDragOver={e => handleAshleySectionDragOver(e, 'skills')}
+          onDrop={e => { e.preventDefault(); finishAshleySectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="skills" defaultLabel="이런 일을 할 수 있어요" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
@@ -3253,8 +3504,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {/* 목표와 계획 */}
         {!hiddenSections.includes('goals') && (
         <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('goals') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'goals'); }}>
+          onDragOver={e => handleAshleySectionDragOver(e, 'goals')}
+          onDrop={e => { e.preventDefault(); finishAshleySectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="font-bold text-lg text-[#2d2a26]" />
             <div className="flex items-center gap-2">
@@ -3289,8 +3540,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         {/* 가치관 에세이 */}
         {!hiddenSections.includes('values') && (
         <div className="px-10 pb-8" style={{ order: getAshleySectionOrder('values') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAshleySectionOrder(from, 'values'); }}>
+          onDragOver={e => handleAshleySectionDragOver(e, 'values')}
+          onDrop={e => { e.preventDefault(); finishAshleySectionDrag(); }}>
           <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
             <div className="flex items-center justify-between mb-4">
               <EditableTitle sectionKey="values" defaultLabel="나를 들려주는 이야기" className="font-bold text-lg text-[#2d2a26]" />
@@ -3302,7 +3553,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             </div>
             <RichContentEditor
               value={p.valuesEssayBlocks || p.valuesEssay || ''}
-              onChange={v => update('valuesEssayBlocks', v)}
+              onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', richValueToPlainText(v)); }}
               placeholder="가치관 에세이를 작성하세요..."
               textRows={6}
               textClassName="w-full text-sm text-[#5a564e] leading-[1.9] outline-none bg-transparent placeholder:text-[#c4b89a] resize-y"
@@ -3619,7 +3870,20 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
   const academicSectionOrderManager = makeSectionOrderManager('academic', p.sectionOrder, update);
   const getAcademicSectionOrder = academicSectionOrderManager.getOrder;
-  const swapAcademicSectionOrder = academicSectionOrderManager.swap;
+  const moveAcademicSectionOrder = academicSectionOrderManager.move;
+  const academicSectionHoverRef = useRef(null);
+  const handleAcademicSectionDragOver = (e, sectionKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const from = e.dataTransfer.getData('text/plain');
+    if (from && from !== sectionKey && academicSectionHoverRef.current !== sectionKey) {
+      academicSectionHoverRef.current = sectionKey;
+      moveAcademicSectionOrder(from, sectionKey);
+    }
+  };
+  const finishAcademicSectionDrag = () => {
+    academicSectionHoverRef.current = null;
+  };
   const moveAcademicCustomBlock = (from, to) => {
     const blocks = p.customBlocks || [];
     const next = reorderItems(blocks, from, to);
@@ -3843,7 +4107,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
           <RichContentEditor
             value={p.valuesEssayBlocks || p.valuesEssay || ''}
-            onChange={v => update('valuesEssayBlocks', v)}
+            onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', richValueToPlainText(v)); }}
             placeholder="자기소개를 작성하세요..."
             textRows={5}
             textClassName="w-full text-sm text-gray-700 leading-relaxed outline-none bg-transparent placeholder:text-gray-300 resize-y"
@@ -4114,8 +4378,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 기술 */}
         <div className="px-10 py-8 border-b border-surface-100" style={{ order: getAcademicSectionOrder('skills') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAcademicSectionOrder(from, 'skills'); }}>
+          onDragOver={e => handleAcademicSectionDragOver(e, 'skills')}
+          onDrop={e => { e.preventDefault(); finishAcademicSectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-teal-500 rounded-full inline-block" /><EditableTitle sectionKey="skills" defaultLabel="기술" className="text-lg font-bold text-gray-900" />
@@ -4148,8 +4412,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         {/* 목표와 계획 */}
         {!hiddenSections.includes('goals') && sections.includes('goals') && (
         <div className="px-10 pb-8" style={{ order: getAcademicSectionOrder('goals') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapAcademicSectionOrder(from, 'goals'); }}>
+          onDragOver={e => handleAcademicSectionDragOver(e, 'goals')}
+          onDrop={e => { e.preventDefault(); finishAcademicSectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-green-500 rounded-full inline-block" /><EditableTitle sectionKey="goals" defaultLabel="목표와 계획" className="text-lg font-bold text-gray-900" />
@@ -4402,7 +4666,20 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
   const timelineSectionOrderManager = makeSectionOrderManager('timeline', p.sectionOrder, update);
   const getTimelineSectionOrder = timelineSectionOrderManager.getOrder;
-  const swapTimelineSectionOrder = timelineSectionOrderManager.swap;
+  const moveTimelineSectionOrder = timelineSectionOrderManager.move;
+  const timelineSectionHoverRef = useRef(null);
+  const handleTimelineSectionDragOver = (e, sectionKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const from = e.dataTransfer.getData('text/plain');
+    if (from && from !== sectionKey && timelineSectionHoverRef.current !== sectionKey) {
+      timelineSectionHoverRef.current = sectionKey;
+      moveTimelineSectionOrder(from, sectionKey);
+    }
+  };
+  const finishTimelineSectionDrag = () => {
+    timelineSectionHoverRef.current = null;
+  };
 
   // 학기별로 courses 그룹핑
   const coursesBySemester = (curr.courses || []).reduce((acc, c) => {
@@ -4538,8 +4815,8 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 활동 기록 (경험) — Timeline style */}
         <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('activities') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'activities'); }}>
+          onDragOver={e => handleTimelineSectionDragOver(e, 'activities')}
+          onDrop={e => { e.preventDefault(); finishTimelineSectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-blue-500 rounded-full" /> 활동 기록
@@ -4611,8 +4888,8 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* 스터디 계획 (goals) */}
         <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('goals') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'goals'); }}>
+          onDragOver={e => handleTimelineSectionDragOver(e, 'goals')}
+          onDrop={e => { e.preventDefault(); finishTimelineSectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-emerald-500 rounded-full" /> 스터디 계획
@@ -4650,8 +4927,8 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
         {/* Skills */}
         <div className="px-10 py-8 border-b border-surface-100" style={{ order: getTimelineSectionOrder('skills') }}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); swapTimelineSectionOrder(from, 'skills'); }}>
+          onDragOver={e => handleTimelineSectionDragOver(e, 'skills')}
+          onDrop={e => { e.preventDefault(); finishTimelineSectionDrag(); }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-teal-500 rounded-full" /> 기술
@@ -4693,6 +4970,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [showAddBlockMenu, setShowAddBlockMenu] = useState(false);
   const [sectionDragging, setSectionDragging] = useState(null);
   const [sectionDropTarget, setSectionDropTarget] = useState(null);
+  const sectionHoverTargetRef = useRef(null);
   const [blockDragging, setBlockDragging] = useState(null);
   const [blockDropTarget, setBlockDropTarget] = useState(null);
   const profileImageInputRef = useRef(null);
@@ -4797,7 +5075,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   const sectionOrderManager = makeSectionOrderManager('notion', p.sectionOrder, update);
   const getSectionOrder = sectionOrderManager.getOrder;
-  const swapSectionOrder = sectionOrderManager.swap;
+  const moveSectionOrder = sectionOrderManager.move;
   const getSectionDndProps = (sectionKey) => ({
     style: { order: getSectionOrder(sectionKey) },
     onDragOver: (e) => {
@@ -4805,6 +5083,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       setSectionDropTarget(sectionKey);
+      if (sectionDragging !== sectionKey && sectionHoverTargetRef.current !== sectionKey) {
+        sectionHoverTargetRef.current = sectionKey;
+        moveSectionOrder(sectionDragging, sectionKey);
+      }
     },
     onDragLeave: (e) => {
       if (!e.currentTarget.contains(e.relatedTarget) && sectionDropTarget === sectionKey) {
@@ -4813,12 +5095,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     },
     onDrop: (e) => {
       e.preventDefault();
-      const from = e.dataTransfer.getData('application/x-fitpoly-section') || e.dataTransfer.getData('text/plain');
-      swapSectionOrder(from, sectionKey);
       setSectionDragging(null);
       setSectionDropTarget(null);
+      sectionHoverTargetRef.current = null;
     },
-    className: `transition-all duration-150 rounded-xl ${sectionDragging === sectionKey ? 'opacity-45 scale-[0.99]' : ''} ${sectionDropTarget === sectionKey && sectionDragging !== sectionKey ? 'ring-2 ring-primary-200 bg-primary-50/30' : ''}`,
+    className: `rounded-xl transition-[transform,opacity,box-shadow,background-color] duration-200 ease-out ${sectionDragging === sectionKey ? 'opacity-45 scale-[0.985]' : ''} ${sectionDropTarget === sectionKey && sectionDragging !== sectionKey ? 'translate-y-0 ring-2 ring-primary-200 bg-primary-50/30 shadow-sm' : ''}`,
   });
   const getSectionHandleProps = (sectionKey, label) => ({
     draggable: true,
@@ -4832,6 +5113,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     onDragEnd: () => {
       setSectionDragging(null);
       setSectionDropTarget(null);
+      sectionHoverTargetRef.current = null;
     },
   });
   const getCustomBlockDndProps = (index, block) => ({
@@ -4893,7 +5175,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
   // 재정렬 가능한 섹션은 order 0..N, 자유 블록은 숫자 order를 받아 그 사이에 위치.
-  const reorderableBandKeys = REORDERABLE_SECTION_MAP.notion;
+  const reorderableBandKeys = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
   const getCustomBlockOrder = (idx) => {
     const block = (p.customBlocks || [])[idx];
     return typeof block?.order === 'number' ? block.order : reorderableBandKeys.length + idx;
@@ -5555,7 +5837,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 </div>
                 <YooptaMiniEditor
                   value={d.descriptionBlocks || d.description || ''}
-                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v }; update('extracurricular', { ...extra, details }); }}
+                  onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v, description: richValueToPlainText(v) }; update('extracurricular', { ...extra, details }); }}
                   placeholder="상세 설명"
                   minHeight={60}
                 />
@@ -5637,7 +5919,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 </div>
                 <YooptaMiniEditor
                   value={g.descriptionBlocks || g.description || ''}
-                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v })}
+                  onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v, description: richValueToPlainText(v) })}
                   placeholder="상세 계획을 작성하세요..."
                   minHeight={80}
                   className="mt-1"
@@ -5664,7 +5946,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <YooptaMiniEditor
             value={p.valuesEssayBlocks || p.valuesEssay || ''}
-            onChange={v => { update('valuesEssayBlocks', v); }}
+            onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', richValueToPlainText(v)); }}
             placeholder="가치관, 자기소개 에세이를 작성하세요..."
             minHeight={180}
             className="bg-transparent hover:bg-primary-50/10 rounded px-1"
@@ -5698,7 +5980,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 value={block.segments || block.content || ''}
                 onChange={v => {
                   const blocks = [...(p.customBlocks || [])];
-                  blocks[i] = { ...blocks[i], segments: v, content: Array.isArray(v) ? v.filter(s=>s.type==='text').map(s=>s.content).join('\n') : v };
+                  blocks[i] = { ...blocks[i], segments: v, content: richValueToPlainText(v) };
                   update('customBlocks', blocks);
                 }}
                 placeholder="텍스트를 입력하세요"

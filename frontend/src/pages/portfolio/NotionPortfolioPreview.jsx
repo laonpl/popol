@@ -17,10 +17,10 @@ import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 
 const PREVIEW_REORDERABLE_SECTION_MAP = {
-  ashley: ['skills', 'goals', 'values'],
-  academic: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
-  notion: ['curricular', 'extracurricular', 'skills', 'goals', 'values'],
-  timeline: ['activities', 'goals', 'skills'],
+  ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
+  academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
+  timeline: ['profile', 'education', 'curricular', 'activities', 'goals', 'skills', 'awards', 'contact'],
 };
 
 function makePreviewSectionOrder(templateId, sectionOrder) {
@@ -723,7 +723,9 @@ export default function NotionPortfolioPreview() {
                         <span className="text-sm font-bold text-gray-800">{d.title}</span>
                         <span className="text-xs text-gray-400">{d.period}</span>
                       </div>
-                      <p className="text-sm text-gray-600 whitespace-pre-line">{d.description}</p>
+                      {richValueHasContent(d.descriptionBlocks)
+                        ? <RichTextPreview value={d.descriptionBlocks} />
+                        : <p className="text-sm text-gray-600 whitespace-pre-line">{d.description}</p>}
                     </div>
                   ))}
                 </div>
@@ -785,7 +787,9 @@ export default function NotionPortfolioPreview() {
                         {g.status === 'done' ? '완료' : g.status === 'ing' ? '진행 중' : '예정'}
                       </span>
                     </div>
-                    {g.description && <p className="text-sm text-gray-600 mt-1">{g.description}</p>}
+                    {richValueHasContent(g.descriptionBlocks)
+                      ? <RichTextPreview value={g.descriptionBlocks} className="mt-1" />
+                      : g.description && <p className="text-sm text-gray-600 mt-1">{g.description}</p>}
                   </div>
                 ))}
               </div>
@@ -798,7 +802,9 @@ export default function NotionPortfolioPreview() {
           {/* 가치관 */}
           <section id="section-가치관" className="mb-10" style={{ order: getPreviewSectionOrder('values') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">가치관 | Values</h2>
-            {p.valuesEssay ? (
+            {richValueHasContent(p.valuesEssayBlocks) ? (
+              <RichTextPreview value={p.valuesEssayBlocks} />
+            ) : p.valuesEssay ? (
               <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line">
                 {p.valuesEssay}
               </div>
@@ -953,6 +959,83 @@ function LinkExportModal({ portfolioId, isPublic, togglingPublic, customSlug, on
   );
 }
 
+function collectRichText(node) {
+  if (node == null) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(collectRichText).join('');
+  if (typeof node === 'object') {
+    return [node.text, collectRichText(node.children), collectRichText(node.value)]
+      .filter(Boolean)
+      .join('');
+  }
+  return '';
+}
+
+function richValueToPlainText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(item => item?.content || '').filter(Boolean).join('\n');
+  if (typeof value === 'object') {
+    return Object.values(value)
+      .sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0))
+      .map(block => collectRichText(block?.value || block))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
+function richValueHasContent(value) {
+  return richValueToPlainText(value).trim().length > 0;
+}
+
+function RichTextPreview({ value, className = '' }) {
+  if (!richValueHasContent(value)) return null;
+  if (typeof value === 'string' || Array.isArray(value)) {
+    return <div className={`space-y-2 ${className}`}>{String(richValueToPlainText(value)).split('\n').filter(Boolean).map((line, i) => <p key={i} className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{line}</p>)}</div>;
+  }
+
+  const blocks = Object.values(value)
+    .sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0));
+
+  return (
+    <div className={`space-y-2 ${className}`}>
+      {blocks.map((block, index) => {
+        const text = collectRichText(block?.value || block);
+        const firstValue = Array.isArray(block?.value) ? block.value[0] : null;
+        const checked = !!(firstValue?.props?.checked ?? firstValue?.checked ?? block?.props?.checked);
+
+        if (block.type === 'Divider') return <hr key={block.id || index} className="my-4 border-surface-200" />;
+        if (block.type === 'Image') {
+          const props = firstValue?.props || block.props || {};
+          const src = props.src || props.url || props.href;
+          return src ? <img key={block.id || index} src={src} alt={props.alt || ''} className="my-4 max-w-full rounded-xl border border-surface-100 object-contain" /> : null;
+        }
+        if (!text.trim()) return null;
+        if (block.type === 'HeadingOne') return <h1 key={block.id || index} className="text-2xl font-extrabold leading-snug text-gray-900">{text}</h1>;
+        if (block.type === 'HeadingTwo') return <h2 key={block.id || index} className="text-xl font-bold leading-snug text-gray-900">{text}</h2>;
+        if (block.type === 'HeadingThree') return <h3 key={block.id || index} className="text-base font-bold leading-snug text-gray-800">{text}</h3>;
+        if (block.type === 'BulletedList') return <div key={block.id || index} className="flex gap-2 text-sm leading-relaxed text-gray-700"><span className="text-gray-400">•</span><span>{text}</span></div>;
+        if (block.type === 'NumberedList') return <div key={block.id || index} className="flex gap-2 text-sm leading-relaxed text-gray-700"><span className="min-w-[1.5rem] text-right font-semibold text-gray-400">{index + 1}.</span><span>{text}</span></div>;
+        if (block.type === 'TodoList') {
+          return (
+            <div key={block.id || index} className="flex items-start gap-2 text-sm leading-relaxed text-gray-700">
+              <span className={`mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${checked ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 bg-white'}`}>
+                {checked ? '✓' : ''}
+              </span>
+              <span className={checked ? 'text-gray-400 line-through' : ''}>{text}</span>
+            </div>
+          );
+        }
+        if (block.type === 'Blockquote') return <blockquote key={block.id || index} className="border-l-4 border-gray-300 pl-4 text-sm italic leading-relaxed text-gray-600">{text}</blockquote>;
+        if (block.type === 'Callout') return <div key={block.id || index} className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">{text}</div>;
+        if (block.type === 'Code') return <pre key={block.id || index} className="overflow-x-auto rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{text}</code></pre>;
+        return <p key={block.id || index} className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{text}</p>;
+      })}
+    </div>
+  );
+}
+
 function hasCustomBlockContent(block) {
   if (!block) return false;
   if (block.type === 'divider') return true;
@@ -981,6 +1064,25 @@ function renderCustomBlockSegments(block, textClassName) {
       );
     }
     if (!String(seg.content || '').trim()) return null;
+    const variant = seg.variant || 'paragraph';
+    if (variant === 'heading1') return <h1 key={index} className="text-2xl font-extrabold leading-snug text-gray-900">{seg.content}</h1>;
+    if (variant === 'heading2') return <h2 key={index} className="text-xl font-bold leading-snug text-gray-900">{seg.content}</h2>;
+    if (variant === 'heading3') return <h3 key={index} className="text-base font-bold leading-snug text-gray-800">{seg.content}</h3>;
+    if (variant === 'bullet') return <div key={index} className={`flex gap-2 ${textClassName}`}><span className="text-gray-400">•</span><span>{seg.content}</span></div>;
+    if (variant === 'numbered') return <div key={index} className={`flex gap-2 ${textClassName}`}><span className="min-w-[1.5rem] text-right font-semibold text-gray-400">{index + 1}.</span><span>{seg.content}</span></div>;
+    if (variant === 'todo') {
+      return (
+        <div key={index} className={`flex items-start gap-2 ${textClassName}`}>
+          <span className={`mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${seg.checked ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 bg-white'}`}>
+            {seg.checked ? '✓' : ''}
+          </span>
+          <span className={seg.checked ? 'text-gray-400 line-through' : ''}>{seg.content}</span>
+        </div>
+      );
+    }
+    if (variant === 'quote') return <blockquote key={index} className={`${textClassName} border-l-4 border-gray-300 pl-4 italic text-gray-600`}>{seg.content}</blockquote>;
+    if (variant === 'callout') return <div key={index} className={`${textClassName} rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-amber-900`}>{seg.content}</div>;
+    if (variant === 'code') return <pre key={index} className="overflow-x-auto rounded-lg bg-gray-950 px-4 py-3 text-[13px] leading-relaxed text-gray-100"><code>{seg.content}</code></pre>;
     return <p key={index} className={textClassName}>{seg.content}</p>;
   });
 }
@@ -1094,7 +1196,9 @@ function AcademicLayout({ p, setSelectedExp }) {
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-blue-500 rounded-full inline-block" /> 자기소개
           </h2>
-          {p.valuesEssay ? (
+          {richValueHasContent(p.valuesEssayBlocks) ? (
+            <RichTextPreview value={p.valuesEssayBlocks} />
+          ) : p.valuesEssay ? (
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{p.valuesEssay}</p>
           ) : (p.values || []).length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
@@ -1335,7 +1439,9 @@ function AcademicLayout({ p, setSelectedExp }) {
                     <span className="text-sm font-bold text-gray-800">{d.title}</span>
                     <span className="text-xs text-gray-400">{d.period}</span>
                   </div>
-                  <p className="text-xs text-gray-600 whitespace-pre-line">{d.description}</p>
+                  {richValueHasContent(d.descriptionBlocks)
+                    ? <RichTextPreview value={d.descriptionBlocks} />
+                    : <p className="text-xs text-gray-600 whitespace-pre-line">{d.description}</p>}
                 </div>
               ))}</div>
             )}
@@ -1359,7 +1465,9 @@ function AcademicLayout({ p, setSelectedExp }) {
                       <span className="text-xs px-2 py-0.5 rounded-full bg-surface-100 text-gray-500 font-medium">{g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}</span>
                       <h4 className="text-sm font-bold text-gray-800">{g.title}</h4>
                     </div>
-                    {g.description && <p className="text-xs text-gray-500 mt-1">{g.description}</p>}
+                    {richValueHasContent(g.descriptionBlocks)
+                      ? <RichTextPreview value={g.descriptionBlocks} className="mt-1" />
+                      : g.description && <p className="text-xs text-gray-500 mt-1">{g.description}</p>}
                   </div>
                 </div>
               ))}
@@ -1440,6 +1548,8 @@ function AshleyLayout({ p, setSelectedExp }) {
                     </li>
                   ))}
                 </ul>
+              ) : richValueHasContent(p.valuesEssayBlocks) ? (
+                <RichTextPreview value={p.valuesEssayBlocks} />
               ) : p.valuesEssay ? (
                 <p className="text-sm text-[#5a564e] leading-relaxed whitespace-pre-line line-clamp-6">{p.valuesEssay}</p>
               ) : (
@@ -1540,11 +1650,13 @@ function AshleyLayout({ p, setSelectedExp }) {
         </div>
 
         {/* 가치관 에세이 (긴 글) */}
-        {p.valuesEssay && (
+        {(richValueHasContent(p.valuesEssayBlocks) || p.valuesEssay) && (
           <div className="px-10 pb-8" style={{ order: getPreviewSectionOrder('values') }}>
             <div className="bg-white rounded-xl p-6 border border-[#e8e4dc]">
               <h3 className="font-bold text-lg text-[#2d2a26] mb-4">📝 나를 들려주는 이야기</h3>
-              <div className="prose prose-sm max-w-none text-[#5a564e] leading-[1.9] whitespace-pre-line">{p.valuesEssay}</div>
+              {richValueHasContent(p.valuesEssayBlocks)
+                ? <RichTextPreview value={p.valuesEssayBlocks} />
+                : <div className="prose prose-sm max-w-none text-[#5a564e] leading-[1.9] whitespace-pre-line">{p.valuesEssay}</div>}
             </div>
           </div>
         )}
@@ -1974,7 +2086,9 @@ function TimelineLayout({ p, setSelectedExp }) {
               {p.goals.map((g, i) => (
                 <div key={i} className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                   <p className="text-sm font-bold text-emerald-800 mb-1">{g.title}</p>
-                  <p className="text-xs text-emerald-600">{g.description}</p>
+                  {richValueHasContent(g.descriptionBlocks)
+                    ? <RichTextPreview value={g.descriptionBlocks} />
+                    : <p className="text-xs text-emerald-600">{g.description}</p>}
                 </div>
               ))}
             </div>

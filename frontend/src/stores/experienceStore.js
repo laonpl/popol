@@ -222,6 +222,12 @@ const useExperienceStore = create((set, get) => ({
     return data;
   },
 
+  // AI 시장/지표 리서치 (최신 뉴스·지표·논문 → 의사결정 지표 추천)
+  researchMarketMetrics: async (payload) => {
+    const { data } = await api.post('/experience/research-metrics', payload, { timeout: 200000 });
+    return data;
+  },
+
   // ── 히스토리 관련 ──────────────────────────────────
   // 스냅샷을 히스토리에 push (최대 20개 유지)
   pushEditSnapshot: (experienceId, snapshot) => {

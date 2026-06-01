@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { analyzeExperience, extractMoments, refineKeyExperience } from '../services/geminiService.js';
+import { analyzeExperience, extractMoments, refineKeyExperience, researchMarketMetrics } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
@@ -105,6 +105,22 @@ router.post('/refine-key-experience', authMiddleware, aiRateLimiter, async (req,
     }
     const refined = await refineKeyExperience(currentExp, freeFormText);
     res.json(refined);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
+    next(error);
+  }
+});
+
+// POST /api/experience/research-metrics - AI 시장/지표 리서치 (최신 뉴스·지표·논문)
+router.post('/research-metrics', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { title, sections, keywords, projectOverview, jobCategory } = req.body;
+    if (!title && !(sections && Object.keys(sections).length)) {
+      return res.status(400).json({ error: '리서치할 프로젝트 내용이 부족합니다' });
+    }
+    const result = await researchMarketMetrics({ title, sections, keywords, projectOverview, jobCategory });
+    res.json(result);
   } catch (error) {
     const msg = error.message || '';
     if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });

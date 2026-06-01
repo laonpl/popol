@@ -9,27 +9,112 @@
  *  - minHeight: number (px, 기본 120)
  *  - className: wrapper 추가 클래스
  */
-import { useMemo } from 'react';
-import YooptaEditor, { createYooptaEditor } from '@yoopta/editor';
+import { useMemo, useRef, useState } from 'react';
+import YooptaEditor, { Blocks, createYooptaEditor, useYooptaEditor } from '@yoopta/editor';
 import Paragraph from '@yoopta/paragraph';
-import { HeadingTwo, HeadingThree } from '@yoopta/headings';
-import { BulletedList, NumberedList } from '@yoopta/lists';
+import { HeadingOne, HeadingTwo, HeadingThree } from '@yoopta/headings';
+import { BulletedList, NumberedList, TodoList } from '@yoopta/lists';
 import Blockquote from '@yoopta/blockquote';
+import { Code } from '@yoopta/code';
+import Callout from '@yoopta/callout';
+import Divider from '@yoopta/divider';
+import Image from '@yoopta/image';
 import Link from '@yoopta/link';
-import { Bold, Italic, Underline, Strike, Highlight } from '@yoopta/marks';
-import { FloatingToolbar } from '@yoopta/ui';
+import { Bold, Italic, Underline, Strike, CodeMark, Highlight } from '@yoopta/marks';
+import { BlockOptions, FloatingBlockActions, FloatingToolbar, SlashCommandMenu } from '@yoopta/ui';
+
+const imagePlugin = Image.extend({
+  options: {
+    async onUpload(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          src: reader.result,
+          alt: file.name,
+          sizes: { width: 720, height: 420 },
+        });
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    },
+  },
+});
 
 const PLUGINS = [
   Paragraph,
+  HeadingOne,
   HeadingTwo,
   HeadingThree,
   BulletedList,
   NumberedList,
+  TodoList,
   Blockquote,
+  Code,
+  Callout,
+  Divider,
+  imagePlugin,
   Link,
 ];
 
-const MARKS = [Bold, Italic, Underline, Strike, Highlight];
+const MARKS = [Bold, Italic, Underline, Strike, CodeMark, Highlight];
+
+function MiniBlockActions() {
+  const editor = useYooptaEditor();
+  const [blockOptionsOpen, setBlockOptionsOpen] = useState(false);
+  const dragHandleRef = useRef(null);
+
+  return (
+    <FloatingBlockActions frozen={blockOptionsOpen}>
+      {({ blockId }) => (
+        <>
+          <FloatingBlockActions.Button
+            onClick={() => {
+              if (!blockId) return;
+              const block = Blocks.getBlock(editor, { id: blockId });
+              if (block) editor.insertBlock('Paragraph', { at: block.meta.order + 1, focus: true });
+            }}
+            title="Add block"
+          >
+            <span className="text-lg leading-none">+</span>
+          </FloatingBlockActions.Button>
+          <FloatingBlockActions.Button
+            ref={dragHandleRef}
+            onClick={() => setBlockOptionsOpen(true)}
+            title="Block options"
+          >
+            <span className="text-sm">::</span>
+          </FloatingBlockActions.Button>
+          <BlockOptions
+            open={blockOptionsOpen}
+            onOpenChange={setBlockOptionsOpen}
+            anchor={dragHandleRef.current}
+          >
+            <BlockOptions.Content>
+              <BlockOptions.Group>
+                <BlockOptions.Item
+                  onClick={() => {
+                    if (blockId) Blocks.duplicateBlock(editor, { blockId });
+                    setBlockOptionsOpen(false);
+                  }}
+                >
+                  Duplicate
+                </BlockOptions.Item>
+                <BlockOptions.Item
+                  onClick={() => {
+                    if (blockId) Blocks.deleteBlock(editor, { blockId });
+                    setBlockOptionsOpen(false);
+                  }}
+                >
+                  Delete
+                </BlockOptions.Item>
+              </BlockOptions.Group>
+            </BlockOptions.Content>
+          </BlockOptions>
+        </>
+      )}
+    </FloatingBlockActions>
+  );
+}
 
 /** 일반 문자열 → Yoopta 초기값 변환 */
 function textToYooptaValue(text) {
@@ -46,6 +131,9 @@ function textToYooptaValue(text) {
     };
   };
   if (!text) return makeEmpty();
+  if (Array.isArray(text)) {
+    return textToYooptaValue(text.map(item => item?.content || '').filter(Boolean).join('\n'));
+  }
   if (typeof text === 'object') return text;   // 이미 Yoopta JSON
   // 줄 단위로 Paragraph 블록 생성
   const blocks = {};
@@ -76,7 +164,6 @@ export default function YooptaMiniEditor({
     marks: MARKS,
     value: initialValue,
   }), []);
-  const isInternalChange = useMemo(() => ({ current: false }), []);
 
   return (
     <div
@@ -91,6 +178,8 @@ export default function YooptaMiniEditor({
         style={{ minHeight, fontSize: 14, lineHeight: 1.7 }}
       >
         <FloatingToolbar />
+        <MiniBlockActions />
+        <SlashCommandMenu />
       </YooptaEditor>
     </div>
   );
