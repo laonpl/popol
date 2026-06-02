@@ -1226,8 +1226,8 @@ export default function Landing() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 bg-surface-50 rounded-lg border border-surface-200 overflow-hidden">
-                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[11px] font-bold rounded shrink-0">자소설</span>
-                        <span className="text-[13px] sm:text-[14px] text-bluewood-500 truncate">https://jasoseol.com/posting/291234</span>
+                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[11px] font-bold rounded shrink-0">잡코리아</span>
+                        <span className="text-[13px] sm:text-[14px] text-bluewood-500 truncate">https://www.jobkorea.co.kr/Recruit/GI_Read/291234</span>
                       </div>
                       <div className="px-3 sm:px-4 py-2 bg-[#1B264F] text-white rounded-lg text-[13px] sm:text-[14px] font-bold shrink-0">분석하기</div>
                     </div>

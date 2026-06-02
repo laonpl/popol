@@ -5,7 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
-import { getComposedTemplate, buildTemplateFromPptxTheme, SlidePreview, exportDeckToPptx, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
+import { getComposedTemplate, buildTemplateFromPptxTheme, SlidePreview, exportDeckToPptx, prepareDeckForExport, analyzeDeckQuality, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 
@@ -132,11 +132,18 @@ export default function AiPptExport() {
     if (!deck) return;
     setExporting(true);
     try {
+      const preparedDeck = prepareDeckForExport(deck);
+      const quality = analyzeDeckQuality(preparedDeck);
+      setDeck(preparedDeck);
+      if (!quality.passed) toast(`자동 보정 후에도 ${quality.warnings.length}개 항목을 확인해 주세요.`);
       // 업로드 PPTX 테마가 있으면 그걸 사용, 없으면 선택한 내장 팔레트 사용
       const template = pptxThemeTemplate || getComposedTemplate(layoutId, templateId);
       const suffix = pptxThemeTemplate ? 'custom' : templateId;
       const fileName = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_AI_${suffix}.pptx`;
-      await exportDeckToPptx(deck, template, fileName);
+      const exportResult = await exportDeckToPptx(preparedDeck, template, fileName);
+      if (exportResult?.imageWarnings?.length) {
+        toast(`이미지 ${exportResult.imageWarnings.length}개를 불러오지 못해 디자인 카드로 대체했습니다.`);
+      }
       toast.success('PPT 다운로드를 시작합니다');
     } catch (e) {
       toast.error(e.message || '내보내기 실패');
@@ -586,6 +593,7 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
 // ── 템플릿 1/2/3 미리보기 (Notion 스타일 슬라이드) ───────────────────────
 function PreviewStage({ deck, template, portfolioId, selectedIdx, setSelectedIdx, reviseInput, setReviseInput, revising, onRevise, onExport, exporting, onRegenerate }) {
   const slides = deck.slides || [];
+  const quality = analyzeDeckQuality(deck);
   const [showClickGuide, setShowClickGuide] = useState(true);
 
   const handleSlideClick = (index) => {
@@ -613,6 +621,19 @@ function PreviewStage({ deck, template, portfolioId, selectedIdx, setSelectedIdx
             PPT로 추출하기
           </button>
         </div>
+      </div>
+
+      <div className={`rounded-xl border px-4 py-3 ${quality.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div className={`text-sm font-semibold ${quality.passed ? 'text-emerald-700' : 'text-amber-800'}`}>
+          {quality.passed ? '가독성 검사 통과' : `가독성 확인 필요 ${quality.warnings.length}건`}
+        </div>
+        {!quality.passed && (
+          <div className="mt-2 space-y-1 text-xs text-amber-700">
+            {quality.warnings.slice(0, 6).map((warning, index) => (
+              <div key={`${warning.slide}-${warning.type}-${index}`}>슬라이드 {warning.slide}: {warning.message}</div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-5">

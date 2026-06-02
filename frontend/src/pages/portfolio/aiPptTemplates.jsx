@@ -735,21 +735,123 @@ function acceptedLinesLegacy(slide) {
   return bullets.slice(0, 4).map((body, i) => ({ heading: `Point ${i + 1}`, body }));
 }
 
+const PORTFOLIO_PLACEHOLDER_RE = /작성\s*필요|원본에\s*없음|^\(?\s*예\s*[:：]|수상 및 인증 내역|학력 및 전공 정보|링크형 포트폴리오에 입력된|포트폴리오에 입력된/u;
+
 function cleanPortfolioText(value) {
   if (value == null) return '';
-  return String(value)
+  const text = String(value)
     .normalize('NFC')
     .replace(/\uFFFD/g, '')
+    .replace(/(?:\u2026|\.{3,})+/gu, ' ')
     .replace(/[留寃臾吏媛⑹곹됰]/g, ' ')
     .replace(/[?]{2,}/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+  return PORTFOLIO_PLACEHOLDER_RE.test(text) ? '' : text;
+}
+
+function hasBalancedPortfolioDelimiters(value) {
+  const text = String(value || '');
+  return (text.match(/\(/g) || []).length === (text.match(/\)/g) || []).length
+    && (text.match(/\[/g) || []).length === (text.match(/\]/g) || []).length
+    && (text.match(/"/g) || []).length % 2 === 0
+    && (text.match(/'/g) || []).length % 2 === 0;
+}
+
+function trimUnbalancedPortfolioDelimiters(value) {
+  let text = String(value || '').trim();
+  while ((text.match(/\(/g) || []).length > (text.match(/\)/g) || []).length && text.includes('(')) {
+    text = text.slice(0, text.lastIndexOf('(')).trim();
+  }
+  while ((text.match(/\)/g) || []).length > (text.match(/\(/g) || []).length && text.includes(')')) {
+    text = text.slice(text.indexOf(')') + 1).trim();
+  }
+  return text;
+}
+
+const DANGLING_PORTFOLIO_FACT_END_RE = /(?:\s|^)(?:및|또는|그리고|위한|위해|통한|통해|대한|대해|이용한|핵심|기반|전략적|[가-힣]+(?:하고|하며|하여|해서|하면서|하고자))$/u;
+
+function isCompletePortfolioFact(value) {
+  const text = String(value || '').trim();
+  return Boolean(text) && hasBalancedPortfolioDelimiters(text) && !DANGLING_PORTFOLIO_FACT_END_RE.test(text);
+}
+
+function collapsePortfolioParentheticals(value) {
+  return String(value || '')
+    .replace(/\([^)]*\)/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripDanglingPortfolioTail(value) {
+  let text = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/([가-힣]+)하기\s+위(?:한|해)$/u, '$1')
+    .replace(/([가-힣]+)(?:하여|하며|하고자|하고|해서|하면서)$/u, '$1')
+    .replace(/\s+(?:위한|위해|통한|통해|대한|대해|및|또는|그리고)$/u, '')
+    .replace(/\s+(?:을|를|이|가|은|는|과|와|의|에|로|으로)$/u, '')
+    .replace(/[\s·,:;/-]+$/u, '')
+    .trim();
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const singleQuotes = (text.match(/'/g) || []).length;
+    const doubleQuotes = (text.match(/"/g) || []).length;
+    const openParens = (text.match(/\(/g) || []).length;
+    const closeParens = (text.match(/\)/g) || []).length;
+    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && openParens <= closeParens) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const tail = text.split(' ').pop();
+    if (!/(?:하기\s+위(?:한|해)|하여|하며|하고자|하고|해서|하면서|위한|위해|통한|통해|대한|대해|및|또는|그리고|부터|까지|에서|으로|에게|보다|처럼|만큼|초기|기존|해당|주요|핵심|별도|추가|최종|[이가은는을를과와의에])$/u.test(tail)) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const singleQuotes = (text.match(/'/g) || []).length;
+    const doubleQuotes = (text.match(/"/g) || []).length;
+    const openParens = (text.match(/\(/g) || []).length;
+    const closeParens = (text.match(/\)/g) || []).length;
+    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && openParens <= closeParens) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+  return text;
 }
 
 function compactPortfolioText(value, max = 84) {
   const text = cleanPortfolioText(value);
   if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+  const head = text.slice(0, max + 1);
+  const sentenceEnd = Math.max(head.lastIndexOf('.'), head.lastIndexOf('!'), head.lastIndexOf('?'));
+  if (sentenceEnd >= Math.floor(max * 0.45)) return head.slice(0, sentenceEnd + 1).trim();
+  const clauses = text
+    .split(/\s*[,，]\s*/u)
+    .filter(hasBalancedPortfolioDelimiters)
+    .map(stripDanglingPortfolioTail)
+    .filter(clause => clause.length >= Math.min(12, Math.floor(max * 0.25)));
+  const combined = [];
+  for (let start = 0; start < clauses.length; start += 1) {
+    let phrase = '';
+    for (let end = start; end < clauses.length; end += 1) {
+      phrase = phrase ? `${phrase}, ${clauses[end]}` : clauses[end];
+      if (phrase.length <= max) combined.push(phrase);
+      else break;
+    }
+  }
+  const candidates = [...clauses.filter(clause => clause.length <= max), ...combined]
+    .filter(isCompletePortfolioFact);
+  if (candidates.length > 0) {
+    const score = clause =>
+      (/\d/u.test(clause) ? 16 : 0)
+      + (/(?:함|됨|달성|확보|구축|개선|설계|결정|검증|완료)$/u.test(clause) ? 20 : 0)
+      + clause.length / Math.max(1, max);
+    return candidates.sort((left, right) => score(right) - score(left))[0];
+  }
+  const simplified = stripDanglingPortfolioTail(collapsePortfolioParentheticals(text));
+  if (simplified.length <= Math.floor(max * 1.35) && isCompletePortfolioFact(simplified)) return simplified;
+  const shortest = [...clauses].filter(isCompletePortfolioFact).sort((left, right) => left.length - right.length)[0];
+  if (shortest && shortest.length <= Math.floor(max * 1.35)) return shortest;
+  const boundary = Math.max(head.lastIndexOf(' · '), head.lastIndexOf(' '), head.lastIndexOf('/'), head.lastIndexOf('→'));
+  const clipped = boundary >= Math.floor(max * 0.35) ? head.slice(0, boundary) : head.slice(0, max);
+  return stripDanglingPortfolioTail(trimUnbalancedPortfolioDelimiters(clipped)).slice(0, max).trim();
 }
 
 function cleanPortfolioTextKeepLines(value) {
@@ -757,19 +859,31 @@ function cleanPortfolioTextKeepLines(value) {
   return String(value)
     .normalize('NFC')
     .replace(/�/g, '')
+    .replace(/(?:\u2026|\.{3,})+/gu, ' ')
     .replace(/[留寃쏀뿕臾吏媛곹됰⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g, ' ')
     .replace(/[?]{2,}/g, '')
     .replace(/\r\n?/g, '\n')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
-    .split('\n').map(line => line.trim()).join('\n')
+    .split('\n').map(line => line.trim()).filter(line => line && !PORTFOLIO_PLACEHOLDER_RE.test(line)).join('\n')
     .trim();
 }
 
 function compactPortfolioTextKeepLines(value, max = 240) {
   const text = cleanPortfolioTextKeepLines(value);
   if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+  return text
+    .split('\n')
+    .reduce((lines, line) => {
+      const used = lines.join('\n').length;
+      if (used >= max) return lines;
+      const remaining = max - used - (lines.length ? 1 : 0);
+      if (remaining <= 0) return lines;
+      lines.push(compactPortfolioText(line, remaining));
+      return lines;
+    }, [])
+    .filter(Boolean)
+    .join('\n');
 }
 
 function splitBulletLines(value) {
@@ -903,6 +1017,7 @@ function prepareAcceptedSlide(slide) {
   // 길이 컷·개수 컷 없이 클린징만 하고, 실제 박스 맞춤은 PPTX fit:'shrink' / CSS textClamp 에 맡긴다.
   if (/^(narrative|star|kpi|timeline|cs)-/.test(layout)) {
     const clean = (v) => cleanPortfolioText(v);
+    const cleanBody = (v) => cleanPortfolioTextKeepLines(v);
     return {
       ...slide,
       title: clean(slide.title),
@@ -914,18 +1029,21 @@ function prepareAcceptedSlide(slide) {
         heading: clean(item.heading),
         role: clean(item.role),
         period: clean(item.period),
-        body: clean(item.body),
-        bullets: (item.bullets || []).map(clean).filter(Boolean),
+        body: cleanBody(item.body),
+        bullets: (item.bullets || []).map(cleanBody).filter(Boolean),
       })),
     };
   }
   const isCsLayout = layout.startsWith('cs-');
+  const isProposalExperience = layout === 'proposal' || layout === 'experience';
+  // 한 프로젝트를 적은 카드로 나눠 담는 레이아웃은 카드별 공간이 넓어 더 긴 본문 허용
+  const isSpaciousProposal = isProposalExperience && (slide.proposalVariant === 'resultMetric' || slide.proposalVariant === 'threeCards');
   const itemLimit = isCsLayout ? 6 : 4;
-  const bodyLimit = isCsLayout ? 260 : 88;
-  const headingLimit = isCsLayout ? 48 : 32;
+  const bodyLimit = isCsLayout ? 260 : isSpaciousProposal ? 360 : isProposalExperience ? 200 : 88;
+  const headingLimit = isCsLayout ? 48 : isProposalExperience ? 40 : 32;
   const periodLimit = isCsLayout ? 32 : 18;
-  const bulletLimit = isCsLayout ? 64 : 44;
-  const cleanBody = (value) => isCsLayout
+  const bulletLimit = isCsLayout ? 64 : isProposalExperience ? 80 : 44;
+  const cleanBody = (value) => isCsLayout || isProposalExperience
     ? compactPortfolioTextKeepLines(value, bodyLimit)
     : compactPortfolioText(value, bodyLimit);
   const cleanTitle = (value) => isCsLayout
@@ -1705,6 +1823,7 @@ function renderNarrativeProject(slide, t, v) {
   const acc = narrAccent(v);
   const details = (slide.items || []).slice(0, 3);
   const chips = (slide.bullets || []).slice(0, 9);
+  const imageUrl = slide.imageUrl || details.find(item => item.imageUrl)?.imageUrl;
   return (
     <div style={{ position: 'absolute', inset: 0, fontFamily: 'Pretendard, sans-serif', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '38%', background: '#0F172A' }} />
@@ -1715,6 +1834,7 @@ function renderNarrativeProject(slide, t, v) {
         <div style={{ marginTop: 14, fontSize: dynamicFontPx(slide.title || '', 42, { min: 20, max: 42 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.12, ...textClamp(5) }}>{slide.title}</div>
         <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(6) }}>{slide.subtitle}</div>
       </div>
+      {imageUrl ? <div style={{ position: 'absolute', left: 40, bottom: 30, width: '30%', height: 76, overflow: 'hidden', background: '#0F172A', borderRadius: 8 }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
       <div style={{ position: 'absolute', left: '40%', top: 52, right: 52, bottom: 52 }}>
         {details.map((d, i) => <div key={i} style={{ marginBottom: 18 }}>
           {narrLabel(d.heading, v)}
@@ -2139,13 +2259,15 @@ function renderStarTimeline(slide, t, v) {
 function renderStarSituation(slide, t, v) {
   const metrics = (slide.metrics || []).slice(0, 2);
   const hasMetrics = metrics.length > 0;
+  const imageUrl = slide.imageUrl || (slide.items || []).find(item => item.imageUrl)?.imageUrl;
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
       <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'S', slide.sectionLabel || 'SITUATION')}</div>
-      <div style={{ position: 'absolute', left: 44, top: 80, right: 44 }}>
+      <div style={{ position: 'absolute', left: 44, top: 80, right: imageUrl ? 238 : 44 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
         {slide.subtitle && <div style={{ marginTop: 5, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
       </div>
+      {imageUrl ? <div style={{ position: 'absolute', right: 44, top: 30, width: 176, height: 118, overflow: 'hidden', borderRadius: 12, background: v.dark }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
       <div style={{ position: 'absolute', left: 44, top: 185, right: hasMetrics ? 222 : 44, bottom: 38, background: v.dark, borderRadius: 22, padding: '22px 26px', color: '#FFFFFF' }}>
         <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>SITUATION</div>
         <div style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9, ...textClamp(7) }}>{slide.body || slide.subtitle || ''}</div>
@@ -2507,20 +2629,26 @@ function renderKpiSkills(slide, t) {
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
       <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 222, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 38 }}>
-        {data.slice(0, 4).map((item, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 104 }}>
-            <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.08em', fontWeight: 800 }}>{(item.period || item.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-              {[item.heading, ...(item.bullets || []), item.body].filter(Boolean).slice(0, 2).map((skill, j) => (
-                <div key={j}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}><span>{skill}</span><span>{95 - i * 3 - j * 5}%</span></div>
-                  <div style={{ marginTop: 6, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue }} /></div>
-                </div>
-              ))}
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 210, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+        {data.slice(0, 4).map((item, i) => {
+          const skills = [item.heading, ...(item.bullets || []), item.body].filter(Boolean).slice(0, 5);
+          return (
+            <div key={i} style={{ borderTop: `2px solid ${i % 2 ? mint : blue}`, paddingTop: 16, minHeight: 120 }}>
+              <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 800 }}>{(item.period || item.role || `COMPETENCY ${i + 1}`).toUpperCase()}</div>
+              <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+                {skills.slice(0, 4).map((skill, j) => (
+                  <div key={j}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', fontSize: 13 }}>
+                      <span style={{ ...textClamp(1) }}>{skill}</span>
+                      <span style={{ marginLeft: 8, flexShrink: 0, color: j === 0 ? (i % 2 ? mint : blue) : '#A9C7E8', fontSize: 12, fontWeight: 900 }}>{95 - i * 3 - j * 5}%</span>
+                    </div>
+                    <div style={{ marginTop: 5, height: 3, background: 'rgba(126,147,179,0.18)' }}><div style={{ width: `${95 - i * 3 - j * 5}%`, height: '100%', background: i % 2 ? mint : blue, opacity: 0.9 }} /></div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -2566,27 +2694,57 @@ function renderKpiProject(slide, t) {
   const title = cleanPortfolioText(slide.title || 'Project');
   const subtitle = cleanPortfolioText(slide.subtitle || '');
   const label = cleanPortfolioText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
-  const items = (slide.items || []).slice(0, 4);
-  const data = items.length ? items : [{ heading: 'Core Mission', body: subtitle || title }];
-  const side = data.slice(1, 4);
+  const items = (slide.items || []);
+  const imageUrl = slide.imageUrl || items.find(item => item.imageUrl)?.imageUrl;
+  const pick = (re) => items.find(it => re.test(it.heading || ''));
+  const problemItem = pick(/problem|문제|overview/i) || items[0];
+  const actionItem = pick(/action|실행/i);
+  const resultItem = pick(/result|성과/i);
+  const roleItem = pick(/role|역할/i);
+  const periodItem = pick(/period|기간/i);
+  const problemBody = cleanPortfolioText(problemItem?.body || problemItem?.heading || subtitle);
+  // 우측 패널은 Action·Result 만 (없으면 Problem 외 항목으로 채움). 최대 2개로 제한해 겹침 방지.
+  let panelItems = [actionItem, resultItem].filter(Boolean);
+  if (!panelItems.length) panelItems = items.filter(it => it !== problemItem).slice(0, 2);
+  panelItems = panelItems.slice(0, 2);
+  const hasPanel = panelItems.length > 0;
+  const footerData = [
+    { label: 'TIMELINE', value: cleanPortfolioText(periodItem?.body || periodItem?.heading || '') },
+    { label: 'ROLE', value: cleanPortfolioText(roleItem?.body || roleItem?.heading || subtitle) },
+    { label: 'STATUS', value: resultItem ? 'Verified' : 'In Progress' },
+    { label: 'IMPACT', value: resultItem ? 'Achieved' : '—' },
+  ];
   return (
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
-      <div style={{ position: 'absolute', left: 58, top: 96, width: 720, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, top: 196, color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{subtitle || data[0]?.period || 'AI-Driven Platform'}</div>
-      <div style={{ position: 'absolute', left: 58, top: 248, right: 390, height: 1, background: line }} />
-      <div style={{ position: 'absolute', left: 58, top: 270, width: 520 }}>
-        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>CORE MISSION</div>
-        <div style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700, ...textClamp(4) }}>{data[0]?.body || data[0]?.heading || subtitle}</div>
+      {imageUrl ? <div style={{ position: 'absolute', right: 58, top: 36, width: 154, height: 108, overflow: 'hidden', background: '#172338', borderRadius: 10 }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
+      <div style={{ position: 'absolute', left: 58, top: 88, right: hasPanel || imageUrl ? 400 : 58, fontFamily: t.fonts.heading, fontSize: 38, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, top: 178, right: hasPanel ? 400 : 58, color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{subtitle || ''}</div>
+      <div style={{ position: 'absolute', left: 58, top: 218, right: hasPanel ? 400 : 58, height: 1, background: line }} />
+      {/* 좌측: 문제 정의 — flex로 높이 고정, 본문은 영역 안에서만 클램프 */}
+      <div style={{ position: 'absolute', left: 58, right: hasPanel ? 400 : 58, top: 236, bottom: 100, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', fontWeight: 800, flexShrink: 0 }}>CORE MISSION</div>
+        <div style={{ marginTop: 14, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ color: '#FFFFFF', fontSize: 15, lineHeight: 1.7, fontWeight: 600, whiteSpace: 'pre-line', ...textClamp(11) }}>{problemBody}</div>
+        </div>
       </div>
-      <div style={{ position: 'absolute', right: 58, top: 250, width: 330, border: '1px solid rgba(49,130,255,0.28)', background: 'rgba(23,35,56,0.38)', padding: 20 }}>
-        <div style={{ color: blue, fontSize: 21, fontWeight: 950 }}>{side[0]?.heading || 'Lead Developer'}</div>
-        {(side.length ? side : data).slice(0, 3).map((item, i) => <div key={i} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 14 }}>✓ {item.body || item.heading}</div>)}
-      </div>
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 80, height: 1, background: line }} />
-      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.2fr', gap: 30 }}>
-        {['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].map((h, i) => (
-          <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>{h}</div><div style={{ marginTop: 10, color: '#FFFFFF', fontFamily: mono, fontSize: 13, fontWeight: 900, ...textClamp(1) }}>{data[i]?.period || data[i]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production', 'Impact Verified'][i]}</div></div>
+      {/* 우측: Action/Result 패널 — 각 항목 flex:1 + overflow로 패널 높이 절대 초과 안 함 */}
+      {hasPanel && (
+        <div style={{ position: 'absolute', right: 58, width: 310, top: 236, bottom: 100, border: '1px solid rgba(49,130,255,0.28)', background: 'rgba(23,35,56,0.5)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+          {panelItems.map((item, i) => (
+            <div key={i} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: i ? '1px solid rgba(126,147,179,0.2)' : 'none', paddingTop: i ? 14 : 0 }}>
+              <div style={{ color: i ? mint : blue, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', flexShrink: 0 }}>{cleanPortfolioText(item.heading || '').toUpperCase()}</div>
+              <div style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 1.55, whiteSpace: 'pre-line', ...textClamp(8) }}>{cleanPortfolioText(item.body || item.heading || '')}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 72, height: 1, background: line }} />
+      <div style={{ position: 'absolute', left: 58, right: 58, bottom: 28, display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1.4fr', gap: 20 }}>
+        {footerData.map(({ label: h, value }) => (
+          <div key={h}><div style={{ color: muted, fontFamily: mono, fontSize: 9, letterSpacing: '0.1em' }}>{h}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontFamily: mono, fontSize: 12, fontWeight: 900, ...textClamp(2) }}>{value || '—'}</div></div>
         ))}
       </div>
     </div>
@@ -2609,13 +2767,13 @@ function renderKpiMetrics(slide, t) {
   return (
     <div style={{ position: 'absolute', inset: 0, ...kpiGrid(t), color: ink, fontFamily: t.fonts.body, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 58, top: 58, color: blue, fontFamily: mono, fontSize: 12, letterSpacing: '0.34em', fontWeight: 800 }}>{label}</div>
-      <div style={{ position: 'absolute', left: 58, top: 96, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
-      <div style={{ position: 'absolute', left: 58, right: 58, top: 218, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+      <div style={{ position: 'absolute', left: 58, top: 90, fontFamily: t.fonts.heading, fontSize: 40, fontWeight: 950, color: ink, ...textClamp(2) }}>{title}</div>
+      <div style={{ position: 'absolute', left: 58, right: 58, top: 205, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
         {metricCards.map((m, i) => (
-          <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
-            <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
-            <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+          <div key={i} style={{ borderTop: `2px solid ${i % 2 ? mint : blue}`, paddingTop: 16, minHeight: 130 }}>
+            <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
+            <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.1, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
+            <div style={{ marginTop: 10, color: '#A9C7E8', fontSize: 12.5, lineHeight: 1.45, ...textClamp(3) }}>{cleanPortfolioText(m.body || '')}</div>
           </div>
         ))}
       </div>
@@ -2652,12 +2810,12 @@ function renderKpiComparison(slide, t) {
       <div style={{ position: 'absolute', left: 88, top: 204, width: 385 }}>
         <div style={{ color: muted, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>BEFORE: MANUAL PROCESS</div>
         {lhs.map((item, i) => (
-          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+          <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${line}`, display: 'grid', placeItems: 'center', color: muted }}>□</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
           </div>
         ))}
-        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+        <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
           <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
           <div style={{ marginTop: 34, color: '#FFFFFF', fontSize: 28, fontWeight: 950 }}>300 MIN</div>
         </div>
@@ -2666,12 +2824,12 @@ function renderKpiComparison(slide, t) {
       <div style={{ position: 'absolute', right: 88, top: 204, width: 385 }}>
         <div style={{ color: mint, fontFamily: mono, fontSize: 14, fontWeight: 900 }}>AFTER: AI-DRIVEN WORKFLOW</div>
         {(rhs.length ? rhs : lhs).map((item, i) => (
-          <div key={i} style={{ marginTop: 34, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
+          <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${blue}`, display: 'grid', placeItems: 'center', color: blue }}>✓</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
           </div>
         ))}
-        <div style={{ marginTop: 34, borderTop: `1px solid ${line}`, paddingTop: 22 }}>
+        <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
           <div style={{ color: muted, fontFamily: mono, fontSize: 10 }}>AVERAGE PROCESSING TIME</div>
           <div style={{ marginTop: 34, color: mint, fontSize: 28, fontWeight: 950 }}>10 MIN</div>
           <div style={{ marginTop: 16, display: 'inline-block', padding: '7px 12px', background: 'rgba(25,197,142,0.14)', color: mint, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>96.7% TIME REDUCTION</div>
@@ -3401,8 +3559,10 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
   }
 
   const threeCol = kind === 'stack' || kind === 'project';
+  const imageUrl = slide.imageUrl || (slide.items || []).find(item => item.imageUrl)?.imageUrl;
   return shell(<>
-    {header(62, 78, 800)}
+    {header(62, 78, imageUrl ? 680 : 800)}
+    {kind === 'project' && imageUrl ? <div style={{ position: 'absolute', right: 62, top: 38, width: 146, height: 102, overflow: 'hidden', borderRadius: 10, background: v.dark }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
     <div style={{ position: 'absolute', left: 62, right: 62, top: threeCol ? 198 : 188, display: 'grid', gridTemplateColumns: threeCol ? 'repeat(3, 1fr)' : '1fr 1fr', gap: threeCol ? 28 : 42 }}>
       {data.slice(0, threeCol ? 3 : 4).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${idx === 1 && !threeCol ? v.accent : v.soft}`, paddingTop: 20, minHeight: threeCol ? 180 : 132 }}>
         <div style={{ color: idx % 2 === 0 ? v.accent : v.muted, fontSize: 13, fontWeight: 950, letterSpacing: '0.04em' }}>{threeCol ? ['CONCEPT', 'PROBLEM', 'SOLUTION'][idx] || line.role : line.role || line.period || `SECTION ${idx + 1}`}</div>
@@ -3734,6 +3894,10 @@ const CASE_STUDY_REFERENCE_VARIANTS = [
 function caseStudyVariantForIndex(slide, index) {
   if (slide.layout === 'closing') return 'closing';
   if (slide.layout === 'cover' || slide.layout === 'section') return 'dark-title-1';
+  if (slide.layout === 'cs-project') return 'case-snapshot';
+  if (slide.layout === 'cs-problem') return 'case-problem';
+  if (slide.layout === 'cs-execution') return 'case-project';
+  if (slide.layout === 'cs-results') return 'case-impact';
   const source = cleanPortfolioText(`${slide.sectionLabel || ''} ${slide.title || ''} ${slide.subtitle || ''} ${slide.proposalVariant || ''}`).toLowerCase();
   const hasAny = (...words) => words.some(word => source.includes(word));
   if (slide.proposalVariant === 'contents' || hasAny('contents', 'index', 'toc')) return 'case-toc';
@@ -4085,6 +4249,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
   }
 
   if (variant === 'case-snapshot') {
+    const imageUrl = slide.imageUrl || items.find(item => item.imageUrl)?.imageUrl;
     return (
       <div style={{ position: 'absolute', inset: 0, background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
         <div style={{ position: 'absolute', left: 54, top: 46, width: 86, height: 12, borderRadius: 999, background: v.accent }} />
@@ -4102,6 +4267,11 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             </div>
           ))}
         </div>
+        {imageUrl ? (
+          <div style={{ position: 'absolute', left: 54, top: 272, width: 420, height: 218, borderRadius: 18, overflow: 'hidden', background: v.dark }}>
+            <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -4505,10 +4675,17 @@ function renderProposalBody(slide, t, isDark) {
     return <ProposalThreeCards items={items} c={c} isDark={isDark} />;
   }
 
+  if (variant === 'resultMetric') {
+    return <ProposalResultMetric items={items} metrics={slide.metrics || []} c={c} isDark={isDark} />;
+  }
+
   if (variant === 'splitPhotoList') {
+    const imageUrl = items.find(item => item.imageUrl)?.imageUrl;
     return (
       <div style={{ display: 'grid', gridTemplateColumns: '42% 1fr', gap: 42, height: '100%', alignItems: 'center' }}>
-        <div style={{ height: 275, borderRadius: 18, background: `linear-gradient(135deg, ${c.dark} 0%, ${c.neutral || c.muted} 100%)`, filter: 'grayscale(1)', opacity: 0.88 }} />
+        <div style={{ height: 275, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(135deg, ${c.dark} 0%, ${c.neutral || c.muted} 100%)`, opacity: 0.92 }}>
+          {imageUrl ? <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', background: c.dark }} /> : null}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {items.slice(0, 4).map((item, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 16, alignItems: 'center' }}>
@@ -4696,12 +4873,52 @@ function ProposalThreeCards({ items, c, isDark }) {
             </div>
             <div style={{ alignSelf: 'end' }}>
               <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
-              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, ...textClamp(5) }}>{item.body}</div>
+              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, whiteSpace: 'pre-line', ...textClamp(5) }}>{item.body}</div>
             </div>
             <div style={{ height: 4, width: '42%', borderRadius: 999, background: featured ? 'rgba(255,255,255,0.42)' : visibleColorOn(fill, c.accent, c.dark) }} />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ProposalResultMetric({ items, metrics, c, isDark }) {
+  const result = items[0] || {};
+  const validMetrics = (metrics || []).filter(m => m && (m.value || m.label)).slice(0, 3);
+  const hasMetrics = validMetrics.length > 0;
+  const pageBg = isDark ? c.dark : c.bg;
+  const cardFill = isDark ? c.dark2 : c.card;
+  const cardText = readableTextOn(cardFill, isDark ? SAFE_TEXT_LIGHT : c.sub);
+  const cardMuted = mutedTextOn(cardFill, isDark ? SAFE_MUTED_LIGHT : c.muted);
+  const accentOnCard = visibleColorOn(cardFill, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
+  const accentText = readableTextOn(c.accent, SAFE_TEXT_LIGHT);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: hasMetrics ? '1.15fr 1fr' : '1fr', gap: 22, height: '100%', alignItems: 'stretch' }}>
+      {/* 좌측: 결과와 성과 큰 카드 */}
+      <div style={{ borderRadius: 16, background: cardFill, color: cardText, padding: 30, display: 'flex', flexDirection: 'column', boxShadow: isDark ? '0 18px 40px rgba(0,0,0,0.22)' : '0 14px 34px rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <span style={{ width: 30, height: 30, borderRadius: '50%', background: c.accent, color: accentText, display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>✓</span>
+          <div style={{ fontSize: 17, fontWeight: 900, color: accentOnCard, ...textClamp(1) }}>{result.heading || '결과와 성과'}</div>
+        </div>
+        <div style={{ flex: 1, fontSize: 15, lineHeight: 1.7, color: cardText, whiteSpace: 'pre-line', ...textClamp(8) }}>{result.body}</div>
+      </div>
+      {/* 우측: 핵심 지표 메트릭 스택 */}
+      {hasMetrics && (
+        <div style={{ display: 'grid', gridTemplateRows: `repeat(${validMetrics.length}, 1fr)`, gap: 14 }}>
+          {validMetrics.map((m, i) => {
+            const fill = i === 0 ? c.accent : cardFill;
+            const fg = i === 0 ? accentText : cardText;
+            const labelColor = i === 0 ? readableTextOn(c.accent, SAFE_TEXT_LIGHT) : accentOnCard;
+            return (
+              <div key={i} style={{ borderRadius: 14, background: fill, color: fg, padding: '18px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', color: labelColor, opacity: 0.92, marginBottom: 6, ...textClamp(1) }}>{m.label || '핵심 지표'}</div>
+                <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.05, ...textClamp(2) }}>{m.value}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -4821,7 +5038,26 @@ function ProposalGantt({ items, c }) {
 }
 
 function ProposalStageCards({ items, c }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 8, height: '100%', alignItems: 'center' }}>{items.slice(0, 5).map((item, i) => { const fill = i === items.length - 1 ? c.accent : i < 2 ? c.neutral : c.dark; return <div key={i} style={{ height: 210, borderRadius: 12, background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.45, opacity: 0.9, ...textClamp(5) }}>{item.body}</div></div>; })}</div>;
+  const count = Math.min(5, items.length);
+  const cardHeight = count <= 3 ? 260 : count === 4 ? 240 : 210;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 10, height: '100%', alignItems: 'center' }}>
+      {items.slice(0, count).map((item, i) => {
+        const fill = i === count - 1 ? c.accent : i < 2 ? c.neutral : c.dark;
+        const fg = readableTextOn(fill, SAFE_TEXT_LIGHT);
+        const accentLabel = visibleColorOn(fill, c.accent, fg);
+        return (
+          <div key={i} style={{ height: cardHeight, borderRadius: 14, background: fill, color: fg, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
+            </div>
+            <div style={{ flex: 1, fontSize: 12.5, lineHeight: 1.55, opacity: 0.95, ...textClamp(7) }}>{item.body}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function ProposalPyramid({ items, c }) {
@@ -5448,8 +5684,10 @@ export async function exportDeckToPptx(deck, templateOrId, fileName) {
   const c = t.colors;
   const M = 0.55;
 
-  for (let i = 0; i < (deck.slides || []).length; i += 1) {
-    const slide = deck.slides[i];
+  const hydratedDeck = await hydrateDeckImages(prepareDeckForExport(deck));
+  const imageWarnings = collectHydratedImageWarnings(hydratedDeck);
+  for (let i = 0; i < (hydratedDeck.slides || []).length; i += 1) {
+    const slide = hydratedDeck.slides[i];
     const s = pptx.addSlide();
 
     s.background = { color: hex(c.bg) };
@@ -5477,6 +5715,7 @@ export async function exportDeckToPptx(deck, templateOrId, fileName) {
   }
 
   await pptx.writeFile({ fileName: fileName || 'ai_portfolio.pptx' });
+  return { imageWarnings };
 }
 
 function drawCover(s, slide, t, W, H) {
@@ -5491,8 +5730,8 @@ function drawCover(s, slide, t, W, H) {
     if (hint === 'sidebar-right') {
       s.addShape('rect', { x: W * 0.62, y: 0, w: W * 0.38, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
       s.addShape('rect', { x: 0.7, y: H / 2 - 1.0, w: 0.7, h: 0.07, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-      s.addText(slide.title || '', { x: 0.7, y: H / 2 - 0.8, w: W * 0.6 - 1.0, h: 2.0, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 34, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 1.0, w: W * 0.6 - 1.0, h: 1.0, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
+      addPptText(s, slide.title || '', { x: 0.7, y: H / 2 - 0.8, w: W * 0.6 - 1.0, h: 2.0, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 34, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.7, y: H / 2 + 1.0, w: W * 0.6 - 1.0, h: 1.0, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
       return;
     }
     if (hint === 'header-top' || hint === 'footer-bottom') {
@@ -5500,14 +5739,14 @@ function drawCover(s, slide, t, W, H) {
       s.addShape('rect', { x: 0, y: isTop ? 0 : H - 1.2, w: W, h: 1.2, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
       const cy = H / 2 - 1.0;
       s.addText('PORTFOLIO', { x: 1.0, y: cy, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
-      s.addText(slide.title || '', { x: 1.0, y: cy + 0.4, w: W - 2.0, h: 1.4, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.0, y: cy + 1.9, w: W - 2.0, h: 1.0, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
+      addPptText(s, slide.title || '', { x: 1.0, y: cy + 0.4, w: W - 2.0, h: 1.4, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.0, y: cy + 1.9, w: W - 2.0, h: 1.0, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
       s.addShape('rect', { x: 1.0, y: cy + 2.85, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
       return;
     }
     if (hint === 'minimal') {
-      s.addText(slide.title || '', { x: 1.1, y: H / 2 - 1.2, w: W - 2.2, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.1, y: H / 2 + 0.4, w: W - 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
+      addPptText(s, slide.title || '', { x: 1.1, y: H / 2 - 1.2, w: W - 2.2, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 50 : 40, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+      if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.1, y: H / 2 + 0.4, w: W - 2.2, h: 0.8, fontFace: t.fonts.body, fontSize: 20, color: hex(c.sub), fit: 'shrink' });
       s.addShape('rect', { x: 1.1, y: H / 2 + 1.3, w: 0.8, h: 0.05, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
       return;
     }
@@ -5515,32 +5754,32 @@ function drawCover(s, slide, t, W, H) {
     s.addShape('rect', { x: 0, y: 0, w: W * 0.42, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText('PORTFOLIO', { x: 0.7, y: 0.7, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 30, charSpacing: 6 });
     s.addShape('rect', { x: 0.7, y: H - 3.4, w: 0.7, h: 0.07, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
-    s.addText(slide.title || '', { x: 0.7, y: H - 3.2, w: W * 0.42 - 1.0, h: 2.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
+    addPptText(s, slide.title || '', { x: 0.7, y: H - 3.2, w: W * 0.42 - 1.0, h: 2.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
     if (slide.subtitle) {
       s.addText('SUBTITLE', { x: W * 0.42 + 0.6, y: H / 2 - 0.8, w: 4, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 5 });
-      s.addText(slide.subtitle, { x: W * 0.42 + 0.6, y: H / 2 - 0.4, w: W * 0.58 - 1.2, h: 1.6, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
+      addPptText(s, slide.subtitle, { x: W * 0.42 + 0.6, y: H / 2 - 0.4, w: W * 0.58 - 1.2, h: 1.6, fontFace: t.fonts.body, fontSize: 18, color: hex(c.sub), fit: 'shrink' });
     }
     return;
   }
   if (t.style === 'centered') {
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.bg) }, line: { color: hex(c.bg) } });
     s.addShape('rect', { x: W / 2 - 0.8, y: H / 2 - 1.0, w: 1.6, h: 0.02, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-    s.addText(slide.title || '', { x: 1, y: H / 2 - 0.7, w: W - 2, h: 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 36, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: 1, y: H / 2 + 0.5, w: W - 2, h: 0.6, fontFace: t.fonts.body, fontSize: 16, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
+    addPptText(s, slide.title || '', { x: 1, y: H / 2 - 0.7, w: W - 2, h: 1.5, fontFace: t.fonts.heading, fontSize: isCover ? 44 : 36, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
+    if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1, y: H / 2 + 0.5, w: W - 2, h: 0.6, fontFace: t.fonts.body, fontSize: 16, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
     s.addShape('rect', { x: W / 2 - 0.8, y: H / 2 + 1.2, w: 1.6, h: 0.02, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
     return;
   }
   if (t.style === 'block') {
     s.addShape('rect', { x: 0, y: 0, w: W * 0.45, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
-    s.addText(slide.title || '', { x: 0.5, y: H - 2.2, w: W * 0.45 - 1, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: W * 0.45 + 0.5, y: H / 2 - 0.5, w: W * 0.55 - 1, h: 1.2, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sub), fit: 'shrink' });
+    addPptText(s, slide.title || '', { x: 0.5, y: H - 2.2, w: W * 0.45 - 1, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+    if (slide.subtitle) addPptText(s, slide.subtitle, { x: W * 0.45 + 0.5, y: H / 2 - 0.5, w: W * 0.55 - 1, h: 1.2, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sub), fit: 'shrink' });
     return;
   }
   // modern
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addShape('rect', { x: 0.7, y: H / 2 - 1.4, w: 0.6, h: 0.05, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
-  s.addText(slide.title || '', { x: 0.7, y: H / 2 - 1.2, w: W - 1.4, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.7, y: H / 2 + 0.5, w: W - 1.4, h: 0.6, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sideFg), fit: 'shrink' });
+  addPptText(s, slide.title || '', { x: 0.7, y: H / 2 - 1.2, w: W - 1.4, h: 1.6, fontFace: t.fonts.heading, fontSize: isCover ? 40 : 32, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.7, y: H / 2 + 0.5, w: W - 1.4, h: 0.6, fontFace: t.fonts.body, fontSize: 16, color: hex(c.sideFg), fit: 'shrink' });
 }
 
 function drawProposalDots(s, colorHex, W, x = 9.0, y = 4.2) {
@@ -5563,12 +5802,14 @@ function drawProposalDots(s, colorHex, W, x = 9.0, y = 4.2) {
 function drawProposalCoverLegacy(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
+  const subtitle = slide.subtitle || '경험을 기준으로';
+  const title = slide.title || '포트폴리오 솔루션';
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
   const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
   s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
-  s.addText(slide.subtitle || '경험을 기준으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
-  s.addText(pptProposalTextParts(slide.title || '포트폴리오 솔루션', 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: 34, bold: true, fit: 'shrink' });
+  addPptText(s, subtitle, { x: 0.9, y: 1.85, w: 8.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
+  s.addText(pptProposalTextParts(title, 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: fitFontSizePt(title, 7.0, 1.25, 34, 20, 1.12), bold: true });
   drawProposalDots(s, accentOnDark, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
 }
@@ -5588,12 +5829,14 @@ function drawAcceptedPortfolioPptx(s, slide, t, i, W, H) {
 function drawProposalCover(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
+  const subtitle = slide.subtitle || '경험과 성과를 기반으로';
+  const title = slide.title || '포트폴리오';
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
   const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
   s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
-  s.addText(slide.subtitle || '경험과 성과를 기반으로', { x: 0.9, y: 1.85, w: 6.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
-  s.addText(pptProposalTextParts(slide.title || '포트폴리오', 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: 34, bold: true, fit: 'shrink' });
+  addPptText(s, subtitle, { x: 0.9, y: 1.85, w: 8.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
+  s.addText(pptProposalTextParts(title, 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: fitFontSizePt(title, 7.0, 1.25, 34, 20, 1.12), bold: true });
   drawProposalDots(s, accentOnDark, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
 }
@@ -5990,7 +6233,8 @@ function drawNarrativeProjectPptx(s, slide, t, v, W, H) {
   s.addShape('rect', { x: W * 0.38, y: 0, w: W * 0.62, h: H, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } });
   addPptText(s, safePptText((slide.sectionLabel || '').toUpperCase()), { x: 0.5, y: 0.75, w: W * 0.3, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: acc, charSpacing: 2 });
   addPptText(s, safePptText(slide.title || ''), { x: 0.5, y: 1.2, w: W * 0.3, h: 2.5, fontFace: t.fonts.heading, fontSize: 32, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.5, y: 3.85, w: W * 0.3, h: 2.2, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(slide.subtitle || ''), W * 0.3, 2.1, 9, 6.5), color: '94A3B8', valign: 'top', wrap: true, fit: null });
+  addPptText(s, safePptText(slide.subtitle || ''), { x: 0.5, y: 3.85, w: W * 0.3, h: 1.85, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(slide.subtitle || ''), W * 0.3, 1.78, 9, 6.5), color: '94A3B8', valign: 'top', wrap: true, fit: null });
+  addContainedPptImage(s, [slide, ...(slide.items || [])], 0.5, 6.08, W * 0.3, 1.05, '0F172A');
   const details = (slide.items || []).slice(0, 3);
   const startX = W * 0.4 + 0.2;
   details.forEach((d, idx) => {
@@ -6114,10 +6358,10 @@ function drawNarrativeTimelinePptx(s, slide, t, v, W, H) {
   const items = (slide.items || []).slice(0, 5);
   items.forEach((item, idx) => {
     const y = 1.85 + idx * 1.0;
-    addPptText(s, safePptText(item.period || `202${1+idx}`), { x: 0.8, y, w: 1.0, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: acc, fit: 'shrink' });
-    s.addShape('rect', { x: 1.98, y, w: 0.05, h: 0.72, fill: { color: acc }, line: { color: acc } });
-    addPptText(s, safePptText(item.heading || ''), { x: 2.2, y, w: 9.2, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(item.body || ''), { x: 2.2, y: y + 0.32, w: 9.2, h: 0.6, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(item.body || ''), 9.2, 0.58, 9, 6.5), color: hex(v.muted), valign: 'top', wrap: true, fit: null });
+    addPptText(s, safePptText(item.period || `202${1+idx}`), { x: 0.8, y, w: 1.45, h: 0.28, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: acc, fit: 'shrink' });
+    s.addShape('rect', { x: 2.42, y, w: 0.05, h: 0.72, fill: { color: acc }, line: { color: acc } });
+    addPptText(s, safePptText(item.heading || ''), { x: 2.65, y, w: 8.75, h: 0.28, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.ink), fit: 'shrink' });
+    addPptText(s, safePptText(item.body || ''), { x: 2.65, y: y + 0.32, w: 8.75, h: 0.6, fontFace: t.fonts.body, fontSize: fitFontSizePt(safePptText(item.body || ''), 8.75, 0.58, 9, 6.5), color: hex(v.muted), valign: 'top', wrap: true, fit: null });
   });
   s.addShape('rect', { x: 0, y: H - 0.72, w: W, h: 0.72, fill: { color: '0F172A' }, line: { color: '0F172A' } });
   addPptText(s, pptFooterText(slide, 'IMPACT'), { x: 0.8, y: H - 0.6, w: W - 1.6, h: 0.42, fontFace: t.fonts.body, fontSize: 8.8, bold: true, color: 'E2E8F0', fit: 'shrink' });
@@ -6366,7 +6610,8 @@ function drawStarPhaseBadgePptx(s, t, v, x, y, phase, label) {
 function drawStarSituationPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
   drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'S', slide.sectionLabel || 'SITUATION');
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
+  const hasImage = addContainedPptImage(s, [slide, ...(slide.items || [])], 10.25, 0.42, 2.45, 1.66, v.dark);
+  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: hasImage ? 9.15 : 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
   if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.5, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
   const metrics = (slide.metrics || []).slice(0, 2);
   const bodyW = metrics.length ? W - 3.15 : W - 1.24;
@@ -6702,26 +6947,58 @@ function drawKpiTimelinePptx(s, slide, t, W, H) {
 }
 
 function drawKpiProjectPptx(s, slide, t, W, H) {
-  const mono = 'Consolas'; const tf = t.fonts.heading || 'Malgun Gothic'; const tb = t.fonts.body || 'Malgun Gothic';
+  const mono = 'Consolas'; const tb = t.fonts.body || 'Malgun Gothic';
   const { blue, mint, muted, panel, line } = kpiPptColors(t);
   const title = safePptText(slide.title || 'Project');
   const subtitle = safePptText(slide.subtitle || '');
   const label = safePptText(slide.sectionLabel || 'PROJECT CASE').toUpperCase();
-  const items = (slide.items || []).slice(0, 4);
+  const items = slide.items || [];
+  const pick = (re) => items.find(it => re.test(it.heading || ''));
+  const problemItem = pick(/problem|문제|overview/i) || items[0];
+  const actionItem = pick(/action|실행/i);
+  const resultItem = pick(/result|성과/i);
+  const roleItem = pick(/role|역할/i);
+  const periodItem = pick(/period|기간/i);
+  let panelItems = [actionItem, resultItem].filter(Boolean);
+  if (!panelItems.length) panelItems = items.filter(it => it !== problemItem).slice(0, 2);
+  panelItems = panelItems.slice(0, 2);
+  const hasPanel = panelItems.length > 0;
+  const leftW = hasPanel ? 6.6 : 11.7;
   kpiPptBase(s, W, H, t);
   kpiPptHeader(s, t, label, title, 0.8, 7.2);
-  addPptText(s, subtitle || items[0]?.period || 'AI-Driven Platform', { x: 0.82, y: 2.2, w: 6.5, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
-  kpiPptRule(s, 0.82, 2.75, 6.8, line);
+  addContainedPptImage(s, [slide, ...items], 10.25, 0.5, 2.15, 1.55, panel);
+  addPptText(s, subtitle || '', { x: 0.82, y: 2.2, w: leftW, h: 0.22, fontFace: mono, fontSize: 11, bold: true, color: mint, fit: 'shrink' });
+  kpiPptRule(s, 0.82, 2.75, leftW, line);
+  // 좌측: CORE MISSION (문제 정의) — 넓은 본문 영역
   addPptText(s, 'CORE MISSION', { x: 0.82, y: 2.95, w: 1.6, h: 0.13, fontFace: mono, fontSize: 6.8, color: blue, charSpacing: 0.5 });
-  addPptText(s, safePptText(items[0]?.body || items[0]?.heading || subtitle), { x: 0.82, y: 3.35, w: 6.6, h: 0.82, fontFace: tb, fontSize: 13, bold: true, color: 'FFFFFF', fit: 'shrink' });
-  s.addShape('rect', { x: 7.9, y: 2.75, w: 4.5, h: 1.45, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
-  addPptText(s, safePptText(items[1]?.heading || 'Lead Developer'), { x: 8.1, y: 2.97, w: 2.8, h: 0.24, fontFace: tf, fontSize: 14, bold: true, color: blue, fit: 'shrink' });
-  items.slice(1, 4).forEach((item, idx) => addPptText(s, `✓ ${safePptText(item.body || item.heading)}`, { x: 8.1, y: 3.32 + idx * 0.28, w: 3.8, h: 0.16, fontFace: tb, fontSize: 8.8, color: 'A9C7E8', fit: 'shrink' }));
+  const problemBody = safePptTextKeepLines(problemItem?.body || problemItem?.heading || subtitle);
+  const problemFont = fitFontSizePt(problemBody, leftW, 2.7, 12.5, 9, 1.25);
+  addPptText(s, problemBody, { x: 0.82, y: 3.32, w: leftW, h: 2.7, fontFace: tb, fontSize: problemFont, color: 'FFFFFF', breakLine: false, valign: 'top', fit: null, preserveLines: true });
+  // 우측: Action/Result 패널 — 항목별 높이 균등 분할
+  if (hasPanel) {
+    const px = 7.9; const pw = 4.5; const pyTop = 2.75; const pH = 3.3;
+    s.addShape('rect', { x: px, y: pyTop, w: pw, h: pH, fill: { color: panel, transparency: 32 }, line: { color: blue, transparency: 65 } });
+    const itemH = pH / panelItems.length;
+    panelItems.forEach((item, idx) => {
+      const iy = pyTop + idx * itemH;
+      addPptText(s, safePptText(item.heading || '').toUpperCase(), { x: px + 0.22, y: iy + 0.18, w: pw - 0.44, h: 0.18, fontFace: mono, fontSize: 8, bold: true, color: idx ? mint : blue, fit: 'shrink' });
+      const panelBody = safePptTextKeepLines(item.body || item.heading || '');
+      const panelH = itemH - 0.62;
+      const panelFont = fitFontSizePt(panelBody, pw - 0.44, panelH, 9, 7.5, 1.2);
+      addPptText(s, panelBody, { x: px + 0.22, y: iy + 0.46, w: pw - 0.44, h: panelH, fontFace: tb, fontSize: panelFont, color: 'FFFFFF', breakLine: false, valign: 'top', fit: null, preserveLines: true });
+    });
+  }
   kpiPptRule(s, 0.82, 6.15, 11.7, line);
-  ['TIMELINE', 'TECH STACK', 'STATUS', 'IMPACT'].forEach((h, idx) => {
+  const footer = [
+    ['TIMELINE', safePptText(periodItem?.body || periodItem?.heading || '')],
+    ['ROLE', safePptText(roleItem?.body || roleItem?.heading || subtitle)],
+    ['STATUS', resultItem ? 'Verified' : 'In Progress'],
+    ['IMPACT', resultItem ? 'Achieved' : '—'],
+  ];
+  footer.forEach(([h, value], idx) => {
     const x = 0.82 + idx * 3.1;
     addPptText(s, h, { x, y: 6.35, w: 1.4, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
-    addPptText(s, safePptText(items[idx]?.period || items[idx]?.heading || ['2026.04-2026.05', 'React, Node.js', 'Production Ready', 'Impact Verified'][idx]), { x, y: 6.62, w: 2.5, h: 0.18, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', fit: 'shrink' });
+    addPptText(s, value || '—', { x, y: 6.62, w: 2.7, h: 0.34, fontFace: mono, fontSize: 8.5, bold: true, color: 'FFFFFF', valign: 'top', fit: 'shrink' });
   });
 }
 
@@ -6762,15 +7039,17 @@ function drawKpiComparisonPptx(s, slide, t, W, H) {
   const drawSide = (x, heading, sideItems, good) => {
     addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
     sideItems.slice(0, 2).forEach((item, idx) => {
-      const y = 2.92 + idx * 0.92;
+      const y = 2.82 + idx * 1.2;
+      const body = safePptTextKeepLines(item.body);
+      const bodyFont = fitFontSizePt(body, 3.5, 0.62, 8.5, 7, 1.18);
       s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: '0E1727', transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
       addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
       addPptText(s, safePptText(item.heading), { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: tf, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
-      addPptText(s, safePptText(item.body), { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: tb, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+      addPptText(s, body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.62, fontFace: tb, fontSize: bodyFont, color: 'A9C7E8', breakLine: false, valign: 'top', fit: null, preserveLines: true });
     });
-    kpiPptRule(s, x, 4.4, 4.9, line);
-    addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
-    addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: tf, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+    kpiPptRule(s, x, 5.25, 4.9, line);
+    addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 5.48, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+    addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.85, w: 2.2, h: 0.32, fontFace: tf, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
   };
   drawSide(1.12, 'BEFORE: MANUAL PROCESS', items.slice(0, 2), false);
   s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
@@ -6903,8 +7182,15 @@ function drawKpiClosingPptx(s, slide, t, W, H) {
   kpiPptRule(s, 0.82, 6.2, 11.7, line);
   (bullets.length ? bullets : ['yushin.kim@example.com', 'github.com/yushinkim', 'portfolio link', 'Seoul, KR']).slice(0, 4).forEach((item, idx) => {
     const x = 0.82 + idx * 3.0;
-    addPptText(s, ['EMAIL', 'GITHUB', 'PORTFOLIO', 'LOCATION'][idx], { x, y: 6.45, w: 1.3, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted });
-    addPptText(s, safePptText(item), { x, y: 6.68, w: 2.45, h: 0.18, fontFace: mono, fontSize: 8.8, bold: true, color: blue, fit: 'shrink' });
+    const contact = safePptText(item);
+    const parts = contact.split(/\s*·\s*/);
+    const inferredLabel = parts.length > 1 ? parts.shift() : '';
+    const labelText = safePptText(inferredLabel || ['EMAIL', 'PHONE', 'PORTFOLIO', 'LOCATION'][idx]).toUpperCase();
+    const rawValue = safePptText(parts.length ? parts.join(' · ') : contact);
+    const displayValue = rawValue.length > 34 ? rawValue.replace(/^(https?:\/\/[^/]+\/)/i, '$1\n') : rawValue;
+    const valueFont = fitFontSizePt(displayValue, 2.65, 0.42, 8.8, 6.2, 1.1);
+    addPptText(s, labelText, { x, y: 6.45, w: 1.5, h: 0.13, fontFace: mono, fontSize: 6.5, color: muted, fit: 'shrink' });
+    addPptText(s, displayValue, { x, y: 6.64, w: 2.65, h: 0.42, fontFace: mono, fontSize: valueFont, bold: true, color: blue, fit: null, preserveLines: true });
   });
 }
 
@@ -7052,15 +7338,17 @@ function drawKpiReferencePptx(s, slide, t, v, i, W, H) {
     const drawSide = (x, heading, sideLines, good) => {
       addPptText(s, heading, { x, y: 2.28, w: 3.8, h: 0.18, fontFace: mono, fontSize: 9, bold: true, color: good ? mint : muted, fit: 'shrink' });
       sideLines.slice(0, 2).forEach((lineItem, idx) => {
-        const y = 2.92 + idx * 0.92;
+        const y = 2.82 + idx * 1.2;
+        const body = safePptTextKeepLines(lineItem.body);
+        const bodyFont = fitFontSizePt(body, 3.5, 0.62, 8.5, 7, 1.18);
         s.addShape('rect', { x, y, w: 0.45, h: 0.45, fill: { color: bg, transparency: 100 }, line: { color: good ? blue : line, transparency: 0 } });
         addPptText(s, good ? '✓' : '□', { x: x + 0.12, y: y + 0.13, w: 0.18, h: 0.12, fontFace: mono, fontSize: 8, color: good ? blue : muted });
         addPptText(s, lineItem.heading, { x: x + 0.65, y: y + 0.06, w: 3.4, h: 0.2, fontFace: titleFont, fontSize: 11, bold: true, color: 'FFFFFF', fit: 'shrink' });
-        addPptText(s, lineItem.body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.22, fontFace: t.fonts.body, fontSize: 7.5, color: 'A9C7E8', fit: 'shrink' });
+        addPptText(s, body, { x: x + 0.65, y: y + 0.36, w: 3.5, h: 0.62, fontFace: t.fonts.body, fontSize: bodyFont, color: 'A9C7E8', breakLine: false, valign: 'top', fit: null, preserveLines: true });
       });
-      addRule(x, 4.4, 4.9);
-      addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 4.68, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
-      addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.45, w: 2.2, h: 0.32, fontFace: titleFont, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
+      addRule(x, 5.25, 4.9);
+      addPptText(s, 'AVERAGE PROCESSING TIME', { x, y: 5.48, w: 2.4, h: 0.13, fontFace: mono, fontSize: 6.8, color: muted });
+      addPptText(s, good ? '10 MIN' : '300 MIN', { x, y: 5.85, w: 2.2, h: 0.32, fontFace: titleFont, fontSize: 20, bold: true, color: good ? mint : 'FFFFFF' });
     };
     drawSide(1.12, 'BEFORE: MANUAL PROCESS', data.slice(0, 2), false);
     s.addShape('rect', { x: 6.55, y: 2.05, w: 0.02, h: 4.15, fill: { color: '172338' }, line: { color: '172338' } });
@@ -7378,6 +7666,7 @@ function drawTimelineReferencePptx(s, slide, t, v, i, W, H) {
   }
 
   const threeCol = kind === 'stack' || kind === 'project' || kind === 'philosophy';
+  if (kind === 'project') addContainedPptImage(s, [slide, ...(slide.items || [])], 10.35, 0.58, 2.05, 1.45, v.dark);
   addHeader(1.0, 8.9);
   const cols = threeCol ? 3 : 2;
   const gap = threeCol ? 0.32 : 0.58;
@@ -7600,18 +7889,18 @@ function drawCaseStudyDeckPptx(s, slide, t, v, i, W, H) {
 
 function drawProposalHeader(s, slide, t, i, W, isDark) {
   const c = t.colors;
-  const section = shortPptText(slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : 'PORTFOLIO'), 20);
+  const section = safePptText(slide.sectionLabel || (slide.layout === 'closing' ? '마무리' : 'PORTFOLIO'));
   const titleColor = isDark ? 'FFFFFF' : hex(c.sub);
-  const titleSize = dynamicFontPt(slide.title, 36, { min: 30, max: 40 });
+  const titleSize = fitFontSizePt(slide.title || section, W - 1.9, 0.96, dynamicFontPt(slide.title, 36, { min: 30, max: 40 }), 18, 1.12);
   const bg = isDark ? c.dark : c.bg;
   const accentColor = pptVisibleOn(bg, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
   
   s.addShape('roundRect', { x: 0.72, y: 0.35, w: 2.0, h: 0.34, fill: { color: isDark ? 'FFFFFF' : hex(c.card || '#FFFFFF'), transparency: isDark ? 0 : 8 }, line: { color: isDark ? 'FFFFFF' : hex(c.line || '#E8E8EA'), transparency: 15 }, rectRadius: 0.14 });
   s.addShape('ellipse', { x: 0.82, y: 0.46, w: 0.08, h: 0.08, fill: { color: accentColor }, line: { color: accentColor } });
-  s.addText(section, { x: 0.95, y: 0.4, w: 1.55, h: 0.18, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: isDark ? pptTextOn('#FFFFFF', c.sub) : hex(c.sub), fit: 'shrink' });
+  addPptText(s, section, { x: 0.95, y: 0.4, w: 1.55, h: 0.18, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: isDark ? pptTextOn('#FFFFFF', c.sub) : hex(c.sub), fit: 'shrink' });
   
-  s.addText(pptProposalTextParts(slide.title || section, titleColor, accentColor, { fontFace: t.fonts.heading }), { x: 0.95, y: 0.84, w: W - 1.9, h: 0.96, fontSize: titleSize, bold: true, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle', fit: 'shrink' });
-  if (slide.subtitle) addPptText(s, shortPptText(slide.subtitle, 84), { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 12, bold: true, color: isDark ? 'D4D4D8' : hex(c.muted || c.sub), align: 'center', fit: 'shrink' });
+  s.addText(pptProposalTextParts(slide.title || section, titleColor, accentColor, { fontFace: t.fonts.heading }), { x: 0.95, y: 0.84, w: W - 1.9, h: 0.96, fontSize: titleSize, bold: true, align: slide.layout === 'profile' ? 'left' : 'center', valign: 'middle' });
+  if (slide.subtitle) addPptText(s, safePptText(slide.subtitle), { x: 1.65, y: 1.82, w: W - 3.3, h: 0.34, fontFace: t.fonts.body, fontSize: 12, bold: true, color: isDark ? 'D4D4D8' : hex(c.muted || c.sub), align: 'center', fit: 'shrink' });
 }
 
 function drawCaseStudyProposalPptx(s, slide, t, v, i, W, H) {
@@ -7652,8 +7941,8 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
 
   const addDarkTitle = (title) => {
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-    s.addShape('ellipse', { x: -0.5, y: -0.3, w: 2.2, h: 1.2, fill: { color: hex(v.accent), transparency: 58 }, line: { color: hex(v.accent), transparency: 100 } });
-    s.addShape('ellipse', { x: W - 2.0, y: H - 1.35, w: 2.6, h: 1.5, fill: { color: hex(v.accent), transparency: 68 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: 0, y: 0, w: 1.7, h: 0.9, fill: { color: hex(v.accent), transparency: 58 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.0, y: H - 1.35, w: 2.0, h: 1.35, fill: { color: hex(v.accent), transparency: 68 }, line: { color: hex(v.accent), transparency: 100 } });
     s.addShape('roundRect', { x: 3.85, y: 3.15, w: 0.62, h: 0.2, fill: { color: 'FFFFFF', transparency: 6 }, line: { color: 'FFFFFF', transparency: 100 }, rectRadius: 0.04 });
     addPptText(s, safePptText(title || slide.title || 'CASE STUDY'), { x: 1.4, y: 3.45, w: W - 2.8, h: 0.8, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: 'FFFFFF', align: 'center', fit: 'shrink' });
   };
@@ -7675,8 +7964,8 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
     const titleText = safePptText(slide.title);
     const tagBullets = (slide.bullets || []).filter(Boolean).slice(0, 4).map(safePptText).filter(Boolean);
     s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-    s.addShape('ellipse', { x: -1.0, y: -0.7, w: 3.0, h: 2.2, fill: { color: hex(v.accent), transparency: 60 }, line: { color: hex(v.accent), transparency: 100 } });
-    s.addShape('ellipse', { x: W - 2.4, y: H - 1.95, w: 3.6, h: 2.8, fill: { color: hex(v.accent), transparency: 78 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: 0, y: 0, w: 2.0, h: 1.5, fill: { color: hex(v.accent), transparency: 60 }, line: { color: hex(v.accent), transparency: 100 } });
+    s.addShape('ellipse', { x: W - 2.4, y: H - 1.95, w: 2.4, h: 1.95, fill: { color: hex(v.accent), transparency: 78 }, line: { color: hex(v.accent), transparency: 100 } });
     s.addShape('roundRect', { x: 0.89, y: 0.78, w: 0.78, h: 0.19, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.05 });
     addPptText(s, safePptText(slide.sectionLabel || 'CASE STUDY'), { x: 1.83, y: 0.74, w: 6.0, h: 0.24, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.accent), charSpace: 4 });
     addPptText(s, titleText, { x: 0.89, y: 2.55, w: W - 1.78, h: 2.5, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: 'FFFFFF', valign: 'top', breakLine: true });
@@ -7838,7 +8127,9 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
       s.addShape('roundRect', { x: x + 0.32, y: colTop + 0.3, w: tagW, h: 0.3, fill: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, line: { color: hex(v.accent), transparency: isPrimary ? 70 : 82 }, rectRadius: 0.14 });
       addPptText(s, tag, { x: x + 0.32, y: colTop + 0.34, w: tagW, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.accent), align: 'center', charSpace: 1.8 });
       addPptText(s, safePptText(item.heading), { x: x + 0.32, y: colTop + 0.88, w: colW - 0.64, h: 1.1, fontFace: t.fonts.heading, fontSize: 16, bold: true, color: fg });
-      addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.1, w: colW - 0.64, h: colH - 2.3, fontFace: t.fonts.body, fontSize: 10, color: muted });
+      if (item.body) {
+        addPptText(s, safePptText(item.body), { x: x + 0.32, y: colTop + 2.1, w: colW - 0.64, h: colH - 2.3, fontFace: t.fonts.body, fontSize: 10, color: muted });
+      }
     });
     return;
   }
@@ -7886,15 +8177,20 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
     s.addShape('roundRect', { x: 0.75, y: 0.62, w: 1.18, h: 0.12, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.04 });
     addPptText(s, safePptText(slide.sectionLabel || 'CASE SNAPSHOT'), { x: 0.75, y: 1.12, w: 2.2, h: 0.16, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpace: 1.4 });
     addPptText(s, safePptText(slide.title), { x: 0.75, y: 1.48, w: 5.9, h: 1.12, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(slide.subtitle), { x: 0.75, y: 2.78, w: 5.4, h: 0.56, fontFace: t.fonts.body, fontSize: 8.2, color: hex(v.muted), fit: 'shrink' });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 0.75, y: 2.78, w: 5.4, h: 0.56, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+    }
     caseLines.slice(0, 3).forEach((line, idx) => {
       const y = 0.85 + idx * 1.78;
       const dark = idx === 0;
       s.addShape('roundRect', { x: 8.1, y, w: 4.25, h: 1.38, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: idx === 1 ? 0.05 : 0.16 });
       addPptText(s, `SIGNAL ${idx + 1}`, { x: 8.38, y: y + 0.22, w: 1.5, h: 0.14, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: dark ? hex(v.accent) : hex(v.muted), charSpace: 1 });
       addPptText(s, safePptText(line.heading), { x: 8.38, y: y + 0.52, w: 3.65, h: 0.24, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: dark ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
-      addPptText(s, safePptText(line.body || line.period), { x: 8.38, y: y + 0.86, w: 3.55, h: 0.28, fontFace: t.fonts.body, fontSize: 7.2, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+      if (line.body || line.period) {
+        addPptText(s, safePptText(line.body || line.period), { x: 8.38, y: y + 0.84, w: 3.55, h: 0.42, fontFace: t.fonts.body, fontSize: 9, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+      }
     });
+    addContainedPptImage(s, [slide, ...items], 0.75, 3.78, 5.85, 3.0, v.dark);
     return;
   }
 
@@ -7903,13 +8199,13 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
     s.addShape('rect', { x: 0, y: 0, w: 4.7, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
     addPptText(s, 'PROBLEM', { x: 0.58, y: 0.68, w: 1.3, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.6 });
     addPptText(s, safePptText(slide.title), { x: 0.58, y: 1.34, w: 3.45, h: 1.28, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: 'FFFFFF', fit: 'shrink' });
-    addPptText(s, safePptText(slide.subtitle || caseLines[0]?.body), { x: 0.58, y: 5.45, w: 3.45, h: 0.7, fontFace: t.fonts.body, fontSize: 8, color: 'B8C0D5', fit: 'shrink' });
+    addPptText(s, safePptText(slide.subtitle || caseLines[0]?.body), { x: 0.58, y: 5.18, w: 3.45, h: 1.1, fontFace: t.fonts.body, fontSize: 10, color: 'B8C0D5', fit: 'shrink' });
     caseLines.slice(0, 4).forEach((line, idx) => {
       const y = 0.88 + idx * 1.35;
       s.addShape('ellipse', { x: 5.45, y, w: 0.45, h: 0.45, fill: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.soft) } });
       addPptText(s, String(idx + 1), { x: 5.45, y: y + 0.12, w: 0.45, h: 0.12, fontFace: t.fonts.heading, fontSize: 7, bold: true, color: idx === 0 ? 'FFFFFF' : hex(v.ink), align: 'center' });
       addPptText(s, safePptText(line.heading), { x: 6.2, y: y - 0.02, w: 5.5, h: 0.24, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.ink), fit: 'shrink' });
-      addPptText(s, safePptText(line.body || line.period), { x: 6.2, y: y + 0.34, w: 5.45, h: 0.36, fontFace: t.fonts.body, fontSize: 7.6, color: hex(v.muted), fit: 'shrink' });
+      addPptText(s, safePptText(line.body || line.period), { x: 6.2, y: y + 0.34, w: 5.45, h: 0.5, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted), fit: 'shrink' });
       if (idx < 3) s.addShape('rect', { x: 6.2, y: y + 0.92, w: 5.45, h: 0.01, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
     });
     return;
@@ -7936,15 +8232,19 @@ function drawCaseStudyReferencePptx(s, slide, t, v, i, W, H) {
     addPptText(s, 'PROJECT', { x: 0.9, y: 0.88, w: 1.4, h: 0.16, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpace: 1.5 });
     addPptText(s, safePptText(slide.sectionLabel || 'Execution'), { x: 0.9, y: 5.55, w: 1.92, h: 0.62, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: 'FFFFFF', fit: 'shrink' });
     addPptText(s, safePptText(slide.title), { x: 3.8, y: 0.7, w: 8.4, h: 0.72, fontFace: t.fonts.heading, fontSize: 23, bold: true, color: hex(v.ink), fit: 'shrink' });
-    addPptText(s, safePptText(slide.subtitle), { x: 3.8, y: 1.46, w: 7.8, h: 0.26, fontFace: t.fonts.body, fontSize: 8, color: hex(v.muted), fit: 'shrink' });
+    if (slide.subtitle) {
+      addPptText(s, safePptText(slide.subtitle), { x: 3.8, y: 1.46, w: 7.8, h: 0.26, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted), fit: 'shrink' });
+    }
     caseLines.slice(0, 4).forEach((line, idx) => {
       const x = 3.8 + (idx % 2) * 4.45;
-      const y = 2.15 + Math.floor(idx / 2) * 1.95;
+      const y = 2.05 + Math.floor(idx / 2) * 2.05;
       const dark = idx === 0;
-      s.addShape('roundRect', { x, y, w: 4.0, h: 1.55, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: 0.12 });
+      s.addShape('roundRect', { x, y, w: 4.0, h: 1.9, fill: { color: dark ? hex(v.dark) : hex(v.card) }, line: { color: dark ? hex(v.dark) : hex(v.soft), transparency: 10 }, rectRadius: 0.12 });
       addPptText(s, ['DEFINE', 'BUILD', 'VERIFY', 'SHIP'][idx] || `STEP ${idx + 1}`, { x: x + 0.22, y: y + 0.22, w: 1.5, h: 0.14, fontFace: t.fonts.body, fontSize: 6.8, bold: true, color: dark ? hex(v.accent) : hex(v.muted), charSpace: 1 });
       addPptText(s, safePptText(line.heading), { x: x + 0.22, y: y + 0.58, w: 3.45, h: 0.24, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: dark ? 'FFFFFF' : hex(v.ink), fit: 'shrink' });
-      addPptText(s, safePptText(line.body || line.period), { x: x + 0.22, y: y + 0.92, w: 3.4, h: 0.32, fontFace: t.fonts.body, fontSize: 7, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+      if (line.body || line.period) {
+        addPptText(s, safePptText(line.body || line.period), { x: x + 0.22, y: y + 0.92, w: 3.4, h: 0.74, fontFace: t.fonts.body, fontSize: 10, color: dark ? 'B8C0D5' : hex(v.muted), fit: 'shrink' });
+      }
     });
     return;
   }
@@ -8154,7 +8454,7 @@ function drawProposal(s, slide, t, i, W, H) {
   } else {
     drawProposalBulletCards(s, (slide.bullets || []).slice(0, 6), t, x, y, w, h, isDark);
   }
-  s.addText(String(i + 1).padStart(2, '0'), { x: W - 0.9, y: H - 0.45, w: 0.4, h: 0.18, fontFace: t.fonts.body, fontSize: 7, color: isDark ? '777777' : hex(c.muted), align: 'right' });
+  s.addText(String(i + 1).padStart(2, '0'), { x: W - 0.9, y: H - 0.45, w: 0.4, h: 0.18, fontFace: t.fonts.body, fontSize: 8, color: isDark ? '777777' : hex(c.muted), align: 'right' });
 }
 
 function drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark) {
@@ -8188,8 +8488,17 @@ function drawProposalVariantPptx(s, slide, t, x, y, w, h, isDark) {
     return true;
   }
 
+  if (variant === 'resultMetric') {
+    drawResultMetricPptx(s, items[0] || {}, slide.metrics || [], t, x, y, w, h, isDark);
+    return true;
+  }
+
   if (variant === 'splitPhotoList') {
     s.addShape('roundRect', { x, y: y + 0.25, w: w * 0.4, h: h - 0.5, fill: { color: hex(c.dark), transparency: 10 }, line: { color: hex(c.dark), transparency: 100 }, rectRadius: 0.16 });
+    const image = items.find(item => item.imageData);
+    if (image?.imageData) {
+      s.addImage({ data: image.imageData, ...containBox(x + 0.12, y + 0.37, w * 0.4 - 0.24, h - 0.74, image.imageAspect || 1) });
+    }
     drawListWithBadges(s, items.slice(0, 4), t, x + w * 0.46, y + 0.25, w * 0.5, h - 0.5);
     return true;
   }
@@ -8328,10 +8637,47 @@ function drawThreeCardsPptx(s, items, t, x, y, w, h, isDark) {
     s.addShape('ellipse', { x: cx + 0.28, y: y + 0.28, w: 0.34, h: 0.34, fill: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 78 : 0 }, line: { color: featured ? 'FFFFFF' : hex(c.line), transparency: featured ? 100 : 0 } });
     addPptText(s, String(idx + 1).padStart(2, '0'), { x: cx + 0.28, y: y + 0.36, w: 0.34, h: 0.1, fontFace: t.fonts.heading, fontSize: 6.5, bold: true, color: fg, align: 'center', fit: 'shrink' });
     s.addShape('rect', { x: cx + 0.78, y: y + 0.44, w: cardW - 1.08, h: 0.02, fill: { color: featured ? fg : hex(c.line), transparency: featured ? 70 : 0 }, line: { color: featured ? fg : hex(c.line), transparency: 100 } });
-    addPptText(s, item.heading, { x: cx + 0.28, y: y + h - 1.42, w: cardW - 0.56, h: 0.42, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: fg, fit: 'shrink' });
-    addPptText(s, item.body, { x: cx + 0.28, y: y + h - 0.88, w: cardW - 0.56, h: 0.52, fontFace: t.fonts.body, fontSize: 8, color: muted, fit: 'shrink' });
+    addPptText(s, item.heading, { x: cx + 0.28, y: y + h - 2.0, w: cardW - 0.56, h: 0.42, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: fg, fit: 'shrink' });
+    const body = safePptTextKeepLines(item.body);
+    const bodyFont = fitFontSizePt(body, cardW - 0.56, 1.05, 8.5, 7, 1.2);
+    addPptText(s, body, { x: cx + 0.28, y: y + h - 1.45, w: cardW - 0.56, h: 1.05, fontFace: t.fonts.body, fontSize: bodyFont, color: muted, breakLine: false, valign: 'top', fit: null, preserveLines: true });
     s.addShape('roundRect', { x: cx + 0.28, y: y + h - 0.22, w: cardW * 0.34, h: 0.05, fill: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: featured ? 55 : 0 }, line: { color: featured ? fg : pptVisibleOn(fill, c.accent, c.dark), transparency: 100 }, rectRadius: 0.03 });
   });
+}
+
+function drawResultMetricPptx(s, result, metrics, t, x, y, w, h, isDark) {
+  const c = t.colors;
+  const valid = (metrics || []).filter(m => m && (m.value || m.label)).slice(0, 3);
+  const hasMetrics = valid.length > 0;
+  const cardFill = isDark ? c.dark2 : c.card;
+  const cardText = pptTextOn(cardFill, isDark ? SAFE_TEXT_LIGHT : c.sub);
+  const accentOnCard = pptVisibleOn(cardFill, c.accent, isDark ? SAFE_TEXT_LIGHT : c.dark);
+  const accentText = pptTextOn(c.accent, SAFE_TEXT_LIGHT);
+  const leftW = hasMetrics ? w * 0.56 : w;
+  // 좌측: 결과와 성과
+  s.addShape('roundRect', { x, y, w: leftW, h, fill: { color: hex(cardFill) }, line: { color: hex(cardFill) }, rectRadius: 0.12 });
+  s.addShape('ellipse', { x: x + 0.34, y: y + 0.34, w: 0.4, h: 0.4, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
+  addPptText(s, '✓', { x: x + 0.34, y: y + 0.4, w: 0.4, h: 0.28, fontFace: t.fonts.body, fontSize: 13, bold: true, color: accentText, align: 'center' });
+  addPptText(s, result.heading || '결과와 성과', { x: x + 0.86, y: y + 0.38, w: leftW - 1.2, h: 0.4, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: accentOnCard, fit: 'shrink' });
+  const resultBody = safePptTextKeepLines(result.body || '');
+  const resultFont = fitFontSizePt(resultBody, leftW - 0.8, h - 1.4, 11, 8, 1.25);
+  addPptText(s, resultBody, { x: x + 0.4, y: y + 1.05, w: leftW - 0.8, h: h - 1.4, fontFace: t.fonts.body, fontSize: resultFont, color: cardText, breakLine: false, valign: 'top', lineSpacingMultiple: 1.3, fit: null, preserveLines: true });
+  // 우측: 핵심 지표 스택
+  if (hasMetrics) {
+    const mx = x + leftW + 0.26;
+    const mw = w - leftW - 0.26;
+    const gap = 0.2;
+    const mh = (h - gap * (valid.length - 1)) / valid.length;
+    valid.forEach((m, i) => {
+      const my = y + i * (mh + gap);
+      const fill = i === 0 ? c.accent : cardFill;
+      const fg = i === 0 ? accentText : cardText;
+      const labelColor = i === 0 ? accentText : accentOnCard;
+      s.addShape('roundRect', { x: mx, y: my, w: mw, h: mh, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.1 });
+      addPptText(s, m.label || '핵심 지표', { x: mx + 0.28, y: my + 0.22, w: mw - 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: labelColor, fit: 'shrink' });
+      addPptText(s, m.value || '', { x: mx + 0.28, y: my + 0.54, w: mw - 0.56, h: mh - 0.74, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: fg, valign: 'top', fit: 'shrink' });
+    });
+  }
 }
 
 function drawComparisonPptx(s, items, t, x, y, w, h) {
@@ -8789,8 +9135,8 @@ function drawDocument(s, slide, t, i, W, H, M) {
     s.addShape('rect', { x: sideX, y: 0, w: SIDE_W, h: H, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText(String(i + 1).padStart(2, '0'), { x: sideX + 0.4, y: 0.5, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), charSpacing: 4 });
     s.addShape('rect', { x: sideX + 0.4, y: 0.95, w: 0.4, h: 0.04, fill: { color: hex(c.accent2 || sideFg) }, line: { color: hex(c.accent2 || sideFg) } });
-    s.addText(slide.title || '', { x: sideX + 0.4, y: 1.1, w: SIDE_W - 0.8, h: 1.6, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
-    if (slide.subtitle) s.addText(slide.subtitle, { x: sideX + 0.4, y: 2.7, w: SIDE_W - 0.8, h: 0.8, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), fit: 'shrink' });
+    addPptText(s, slide.title || '', { x: sideX + 0.4, y: 1.1, w: SIDE_W - 0.8, h: 1.6, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(sideFg), valign: 'top', fit: 'shrink' });
+    if (slide.subtitle) addPptText(s, slide.subtitle, { x: sideX + 0.4, y: 2.7, w: SIDE_W - 0.8, h: 0.8, fontFace: t.fonts.body, fontSize: 11, color: hex(sideFg), fit: 'shrink' });
     drawBody(s, slide, t, bodyX, M, bodyW, H - M * 2, 'document');
     return;
   }
@@ -8801,12 +9147,12 @@ function drawDocument(s, slide, t, i, W, H, M) {
     const headerY = isFooter ? H - headerH : 0;
     s.addShape('rect', { x: 0, y: headerY, w: W, h: headerH, fill: { color: hex(sideColor) }, line: { color: hex(sideColor) } });
     s.addText(String(i + 1).padStart(2, '0'), { x: 0.7, y: headerY + 0.2, w: 1.5, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(sideFg), transparency: 40, charSpacing: 4 });
-    s.addText(slide.title || '', { x: 0.7, y: headerY + 0.45, w: W - 1.6, h: 0.8, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(sideFg), valign: 'middle', fit: 'shrink' });
+    addPptText(s, slide.title || '', { x: 0.7, y: headerY + 0.45, w: W - 1.6, h: 0.8, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(sideFg), valign: 'middle', fit: 'shrink' });
     s.addShape('rect', { x: W - 0.85, y: headerY + 0.35, w: 0.06, h: 0.6, fill: { color: hex(c.accent2 || c.accent) }, line: { color: hex(c.accent2 || c.accent) } });
     const bodyTop = isFooter ? 0.6 : headerH + 0.3;
     let by = bodyTop;
     if (slide.subtitle) {
-      s.addText(slide.subtitle, { x: 0.7, y: by, w: W - 1.4, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), italic: true, fit: 'shrink' });
+      addPptText(s, slide.subtitle, { x: 0.7, y: by, w: W - 1.4, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), italic: true, fit: 'shrink' });
       by += 0.55;
     }
     const bodyBottom = isFooter ? H - headerH - 0.3 : H - 0.4;
@@ -8816,8 +9162,8 @@ function drawDocument(s, slide, t, i, W, H, M) {
 
   // minimal
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.9, y: 0.7, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 11, bold: true, color: hex(c.accent), charSpacing: 4 });
-  s.addText(slide.title || '', { x: 0.9, y: 1.0, w: W - 1.8, h: 0.9, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.9, y: 1.95, w: W - 1.8, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), fit: 'shrink' });
+  addPptText(s, slide.title || '', { x: 0.9, y: 1.0, w: W - 1.8, h: 0.9, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(c.titleColor || c.accent), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.9, y: 1.95, w: W - 1.8, h: 0.45, fontFace: t.fonts.body, fontSize: 14, color: hex(c.sub), fit: 'shrink' });
   s.addShape('rect', { x: 0.9, y: 2.5, w: 0.5, h: 0.04, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
   drawBody(s, slide, t, 0.9, 2.75, W - 1.8, H - 3.15, 'document');
 }
@@ -8829,8 +9175,8 @@ function drawModern(s, slide, t, i, W, H, M) {
   s.addShape('rect', { x: 0, y: 0, w: SIDE, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.4, y: 0.5, w: 1, h: 0.3, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg), charSpacing: 3 });
   s.addShape('rect', { x: 0.4, y: 0.85, w: 0.4, h: 0.04, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
-  s.addText(slide.title || '', { x: 0.4, y: 1.0, w: SIDE - 0.6, h: 1.6, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(c.sideFg), valign: 'top', fit: 'shrink' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 2.5, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg), fit: 'shrink' });
+  addPptText(s, slide.title || '', { x: 0.4, y: 1.0, w: SIDE - 0.6, h: 1.6, fontFace: t.fonts.heading, fontSize: 18, bold: true, color: hex(c.sideFg), valign: 'top', fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.4, y: 2.5, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 10, color: hex(c.sideFg), fit: 'shrink' });
   drawBody(s, slide, t, SIDE + 0.4, M, W - SIDE - 0.8, H - M * 2, 'modern');
   s.addText(String(i + 1), { x: W - 0.7, y: H - 0.4, w: 0.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, color: hex(c.muted), align: 'right' });
 }
@@ -8840,9 +9186,9 @@ function drawClassic(s, slide, t, i, W, H, M) {
   const c = t.colors;
   s.addText(`Chapter ${i + 1}`, { x: M, y: M, w: W - M * 2, h: 0.3, fontFace: t.fonts.body, fontSize: 9, color: hex(c.muted), align: 'center', charSpacing: 4 });
   s.addShape('rect', { x: W / 2 - 0.5, y: M + 0.4, w: 1, h: 0.015, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-  s.addText(slide.title || '', { x: M, y: M + 0.5, w: W - M * 2, h: 0.7, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
+  addPptText(s, slide.title || '', { x: M, y: M + 0.5, w: W - M * 2, h: 0.7, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(c.accent), align: 'center', fit: 'shrink' });
   s.addShape('rect', { x: W / 2 - 0.5, y: M + 1.25, w: 1, h: 0.015, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: M, y: M + 1.35, w: W - M * 2, h: 0.4, fontFace: t.fonts.body, fontSize: 12, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: M, y: M + 1.35, w: W - M * 2, h: 0.4, fontFace: t.fonts.body, fontSize: 12, italic: true, color: hex(c.sub), align: 'center', fit: 'shrink' });
   drawBody(s, slide, t, M + 0.3, M + 2.0, W - (M + 0.3) * 2, H - M - 2.4, 'classic');
   s.addText(`— ${i + 1} —`, { x: 0, y: H - 0.4, w: W, h: 0.25, fontFace: t.fonts.heading, fontSize: 10, color: hex(c.muted), align: 'center' });
 }
@@ -8853,8 +9199,8 @@ function drawCreative(s, slide, t, i, W, H, M) {
   const SIDE = 3.6;
   s.addShape('rect', { x: 0, y: 0, w: SIDE, h: H, fill: { color: hex(c.side) }, line: { color: hex(c.side) } });
   s.addText(String(i + 1).padStart(2, '0'), { x: 0.4, y: 0.4, w: SIDE - 0.6, h: 1.5, fontFace: t.fonts.heading, fontSize: 80, bold: true, color: hex(c.sideFg), transparency: 80 });
-  s.addText(slide.title || '', { x: 0.4, y: 1.7, w: SIDE - 0.6, h: 1.4, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(c.sideFg), fit: 'shrink' });
-  if (slide.subtitle) s.addText(slide.subtitle, { x: 0.4, y: 3.0, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sideFg), fit: 'shrink' });
+  addPptText(s, slide.title || '', { x: 0.4, y: 1.7, w: SIDE - 0.6, h: 1.4, fontFace: t.fonts.heading, fontSize: 20, bold: true, color: hex(c.sideFg), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.4, y: 3.0, w: SIDE - 0.6, h: 0.6, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sideFg), fit: 'shrink' });
   s.addShape('rect', { x: 0.4, y: H - 0.8, w: 0.6, h: 0.06, fill: { color: hex(c.sideFg) }, line: { color: hex(c.sideFg) } });
   drawBody(s, slide, t, SIDE + 0.4, M, W - SIDE - 0.8, H - M * 2, 'creative');
 }
@@ -8882,26 +9228,26 @@ function drawBody(s, slide, t, x0, y0, w, h, variant) {
       // 헤더
       if (variant === 'classic') {
         s.addShape('rect', { x: x0, y, w, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
-        s.addText(it.heading || '', { x: x0, y: y + 0.05, w: w * 0.7, h: 0.35, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y + 0.05, w: w * 0.3, h: 0.35, fontFace: t.fonts.body, fontSize: 10, italic: true, color: hex(c.muted), align: 'right', fit: 'shrink' });
+        addPptText(s, it.heading || '', { x: x0, y: y + 0.05, w: w * 0.7, h: 0.35, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
+        addPptText(s, it.period || '', { x: x0 + w * 0.7, y: y + 0.05, w: w * 0.3, h: 0.35, fontFace: t.fonts.body, fontSize: 10, italic: true, color: hex(c.muted), align: 'right', fit: 'shrink' });
         s.addShape('rect', { x: x0, y: y + 0.45, w, h: 0.012, fill: { color: hex(c.line) }, line: { color: hex(c.line) } });
       } else if (variant === 'creative') {
         s.addShape('roundRect', { x: x0, y, w, h: 0.42, fill: { color: hex(c.line) }, line: { color: hex(c.line) }, rectRadius: 0.06 });
-        s.addText(it.heading || '', { x: x0 + 0.15, y: y, w: w * 0.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), valign: 'middle', fit: 'shrink' });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3 - 0.15, h: 0.42, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), valign: 'middle', align: 'right', fit: 'shrink' });
+        addPptText(s, it.heading || '', { x: x0 + 0.15, y: y, w: w * 0.7, h: 0.42, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), valign: 'middle', fit: 'shrink' });
+        addPptText(s, it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3 - 0.15, h: 0.42, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.accent), valign: 'middle', align: 'right', fit: 'shrink' });
       } else if (variant === 'document') {
         s.addShape('rect', { x: x0, y, w: 0.06, h: 0.5, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-        s.addText(it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.7, h: 0.5, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: hex(c.titleColor || c.accent), valign: 'middle', fit: 'shrink' });
-        s.addText(it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3, h: 0.5, fontFace: t.fonts.body, fontSize: 12, color: hex(c.sub), valign: 'middle', align: 'right', fit: 'shrink' });
+        addPptText(s, it.heading || '', { x: x0 + 0.2, y: y, w: w * 0.7, h: 0.5, fontFace: t.fonts.heading, fontSize: 17, bold: true, color: hex(c.titleColor || c.accent), valign: 'middle', fit: 'shrink' });
+        addPptText(s, it.period || '', { x: x0 + w * 0.7, y: y, w: w * 0.3, h: 0.5, fontFace: t.fonts.body, fontSize: 12, color: hex(c.sub), valign: 'middle', align: 'right', fit: 'shrink' });
       } else {
         s.addShape('rect', { x: x0, y, w: 0.04, h: 0.42, fill: { color: hex(c.accent) }, line: { color: hex(c.accent) } });
-        s.addText(it.heading || '', { x: innerX, y, w: innerW * 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
-        s.addText(it.period || '', { x: innerX + innerW * 0.7, y, w: innerW * 0.3, h: 0.4, fontFace: t.fonts.body, fontSize: 10, color: hex(c.muted), align: 'right', fit: 'shrink' });
+        addPptText(s, it.heading || '', { x: innerX, y, w: innerW * 0.7, h: 0.4, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(c.accent), fit: 'shrink' });
+        addPptText(s, it.period || '', { x: innerX + innerW * 0.7, y, w: innerW * 0.3, h: 0.4, fontFace: t.fonts.body, fontSize: 10, color: hex(c.muted), align: 'right', fit: 'shrink' });
       }
 
       let cy = y + 0.55;
-      if (it.role) { s.addText(it.role, { x: innerX, y: cy, w: innerW, h: 0.28, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.sub), fit: 'shrink' }); cy += 0.28; }
-      if (it.body) { s.addText(it.body, { x: innerX, y: cy, w: innerW, h: 0.5, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sub), fit: 'shrink' }); cy += 0.45; }
+      if (it.role) { addPptText(s, it.role, { x: innerX, y: cy, w: innerW, h: 0.28, fontFace: t.fonts.body, fontSize: 10, bold: true, color: hex(c.sub), fit: 'shrink' }); cy += 0.28; }
+      if (it.body) { addPptText(s, it.body, { x: innerX, y: cy, w: innerW, h: 0.5, fontFace: t.fonts.body, fontSize: 11, color: hex(c.sub), fit: 'shrink' }); cy += 0.45; }
 
       if (Array.isArray(it.bullets) && it.bullets.length) {
         const bulletObjs = it.bullets.slice(0, 3).map(b => ({ text: b, options: { bullet: { code: variant === 'classic' ? '2014' : '25CF' } } }));
@@ -8980,10 +9326,164 @@ function safePptText(value) {
     .trim();
 }
 
+export function prepareDeckForExport(deck = {}) {
+  const compact = (value, max) => compactPortfolioText(value, max);
+  const compactBody = (value, max = 64, addBullet = false) => cleanPortfolioTextKeepLines(value)
+    .split('\n')
+    .map(line => line.replace(/^[•\-]\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(line => `${addBullet ? '• ' : ''}${compact(line, max)}`)
+    .join('\n');
+  const slides = (deck.slides || []).map((slide, index) => {
+    const acceptedReference = /^(?:narrative|star|kpi|timeline|cs)-/.test(String(slide.layout || ''));
+    const clean = acceptedReference ? cleanPortfolioText : compact;
+    const cleanBody = acceptedReference ? cleanPortfolioTextKeepLines : compactBody;
+    return {
+      ...slide,
+      id: slide.id || `s${index + 1}`,
+      sectionLabel: clean(slide.sectionLabel, 28),
+      title: clean(slide.title, 68),
+      subtitle: clean(slide.subtitle, 84),
+      bullets: (slide.bullets || []).map(bullet => clean(bullet, 58)).filter(Boolean).slice(0, 5),
+      items: (slide.items || []).map(item => ({
+        ...item,
+        heading: clean(item.heading, 38),
+        role: clean(item.role, 34),
+        period: clean(item.period, 24),
+        body: cleanBody(item.body, 64),
+        bullets: (item.bullets || []).map(bullet => clean(bullet, 56)).filter(Boolean).slice(0, 3),
+      })).filter(item => item.heading || item.body || item.role || item.period),
+    };
+  });
+  return { ...deck, slides };
+}
+
+export function analyzeDeckQuality(deck = {}) {
+  const warnings = [];
+  (deck.slides || []).forEach((slide, index) => {
+    const number = index + 1;
+    const items = slide.items || [];
+    items.forEach((item, itemIndex) => {
+      const body = cleanPortfolioTextKeepLines(item.body);
+      if (body.length > 132 || body.split('\n').length > 3) {
+        warnings.push({ slide: number, type: 'density', message: `${itemIndex + 1}번 카드 본문이 길어 자동 압축이 필요합니다.` });
+      }
+    });
+    if (String(slide.subtitle || '').length > 100) {
+      warnings.push({ slide: number, type: 'density', message: '부제목이 길어 자동 압축이 필요합니다.' });
+    }
+    const imageUrls = [slide.imageUrl, ...items.map(item => item.imageUrl)].filter(Boolean);
+    if (imageUrls.some(url => !/^data:image\//i.test(url) && !/^https?:\/\//i.test(url))) {
+      warnings.push({ slide: number, type: 'image', message: '사용할 수 없는 이미지 경로가 있어 디자인 카드로 대체합니다.' });
+    }
+  });
+  return { passed: warnings.length === 0, warnings };
+}
+
+export async function hydrateDeckImages(deck = {}) {
+  const slides = await Promise.all((deck.slides || []).map(async slide => {
+    let hydratedSlide = slide;
+    if (slide.imageUrl) {
+      try {
+        hydratedSlide = { ...slide, ...await loadImageData(slide.imageUrl) };
+      } catch {
+        hydratedSlide = { ...slide, imageLoadFailed: true, imageData: '' };
+      }
+    }
+    return {
+    ...hydratedSlide,
+    items: await Promise.all((hydratedSlide.items || []).map(async item => {
+      if (!item.imageUrl) return item;
+      try {
+        const image = await loadImageData(item.imageUrl);
+        return { ...item, ...image };
+      } catch {
+        return { ...item, imageLoadFailed: true, imageData: '' };
+      }
+    })),
+  };
+  }));
+  return { ...deck, slides };
+}
+
+function collectHydratedImageWarnings(deck = {}) {
+  const warnings = [];
+  (deck.slides || []).forEach((slide, index) => {
+    if (slide.imageLoadFailed || (slide.items || []).some(item => item.imageLoadFailed)) {
+      warnings.push({
+        slide: index + 1,
+        type: 'image',
+        message: '이미지를 불러오지 못해 디자인 카드로 대체했습니다.',
+      });
+    }
+  });
+  return warnings;
+}
+
+async function loadImageData(source) {
+  const response = source.startsWith('data:')
+    ? await fetch(source)
+    : await fetch(source, { mode: 'cors' });
+  if (!response.ok) throw new Error('image fetch failed');
+  const blob = await response.blob();
+  const imageData = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  const size = await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 });
+    image.onerror = reject;
+    image.src = imageData;
+  });
+  return { imageData, imageAspect: size.width / size.height };
+}
+
+function containBox(x, y, w, h, aspect = 1) {
+  const boxAspect = w / h;
+  if (aspect > boxAspect) {
+    const height = w / aspect;
+    return { x, y: y + (h - height) / 2, w, h: height };
+  }
+  const width = h * aspect;
+  return { x: x + (w - width) / 2, y, w: width, h };
+}
+
+function addContainedPptImage(s, items, x, y, w, h, fallbackColor = '#1F2937') {
+  const image = (items || []).find(item => item?.imageData);
+  if (!image?.imageData) return false;
+  s.addShape('roundRect', {
+    x, y, w, h,
+    fill: { color: hex(fallbackColor) },
+    line: { color: hex(fallbackColor) },
+    rectRadius: 0.16,
+  });
+  s.addImage({ data: image.imageData, ...containBox(x + 0.12, y + 0.12, w - 0.24, h - 0.24, image.imageAspect || 1) });
+  return true;
+}
+
+function safePptTextKeepLines(value) {
+  if (value == null) return '';
+  return String(value)
+    .normalize('NFC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/�/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    .trim();
+}
+
 function shortPptText(value, max = 20) {
   const text = safePptText(value);
   if (text.length <= max) return text;
-  return text.slice(0, Math.max(0, max - 1)).trim() + '…';
+  return compactPortfolioText(text, max);
 }
 
 function pptFooterText(slide, fallback = 'PORTFOLIO') {
@@ -9043,27 +9543,73 @@ function normalizePptItems(items) {
   }));
 }
 
+function clampPptTextBox(options = {}) {
+  const slideW = 13.333;
+  const slideH = 7.5;
+  const x = Math.min(slideW - 0.01, Math.max(0, Number(options.x) || 0));
+  const y = Math.min(slideH - 0.01, Math.max(0, Number(options.y) || 0));
+  const w = Math.max(0.01, Math.min(Number(options.w) || 0.01, slideW - x));
+  const h = Math.max(0.01, Math.min(Number(options.h) || 0.01, slideH - y));
+  return { ...options, x, y, w, h };
+}
+
+function compactPptBodyToBox(value, wIn, hIn, fontSize, lineHeight = 1.22) {
+  const text = safePptText(value);
+  if (!text || !Number.isFinite(wIn) || !Number.isFinite(hIn) || !Number.isFinite(fontSize)) return text;
+  const charsPerLine = Math.max(1, Math.floor(wIn / (fontSize / 72)));
+  const maxLines = Math.max(1, Math.floor(hIn / ((fontSize * lineHeight) / 72)));
+  const capacity = Math.max(12, charsPerLine * maxLines);
+  return text.length > capacity ? compactPortfolioText(text, capacity) : text;
+}
+
 function addPptText(s, value, options = {}) {
-  const { fill, rectRadius = 0.06, ...textOptions } = options;
+  const {
+    fill,
+    rectRadius = 0.06,
+    preserveLines = false,
+    fit: requestedFit = 'shrink',
+    minFontSize,
+    fitLineHeight = 1.22,
+    ...textOptions
+  } = options;
+  const boundedTextOptions = clampPptTextBox(textOptions);
   if (fill) {
     s.addShape('roundRect', {
-      x: options.x,
-      y: options.y,
-      w: options.w,
-      h: options.h,
+      x: boundedTextOptions.x,
+      y: boundedTextOptions.y,
+      w: boundedTextOptions.w,
+      h: boundedTextOptions.h,
       fill: { color: hex(fill) },
       line: { color: hex(fill) },
       rectRadius,
     });
   }
-  // fit:null → shrink 지정 안 함(normAutofit XML 없음). PDF 변환기가 normAutofit 무시하는 문제 방지.
-  // fitFontSizePt 로 미리 계산한 fontSize 와 함께 쓰면 "계산된 폰트로 고정, 자동축소 없음" 이 보장됨.
-  const fitVal = Object.prototype.hasOwnProperty.call(textOptions, 'fit') && textOptions.fit === null
-    ? undefined
-    : (textOptions.fit || 'shrink');
-  const opts = { ...textOptions, fontFace: textOptions.fontFace || 'Pretendard' };
-  if (fitVal !== undefined) opts.fit = fitVal;
-  s.addText(safePptText(value), opts);
+  let text = preserveLines ? safePptTextKeepLines(value) : safePptText(value);
+  if (!text) return;
+  const opts = { ...boundedTextOptions, fontFace: boundedTextOptions.fontFace || 'Pretendard' };
+  const requestedFontSize = Number(boundedTextOptions.fontSize);
+  const readableMinimum = text.length > 28 ? 10 : text.length > 16 ? 9 : 8;
+  const readableBody = Number.isFinite(requestedFontSize) && requestedFontSize < readableMinimum;
+  const baseFontSize = Number.isFinite(requestedFontSize)
+    ? Math.max(requestedFontSize, readableMinimum)
+    : requestedFontSize;
+  if (readableBody) {
+    text = compactPptBodyToBox(text, Number(boundedTextOptions.w), Number(boundedTextOptions.h), baseFontSize, fitLineHeight);
+  }
+  if (Number.isFinite(baseFontSize)) opts.fontSize = baseFontSize;
+  const canPreFit = requestedFit === 'shrink'
+    && Number.isFinite(baseFontSize)
+    && Number.isFinite(Number(boundedTextOptions.w))
+    && Number.isFinite(Number(boundedTextOptions.h));
+  if (canPreFit) {
+    const floor = Number.isFinite(Number(minFontSize))
+      ? Number(minFontSize)
+      : baseFontSize;
+    opts.fontSize = fitFontSizePt(text, Number(boundedTextOptions.w), Number(boundedTextOptions.h), baseFontSize, floor, fitLineHeight);
+  } else if (requestedFit !== null && requestedFit !== undefined) {
+    opts.fit = requestedFit;
+  }
+  s.addText(text, opts);
 }
 
 function pptTextOn(background, preferred = SAFE_TEXT_DARK, minimum = 4.5) {
@@ -9092,12 +9638,16 @@ function hex(s) {
 // ("글이 나오다가 마는" 현상). autofit에 의존하지 말고 실제 크기를 XML에 박아 어떤 변환기에서도 안 잘리게 한다.
 // 한글은 글자폭 ≈ fontSize(전각)로 보수적으로 계산(영문은 더 좁아 실제론 더 잘 들어감).
 function fitFontSizePt(text, wIn, hIn, base = 10, min = 6, lineHeight = 1.22) {
-  const str = String(text || '').replace(/\s+/g, ' ').trim();
+  const rows = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.replace(/[ \t]+/g, ' ').trim());
+  const str = rows.join('\n').trim();
   if (!str) return base;
   for (let size = base; size >= min; size -= 0.5) {
     const charWIn = size / 72;                                   // 전각 1글자 폭
     const charsPerLine = Math.max(1, Math.floor(wIn / charWIn));
-    const lines = Math.ceil(str.length / charsPerLine);
+    const lines = rows.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
     const neededH = (lines * size * lineHeight) / 72;
     if (neededH <= hIn) return size;
   }

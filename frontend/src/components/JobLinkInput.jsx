@@ -1,9 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe, ClipboardPaste } from 'lucide-react';
+import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
-  { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
   { name: '잡코리아', domain: 'jobkorea.co.kr', color: 'bg-blue-500', url: 'https://www.jobkorea.co.kr/starter/calendar' },
   { name: '사람인', domain: 'saramin.co.kr', color: 'bg-green-500', url: 'https://calendar.saramin.co.kr' },
 ];
@@ -186,7 +185,6 @@ export function buildDisplayPortfolioRequirements(analysis) {
 export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = false }) {
   const [mode, setMode] = useState(compact ? 'details' : 'url');
   const [url, setUrl] = useState('');
-  const [text, setText] = useState('');
   const [company, setCompany] = useState('');
   const [position, setPosition] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -222,13 +220,11 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
 
   const handleAnalyze = async () => {
     const trimmedUrl = url.trim();
-    const trimmedText = text.trim();
     const trimmedCompany = company.trim();
     const trimmedPosition = position.trim();
     const trimmedDeadline = deadline.trim();
 
     if (mode === 'url' && !trimmedUrl) return;
-    if (mode === 'text' && trimmedText.length < 100) return;
     if (mode === 'details' && (!trimmedCompany || !trimmedPosition || !trimmedDeadline)) return;
 
     setLoading(true);
@@ -240,7 +236,6 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
         deadline: trimmedDeadline || undefined,
       };
       if (mode === 'url') payload.url = trimmedUrl;
-      if (mode === 'text') payload.text = trimmedText;
 
       const { data } = await api.post('/job/analyze', payload, { timeout: 300000 });
       onAnalysisComplete(data.analysis);
@@ -254,9 +249,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
   const canSubmit =
     mode === 'url'
       ? !!url.trim()
-      : mode === 'text'
-        ? text.trim().length >= 100
-        : !!(company.trim() && position.trim() && deadline.trim());
+      : !!(company.trim() && position.trim() && deadline.trim());
   const fieldClassName = 'w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors bg-white';
   const tabClass = (active) => `flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold transition-colors ${active ? 'bg-white text-primary-700 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-700'}`;
 
@@ -276,11 +269,8 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
           <button type="button" onClick={() => setMode('url')} className={tabClass(mode === 'url')}>
             <Globe size={14} /> 공고 링크
           </button>
-          <button type="button" onClick={() => setMode('text')} className={tabClass(mode === 'text')}>
-            <ClipboardPaste size={14} /> 공고 붙여넣기
-          </button>
           <button type="button" onClick={() => setMode('details')} className={tabClass(mode === 'details')}>
-            <Search size={14} /> 기본 정보
+            <Search size={14} /> 공고 정보로 기업 분석하기
           </button>
         </div>
       )}
@@ -317,40 +307,21 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
       )}
 
       {mode === 'url' && (
-        <div className="space-y-3">
-          <div className="relative">
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-              placeholder="https:// 지원할 공고 링크를 입력하세요"
-              className={`${fieldClassName} ${detectedSite ? 'pr-28' : ''}`}
-            />
-            {detectedSite && (
-              <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
-                {detectedSite.name}
-              </span>
-            )}
-          </div>
-          {!compact && (
-            <div className="grid gap-3 md:grid-cols-3">
-              <input value={company} onChange={e => setCompany(e.target.value)} placeholder="기업명 보조 입력 (선택)" className={fieldClassName} />
-              <input value={position} onChange={e => setPosition(e.target.value)} placeholder="모집분야 보조 입력 (선택)" className={fieldClassName} />
-              <input value={deadline} onChange={e => setDeadline(e.target.value)} placeholder="접수 기간 보조 입력 (선택)" className={fieldClassName} />
-            </div>
+        <div className="relative">
+          <input
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+            placeholder="https:// 지원할 공고 링크를 입력하세요"
+            className={`${fieldClassName} ${detectedSite ? 'pr-28' : ''}`}
+          />
+          {detectedSite && (
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white px-2 py-0.5 rounded ${detectedSite.color}`}>
+              {detectedSite.name}
+            </span>
           )}
         </div>
-      )}
-
-      {mode === 'text' && (
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="채용공고 내용을 붙여넣으세요. 100자 이상 입력하면 분석할 수 있습니다."
-          rows={compact ? 4 : 7}
-          className={`${fieldClassName} resize-none`}
-        />
       )}
 
       {mode === 'details' && (
@@ -412,7 +383,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
             disabled={!canSubmit}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary-100"
           >
-            {mode === 'url' ? '공고 링크로 기업 분석하기' : mode === 'text' ? '공고 내용으로 기업 분석하기' : '기업 분석하기'}
+            {mode === 'url' ? '공고 링크로 기업 분석하기' : '기업 분석하기'}
           </button>
           {onSkip && (
             <button
@@ -826,4 +797,3 @@ function AnalysisCard({ title, compact, children }) {
     </div>
   );
 }
-
