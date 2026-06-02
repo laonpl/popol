@@ -16,6 +16,7 @@ import {
   buildMetaPrompt,
   buildRefineKeyExperiencePrompt,
   buildMetricsResearchPrompt,
+  buildInterviewQuestionsPrompt,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -53,11 +54,213 @@ const LITE_ONLY_OPTIONS = {
   rateLimitDelayMs: 5000,
 };
 
+const FAST_LITE_OPTIONS = {
+  models: ['gemini-2.5-flash-lite'],
+  retries: 1,
+  delayMs: 1000,
+  rateLimitDelayMs: 2000,
+  callTimeoutMs: 45000,
+  githubFallback: false,
+};
+
 // ── JSON 파싱 헬퍼 ──
+function escapeJsonStringControlChars(jsonText) {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (const char of String(jsonText || '')) {
+    if (escaped) {
+      output += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      output += char;
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      output += char;
+      continue;
+    }
+
+    if (inString) {
+      if (char === '\n') output += '\\n';
+      else if (char === '\r') output += '\\r';
+      else if (char === '\t') output += '\\t';
+      else if (char.charCodeAt(0) < 32) output += `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+      else output += char;
+      continue;
+    }
+
+    output += char;
+  }
+
+  return output;
+}
+
+function stripJsonFence(text) {
+  return String(text || '')
+    .trim()
+    .replace(/^\uFEFF/, '')
+    .replace(/^```(?:json|javascript|js)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
+function removeTrailingJsonCommas(text) {
+  const source = String(text || '');
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (escaped) {
+      output += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      output += char;
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      output += char;
+      continue;
+    }
+
+    if (!inString && char === ',') {
+      let j = i + 1;
+      while (j < source.length && /\s/.test(source[j])) j += 1;
+      if (source[j] === '}' || source[j] === ']') continue;
+    }
+
+    output += char;
+  }
+
+  return output;
+}
+
+function readBalancedJsonAt(source, start) {
+  const opener = source[start];
+  const closer = opener === '{' ? '}' : opener === '[' ? ']' : null;
+  if (!closer) return null;
+
+  const stack = [closer];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start + 1; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = inString;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') stack.push('}');
+    else if (char === '[') stack.push(']');
+    else if (char === '}' || char === ']') {
+      if (stack[stack.length - 1] !== char) return null;
+      stack.pop();
+      if (stack.length === 0) return source.slice(start, i + 1);
+    }
+  }
+
+  return null;
+}
+
+function uniqueCandidates(candidates) {
+  const seen = new Set();
+  return candidates
+    .map(stripJsonFence)
+    .filter(Boolean)
+    .filter(candidate => {
+      if (seen.has(candidate)) return false;
+      seen.add(candidate);
+      return true;
+    });
+}
+
+function buildJsonCandidates(text, pattern) {
+  const source = String(text ?? '');
+  const candidates = [];
+
+  const fencedRegex = /```(?:json|javascript|js)?\s*([\s\S]*?)```/gi;
+  for (const match of source.matchAll(fencedRegex)) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  if (pattern) {
+    const match = source.match(pattern);
+    if (match?.[0]) candidates.push(match[0]);
+  }
+
+  for (let i = 0; i < source.length && candidates.length < 20; i += 1) {
+    if (source[i] !== '{' && source[i] !== '[') continue;
+    const balanced = readBalancedJsonAt(source, i);
+    if (balanced) candidates.push(balanced);
+  }
+
+  return uniqueCandidates(candidates);
+}
+
+function jsonVariants(candidate) {
+  const trimmed = stripJsonFence(candidate);
+  const normalizedQuotes = trimmed
+    .replace(/\u201c|\u201d/g, '"')
+    .replace(/\u2018|\u2019/g, "'");
+  const withoutTrailingCommas = removeTrailingJsonCommas(normalizedQuotes);
+  const escapedControlChars = escapeJsonStringControlChars(normalizedQuotes);
+  const escapedNoTrailingCommas = removeTrailingJsonCommas(escapedControlChars);
+  return uniqueCandidates([
+    trimmed,
+    normalizedQuotes,
+    withoutTrailingCommas,
+    escapedControlChars,
+    escapedNoTrailingCommas,
+  ]);
+}
+
 function parseJSON(text, pattern = /\{[\s\S]*\}/) {
-  const match = text.match(pattern);
-  if (!match) throw new Error('AI 응답 JSON 파싱 실패');
-  return JSON.parse(match[0]);
+  const candidates = buildJsonCandidates(text, pattern);
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    for (const variant of jsonVariants(candidate)) {
+      try {
+        return JSON.parse(variant);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+  }
+
+  const error = new Error(`AI response JSON parse failed${lastError ? `: ${lastError.message}` : ''}`);
+  error.cause = lastError;
+  throw error;
 }
 
 /**
@@ -109,6 +312,13 @@ async function callProFirstWithSearch(prompt, label) {
   }
 }
 
+async function callFastLite(prompt, label, optionOverrides = {}) {
+  console.log(`[${label}] Fast Lite call start...`);
+  const text = await generateWithRetry(prompt, { ...FAST_LITE_OPTIONS, ...optionOverrides });
+  console.log(`[${label}] Fast Lite call success`);
+  return text;
+}
+
 // 다른 서비스/라우트에서 import { generateWithRetry } from './geminiService.js' 를
 // 유지하기 위한 재노출. 점진적 마이그레이션 중이므로 지금은 그대로 둔다.
 export { generateWithRetry };
@@ -118,6 +328,232 @@ export { callProFirst, callProFirstWithSearch };
 
 // JSON 파싱 헬퍼 — 외부 서비스 공용
 export { parseJSON };
+
+const FALLBACK_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+
+function fallbackText(value) {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map(fallbackText).filter(Boolean).join('\n');
+  if (typeof value === 'object') return Object.values(value).map(fallbackText).filter(Boolean).join('\n');
+  return String(value).trim();
+}
+
+function compactFallbackText(value, max = 700) {
+  const text = fallbackText(value).replace(/\s+/g, ' ').trim();
+  return text.length > max ? text.slice(0, max).trim() : text;
+}
+
+function contentToFallbackText(content = {}) {
+  if (typeof content === 'string') return compactFallbackText(content, 12000);
+  return Object.entries(content || {})
+    .map(([key, value]) => {
+      const text = fallbackText(value);
+      return text ? `[${key}]\n${text}` : '';
+    })
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 12000);
+}
+
+function uniqueFallbackList(values, limit = 10) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const text = compactFallbackText(value, 80);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    result.push(text);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+function deriveFallbackKeywords(text, limit = 8) {
+  const stopWords = new Set([
+    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'into', 'about',
+    'project', 'experience', 'result', 'action', 'context', 'learning',
+  ]);
+  const words = String(text || '').match(/[\p{L}\p{N}_+#.-]{2,}/gu) || [];
+  return uniqueFallbackList(
+    words.filter(word => !stopWords.has(word.toLowerCase())),
+    limit
+  );
+}
+
+function splitFallbackChunks(text, maxCount = 3) {
+  const normalized = fallbackText(text).replace(/\r/g, '\n').trim();
+  if (!normalized) return [];
+
+  let parts = normalized
+    .split(/\n+/)
+    .map(part => part.replace(/\s+/g, ' ').trim())
+    .filter(part => part.length >= 24);
+
+  if (parts.length < maxCount) {
+    parts = normalized
+      .split(/[.!?]\s+/)
+      .map(part => part.replace(/\s+/g, ' ').trim())
+      .filter(part => part.length >= 24);
+  }
+
+  if (parts.length === 0) parts = [normalized.replace(/\s+/g, ' ').trim()];
+
+  const chunks = [];
+  for (const part of parts) {
+    for (let i = 0; i < part.length && chunks.length < maxCount; i += 650) {
+      const chunk = part.slice(i, i + 650).trim();
+      if (chunk) chunks.push(chunk);
+    }
+    if (chunks.length >= maxCount) break;
+  }
+
+  return chunks;
+}
+
+function normalizeFallbackMoment(moment = {}, index = 0, title = '') {
+  const sourceText = compactFallbackText([
+    moment.description,
+    moment.context,
+    moment.situation,
+    moment.action,
+    moment.result,
+    moment.learning,
+  ].filter(Boolean).join('\n'), 1200);
+
+  const context = compactFallbackText(moment.context ?? moment.situation ?? sourceText, 700);
+  const action = compactFallbackText(moment.action ?? '', 700);
+  const result = compactFallbackText(moment.result ?? '', 500);
+  const learning = compactFallbackText(moment.learning ?? '', 400);
+  const metric = compactFallbackText(moment.metric ?? moment.afterMetric ?? '', 80);
+  const keywords = Array.isArray(moment.keywords) && moment.keywords.length
+    ? uniqueFallbackList(moment.keywords, 8)
+    : deriveFallbackKeywords([moment.title, sourceText, title].filter(Boolean).join(' '), 8);
+
+  return {
+    title: compactFallbackText(moment.title, 120) || (title ? `${title} ${index + 1}` : `Key experience ${index + 1}`),
+    metric,
+    metricLabel: compactFallbackText(moment.metricLabel, 80) || (metric ? 'Result' : ''),
+    beforeMetric: compactFallbackText(moment.beforeMetric, 80),
+    afterMetric: compactFallbackText(moment.afterMetric, 80),
+    context: context || sourceText || 'Add the background and problem context.',
+    action: action || 'Add the concrete action and decision process.',
+    result: result || metric || 'Add the measurable result or output.',
+    learning: learning || 'Add the insight, trade-off, or next application.',
+    keywords,
+    chartType: moment.chartType || 'horizontalBar',
+  };
+}
+
+function buildFallbackMoments(rawText, title = '', count = 3) {
+  const targetCount = Math.min(Math.max(Number(count) || 3, 1), 10);
+  const chunks = splitFallbackChunks(rawText, targetCount);
+  const moments = chunks.map((chunk, index) => {
+    const metrics = extractMetricsFromText(chunk);
+    return normalizeFallbackMoment({
+      title: title ? `${title} ${index + 1}` : `Key experience ${index + 1}`,
+      description: chunk,
+      context: chunk,
+      metric: metrics[0] || '',
+      metricLabel: metrics[0] ? 'Metric' : '',
+      keywords: deriveFallbackKeywords(`${title} ${chunk}`, 6),
+    }, index, title);
+  });
+
+  if (moments.length === 0) {
+    moments.push(normalizeFallbackMoment({ title: title || 'Key experience', context: rawText }, 0, title));
+  }
+
+  return moments.slice(0, targetCount);
+}
+
+function fallbackSectionSlides(sections, keyExperiences) {
+  return Object.fromEntries(FALLBACK_SECTION_KEYS.map(key => [key, {
+    kicker: key,
+    headline: compactFallbackText(sections[key], 80) || key,
+    subcopy: sections[key] || '',
+    evidenceCards: keyExperiences.slice(0, 3).map((item, index) => ({
+      label: index === 0 ? 'Primary evidence' : `Evidence ${index + 1}`,
+      title: item.title || `Key experience ${index + 1}`,
+      body: compactFallbackText(item.result || item.action || item.context, 240),
+      metric: item.afterMetric || item.metric || '',
+    })),
+  }]));
+}
+
+export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common', meta = {}) {
+  const contentText = contentToFallbackText(content);
+  const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
+  const targetCount = hasReviewed
+    ? reviewedMoments.length
+    : Math.min(Math.max(Number(keyExperienceCount) || 3, 1), 10);
+  const sourceMoments = hasReviewed
+    ? reviewedMoments
+    : buildFallbackMoments(contentText, meta.title || '', targetCount);
+  const keyExperiences = sourceMoments
+    .slice(0, targetCount)
+    .map((moment, index) => normalizeFallbackMoment(moment, index, meta.title || ''));
+  const first = keyExperiences[0] || {};
+  const keywords = uniqueFallbackList([
+    ...(meta.title ? [meta.title] : []),
+    ...keyExperiences.flatMap(item => item.keywords || []),
+    ...deriveFallbackKeywords(contentText, 8),
+  ], 10);
+
+  const join = (values, fallback) => {
+    const text = values.map(value => compactFallbackText(value, 700)).filter(Boolean).join('\n\n');
+    return text || fallback;
+  };
+
+  const sections = {
+    intro: join([first.context, first.result], compactFallbackText(contentText, 800) || 'Draft generated from saved experience content.'),
+    overview: join(keyExperiences.map(item => item.context), 'Add background, goal, and scope.'),
+    task: join(keyExperiences.map(item => item.action), 'Add your role, ownership, and concrete task.'),
+    process: join(keyExperiences.map(item => item.action), 'Add decision process, alternatives, and trade-offs.'),
+    output: join(keyExperiences.map(item => item.result || item.metric || item.afterMetric), 'Add outputs and measurable results.'),
+    growth: join(keyExperiences.map(item => item.learning), 'Add learning, insight, and next application.'),
+    competency: join([keywords.join(', '), keyExperiences.map(item => item.title).join(', ')], 'Add competencies shown by this experience.'),
+  };
+
+  return {
+    _draft: true,
+    _fallback: true,
+    _fallbackVersion: 1,
+    _fallbackReason: meta.reason || 'ai_unavailable',
+    projectOverview: {
+      summary: compactFallbackText(first.context || contentText, 300) || 'Draft generated from saved content.',
+      background: compactFallbackText(first.context, 500),
+      goal: '',
+      role: '',
+      team: '',
+      duration: meta.period || '',
+      scopeOfImpact: '',
+      techStack: keywords.slice(0, 5),
+    },
+    marketResearch: {
+      marketOverview: '',
+      decisionMetrics: [],
+      sourceNotes: [],
+      portfolioAngles: [],
+      limitations: 'AI enrichment was temporarily unavailable, so this draft keeps saved user content and reviewed key experiences.',
+    },
+    keyExperiences,
+    ...sections,
+    sectionSlides: fallbackSectionSlides(sections, keyExperiences),
+    jobCategory: jobCategory || 'common',
+    jobSpecific: {},
+    keywords,
+    highlights: keyExperiences
+      .map(item => item.result || item.metric || item.action || item.title)
+      .filter(Boolean)
+      .slice(0, 5),
+    followUpQuestions: [
+      'What measurable result can be attached to this experience?',
+      'Which part was directly owned by you?',
+      'What trade-off or decision reason should be made explicit?',
+    ],
+  };
+}
 
 /**
  * 분할 호출 기반 경험 분석.
@@ -159,14 +595,41 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   // ============================================================
   const overviewPromise = (async () => {
     const prompt = buildOverviewPrompt(contentText, jobCategory);
-    const text = await callProFirstWithSearch(prompt, 'Step1-Overview');
-    return parseJSON(text);
+    try {
+      const text = hasReviewed
+        ? await callFastLite(prompt, 'Step1-Overview-Fast')
+        : await callProFirstWithSearch(prompt, 'Step1-Overview');
+      return parseJSON(text);
+    } catch (err) {
+      console.warn('[Step1-Overview] Failed. Using fallback overview:', err.message);
+      const fallback = buildFallbackExperienceAnalysis(
+        content,
+        targetCount,
+        hasReviewed ? reviewedMoments : null,
+        jobCategory,
+      );
+      return {
+        projectOverview: fallback.projectOverview,
+        marketResearch: fallback.marketResearch,
+        intro: fallback.intro,
+        overview: fallback.overview,
+        task: fallback.task,
+        process: fallback.process,
+        output: fallback.output,
+        growth: fallback.growth,
+        competency: fallback.competency,
+        sectionSlides: fallback.sectionSlides,
+        jobSpecific: fallback.jobSpecific,
+      };
+    }
   })();
 
   const keyExpPromises = momentHints.map((hint, i) => (async () => {
     const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount);
     try {
-      const expText = await callProFirst(expPrompt, `Step2-KeyExp[${i + 1}/${targetCount}]`);
+      const expText = hasReviewed
+        ? await callFastLite(expPrompt, `Step2-KeyExp-Fast[${i + 1}/${targetCount}]`)
+        : await callProFirst(expPrompt, `Step2-KeyExp[${i + 1}/${targetCount}]`);
       const expJson = parseJSON(expText);
 
       if (hasReviewed && hint) {
@@ -228,8 +691,8 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     try {
       const metaPrompt = buildMetaPrompt(contentText);
       const metaText = await withTimeout(
-        generateWithRetry(metaPrompt, LITE_ONLY_OPTIONS),
-        60000,
+        generateWithRetry(metaPrompt, hasReviewed ? FAST_LITE_OPTIONS : LITE_ONLY_OPTIONS),
+        hasReviewed ? 50000 : 60000,
         'Step3-Meta'
       );
       return parseJSON(metaText);
@@ -285,8 +748,9 @@ export async function refineKeyExperience(currentExp, freeFormText) {
     return currentExp;
   }
   
+  try {
   const prompt = buildRefineKeyExperiencePrompt(currentExp, freeFormText);
-  const text = await callProFirst(prompt, 'RefineKeyExp');
+  const text = await callFastLite(prompt, 'RefineKeyExp-Fast', { callTimeoutMs: 30000 });
   const refined = parseJSON(text);
   
   // 차트 타입 등 기본값 유지
@@ -294,6 +758,19 @@ export async function refineKeyExperience(currentExp, freeFormText) {
   
   console.log(`[RefineKeyExp] ✓ 보강 완료`);
   return refined;
+  } catch (err) {
+    console.warn('[RefineKeyExp] AI refinement failed. Preserving user input:', err.message);
+    return {
+      ...currentExp,
+      action: compactFallbackText([currentExp.action, freeFormText].filter(Boolean).join('\n'), 900),
+      keywords: uniqueFallbackList([
+        ...(Array.isArray(currentExp.keywords) ? currentExp.keywords : []),
+        ...deriveFallbackKeywords(freeFormText, 4),
+      ], 8),
+      chartType: currentExp.chartType || 'horizontalBar',
+      _fallback: true,
+    };
+  }
 }
 
 /**
@@ -301,9 +778,14 @@ export async function refineKeyExperience(currentExp, freeFormText) {
  * 의사결정용 지표를 추천. marketResearch 형태로 정규화하여 반환.
  */
 export async function researchMarketMetrics(context = {}) {
-  const prompt = buildMetricsResearchPrompt(context);
-  const text = await callProFirstWithSearch(prompt, 'Research-Metrics');
-  const parsed = parseJSON(text) || {};
+  let parsed = {};
+  try {
+    const prompt = buildMetricsResearchPrompt(context);
+    const text = await callProFirstWithSearch(prompt, 'Research-Metrics');
+    parsed = parseJSON(text) || {};
+  } catch (err) {
+    console.warn('[Research-Metrics] AI research failed. Returning empty fallback:', err.message);
+  }
   const arr = (v) => (Array.isArray(v) ? v : []);
   return {
     marketOverview: typeof parsed.marketOverview === 'string' ? parsed.marketOverview : '',
@@ -327,6 +809,33 @@ export async function researchMarketMetrics(context = {}) {
 }
 
 /**
+ * 대화형 추출 인터뷰 질문 생성 — 초안 텍스트에서 핵심 정보를 끌어내는 질문 5~7개.
+ */
+export async function generateInterviewQuestions(braindump, jobCategory = 'common') {
+  const fallbackQuestions = [
+    'What problem or goal made this experience important?',
+    'Which part did you directly own, and what decisions did you make?',
+    'What alternatives did you compare before choosing your approach?',
+    'What measurable output, metric, or before/after change can you attach?',
+    'What was difficult, and how did you resolve it?',
+    'What did you learn that you would apply again?',
+  ];
+
+  try {
+    const prompt = buildInterviewQuestionsPrompt(braindump, jobCategory);
+    const text = await callProFirst(prompt, 'InterviewQuestions');
+    const parsed = parseJSON(text) || {};
+    const qs = Array.isArray(parsed.questions)
+      ? parsed.questions.map(q => String(q || '').trim()).filter(Boolean)
+      : [];
+    return qs.length > 0 ? qs.slice(0, 7) : fallbackQuestions;
+  } catch (err) {
+    console.warn('[InterviewQuestions] AI generation failed. Using fallback questions:', err.message);
+    return fallbackQuestions;
+  }
+}
+
+/**
  * 경험 순간(moments) 추출 — Pro 우선.
  * rawText는 5000자로 캡핑되어 있고 output도 최대 10개 moments로 제한되므로
  * 별도 분할 없이 단일 호출. Pro 실패 시 Lite로 폴백.
@@ -336,13 +845,26 @@ export async function extractMoments(rawText, title) {
     throw new Error('분석할 텍스트가 비어있습니다');
   }
 
-  const prompt = buildExtractMomentsPrompt(rawText, title);
-  const text = await callProFirst(prompt, 'ExtractMoments');
-  const parsed = parseJSON(text);
-  const moments = parsed.moments || [];
+  try {
+    const prompt = buildExtractMomentsPrompt(rawText, title);
+    const text = await callProFirst(prompt, 'ExtractMoments');
+    const parsed = parseJSON(text);
+    const moments = Array.isArray(parsed.moments) ? parsed.moments : [];
 
-  console.log(`[ExtractMoments] ✓ ${moments.length}개 추출 완료`);
-  return moments;
+    if (moments.length > 0) {
+      console.log(`[ExtractMoments] ✓ ${moments.length}개 추출 완료`);
+      return moments;
+    }
+
+    console.warn('[ExtractMoments] AI returned no moments. Using deterministic fallback.');
+  } catch (err) {
+    console.warn('[ExtractMoments] AI extraction failed. Using deterministic fallback:', err.message);
+  }
+
+  const fallbackMoments = buildFallbackMoments(rawText, title, 3)
+    .map(moment => ({ ...moment, _fallback: true }));
+  console.log(`[ExtractMoments] fallback ${fallbackMoments.length}개 생성 완료`);
+  return fallbackMoments;
 }
 
 export async function generateCoverLetterDraft(question, linkedExperiences, targetCompany, targetPosition) {

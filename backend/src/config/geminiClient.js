@@ -302,6 +302,7 @@ export async function generateWithRetry(prompt, options = {}) {
     preferPro = false,
     callTimeoutMs = 90000,
     config = null,
+    githubFallback = true,
   } = options;
 
   await assertHasCredits();
@@ -428,6 +429,9 @@ export async function generateWithRetry(prompt, options = {}) {
 
     // 모든 Gemini 시도 실패 시 GitHub Models로 Fallback
     if (lastError) {
+      if (!githubFallback) {
+        throw lastError;
+      }
       console.error('[Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
       try {
         return await callGitHubModelsFallback(prompt);
@@ -437,7 +441,7 @@ export async function generateWithRetry(prompt, options = {}) {
       }
     }
 
-    throw lastError;
+    throw lastError || new Error('Gemini call failed before any model attempt');
   } finally {
     releaseSemaphore();
   }

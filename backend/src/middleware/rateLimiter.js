@@ -11,10 +11,10 @@ function keyGenerator(req) {
   return req.user?.uid || ipKeyGenerator(req);
 }
 
-// 유저당 AI 요청: 분당 12회
+// 유저당 AI 요청: 분당 30회
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 12,
+  max: 30,
   keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
@@ -25,6 +25,7 @@ export const aiRateLimiter = rateLimit({
     const retryAfter = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
     res.status(429).json({
       ...options.message,
+      error: 'AI requests are temporarily limited. Please retry shortly. (up to 30 per minute)',
       retryAfter,
     });
   },

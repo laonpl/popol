@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { execSync } from 'child_process';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -18,25 +17,6 @@ import { billingContextMiddleware } from './services/billingService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// 포트 점유 프로세스를 강제 종료하는 헬퍼 (Windows/POSIX 공통)
-function freePort(port) {
-  try {
-    if (process.platform === 'win32') {
-      const out = execSync(`netstat -ano | findstr :${port}`, { shell: 'cmd', encoding: 'utf8', stdio: 'pipe' });
-      const pids = new Set(
-        out.split('\n')
-          .map(l => l.trim().split(/\s+/).pop())
-          .filter(p => /^\d+$/.test(p) && p !== '0' && Number(p) !== process.pid)
-      );
-      for (const pid of pids) {
-        try { execSync(`taskkill /PID ${pid} /F`, { shell: 'cmd', stdio: 'ignore' }); } catch {}
-      }
-    } else {
-      execSync(`fuser -k ${port}/tcp`, { stdio: 'ignore' });
-    }
-  } catch {}
-}
 
 // 예상치 못한 예외 핸들러 — EADDRINUSE 같은 치명적 에러는 즉시 종료
 process.on('uncaughtException', (err) => {
@@ -172,10 +152,8 @@ server.headersTimeout = 310000;
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.warn(`[EADDRINUSE] 포트 ${PORT} 점유 프로세스 종료 중...`);
-    freePort(PORT);
-    setTimeout(() => server.listen(PORT), 800);
-    return;
+    console.error(`[EADDRINUSE] Port ${PORT} is already in use. Keeping the existing process alive.`);
+    process.exit(1);
   }
   console.error('[SERVER ERROR]', err);
   process.exit(1);

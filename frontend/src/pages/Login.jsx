@@ -110,7 +110,7 @@ export default function Login() {
   // 비밀번호 찾기 화면
   if (step === 'forgot') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 flex items-center justify-center px-4">
+      <main className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 flex items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2.5 mb-4">
@@ -146,7 +146,7 @@ export default function Login() {
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">이메일</label>
                     <div className="relative">
-                      <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                       <input
                         type="email"
                         value={resetEmail}
@@ -165,20 +165,20 @@ export default function Login() {
                     {loading ? '발송 중...' : '재설정 메일 받기'}
                   </button>
                 </form>
-                <p className="text-center text-sm text-gray-400 mt-5">
+                <p className="text-center text-sm text-gray-500 mt-5">
                   <button onClick={() => setStep('login')} className="text-primary-600 font-medium hover:underline">← 로그인으로 돌아가기</button>
                 </p>
               </>
             )}
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   // ── 로그인 / 회원가입 화면 ────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 flex items-center justify-center px-4">
+    <main className="min-h-screen bg-gradient-to-br from-[#f0f4f8] via-white to-primary-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-4">
@@ -214,7 +214,7 @@ export default function Login() {
 
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-surface-200"></div>
-            <span className="text-xs text-gray-400">또는</span>
+            <span className="text-xs text-gray-500">또는</span>
             <div className="flex-1 h-px bg-surface-200"></div>
           </div>
 
@@ -223,7 +223,7 @@ export default function Login() {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">이름</label>
                 <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
                     type="text"
                     value={displayName}
@@ -237,7 +237,7 @@ export default function Login() {
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">이메일</label>
               <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   type="email"
                   value={email}
@@ -250,7 +250,7 @@ export default function Login() {
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">비밀번호</label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -259,7 +259,8 @@ export default function Login() {
                   className="w-full pl-10 pr-10 py-2.5 border border-surface-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300"
                 />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700">
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -268,7 +269,7 @@ export default function Login() {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">비밀번호 확인</label>
                 <div className="relative">
-                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={confirmPassword}
@@ -288,10 +289,10 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-5">
+          <p className="text-center text-sm text-gray-500 mt-5">
             {step === 'login' ? (
               <>
-                <button onClick={() => setStep('forgot')} className="text-gray-400 hover:text-primary-600 transition-colors">비밀번호를 잊으셨나요?</button>
+                <button onClick={() => setStep('forgot')} className="text-gray-500 hover:text-primary-600 transition-colors">비밀번호를 잊으셨나요?</button>
                 <span className="mx-2 text-gray-200">|</span>
                 계정이 없으신가요? <button onClick={() => setStep('signup')} className="text-primary-600 font-medium hover:underline">회원가입</button>
               </>
@@ -301,6 +302,6 @@ export default function Login() {
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
