@@ -3,6 +3,10 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, s
 import { db } from '../config/firebase';
 import api from '../services/api';
 
+function omitUndefined(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+}
+
 export const FRAMEWORKS = {
   STRUCTURED: {
     name: '경험 구조화',
@@ -131,18 +135,20 @@ const useExperienceStore = create((set, get) => ({
   },
 
   createExperience: async (userId, data) => {
-    const docRef = await addDoc(collection(db, 'experiences'), {
+    const payload = omitUndefined({
+      ...data,
       userId,
       title: data.title || '',
       framework: data.framework || 'STRUCTURED',
       jobCategory: data.jobCategory || 'common',
       content: data.content || {},
       images: data.images || [],
-      keywords: [],
+      keywords: data.keywords || [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    const newExp = { id: docRef.id, userId, ...data, createdAt: new Date(), updatedAt: new Date() };
+    const docRef = await addDoc(collection(db, 'experiences'), payload);
+    const newExp = { ...payload, id: docRef.id, createdAt: new Date(), updatedAt: new Date() };
     set(state => ({ experiences: [newExp, ...state.experiences] }));
     return docRef.id;
   },
@@ -218,13 +224,36 @@ const useExperienceStore = create((set, get) => ({
   refineKeyExperience: async (currentExp, freeFormText) => {
     const { data } = await api.post('/experience/refine-key-experience', {
       currentExp, freeFormText,
-    }, { timeout: 60000 });
+    }, { timeout: 120000 });
     return data;
   },
 
   // AI 시장/지표 리서치 (최신 뉴스·지표·논문 → 의사결정 지표 추천)
   researchMarketMetrics: async (payload) => {
     const { data } = await api.post('/experience/research-metrics', payload, { timeout: 200000 });
+    return data;
+  },
+
+  // 대화형 추출 인터뷰: 초안에서 핵심 정보를 끌어내는 질문 생성
+  generateInterviewQuestions: async (braindump, jobCategory) => {
+    const { data } = await api.post('/experience/interview-questions', { braindump, jobCategory }, { timeout: 120000 });
+    return data.questions || [];
+  },
+
+  // 추출형 인터뷰: 후속 질문 답변을 AI에 되먹여 경험 정리를 보강
+  enrichFromInterview: async (experienceId, qa) => {
+    const current = get().experiences.find(e => e.id === experienceId);
+    if (current) {
+      get().pushEditSnapshot(experienceId, {
+        content: current.content, title: current.title, structuredResult: current.structuredResult,
+      });
+    }
+    const { data } = await api.post('/experience/enrich-interview', { experienceId, qa }, { timeout: 300000 });
+    set(state => ({
+      experiences: state.experiences.map(e =>
+        e.id === experienceId ? { ...e, structuredResult: data, keywords: data.keywords || [] } : e
+      ),
+    }));
     return data;
   },
 

@@ -460,21 +460,28 @@ export default function ExperienceHub() {
                 : '첫 경험을 추가하고 나만의 아카이브를 시작해보세요'}
             </p>
           </div>
-          <Link
-            data-tour="experience-new"
-            to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
-            onClick={() => {
-              if (tutorialVisible && tutorialCurrentStep === 0) {
-                dismissTutorial(false);
-                setTutorialDemoExperience(null);
-                setTutorialDemoBuildStep('idle');
-              }
-            }}
-            className="flex items-center gap-2 px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shrink-0"
-          >
-            <Plus size={16} />
-            새 경험 추가
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/app/experience/interview"
+              className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
+            >
+              AI 인터뷰로 시작
+            </Link>
+            <Link
+              data-tour="experience-new"
+              to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
+              onClick={() => {
+                if (tutorialVisible && tutorialCurrentStep === 0) {
+                  dismissTutorial(false);
+                  setTutorialDemoExperience(null);
+                  setTutorialDemoBuildStep('idle');
+                }
+              }}
+              className="flex items-center px-5 py-3 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[15px] font-bold hover:bg-surface-50 transition-colors"
+            >
+              직접 작성
+            </Link>
+          </div>
         </div>
         {/* 컨트롤 바 */}
         <div className="flex items-center gap-2 flex-wrap">

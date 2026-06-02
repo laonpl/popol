@@ -35,6 +35,23 @@ function sanitizeTextValue(text) {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+/* AI가 빈약한 입력에서 프롬프트 지시문/예시를 그대로 뱉는 경우가 있어,
+   표시 단계에서 "지시문/플레이스홀더"를 감지해 비운다. */
+function isInstructionLike(text) {
+  const t = stripMarkdown(text || '').trim();
+  if (!t) return true;
+  if (t.startsWith('[작성 필요]') || t.startsWith('[검증 필요]')) return true;
+  if (/\(예시\)/.test(t)) return true;                 // (예시) 표기
+  if (/【[^】]*】/.test(t)) return true;                // 【XYZ 공식】 등 지시 블록
+  if (/(공식에 맞춰|작성하세요|반영하세요|포함하세요|서술하세요|남기세요|적어주세요)/.test(t)) return true;
+  if (/^\[[^\]]{1,20}\]\s*\S/.test(t) && /(구조|형식|공식|패턴|가이드)/.test(t.slice(0, 24))) return true; // [파이프라인 구조] ...
+  return false;
+}
+/* 표시용 정리: 지시문/플레이스홀더면 빈 문자열, 아니면 마크다운 제거 텍스트 */
+function cleanForDisplay(text) {
+  return isInstructionLike(text) ? '' : stripMarkdown(text).trim();
+}
+
 function sanitizeTextObject(obj = {}) {
   return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, typeof value === 'string' ? sanitizeTextValue(value) : value]));
 }
@@ -402,7 +419,9 @@ function pickSectionFields(obj) {
   const result = {};
   for (const key of SECTION_KEYS) {
     const val = obj?.[key];
-    result[key] = typeof val === 'string' ? sanitizeTextValue(val) : '';
+    const sv = typeof val === 'string' ? sanitizeTextValue(val) : '';
+    // AI가 뱉은 지시문/예시 텍스트는 비워서 깨끗한 빈칸으로 시작
+    result[key] = isInstructionLike(sv) ? '' : sv;
   }
   return result;
 }
@@ -453,11 +472,12 @@ function extractMetricToken(text) {
 }
 
 function makeSlideCard(label, title, body, metric = '') {
+  const cleanBody = cleanForDisplay(body).replace(/\s+/g, ' ').trim();
   return {
     label,
-    title,
-    body: stripMarkdown(body || '').replace(/\s+/g, ' ').trim(),
-    metric: metric || extractMetricToken(body),
+    title: cleanForDisplay(title),
+    body: cleanBody,
+    metric: (metric && !isInstructionLike(metric)) ? metric : extractMetricToken(cleanBody),
   };
 }
 
@@ -530,15 +550,16 @@ function normalizeSectionSlide({ key, content, structured, research, keyExperien
   const fromAi = structured?.sectionSlides?.[key] || {};
   const defaults = SECTION_SLIDE_DEFAULTS[key] || {};
   const sentences = splitSentences(content, 4);
-  const headline = fromAi.headline || sentences[0] || defaults.prompt || SECTION_META[key]?.label;
-  const subcopy = fromAi.subcopy || sentences.slice(1, 4).join(' ') || content || '';
+  // 지시문/예시 노출 방지: 정화 후 비면 라벨/빈값으로 폴백
+  const headline = cleanForDisplay(fromAi.headline) || cleanForDisplay(sentences[0]) || SECTION_META[key]?.label || '';
+  const subcopy = cleanForDisplay(fromAi.subcopy) || cleanForDisplay(sentences.slice(1, 4).join(' ')) || cleanForDisplay(content) || '';
   const fallbackCards = buildFallbackCards({ key, content, research, keyExperiences, overview });
   const aiCards = Array.isArray(fromAi.evidenceCards) && fromAi.evidenceCards.length > 0
     ? fromAi.evidenceCards.slice(0, 3).map(card => ({
       label: card?.label || 'RESEARCH',
-      title: card?.title || '핵심 근거',
-      body: card?.body || '',
-      metric: card?.metric || extractMetricToken(`${card?.title || ''} ${card?.body || ''}`),
+      title: cleanForDisplay(card?.title),
+      body: cleanForDisplay(card?.body),
+      metric: (card?.metric && !isInstructionLike(card.metric)) ? card.metric : extractMetricToken(`${card?.title || ''} ${card?.body || ''}`),
     }))
     : [];
   const cardCandidates = fromAi._manual ? [...aiCards, ...fallbackCards] : [...fallbackCards, ...aiCards];
@@ -587,13 +608,13 @@ function PortfolioSectionSlide({
   setDropTarget,
   handleSectionDrop,
 }) {
-  const isDraft = value?.trim()?.startsWith('[작성 필요]');
-  const cleanValue = sanitizeTextValue(value || '');
+  const isDraft = isInstructionLike(value);
+  const cleanValue = isInstructionLike(value) ? '' : sanitizeTextValue(value || '');
   const cleanHeadline = sanitizeTextValue(slide.headline || '');
   const cleanSubcopy = sanitizeTextValue(slide.subcopy || '');
   const headlineRows = Math.max(3, Math.min(6, Math.ceil(Math.max(cleanHeadline.length, 1) / 22)));
   const subcopyRows = Math.max(2, Math.min(5, Math.ceil(Math.max(cleanSubcopy.length, 1) / 70)));
-  const displayValue = isDraft ? cleanValue.replace(/^\[작성 필요\]\s*/, '').trim() : cleanValue;
+  const displayValue = cleanValue;
   const visibleCards = slide.cards.slice(0, 3);
   const hiddenCardCount = Math.max(0, slide.cards.length - visibleCards.length);
   const accent = '#002F6C'; // 사이트 기본(네이비) — 색상 통일
@@ -701,8 +722,8 @@ function PortfolioSectionSlide({
                         />
                       </div>
                     ) : (
-                      <button onClick={onEdit} className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-dashed border-surface-300 py-10 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-50 transition-colors">
-                        <PenLine size={14} /> 빈칸 채우기
+                      <button onClick={onEdit} className="flex w-full items-center justify-center rounded-[8px] border border-dashed border-surface-300 py-10 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-50 transition-colors">
+                        내용 입력하기
                       </button>
                     )}
                     {introMetaItems.length > 0 && (
@@ -711,11 +732,11 @@ function PortfolioSectionSlide({
                           <div key={item.label} className="rounded-[6px] bg-white/75 px-2.5 py-2 ring-1 ring-surface-200/80">
                             <p className="text-[10px] font-black tracking-[0.12em] text-bluewood-300">{item.label}</p>
                             {viewOnly ? (
-                              <p className="mt-1 break-words text-[12px] font-bold leading-snug text-bluewood-700">{sanitizeTextValue(overview?.[item.key] || item.placeholder)}</p>
+                              <p className="mt-1 break-words text-[12px] font-bold leading-snug text-bluewood-700">{cleanForDisplay(overview?.[item.key]) || '—'}</p>
                             ) : (
                               <textarea
                                 rows={2}
-                                value={sanitizeTextValue(overview?.[item.key] || '')}
+                                value={isInstructionLike(overview?.[item.key]) ? '' : sanitizeTextValue(overview?.[item.key] || '')}
                                 onChange={e => onOverviewChange?.(item.key, sanitizeTextValue(e.target.value))}
                                 placeholder={item.placeholder}
                                 className="mt-1 min-h-[40px] w-full resize-y overflow-y-auto break-words bg-transparent text-[11px] font-bold leading-snug text-bluewood-700 outline-none placeholder:text-bluewood-300"
@@ -1046,8 +1067,9 @@ export default function StructuredResult() {
   const [exportOverKey, setExportOverKey] = useState(null);
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
-  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics } = useExperienceStore();
+  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience } = useExperienceStore();
   const [researchingMetrics, setResearchingMetrics] = useState(false);
+  const [enhancingDraft, setEnhancingDraft] = useState(false);
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -1287,6 +1309,63 @@ export default function StructuredResult() {
       toast.error(err?.response?.data?.error || 'AI 지표 추천에 실패했습니다');
     } finally {
       setResearchingMetrics(false);
+    }
+  };
+
+  const applyStructuredResult = (structured) => {
+    const fields = pickSectionFields(structured);
+    setExperience(prev => ({ ...(prev || {}), structuredResult: structured, keywords: structured.keywords || [] }));
+    setEditedContent(fields);
+    setEditedOverview({
+      background: sanitizeTextValue(structured.projectOverview?.background || ''),
+      goal: sanitizeTextValue(structured.projectOverview?.goal || ''),
+      role: sanitizeTextValue(structured.projectOverview?.role || ''),
+      team: sanitizeTextValue(structured.projectOverview?.team || ''),
+      duration: sanitizeTextValue(structured.projectOverview?.duration || ''),
+      summary: sanitizeTextValue(structured.projectOverview?.summary || ''),
+      scopeOfImpact: sanitizeTextValue(structured.projectOverview?.scopeOfImpact || ''),
+      techStack: Array.isArray(structured.projectOverview?.techStack)
+        ? structured.projectOverview.techStack
+        : (structured.projectOverview?.techStack ? String(structured.projectOverview.techStack).split(',').map(s => s.trim()).filter(Boolean) : []),
+    });
+    setEditedResearch(normalizeMarketResearch(structured.marketResearch));
+    setEditedSectionSlides(structured.sectionSlides || {});
+    setEditedKeywords(structured.keywords || []);
+    setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
+    setJobCategory(structured.jobCategory || 'common');
+    setEditedJobSpecific(structured.jobSpecific || {});
+  };
+
+  const handleEnhanceDraft = async () => {
+    if (!id || enhancingDraft) return;
+    setEnhancingDraft(true);
+    try {
+      const reviewedMoments = editedKeyExperiences.map((item, index) => ({
+        id: item.id || `reviewed-${index + 1}`,
+        title: item.title || `핵심 경험 ${index + 1}`,
+        metric: item.metric || '',
+        metricLabel: item.metricLabel || '',
+        beforeMetric: item.beforeMetric || '',
+        afterMetric: item.afterMetric || '',
+        context: item.context || item.situation || '',
+        action: item.action || '',
+        result: item.result || '',
+        learning: item.learning || '',
+        keywords: item.keywords || [],
+      }));
+      const structured = await analyzeExperience(id, {
+        momentsCount: reviewedMoments.length || undefined,
+        reviewedMoments: reviewedMoments.length > 0 ? reviewedMoments : undefined,
+      });
+      applyStructuredResult(structured);
+      if (structured?._fallback) {
+        toast('AI 보강이 일시적으로 불안정해 초안을 유지했습니다. 다시 시도할 수 있어요.');
+      } else
+      toast.success('AI 보강이 완료되었습니다');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setEnhancingDraft(false);
     }
   };
 
@@ -2282,6 +2361,17 @@ export default function StructuredResult() {
               </div>
             )}
 
+            {experience?.structuredResult?._draft && (
+              <button
+                onClick={handleEnhanceDraft}
+                disabled={enhancingDraft}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-xl text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
+              >
+                {enhancingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강'}
+              </button>
+            )}
+
             <button
               onClick={() => setShowExportPanel(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
@@ -2440,160 +2530,184 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  시장/지표 리서치 보강                        ║
          ╚══════════════════════════════════════════════╝ */}
-      {(editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (
+      {(editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (() => {
+        const R = editedResearch;
+        const confMeta = { high: { bg: '#ecfdf5', bd: '#a7f3d0', fg: '#047857', label: '신뢰 높음' }, medium: { bg: '#fffbeb', bd: '#fde68a', fg: '#b45309', label: '신뢰 보통' }, low: { bg: '#f1f5f9', bd: '#e2e8f0', fg: '#64748b', label: '참고' } };
+        const validSources = (R.sourceNotes || []).filter(s => (s.title && s.title.trim()) || /^https?:\/\//.test(s.url || ''));
+        const stats = [
+          { n: R.decisionMetrics.length, label: '추천 지표' },
+          { n: validSources.length, label: '근거 자료' },
+          { n: R.portfolioAngles.length, label: '강조 관점' },
+        ].filter(x => x.n > 0);
+        return (
         <div className="mt-5 border border-surface-200 overflow-hidden rounded-2xl">
-          <div className="flex items-center justify-between gap-4 px-6 sm:px-8 py-5 border-b border-surface-200 bg-white">
-            <div>
-              <h2 className="text-[14px] font-bold text-primary-600">시장/지표 리서치</h2>
-              <p className="mt-1 text-[13px] text-bluewood-400">AI가 최신 뉴스·지표·논문을 조사해 의사결정 지표를 추천합니다. 외부 자료는 비교 기준으로만 쓰고, 실제 프로젝트 수치는 직접 검증하세요.</p>
+          {/* 헤더 */}
+          <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-surface-200 bg-white">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-primary-600 text-white text-[11px] font-black tracking-wide">AI 리서치</span>
+                <h2 className="text-[15px] font-extrabold text-bluewood-900">시장·지표 근거</h2>
+              </div>
+              <p className="mt-1.5 text-[12.5px] text-bluewood-500 leading-relaxed">최신 뉴스·지표·논문을 조사해 <b className="text-bluewood-700 font-bold">의사결정에 쓸 지표</b>를 추천합니다. 외부 수치는 비교 기준으로만, 실제 성과는 직접 검증하세요.</p>
             </div>
             {!viewOnly && (
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={handleResearchMetrics}
-                  disabled={researchingMetrics}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 transition-colors">
-                  {researchingMetrics ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                <button onClick={handleResearchMetrics} disabled={researchingMetrics}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                  {researchingMetrics && <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
                   {researchingMetrics ? '리서치 중...' : 'AI 지표 추천'}
                 </button>
-                <button
-                  onClick={addDecisionMetric}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">
-                  <Plus size={13} /> 지표 추가
-                </button>
+                <button onClick={addDecisionMetric}
+                  className="px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
               </div>
             )}
           </div>
 
-          <div className="p-6 sm:p-8 space-y-6">
-            <div>
-              <p className="mb-2 text-[13px] font-bold text-bluewood-700">프로젝트와 연결되는 시장 맥락</p>
-              <textarea
-                value={editedResearch.marketOverview}
-                onChange={e => setEditedResearch(prev => ({ ...prev, marketOverview: e.target.value }))}
-                readOnly={viewOnly}
-                placeholder="프로젝트와 관련된 시장, 사용자 문제, 채용/JD 맥락이 여기에 정리됩니다."
-                className={`w-full min-h-[96px] resize-none rounded-xl border border-surface-200 bg-white p-4 text-[13px] leading-[1.8] text-bluewood-800 outline-none placeholder:text-bluewood-300 ${viewOnly ? '' : 'focus:ring-2 focus:ring-bluewood-200'}`}
-              />
-            </div>
+          <div className="p-6 sm:p-8 space-y-7">
+            {/* 신뢰 배너 */}
+            {stats.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-9 gap-y-3 rounded-xl bg-primary-50/60 border border-primary-100 px-6 py-4">
+                {stats.map(s => (
+                  <div key={s.label} className="flex items-baseline gap-1.5">
+                    <span className="text-[24px] font-black leading-none text-primary-600 tabular-nums">{s.n}</span>
+                    <span className="text-[12px] font-semibold text-bluewood-500">{s.label}</span>
+                  </div>
+                ))}
+                <span className="text-[12px] text-bluewood-400 ml-auto">AI가 조사한 근거 기반</span>
+              </div>
+            )}
 
-            {editedResearch.decisionMetrics.length > 0 && (
+            {/* 시장 맥락 */}
+            {(R.marketOverview || !viewOnly) && (
               <div>
-                <p className="mb-3 text-[13px] font-bold text-bluewood-700">의사결정에 사용할 지표 후보</p>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {editedResearch.decisionMetrics.map((metric, index) => (
-                    <div key={index} className="rounded-xl border border-surface-200 bg-surface-50/40 p-4">
-                      <div className="mb-3 flex items-start gap-2">
-                        <input
-                          value={metric.metric}
-                          onChange={e => updateDecisionMetric(index, 'metric', e.target.value)}
-                          readOnly={viewOnly}
-                          placeholder="지표명"
-                          className="flex-1 bg-transparent text-[14px] font-bold text-primary-600 outline-none placeholder:text-bluewood-300"
-                        />
-                        {!viewOnly && (
-                          <button onClick={() => removeDecisionMetric(index)} className="p-1 text-bluewood-300 hover:text-red-500 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">시장 맥락</p>
+                {viewOnly ? (
+                  <p className="text-[14px] leading-[1.8] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{R.marketOverview || '—'}</p>
+                ) : (
+                  <textarea
+                    value={R.marketOverview}
+                    onChange={e => setEditedResearch(prev => ({ ...prev, marketOverview: e.target.value }))}
+                    placeholder="프로젝트와 관련된 시장·사용자·채용 맥락이 여기에 정리됩니다. 'AI 지표 추천'을 누르면 자동으로 채워집니다."
+                    className="w-full min-h-[88px] resize-none rounded-xl border border-surface-200 bg-white p-4 text-[14px] leading-[1.8] text-bluewood-800 outline-none placeholder:text-bluewood-300 focus:ring-2 focus:ring-primary-200"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* 의사결정 지표 — 주인공 카드 */}
+            {R.decisionMetrics.length > 0 && (
+              <div>
+                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">의사결정에 쓸 지표</p>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {R.decisionMetrics.map((metric, index) => {
+                    const cm = confMeta[metric.confidence] || confMeta.medium;
+                    return (
+                      <div key={index} className="rounded-xl border border-surface-200 bg-white overflow-hidden">
+                        <div className="h-1 w-full" style={{ backgroundColor: cm.fg }} />
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-2.5">
+                            <input
+                              value={metric.metric}
+                              onChange={e => updateDecisionMetric(index, 'metric', e.target.value)}
+                              readOnly={viewOnly}
+                              placeholder="지표명"
+                              className="flex-1 min-w-0 bg-transparent text-[16px] font-extrabold text-bluewood-900 outline-none placeholder:text-bluewood-300"
+                            />
+                            <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: cm.bg, borderColor: cm.bd, color: cm.fg }}>{cm.label}</span>
+                          </div>
+                          <textarea
+                            value={metric.whyItMatters}
+                            onChange={e => updateDecisionMetric(index, 'whyItMatters', e.target.value)}
+                            readOnly={viewOnly}
+                            placeholder="왜 중요한 지표인가요?"
+                            className="w-full min-h-[48px] resize-none bg-transparent text-[13.5px] leading-relaxed text-bluewood-700 outline-none placeholder:text-bluewood-300"
+                          />
+                          <div className="mt-2.5 rounded-lg bg-surface-50 px-3 py-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-bluewood-400 block mb-1">확인 방법</span>
+                            {viewOnly ? (
+                              <p className="text-[13px] font-semibold text-bluewood-700 leading-relaxed whitespace-pre-wrap" style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{metric.recommendedProxy || '—'}</p>
+                            ) : (
+                              <textarea
+                                value={metric.recommendedProxy}
+                                onChange={e => updateDecisionMetric(index, 'recommendedProxy', e.target.value)}
+                                placeholder="확인할 프록시/계산식"
+                                rows={2}
+                                className="w-full resize-y bg-transparent text-[13px] font-semibold text-bluewood-700 leading-relaxed outline-none placeholder:text-bluewood-300"
+                                style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}
+                              />
+                            )}
+                          </div>
+                          {(metric.researchBasis || !viewOnly) && (
+                            <div className="mt-2 flex items-start gap-2">
+                              <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wider text-bluewood-400 pt-1">근거</span>
+                              <textarea
+                                value={metric.researchBasis}
+                                onChange={e => updateDecisionMetric(index, 'researchBasis', e.target.value)}
+                                readOnly={viewOnly}
+                                placeholder="자료 근거 또는 [검증 필요]"
+                                className="flex-1 min-h-[40px] resize-none bg-transparent text-[12.5px] leading-relaxed text-bluewood-500 outline-none placeholder:text-bluewood-300"
+                              />
+                            </div>
+                          )}
+                          {!viewOnly && (
+                            <button onClick={() => removeDecisionMetric(index)} className="mt-2 text-[12px] font-semibold text-bluewood-300 hover:text-red-500 transition-colors">삭제</button>
+                          )}
+                        </div>
                       </div>
-                      <textarea
-                        value={metric.whyItMatters}
-                        onChange={e => updateDecisionMetric(index, 'whyItMatters', e.target.value)}
-                        readOnly={viewOnly}
-                        placeholder="왜 중요한 지표인가요?"
-                        className="mb-2 w-full min-h-[58px] resize-none bg-transparent text-[13px] leading-relaxed text-bluewood-700 outline-none placeholder:text-bluewood-300"
-                      />
-                      <input
-                        value={metric.recommendedProxy}
-                        onChange={e => updateDecisionMetric(index, 'recommendedProxy', e.target.value)}
-                        readOnly={viewOnly}
-                        placeholder="확인할 프록시/계산식"
-                        className="mb-2 w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-[13px] text-bluewood-700 outline-none placeholder:text-bluewood-300"
-                      />
-                      <textarea
-                        value={metric.researchBasis}
-                        onChange={e => updateDecisionMetric(index, 'researchBasis', e.target.value)}
-                        readOnly={viewOnly}
-                        placeholder="자료 근거 또는 [검증 필요]"
-                        className="w-full min-h-[52px] resize-none bg-transparent text-[13px] leading-relaxed text-bluewood-500 outline-none placeholder:text-bluewood-300"
-                      />
-                      <div className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[12px] font-semibold text-bluewood-400 border border-surface-200">
-                        신뢰도 {metric.confidence || 'medium'}
-                      </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 강조 관점 */}
+            {R.portfolioAngles.length > 0 && (
+              <div>
+                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">포트폴리오에서 강조할 관점</p>
+                <div className="flex flex-wrap gap-2">
+                  {R.portfolioAngles.map((angle, i) => (
+                    <span key={i} className="px-3.5 py-2 rounded-lg bg-surface-50 border border-surface-200 text-[13px] font-medium text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{angle}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {(editedResearch.portfolioAngles.length > 0 || editedResearch.sourceNotes.length > 0 || editedResearch.limitations) && (
-              <div className="grid gap-4 lg:grid-cols-3">
-                {editedResearch.portfolioAngles.length > 0 && (
-                  <div className="rounded-xl border border-surface-200 p-4">
-                    <p className="mb-2 text-[13px] font-bold text-bluewood-700">강조 관점</p>
-                    <ul className="space-y-1.5">
-                      {editedResearch.portfolioAngles.map((angle, i) => (
-                        <li key={i} className="text-[13px] leading-relaxed text-bluewood-600">{angle}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {editedResearch.sourceNotes.length > 0 && (
-                  <div className="rounded-xl border border-surface-200 p-4 lg:col-span-2">
-                    <p className="mb-2 text-[13px] font-bold text-bluewood-700">자료 메모</p>
-                    <div className="space-y-2">
-                      {editedResearch.sourceNotes.map((source, index) => (
-                        <div key={index} className="grid gap-2 md:grid-cols-[1fr_120px]">
-                          <input
-                            value={source.title}
-                            onChange={e => updateSourceNote(index, 'title', e.target.value)}
-                            readOnly={viewOnly}
-                            placeholder="자료 제목"
-                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-700 outline-none"
-                          />
-                          <input
-                            value={source.publisher}
-                            onChange={e => updateSourceNote(index, 'publisher', e.target.value)}
-                            readOnly={viewOnly}
-                            placeholder="발행처"
-                            className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none"
-                          />
-                          {viewOnly && /^https?:\/\//.test(source.url || '') ? (
-                            <a
-                              href={source.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="md:col-span-2 inline-flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-primary-600 hover:underline truncate"
-                            >
-                              <ExternalLink size={12} className="flex-shrink-0" />
-                              <span className="truncate">{source.url}</span>
-                            </a>
-                          ) : (
-                            <input
-                              value={source.url}
-                              onChange={e => updateSourceNote(index, 'url', e.target.value)}
-                              readOnly={viewOnly}
-                              placeholder="URL 또는 [검증 필요]"
-                              className="rounded-lg border border-surface-200 px-3 py-2 text-[13px] text-bluewood-500 outline-none md:col-span-2"
-                            />
-                          )}
+            {/* 근거 자료 (출처) — 신뢰 */}
+            {validSources.length > 0 && (
+              <div>
+                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">근거 자료 {validSources.length}건</p>
+                <div className="rounded-xl border border-surface-200 divide-y divide-surface-100 overflow-hidden">
+                  {validSources.map((source, index) => {
+                    const hasUrl = /^https?:\/\//.test(source.url || '');
+                    return (
+                      <div key={index} className="px-4 py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="text-[13.5px] font-bold text-bluewood-800 truncate">{source.title || source.url}</p>
+                          {source.publisher && <span className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400">{source.publisher}</span>}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {editedResearch.limitations && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 lg:col-span-3">
-                    <p className="mb-1 text-[13px] font-bold text-amber-700">검증 필요</p>
-                    <p className="text-[13px] leading-relaxed text-amber-700">{editedResearch.limitations}</p>
-                  </div>
-                )}
+                        {hasUrl && (
+                          <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block text-[12px] text-primary-600 underline truncate max-w-full">
+                            {source.url}
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 검증 필요 */}
+            {R.limitations && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-5 py-4">
+                <p className="mb-1 text-[12px] font-black text-amber-700">검증 필요</p>
+                <p className="text-[13px] leading-relaxed text-amber-700" style={{ wordBreak: 'keep-all' }}>{R.limitations}</p>
               </div>
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
         </div>{/* end 메인 콘텐츠 */}
 

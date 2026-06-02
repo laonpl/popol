@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
-import { analyzeExperience, extractMoments, refineKeyExperience, researchMarketMetrics } from '../services/geminiService.js';
+import {
+  analyzeExperience,
+  buildFallbackExperienceAnalysis,
+  extractMoments,
+  refineKeyExperience,
+  researchMarketMetrics,
+  generateInterviewQuestions,
+} from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
@@ -46,6 +53,28 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
       analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common');
     } catch (aiError) {
       const errMsg = aiError.message || '';
+      const hasFallbackInput = (moments && moments.length > 0)
+        || Object.values(data.content || {}).some(value => String(value || '').trim());
+      if (hasFallbackInput) {
+        analysis = buildFallbackExperienceAnalysis(
+          data.content || {},
+          count,
+          moments,
+          data.jobCategory || 'common',
+          {
+            title: data.title || '',
+            period: data.period || '',
+            reason: errMsg.slice(0, 240),
+          }
+        );
+        await docRef.update({
+          structuredResult: analysis,
+          keywords: analysis.keywords || [],
+          highlights: analysis.highlights || [],
+          updatedAt: new Date(),
+        });
+        return res.json(analysis);
+      }
       console.error('Gemini AI 분석 실패 (최종):', errMsg);
       // 내용 비어있음 에러는 400으로
       if (errMsg.includes('비어있습니다')) {
@@ -76,6 +105,103 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
       updatedAt: new Date(),
     });
 
+    res.json(analysis);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/interview-questions - 대화형 추출 인터뷰 질문 생성
+router.post('/interview-questions', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { braindump, jobCategory } = req.body;
+    if (!braindump || !String(braindump).trim()) {
+      return res.status(400).json({ error: '경험 초안이 필요합니다' });
+    }
+    const questions = await generateInterviewQuestions(String(braindump), jobCategory || 'common');
+    res.json({ questions });
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('요청 한도') || msg.includes('429') || msg.includes('quota')) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    next(error);
+  }
+});
+
+// POST /api/experience/enrich-interview - 추출형 인터뷰 답변을 반영해 재분석·보강
+router.post('/enrich-interview', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { experienceId, qa } = req.body;
+    if (!experienceId || !Array.isArray(qa)) {
+      return res.status(400).json({ error: 'experienceId와 qa가 필요합니다' });
+    }
+    const answered = qa
+      .map(item => ({ question: String(item?.question || '').trim(), answer: String(item?.answer || '').trim() }))
+      .filter(item => item.answer);
+    if (answered.length === 0) {
+      return res.status(400).json({ error: '답변이 하나 이상 필요합니다' });
+    }
+
+    const docRef = adminDb.collection('experiences').doc(experienceId);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).json({ error: '경험을 찾을 수 없습니다' });
+    const data = docSnap.data();
+    if (data.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다' });
+
+    // 인터뷰 답변을 추가 자료로 content에 합쳐 재분석 (원본은 유지, 답변만 보강 근거로)
+    const interviewText = answered.map(item => `Q. ${item.question}\n→ ${item.answer}`).join('\n\n');
+    const augmentedContent = { ...(data.content || {}), 추가인터뷰_보강자료: interviewText };
+
+    const structuredMoments = Array.isArray(data.structuredResult?.keyExperiences) && data.structuredResult.keyExperiences.length > 0
+      ? data.structuredResult.keyExperiences
+      : null;
+    const moments = Array.isArray(data.reviewedMoments) && data.reviewedMoments.length > 0
+      ? data.reviewedMoments
+      : structuredMoments;
+    const count = moments ? moments.length : (data.momentsCount || 3);
+
+    let analysis;
+    try {
+      analysis = await analyzeExperience(augmentedContent, count, moments, data.jobCategory || 'common');
+    } catch (aiError) {
+      const errMsg = aiError.message || '';
+      const hasFallbackInput = (moments && moments.length > 0)
+        || Object.values(augmentedContent || {}).some(value => String(value || '').trim());
+      if (hasFallbackInput) {
+        analysis = buildFallbackExperienceAnalysis(
+          augmentedContent,
+          count,
+          moments,
+          data.jobCategory || 'common',
+          {
+            title: data.title || '',
+            period: data.period || '',
+            reason: errMsg.slice(0, 240),
+          }
+        );
+        await docRef.update({
+          structuredResult: analysis,
+          keywords: analysis.keywords || [],
+          highlights: analysis.highlights || [],
+          followupAnswers: answered,
+          updatedAt: new Date(),
+        });
+        return res.json(analysis);
+      }
+      if (errMsg.includes('요청 한도') || errMsg.includes('429') || errMsg.includes('quota')) {
+        return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+      }
+      return res.status(502).json({ error: 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
+    }
+
+    await docRef.update({
+      structuredResult: analysis,
+      keywords: analysis.keywords || [],
+      highlights: analysis.highlights || [],
+      followupAnswers: answered,
+      updatedAt: new Date(),
+    });
     res.json(analysis);
   } catch (error) {
     next(error);

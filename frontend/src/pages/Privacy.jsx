@@ -8,7 +8,7 @@ export default function Privacy() {
           FitPoly 홈으로
         </Link>
         <h1 className="mt-8 text-3xl font-extrabold tracking-tight text-gray-950">개인정보처리방침</h1>
-        <p className="mt-3 text-sm text-bluewood-400">시행일: 2026년 5월 12일</p>
+        <p className="mt-3 text-sm text-bluewood-500">시행일: 2026년 5월 12일</p>
 
         <section className="mt-10 space-y-7 text-[15px] leading-7 text-bluewood-600">
           <div>
@@ -33,7 +33,7 @@ export default function Privacy() {
           </div>
           <div>
             <h2 className="mb-2 text-lg font-bold text-gray-900">6. 문의</h2>
-            <p>개인정보 관련 문의는 <a className="text-primary-600 hover:underline" href="mailto:gudrbs14@naver.com">gudrbs14@naver.com</a>으로 연락해주세요.</p>
+            <p>개인정보 관련 문의는 <a className="text-primary-600 underline font-semibold" href="mailto:gudrbs14@naver.com">gudrbs14@naver.com</a>으로 연락해주세요.</p>
           </div>
         </section>
       </div>

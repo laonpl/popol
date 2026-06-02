@@ -13,6 +13,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
+import { buildDraftStructuredResult } from '../../utils/experienceDraft';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp';
 const TUTORIAL_PROJECT = {
@@ -469,7 +470,7 @@ const FIELD_OPTIONS = [
 
 export default function TemplateSelect() {
   const { user } = useAuthStore();
-  const { createExperience, analyzeExperience, extractMoments } = useExperienceStore();
+  const { createExperience, extractMoments } = useExperienceStore();
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef(null);
@@ -1010,6 +1011,9 @@ export default function TemplateSelect() {
       { label: '프로젝트 개요·시장/지표 리서치', status: 'pending' },
       { label: '7개 포트폴리오 섹션 생성', status: 'pending' },
     ];
+    finalSteps[0].label = '경험 데이터 저장';
+    finalSteps[1].label = '빠른 초안 생성';
+    finalSteps[2].label = '결과 화면 준비';
     setLoadingSteps(finalSteps);
 
     try {
@@ -1037,6 +1041,14 @@ export default function TemplateSelect() {
       // 경험 생성
       updateLoadingStep(0, 'loading');
       const period = startDate ? `${startDate}${endDate ? ` ~ ${endDate}` : ''}` : '';
+      const draftAnalysis = buildDraftStructuredResult({
+        title: title.trim(),
+        period,
+        jobCategory: jobCategory || 'common',
+        moments: syncedMoments,
+        collectedText,
+        content: { rawInput: finalText },
+      });
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
@@ -1045,36 +1057,20 @@ export default function TemplateSelect() {
         jobCategory: jobCategory || 'common',
         content: { rawInput: finalText },
         momentsCount: moments.length,
+        reviewedMoments: syncedMoments,
+        structuredResult: draftAnalysis,
+        keywords: draftAnalysis.keywords || [],
+        analysisMode: 'draft',
       });
       updateLoadingStep(0, 'done');
 
-      // AI 분석 (최대 2회 재시도)
       updateLoadingStep(1, 'loading');
-      let analysis;
-      let analysisError;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          analysis = await analyzeExperience(experienceId, {
-            momentsCount: syncedMoments.length,
-            reviewedMoments: syncedMoments,
-          });
-          analysisError = null;
-          break;
-        } catch (err) {
-          analysisError = err;
-          if (attempt === 0) {
-            console.warn('AI 분석 1차 실패, 5초 후 재시도:', err.message);
-            await new Promise(r => setTimeout(r, 5000));
-          }
-        }
-      }
-      if (analysisError) throw analysisError;
       updateLoadingStep(1, 'done');
       updateLoadingStep(2, 'done');
 
-      toast.success('경험 정리가 완료되었습니다!');
+      toast.success('빠른 초안이 완성되었습니다. 결과 화면에서 AI로 보강할 수 있어요.');
       navigate(`/app/experience/structured/${experienceId}`, {
-        state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
+        state: { analysis: draftAnalysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
       });
     } catch (error) {
       console.error('경험 생성 실패:', error);

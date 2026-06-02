@@ -1,9 +1,11 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Pencil, Target, ChevronDown, ChevronUp, TrendingUp, Lightbulb, Zap, Users, CheckCircle2, Star, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles, Pencil, Target, ChevronDown, ChevronUp, TrendingUp, Lightbulb, Zap, Users, CheckCircle2, Star, AlertCircle, Loader2 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+import useExperienceStore from '../../stores/experienceStore';
+import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** 제거 유틸 ── */
 function stripMarkdown(text) {
@@ -45,6 +47,9 @@ export default function AnalysisResult() {
   const [sectionImages, setSectionImages] = useState({});
   const [imageConfig, setImageConfig] = useState({});
   const [collapsed, setCollapsed] = useState({});
+  const [answers, setAnswers] = useState({});
+  const [enriching, setEnriching] = useState(false);
+  const enrichFromInterview = useExperienceStore(s => s.enrichFromInterview);
 
   useEffect(() => {
     if (navState?.analysis) {
@@ -113,6 +118,27 @@ export default function AnalysisResult() {
   const followUpQuestions = aiAnalysis?.followUpQuestions || [];
   const projectOverview = aiAnalysis?.projectOverview || {};
   const keyExperiences = aiAnalysis?.keyExperiences || [];
+
+  const handleEnrich = async () => {
+    const qa = followUpQuestions
+      .map((q, i) => ({
+        question: typeof q === 'string' ? q : (q.text || q.question || ''),
+        answer: (answers[i] || '').trim(),
+      }))
+      .filter(item => item.answer);
+    if (qa.length === 0) return;
+    setEnriching(true);
+    try {
+      const data = await enrichFromInterview(id, qa);
+      setExperience(prev => ({ ...prev, aiAnalysis: data, structuredResult: data, keywords: data.keywords || [] }));
+      setAnswers({});
+      toast.success('답변을 반영해 경험 정리를 보강했어요');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'AI 보강에 실패했어요');
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   /* 프로젝트 개요 메타 항목 */
   const overviewMeta = [
@@ -388,22 +414,45 @@ export default function AnalysisResult() {
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          Follow-up Questions (있을 때만 — Progressive Disclosure)
+          AI 심화 인터뷰 — 답변을 되먹여 경험 정리를 보강 (추출형)
          ══════════════════════════════════════════════════════ */}
       {followUpQuestions.length > 0 && (
         <div className="mt-5 pt-5 border-t border-surface-100">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-1">
             <Lightbulb size={14} className="text-primary-500" />
-            <span className="text-[13px] font-bold text-bluewood-600">보완하면 더 강해지는 포인트</span>
+            <span className="text-[13px] font-bold text-bluewood-700">AI 심화 인터뷰 — 답할수록 정교해집니다</span>
           </div>
-          <ul className="space-y-2">
-            {followUpQuestions.map((q, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[13px] text-bluewood-600">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-600 text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
-                {typeof q === 'string' ? q : (q.text || q.question || '')}
-              </li>
-            ))}
-          </ul>
+          <p className="text-[12px] text-bluewood-400 mb-3">채용 담당자가 가장 궁금해하는, 당신만 답할 수 있는 정보예요. 답변은 그대로 경험 정리에 반영됩니다.</p>
+          <div className="space-y-3">
+            {followUpQuestions.map((q, i) => {
+              const label = typeof q === 'string' ? q : (q.text || q.question || '');
+              return (
+                <div key={i} className="rounded-xl border border-surface-200 bg-surface-50/50 p-3.5">
+                  <div className="flex items-start gap-2.5 mb-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-600 text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                    <p className="text-[13px] font-medium text-bluewood-700 leading-relaxed">{label}</p>
+                  </div>
+                  <textarea
+                    value={answers[i] || ''}
+                    onChange={e => setAnswers(prev => ({ ...prev, [i]: e.target.value }))}
+                    placeholder="여기에 답하면 AI가 반영해 보강합니다 (수치·본인 기여·이유를 구체적으로)"
+                    rows={2}
+                    className="w-full resize-y rounded-lg border border-surface-200 bg-white px-3 py-2 text-[13px] leading-relaxed text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300"
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={handleEnrich}
+              disabled={enriching || Object.values(answers).every(v => !v?.trim())}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm">
+              {enriching ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {enriching ? 'AI가 보강하는 중...' : '답변으로 경험 정리 보강하기'}
+            </button>
+            <span className="text-[12px] text-bluewood-400">답한 항목만 반영돼요</span>
+          </div>
         </div>
       )}
 
