@@ -18,7 +18,7 @@ import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } fro
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import YooptaMiniEditor from '../../components/YooptaMiniEditor';
+import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 function stripMd(s) {
@@ -562,7 +562,16 @@ function reorderItems(items, fromIndex, toIndex) {
   return next;
 }
 
+function getDefaultCustomBlockTitle(type) {
+  if (type === 'heading') return '제목';
+  if (type === 'image') return '이미지';
+  if (type === 'divider') return '구분선';
+  if (type === 'project') return '프로젝트 / 경험';
+  return '텍스트';
+}
+
 function getCustomBlockLabel(block, index) {
+  if (block?.title) return block.title;
   if (block?.type === 'heading') return block.content || '제목 블록';
   if (block?.type === 'image') return '이미지 블록';
   if (block?.type === 'divider') return '구분선 블록';
@@ -582,6 +591,72 @@ function startCustomBlockDrag(event, index, label, setDragging, tone = 'default'
   event.dataTransfer.setData('blockIdx', String(index));
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setDragImage(createDragPreview(label, tone), 16, 16);
+}
+
+function findScrollableAncestor(target) {
+  let element = target instanceof Element ? target : null;
+  while (element) {
+    const { overflowY } = window.getComputedStyle(element);
+    if (/(auto|scroll|overlay)/.test(overflowY) && element.scrollHeight > element.clientHeight) {
+      return element;
+    }
+    element = element.parentElement;
+  }
+  return document.scrollingElement;
+}
+
+function useDragEdgeAutoScroll(active, edgeSize = 180, minSpeed = 8, maxSpeed = 36) {
+  const pointerYRef = useRef(null);
+  const scrollElementRef = useRef(null);
+  const frameRef = useRef(null);
+
+  useEffect(() => {
+    if (!active) return undefined;
+
+    const updatePointer = (event) => {
+      pointerYRef.current = event.clientY;
+      scrollElementRef.current = findScrollableAncestor(event.target);
+    };
+    const clearPointer = () => {
+      pointerYRef.current = null;
+      scrollElementRef.current = null;
+    };
+    const scrollFrame = () => {
+      const pointerY = pointerYRef.current;
+      const scrollElement = scrollElementRef.current;
+      if (pointerY != null && scrollElement) {
+        const isDocument = scrollElement === document.scrollingElement;
+        const rect = isDocument
+          ? { top: 0, bottom: window.innerHeight, height: window.innerHeight }
+          : scrollElement.getBoundingClientRect();
+        const activeEdgeSize = Math.min(edgeSize, rect.height / 2);
+        let speed = 0;
+        if (pointerY < rect.top + activeEdgeSize) {
+          const intensity = 1 - Math.max(pointerY - rect.top, 0) / activeEdgeSize;
+          speed = -(minSpeed + (maxSpeed - minSpeed) * intensity);
+        } else if (pointerY > rect.bottom - activeEdgeSize) {
+          const intensity = 1 - Math.max(rect.bottom - pointerY, 0) / activeEdgeSize;
+          speed = minSpeed + (maxSpeed - minSpeed) * intensity;
+        }
+        if (speed) scrollElement.scrollBy(0, speed);
+      }
+      frameRef.current = requestAnimationFrame(scrollFrame);
+    };
+
+    document.addEventListener('dragover', updatePointer, true);
+    document.addEventListener('drop', clearPointer, true);
+    document.addEventListener('dragend', clearPointer, true);
+    frameRef.current = requestAnimationFrame(scrollFrame);
+
+    return () => {
+      document.removeEventListener('dragover', updatePointer, true);
+      document.removeEventListener('drop', clearPointer, true);
+      document.removeEventListener('dragend', clearPointer, true);
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      pointerYRef.current = null;
+      scrollElementRef.current = null;
+    };
+  }, [active, edgeSize, minSpeed, maxSpeed]);
 }
 
 const SECTIONS_BASE = [
@@ -1729,7 +1804,7 @@ const EXP_SECTION_META = {
 };
 const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
 
-function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply, analysisMode }) {
+function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply, analysisMode, genericMode = false }) {
   const keyExps = exp?.structuredResult?.keyExperiences || [];
   const structured = exp?.structuredResult || {};
   const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
@@ -1754,8 +1829,24 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
   }, [structured, exp?.sections]);
   const hasSections = renderableSections.length > 0;
   const hasRichData = keyExps.length > 0 || hasSections;
-  const [editingMeta, setEditingMeta] = useState(false);
-  const [metaDraft, setMetaDraft] = useState(null);
+  const isSimpleCard = genericMode && !hasRichData;
+  const isBlankCard = !hasRichData && !exp?.title && !exp?.description && !exp?.date && !exp?.thumbnailUrl;
+  const makeMetaDraft = () => {
+    const ov = structured.projectOverview || {};
+    return {
+      title: exp?.title || '',
+      date: exp?.date || ov.duration || '',
+      role: exp?.role || ov.role || '',
+      skills: (exp?.skills || []).join(', '),
+      keywords: (exp?.keywords || []).map(k => typeof k === 'string' ? k : k?.name || k?.keyword || '').join(', '),
+      goal: ov.goal || '',
+      description: exp?.description || ov.background || ov.summary || '',
+      link: exp?.link || '',
+      thumbnailUrl: exp?.thumbnailUrl || '',
+    };
+  };
+  const [editingMeta, setEditingMeta] = useState(isBlankCard);
+  const [metaDraft, setMetaDraft] = useState(() => isBlankCard ? makeMetaDraft() : null);
 
   // 첨삭 관련 state
   const [tailorMode, setTailorMode] = useState(null); // null | 'key' | 'section'
@@ -2018,19 +2109,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{exp.title || '경험 상세'}</h3>
+            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{exp.title || (genericMode ? '카드 상세' : '경험 상세')}</h3>
             <button
               onClick={() => {
                 if (!editingMeta) {
-                  const ov = structured.projectOverview || {};
-                  setMetaDraft({
-                    date: exp.date || ov.duration || '',
-                    role: exp.role || ov.role || '',
-                    skills: (exp.skills || []).join(', '),
-                    keywords: (exp.keywords || []).map(k => typeof k === 'string' ? k : k?.name || k?.keyword || '').join(', '),
-                    goal: ov.goal || '',
-                    description: exp.description || ov.background || ov.summary || '',
-                  });
+                  setMetaDraft(makeMetaDraft());
                 }
                 setEditingMeta(v => !v);
               }}
@@ -2040,7 +2123,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
             </button>
           </div>
           <div className="flex items-center gap-2">
-            {jobAnalysis && (
+            {jobAnalysis && !genericMode && (
               <button
                 onClick={() => openTailor('section')}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
@@ -2063,10 +2146,16 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
                 
                 {/* 좌측 영역 (col-span-6): 제목, 기본정보, 핵심경험 슬라이더 */}
-                <div className="lg:col-span-6 space-y-6">
+                <div className={`${isSimpleCard ? 'lg:col-span-12 max-w-3xl' : 'lg:col-span-6'} space-y-6`}>
                   {/* ── 메타 인라인 편집 ── */}
                   {editingMeta && metaDraft && (
                     <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">제목</label>
+                        <input value={metaDraft.title} onChange={e => setMetaDraft(d => ({ ...d, title: e.target.value }))}
+                          placeholder="예: 읽은 책 이름, 활동명, 프로젝트명"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs font-semibold text-gray-500 mb-1 block">기간</label>
@@ -2074,13 +2163,13 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                         </div>
                         <div>
-                          <label className="text-xs font-semibold text-gray-500 mb-1 block">역할</label>
+                          <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '보조 정보' : '역할'}</label>
                           <input value={metaDraft.role} onChange={e => setMetaDraft(d => ({ ...d, role: e.target.value }))}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">기술 (쉼표로 구분)</label>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '태그 (쉼표로 구분)' : '기술 (쉼표로 구분)'}</label>
                         <input value={metaDraft.skills} onChange={e => setMetaDraft(d => ({ ...d, skills: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                       </div>
@@ -2090,14 +2179,41 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">목표</label>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '메모 / 한줄평' : '목표'}</label>
                         <textarea value={metaDraft.goal} onChange={e => setMetaDraft(d => ({ ...d, goal: e.target.value }))}
                           rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">간단한 소개</label>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '상세 내용' : '간단한 소개'}</label>
                         <textarea value={metaDraft.description} onChange={e => setMetaDraft(d => ({ ...d, description: e.target.value }))}
                           rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">링크 (선택)</label>
+                        <input value={metaDraft.link} onChange={e => setMetaDraft(d => ({ ...d, link: e.target.value }))}
+                          placeholder="https://"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 mb-1 block">대표 이미지 (선택)</label>
+                        <div className="flex items-center gap-3">
+                          {metaDraft.thumbnailUrl && <img src={metaDraft.thumbnailUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />}
+                          <label className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 bg-white hover:bg-gray-50 cursor-pointer">
+                            <ImagePlus size={14} /> 이미지 선택
+                            <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                              const file = e.target.files?.[0];
+                              if (!file || !resizeToBase64) return;
+                              try {
+                                const thumbnailUrl = await resizeToBase64(file, 800, 0.8);
+                                setMetaDraft(d => ({ ...d, thumbnailUrl }));
+                              } catch { toast.error('이미지 처리에 실패했습니다'); }
+                            }} />
+                          </label>
+                          {metaDraft.thumbnailUrl && (
+                            <button type="button" onClick={() => setMetaDraft(d => ({ ...d, thumbnailUrl: '' }))}
+                              className="text-xs text-gray-400 hover:text-red-500">이미지 제거</button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">취소</button>
@@ -2113,7 +2229,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                               goal: metaDraft.goal,
                             },
                           };
-                          onUpdate({ date: metaDraft.date, role: metaDraft.role, skills, keywords, description: metaDraft.description, structuredResult: newSr });
+                          onUpdate({ title: metaDraft.title, date: metaDraft.date, role: metaDraft.role, skills, keywords, description: metaDraft.description, link: metaDraft.link, thumbnailUrl: metaDraft.thumbnailUrl, structuredResult: newSr });
                           setEditingMeta(false);
                         }} className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700">저장</button>
                       </div>
@@ -2200,7 +2316,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                   )}
 
                   {/* 핵심 경험 슬라이더 */}
-                  <div>
+                  {(!genericMode || keyExps.length > 0) && <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-bold text-gray-700">핵심 경험 &amp; 성과</h4>
                       {jobAnalysis && (
@@ -2223,11 +2339,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                         onUpdate={(updatedExps) => onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedExps } })}
                       />
                     )}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* 우측 영역 (col-span-6): Notion 스타일 상세 섹션 */}
-                <div className="lg:col-span-6 space-y-6 lg:border-l lg:border-surface-100 lg:pl-12">
+                <div className={`${isSimpleCard ? 'hidden' : 'lg:col-span-6'} space-y-6 lg:border-l lg:border-surface-100 lg:pl-12`}>
                   {/* ── Notion 스타일 상세 섹션 ── */}
                   {hasSections && (() => {
                     const sectionsToRender = renderableSections;
@@ -4975,6 +5091,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [blockDropTarget, setBlockDropTarget] = useState(null);
   const profileImageInputRef = useRef(null);
 
+  useDragEdgeAutoScroll(sectionDragging !== null);
+
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
     <input
@@ -5171,6 +5289,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const sectionHandleClass = 'cursor-grab active:cursor-grabbing inline-flex items-center justify-center rounded-md border border-primary-100 bg-primary-50 text-primary-600 hover:bg-primary-100 hover:text-primary-700 p-1 transition-colors';
   const hiddenSectionKey = (key) => {
     if (!hiddenSections.includes(key)) update('hiddenSections', [...hiddenSections, key]);
+  };
+  const removeEmbeddedCustomImage = ({ sourceIndex, src }) => {
+    const blocks = [...(p.customBlocks || [])];
+    if (blocks[sourceIndex]?.type !== 'image' || blocks[sourceIndex]?.content !== src) return;
+    blocks.splice(sourceIndex, 1);
+    update('customBlocks', blocks);
   };
 
   // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
@@ -5697,6 +5821,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
             jobAnalysis={portfolio.jobAnalysis}
+            genericMode={isBlockCard}
             onTailorApply={(sectionKey, content) => {
               const updated = { ...exp };
               updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -5784,9 +5909,11 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="bg-surface-50 rounded-xl p-4 mb-4">
             <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
-            <textarea value={extra.summary || ''} onChange={e => update('extracurricular', { ...extra, summary: e.target.value })}
+            <YooptaMiniEditor value={extra.summaryBlocks || extra.summary || ''} onChange={v => update('extracurricular', { ...extra, summaryBlocks: v, summary: richValueToPlainText(v) })}
               placeholder="비교과 활동 요약을 입력하세요..." rows={2}
-              className="w-full text-sm text-gray-700 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 resize-none placeholder:text-gray-300" />
+              onExternalImageDrop={removeEmbeddedCustomImage}
+              minHeight={70}
+              className="bg-transparent hover:bg-primary-50/10 rounded px-1" />
           </div>
           <h4 className="text-sm font-bold mb-2 text-gray-600">어학 성적 | Language Certification</h4>
           <table className="w-full text-sm border-collapse mb-3">
@@ -5840,6 +5967,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   onChange={v => { const details = [...(extra.details||[])]; details[i] = { ...details[i], descriptionBlocks: v, description: richValueToPlainText(v) }; update('extracurricular', { ...extra, details }); }}
                   placeholder="상세 설명"
                   minHeight={60}
+                  onExternalImageDrop={removeEmbeddedCustomImage}
                 />
               </div>
             ))}
@@ -5922,6 +6050,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   onChange={v => updateArrayItem('goals', i, { descriptionBlocks: v, description: richValueToPlainText(v) })}
                   placeholder="상세 계획을 작성하세요..."
                   minHeight={80}
+                  onExternalImageDrop={removeEmbeddedCustomImage}
                   className="mt-1"
                 />
               </div>
@@ -5949,6 +6078,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', richValueToPlainText(v)); }}
             placeholder="가치관, 자기소개 에세이를 작성하세요..."
             minHeight={180}
+            onExternalImageDrop={removeEmbeddedCustomImage}
             className="bg-transparent hover:bg-primary-50/10 rounded px-1"
           />
         </section>
@@ -5968,6 +6098,16 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <Trash2 size={14} />
               </button>
             </div>
+            <input
+              value={block.title ?? getDefaultCustomBlockTitle(block.type)}
+              onChange={e => {
+                const blocks = [...(p.customBlocks || [])];
+                blocks[i] = { ...blocks[i], title: e.target.value };
+                update('customBlocks', blocks);
+              }}
+              placeholder="소제목을 입력하세요"
+              className="w-full text-xl font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 pb-1 mb-4 border-b-2 border-primary-300"
+            />
             {block.type === 'heading' && (
               <input value={block.content || ''} onChange={e => {
                 const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: e.target.value };
@@ -5988,7 +6128,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               />
             )}
             {block.type === 'image' && (
-              <div className="mb-4">
+              <div
+                className="mb-4 cursor-grab active:cursor-grabbing"
+                draggable={Boolean(block.content)}
+                onDragStartCapture={event => {
+                  if (!block.content) return;
+                  event.dataTransfer.setData(CUSTOM_IMAGE_DRAG_TYPE, JSON.stringify({
+                    sourceIndex: i,
+                    src: block.content,
+                    alt: block.title || 'image',
+                  }));
+                  event.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragStart={event => event.stopPropagation()}
+              >
                 {block.content ? (
                   <RichContentEditor
                     value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
@@ -6034,9 +6187,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
               return (
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-xl font-bold text-gray-900 pb-1 border-b-2 border-primary-300 inline-block">프로젝트 / 경험</h2>
-                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.map((card, ci) => (
                       <div key={ci}
@@ -6138,7 +6288,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
                   { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분선' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, content: '', order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, title: getDefaultCustomBlockTitle(item.type), content: '', order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600">{item.icon}</span>
                     <div><p className="text-sm font-medium text-gray-800">{item.label}</p><p className="text-[12px] text-gray-400">{item.desc}</p></div>
@@ -6146,7 +6296,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 ))}
                 <div className="border-t border-surface-100 mt-1 pt-1">
                   <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
-                  <button onClick={() => { addToArray('customBlocks', { type: 'project', content: [], order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                  <button onClick={() => { addToArray('customBlocks', { type: 'project', title: getDefaultCustomBlockTitle('project'), content: [], order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600"><Briefcase size={14} /></span>
                     <div><p className="text-sm font-medium text-gray-800">프로젝트 / 경험</p><p className="text-[12px] text-gray-400">카드 갤러리, 경험 DB에서 불러오기</p></div>

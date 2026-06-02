@@ -671,10 +671,12 @@ export default function NotionPortfolioPreview() {
           {p.templateId !== 'ashley' && (
           <section id="section-비교과 활동" className="mb-10" style={{ order: getPreviewSectionOrder('extracurricular') }}>
             <h2 className="text-xl font-bold mb-4 pb-2 border-b-2 border-green-300 inline-block">비교과 활동 | Extracurricular Activities</h2>
-            {extra.summary && (
+            {(richValueHasContent(extra.summaryBlocks) || extra.summary) && (
               <div className="bg-surface-50 rounded-xl p-4 mb-4">
                 <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
-                <p className="text-sm text-gray-700 whitespace-pre-line">{extra.summary}</p>
+                {richValueHasContent(extra.summaryBlocks)
+                  ? <RichTextPreview value={extra.summaryBlocks} />
+                  : <p className="text-sm text-gray-700 whitespace-pre-line">{extra.summary}</p>}
               </div>
             )}
             {(extra.badges || []).length > 0 && (
@@ -986,6 +988,19 @@ function richValueToPlainText(value) {
 }
 
 function richValueHasContent(value) {
+  if (!value) return false;
+  if (Array.isArray(value)) {
+    return value.some(item => item?.type === 'image' || String(item?.content || '').trim());
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).some(block => {
+      if (block?.type === 'Image') {
+        const firstValue = Array.isArray(block.value) ? block.value[0] : null;
+        return !!(firstValue?.props?.src || block?.props?.src);
+      }
+      return collectRichText(block?.value || block).trim().length > 0;
+    });
+  }
   return richValueToPlainText(value).trim().length > 0;
 }
 
@@ -1410,12 +1425,14 @@ function AcademicLayout({ p, setSelectedExp }) {
         )}
 
         {/* Extracurricular */}
-        {(extra.details?.length > 0 || extra.badges?.length > 0 || extra.languages?.length > 0 || extra.summary) && (
+        {(extra.details?.length > 0 || extra.badges?.length > 0 || extra.languages?.length > 0 || richValueHasContent(extra.summaryBlocks) || extra.summary) && (
           <div className="px-10 py-8 border-b border-surface-100" id="acad-비교과" style={{ order: getPreviewSectionOrder('extracurricular') }}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-6 bg-pink-500 rounded-full inline-block" /> 비교과 활동
             </h2>
-            {extra.summary && <p className="text-sm text-gray-600 mb-4 leading-relaxed whitespace-pre-line">{extra.summary}</p>}
+            {richValueHasContent(extra.summaryBlocks)
+              ? <RichTextPreview value={extra.summaryBlocks} className="mb-4" />
+              : extra.summary && <p className="text-sm text-gray-600 mb-4 leading-relaxed whitespace-pre-line">{extra.summary}</p>}
             {(extra.badges || []).length > 0 && (
               <div className="mb-4">
                 <h4 className="text-xs font-medium text-gray-500 mb-2">디지털 배지</h4>
