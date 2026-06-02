@@ -43,7 +43,8 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
   const layoutMode = getPptLayoutMode(templateHint);
   const acceptedLayoutDeck = buildAcceptedLayoutDeckFromPortfolio(portfolio, layoutMode);
   if (acceptedLayoutDeck) {
-    const safeDeck = sanitizeDeckToPortfolioSource(acceptedLayoutDeck, portfolio);
+    const withImages = attachExperienceImages(acceptedLayoutDeck, portfolio);
+    const safeDeck = sanitizeDeckToPortfolioSource(withImages, portfolio);
     return optimizeDeckDensity(safeDeck);
   }
 
@@ -71,6 +72,30 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
   }
 }
 
+function attachExperienceImages(deck, portfolio) {
+  const projects = normalizeExperiences(portfolio).filter(project => project.imageUrl);
+  if (!projects.length || !Array.isArray(deck?.slides)) return deck;
+  let overviewAssigned = false;
+  return {
+    ...deck,
+    slides: deck.slides.map(slide => {
+      const haystack = `${slide.title || ''} ${slide.sectionLabel || ''}`.toLowerCase();
+      const matched = projects.find(project => haystack.includes(String(project.heading || '').toLowerCase()));
+      const items = (slide.items || []).map((item, index) => {
+        const itemText = `${item.heading || ''} ${item.body || ''}`.toLowerCase();
+        const itemProject = projects.find(project => itemText.includes(String(project.heading || '').toLowerCase()));
+        const imageUrl = itemProject?.imageUrl || (matched && index === 0 ? matched.imageUrl : '');
+        return imageUrl ? { ...item, imageUrl } : item;
+      });
+      if (!overviewAssigned && slide.proposalVariant === 'splitPhotoList' && projects[0]?.imageUrl) {
+        overviewAssigned = true;
+        if (items.length) items[0] = { ...items[0], imageUrl: items[0].imageUrl || projects[0].imageUrl };
+      }
+      return { ...slide, imageUrl: matched?.imageUrl || slide.imageUrl || '', items };
+    }),
+  };
+}
+
 /**
  * 결정론적 accepted-layout deck 을 AI 로 "문구만" 서사화한다.
  * 구조(id·layout·proposalVariant·dark·순서)와 사실 필드(metrics·role·period)는 원본 그대로 두고,
@@ -80,17 +105,16 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
 function cleanText(value, max = 800) {
   if (value == null) return '';
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (typeof value === 'string') return sanitizePortfolioText(value).replace(/\s+/g, ' ').trim().slice(0, max);
-  if (Array.isArray(value)) return value.map(v => cleanText(v, max)).filter(Boolean).join(' ').slice(0, max);
+  if (typeof value === 'string') return clipSentence(sanitizePortfolioText(value).replace(/\s+/g, ' ').trim(), max);
+  if (Array.isArray(value)) return clipSentence(value.map(v => cleanText(v, max)).filter(Boolean).join(' '), max);
   if (typeof value === 'object') {
-    return Object.entries(value)
+    return clipSentence(Object.entries(value)
       .filter(([key]) => !['id', 'userId', 'createdAt', 'updatedAt'].includes(key))
       .map(([, child]) => cleanText(child, max))
       .filter(Boolean)
       .join(' ')
       .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, max);
+      .trim(), max);
   }
   return '';
 }
@@ -475,8 +499,48 @@ const SHORT_TEXT_LIMIT = 50;
 const BODY_TEXT_LIMIT = 95;
 const DETAIL_TEXT_LIMIT = 70;
 
+function stripPptEllipsis(value) {
+  return String(value || '')
+    .replace(/(?:\u2026|\.{3,})+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasBalancedPptDelimiters(value) {
+  const text = String(value || '');
+  return (text.match(/\(/g) || []).length === (text.match(/\)/g) || []).length
+    && (text.match(/\[/g) || []).length === (text.match(/\]/g) || []).length
+    && (text.match(/"/g) || []).length % 2 === 0
+    && (text.match(/'/g) || []).length % 2 === 0;
+}
+
+function trimUnbalancedPptDelimiters(value) {
+  let text = String(value || '').trim();
+  while ((text.match(/\(/g) || []).length > (text.match(/\)/g) || []).length && text.includes('(')) {
+    text = text.slice(0, text.lastIndexOf('(')).trim();
+  }
+  while ((text.match(/\)/g) || []).length > (text.match(/\(/g) || []).length && text.includes(')')) {
+    text = text.slice(text.indexOf(')') + 1).trim();
+  }
+  return text;
+}
+
+const DANGLING_PPT_FACT_END_RE = /(?:\s|^)(?:및|또는|그리고|위한|위해|통한|통해|대한|대해|이용한|핵심|기반|전략적|[가-힣]+(?:하고|하며|하여|해서|하면서|하고자))$/u;
+
+function isCompletePptFact(value) {
+  const text = String(value || '').trim();
+  return Boolean(text) && hasBalancedPptDelimiters(text) && !DANGLING_PPT_FACT_END_RE.test(text);
+}
+
+function collapsePptParentheticals(value) {
+  return String(value || '')
+    .replace(/\([^)]*\)/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function compactSlideText(value, max = SHORT_TEXT_LIMIT) {
-  const text = sanitizePortfolioText(String(value || ''))
+  const text = stripPptEllipsis(stripPlaceholder(sanitizePortfolioText(String(value || ''))))
     .replace(/\s+/g, ' ')
     .trim();
   if (text.length <= max) return text;
@@ -484,7 +548,8 @@ function compactSlideText(value, max = SHORT_TEXT_LIMIT) {
     .split(/(?<=[.!?。！？])\s+|[。！？.!?]\s*/)
     .map(s => s.trim())
     .find(s => s && s.length <= max);
-  return sentence || `${text.slice(0, Math.max(0, max - 1)).trim()}…`;
+  if (sentence) return sentence;
+  return concisePptFact(text, max);
 }
 
 function slideTextLength(slide = {}) {
@@ -510,12 +575,25 @@ function slideTextLength(slide = {}) {
 }
 
 function optimizeSlideContent(slide = {}) {
+  const cleanMetric = (metric = {}) => ({
+    ...metric,
+    label: compactSlideText(metric.label, 28),
+    value: compactSlideText(metric.value, 24),
+    before: compactSlideText(metric.before, 18),
+    after: compactSlideText(metric.after, 18),
+  });
   const optimized = {
     ...slide,
     sectionLabel: compactSlideText(slide.sectionLabel || slide.layout || '', 20),
     title: compactSlideText(slide.title, 64),
     subtitle: compactSlideText(slide.subtitle, 82),
   };
+  if (Array.isArray(slide.metrics)) {
+    optimized.metrics = slide.metrics
+      .slice(0, 4)
+      .map(cleanMetric)
+      .filter(metric => metric.label || metric.value || metric.before || metric.after);
+  }
   if (Array.isArray(slide.bullets)) {
     optimized.bullets = slide.bullets
       .map(b => compactSlideText(b, SHORT_TEXT_LIMIT))
@@ -533,13 +611,7 @@ function optimizeSlideContent(slide = {}) {
         ? item.bullets.map(b => compactSlideText(b, DETAIL_TEXT_LIMIT)).filter(Boolean).slice(0, 3)
         : [],
       metrics: Array.isArray(item.metrics)
-        ? item.metrics.slice(0, 3).map(metric => ({
-          ...metric,
-          label: compactSlideText(metric.label, 28),
-          value: compactSlideText(metric.value, 24),
-          before: compactSlideText(metric.before, 18),
-          after: compactSlideText(metric.after, 18),
-        })).filter(metric => metric.label || metric.value || metric.before || metric.after)
+        ? item.metrics.slice(0, 3).map(cleanMetric).filter(metric => metric.label || metric.value || metric.before || metric.after)
         : [],
     }));
   }
@@ -598,7 +670,22 @@ function optimizeDeckDensity(deck) {
   // 합격형 reference deck(narrative/star/kpi/timeline/case-study)은 고정 레이아웃 + 자체 truncation 을 쓴다.
   // splitDenseSlide 가 keyword bullets>4·items>4 슬라이드를 쪼개면서 OVERVIEW/제목이 (1/3)(2/3)... 중복 생성되는 문제 방지.
   if (typeof deck.meta?.templateMode === 'string' && deck.meta.templateMode.startsWith('accepted-')) {
-    return deck;
+    const slides = deck.slides
+      .map(optimizeAcceptedReferenceSlide)
+      .map((slide, index) => ({ ...slide, id: `s${index + 1}` }));
+    return {
+      ...deck,
+      meta: {
+        ...(deck.meta || {}),
+        densityPolicy: {
+          mode: 'accepted-reference',
+          maxBodyChars: 56,
+          maxDetailChars: 52,
+          preserveAllExperiences: true,
+        },
+      },
+      slides,
+    };
   }
   const slides = deck.slides
     .flatMap(splitDenseSlide)
@@ -618,6 +705,60 @@ function optimizeDeckDensity(deck) {
   };
 }
 
+function optimizeAcceptedReferenceSlide(slide = {}) {
+  const compact = (value, max) => compactSlideText(value, max);
+  const bodyBudget = slide.layout === 'cs-execution'
+    ? 88
+    : slide.layout === 'cs-problem'
+      ? 90
+      : slide.layout === 'cs-retrospective'
+        ? 120
+        : 56;
+  const compactBlock = (value, max = 56) => String(value || '')
+    .split(/\r?\n/)
+    .map(line => compact(line.replace(/^[•\-]\s*/, ''), max))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+  const cleanMetric = (metric = {}) => ({
+    ...metric,
+    label: compact(metric.label, 28),
+    value: compact(metric.value, 24),
+    before: compact(metric.before, 18),
+    after: compact(metric.after, 18),
+  });
+  const cleanItem = (item = {}) => ({
+    ...item,
+    heading: compact(item.heading, 34),
+    period: compact(item.period, 22),
+    role: compact(item.role, 32),
+    body: compactBlock(item.body, bodyBudget),
+    bullets: (Array.isArray(item.bullets) ? item.bullets : [])
+      .map(bullet => compact(bullet, 52))
+      .filter(Boolean)
+      .slice(0, 3),
+    metrics: (Array.isArray(item.metrics) ? item.metrics : [])
+      .map(cleanMetric)
+      .filter(metric => metric.label || metric.value || metric.before || metric.after),
+  });
+  return {
+    ...slide,
+    sectionLabel: compact(slide.sectionLabel, 24),
+    title: compact(slide.title, 64),
+    subtitle: compact(slide.subtitle, 72),
+    bullets: (Array.isArray(slide.bullets) ? slide.bullets : [])
+      .map(bullet => compact(bullet, 52))
+      .filter(Boolean)
+      .slice(0, 4),
+    metrics: (Array.isArray(slide.metrics) ? slide.metrics : [])
+      .map(cleanMetric)
+      .filter(metric => metric.label || metric.value || metric.before || metric.after),
+    items: (Array.isArray(slide.items) ? slide.items : [])
+      .map(cleanItem)
+      .filter(item => item.heading || item.body || item.role || item.period),
+  };
+}
+
 function sanitizeDeckToPortfolioSource(deck, portfolio) {
   if (!deck || !Array.isArray(deck.slides)) return deck;
   const source = buildPortfolioSourceIndex(portfolio);
@@ -626,7 +767,7 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
       ? String(value || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').split('\n').map(line => line.trim()).filter(Boolean).join('\n')
       : String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
-    if (isPortfolioSourceBound(text, source)) return text.slice(0, max);
+    if (isPortfolioSourceBound(text, source)) return clipTextBlock(text, max, preserveLines);
     return '';
   };
   const cleanMetric = (metric = {}) => {
@@ -641,10 +782,11 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
     const rawHeading = String(item.heading || '').trim();
     // cap 140: narrative-results 의 KEY DELIVERABLES 는 완결 문장(firstSentence 최대 135자)을 heading 에 담는다.
     // 80자 컷은 "...잠재적 위"/"...정보 제공'을"처럼 문장을 중간에서 잘랐다. 프로젝트명·수상명 등은 상류에서 이미 짧게 캡됨.
-    const heading = cleanText(rawHeading, 140) || (rawHeading.length <= 12 ? rawHeading.slice(0, 140) : '');
+    const presentationLabel = /^(?:Core Competencies|Profile|CONTEXT|ROLE|PERIOD|STACK|Problem \d+|STEP \d+|Learning \d+|Goal \d+)$/i.test(rawHeading);
+    const heading = cleanText(rawHeading, 140) || (presentationLabel || rawHeading.length <= 12 ? clipSentence(rawHeading, 140) : '');
     const period = cleanText(item.period, 50);
     const role = cleanText(item.role, 60);
-    const body = cleanText(item.body, 220, true);
+    const body = cleanText(item.body, 320, true);
     const bullets = Array.isArray(item.bullets) ? item.bullets.map(b => cleanText(b, 160)).filter(Boolean) : [];
     const metrics = Array.isArray(item.metrics) ? item.metrics.map(cleanMetric).filter(Boolean) : [];
     return { ...item, heading, period, role, body, bullets, metrics };
@@ -659,7 +801,7 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
       metrics: Array.isArray(slide.metrics) ? slide.metrics.map(cleanMetric).filter(Boolean) : slide.metrics,
       table: Array.isArray(slide.table)
         ? slide.table.map((row, rowIndex) => Array.isArray(row)
-          ? row.map(cell => rowIndex === 0 ? String(cell || '').slice(0, 60) : cleanText(cell, 120))
+          ? row.map(cell => rowIndex === 0 ? clipSentence(String(cell || ''), 60) : cleanText(cell, 120))
           : row)
         : slide.table,
       notes: cleanText(slide.notes, 300),
@@ -738,7 +880,7 @@ export async function reviseAiPptSlide({ slide, instruction, portfolio }) {
   const prompt = buildAiPptRevisePrompt({ slide, instruction, portfolio });
   const text = await withTimeout(callGeminiPro(prompt), 60000);
   const parsed = parseJSON(text) || {};
-  return {
+  const revised = {
     id: slide.id,
     layout: parsed.layout || slide.layout,
     title: String(parsed.title || slide.title || '').slice(0, 80),
@@ -753,6 +895,7 @@ export async function reviseAiPptSlide({ slide, instruction, portfolio }) {
     })) : (slide.items || []),
     notes: parsed.notes ? String(parsed.notes).slice(0, 200) : (slide.notes || ''),
   };
+  return optimizeAcceptedReferenceSlide(revised);
 }
 
 function buildProposalDeckFromPortfolio(p) {
@@ -1122,7 +1265,7 @@ function buildAcceptedLayoutDeckFromPortfolio(p, layoutMode) {
 function buildDeckContext(p) {
   const userName = sanitizePortfolioText(p.userName || p.name || p.nameKo) || '지원자';
   const target = `${sanitizePortfolioText(p.targetCompany) || ''} ${sanitizePortfolioText(p.targetPosition) || ''}`.trim() || sanitizePortfolioText(p.headline) || sanitizePortfolioText(p.title) || '';
-  const experiences = normalizeExperiences(p).slice(0, 6);
+  const experiences = normalizeExperiences(p);
   const expItems = experiences.length ? experiences : [{
     heading: '대표 경험',
     role: target || '지원 직무',
@@ -1307,7 +1450,7 @@ function buildStarDeckFromPortfolio(p) {
         ? [
           ...educationItems.slice(0, 2),
           ...(valuesEssay
-            ? [{ heading: '가치관', body: valuesEssay.slice(0, 80) + (valuesEssay.length > 80 ? '...' : ''), role: 'Values', period: '', bullets: [] }]
+            ? [{ heading: '가치관', body: concisePptFact(valuesEssay, 80), role: 'Values', period: '', bullets: [] }]
             : values.slice(0, 1).map(v => ({ heading: v.keyword || '가치관', body: (v.description || '').slice(0, 80), role: 'Values', period: '', bullets: [] }))),
           { heading: '대표 경험', body: `${expItems.length}건의 주요 프로젝트`, role: 'Experience', period: target || '', bullets: [] },
         ].slice(0, 4)
@@ -1585,7 +1728,7 @@ function stripArtifacts(value) {
 
 function refText(value, fallback = '', max = 120) {
   const text = stripPlaceholder(value) || stripPlaceholder(fallback);
-  return text.length > max ? text.slice(0, max) : text;
+  return text.length > max ? clipSentence(text, max) : text;
 }
 
 // 긴 설명형 경험 제목에서 간결한 프로젝트명만 추출. 슬라이드 제목이 설명 전체로 길어지는 문제 방지.
@@ -1603,15 +1746,16 @@ function projectName(heading) {
   return clipSentence(h, 24);                                   // 영문명 없으면 깔끔히 컷
 }
 
-// 카드 슬롯용: "첫 완결 문장 1개"만 반환. 짧고 완결돼서 카드에 안 잘리고 들어간다.
-// 대부분의 결과/문제/행동 텍스트는 마침표로 끝나므로 첫 마침표까지 자른다.
+// 카드 슬롯용: "첫 완결 문장 1개"를 짧은 단답으로 반환한다.
+// 대부분의 결과/문제/행동 텍스트는 마침표로 끝나므로 첫 마침표까지 가져온 뒤
+// 종결형을 명사형으로 바꾼다. 긴 첫 문장을 그대로 hard-slice 하지 않는다.
 // (28.4% / Node.js 처럼 숫자·약어 안의 점은 뒤에 공백이 없어 매칭 안 됨)
 function firstSentence(value, hardMax = 120) {
   const t = stripArtifacts(String(value || '')).replace(/\s+/g, ' ').trim();
   if (!t) return '';
   const m = t.match(/^[\s\S]*?[.!?](?=\s|$)/);
-  if (m && m[0].trim().length >= 6 && m[0].trim().length <= hardMax) return m[0].trim();
-  return clipSentence(t, hardMax);   // 마침표 없으면 길이 기준으로 깔끔히 컷
+  const sentence = m && m[0].trim().length >= 6 ? m[0].trim() : t;
+  return concisePptFact(sentence, hardMax) || clipSentence(sentence, hardMax);
 }
 
 // 카드형 슬롯용 truncation.
@@ -1620,7 +1764,7 @@ function firstSentence(value, hardMax = 120) {
 // 종결을 못 찾으면 차라리 더 보여주거나(공백 경계) 통째로 둔다. "…" 는 붙이지 않는다.
 const SENTENCE_END_RE = /(?:[.!?]|(?:다|요|음|임|됨|까|죠|함)[.!?]?)(?=\s|$)/g;
 function clipSentence(value, max = 90) {
-  let t = String(value || '').replace(/\s+/g, ' ').trim();
+  let t = stripPptEllipsis(value).replace(/\s+/g, ' ').trim();
   if (!t) return '';
   // 1) max 초과분을 "문장 종결"에서 컷 (쉼표·연결어미 컷 회피)
   if (t.length > max) {
@@ -1634,7 +1778,7 @@ function clipSentence(value, max = 90) {
     if (cut) return cut;
     const head = t.slice(0, max);                      // 종결 없으면 공백 경계(연결어미 컷 회피)
     const sp = head.lastIndexOf(' ');
-    t = (sp >= max * 0.5 ? head.slice(0, sp) : head).trim();
+    t = stripDanglingPhrase(sp >= max * 0.5 ? head.slice(0, sp) : head, true);
   }
   // 2) 입력이 이미 문장 중간에서 잘려온 경우(종결어미로 안 끝남) → 마지막 완전 문장까지로 정리.
   //    upstream(compact 등)에서 hard-slice 된 텍스트의 미완성 꼬리를 여기서 제거한다.
@@ -1648,7 +1792,27 @@ function clipSentence(value, max = 90) {
       if (end >= t.length * 0.4) return t.slice(0, end).trim();  // 마지막 완전 문장까지
     }
   }
-  return t;
+  return stripDanglingPhrase(t) || t;
+}
+
+function clipTextBlock(value, max = 220, preserveLines = false) {
+  const text = preserveLines
+    ? String(value || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').split('\n').map(line => line.trim()).filter(Boolean).join('\n')
+    : String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text || text.length <= max) return text;
+  if (!preserveLines) return clipSentence(text, max);
+
+  const lines = [];
+  let used = 0;
+  for (const line of text.split('\n')) {
+    const remaining = max - used - (lines.length ? 1 : 0);
+    if (remaining <= 0) break;
+    const clipped = line.length > remaining ? clipSentence(line, remaining) : line;
+    if (!clipped) continue;
+    lines.push(clipped);
+    used += clipped.length + (lines.length > 1 ? 1 : 0);
+  }
+  return lines.join('\n');
 }
 
 // 경험 항목 배열(problem/action/result 등)을 하나의 본문으로 합친다.
@@ -1669,28 +1833,72 @@ function joinExperienceParts(arr, fallback = '') {
   return parts.join(' ').replace(/\s+/g, ' ').trim() || stripPlaceholder(fallback);
 }
 
+const DANGLING_TOKEN_END_RE = /(?:하기\s+위(?:한|해)|하여|하며|하고자|하고|해서|하면서|위한|위해|통한|통해|대한|대해|및|또는|그리고|부터|까지|에서|으로|에게|보다|처럼|만큼|초기|기존|해당|주요|핵심|별도|추가|최종|[이가은는을를과와의에])$/u;
+
+function stripDanglingPhrase(value, aggressive = false) {
+  let text = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/([가-힣]+)하기\s+위(?:한|해)$/u, '$1')
+    .replace(/([가-힣]+)(?:하여|하며|하고자|하고|해서|하면서)$/u, '$1')
+    .replace(/\s+(?:위한|위해|통한|통해|대한|대해|및|또는|그리고)$/u, '')
+    .replace(/\s+(?:을|를|이|가|은|는|과|와|의|에|로|으로)$/u, '')
+    .replace(/[\s·,:;/-]+$/u, '')
+    .trim();
+  if (!aggressive) return text;
+
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const singleQuotes = (text.match(/'/g) || []).length;
+    const doubleQuotes = (text.match(/"/g) || []).length;
+    const openParens = (text.match(/\(/g) || []).length;
+    const closeParens = (text.match(/\)/g) || []).length;
+    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && openParens <= closeParens) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const tail = text.split(' ').pop();
+    if (!DANGLING_TOKEN_END_RE.test(tail)) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+  for (let i = 0; i < 4 && text.includes(' '); i += 1) {
+    const singleQuotes = (text.match(/'/g) || []).length;
+    const doubleQuotes = (text.match(/"/g) || []).length;
+    const openParens = (text.match(/\(/g) || []).length;
+    const closeParens = (text.match(/\)/g) || []).length;
+    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && openParens <= closeParens) break;
+    text = text.slice(0, text.lastIndexOf(' ')).replace(/[\s·,:;/-]+$/u, '').trim();
+  }
+  return text;
+}
+
 function stripPoliteEnding(value) {
-  return String(value || '')
+  const raw = String(value || '').trim();
+  const suffixMatch = raw.match(/\s*(\([^)]*\))\s*[.!?]*$/u);
+  const suffix = suffixMatch?.[1] || '';
+  const text = (suffixMatch ? raw.slice(0, suffixMatch.index) : raw)
     .replace(/(\d+(?:[.,]\d+)?%?)로\s*만들었습니다[.!?]?$/u, '$1 달성')
-    .replace(/했으나[.!?]?$/u, '함')
-    .replace(/(?:하였습니다|했습니다|합니다)[.!?]?$/u, '함')
-    .replace(/(?:되었습니다|됐습니다|됩니다)[.!?]?$/u, '됨')
-    .replace(/(?:있었습니다|있습니다)[.!?]?$/u, '있음')
-    .replace(/(?:없었습니다|없습니다)[.!?]?$/u, '없음')
-    .replace(/(?:이었습니다|였습니다|입니다)[.!?]?$/u, '')
+    .replace(/([가-힣]+)시켰습니다[.!?]?$/u, '$1시킴')
+    .replace(/(?:하였으며|했으며|하였으나|했으나|하였습니다|했습니다|합니다)[.!?]?$/u, '함')
+    .replace(/(?:되었으며|됐으며|되었습니다|됐습니다|됩니다)[.!?]?$/u, '됨')
+    .replace(/(?:있었으며|있었습니다|있습니다)[.!?]?$/u, '있음')
+    .replace(/(?:없었으며|없었습니다|없습니다)[.!?]?$/u, '없음')
+    .replace(/(?:이었으며|였으며|이었습니다|였습니다|입니다|이었기에|였기에)[.!?]?$/u, '')
+    .replace(/해야[.!?]?$/u, ' 필요')
     .replace(/[.!?]+$/u, '')
     .replace(/\s+(?:을|를|이|가|은|는|과|와|의|에|로|으로)$/u, '')
     .trim();
+  return [stripDanglingPhrase(text), suffix].filter(Boolean).join(' ');
 }
 
 // KPI 카드에는 산문 대신 한눈에 읽히는 짧은 사실만 배치한다.
-// 글자 수를 넘으면 문자열을 강제로 자르지 않고, 쉼표·문장 경계의 완결된 구절을 선택한다.
-function concisePptFact(value, max = 64) {
-  const source = stripPlaceholder(value).replace(/\s+/g, ' ').trim();
+// 글자 수를 넘겨도 문자열을 강제로 자르지 않는다. 쉼표는 문장 경계가 아니므로 유지하고,
+// 카드 구성 단계에서 마침표 기준의 독립 문장 수를 제한해 밀도를 낮춘다.
+function concisePptFact(value, max = 64, { preserveComplete = false } = {}) {
+  const source = stripPptEllipsis(stripArtifacts(stripPlaceholder(value))).replace(/\s+/g, ' ').trim();
   if (!source) return '';
   const fragments = source
-    .split(/(?<=[.!?])\s+|\s*[;；]\s*|\s*,\s*/u)
-    .map(stripPoliteEnding)
+    .split(/(?<=[.!?])\s+|\s*[;；]\s*/u)
+    .map(fragment => stripDanglingPhrase(stripPoliteEnding(fragment)))
     .filter(Boolean);
   if (!fragments.length) return '';
 
@@ -1700,8 +1908,38 @@ function concisePptFact(value, max = 64) {
     const joined = `${picked} · ${numeric}`;
     picked = joined.length <= max ? joined : numeric;
   }
-  if (picked.length <= max) return picked;
+  // 완결 문장은 가급적 유지하되, 비정상적으로 긴 단일 문장까지 무제한 보존하지 않는다.
+  // 상한을 넘으면 아래의 어절 경계 + dangling-tail 정리로 독립된 짧은 사실로 바꾼다.
+  if (picked.length <= max || (preserveComplete && picked.length <= Math.floor(max * 1.25))) return picked;
 
+  const closeFact = fragment => stripDanglingPhrase(stripPoliteEnding(trimUnbalancedPptDelimiters(fragment)), true);
+  const clauses = picked
+    .split(/\s*[,，]\s*/u)
+    .filter(hasBalancedPptDelimiters)
+    .map(closeFact)
+    .filter(fragment => fragment.length >= Math.min(12, Math.floor(max * 0.25)));
+  const combined = [];
+  for (let start = 0; start < clauses.length; start += 1) {
+    let phrase = '';
+    for (let end = start; end < clauses.length; end += 1) {
+      phrase = phrase ? `${phrase}, ${clauses[end]}` : clauses[end];
+      if (phrase.length <= max) combined.push(phrase);
+      else break;
+    }
+  }
+  const candidates = [...clauses.filter(fragment => fragment.length <= max), ...combined]
+    .filter(isCompletePptFact);
+  if (candidates.length > 0) {
+    const score = fragment =>
+      (/\d/u.test(fragment) ? 16 : 0)
+      + (/(?:함|됨|달성|확보|구축|개선|설계|결정|검증|완료)$/u.test(fragment) ? 20 : 0)
+      + fragment.length / Math.max(1, max);
+    return candidates.sort((left, right) => score(right) - score(left))[0];
+  }
+  const simplified = closeFact(collapsePptParentheticals(picked));
+  if (simplified.length <= Math.floor(max * 1.35) && isCompletePptFact(simplified)) return simplified;
+  const shortest = [...clauses].filter(isCompletePptFact).sort((left, right) => left.length - right.length)[0];
+  if (shortest && shortest.length <= Math.floor(max * 1.35)) return shortest;
   const head = picked.slice(0, max + 1);
   const boundary = Math.max(
     head.lastIndexOf(' · '),
@@ -1709,18 +1947,37 @@ function concisePptFact(value, max = 64) {
     head.lastIndexOf('/'),
     head.lastIndexOf('→'),
   );
-  return stripPoliteEnding(boundary >= Math.floor(max * 0.55) ? head.slice(0, boundary) : fragments[0]);
+  return closeFact(boundary >= Math.floor(max * 0.35) ? head.slice(0, boundary) : head.slice(0, max));
 }
 
 function concisePptBullets(values, fallback = '', { limit = 3, max = 64 } = {}) {
-  const source = (Array.isArray(values) ? values : [values]).map(stripPlaceholder).filter(Boolean);
+  const source = (Array.isArray(values) ? values : [values])
+    .map(stripPlaceholder)
+    .filter(Boolean)
+    .flatMap(value => String(value).split(/(?<=[.!?])\s+/u).map(part => part.trim()).filter(Boolean));
   if (!source.length && fallback) source.push(stripPlaceholder(fallback));
   return source
-    .map(value => concisePptFact(value, max))
+    .map(value => concisePptFact(value, max, { preserveComplete: true }))
     .filter(Boolean)
     .slice(0, limit)
     .map(value => `• ${value}`)
     .join('\n');
+}
+
+function conciseRoleFact(value, max = 42) {
+  const parts = stripPlaceholder(value)
+    .split(/\s*[·,;/]\s*|\s+(?:및|and)\s+/iu)
+    .map(part => concisePptFact(part, max))
+    .filter(Boolean);
+  if (!parts.length) return '';
+
+  const selected = [];
+  for (const part of parts) {
+    const candidate = [...selected, part].join(' · ');
+    if (candidate.length > max) break;
+    selected.push(part);
+  }
+  return selected.join(' · ') || parts[0];
 }
 
 function skillLabel(value) {
@@ -1786,11 +2043,12 @@ function portfolioContactBullets(ctx) {
 }
 
 function projectBeforeAfterItems(exp) {
-  // 카드 본문은 완결된 첫 문장으로 (명사형 절 concisePpt* 대신) — 중간에 끊기지 않게.
+  // 비교 카드는 장문 서술 대신 짧은 사실형 bullet을 사용한다.
+  // 박스가 넓어도 원문을 hard-slice 하면 문장 중간 절단이 다시 노출된다.
   return [
-    refItem('Before', clipSentence(firstSentence(exp.problem?.[0] || exp.body || exp.bullets?.[0]), 110) || '초기 문제와 배경', 'BEFORE'),
-    refItem('After', clipSentence(firstSentence(exp.action?.[0] || exp.result?.[0] || exp.bullets?.[2]), 110) || '적용한 해결 방식', 'AFTER'),
-    refItem('Impact', clipSentence(firstSentence(exp.result?.[1] || exp.result?.[0] || exp.metrics?.[0]?.label), 110) || '성과와 기여'),
+    refItem('Before', concisePptBullets(exp.problem, exp.body || exp.bullets?.[0], { limit: 2, max: 68 }) || '• 초기 문제와 배경', 'BEFORE'),
+    refItem('After', concisePptBullets(exp.action, exp.result?.[0] || exp.bullets?.[2], { limit: 2, max: 68 }) || '• 적용한 해결 방식', 'AFTER'),
+    refItem('Impact', concisePptBullets(exp.result, exp.metrics?.[0]?.label, { limit: 2, max: 68 }) || '• 성과와 기여'),
   ];
 }
 
@@ -1843,12 +2101,12 @@ function buildKpiDashboardReferenceDeck(ctx) {
   projects.forEach((exp, i) => {
     const label = `Project ${String(i + 1).padStart(2, '0')}`;
     const pname = projectName(exp.heading) || `프로젝트 ${i + 1}`;
-    // 본문은 명사형 절(concisePpt*)이 아니라 "완결된 서술형 문장"으로 — joinExperienceParts 가 항목별
-    // 종결어미에 마침표를 보강해 합치고, clipSentence 가 문장 종결에서만 잘라 중간에 끊기지 않게 한다.
-    const problemFull = clipSentence(joinExperienceParts(exp.problem, exp.body), 220);
-    const actionFull = clipSentence(joinExperienceParts(exp.action?.length ? exp.action : exp.bullets), 185);
-    const resultFull = clipSentence(joinExperienceParts(exp.result), 185);
-    const roleShort = clipSentence(stripPlaceholder(exp.role), 34);
+    // 상세 카드도 짧은 사실형 bullet로 제한한다. 넓은 CORE MISSION 박스라도 장문을 220자에서
+    // 자르면 XML 자체에 미완성 문장이 저장되므로, 문장 수를 줄이는 방식으로 밀도를 낮춘다.
+    const problemFull = concisePptBullets(exp.problem, exp.body, { limit: 2, max: 96 });
+    const actionFull = concisePptBullets(exp.action?.length ? exp.action : exp.bullets, '', { limit: 2, max: 96 });
+    const resultFull = concisePptBullets(exp.result, '', { limit: 2, max: 96 });
+    const roleShort = conciseRoleFact(exp.role, 42);
     const periodClean = stripPlaceholder(exp.period);
     const overviewItems = [
       problemFull && refItem('Problem', problemFull),
@@ -1862,7 +2120,8 @@ function buildKpiDashboardReferenceDeck(ctx) {
       sectionLabel: label,
       title: pname,
       subtitle: roleShort || periodClean || '',
-      items: overviewItems.length ? overviewItems : [refItem('Overview', clipSentence(joinExperienceParts(exp.body ? [exp.body] : []), 220) || pname)],
+      imageUrl: exp.imageUrl || '',
+      items: overviewItems.length ? overviewItems : [refItem('Overview', concisePptBullets([], exp.body, { limit: 2, max: 72 }) || pname)],
     });
     const ms = realMetrics(exp);
     if (ms.length) {
@@ -1977,6 +2236,7 @@ function buildTimelineReferenceDeck(ctx) {
       proposalVariant: 'project',
       title: pname,
       subtitle: fs(exp.role) || stripPlaceholder(exp.period) || '',
+      imageUrl: exp.imageUrl || '',
       items: [
         exp.body && refItem('Overview', fs(exp.body)),
         exp.role && refItem('Role', fs(exp.role)),
@@ -2052,6 +2312,7 @@ function buildStarReferenceDeck(ctx) {
         title: `Situation · ${label}`,
         subtitle: fs(exp.role) || exp.period || '담당 역할과 배경',
         body: fs(exp.problem?.[0]) || pBody(exp, '해결해야 했던 상황과 배경 맥락'),
+        imageUrl: exp.imageUrl || '',
         metrics: metrics.slice(0, 2),
       },
       {
@@ -2082,7 +2343,7 @@ function buildStarReferenceDeck(ctx) {
         starPhase: 'R',
         title: `Result · ${label}`,
         metrics: metrics.slice(0, 3),
-        body: fs(exp.result?.[0] || (exp.bullets || []).slice(-1)[0]) || '경험에서 얻은 핵심 인사이트와 성장',
+        body: fs(exp.result?.[0] || exp.learning?.[0] || (exp.bullets || []).slice(-1)[0]) || '경험에서 얻은 핵심 인사이트와 성장',
       },
       {
         layout: 'star-qa',
@@ -2092,12 +2353,14 @@ function buildStarReferenceDeck(ctx) {
         items: [
           refItem(
             '이 경험에서 가장 어려웠던 점은 무엇인가요?',
-            exp.problem?.[0] || '불명확한 요구사항 속에서 문제를 정의하고 우선순위를 설정하는 과정이 가장 도전적이었습니다.',
+            concisePptBullets(exp.problem, '불명확한 요구사항 속에서 문제를 정의하고 우선순위를 설정하는 과정이 가장 도전적이었습니다.', { limit: 2, max: 96 }),
             'Q1'
           ),
           refItem(
             '결과를 어떻게 측정하고 검증했나요?',
-            metrics[0] ? `${metrics[0].label}: ${metrics[0].value}${metrics[0].body ? ' (' + metrics[0].body + ')' : ''}` : exp.result?.[0] || '정량적 지표와 팀 피드백을 통해 성과를 검증했습니다.',
+            metrics[0]
+              ? concisePptFact(`${metrics[0].label}: ${metrics[0].value}${metrics[0].body ? ' (' + metrics[0].body + ')' : ''}`, 120)
+              : exp.result?.[0] || '정량적 지표와 팀 피드백을 통해 성과를 검증했습니다.',
             'Q2'
           ),
         ],
@@ -2133,14 +2396,14 @@ function buildStarReferenceDeck(ctx) {
       layout: 'star-timeline',
       sectionLabel: 'EXPERIENCE TIMELINE',
       title: '경험 타임라인',
-      items: ctx.expItems.slice(0, 5).map((e, i) => ({
+      items: ctx.expItems.map((e, i) => ({
         heading: projectName(e.heading) || `경험 ${i + 1}`,
         body: fs(e.role || e.bullets?.[0] || e.body) || '주요 역할과 성과',
         period: e.period || `Phase ${i + 1}`,
         role: 'SITUATION',
       })),
     },
-    ...ctx.expItems.slice(0, 5).flatMap((e, i) => makeProjectSlides(e, i + 1)),
+    ...ctx.expItems.flatMap((e, i) => makeProjectSlides(e, i + 1)),
     {
       layout: 'star-awards',
       sectionLabel: 'HONORS & RECOGNITION',
@@ -2166,7 +2429,7 @@ function buildStarReferenceDeck(ctx) {
       dark: true,
       sectionLabel: 'THANK YOU',
       title: '감사합니다',
-      subtitle: target ? `${target}에서 함께 성장하고 싶습니다` : '포트폴리오를 검토해 주셔서 감사합니다',
+      subtitle: target ? `${target} · 함께 성장할 준비` : '포트폴리오 검토에 감사드립니다',
       bullets: portfolioContactBullets(ctx),
     },
   ];
@@ -2183,7 +2446,7 @@ function buildNarrativeReferenceDeck(ctx) {
   const goals = portfolioGoalItems(ctx);
   const values = portfolioValueItems(ctx);
   const skillGroups = portfolioSkillGroups(ctx);
-  const projects = ctx.expItems.slice(0, 5); // 실제 경험 수만큼만
+  const projects = ctx.expItems; // 실제 경험 수만큼 모두 유지
   const slides = [];
 
   // 표지용 깔끔한 지원 라인 — 회사/직무 원문에서 분석 메모( - , ※, (...) )를 떼고 "회사 · 직무"로.
@@ -2263,6 +2526,7 @@ function buildNarrativeReferenceDeck(ctx) {
       sectionLabel: label,
       title: pname,
       subtitle: role,
+      imageUrl: proj.imageUrl || '',
       items: overviewItems.length ? overviewItems : [refItem('Overview', overviewBody || pname)],
       bullets: (proj.keywords || []).map(stripPlaceholder).filter(Boolean).slice(0, 8),
     });
@@ -2370,7 +2634,7 @@ function buildCaseStudyReferenceDeck(ctx) {
   const goals = portfolioGoalItems(ctx);
   const cleanLine = (s) => stripPlaceholder(s).split(/\s*(?:[-–—]\s|[(※[])/)[0].trim();
   const cleanTarget = [cleanLine(ctx.portfolio?.targetCompany), cleanLine(ctx.portfolio?.targetPosition)].filter(Boolean).join(' · ') || cleanLine(ctx.portfolio?.headline) || cleanLine(target);
-  const projects = ctx.expItems.slice(0, 5);
+  const projects = ctx.expItems;
   const fs = (v, fb = '') => firstSentence(v || '') || fb;
   const pName = (exp, fb) => projectName(exp.heading) || fb;
 
@@ -2422,6 +2686,7 @@ function buildCaseStudyReferenceDeck(ctx) {
       layout: 'cs-project',
       sectionLabel: num,
       title: pname,
+      imageUrl: exp.imageUrl || '',
       items: [
         exp.body && refItem('CONTEXT', fs(exp.body)),
         exp.role && refItem('ROLE', fs(exp.role)),
@@ -2510,7 +2775,7 @@ function buildProposalReferenceDeck(ctx) {
   const awards = portfolioAwardItems(ctx);
   const goals = portfolioGoalItems(ctx);
   const skillGroups = portfolioSkillGroups(ctx);
-  const projects = ctx.expItems.slice(0, 5);
+  const projects = ctx.expItems;
   const fs = (v, fb = '') => firstSentence(v || '') || fb;
 
   const allMetrics = ctx.expItems.flatMap(e => e.metrics || []).filter(m => m.label || m.value);
@@ -2635,6 +2900,7 @@ function buildProposalReferenceDeck(ctx) {
           heading: projectName(e.heading) || e.heading,
           role: e.role || e.period,
           body: fs(e.body || e.bullets?.[0]) || '',
+          imageUrl: e.imageUrl || '',
         }))
       : [
           { heading: '상황과 문제', body: '어떤 맥락에서 어떤 문제를 마주했는지 설명합니다' },
@@ -3048,7 +3314,10 @@ function normalizeExperiences(p) {
       ? exportConfig.sections
       : (Array.isArray(e.sections) ? e.sections : []);
     const keyExperiences = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : (Array.isArray(e.keyExperiences) ? e.keyExperiences : []);
-    const compact = (value, max = 95) => stripArtifacts(sanitizePortfolioText(String(value || ''))).replace(/\s+/g, ' ').trim().slice(0, max);
+    const compact = (value, max = 95) => clipSentence(
+      stripArtifacts(sanitizePortfolioText(String(value || ''))).replace(/\s+/g, ' ').trim(),
+      max
+    );
     const bullets = [
       ...(Array.isArray(e.bullets) ? e.bullets : []),
       ...sections.map(s => s.content || s.title).filter(Boolean),
@@ -3065,11 +3334,12 @@ function normalizeExperiences(p) {
     return {
       heading: compact(e.company || e.title || ov.projectName || `경험 ${idx + 1}`, 54),
       period: compact(ov.duration || e.period, 36),
-      role: concisePptFact(ov.role || e.role || sr.jobCategory, 48),
+      role: conciseRoleFact(ov.role || e.role || sr.jobCategory, 48),
       body: concisePptFact(e.description || sr.intro || sr.overview || ov.summary || e.detail || bullets[0], 90),
       bullets,
       metrics,
       keywords,
+      imageUrl: e.thumbnailUrl || e.coverImageUrl || e.imageUrl || e.image || ov.thumbnailUrl || ov.imageUrl || '',
       // 추출 스키마의 실제 필드는 context (situation 은 구버전 호환). problem 이 비던 핵심 버그.
       // 캡 300 — 원문을 충분히 보존해 표시단계 clipSentence 가 "문장 종결"에서 깔끔히 자르게 한다.
       // (캡을 작게 두면 hard-slice 된 미완성 텍스트가 그대로 노출되어 글자가 중간에 끊긴다.)
@@ -3140,7 +3410,10 @@ function buildDeckFromPortfolio(p) {
     const keyExps = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
     const metrics = keyExps.slice(0, 3).map(k => ({ label: k.metricLabel || k.title || '', value: k.metric || '', before: k.beforeMetric || '', after: k.afterMetric || '' })).filter(m => m.label || m.value);
     if (!itemBullets.length && keyExps.length) itemBullets = keyExps.slice(0, 4).map(k => k.result || k.action || k.title).filter(Boolean);
-    const compact = (s, max = 80) => stripArtifacts(sanitizePortfolioText(String(s || ''))).replace(/\s+/g, ' ').trim().slice(0, max);
+    const compact = (s, max = 80) => clipSentence(
+      stripArtifacts(sanitizePortfolioText(String(s || ''))).replace(/\s+/g, ' ').trim(),
+      max
+    );
     const problem = keyExps.map(k => compact(k.context || k.situation || k.problem)).filter(Boolean).slice(0, 3);
     const action = keyExps.map(k => compact(k.action)).filter(Boolean).slice(0, 3);
     const result = keyExps.map(k => compact(k.result)).filter(Boolean).slice(0, 3);
