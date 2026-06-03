@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FileText, Briefcase, Mail, Folder, ChevronLeft, ChevronRight,
@@ -11,6 +11,9 @@ import {
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+// 무거운 노션 블록 에디터는 편집 모드에서만 필요 → 공개 보기 번들에서 분리(lazy)
+const YooptaMiniEditor = lazy(() => import('../../components/YooptaMiniEditor'));
+import RichTextRenderer, { richValueHasContent, richValueToPlainText } from '../../components/RichTextRenderer';
 
 const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
 
@@ -603,6 +606,44 @@ export function EditTextarea({ value, onChange, placeholder = '클릭하여 편�
   );
 }
 
+// ── 노션식 리치 본문 (편집=YooptaMiniEditor / 뷰=RichTextRenderer) ──
+// field='about' → blocks는 'aboutBlocks'에 저장, plain 텍스트는 'about'에 동시 저장.
+// 투두/표/제목/이미지/콜아웃/코드/구분선 등 모든 블록을 지원한다.
+function RichBody({
+  ec, portfolio, field = 'about',
+  plainValue, placeholder = '내용을 입력하세요...',
+  viewClassName = '', editClassName = '', dark = false,
+}) {
+  const blocksField = `${field}Blocks`;
+
+  if (ec) {
+    const src = ec.portfolio || portfolio || {};
+    const blocks = src[blocksField];
+    const initial = (blocks && typeof blocks === 'object' && Object.keys(blocks).length > 0)
+      ? blocks
+      : (src[field] || '');
+    const handleChange = (v) => {
+      const plain = richValueToPlainText(v);
+      if (ec.updateMany) ec.updateMany({ [blocksField]: v, [field]: plain });
+      else { ec.update(blocksField, v); ec.update(field, plain); }
+    };
+    return (
+      <div className={dark ? 'rounded-lg bg-white/95 px-3 py-2 text-gray-800' : ''}>
+        <Suspense fallback={<div className="text-sm text-gray-400 py-2">에디터 불러오는 중…</div>}>
+          <YooptaMiniEditor value={initial} onChange={handleChange} placeholder={placeholder} className={editClassName} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  const src = portfolio || {};
+  const blocks = src[blocksField];
+  if (richValueHasContent(blocks)) return <RichTextRenderer value={blocks} className={viewClassName} dark={dark} />;
+  const plain = plainValue != null ? plainValue : src[field];
+  if (plain) return <p className={`${viewClassName} whitespace-pre-wrap`}>{plain}</p>;
+  return null;
+}
+
 // ── 편집 가능 섹션 제목 헬퍼 (ec 있으면 인라인 편집, 없으면 정적 텍스트) ──
 function EH({ ec, value, sectionKey, className = '' }) {
   if (!ec) return <>{value}</>;
@@ -615,6 +656,111 @@ function EH({ ec, value, sectionKey, className = '' }) {
       placeholder={value}
       className={className}
     />
+  );
+}
+
+// ── 섹션 아이콘: 편집 모드에서 클릭하면 이모지/아이콘 선택, 뷰 모드에서는 저장값 또는 기본 아이콘 ──
+const SECTION_ICON_LUCIDE = {
+  Folder, Briefcase, Target, Code, Mail, FileText, Award, Star,
+  GraduationCap, Globe, Sparkles, Lightbulb, Database, LayoutGrid,
+  List, Palette, UserCircle2, Phone, MapPin, CheckCircle2,
+};
+
+const SECTION_ICON_EMOJIS = [
+  '📁','💼','🎯','💻','📧','📄','🏆','⭐','🎓','🌐',
+  '✨','💡','🗂️','📊','📝','🎨','👤','📌','🔧','🚀',
+  '📚','🧩','🔬','💬','❤️','🏅','📈','🛠️','🧠','📷',
+];
+
+function sectionIconEmojiSize(className) {
+  const m = /\bw-(\d+(?:\.\d+)?)/.exec(className || '');
+  const w = m ? parseFloat(m[1]) : 5;
+  return `${(w * 0.25 * 0.85).toFixed(3)}rem`;
+}
+
+function renderSectionIconNode(stored, Fallback, className) {
+  if (stored && SECTION_ICON_LUCIDE[stored]) {
+    const Icon = SECTION_ICON_LUCIDE[stored];
+    return <Icon className={className} />;
+  }
+  if (stored) {
+    return (
+      <span className={`inline-flex items-center justify-center leading-none ${className}`} style={{ fontSize: sectionIconEmojiSize(className) }}>
+        {stored}
+      </span>
+    );
+  }
+  return Fallback ? <Fallback className={className} /> : null;
+}
+
+function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, className = '' }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const icons = (ec?.portfolio || portfolio)?.customSectionIcons || {};
+  const stored = icons[sectionKey];
+  const node = renderSectionIconNode(stored, Fallback, className);
+
+  if (!ec) return node;
+
+  const openPicker = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: r.left, top: r.bottom + 6 });
+    setOpen(true);
+  };
+  const setIcon = (val) => {
+    ec.update('customSectionIcons', { ...(ec.portfolio?.customSectionIcons || {}), [sectionKey]: val });
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openPicker}
+        title="아이콘 변경"
+        className="inline-flex items-center justify-center rounded ring-1 ring-transparent hover:ring-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer"
+      >
+        {node}
+      </button>
+      {open && createPortal(
+        <>
+          <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[999] w-[272px] rounded-xl border border-gray-200 bg-white shadow-2xl p-3"
+            style={{ left: pos?.left, top: pos?.top }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-[11px] font-bold text-gray-400 mb-1.5">이모지</p>
+            <div className="grid grid-cols-10 gap-0.5 mb-2.5 max-h-[120px] overflow-y-auto">
+              {SECTION_ICON_EMOJIS.map(em => (
+                <button key={em} type="button" onClick={() => setIcon(em)}
+                  className={`h-6 w-6 flex items-center justify-center rounded hover:bg-gray-100 text-[15px] ${stored === em ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}>
+                  {em}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] font-bold text-gray-400 mb-1.5">아이콘</p>
+            <div className="grid grid-cols-10 gap-0.5">
+              {Object.entries(SECTION_ICON_LUCIDE).map(([name, Icon]) => (
+                <button key={name} type="button" onClick={() => setIcon(name)}
+                  className={`h-6 w-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 ${stored === name ? 'bg-blue-100 ring-1 ring-blue-400 text-blue-600' : ''}`}>
+                  <Icon className="w-3.5 h-3.5" />
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setIcon('')}
+              className="mt-2 w-full text-[11px] text-gray-400 hover:text-gray-600 py-1 border-t border-gray-100 pt-2">
+              기본 아이콘으로 되돌리기
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -1316,10 +1462,10 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
         </div>
 
         <h1 className="text-4xl font-bold mb-4">{ec ? <EditText value={portfolio.portfolioTitle || ('Portfolio of ' + (portfolio.userName || ''))} onChange={v => ec.update('portfolioTitle', v)} placeholder="Portfolio of 이름" className="text-4xl font-bold" /> : (portfolio.portfolioTitle || 'Portfolio of ' + data.name)}</h1>
-        {ec
-          ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-[#787774] text-lg mb-8" />
-          : <p className="text-[#787774] text-lg mb-8 whitespace-pre-wrap">{data.about}</p>
-        }
+        <div className="mb-8">
+          <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
+            viewClassName="text-[#787774] text-lg" placeholder="소개를 입력하세요. ‘/’ 또는 + 버튼으로 제목·목록·체크리스트·표·이미지를 추가할 수 있어요." />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-12">
           {[['이력서 (Resume)', FileText, 't1-education'], ['경력 기술서 (Experience)', Briefcase, 't1-experiences'], ['프로젝트 모음 (Projects)', Folder, 't1-projects'], ['연락처 (Contact)', Mail, 't1-contact']].map(([label, Icon, sectionId]) => (
             <div key={label} onClick={() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors group">
@@ -1335,7 +1481,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12 group/section">
               <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2"><GraduationCap className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Education" sectionKey="education" /></h2></div>
+                <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="education" fallback={GraduationCap} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Education" sectionKey="education" /></h2></div>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="education" /></div>
               </div>
               <div className="space-y-4">
@@ -1361,7 +1507,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
         <hr className="border-[#ededed] my-8" />
         <div className="mb-12 group/section">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-2"><Briefcase className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Work Experience" sectionKey="experiences" /></h2></div>
+            <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="experiences" fallback={Briefcase} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Work Experience" sectionKey="experiences" /></h2></div>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="experiences" /></div>
           </div>
           <ExperienceTimeline expList={expList} ec={ec} />
@@ -1372,7 +1518,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
         <hr className="border-[#ededed] my-8" />
         <div className="mb-12 group/section">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-2"><Folder className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Projects" sectionKey="projects" /></h2></div>
+            <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="projects" fallback={Folder} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Projects" sectionKey="projects" /></h2></div>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="projects" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="projects" /></div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1417,7 +1563,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12 group/section">
               <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2"><Award className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Awards" sectionKey="awards" /></h2></div>
+                <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="awards" fallback={Award} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Awards" sectionKey="awards" /></h2></div>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="awards" /></div>
               </div>
               <div className="space-y-3">
@@ -1445,7 +1591,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12 group/section">
               <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2"><Code className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Skills" sectionKey="skills" /></h2></div>
+                <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="skills" fallback={Code} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Skills" sectionKey="skills" /></h2></div>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="skills" /></div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1545,10 +1691,8 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
             <div className="flex-1">
               <h4 className="text-lg font-bold mb-4">About me</h4>
               <div className="border-l-4 border-black pl-4 py-1">
-                {ec
-                  ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm font-sans text-gray-700 leading-relaxed" />
-                  : <p className="text-sm font-sans text-gray-700 leading-relaxed whitespace-pre-wrap">{data.about}</p>
-                }
+                <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
+                  viewClassName="text-sm font-sans text-gray-700 leading-relaxed" placeholder="소개를 입력하세요..." />
               </div>
             </div>
             {/* Profile Image */}
@@ -1781,8 +1925,11 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                 : <h3 className="font-bold text-lg mb-2">{data.greeting || `안녕하세요! ${data.name}입니다.`}</h3>
               }
               {ec
-                ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-gray-500 mb-4" />
-                : <p className="text-sm text-gray-500 mb-4 line-clamp-2">{data.title}<br />{data.about.split('\n')[0]}</p>
+                ? <div className="mb-4"><RichBody ec={ec} portfolio={portfolio} field="about" placeholder="소개를 입력하세요..." /></div>
+                : <div className="text-sm text-gray-500 mb-4">
+                    {data.title && <p className="mb-1">{data.title}</p>}
+                    <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-sm text-gray-500" />
+                  </div>
               }
               <h4 className="font-bold text-sm mb-2 border-b pb-1">contact</h4>
               <div className="space-y-1 text-xs text-gray-600">
@@ -2003,8 +2150,8 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             <div className="bg-[#f7f6f3] border border-gray-200 rounded-lg p-5 flex items-start gap-4">
               <div className="flex-1">
                 {ec
-                  ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-gray-600 text-sm leading-relaxed" />
-                  : <><p className="font-bold text-lg mb-1">{data.catchphrase}</p><p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{data.about}</p></>
+                  ? <RichBody ec={ec} portfolio={portfolio} field="about" placeholder="소개를 입력하세요..." />
+                  : <><p className="font-bold text-lg mb-1">{data.catchphrase}</p><RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-gray-600 text-sm leading-relaxed" /></>
                 }
               </div>
             </div>
@@ -2037,7 +2184,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             {!isHidden4('education') && (ec ? true : eduList.length > 0) && (
               <section className="group/section">
                 <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Education" sectionKey="education" /></h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="education" fallback={GraduationCap} className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Education" sectionKey="education" /></h2>
                   <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="education" /></div>
                 </div>
                 <div className="space-y-3">
@@ -2061,7 +2208,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             {!isHidden4('awards') && (ec ? true : awardList.length > 0) && (
               <section className="group/section">
                 <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Award className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Awards" sectionKey="awards" /></h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="awards" fallback={Award} className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Awards" sectionKey="awards" /></h2>
                   <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="awards" /></div>
                 </div>
                 <div className="space-y-2">
@@ -2084,7 +2231,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             )}
             {!isHidden4('skills') && <section className="group/section">
               <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
-                <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Tools & Skills" sectionKey="skills" /></h2>
+                <h2 className="text-lg font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="skills" fallback={Target} className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Tools & Skills" sectionKey="skills" /></h2>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="skills" /></div>
               </div>
               <div className="space-y-4">
@@ -2110,14 +2257,14 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
           <div className="lg:col-span-2 space-y-12">
             {!isHidden4('experiences') && <section className="group/section" {...dp('experiences')}>
               <div className="flex items-center justify-between gap-2 mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2"><Briefcase className="w-6 h-6 text-gray-800" /> <EH ec={ec} value="Core Experience" sectionKey="experiences" /></h2>
+                <h2 className="text-2xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="experiences" fallback={Briefcase} className="w-6 h-6 text-gray-800" /> <EH ec={ec} value="Core Experience" sectionKey="experiences" /></h2>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="experiences" /></div>
               </div>
               <ExperienceTimeline expList={expList} ec={ec} accentDot="bg-blue-500" />
             </section>}
             {!isHidden4('projects') && <section className="group/section" {...dp('projects')}>
               <div className="flex items-center justify-between gap-2 mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2"><Folder className="w-6 h-6 text-gray-800" /> <EH ec={ec} value="Projects" sectionKey="projects" /></h2>
+                <h2 className="text-2xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="projects" fallback={Folder} className="w-6 h-6 text-gray-800" /> <EH ec={ec} value="Projects" sectionKey="projects" /></h2>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="projects" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('projects')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="projects" /></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2225,16 +2372,16 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         </div>}
         <div className="w-full bg-white border border-gray-200 p-5 rounded-xl shadow-sm mb-10">
           {ec
-            ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-gray-700 leading-relaxed font-medium" />
-            : <p className="text-sm text-gray-700 leading-relaxed font-medium">
-                {data.catchphrase}<br/><br/>
-                <span className="text-gray-500 font-normal whitespace-pre-wrap">{data.about}</span>
-              </p>
+            ? <RichBody ec={ec} portfolio={portfolio} field="about" placeholder="소개를 입력하세요..." />
+            : <div className="text-sm text-gray-700 leading-relaxed font-medium">
+                <p className="mb-3">{data.catchphrase}</p>
+                <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-gray-500 font-normal" />
+              </div>
           }
         </div>
         {!isHidden5('projects') && <div className="w-full mb-10" {...dp('projects')}>
           <div className="flex items-center justify-between gap-3 mb-4 group/section">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Folder className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Selected Projects" sectionKey="projects" /></h2>
+            <h2 className="text-xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="projects" fallback={Folder} className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Selected Projects" sectionKey="projects" /></h2>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="projects" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('projects')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="projects" /></div>
           </div>
           <div className="space-y-4">
@@ -2263,7 +2410,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         </div>}{/* end projects */}
         {!isHidden5('experiences') && <div className="w-full mb-10" {...dp('experiences')}>
           <div className="flex items-center justify-between gap-3 mb-4 group/section">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Briefcase className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Experience" sectionKey="experiences" /></h2>
+            <h2 className="text-xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="experiences" fallback={Briefcase} className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Experience" sectionKey="experiences" /></h2>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('experiences')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="experiences" /></div>
           </div>
           <ExperienceTimeline expList={expList} ec={ec} />
@@ -2271,7 +2418,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         {!isHidden5('skills') && (ec ? true : skillList.length > 0) && (
           <div className="w-full mb-10" {...dp('skills')}>
             <div className="flex items-center justify-between gap-2 mb-4 group/section">
-              <h2 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Skills" sectionKey="skills" /></h2>
+              <h2 className="text-xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="skills" fallback={Target} className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Skills" sectionKey="skills" /></h2>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="skills" /></div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2293,7 +2440,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         {!isHidden5('education') && (ec ? true : eduList.length > 0) && (
           <div className="w-full mb-10" {...dp('education')}>
             <div className="flex items-center justify-between gap-3 mb-4 group/section">
-              <h2 className="text-xl font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Education" sectionKey="education" /></h2>
+              <h2 className="text-xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="education" fallback={GraduationCap} className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Education" sectionKey="education" /></h2>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="education" /></div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
@@ -2317,7 +2464,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
         {!isHidden5('awards') && (ec ? true : awardList.length > 0) && (
           <div className="w-full mb-10" {...dp('awards')}>
             <div className="flex items-center justify-between gap-2 mb-4 group/section">
-              <h2 className="text-xl font-bold flex items-center gap-2"><Award className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Awards" sectionKey="awards" /></h2>
+              <h2 className="text-xl font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="awards" fallback={Award} className="w-5 h-5 text-gray-800" /> <EH ec={ec} value="Awards" sectionKey="awards" /></h2>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('awards')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="awards" /></div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
@@ -2396,8 +2543,11 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           </div>
         </div>
         {ec
-          ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-gray-700 text-lg leading-relaxed mb-12 max-w-2xl" />
-          : <p className="text-gray-700 text-lg leading-relaxed mb-12 max-w-2xl">{data.catchphrase}<br/><span className="text-sm text-gray-500">{data.about.split('\n')[0]}</span></p>
+          ? <div className="mb-12 max-w-2xl"><RichBody ec={ec} portfolio={portfolio} field="about" placeholder="소개를 입력하세요..." /></div>
+          : <div className="text-gray-700 text-lg leading-relaxed mb-12 max-w-2xl">
+              <p>{data.catchphrase}</p>
+              <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-sm text-gray-500 mt-2" />
+            </div>
         }
         {!isHidden6('projects') && <div className="mb-20 group/section" {...dp6('projects')}>
           <div className="flex items-center justify-between gap-3 mb-8">
@@ -2626,10 +2776,8 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다!`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold mb-4 text-[#EBEBEB] block" />
             : <p className="font-bold mb-4 text-[#EBEBEB]">{data.greeting || `안녕하세요! ${data.name}입니다!`}</p>
           }
-          {ec
-            ? <EditTextarea value={portfolio.about} onChange={v => ec.update('about', v)} className="text-sm text-[#A0A0A0] leading-relaxed" />
-            : <p className="text-sm text-[#A0A0A0] leading-relaxed whitespace-pre-wrap">{data.about}</p>
-          }
+          <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about} dark
+            viewClassName="text-sm text-[#A0A0A0] leading-relaxed" placeholder="소개를 입력하세요..." />
         </div></div>}{/* end introduce */}
         {!isHidden('skills') && <div {...dp('skills')}><div className="mb-14 group/section">
           <div className={`flex items-center gap-3 border-b ${borderColor} pb-2 mb-6`}>
@@ -2824,7 +2972,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         <div className="flex flex-col">
         {!isHidden8('projects') && <div className="mb-16 group/section" {...dp('projects')}>
           <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 mb-8 shadow-sm border border-[#3A4354]">
-            <Briefcase className="w-4 h-4 text-[#5C7CFA]" /> <EH ec={ec} value="Project Summary" sectionKey="projects" className="text-[#EBEBEB] font-bold" />
+            <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="projects" fallback={Briefcase} className="w-4 h-4 text-[#5C7CFA]" /> <EH ec={ec} value="Project Summary" sectionKey="projects" className="text-[#EBEBEB] font-bold" />
             <div className="ml-auto flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="projects" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('projects')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="projects" dark /></div>
           </div>
           <div className="space-y-12 pl-2">
@@ -2889,7 +3037,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         {!isHidden8('skills') && <div className="mb-16 group/section" {...dp('skills')}>
           <div className="flex items-center gap-2 mb-8">
             <div className="bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold flex items-center gap-2 shadow-sm border border-[#3A4354] flex-1">
-              <Code className="w-4 h-4 text-[#5C7CFA]" /> <EH ec={ec} value="SKILLS" sectionKey="skills" className="text-[#EBEBEB] font-bold" />
+              <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="skills" fallback={Code} className="w-4 h-4 text-[#5C7CFA]" /> <EH ec={ec} value="SKILLS" sectionKey="skills" className="text-[#EBEBEB] font-bold" />
             </div>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="skills" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('skills')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="skills" dark /></div>
           </div>
@@ -2951,7 +3099,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         {!isHidden8('career') && (ec ? true : expList.length > 0) && (
           <div className="mb-16 group/section" {...dp('career')}>
             <div className="flex items-center justify-between gap-2 bg-[#3A3A3A] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#4A4A4A]">
-              <span><Briefcase className="w-4 h-4 text-[#EBEBEB] inline" /> <EH ec={ec} value="EXPERIENCE" sectionKey="career" className="text-[#EBEBEB] font-bold" /></span>
+              <span><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="career" fallback={Briefcase} className="w-4 h-4 text-[#EBEBEB] inline" /> <EH ec={ec} value="EXPERIENCE" sectionKey="career" className="text-[#EBEBEB] font-bold" /></span>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('career')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="career" dark /></div>
             </div>
             <ExperienceTimeline expList={expList} ec={ec} dark={true} />
@@ -2960,7 +3108,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         {!isHidden8('education') && (ec ? true : eduList.length > 0) && (
           <div className="mb-16 group/section" {...dp('education')}>
             <div className="flex items-center justify-between gap-2 bg-[#2B323F] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#3A4354]">
-              <span><GraduationCap className="w-4 h-4 text-[#EBEBEB] inline" /> <EH ec={ec} value="EDUCATION" sectionKey="education" className="text-[#EBEBEB] font-bold" /></span>
+              <span><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="education" fallback={GraduationCap} className="w-4 h-4 text-[#EBEBEB] inline" /> <EH ec={ec} value="EDUCATION" sectionKey="education" className="text-[#EBEBEB] font-bold" /></span>
               <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('education')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="education" dark /></div>
             </div>
             <div className="space-y-6 pl-2">

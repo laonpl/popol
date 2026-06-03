@@ -191,7 +191,7 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
               return (
                 <div key={_i} className="px-5 py-4 hover:bg-surface-50/60 transition-colors">
                   {exp.metricLabel && (
-                    <p className="text-[11px] text-bluewood-400 mb-1 truncate">{stripMd(exp.metricLabel)}</p>
+                    <p className="text-[11px] text-bluewood-400 mb-1">{stripMd(exp.metricLabel)}</p>
                   )}
                   <p className="text-[26px] font-black leading-none mb-1.5" style={{ color: PRIMARY }}>
                     {stripMd(exp.metric)}
@@ -205,7 +205,7 @@ function ReadOnlyKeyExperiences({ keyExperiences }) {
                     </div>
                   )}
                   {exp.title && (
-                    <p className="text-[11px] text-bluewood-300 mt-1.5 truncate">{stripMd(exp.title)}</p>
+                    <p className="text-[11px] text-bluewood-300 mt-1.5">{stripMd(exp.title)}</p>
                   )}
                 </div>
               );

@@ -258,6 +258,23 @@ textarea {
   margin: 1rem 0;
   overflow-x: auto;
 }
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] th,
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] td {
+  min-width: 120px;
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] th,
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] tr:first-child td {
+  background: #f8fafc;
+  font-weight: 600;
+}
 /* 인용구 */
 .yoopta-portfolio-wrapper [data-yoopta-block-type="Blockquote"] {
   border-left: 3px solid #002F6C;
@@ -271,6 +288,95 @@ textarea {
   font-style: normal;
 }
 
+/* Keep mini editors stable when theme package classes are outside Tailwind's scan path. */
+.yoopta-mini-editor .yoopta-editor h1 {
+  margin-top: 2rem;
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+.yoopta-mini-editor .yoopta-editor h2 {
+  margin-top: 1.5rem;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.yoopta-mini-editor .yoopta-editor h3 {
+  margin-top: 1rem;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.yoopta-mini-editor .yoopta-editor ul {
+  margin: 0.5rem 0 0.5rem 1.5rem;
+  list-style: disc;
+}
+.yoopta-mini-editor .yoopta-editor ol {
+  margin: 0.5rem 0 0.5rem 1.5rem;
+  list-style: decimal;
+}
+.yoopta-mini-editor .yoopta-editor blockquote {
+  margin: 0.75rem 0;
+  border-left: 3px solid #002f6c;
+  padding-left: 1rem;
+  color: #5b6b80;
+  font-style: italic;
+}
+.yoopta-mini-editor .yoopta-editor pre {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #f3f6fa;
+  padding: 0.875rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+
+/* Notion-like editing: blocks stay interactive without drawing an editor box. */
+.yoopta-mini-editor,
+.yoopta-mini-editor .yoopta-editor,
+.yoopta-mini-editor .yoopta-editor:focus,
+.yoopta-mini-editor .yoopta-editor:focus-visible,
+.yoopta-mini-editor .yoopta-editor [contenteditable='true'],
+.yoopta-mini-editor .yoopta-editor [contenteditable='true']:focus,
+.yoopta-mini-editor .yoopta-editor [contenteditable='true']:focus-visible,
+.yoopta-mini-editor .yoopta-editor [role='textbox'],
+.yoopta-mini-editor .yoopta-editor [role='textbox']:focus,
+.yoopta-mini-editor .yoopta-editor [role='textbox']:focus-visible {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.yoopta-mini-editor .yoopta-editor [data-yoopta-block],
+.yoopta-mini-editor .yoopta-editor .yoopta-block {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.yoopta-mini-editor .yoopta-editor [data-yoopta-block-type='Image'],
+.yoopta-mini-editor .yoopta-corner-image,
+.yoopta-mini-editor .yoopta-corner-image figure {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  overflow: visible !important;
+}
+.yoopta-mini-editor .yoopta-corner-image img {
+  display: block;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 /* ── Floating Icon Animations ── */
 @keyframes float {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
@@ -281,3 +387,9 @@ textarea {
 .animate-float-slow { animation: float 12s ease-in-out infinite; }
 .animate-float-medium { animation: float 9s ease-in-out infinite; }
 .animate-float-fast { animation: float 6s ease-in-out infinite; }
+
+.editable-data-table .group\/row .opacity-0,
+.editable-data-table .group\/column .opacity-0,
+.editable-data-table .group\/cell .opacity-0 {
+  opacity: 1;
+}
