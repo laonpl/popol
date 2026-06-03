@@ -212,6 +212,12 @@ const useExperienceStore = create((set, get) => ({
     return data;
   },
 
+  /** 빠른 초안 생성 (flash 1회, 검색 없음). 경험 생성 전 호출. 실패 시 throw → 호출부에서 로컬 폴백. */
+  draftAnalyze: async ({ content, jobCategory }) => {
+    const { data } = await api.post('/experience/draft', { content, jobCategory }, { timeout: 90000 });
+    return data;
+  },
+
   /** 자료 텍스트에서 핵심 경험(moments)을 추출. TemplateSelect 자료 수집 플로우용. */
   extractMoments: async (rawText, title) => {
     const { data } = await api.post('/experience/extract-moments', {

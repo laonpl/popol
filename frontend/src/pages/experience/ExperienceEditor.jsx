@@ -102,7 +102,7 @@ export default function ExperienceEditor() {
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
-      navigate(`/app/experience/structured/${experienceId}`, { state: { analysis, title, framework, content } });
+      navigate(`/app/experience/result/${experienceId}`, { state: { analysis, title, framework, content } });
     } catch (error) {
       const serverMsg = error.response?.data?.error || error.response?.data?.detail;
       if (error.isRateLimit) {

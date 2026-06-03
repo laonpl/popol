@@ -13,7 +13,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
-import { buildDraftStructuredResult } from '../../utils/experienceDraft';
+import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 
 const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp';
 const TUTORIAL_PROJECT = {
@@ -470,7 +470,7 @@ const FIELD_OPTIONS = [
 
 export default function TemplateSelect() {
   const { user } = useAuthStore();
-  const { createExperience, extractMoments } = useExperienceStore();
+  const { createExperience, extractMoments, draftAnalyze } = useExperienceStore();
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef(null);
@@ -1041,14 +1041,25 @@ export default function TemplateSelect() {
       // 경험 생성
       updateLoadingStep(0, 'loading');
       const period = startDate ? `${startDate}${endDate ? ` ~ ${endDate}` : ''}` : '';
-      const draftAnalysis = buildDraftStructuredResult({
-        title: title.trim(),
-        period,
-        jobCategory: jobCategory || 'common',
-        moments: syncedMoments,
-        collectedText,
-        content: { rawInput: finalText },
-      });
+      // 초안은 인터뷰 흐름과 동일하게 빠른 AI 초안(draftAnalyze)으로 통일. 실패 시 로컬 폴백.
+      let draftAnalysis;
+      try {
+        const draftContent = {
+          자료: cleanRawText(collectedText) || collectedText,
+          핵심경험: momentsText,
+        };
+        draftAnalysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
+      } catch (draftErr) {
+        console.warn('[TemplateSelect] AI 초안 실패 → 로컬 초안 폴백:', draftErr?.message);
+        draftAnalysis = buildDraftStructuredResult({
+          title: title.trim(),
+          period,
+          jobCategory: jobCategory || 'common',
+          moments: syncedMoments,
+          collectedText,
+          content: { rawInput: finalText },
+        });
+      }
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
@@ -1068,8 +1079,8 @@ export default function TemplateSelect() {
       updateLoadingStep(1, 'done');
       updateLoadingStep(2, 'done');
 
-      toast.success('빠른 초안이 완성되었습니다. 결과 화면에서 AI로 보강할 수 있어요.');
-      navigate(`/app/experience/structured/${experienceId}`, {
+      toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
+      navigate(`/app/experience/result/${experienceId}`, {
         state: { analysis: draftAnalysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
       });
     } catch (error) {

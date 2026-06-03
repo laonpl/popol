@@ -727,9 +727,9 @@ function PortfolioSectionSlide({
                       </button>
                     )}
                     {introMetaItems.length > 0 && (
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-surface-200/70 pt-3 lg:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-surface-200/70 pt-3 lg:grid-cols-4">
                         {introMetaItems.map(item => (
-                          <div key={item.label} className="rounded-[6px] bg-white/75 px-2.5 py-2 ring-1 ring-surface-200/80">
+                          <div key={item.label} className={`rounded-[6px] bg-white/75 px-2.5 py-2 ring-1 ring-surface-200/80 ${item.key === 'goal' ? 'col-span-2 lg:col-span-4' : ''}`}>
                             <p className="text-[10px] font-black tracking-[0.12em] text-bluewood-300">{item.label}</p>
                             {viewOnly ? (
                               <p className="mt-1 break-words text-[12px] font-bold leading-snug text-bluewood-700">{cleanForDisplay(overview?.[item.key]) || '—'}</p>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
+import useExperienceStore from '../../stores/experienceStore';
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -17,6 +19,13 @@ const clean = (v) => isDraft(v) ? '' : String(v).replace(/\*\*/g, '').replace(/^
 
 const ACCENT = '#002F6C';
 
+// 포트폴리오 내보내기용 7개 서술 섹션 라벨/순서 (StructuredResult와 동일)
+const EXPORT_SECTION_LABELS = {
+  intro: '프로젝트 소개', overview: '프로젝트 개요', task: '진행한 일',
+  process: '과정', output: '결과물', growth: '성장한 점', competency: '역량',
+};
+const EXPORT_SECTION_ORDER = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+
 /* ──────────────────────────────────────────────────────────
    경험 결과 — 포트폴리오에 바로 쓰는 케이스스터디 한 장
    (앱 에디터 구성과 별개의 에디토리얼 레이아웃)
@@ -24,8 +33,27 @@ const ACCENT = '#002F6C';
 export default function ExperienceResult() {
   const { id } = useParams();
   const { state } = useLocation();
+  const navigate = useNavigate();
+  const analyzeExperience = useExperienceStore(s => s.analyzeExperience);
   const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title } : null);
   const [loading, setLoading] = useState(!state?.analysis);
+  const [enriching, setEnriching] = useState(false);
+  const [modal, setModal] = useState(null); // null | 'slides' | 'metrics'
+
+  // AI로 완성하기 — 깊은 분석을 돌린 뒤, 같은 문서 페이지에서 더 풍부해진 내용을 보여준다.
+  const handleComplete = async () => {
+    if (enriching) return;
+    setEnriching(true);
+    try {
+      const data = await analyzeExperience(id);
+      setExp(prev => ({ ...(prev || {}), structuredResult: data, keywords: data.keywords || prev?.keywords || [] }));
+      toast.success('AI로 완성됐어요. 더 풍부해진 내용을 확인해보세요.');
+    } catch (err) {
+      toast.error(err?.message || 'AI 완성에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -93,13 +121,89 @@ export default function ExperienceResult() {
 
   const hasContent = keyExps.length > 0 || summary || metricCards.length > 0;
   const incomplete = droppedCount > 0 || metricCards.length === 0;
+  const isDraftResult = !!sr._draft;
+
+  // ── 모달용 데이터: 슬라이드 덱 / 시장 지표 ──
+  const slides = Object.entries(sr.sectionSlides || {})
+    .map(([key, s]) => ({
+      key,
+      kicker: clean(s?.kicker) || key,
+      headline: clean(s?.headline),
+      subcopy: clean(s?.subcopy),
+      cards: (Array.isArray(s?.evidenceCards) ? s.evidenceCards : [])
+        .map(c => ({ label: clean(c?.label), title: clean(c?.title), body: clean(c?.body), metric: clean(c?.metric) }))
+        .filter(c => c.title || c.body || c.metric),
+    }))
+    .filter(s => s.headline || s.subcopy || s.cards.length > 0);
+  const marketMetrics = (Array.isArray(sr.marketResearch?.decisionMetrics) ? sr.marketResearch.decisionMetrics : [])
+    .map(m => ({
+      metric: clean(m?.metric),
+      whyItMatters: clean(m?.whyItMatters),
+      recommendedProxy: clean(m?.recommendedProxy),
+      researchBasis: clean(m?.researchBasis),
+      confidence: clean(m?.confidence),
+    }))
+    .filter(m => m.metric);
+  const marketOverview = clean(sr.marketResearch?.marketOverview);
+
+  // ── 노션 포트폴리오로 내보내기 ──
+  // 동일한 exportConfig를 만들어 /app/portfolio 로 보내면,
+  // PortfolioHub에서 포트폴리오를 고르거나 새로 만들어 NotionPortfolioEditor가 경험을 자동 추가한다.
+  const handleExportToPortfolio = () => {
+    const textBlock = (content) => ({ id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: content || '' });
+    const metaLines = [
+      clean(ov.duration) && `기간: ${clean(ov.duration)}`,
+      clean(ov.role) && `역할: ${clean(ov.role)}`,
+      clean(ov.team) && `팀 구성: ${clean(ov.team)}`,
+      clean(ov.scopeOfImpact) && `영향 범위: ${clean(ov.scopeOfImpact)}`,
+      techStack.length > 0 && `기술: ${techStack.join(', ')}`,
+      clean(ov.goal) && `목표: ${clean(ov.goal)}`,
+    ].filter(Boolean).join('\n');
+    const keyExperienceText = rawKeyExps.map((item, i) => [
+      `${i + 1}. ${clean(item.title) || '핵심 경험'}`,
+      (clean(item.metric) || clean(item.afterMetric)) ? `성과: ${clean(item.afterMetric) || clean(item.metric)}` : '',
+      clean(item.context || item.situation) ? `상황: ${clean(item.context || item.situation)}` : '',
+      clean(item.action) ? `행동: ${clean(item.action)}` : '',
+      clean(item.result) ? `결과: ${clean(item.result)}` : '',
+      clean(item.learning) ? `학습: ${clean(item.learning)}` : '',
+    ].filter(Boolean).join('\n')).join('\n\n');
+
+    const rawSections = [];
+    if (metaLines.trim()) rawSections.push({ key: 'project-meta', label: '프로젝트 정보', type: 'meta', content: metaLines });
+    if (keyExperienceText.trim()) rawSections.push({ key: 'key-experiences', label: '핵심 경험 & 성과', type: 'summary', content: keyExperienceText });
+    EXPORT_SECTION_ORDER.forEach(k => {
+      const c = clean(sr[k]);
+      if (c) rawSections.push({ key: k, label: EXPORT_SECTION_LABELS[k], type: 'base', content: c });
+    });
+    const sections = rawSections.map(s => ({ ...s, blocks: s.content ? [textBlock(s.content)] : [] }));
+
+    if (sections.length === 0) {
+      toast.error('내보낼 내용이 아직 없어요. 먼저 AI로 완성해 주세요.');
+      return;
+    }
+
+    const exportConfig = {
+      experienceId: id,
+      title,
+      jobCategory: sr.jobCategory || 'common',
+      sectionOrder: sections.map(s => s.key),
+      sections,
+      structuredResult: sr,
+      keywords: sr.keywords || exp?.keywords || [],
+      keyExperiences: rawKeyExps,
+      projectOverview: ov,
+      marketResearch: sr.marketResearch || {},
+      coverImg: sr.exportConfig?.coverImg || null,
+    };
+    navigate('/app/portfolio', { state: { exportConfig } });
+  };
 
   return (
     <div className="min-h-screen bg-white">
       {/* 상단 액션 바 */}
       <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-6 flex items-center justify-between text-[13px]">
         <Link to="/app/experience" className="font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← 경험 목록</Link>
-        <Link to={`/app/experience/structured/${id}`} className="font-semibold text-primary-600 hover:text-primary-700 transition-colors">정리 다듬기 · 내보내기 →</Link>
+        <button onClick={handleExportToPortfolio} className="font-semibold text-primary-600 hover:text-primary-700 transition-colors">포트폴리오로 내보내기 →</button>
       </div>
 
       {!hasContent ? (
@@ -132,6 +236,46 @@ export default function ExperienceResult() {
               {techStack.slice(0, 8).map((t, i) => (
                 <span key={i} className="px-2.5 py-1 rounded-md bg-surface-100 text-[12px] font-semibold text-bluewood-600">{t}</span>
               ))}
+            </div>
+          )}
+
+          {/* ── 초안 → AI 완성 (핵심 액션) ── */}
+          {isDraftResult && (
+            <div className="mt-7 flex flex-wrap items-center gap-3 rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13.5px] font-bold text-bluewood-700">이건 빠른 초안이에요</p>
+                <p className="text-[12.5px] text-bluewood-500 mt-0.5" style={{ wordBreak: 'keep-all' }}>AI로 완성하면 시장 근거·핵심 경험·성과 지표까지 채워 더 풍부해져요.</p>
+              </div>
+              <button
+                onClick={handleComplete}
+                disabled={enriching}
+                className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary-600 text-white text-[14px] font-bold hover:bg-primary-700 disabled:opacity-60 transition-colors shadow-sm shadow-primary-600/20"
+              >
+                {enriching && <span className="inline-block w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+                {enriching ? 'AI가 완성하는 중…' : '✨ AI로 완성하기'}
+              </button>
+            </div>
+          )}
+
+          {/* ── 더 보기: 슬라이드 덱 / 시장 지표 (모달) ── */}
+          {(slides.length > 0 || marketMetrics.length > 0 || marketOverview) && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {slides.length > 0 && (
+                <button
+                  onClick={() => setModal('slides')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-bluewood-700 hover:border-primary-300 hover:text-primary-600 transition-colors"
+                >
+                  슬라이드 덱 보기 <span className="text-bluewood-300">{slides.length}</span>
+                </button>
+              )}
+              {(marketMetrics.length > 0 || marketOverview) && (
+                <button
+                  onClick={() => setModal('metrics')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-bluewood-700 hover:border-primary-300 hover:text-primary-600 transition-colors"
+                >
+                  시장·지표 근거 보기 {marketMetrics.length > 0 && <span className="text-bluewood-300">{marketMetrics.length}</span>}
+                </button>
+              )}
             </div>
           )}
 
@@ -245,14 +389,83 @@ export default function ExperienceResult() {
 
           {/* 하단 CTA */}
           <div className="mt-10 flex flex-wrap gap-3 border-t border-surface-200 pt-8">
-            <Link to={`/app/experience/structured/${id}`} className="px-5 py-3 rounded-xl bg-primary-600 text-white text-[14px] font-bold hover:bg-primary-700 transition-colors">
-              정리 다듬기 · 포트폴리오로 내보내기
+            {isDraftResult && (
+              <button
+                onClick={handleComplete}
+                disabled={enriching}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary-600 text-white text-[14px] font-bold hover:bg-primary-700 disabled:opacity-60 transition-colors shadow-sm shadow-primary-600/20"
+              >
+                {enriching && <span className="inline-block w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
+                {enriching ? 'AI가 완성하는 중…' : '✨ AI로 완성하기'}
+              </button>
+            )}
+            <button
+              onClick={handleExportToPortfolio}
+              className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-bold transition-colors ${isDraftResult ? 'bg-white border border-surface-200 text-bluewood-700 hover:bg-surface-50' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm shadow-primary-600/20'}`}
+            >
+              📤 포트폴리오로 내보내기
+            </button>
+            <Link to={`/app/experience/structured/${id}`} className="px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 transition-colors">
+              고급 편집
             </Link>
             <Link to="/app/experience" className="px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 transition-colors">
               경험 목록으로
             </Link>
           </div>
         </article>
+      )}
+
+      {/* ── 모달: 슬라이드 덱 / 시장·지표 근거 ── */}
+      {modal && (
+        <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8" onClick={() => setModal(null)}>
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 border-b border-surface-200 px-6 py-4">
+              <h2 className="text-[16px] font-extrabold text-bluewood-900">
+                {modal === 'slides' ? '슬라이드 덱' : '시장·지표 근거'}
+              </h2>
+              <button onClick={() => setModal(null)} className="text-bluewood-300 hover:text-bluewood-600 text-[22px] leading-none">×</button>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto px-6 py-5 space-y-4">
+              {modal === 'slides' && slides.map((s, i) => (
+                <div key={s.key} className="rounded-xl border border-surface-200 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-1.5" style={{ color: ACCENT }}>{i + 1}. {s.kicker}</p>
+                  {s.headline && <p className="text-[16px] font-extrabold text-bluewood-900 leading-snug" style={{ wordBreak: 'keep-all' }}>{s.headline}</p>}
+                  {s.subcopy && <p className="mt-1.5 text-[13px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{s.subcopy}</p>}
+                  {s.cards.length > 0 && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {s.cards.map((c, ci) => (
+                        <div key={ci} className="rounded-lg bg-surface-50 border border-surface-100 px-3 py-2.5">
+                          {c.label && <p className="text-[9.5px] font-black uppercase tracking-[0.14em] text-bluewood-300">{c.label}</p>}
+                          {c.title && <p className="mt-0.5 text-[12.5px] font-bold text-bluewood-800 leading-snug" style={{ wordBreak: 'keep-all' }}>{c.title}</p>}
+                          {c.body && <p className="mt-1 text-[11.5px] leading-[1.55] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{c.body}</p>}
+                          {c.metric && <p className="mt-1 text-[12px] font-black" style={{ color: ACCENT }}>{c.metric}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {modal === 'metrics' && (
+                <>
+                  {marketOverview && (
+                    <p className="text-[13.5px] leading-[1.75] text-bluewood-600 rounded-xl bg-surface-50 border border-surface-100 px-4 py-3" style={{ wordBreak: 'keep-all' }}>{marketOverview}</p>
+                  )}
+                  {marketMetrics.map((m, i) => (
+                    <div key={i} className="rounded-xl border border-surface-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[14.5px] font-extrabold text-bluewood-900">{m.metric}</p>
+                        {m.confidence && <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-surface-100 text-[10.5px] font-bold text-bluewood-400 uppercase">{m.confidence}</span>}
+                      </div>
+                      {m.whyItMatters && <p className="mt-1.5 text-[12.5px] leading-[1.6] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{m.whyItMatters}</p>}
+                      {m.recommendedProxy && <p className="mt-1.5 text-[12px] text-bluewood-500"><span className="font-bold text-bluewood-400">측정법 </span>{m.recommendedProxy}</p>}
+                      {m.researchBasis && <p className="mt-1 text-[12px] text-bluewood-400" style={{ wordBreak: 'keep-all' }}>근거: {m.researchBasis}</p>}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
