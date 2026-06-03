@@ -2115,29 +2115,6 @@ export default function StructuredResult() {
         ))}
       </div>
 
-      {/* 근거 범례 + AI 판단 — 각 섹션 주장의 성격과 근거 강도 */}
-      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-bluewood-400">
-        <span className="font-bold text-bluewood-500">근거 레벨</span>
-        {EVIDENCE_ORDER.map(lv => (
-          <span key={lv} className="inline-flex items-center gap-1.5">
-            <span className={`inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-black ${EVIDENCE_LEVELS[lv].bg} ${EVIDENCE_LEVELS[lv].text} ring-1 ${EVIDENCE_LEVELS[lv].ring}`}>{lv}</span>
-            <span>{EVIDENCE_LEVELS[lv].name}</span>
-          </span>
-        ))}
-        {!viewOnly && (
-          <button
-            type="button"
-            onClick={handleJudgeLabels}
-            disabled={judgingLabels}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-[12px] font-bold text-primary-700 hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
-            title="AI가 각 섹션 본문을 읽고 사실/추정/가정/해석과 근거 레벨을 자동으로 판단합니다"
-          >
-            {judgingLabels ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            {judgingLabels ? 'AI가 근거 판단 중…' : 'AI 근거 판단'}
-          </button>
-        )}
-      </div>
-
       <div className="divide-y divide-surface-200">
         {SECTION_KEYS.map((key) => {
           const meta = SECTION_META[key];
@@ -2199,17 +2176,6 @@ export default function StructuredResult() {
                 </div>
               ) : (
                 <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>
-              )}
-
-              {/* 근거 바 — 주장 성격(사실/추정/가정/해석) + 근거 레벨(A~D). AI가 판단, 직접 교체 가능 */}
-              {(!viewOnly || evidenceTags[key] || evidenceLevels[key]) && (
-                <SectionEvidenceBar
-                  claim={evidenceTags[key]}
-                  level={evidenceLevels[key]}
-                  onClaim={kind => setEvidenceTag(key, kind)}
-                  onLevel={lv => setEvidenceLevel(key, lv)}
-                  viewOnly={viewOnly}
-                />
               )}
 
               {/* 섹션 이미지 + 추가 */}
