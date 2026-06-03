@@ -9,8 +9,8 @@
  *  - minHeight: number (px, 기본 120)
  *  - className: wrapper 추가 클래스
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import YooptaEditor, { Blocks, Elements, Selection, createYooptaEditor, useYooptaEditor } from '@yoopta/editor';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import YooptaEditor, { Blocks, Elements, Marks, Selection, createYooptaEditor, generateId, useYooptaEditor } from '@yoopta/editor';
 import Paragraph from '@yoopta/paragraph';
 import { HeadingOne, HeadingTwo, HeadingThree } from '@yoopta/headings';
 import { BulletedList, NumberedList, TodoList } from '@yoopta/lists';
@@ -20,18 +20,105 @@ import Callout from '@yoopta/callout';
 import Divider from '@yoopta/divider';
 import Image, { ImageCommands } from '@yoopta/image';
 import Link from '@yoopta/link';
+import Table from '@yoopta/table';
 import { Bold, Italic, Underline, Strike, CodeMark, Highlight } from '@yoopta/marks';
 import { BlockOptions, FloatingBlockActions, FloatingToolbar, SlashCommandMenu } from '@yoopta/ui';
+import { ParagraphUI } from '@yoopta/themes-shadcn/paragraph';
+import { HeadingsUI } from '@yoopta/themes-shadcn/headings';
+import { ListsUI } from '@yoopta/themes-shadcn/lists';
+import { BlockquoteUI } from '@yoopta/themes-shadcn/blockquote';
+import { CodeUI } from '@yoopta/themes-shadcn/code';
+import { CalloutUI } from '@yoopta/themes-shadcn/callout';
+import { DividerUI } from '@yoopta/themes-shadcn/divider';
+import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
-import { ImagePlus } from 'lucide-react';
+import '@yoopta/themes-shadcn/variables.css';
+import { Bold as BoldIcon, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
+
+const YooptaMiniEditorIdContext = createContext(null);
+let activeYooptaImageDrag = null;
+
+function deleteYooptaBlockById(editor, blockId) {
+  const value = editor.getEditorValue();
+  const block = value?.[blockId];
+  if (typeof block?.meta?.order === 'number') {
+    editor.deleteBlock({ at: block.meta.order });
+    return true;
+  }
+  const orderedBlocks = Object.values(value || {}).sort((a, b) => (a?.meta?.order ?? 0) - (b?.meta?.order ?? 0));
+  const index = orderedBlocks.findIndex(item => item?.id === blockId);
+  if (index < 0) return false;
+  editor.deleteBlock({ at: index });
+  return true;
+}
+
+export function createYooptaImageValue(src, alt = 'image', sizes = { width: 720, height: 420 }, idSeed = null) {
+  const blockId = idSeed ? `${idSeed}-block` : generateId();
+  return {
+    [blockId]: {
+      id: blockId,
+      type: 'Image',
+      value: [{
+        id: idSeed ? `${idSeed}-element` : generateId(),
+        type: 'image',
+        children: [{ text: '' }],
+        props: {
+          src,
+          alt,
+          sizes,
+          fit: 'contain',
+          nodeType: 'void',
+        },
+      }],
+      meta: { order: 0, depth: 0, align: 'center' },
+    },
+  };
+}
+
+export function createYooptaTableValue(rows = 3, columns = 3) {
+  const blockId = generateId();
+  return {
+    [blockId]: {
+      id: blockId,
+      type: 'Table',
+      value: [{
+        id: generateId(),
+        type: 'table',
+        props: { headerRow: true, headerColumn: false, columnWidths: Array(columns).fill(200) },
+        children: Array.from({ length: rows }, (_, rowIndex) => ({
+          id: generateId(),
+          type: 'table-row',
+          children: Array.from({ length: columns }, () => ({
+            id: generateId(),
+            type: 'table-data-cell',
+            props: { asHeader: rowIndex === 0 },
+            children: [{ text: '' }],
+          })),
+        })),
+      }],
+      meta: { order: 0, depth: 0 },
+    },
+  };
+}
+
+export function findFirstYooptaImage(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  for (const block of Object.values(value)) {
+    if (block?.type !== 'Image') continue;
+    const image = Array.isArray(block.value) ? block.value.find(element => element?.type === 'image') : null;
+    if (image?.props?.src) return image.props;
+  }
+  return null;
+}
 
 const ShadcnImageElement = ImageUI.image.render;
 
 function CornerResizableImageElement(props) {
   const { blockId, element } = props;
   const editor = useYooptaEditor();
+  const editorInstanceId = useContext(YooptaMiniEditorIdContext);
   const wrapperRef = useRef(null);
   const [frame, setFrame] = useState(null);
 
@@ -106,7 +193,33 @@ function CornerResizableImageElement(props) {
   };
 
   return (
-    <div ref={wrapperRef} className="yoopta-corner-image group/corner-image relative">
+    <div
+      ref={wrapperRef}
+      className="yoopta-corner-image group/corner-image relative"
+      draggable
+      onDragStart={event => {
+        if (!element?.props?.src) {
+          event.preventDefault();
+          return;
+        }
+        const payload = {
+          src: element.props.src,
+          alt: element.props.alt || 'image',
+          sizes: element.props.sizes,
+          source: 'yoopta',
+          sourceEditorId: editorInstanceId,
+          sourceBlockId: blockId,
+          dragId: generateId(),
+        };
+        activeYooptaImageDrag = payload;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData(CUSTOM_IMAGE_DRAG_TYPE, JSON.stringify(payload));
+        event.dataTransfer.setData('text/plain', element.props.src);
+      }}
+      onDragEnd={() => {
+        activeYooptaImageDrag = null;
+      }}
+    >
       <style>{`
         .yoopta-corner-image [style*="outline"] {
           outline: none !important;
@@ -153,19 +266,20 @@ const imagePlugin = Image.extend({
 });
 
 const PLUGINS = [
-  Paragraph,
-  HeadingOne,
-  HeadingTwo,
-  HeadingThree,
-  BulletedList,
-  NumberedList,
-  TodoList,
-  Blockquote,
-  Code,
-  Callout,
-  Divider,
+  Paragraph.extend({ elements: ParagraphUI }),
+  HeadingOne.extend({ elements: HeadingsUI.HeadingOne }),
+  HeadingTwo.extend({ elements: HeadingsUI.HeadingTwo }),
+  HeadingThree.extend({ elements: HeadingsUI.HeadingThree }),
+  BulletedList.extend({ elements: ListsUI.BulletedList }),
+  NumberedList.extend({ elements: ListsUI.NumberedList }),
+  TodoList.extend({ elements: ListsUI.TodoList }),
+  Blockquote.extend({ elements: BlockquoteUI }),
+  Code.extend({ elements: CodeUI }),
+  Callout.extend({ elements: CalloutUI }),
+  Divider.extend({ elements: DividerUI }),
   imagePlugin,
-  Link,
+  Table,
+  Link.extend({ elements: LinkUI }),
 ];
 
 const MARKS = [Bold, Italic, Underline, Strike, CodeMark, Highlight];
@@ -195,21 +309,49 @@ function readImageFile(file) {
   });
 }
 
-function MiniBlockActions() {
+function MiniBlockActions({ onEditorChange }) {
   const editor = useYooptaEditor();
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [blockOptionsOpen, setBlockOptionsOpen] = useState(false);
+  const addButtonRef = useRef(null);
   const dragHandleRef = useRef(null);
+  const applyToCurrentBlock = (blockId, type) => {
+    if (!blockId) return;
+    const block = Blocks.getBlock(editor, { id: blockId });
+    if (block) {
+      editor.toggleBlock(type, {
+        at: block.meta.order,
+        scope: 'block',
+        preserveContent: true,
+        focus: true,
+      });
+      queueMicrotask(() => onEditorChange?.(editor.getEditorValue(), { immediate: true }));
+    }
+    setAddMenuOpen(false);
+  };
+  const addItems = [
+    ['Paragraph', 'Text'],
+    ['HeadingOne', 'Heading 1'],
+    ['HeadingTwo', 'Heading 2'],
+    ['HeadingThree', 'Heading 3'],
+    ['BulletedList', 'Bulleted list'],
+    ['NumberedList', 'Numbered list'],
+    ['TodoList', 'To-do list'],
+    ['Blockquote', 'Quote'],
+    ['Callout', 'Callout'],
+    ['Code', 'Code'],
+    ['Divider', 'Divider'],
+    ['Image', 'Image'],
+    ['Table', 'Table'],
+  ];
 
   return (
-    <FloatingBlockActions frozen={blockOptionsOpen}>
+    <FloatingBlockActions frozen={addMenuOpen || blockOptionsOpen}>
       {({ blockId }) => (
         <>
           <FloatingBlockActions.Button
-            onClick={() => {
-              if (!blockId) return;
-              const block = Blocks.getBlock(editor, { id: blockId });
-              if (block) editor.insertBlock('Paragraph', { at: block.meta.order + 1, focus: true });
-            }}
+            ref={addButtonRef}
+            onClick={() => setAddMenuOpen(true)}
             title="Add block"
           >
             <span className="text-lg leading-none">+</span>
@@ -222,6 +364,21 @@ function MiniBlockActions() {
             <span className="text-sm">::</span>
           </FloatingBlockActions.Button>
           <BlockOptions
+            open={addMenuOpen}
+            onOpenChange={setAddMenuOpen}
+            anchor={addButtonRef.current}
+          >
+            <BlockOptions.Content>
+              <BlockOptions.Group>
+                {addItems.map(([type, label]) => (
+                  <BlockOptions.Item key={type} onClick={() => applyToCurrentBlock(blockId, type)}>
+                    {label}
+                  </BlockOptions.Item>
+                ))}
+              </BlockOptions.Group>
+            </BlockOptions.Content>
+          </BlockOptions>
+          <BlockOptions
             open={blockOptionsOpen}
             onOpenChange={setBlockOptionsOpen}
             anchor={dragHandleRef.current}
@@ -230,7 +387,10 @@ function MiniBlockActions() {
               <BlockOptions.Group>
                 <BlockOptions.Item
                   onClick={() => {
-                    if (blockId) Blocks.duplicateBlock(editor, { blockId });
+                    if (blockId) {
+                      Blocks.duplicateBlock(editor, { blockId });
+                      queueMicrotask(() => onEditorChange?.(editor.getEditorValue(), { immediate: true }));
+                    }
                     setBlockOptionsOpen(false);
                   }}
                 >
@@ -238,7 +398,10 @@ function MiniBlockActions() {
                 </BlockOptions.Item>
                 <BlockOptions.Item
                   onClick={() => {
-                    if (blockId) Blocks.deleteBlock(editor, { blockId });
+                    if (blockId) {
+                      Blocks.deleteBlock(editor, { blockId });
+                      queueMicrotask(() => onEditorChange?.(editor.getEditorValue(), { immediate: true }));
+                    }
                     setBlockOptionsOpen(false);
                   }}
                 >
@@ -250,6 +413,65 @@ function MiniBlockActions() {
         </>
       )}
     </FloatingBlockActions>
+  );
+}
+
+function MiniFloatingToolbar({ onEditorChange }) {
+  const editor = useYooptaEditor();
+  const [, refresh] = useState(0);
+  const items = [
+    ['bold', '굵게', BoldIcon],
+    ['italic', '기울임', ItalicIcon],
+    ['underline', '밑줄', UnderlineIcon],
+    ['strike', '취소선', Strikethrough],
+    ['code', '코드', CodeIcon],
+  ];
+  const commit = (action) => {
+    action();
+    refresh(value => value + 1);
+    queueMicrotask(() => onEditorChange?.(editor.getEditorValue(), { immediate: true }));
+  };
+
+  return (
+    <FloatingToolbar>
+      <FloatingToolbar.Content>
+        <FloatingToolbar.Group>
+          {items.map(([type, label, Icon]) => (
+            <FloatingToolbar.Button
+              key={type}
+              active={Marks.isActive(editor, { type })}
+              onClick={() => commit(() => Marks.toggle(editor, { type }))}
+              title={label}
+              aria-label={label}
+            >
+              <Icon size={15} />
+            </FloatingToolbar.Button>
+          ))}
+          <FloatingToolbar.Button
+            active={Marks.isActive(editor, { type: 'highlight' })}
+            onClick={() => commit(() => {
+              if (Marks.isActive(editor, { type: 'highlight' })) {
+                Marks.remove(editor, { type: 'highlight' });
+              } else {
+                Marks.update(editor, { type: 'highlight', value: { backgroundColor: '#fef08a' } });
+              }
+            })}
+            title="강조"
+            aria-label="강조"
+          >
+            <Highlighter size={15} />
+          </FloatingToolbar.Button>
+          <FloatingToolbar.Separator />
+          <FloatingToolbar.Button
+            onClick={() => commit(() => Marks.clear(editor))}
+            title="서식 초기화"
+            aria-label="서식 초기화"
+          >
+            <Eraser size={15} />
+          </FloatingToolbar.Button>
+        </FloatingToolbar.Group>
+      </FloatingToolbar.Content>
+    </FloatingToolbar>
   );
 }
 
@@ -297,12 +519,66 @@ export default function YooptaMiniEditor({
   onExternalImageDrop,
 }) {
   const imageInputRef = useRef(null);
+  const editorInstanceIdRef = useRef(generateId());
+  const editorMinHeight = Math.min(minHeight, 36);
   const initialValue = useMemo(() => textToYooptaValue(value), []);
   const editor = useMemo(() => createYooptaEditor({
     plugins: PLUGINS,
     marks: MARKS,
     value: initialValue,
   }), []);
+  const latestValueRef = useRef(initialValue);
+  const pendingValueRef = useRef(null);
+  const changeTimerRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  const publishEditorChange = useCallback((nextValue) => {
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    changeTimerRef.current = null;
+    pendingValueRef.current = null;
+    latestValueRef.current = nextValue;
+    onChangeRef.current?.(nextValue);
+  }, []);
+  const handleEditorChange = useCallback((nextValue, options = {}) => {
+    latestValueRef.current = nextValue;
+    pendingValueRef.current = nextValue;
+    if (options.immediate) {
+      publishEditorChange(nextValue);
+      return;
+    }
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    changeTimerRef.current = setTimeout(() => publishEditorChange(pendingValueRef.current), 120);
+  }, [publishEditorChange]);
+
+  useEffect(() => () => {
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    if (pendingValueRef.current) onChangeRef.current?.(pendingValueRef.current);
+  }, []);
+
+  useEffect(() => {
+    const onMoved = (event) => {
+      const detail = event.detail || {};
+      if (detail.editorId !== editorInstanceIdRef.current || !detail.blockId) return;
+      if (!deleteYooptaBlockById(editor, detail.blockId)) return;
+      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+    };
+    window.addEventListener('fitpoly:yoopta-image-moved', onMoved);
+    return () => window.removeEventListener('fitpoly:yoopta-image-moved', onMoved);
+  }, [editor, handleEditorChange]);
+
+  useEffect(() => {
+    if (pendingValueRef.current) return;
+    if (value === latestValueRef.current) return;
+    const nextValue = textToYooptaValue(value);
+    if (JSON.stringify(nextValue) === JSON.stringify(editor.getEditorValue())) {
+      latestValueRef.current = value;
+      return;
+    }
+    latestValueRef.current = nextValue;
+    editor.setEditorValue(nextValue);
+  }, [editor, value]);
 
   const insertImageSources = async (images) => {
     if (images.length === 0) return false;
@@ -324,6 +600,7 @@ export default function YooptaMiniEditor({
       });
       insertAt += 1;
     });
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
     return true;
   };
 
@@ -339,8 +616,8 @@ export default function YooptaMiniEditor({
 
   return (
     <div
-      className={`yoopta-mini-editor relative ${className}`}
-      style={{ minHeight }}
+      className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
+      style={{ minHeight: editorMinHeight }}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
         if (!files.some(file => file.type.startsWith('image/'))) return;
@@ -365,8 +642,14 @@ export default function YooptaMiniEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
-            if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image' }])) {
-              onExternalImageDrop?.(payload);
+            if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
+              if (payload.source === 'yoopta' && payload.sourceEditorId && payload.sourceEditorId !== editorInstanceIdRef.current) {
+                window.dispatchEvent(new CustomEvent('fitpoly:yoopta-image-moved', {
+                  detail: { editorId: payload.sourceEditorId, blockId: payload.sourceBlockId, dragId: payload.dragId },
+                }));
+              } else {
+                onExternalImageDrop?.(payload);
+              }
             }
           } catch {
             // Keep the source block when a drag payload is invalid.
@@ -380,6 +663,46 @@ export default function YooptaMiniEditor({
         insertImageFiles(files);
       }}
       onKeyDownCapture={event => {
+        const isModifier = event.ctrlKey || event.metaKey;
+        if (isModifier && event.key.toLowerCase() === 'y') {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.redo();
+          queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+          return;
+        }
+        if (isModifier && event.key.toLowerCase() === 'z') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.shiftKey) editor.redo();
+          else editor.undo();
+          queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+          return;
+        }
+        if (event.key === 'Backspace') {
+          const current = Selection.getCurrent(editor);
+          const block = editor.getBlock({ at: current });
+          const selection = Selection.getSlateSelection(editor);
+          const listTypes = ['BulletedList', 'NumberedList', 'TodoList'];
+          if (
+            block
+            && listTypes.includes(block.type)
+            && selection
+            && selection.anchor.offset === 0
+            && selection.focus.offset === 0
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            editor.toggleBlock('Paragraph', {
+              at: current,
+              scope: 'block',
+              preserveContent: true,
+              focus: true,
+            });
+            queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+            return;
+          }
+        }
         if (event.key !== 'Backspace' && event.key !== 'Delete') return;
         const selected = Selection.getSelected(editor);
         const orders = Array.isArray(selected) && selected.length > 0
@@ -389,19 +712,22 @@ export default function YooptaMiniEditor({
         if (imageOrders.length === 0) return;
         event.preventDefault();
         [...imageOrders].sort((a, b) => b - a).forEach(order => editor.deleteBlock({ at: order }));
+        queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
       }}
     >
-      <YooptaEditor
-        editor={editor}
-        onChange={(val) => onChange?.(val)}
-        autoFocus={false}
-        placeholder={placeholder}
-        style={{ minHeight, fontSize: 14, lineHeight: 1.7 }}
-      >
-        <FloatingToolbar />
-        <MiniBlockActions />
-        <SlashCommandMenu />
-      </YooptaEditor>
+      <YooptaMiniEditorIdContext.Provider value={editorInstanceIdRef.current}>
+        <YooptaEditor
+          editor={editor}
+          onChange={handleEditorChange}
+          autoFocus={false}
+          placeholder={placeholder}
+          style={{ minHeight: editorMinHeight, fontSize: 14, lineHeight: 1.7 }}
+        >
+          <MiniFloatingToolbar onEditorChange={handleEditorChange} />
+          <MiniBlockActions onEditorChange={handleEditorChange} />
+          <SlashCommandMenu />
+        </YooptaEditor>
+      </YooptaMiniEditorIdContext.Provider>
       <input
         ref={imageInputRef}
         type="file"
@@ -416,7 +742,7 @@ export default function YooptaMiniEditor({
       <button
         type="button"
         onClick={() => imageInputRef.current?.click()}
-        className="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-blue-300 hover:text-blue-600"
+        className="absolute right-0 top-0 z-10 flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition-opacity hover:border-blue-300 hover:text-blue-600 focus:opacity-100 group-hover:opacity-100"
         title="이미지 추가"
         aria-label="이미지 추가"
       >

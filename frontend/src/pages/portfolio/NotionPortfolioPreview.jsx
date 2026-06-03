@@ -560,12 +560,12 @@ export default function NotionPortfolioPreview() {
                     </div>
                     {/* Card body */}
                     <div className="p-3 flex-1 flex flex-col">
-                      <h4 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 mb-1">{e.title || '(제목 없음)'}</h4>
+                      <h4 className="text-sm font-bold text-gray-800 leading-snug mb-1">{e.title || '(제목 없음)'}</h4>
                       {cardRole && (
-                        <p className="text-[11px] text-primary-600 font-medium mb-1 truncate">{cardRole}</p>
+                        <p className="text-[11px] text-primary-600 font-medium mb-1">{cardRole}</p>
                       )}
                       {cardSummary && (
-                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mb-1.5">{cardSummary}</p>
+                        <p className="text-[11px] text-gray-500 leading-relaxed mb-1.5">{cardSummary}</p>
                       )}
                       {cardTech.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
@@ -579,8 +579,8 @@ export default function NotionPortfolioPreview() {
                       )}
                       {topAchievement && (
                         <div className="mt-auto pt-1.5 border-t border-surface-100">
-                          <p className="text-[10px] text-emerald-600 font-semibold line-clamp-1">🏆 {topAchievement.title}</p>
-                          {topAchievement.metric && <p className="text-[10px] text-emerald-500 line-clamp-1">{topAchievement.metric}</p>}
+                          <p className="text-[10px] text-emerald-600 font-semibold">🏆 {topAchievement.title}</p>
+                          {topAchievement.metric && <p className="text-[10px] text-emerald-500">{topAchievement.metric}</p>}
                         </div>
                       )}
                       {!topAchievement && (e.classify || []).length > 0 && (
@@ -1343,10 +1343,10 @@ function AcademicLayout({ p, setSelectedExp }) {
                       <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${stMap[e.status] || stMap.finished}`} />
                     </div>
                     <div className="p-3 flex-1 flex flex-col">
-                      <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                      <h4 className="text-sm font-bold text-gray-800 mb-1">{e.title || '(제목 없음)'}</h4>
                       <p className="text-xs text-gray-400">{e.date || ''}</p>
-                      {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
-                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                      {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1">{cardRole}</p>}
+                      {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed mt-1">{cardSummary}</p>}
                       {cardTech.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {cardTech.slice(0, 3).map((t, ti) => (
@@ -1586,7 +1586,7 @@ function AshleyLayout({ p, setSelectedExp }) {
                   <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => setSelectedExp(e)}>
                     <div className="flex-1">
                       <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. {e.title}에 대해 이야기해주세요.</p>
-                      <p className="text-sm text-[#8a8578] leading-relaxed line-clamp-3">{e.description || (e.sections || []).find(s => s.content)?.content || '클릭하여 자세한 내용을 확인하세요.'}</p>
+                      <p className="text-sm text-[#8a8578] leading-relaxed">{e.description || (e.sections || []).find(s => s.content)?.content || '클릭하여 자세한 내용을 확인하세요.'}</p>
                     </div>
                     {e.thumbnailUrl && (
                       <img src={e.thumbnailUrl} alt="" className="w-20 h-20 rounded-lg object-cover flex-shrink-0 group-hover:shadow-md transition-shadow" />
@@ -1619,10 +1619,10 @@ function AshleyLayout({ p, setSelectedExp }) {
                     )}
                   </div>
                   <div className="p-3 flex-1 flex flex-col">
-                    <h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                    <h4 className="text-sm font-bold text-[#2d2a26] mb-1">{e.title || '(제목 없음)'}</h4>
                     <p className="text-xs text-[#8a8578]">{e.date || ''}</p>
-                    {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
-                    {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
+                    {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1">{cardRole}</p>}
+                    {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed mt-1">{cardSummary}</p>}
                     {(e.classify || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
                         <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
@@ -1902,7 +1902,7 @@ function ExperienceDetailModal({ exp, onClose }) {
                   {exp.link && (
                     <div className="flex items-center gap-4">
                       <span className="w-14 text-[14px] text-bluewood-400 flex-shrink-0">링크</span>
-                      <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
+                      <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline break-all">
                         <ExternalLink size={12} /> {exp.link}
                       </a>
                     </div>
@@ -2082,7 +2082,7 @@ function TimelineLayout({ p, setSelectedExp }) {
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-800">{exp.title || '(제목 없음)'}</p>
                         <p className="text-xs text-gray-400">{exp.period || exp.date || ''} {cardRole ? `· ${cardRole}` : ''}</p>
-                        {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-1">{cardSummary}</p>}
+                        {cardSummary && <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{cardSummary}</p>}
                       </div>
                       {exp.framework && <span className="px-2 py-0.5 rounded text-[12px] bg-gray-100 text-gray-500 flex-shrink-0">{exp.framework}</span>}
                     </div>

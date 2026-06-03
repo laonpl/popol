@@ -114,107 +114,7 @@ const PORTFOLIO_TEMPLATES = [
     isNotion: true,
     previewBg: 'bg-[#191919]',
   },
-  // ── popoldesign.md 기반 전략형 테마 ──
-  {
-    id: 'theme-lean-dev',
-    name: 'Lean Hypothesis Dev',
-    description: '가설 검증과 린 스타트업 방법론에 최적화된 엔지니어 테마. 성과 지표와 피벗 과정을 투명하게 공개.',
-    tags: ['개발자', '스타트업', '다크', '린 방법론'],
-    category: 'developer',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-black',
-  },
-  {
-    id: 'theme-notion-pm',
-    name: 'Structured Notion PM',
-    description: '문서화와 구조화에 강점을 가진 기획자/PM용 테마. 토글 UI로 리서치와 트레이드오프 결정 로그를 논리적으로 전개.',
-    tags: ['PM', '기획자', '문서화', 'STAR+Trade-off'],
-    category: 'pm',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-white',
-  },
-  {
-    id: 'theme-double-diamond',
-    name: 'Double Diamond Creative',
-    description: '더블 다이아몬드 4단계를 레이아웃에 매핑한 디자이너 테마. 문제 정의부터 최종 UI까지 과정을 설득력 있게 전달.',
-    tags: ['디자이너', '더블 다이아몬드', '케이스 스터디', 'Figma'],
-    category: 'designer',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#FDFDFD]',
-  },
-  {
-    id: 'theme-bento-metric',
-    name: 'Bento Metric Strategist',
-    description: 'AARRR 퍼널별 핵심 지표를 벤토 그리드 카드로 분리한 그로스 해커/퍼포먼스 마케터 테마.',
-    tags: ['마케터', 'AARRR', '그로스 해킹', 'KPI 대시보드'],
-    category: 'marketer',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#F8FAFC]',
-  },
-  {
-    id: 'theme-startup-hustler',
-    name: 'Startup Hustler',
-    description: '0→1을 만드는 창업가용 테마. MVP 개발 속도와 초기 시장 반응을 강렬하게 증명하는 레이아웃.',
-    tags: ['스타트업', 'MVP', '창업가', '풀스택'],
-    category: 'startup',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#E2E8F0]',
-  },
-  {
-    id: 'theme-research-archival',
-    name: 'Research Archival',
-    description: 'UX 리서처·아카데믹 인재를 위한 연구 논문형 테마. 정성 데이터가 프로덕트 임팩트로 이어지는 과정을 신뢰감 있게 전달.',
-    tags: ['UX 리서치', '연구', '세리프', '정성 데이터'],
-    category: 'researcher',
-    templateType: 'academic',
-    isNotion: true,
-    previewBg: 'bg-[#F7F5F0]',
-  },
-  {
-    id: 'theme-cyberpunk',
-    name: 'Data Flow Cyberpunk',
-    description: '백엔드·인프라 아키텍트용 시스템 테마. 아키텍처 다이어그램과 기술 스택 매트릭스로 시스템 확장성을 증명.',
-    tags: ['백엔드', '인프라', '다크', '아키텍처 다이어그램'],
-    category: 'backend',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#030712]',
-  },
-  {
-    id: 'theme-ats-classic',
-    name: 'ATS-Optimized Classic',
-    description: '대기업 ATS 파싱과 F-Pattern 스캐닝에 최적화된 클래식 테마. 직무 키워드와 성과 지표만 깔끔하게 배치.',
-    tags: ['대기업', 'ATS 최적화', '클래식', '이력서형'],
-    category: 'common',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-white',
-  },
-  {
-    id: 'theme-component-creator',
-    name: 'Component-Driven Creator',
-    description: '프론트엔드·인터랙션 디자이너용 쇼케이스 테마. 컴포넌트를 Storybook처럼 전시하며 코드 품질과 인터랙션을 증명.',
-    tags: ['프론트엔드', '컴포넌트', '인터랙션', 'Lighthouse'],
-    category: 'developer',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#F4F4F5]',
-  },
-  {
-    id: 'theme-sustainable',
-    name: 'Sustainable Impact',
-    description: 'ESG·소셜 임팩트 기획자 테마. 이해관계자 지도와 사회적 가치 지표를 중심으로 임팩트를 설득력 있게 전달.',
-    tags: ['ESG', '소셜 임팩트', '서비스 기획', 'SDGs'],
-    category: 'researcher',
-    templateType: 'notion',
-    isNotion: true,
-    previewBg: 'bg-[#F4F1EB]',
-  },
+
 ];
 
 // ── 미리보기 컴포넌트들 ──
@@ -1038,165 +938,6 @@ function TimelineFullPreview() {
   );
 }
 
-// ── 디자인 테마 설정 (popoldesign.md 기반) ──
-const THEME_CONFIGS = {
-  'theme-lean-dev': {
-    bg: '#000000', surface: '#111111', accent: '#FFFFFF', textMain: '#F5F5F5', textMuted: '#737373',
-    font: 'ui-monospace, "Geist Mono", monospace',
-    heroTag: '린 스타트업 · 개발자',
-    metrics: [['서비스 사용자', '12,400+'], ['성능 개선', '+43%'], ['출시 기간', '14일']],
-    tags: ['React', 'Next.js', 'Node.js', 'AWS'],
-    philosophy: 'Simple is best. 가설을 세우고, 빠르게 검증하고, 피벗합니다.',
-  },
-  'theme-notion-pm': {
-    bg: '#FFFFFF', surface: '#F7F7F5', accent: '#2F2F2F', textMain: '#37352F', textMuted: '#9B9A97',
-    font: '"Pretendard", "Noto Sans KR", sans-serif',
-    heroTag: '기획자 · PM',
-    metrics: [['DAU/MAU', '+28%'], ['리텐션율', '73%'], ['전환율 CVR', '4.2%']],
-    tags: ['PRD 작성', '데이터 분석', 'A/B 테스트', 'Figma'],
-    philosophy: '데이터 기반으로 문제를 정의하고, 트레이드오프를 투명하게 공개합니다.',
-  },
-  'theme-double-diamond': {
-    bg: '#FDFDFD', surface: '#F3F4F6', accent: '#4F46E5', textMain: '#111827', textMuted: '#6B7280',
-    font: '"Syne", "Inter", sans-serif',
-    heroTag: '프로덕트 디자이너',
-    metrics: [['Task 성공률', '↑ 34%'], ['체류 시간', '+2분 42초'], ['UT 통과율', '91%']],
-    tags: ['Figma', 'UX Research', 'Design System', 'Prototype'],
-    philosophy: 'Discover → Define → Develop → Deliver. 과정이 결과를 증명합니다.',
-  },
-  'theme-bento-metric': {
-    bg: '#F8FAFC', surface: '#FFFFFF', accent: '#2563EB', textMain: '#0F172A', textMuted: '#475569',
-    font: '"Inter", sans-serif',
-    heroTag: '그로스 해커 · 퍼포먼스 마케터',
-    metrics: [['ROAS', '143%'], ['CAC 절감', '↓ 38%'], ['Retention', '+21%']],
-    tags: ['GA4', 'Amplitude', 'Meta Ads', 'A/B Testing'],
-    philosophy: 'AARRR 퍼널 전반에 걸친 정량적 성과를 대시보드로 증명합니다.',
-  },
-  'theme-startup-hustler': {
-    bg: '#E2E8F0', surface: '#FFFFFF', accent: '#FF3366', textMain: '#000000', textMuted: '#333333',
-    font: '"Space Grotesk", "Public Sans", sans-serif',
-    heroTag: '창업가 · 풀스택 개발자',
-    metrics: [['Time to Ship', '14일'], ['초기 매출', '₩12M'], ['피벗 횟수', '2회']],
-    tags: ['React', 'Node.js', 'Stripe', 'Vercel'],
-    philosophy: '시장의 진짜 문제를 찾고, 2주 만에 MVP를 만들어 검증합니다.',
-  },
-  'theme-research-archival': {
-    bg: '#F7F5F0', surface: '#EDE8E3', accent: '#D9381E', textMain: '#1C1917', textMuted: '#78716C',
-    font: '"Lora", "Georgia", serif',
-    heroTag: 'UX 리서처',
-    metrics: [['조사 표본', 'N=120'], ['신뢰수준', '95%'], ['개발 절감', '200h']],
-    tags: ['In-depth Interview', 'Shadowing', 'FGI', 'Affinity Mapping'],
-    philosophy: '정성 데이터가 비즈니스 임팩트로 이어지는 과정을 신뢰감 있게 기록합니다.',
-  },
-  'theme-cyberpunk': {
-    bg: '#030712', surface: '#111827', accent: '#10B981', textMain: '#F3F4F6', textMuted: '#9CA3AF',
-    font: '"JetBrains Mono", "Rajdhani", monospace',
-    heroTag: '백엔드 엔지니어 · 인프라 아키텍트',
-    metrics: [['최대 TPS', '12,000'], ['지연 시간 개선', '↓ 70ms'], ['가용성', '99.97%']],
-    tags: ['Go', 'Kubernetes', 'Redis', 'Kafka', 'PostgreSQL'],
-    philosophy: '대용량 트래픽을 처리하는 견고한 아키텍처와 시스템 가용성으로 신뢰를 증명합니다.',
-  },
-  'theme-ats-classic': {
-    bg: '#FFFFFF', surface: '#F5F5F5', accent: '#000000', textMain: '#111111', textMuted: '#555555',
-    font: '"Arial", sans-serif',
-    heroTag: 'ATS 최적화 · 대기업 지원형',
-    metrics: [['경력 기간', '3년 6개월'], ['완료 프로젝트', '12건'], ['직무 키워드', '18개']],
-    tags: ['React', 'TypeScript', 'Node.js', 'AWS'],
-    philosophy: 'ATS 파싱에 최적화된 깔끔한 구조로 서류 합격률을 높입니다.',
-  },
-  'theme-component-creator': {
-    bg: '#F4F4F5', surface: '#FFFFFF', accent: '#3B82F6', textMain: '#18181B', textMuted: '#52525B',
-    font: '"Poppins", "Nunito Sans", sans-serif',
-    heroTag: '프론트엔드 엔지니어 · UX 엔지니어',
-    metrics: [['Lighthouse 점수', '98점'], ['번들 크기 절감', '↓ 42%'], ['컴포넌트 수', '40+']],
-    tags: ['React', 'TypeScript', 'Storybook', 'a11y'],
-    philosophy: "Show, don't tell. 라이브 컴포넌트로 코드 품질을 증명합니다.",
-  },
-  'theme-sustainable': {
-    bg: '#F4F1EB', surface: '#FCFBF9', accent: '#4A5D23', textMain: '#333333', textMuted: '#7A7A7A',
-    font: '"DM Sans", "Fraunces", sans-serif',
-    heroTag: 'ESG · 소셜 임팩트 기획자',
-    metrics: [['수혜자 수', '300명+'], ['탄소 절감', '10톤'], ['조달 펀딩', '₩50M']],
-    tags: ['소셜 임팩트', 'SDGs 매핑', '이해관계자 분석', 'Logic Model'],
-    philosophy: '착한 의도를 정량적 임팩트 지표로 증명하여 지속 가능한 가치를 설계합니다.',
-  },
-};
-
-function ThemeFullPreview({ templateId }) {
-  const cfg = THEME_CONFIGS[templateId];
-  if (!cfg) return <div style={{ padding: '32px', textAlign: 'center', color: '#9CA3AF' }}>미리보기 준비 중</div>;
-
-  const S = {
-    wrapper: { background: cfg.bg, fontFamily: cfg.font, padding: '32px', minHeight: '500px' },
-    card: { background: cfg.surface, borderRadius: '12px', padding: '20px', marginBottom: '14px' },
-    heroTitle: { fontSize: '22px', fontWeight: 700, color: cfg.textMain, marginBottom: '2px' },
-    heroSub: { fontSize: '13px', color: cfg.textMuted, marginBottom: '8px' },
-    badge: { display: 'inline-block', padding: '3px 10px', background: `${cfg.accent}18`, border: `1px solid ${cfg.accent}44`, borderRadius: '20px', fontSize: '12px', color: cfg.accent, fontWeight: 600, marginBottom: '14px' },
-    divider: { borderLeft: `3px solid ${cfg.accent}`, paddingLeft: '12px', fontSize: '13px', color: cfg.textMuted, fontStyle: 'italic', marginBottom: '14px' },
-    metricsWrap: { display: 'flex', gap: '28px' },
-    metricVal: { fontSize: '22px', fontWeight: 700, color: cfg.accent },
-    metricKey: { fontSize: '11px', color: cfg.textMuted, marginTop: '2px' },
-    sectionLabel: { fontSize: '10px', fontWeight: 700, color: cfg.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' },
-    tag: { display: 'inline-block', padding: '4px 10px', border: `1px solid ${cfg.accent}40`, borderRadius: '6px', fontSize: '12px', color: cfg.textMain, marginRight: '6px', marginBottom: '6px', background: `${cfg.accent}08` },
-    projectGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' },
-    projectCard: { background: cfg.surface, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${cfg.accent}20` },
-    projectThumb: { height: '72px', background: `${cfg.accent}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', borderBottom: `1px solid ${cfg.accent}18` },
-    projectBody: { padding: '12px' },
-    projectTitle: { fontWeight: 600, color: cfg.textMain, fontSize: '14px', marginBottom: '4px' },
-    projectMeta: { fontSize: '12px', color: cfg.textMuted },
-    footer: { textAlign: 'center', fontSize: '12px', color: cfg.textMuted, borderTop: `1px solid ${cfg.accent}20`, paddingTop: '14px' },
-  };
-
-  return (
-    <div style={S.wrapper}>
-      {/* Hero */}
-      <div style={S.card}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '12px' }}>
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: `${cfg.accent}22`, border: `2px solid ${cfg.accent}44`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>👤</div>
-          <div style={{ flex: 1 }}>
-            <div style={S.heroTitle}>홍길동</div>
-            <div style={S.heroSub}>Gil-dong Hong</div>
-            <div style={S.badge}>{cfg.heroTag}</div>
-          </div>
-        </div>
-        <div style={S.divider}>{cfg.philosophy}</div>
-        <div style={S.metricsWrap}>
-          {cfg.metrics.map(([key, val]) => (
-            <div key={key}>
-              <div style={S.metricVal}>{val}</div>
-              <div style={S.metricKey}>{key}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 기술 스택 */}
-      <div style={S.card}>
-        <div style={S.sectionLabel}>기술 스택 / 역량</div>
-        <div>{cfg.tags.map(t => <span key={t} style={S.tag}>{t}</span>)}</div>
-      </div>
-
-      {/* 프로젝트 */}
-      <div style={S.projectGrid}>
-        {[{ emoji: '💻', title: '주요 프로젝트', period: '2024.03 – 2024.09', desc: '팀 리드로서 핵심 기능을 설계하고 구현. 성과 지표 30% 개선.' },
-          { emoji: '🚀', title: '사이드 프로젝트', period: '2023.11 – 2024.02', desc: 'MVP를 2주 만에 출시하고 초기 사용자 500명 확보.' }
-        ].map((p, i) => (
-          <div key={i} style={S.projectCard}>
-            <div style={S.projectThumb}>{p.emoji}</div>
-            <div style={S.projectBody}>
-              <div style={S.projectTitle}>{p.title}</div>
-              <div style={S.projectMeta}>{p.period}</div>
-              <div style={{ ...S.projectMeta, marginTop: '6px', lineHeight: 1.5 }}>{p.desc}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={S.footer}>FitPoly Portfolio · 홍길동 · {cfg.heroTag}</div>
-    </div>
-  );
-}
-
 export default function PortfolioTemplateSelect() {
   const navigate = useNavigate();
   const { user, profile } = useAuthStore();
@@ -1285,15 +1026,8 @@ export default function PortfolioTemplateSelect() {
 
       const id = await createPortfolio(user.uid, data);
 
-      // theme-* 템플릿: AI PPT 생성 페이지로 바로 이동
-      if (template.id.startsWith('theme-')) {
-        // theme- 접두사 제거해서 aiPptTemplates.jsx ID로 변환 (e.g. theme-lean-dev → lean-dev)
-        const pptTemplateId = template.id.replace(/^theme-/, '');
-        navigate(`/app/portfolio/ai-ppt/${id}?template=${pptTemplateId}&autostart=true`);
-      } else {
-        navigate(`/app/portfolio/edit-notion/${id}`);
-        toast.success('포트폴리오가 생성되었습니다!');
-      }
+      navigate(`/app/portfolio/edit-notion/${id}`);
+      toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
     }
@@ -1387,7 +1121,6 @@ export default function PortfolioTemplateSelect() {
                       {template.id === 'notion' && <NotionFullPreview />}
                       {template.id === 'academic' && <AcademicFullPreview />}
                       {template.id?.startsWith('visual-') && <VisualFullPreview templateId={template.id} />}
-                      {template.id?.startsWith('theme-') && <ThemeFullPreview templateId={template.id} />}
                     </div>
                   </div>
 
@@ -1505,7 +1238,6 @@ export default function PortfolioTemplateSelect() {
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
                 {previewTemplate === 'timeline' && <TimelineFullPreview />}
                 {previewTemplate?.startsWith('visual-') && <VisualFullPreview templateId={previewTemplate} />}
-                {previewTemplate?.startsWith('theme-') && <ThemeFullPreview templateId={previewTemplate} />}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-surface-200 bg-surface-50/60 flex items-center justify-between gap-3">

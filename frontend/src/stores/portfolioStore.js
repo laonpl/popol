@@ -62,11 +62,12 @@ const usePortfolioStore = create((set, get) => ({
     };
     // Notion 템플릿 추가 필드
     const extraFields = [
-      'templateType', 'templateId', 'headline', 'education', 'awards', 'experiences',
+      'templateType', 'templateId', 'headline', 'sections', 'education', 'awards', 'experiences',
       'contact', 'skills', 'goals', 'values', 'interests', 'curricular',
       'extracurricular', 'valuesEssay', 'jobAnalysis', 'isPublic',
       'nameEn', 'location', 'birthDate', 'activityRecords', 'customSectionLabels', 'valuesEssayBlocks',
-      'yooptaContent',
+      'yooptaContent', 'customBlocks', 'hiddenSections', 'sectionOrder', 'contentBlockOrder',
+      'tableColumns', 'customSectionIcons', 'customSectionStyles', 'customSectionTitleSegments',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
     const docRef = await addDoc(collection(db, 'portfolios'), docData);

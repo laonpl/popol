@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -18,7 +18,7 @@ import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } fro
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE } from '../../components/YooptaMiniEditor';
+import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
 
 function stripMd(s) {
@@ -97,6 +97,165 @@ function updateSectionTextBlock(section, content) {
     ? normalized.blocks.map((block, index) => index === textIndex ? { ...block, content: cleanContent } : block)
     : [{ id: `${section.key || section.title || 'section'}-text`, type: 'text', content: cleanContent }, ...normalized.blocks];
   return normalizePortfolioSection({ ...normalized, content: portfolioBlocksToText(blocks), blocks });
+}
+
+function makeEmptySectionTextBlock(section = {}) {
+  return {
+    id: `${section.key || section.title || 'section'}-text-${Date.now()}`,
+    type: 'text',
+    content: '',
+  };
+}
+
+function getEditableSectionBlocks(section = {}) {
+  const normalized = normalizePortfolioSection(section);
+  if (normalized.blocks.length > 0) return normalized.blocks;
+  return [makeEmptySectionTextBlock(normalized)];
+}
+
+function updateSectionBlocks(section, blocks) {
+  const normalized = normalizePortfolioSection(section);
+  const nextBlocks = (Array.isArray(blocks) ? blocks : [])
+    .map(normalizePortfolioBlock)
+    .filter(Boolean);
+  const safeBlocks = nextBlocks.length > 0 ? nextBlocks : [makeEmptySectionTextBlock(normalized)];
+  return normalizePortfolioSection({
+    ...normalized,
+    blocks: safeBlocks,
+    content: portfolioBlocksToText(safeBlocks),
+  });
+}
+
+function EditablePortfolioBlocks({ blocks = [], onChange, sectionKey }) {
+  const updateBlock = (index, changes) => {
+    onChange(blocks.map((block, blockIndex) => blockIndex === index ? normalizePortfolioBlock({ ...block, ...changes }) : block));
+  };
+  const removeBlock = (index) => {
+    const next = blocks.filter((_, blockIndex) => blockIndex !== index);
+    onChange(next.length > 0 ? next : [{ id: `${sectionKey}-text-${Date.now()}`, type: 'text', content: '' }]);
+  };
+  const addBlock = (type) => {
+    const id = `${sectionKey}-${type}-${Date.now()}`;
+    const nextBlock = type === 'image'
+      ? { id, type: 'image', content: '', alt: '', width: '100%' }
+      : { id, type: 'text', content: '' };
+    onChange([...blocks, nextBlock]);
+  };
+  const moveBlock = (from, to) => {
+    if (to < 0 || to >= blocks.length) return;
+    onChange(reorderItems(blocks, from, to));
+  };
+
+  return (
+    <div className="space-y-4">
+      {blocks.map((block, index) => {
+        if (block.type === 'image') {
+          return (
+            <div key={block.id || index} className="group/block rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[12px] font-semibold text-gray-400">Image</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => moveBlock(index, index - 1)} disabled={index === 0} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={13} /></button>
+                  <button type="button" onClick={() => moveBlock(index, index + 1)} disabled={index === blocks.length - 1} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={13} /></button>
+                  <button type="button" onClick={() => removeBlock(index)} className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                </div>
+              </div>
+              {block.content ? (
+                <img src={block.content} alt={block.alt || ''} className="mb-3 block max-h-[420px] w-full rounded-lg object-contain" />
+              ) : (
+                <div className="mb-3 flex h-36 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white text-xs text-gray-400">이미지를 선택하세요</div>
+              )}
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  value={block.alt || ''}
+                  onChange={e => updateBlock(index, { alt: e.target.value })}
+                  placeholder="이미지 설명"
+                  className="min-w-0 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200"
+                />
+                <select
+                  value={block.width || '100%'}
+                  onChange={e => updateBlock(index, { width: e.target.value })}
+                  className="rounded-lg border border-gray-100 bg-white px-2 py-2 text-xs text-gray-500 outline-none focus:ring-2 focus:ring-primary-200"
+                >
+                  <option value="100%">Full</option>
+                  <option value="75%">75%</option>
+                  <option value="50%">50%</option>
+                  <option value="33%">33%</option>
+                </select>
+                <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs font-medium text-gray-500 hover:text-primary-600">
+                  <ImagePlus size={13} /> 교체
+                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    try {
+                      const content = await resizeToBase64Global(file, 1200, 0.82);
+                      updateBlock(index, { content });
+                    } catch {
+                      toast.error('이미지 처리 실패');
+                    }
+                  }} />
+                </label>
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === 'slide') {
+          const cards = Array.isArray(block.cards) ? block.cards : [];
+          return (
+            <div key={block.id || index} className="rounded-xl border border-blue-100 bg-blue-50/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[12px] font-semibold text-blue-400">Slide</span>
+                <button type="button" onClick={() => removeBlock(index)} className="p-1 text-blue-200 hover:text-red-500"><Trash2 size={13} /></button>
+              </div>
+              <div className="space-y-2">
+                <input value={block.title || ''} onChange={e => updateBlock(index, { title: e.target.value })} placeholder="슬라이드 제목" className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary-200" />
+                <textarea value={block.subtitle || ''} onChange={e => updateBlock(index, { subtitle: e.target.value })} placeholder="부제목" rows={2} className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                <textarea value={block.content || ''} onChange={e => updateBlock(index, { content: e.target.value })} placeholder="본문" rows={3} className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200" />
+                {cards.map((card, cardIndex) => (
+                  <div key={cardIndex} className="grid gap-2 sm:grid-cols-2">
+                    <input value={card.title || ''} onChange={e => {
+                      const nextCards = cards.map((item, itemIndex) => itemIndex === cardIndex ? { ...item, title: e.target.value } : item);
+                      updateBlock(index, { cards: nextCards });
+                    }} placeholder="카드 제목" className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-200" />
+                    <input value={card.body || ''} onChange={e => {
+                      const nextCards = cards.map((item, itemIndex) => itemIndex === cardIndex ? { ...item, body: e.target.value } : item);
+                      updateBlock(index, { cards: nextCards });
+                    }} placeholder="카드 내용" className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-200" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={block.id || index} className="group/block relative">
+            <textarea
+              value={block.content || ''}
+              onChange={e => updateBlock(index, { content: e.target.value })}
+              rows={4}
+              className="w-full resize-y rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[16px] leading-[1.9] text-gray-800 outline-none transition-shadow focus:ring-2 focus:ring-primary-200"
+            />
+            <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/block:opacity-100 focus-within:opacity-100">
+              <button type="button" onClick={() => moveBlock(index, index - 1)} disabled={index === 0} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
+              <button type="button" onClick={() => moveBlock(index, index + 1)} disabled={index === blocks.length - 1} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
+              <button type="button" onClick={() => removeBlock(index)} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-red-500"><Trash2 size={12} /></button>
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => addBlock('text')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600">
+          <Plus size={13} /> 텍스트 추가
+        </button>
+        <button type="button" onClick={() => addBlock('image')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600">
+          <ImagePlus size={13} /> 이미지 추가
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function PortfolioBlockViewer({ blocks = [] }) {
@@ -426,8 +585,13 @@ const EMPTY_PORTFOLIO = {
   hiddenSections: [],
   // 섹션 순서 (드래그 or 버튼으로 변경)
   sectionOrder: [],
+  contentBlockOrder: {},
   // 섹션 이름 커스텀
   customSectionLabels: {},
+  customSectionIcons: {},
+  customSectionStyles: {},
+  customSectionTitleSegments: {},
+  tableColumns: {},
   // 스킬 레벨 (퍼센트)
   skillLevels: {},
 };
@@ -566,6 +730,7 @@ function getDefaultCustomBlockTitle(type) {
   if (type === 'heading') return '제목';
   if (type === 'image') return '이미지';
   if (type === 'divider') return '구분선';
+  if (type === 'table') return '표';
   if (type === 'project') return '프로젝트 / 경험';
   return '텍스트';
 }
@@ -575,8 +740,218 @@ function getCustomBlockLabel(block, index) {
   if (block?.type === 'heading') return block.content || '제목 블록';
   if (block?.type === 'image') return '이미지 블록';
   if (block?.type === 'divider') return '구분선 블록';
+  if (block?.type === 'table') return '표 블록';
   if (block?.type === 'project') return '프로젝트 블록';
   return `텍스트 블록 ${index + 1}`;
+}
+
+const EDITABLE_ICON_MAP = {
+  phone: Phone,
+  mail: Mail,
+  globe: Globe,
+  map: MapPin,
+  calendar: Calendar,
+  heart: Heart,
+  book: BookOpen,
+  award: Award,
+  briefcase: Briefcase,
+  star: Star,
+  target: Target,
+  message: MessageSquare,
+  code: Code,
+};
+
+const SECTION_TITLE_SIZE_OPTIONS = [
+  { value: '', label: '기본' },
+  { value: '12px', label: '12' },
+  { value: '14px', label: '14' },
+  { value: '16px', label: '16' },
+  { value: '18px', label: '18' },
+  { value: '20px', label: '20' },
+  { value: '24px', label: '24' },
+  { value: '28px', label: '28' },
+  { value: '32px', label: '32' },
+];
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function titleSegmentsToHtml(segments, fallback) {
+  const safeSegments = Array.isArray(segments) && segments.length > 0
+    ? segments
+    : [{ text: fallback || '', fontSize: '' }];
+  return safeSegments.map(segment => {
+    const text = escapeHtml(segment?.text || '');
+    const fontSize = SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment?.fontSize) ? segment.fontSize : '';
+    return fontSize ? `<span style="font-size:${fontSize}">${text}</span>` : text;
+  }).join('');
+}
+
+function readTitleSegmentsFromElement(element) {
+  const segments = [];
+  const walk = (node, inheritedSize = '') => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent) segments.push({ text: node.textContent, fontSize: inheritedSize });
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const size = SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)
+      ? node.style.fontSize
+      : inheritedSize;
+    Array.from(node.childNodes).forEach(child => walk(child, size));
+  };
+  Array.from(element.childNodes).forEach(child => walk(child));
+  return segments.filter(segment => segment.text.length > 0);
+}
+
+function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, className = '', hoverClassName = 'hover:bg-primary-50/30' }) {
+  const titleRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const labels = portfolio.customSectionLabels || {};
+  const titleSegments = portfolio.customSectionTitleSegments || {};
+  const segments = titleSegments[sectionKey];
+  const fallbackLabel = labels[sectionKey] || defaultLabel;
+  const updateSegments = () => {
+    const nextSegments = readTitleSegmentsFromElement(titleRef.current);
+    update('customSectionTitleSegments', { ...titleSegments, [sectionKey]: nextSegments });
+    update('customSectionLabels', { ...labels, [sectionKey]: nextSegments.map(segment => segment.text).join('') || defaultLabel });
+  };
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !titleRef.current?.contains(selection.anchorNode)) return;
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+  };
+  const applyFontSize = (fontSize) => {
+    const selection = window.getSelection();
+    const liveRange = selection?.rangeCount && titleRef.current?.contains(selection.anchorNode)
+      ? selection.getRangeAt(0)
+      : null;
+    const range = liveRange || savedRangeRef.current;
+    if (!range || !titleRef.current?.contains(range.commonAncestorContainer)) return;
+    if (range.collapsed) return;
+    const wrapper = document.createElement('span');
+    if (fontSize) wrapper.style.fontSize = fontSize;
+    try {
+      range.surroundContents(wrapper);
+    } catch {
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+    }
+    titleRef.current.normalize();
+    updateSegments();
+    selection.removeAllRanges();
+  };
+
+  useEffect(() => {
+    if (!titleRef.current || document.activeElement === titleRef.current) return;
+    titleRef.current.innerHTML = titleSegmentsToHtml(segments, fallbackLabel);
+  }, [segments, fallbackLabel]);
+
+  return (
+    <span className="group/title-size relative inline-flex max-w-full items-center gap-1 align-baseline">
+      <span
+        ref={titleRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={updateSegments}
+        onBlur={updateSegments}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
+        onPaste={event => {
+          event.preventDefault();
+          document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+        }}
+        className={`min-w-0 bg-transparent outline-none rounded px-1 ${hoverClassName} ${className}`}
+        dangerouslySetInnerHTML={{ __html: titleSegmentsToHtml(segments, fallbackLabel) }}
+      />
+      <select
+        defaultValue=""
+        onChange={event => {
+          applyFontSize(event.target.value);
+          event.target.value = '';
+        }}
+        className="h-6 rounded border border-surface-200 bg-white px-1 text-[11px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title-size:opacity-100 focus:opacity-100"
+        title="선택 글자 크기"
+        aria-label="선택 글자 크기"
+      >
+        {SECTION_TITLE_SIZE_OPTIONS.map(option => (
+          <option key={option.value || 'default'} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+function EditableIcon({ value, onChange, className = 'text-gray-400', size = 14 }) {
+  const Icon = EDITABLE_ICON_MAP[value] || Globe;
+  return (
+    <span className="group/icon relative inline-flex flex-shrink-0 items-center">
+      <Icon size={size} className={className} />
+      <select
+        value={value || 'globe'}
+        onChange={event => onChange(event.target.value)}
+        className="absolute -inset-1 cursor-pointer opacity-0"
+        title="아이콘 변경"
+        aria-label="아이콘 변경"
+      >
+        {Object.keys(EDITABLE_ICON_MAP).map(key => (
+          <option key={key} value={key}>{key}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+function makeSectionPackageBlocks(sectionKey, startOrder = 0) {
+  const titles = {
+    profile: '프로필 | Profile',
+    education: '학력 | Education',
+    awards: '수상 | Awards',
+    experiences: '프로젝트 / 경험',
+    curricular: '교과 활동 | Curricular Activities',
+    extracurricular: '비교과 활동 | Extracurricular Activities',
+    skills: '기술 | Skills',
+    goals: '목표와 계획 | Future Plans',
+    values: '가치관 | Values',
+    interests: '관심사 | Interest',
+    contact: '연락처 | Contact',
+  };
+  const bodies = {
+    profile: '사진\n이름\n소개\n가치관',
+    education: '학교명\n기간\n전공\n상세 내용',
+    awards: '날짜\n수상명\n기관\n설명',
+    experiences: '프로젝트명\n기간\n역할\n설명\n성과',
+    curricular: '요약\n이수 학점:\n평점 평균:\n\n교과목 수강 내역',
+    extracurricular: '요약\n\n디지털 배지\n\n어학 성적\n\n세부 사항',
+    skills: '언어\n도구\n프레임워크\n기타 역량',
+    goals: '단기 목표\n중기 목표\n장기 목표\n상세 계획',
+    values: '내가 중요하게 생각하는 가치\n\n경험과 연결되는 이야기',
+    interests: '관심사\n관심사를 갖게 된 이유\n관련 활동',
+    contact: '전화\n이메일\nLinkedIn\nGitHub\n웹사이트',
+  };
+  const blocks = [
+    { type: 'heading', title: titles[sectionKey] || '새 섹션', content: titles[sectionKey] || '새 섹션', order: startOrder },
+    { type: 'text', title: '내용', content: bodies[sectionKey] || '', order: startOrder + 0.01 },
+  ];
+  if (sectionKey === 'curricular') {
+    blocks.push(
+      { type: 'table', title: '교과목 수강 내역', content: '', contentBlocks: createYooptaTableValue(3, 3), order: startOrder + 0.02 },
+      { type: 'table', title: '이수 현황', content: '', contentBlocks: createYooptaTableValue(3, 6), order: startOrder + 0.03 },
+    );
+  }
+  if (sectionKey === 'extracurricular') {
+    blocks.push(
+      { type: 'table', title: '디지털 배지', content: '', contentBlocks: createYooptaTableValue(3, 2), order: startOrder + 0.02 },
+      { type: 'table', title: '어학 성적', content: '', contentBlocks: createYooptaTableValue(3, 3), order: startOrder + 0.03 },
+    );
+  }
+  return blocks;
 }
 
 function shouldIgnoreBlockDrag(target) {
@@ -685,7 +1060,6 @@ export default function NotionPortfolioEditor() {
 
   const [portfolio, setPortfolio] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [generatingThemed, setGeneratingThemed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('profile');
   const [userExperiences, setUserExperiences] = useState([]);
@@ -699,21 +1073,36 @@ export default function NotionPortfolioEditor() {
   const autoSaveTimer = useRef(null);
   const initialLoaded = useRef(false);
   const pendingRef = useRef(false);
+  const queuedPortfolioRef = useRef(null);
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+  const isHistoryActionRef = useRef(false);
+
+  const persistPortfolio = useCallback(async (snapshot) => {
+    if (!snapshot) return;
+    if (pendingRef.current) {
+      queuedPortfolioRef.current = snapshot;
+      return;
+    }
+    pendingRef.current = true;
+    try {
+      const { id: _id, ...data } = snapshot;
+      await updatePortfolio(id, data);
+    } catch { /* Keep editing available when an automatic save fails. */ }
+    finally {
+      pendingRef.current = false;
+      const queued = queuedPortfolioRef.current;
+      queuedPortfolioRef.current = null;
+      if (queued && queued !== snapshot) persistPortfolio(queued);
+    }
+  }, [id, updatePortfolio]);
 
   useEffect(() => {
     if (!portfolio || !initialLoaded.current) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(async () => {
-      if (pendingRef.current) return;
-      pendingRef.current = true;
-      try {
-        const { id: _id, ...data } = portfolio;
-        await updatePortfolio(id, data);
-      } catch { /* 자동 저장 실패 시 무시 — 수동 저장으로 보완 */ }
-      finally { pendingRef.current = false; }
-    }, 2000);
+    autoSaveTimer.current = setTimeout(() => persistPortfolio(portfolio), 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [portfolio, id, updatePortfolio]);
+  }, [portfolio, persistPortfolio]);
 
   const labels = useMemo(() => ({
     ...(SECTION_LABELS[portfolio?.templateId] || SECTION_LABELS.notion),
@@ -761,6 +1150,8 @@ export default function NotionPortfolioEditor() {
         if (!merged.hiddenSections) merged.hiddenSections = [];
         if (!merged.activityRecords) merged.activityRecords = [];
         if (!merged.customSectionLabels) merged.customSectionLabels = {};
+        if (!merged.customSectionStyles) merged.customSectionStyles = {};
+        if (!merged.customSectionTitleSegments) merged.customSectionTitleSegments = {};
         if (!merged.skillLevels) merged.skillLevels = {};
         setPortfolio(merged);
         setCurrentPortfolio(merged);
@@ -774,6 +1165,8 @@ export default function NotionPortfolioEditor() {
       const exportConfig = location.state?.exportConfig;
       if (exportConfig && portfolioSnap.exists()) {
         const mergedPf = { ...EMPTY_PORTFOLIO, ...portfolioSnap.data() };
+        if (!mergedPf.customSectionStyles) mergedPf.customSectionStyles = {};
+        if (!mergedPf.customSectionTitleSegments) mergedPf.customSectionTitleSegments = {};
         const existing = mergedPf.experiences || [];
         const alreadyImported = existing.find(e => e.experienceId === exportConfig.experienceId);
         if (!alreadyImported) {
@@ -826,12 +1219,34 @@ export default function NotionPortfolioEditor() {
     setLoading(false);
   };
 
+  const commitPortfolio = useCallback((producer) => {
+    setPortfolio(prev => {
+      if (!prev) return prev;
+      const next = typeof producer === 'function' ? producer(prev) : producer;
+      if (!next || next === prev || JSON.stringify(next) === JSON.stringify(prev)) return prev;
+      if (!isHistoryActionRef.current) {
+        undoStackRef.current = [...undoStackRef.current.slice(-79), prev];
+        redoStackRef.current = [];
+      }
+      return next;
+    });
+  }, []);
+
   const update = (field, value) => {
-    setPortfolio(prev => ({ ...prev, [field]: value }));
+    commitPortfolio(prev => ({ ...prev, [field]: value }));
   };
 
+  // 여러 최상위 필드를 한 번에 갱신 (예: blocks + plain 텍스트 동시 저장)
+  const updateMany = (fields) => {
+    commitPortfolio(prev => ({ ...prev, ...fields }));
+  };
+
+  useEffect(() => {
+    if (portfolio) setCurrentPortfolio(portfolio);
+  }, [portfolio, setCurrentPortfolio]);
+
   const updateNested = (parent, field, value) => {
-    setPortfolio(prev => ({
+    commitPortfolio(prev => ({
       ...prev,
       [parent]: { ...prev[parent], [field]: value }
     }));
@@ -839,7 +1254,7 @@ export default function NotionPortfolioEditor() {
 
   // Array helpers
   const addToArray = (field, item) => {
-    setPortfolio(prev => ({
+    commitPortfolio(prev => ({
       ...prev,
       [field]: field === 'customBlocks'
         ? [item, ...(prev[field] || [])]
@@ -847,15 +1262,48 @@ export default function NotionPortfolioEditor() {
     }));
   };
   const removeFromArray = (field, index) => {
-    setPortfolio(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
+    commitPortfolio(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
   };
   const updateArrayItem = (field, index, value) => {
-    setPortfolio(prev => {
+    commitPortfolio(prev => {
       const arr = [...prev[field]];
       arr[index] = typeof value === 'object' ? { ...arr[index], ...value } : value;
       return { ...prev, [field]: arr };
     });
   };
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+        const key = event.key.toLowerCase();
+        const isMod = event.ctrlKey || event.metaKey;
+        if (!isMod || (key !== 'z' && key !== 'y')) return;
+        const active = document.activeElement;
+        if (
+          active?.closest?.('.yoopta-mini-editor') ||
+          active?.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(active?.tagName)
+        ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (key === 'z' && !event.shiftKey) {
+        const prev = undoStackRef.current.pop();
+        if (!prev) return;
+        redoStackRef.current = portfolio ? [...redoStackRef.current.slice(-79), portfolio] : redoStackRef.current;
+        isHistoryActionRef.current = true;
+        setPortfolio(prev);
+        queueMicrotask(() => { isHistoryActionRef.current = false; });
+        return;
+      }
+      const next = redoStackRef.current.pop();
+      if (!next) return;
+      undoStackRef.current = portfolio ? [...undoStackRef.current.slice(-79), portfolio] : undoStackRef.current;
+      isHistoryActionRef.current = true;
+      setPortfolio(next);
+      queueMicrotask(() => { isHistoryActionRef.current = false; });
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [portfolio]);
 
   useEffect(() => {
     const applyRecommendation = (event) => {
@@ -991,22 +1439,6 @@ export default function NotionPortfolioEditor() {
     setSaving(false);
   };
 
-  const handleGenerateThemed = async () => {
-    const themeId = portfolio?.templateId?.startsWith('theme-')
-      ? portfolio.templateId
-      : 'theme-notion-pm'; // 테마 미설정 포트폴리오의 기본 테마
-    setGeneratingThemed(true);
-    try {
-      const { data } = await api.post('/portfolio/generate-themed', { portfolioId: id, themeId });
-      setPortfolio(prev => ({ ...prev, visual_sections: data.visual_sections, visual_sections_theme: themeId }));
-      toast.success(`전문가 포트폴리오 생성 완료! ${data.visual_sections.length}개 섹션`);
-      navigate(`/app/portfolio/preview/${id}`);
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'AI 생성 실패. 다시 시도해주세요.');
-    } finally {
-      setGeneratingThemed(false);
-    }
-  };
 
   const importExperience = (exp) => {
     const aiResult = exp.structuredResult || {};
@@ -2007,9 +2439,11 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 
   const [editingSections, setEditingSections] = useState(false);
   const [sectionDraft, setSectionDraft] = useState({});
+  const [sectionBlockDraft, setSectionBlockDraft] = useState({});
 
   const startSectionEdit = () => {
     setSectionDraft(Object.fromEntries(renderableSections.map(section => [section.key, section.content || portfolioBlocksToText(section.blocks || [])])));
+    setSectionBlockDraft(Object.fromEntries(renderableSections.map(section => [section.key, getEditableSectionBlocks(section)])));
     setEditingSections(true);
   };
 
@@ -2019,8 +2453,13 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
     if (exportCfg?.sections?.length > 0) {
       const updatedSections = exportCfg.sections.map((section, index) => {
         const key = section.key || `export-${index}`;
-        if (!Object.prototype.hasOwnProperty.call(sectionDraft, key)) return normalizePortfolioSection(section);
-        return updateSectionTextBlock({ ...section, key }, sectionDraft[key]);
+        if (Object.prototype.hasOwnProperty.call(sectionBlockDraft, key)) {
+          return updateSectionBlocks({ ...section, key }, sectionBlockDraft[key]);
+        }
+        if (Object.prototype.hasOwnProperty.call(sectionDraft, key)) {
+          return updateSectionTextBlock({ ...section, key }, sectionDraft[key]);
+        }
+        return normalizePortfolioSection(section);
       });
       const exportSections = updatedSections.map(section => ({
         key: section.key,
@@ -2037,11 +2476,13 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
       const updatedStructured = { ...currentStructured, ...sectionDraft };
       onUpdate({ structuredResult: updatedStructured });
     }
+    setSectionBlockDraft({});
     setEditingSections(false);
   };
 
   const cancelSectionEdit = () => {
     setSectionDraft({});
+    setSectionBlockDraft({});
     setEditingSections(false);
   };
 
@@ -2406,12 +2847,14 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
                                   )}
                                 </div>
                                 {/* Notion 스타일 본문 */}
-                                {editingSections && !isSlideDeck ? (
-                                  <textarea
-                                    value={sectionDraft[sect.key] ?? ''}
-                                    onChange={e => setSectionDraft(prev => ({ ...prev, [sect.key]: e.target.value }))}
-                                    rows={4}
-                                    className="w-full px-4 py-3 border border-gray-100 rounded-xl text-[16px] text-gray-800 leading-[1.9] outline-none focus:ring-2 focus:ring-primary-200 resize-none transition-shadow bg-gray-50"
+                                {editingSections ? (
+                                  <EditablePortfolioBlocks
+                                    sectionKey={sect.key}
+                                    blocks={sectionBlockDraft[sect.key] || getEditableSectionBlocks(sect)}
+                                    onChange={nextBlocks => {
+                                      setSectionBlockDraft(prev => ({ ...prev, [sect.key]: nextBlocks }));
+                                      setSectionDraft(prev => ({ ...prev, [sect.key]: portfolioBlocksToText(nextBlocks) }));
+                                    }}
                                   />
                                 ) : isSlideDeck ? (
                                   <PortfolioSlideDeck blocks={sect.blocks || []} />
@@ -2658,6 +3101,7 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
   // ec = edit callbacks object passed to visual templates
   const ec = {
     update,
+    updateMany,
     updateNested,
     addToArray,
     removeFromArray,
@@ -2796,13 +3240,11 @@ function VisualTemplateEditor({ portfolio, update, updateNested, addToArray, rem
 
 /* ── Visual Editor (Notion-like inline editing) ── */
 function VisualEditor(props) {
-  const { templateId, portfolio } = props;
+  const { templateId } = props;
+  if (VISUAL_TEMPLATE_IDS.includes(templateId)) return <VisualTemplateEditor {...props} />;
   if (templateId === 'ashley') return <AshleyVisualEditor {...props} />;
   if (templateId === 'academic') return <AcademicVisualEditor {...props} />;
   if (templateId === 'timeline') return <TimelineVisualEditor {...props} />;
-  if (VISUAL_TEMPLATE_IDS.includes(templateId)) {
-    return <VisualTemplateEditor {...props} />;
-  }
   return <NotionVisualEditor {...props} />;
 }
 
@@ -3124,16 +3566,27 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
-    <input
-      value={(p.customSectionLabels || {})[sectionKey] || defaultLabel}
-      onChange={e => update('customSectionLabels', { ...(p.customSectionLabels || {}), [sectionKey]: e.target.value })}
-      className={`bg-transparent outline-none hover:bg-[#f7f5f0] rounded px-1 ${className}`}
-    />
+    <EditableSectionTitle portfolio={p} update={update} sectionKey={sectionKey} defaultLabel={defaultLabel} className={className} hoverClassName="hover:bg-[#f7f5f0]" />
   );
 
   // 섹션 숨기기/보이기 헬퍼
   const hideSection = (key) => update('hiddenSections', [...hiddenSections, key]);
   const showSection = (key) => update('hiddenSections', hiddenSections.filter(s => s !== key));
+  const addSectionPackage = (sectionKey) => {
+    const startOrder = (p.customBlocks || []).length;
+    update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
+    update('sections', [...new Set([...(p.sections || []), sectionKey])]);
+    showSection(sectionKey);
+    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
+    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
+    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
+    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
+    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
+    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
+    if (sectionKey === 'interests' && !(p.interests || []).length) update('interests', ['']);
+    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
+    setShowCustomBlockMenu(false);
+  };
 
   // 커스텀 블록 관련 state
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
@@ -3632,7 +4085,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="space-y-3">
             {(p.goals || []).map((g, i) => (
-              <div key={i} className="p-4 bg-white rounded-xl border border-[#e8e4dc] relative group/goal">
+              <div key={i} className="relative group/goal border-b border-[#e8e4dc]/60 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 text-[#c4b89a] hover:text-red-400"><Trash2 size={12} /></button>
                 <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
@@ -3810,7 +4263,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <Plus size={16} /> 블록 추가
             </button>
             {showCustomBlockMenu && (
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-20 py-2 w-60">
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-[#e8e4dc] rounded-xl shadow-lg z-20 py-2 w-72 max-h-[70vh] overflow-y-auto">
                 <p className="px-3 py-1 text-[12px] text-[#8a8578] font-bold uppercase tracking-wider">기본 블록</p>
                 {[
                   { type: 'heading', icon: <Type size={14}/>, label: '제목', desc: '큰 제목 텍스트' },
@@ -3831,6 +4284,20 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]"><Briefcase size={14}/></span>
                     <div><p className="text-sm font-medium text-[#2d2a26]">프로젝트 / 경험</p><p className="text-[12px] text-[#8a8578]">카드 갤러리, DB에서 불러오기 지원</p></div>
                   </button>
+                </div>
+                <div className="border-t border-[#e8e4dc] mt-1 pt-1">
+                  <p className="px-3 py-1 text-[12px] text-[#8a8578] font-bold uppercase tracking-wider">섹션 패키지</p>
+                  {[
+                    ['education', '학력'], ['awards', '수상'], ['experiences', '프로젝트 / 경험'],
+                    ['curricular', '교과 활동'], ['extracurricular', '비교과 활동'], ['skills', '기술'],
+                    ['goals', '목표와 계획'], ['values', '가치관'], ['interests', '관심사'], ['contact', '연락처'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" onClick={() => addSectionPackage(key)}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#f7f5f0] text-left">
+                      <span className="w-6 h-6 bg-[#f0ece4] rounded flex items-center justify-center text-[#8a6c4a]"><Plus size={14}/></span>
+                      <div><p className="text-sm font-medium text-[#2d2a26]">{label}</p><p className="text-[12px] text-[#8a8578]">섹션 세트 추가</p></div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -3943,7 +4410,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const contact = p.contact || {};
   const skills = p.skills || {};
   const hiddenSections = p.hiddenSections || [];
-  const sections = p.sections || ['education', 'awards', 'experiences', 'skills', 'goals', 'values'];
+  const sections = [...new Set(['education', 'awards', 'experiences', 'skills', 'goals', 'values', ...(p.sections || [])])];
   const profileImageInputRef = useRef(null);
   const [showExpPicker, setShowExpPicker] = useState(false);
   const [showAddExpMenu, setShowAddExpMenu] = useState(false);
@@ -3960,12 +4427,23 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
-    <input
-      value={(p.customSectionLabels || {})[sectionKey] || defaultLabel}
-      onChange={e => update('customSectionLabels', { ...(p.customSectionLabels || {}), [sectionKey]: e.target.value })}
-      className={`bg-transparent outline-none hover:bg-primary-50/30 rounded px-1 ${className}`}
-    />
+    <EditableSectionTitle portfolio={p} update={update} sectionKey={sectionKey} defaultLabel={defaultLabel} className={className} />
   );
+
+  const addSectionPackage = (sectionKey) => {
+    const startOrder = (p.customBlocks || []).length;
+    update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
+    update('sections', [...new Set([...sections, sectionKey])]);
+    update('hiddenSections', hiddenSections.filter(key => key !== sectionKey));
+    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
+    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
+    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
+    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
+    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
+    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
+    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
+    setShowBlockMenu(false);
+  };
 
   const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
     new Promise((resolve, reject) => {
@@ -4543,7 +5021,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
           <div className="space-y-3">
             {(p.goals || []).map((g, i) => (
-              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 group/goal relative">
+              <div key={i} className="group/goal relative border-b border-surface-100 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
                 <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
@@ -4665,7 +5143,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               <Plus size={16} /> 블록 추가
             </button>
             {showBlockMenu && (
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-2 w-60">
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-2 w-72 max-h-[70vh] overflow-y-auto">
                 <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '큰 제목 텍스트' },
@@ -4686,6 +5164,20 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                     <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500"><Briefcase size={14}/></span>
                     <div><p className="text-sm font-medium text-gray-700">프로젝트/경험</p><p className="text-[12px] text-gray-400">프로젝트 카드 그리드</p></div>
                   </button>
+                </div>
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">섹션 패키지</p>
+                  {[
+                    ['education', '학력'], ['awards', '수상'], ['experiences', '프로젝트 / 경험'],
+                    ['curricular', '교과 활동'], ['extracurricular', '비교과 활동'], ['skills', '기술'],
+                    ['goals', '목표와 계획'], ['values', '가치관'], ['contact', '연락처'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" onClick={() => addSectionPackage(key)}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
+                      <span className="w-6 h-6 bg-surface-100 rounded flex items-center justify-center text-gray-500"><Plus size={14}/></span>
+                      <div><p className="text-sm font-medium text-gray-700">{label}</p><p className="text-[12px] text-gray-400">섹션 세트 추가</p></div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -5014,7 +5506,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
           </div>
           <div className="grid grid-cols-2 gap-3">
             {(p.goals || []).map((g, i) => (
-              <div key={i} className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 group relative">
+              <div key={i} className="group relative border-b border-emerald-100 py-3 last:border-b-0">
                 <input
                   value={g.title || ''}
                   onChange={e => updateArrayItem('goals', i, { ...g, title: e.target.value })}
@@ -5074,6 +5566,162 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   );
 }
 
+function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLabel = '행 추가' }) {
+  const [draggingColumn, setDraggingColumn] = useState(null);
+  const [draggingRow, setDraggingRow] = useState(null);
+  const moveItem = (items, fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return items;
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  };
+  const updateColumn = (index, label) => {
+    const next = [...columns];
+    next[index] = { ...next[index], label };
+    onColumnsChange(next);
+  };
+  const removeColumn = (index) => {
+    const column = columns[index];
+    if (columns.length <= 1) return;
+    onColumnsChange(columns.filter((_, columnIndex) => columnIndex !== index));
+    onRowsChange(rows.map(row => {
+      const next = { ...row };
+      delete next[column.key];
+      return next;
+    }));
+  };
+  const addColumn = () => {
+    const key = `custom_${Date.now()}`;
+    onColumnsChange([...columns, { key, label: '새 열' }]);
+  };
+  const updateCell = (rowIndex, key, value) => {
+    const next = [...rows];
+    next[rowIndex] = { ...next[rowIndex], [key]: value };
+    onRowsChange(next);
+  };
+  const clearCell = (rowIndex, key) => updateCell(rowIndex, key, '');
+
+  return (
+    <div className="editable-data-table group/table mb-4 overflow-x-auto">
+      <table className="w-full min-w-[520px] text-sm border-collapse mb-2">
+        <thead>
+          <tr className="bg-surface-50/70">
+            {columns.map((column, index) => (
+              <th
+                key={column.key}
+                onDragOver={event => {
+                  if (draggingColumn == null) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={event => {
+                  event.preventDefault();
+                  const fromIndex = Number(event.dataTransfer.getData('application/x-fitpoly-table-column'));
+                  if (!Number.isNaN(fromIndex)) onColumnsChange(moveItem(columns, fromIndex, index));
+                  setDraggingColumn(null);
+                }}
+                onDragEnd={() => setDraggingColumn(null)}
+                className={`group/column min-w-[120px] border-b border-r border-surface-200 px-1 py-1 text-left transition-opacity ${draggingColumn === index ? 'opacity-40' : ''}`}
+              >
+                <div className="flex items-center gap-1">
+                  <span
+                    draggable
+                    onDragStart={event => {
+                      setDraggingColumn(index);
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('application/x-fitpoly-table-column', String(index));
+                    }}
+                    onDragEnd={() => setDraggingColumn(null)}
+                    className="cursor-grab text-gray-300 transition-opacity hover:text-primary-500"
+                    title="열 이동"
+                  >
+                    <GripVertical size={12} />
+                  </span>
+                  <input
+                    value={column.label}
+                    onChange={event => updateColumn(index, event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-2 py-1 font-semibold outline-none hover:bg-primary-50/30"
+                  />
+                  {columns.length > 1 && (
+                    <button type="button" onClick={() => removeColumn(index)} className="text-gray-300 transition-opacity hover:text-red-400" title="열 삭제">
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </th>
+            ))}
+            <th className="w-10 border-b border-surface-200 bg-white text-center text-[10px] font-medium text-gray-300">행</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr
+              key={rowIndex}
+              onDragOver={event => {
+                if (draggingRow == null) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={event => {
+                event.preventDefault();
+                const fromIndex = Number(event.dataTransfer.getData('application/x-fitpoly-table-row'));
+                if (!Number.isNaN(fromIndex)) onRowsChange(moveItem(rows, fromIndex, rowIndex));
+                setDraggingRow(null);
+              }}
+              className={`group/row transition-opacity ${draggingRow === rowIndex ? 'opacity-40' : ''}`}
+            >
+              {columns.map(column => (
+                <td key={column.key} className="group/cell border-b border-r border-surface-200 px-1 py-1">
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={row[column.key] || ''}
+                      onChange={event => updateCell(rowIndex, column.key, event.target.value)}
+                      placeholder={column.label}
+                      className="min-w-0 flex-1 rounded bg-transparent px-2 py-1 outline-none placeholder:text-gray-300 hover:bg-primary-50/30"
+                    />
+                    {!!row[column.key] && (
+                      <button type="button" onClick={() => clearCell(rowIndex, column.key)} className="text-gray-300 opacity-0 transition-opacity hover:text-red-400 group-hover/cell:opacity-100" title="셀 내용 지우기">
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              ))}
+              <td className="w-10 border-b border-surface-200 bg-white px-1 py-1 text-center">
+                <span
+                  draggable
+                  onDragStart={event => {
+                    setDraggingRow(rowIndex);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('application/x-fitpoly-table-row', String(rowIndex));
+                  }}
+                  onDragEnd={() => setDraggingRow(null)}
+                  className="inline-flex cursor-grab text-gray-300 transition-opacity hover:text-primary-500"
+                  title="행 이동"
+                >
+                  <GripVertical size={12} />
+                </span>
+                <button type="button" onClick={() => onRowsChange(rows.filter((_, index) => index !== rowIndex))} className="text-gray-300 transition-opacity hover:text-red-400" title="행 삭제">
+                  <Trash2 size={12} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => onRowsChange([...rows, {}])} className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600">
+          <Plus size={12} /> {addLabel}
+        </button>
+        <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600">
+          <Plus size={12} /> 열 추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Notion Visual Editor (기존 3컬럼) ── */
 function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
@@ -5081,6 +5729,32 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const skills = p.skills || {};
   const curr = p.curricular || {};
   const extra = p.extracurricular || {};
+  const customIcons = p.customSectionIcons || {};
+  const updateIcon = (key, icon) => update('customSectionIcons', { ...(p.customSectionIcons || {}), [key]: icon });
+  const tableColumns = p.tableColumns || {};
+  const curricularCourseColumns = tableColumns.curricularCourses || [
+    { key: 'semester', label: '학기', required: true },
+    { key: 'name', label: '과목명', required: true },
+    { key: 'grade', label: '성적', required: true },
+  ];
+  const curricularCreditColumns = tableColumns.curricularCredits || [
+    { key: 'category', label: '구분', required: true },
+    { key: 'area', label: '영역', required: true },
+    { key: 'required', label: '기준 학점', required: true },
+    { key: 'earned', label: '취득 학점', required: true },
+    { key: 'remaining', label: '잔여 학점', required: true },
+    { key: 'rate', label: '달성률', required: true },
+  ];
+  const extracurricularLanguageColumns = tableColumns.extracurricularLanguages || [
+    { key: 'name', label: '시험명', required: true },
+    { key: 'score', label: '점수/등급', required: true },
+    { key: 'date', label: '취득일', required: true },
+  ];
+  const extracurricularBadgeColumns = tableColumns.extracurricularBadges || [
+    { key: 'name', label: '배지명', required: true },
+    { key: 'issuer', label: '발급 기관', required: true },
+  ];
+  const updateTableColumns = (key, columns) => update('tableColumns', { ...tableColumns, [key]: columns });
   const [hoveredSection, setHoveredSection] = useState(null);
   const [showCustomBlockMenu, setShowCustomBlockMenu] = useState(false);
   const [showAddBlockMenu, setShowAddBlockMenu] = useState(false);
@@ -5089,17 +5763,15 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const sectionHoverTargetRef = useRef(null);
   const [blockDragging, setBlockDragging] = useState(null);
   const [blockDropTarget, setBlockDropTarget] = useState(null);
+  const [contentBlockDragging, setContentBlockDragging] = useState(null);
+  const [contentBlockDropTarget, setContentBlockDropTarget] = useState(null);
   const profileImageInputRef = useRef(null);
 
   useDragEdgeAutoScroll(sectionDragging !== null);
 
   // 섹션 이름 편집 헬퍼
   const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
-    <input
-      value={(p.customSectionLabels || {})[sectionKey] || defaultLabel}
-      onChange={e => update('customSectionLabels', { ...(p.customSectionLabels || {}), [sectionKey]: e.target.value })}
-      className={`bg-transparent outline-none hover:bg-primary-50/30 rounded px-1 ${className}`}
-    />
+    <EditableSectionTitle portfolio={p} update={update} sectionKey={sectionKey} defaultLabel={defaultLabel} className={className} />
   );
 
   // 경험 상세 모달
@@ -5188,7 +5860,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
     notion: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
   };
-  const sections = SECTION_MAP[templateId] || SECTION_MAP.notion;
+  const sections = [...new Set([...(SECTION_MAP[templateId] || SECTION_MAP.notion), ...(p.sections || [])])];
   const hiddenSections = p.hiddenSections || [];
 
   const sectionOrderManager = makeSectionOrderManager('notion', p.sectionOrder, update);
@@ -5296,6 +5968,66 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     blocks.splice(sourceIndex, 1);
     update('customBlocks', blocks);
   };
+  const moveContentBlock = (sectionKey, fromKey, toKey, defaultOrder) => {
+    if (fromKey === toKey) return;
+    const saved = p.contentBlockOrder?.[sectionKey];
+    const current = Array.isArray(saved)
+      ? [...saved.filter(key => defaultOrder.includes(key)), ...defaultOrder.filter(key => !saved.includes(key))]
+      : [...defaultOrder];
+    const fromIndex = current.indexOf(fromKey);
+    const toIndex = current.indexOf(toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, moved);
+    update('contentBlockOrder', { ...(p.contentBlockOrder || {}), [sectionKey]: current });
+  };
+  const InlineContentBlock = ({ sectionKey, blockKey, defaultOrder, children }) => {
+    const saved = p.contentBlockOrder?.[sectionKey];
+    const ordered = Array.isArray(saved)
+      ? [...saved.filter(key => defaultOrder.includes(key)), ...defaultOrder.filter(key => !saved.includes(key))]
+      : defaultOrder;
+    const dragKey = `${sectionKey}:${blockKey}`;
+    return (
+      <div
+        style={{ order: ordered.indexOf(blockKey) }}
+        onDragOver={event => {
+          if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.dataTransfer.dropEffect = 'move';
+          setContentBlockDropTarget(dragKey);
+        }}
+        onDrop={event => {
+          if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          moveContentBlock(sectionKey, contentBlockDragging.split(':')[1], blockKey, defaultOrder);
+          setContentBlockDragging(null);
+          setContentBlockDropTarget(null);
+        }}
+        className={`group/content-block relative transition-all ${contentBlockDragging === dragKey ? 'opacity-40' : ''} ${contentBlockDropTarget === dragKey && contentBlockDragging !== dragKey ? 'bg-primary-50/30' : ''}`}
+      >
+        <span
+          draggable
+          onDragStart={event => {
+            event.stopPropagation();
+            setContentBlockDragging(dragKey);
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('application/x-fitpoly-content-block', dragKey);
+          }}
+          onDragEnd={() => {
+            setContentBlockDragging(null);
+            setContentBlockDropTarget(null);
+          }}
+          className="absolute -left-6 top-1 inline-flex cursor-grab text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/content-block:opacity-100"
+          title="본문 블록 드래그 이동"
+        >
+          <GripVertical size={14} />
+        </span>
+        {children}
+      </div>
+    );
+  };
 
   // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
   // 재정렬 가능한 섹션은 order 0..N, 자유 블록은 숫자 order를 받아 그 사이에 위치.
@@ -5337,6 +6069,39 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   };
   // 새 블록은 밴드 맨 아래에 추가
   const nextBlockOrder = () => buildBand().reduce((max, it) => Math.max(max, it.order), reorderableBandKeys.length - 1) + 1;
+  const addSectionPackage = (sectionKey) => {
+    const startOrder = nextBlockOrder();
+    update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
+    if (!sections.includes(sectionKey)) update('sections', [...sections, sectionKey]);
+    update('hiddenSections', (p.hiddenSections || []).filter(key => key !== sectionKey));
+    if (sectionKey === 'profile') update('profileVisible', true);
+    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
+    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
+    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
+    if (sectionKey === 'curricular') {
+      update('curricular', {
+        ...curr,
+        summary: curr.summary || { credits: '', gpa: '', note: '' },
+        courses: (curr.courses || []).length ? curr.courses : [{ semester: '', name: '', grade: '' }],
+        creditStatus: (curr.creditStatus || []).length ? curr.creditStatus : [{ category: '', area: '', required: '', earned: '', remaining: '', rate: '' }],
+      });
+    }
+    if (sectionKey === 'extracurricular') {
+      update('extracurricular', {
+        ...extra,
+        summary: extra.summary || '',
+        badges: (extra.badges || []).length ? extra.badges : [{ name: '', issuer: '' }],
+        languages: (extra.languages || []).length ? extra.languages : [{ name: '', score: '', date: '' }],
+        details: (extra.details || []).length ? extra.details : [{ title: '', period: '', description: '' }],
+      });
+    }
+    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
+    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
+    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
+    if (sectionKey === 'interests' && !(p.interests || []).length) update('interests', ['']);
+    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
+    setShowAddBlockMenu(false);
+  };
 
   return (
     <div className="flex gap-4 items-start">
@@ -5473,7 +6238,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
         {/* ── Left: Profile ── */}
         <div className="p-6 border-r border-surface-100 bg-[#fafaf8]">
-          <div className="text-xs font-bold text-gray-400 tracking-wider mb-4 border-l-2 border-primary-600 pl-2">PROFILE</div>
+          <EditableTitle sectionKey="profile" defaultLabel="PROFILE" className="text-xs font-bold text-gray-400 tracking-wider mb-4 border-l-2 border-primary-600 pl-2 block w-full" />
 
           {/* Profile Image - clickable */}
           <input type="file" ref={profileImageInputRef} accept="image/*" className="hidden" onChange={handleProfileImageUpload} />
@@ -5510,7 +6275,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
           {/* Values */}
           <div className="mt-6">
-            <h3 className="text-sm font-bold italic mb-3">My Own Values</h3>
+            <EditableTitle sectionKey="profileValues" defaultLabel="My Own Values" className="text-sm font-bold italic mb-3 block w-full" />
             <div className="space-y-2">
               {(p.values || []).map((v, i) => (
                 <div key={i} className="p-2 bg-white rounded-lg border border-surface-100 group/val flex items-center gap-2">
@@ -5536,7 +6301,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           {sections.includes('education') && (
             <div className="mb-8 group/sec" onMouseEnter={() => setHoveredSection('edu')} onMouseLeave={() => setHoveredSection(null)}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold flex items-center gap-2">Education</h3>
+                <EditableTitle sectionKey="education" defaultLabel="Education" className="text-lg font-bold flex items-center gap-2" />
                 <VisualSectionRecommend sectionType="education" jobAnalysis={portfolio.jobAnalysis} />
               </div>
               <div className="space-y-4">
@@ -5564,7 +6329,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
           {/* Interests */}
           <div className="mb-8">
-            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Interest</h3>
+            <EditableTitle sectionKey="interests" defaultLabel="Interest" className="text-lg font-bold mb-3 flex items-center gap-2" />
             <div className="space-y-1.5">
               {(p.interests || []).map((interest, i) => (
                 <div key={i} className="flex items-start gap-2 group/int">
@@ -5583,25 +6348,29 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
           {/* Contact */}
           <div className="mb-8">
-            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">Contact</h3>
+            <EditableTitle sectionKey="contact" defaultLabel="Contact" className="text-lg font-bold mb-3 flex items-center gap-2" />
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400" />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactPhone || 'phone'} onChange={icon => updateIcon('contactPhone', icon)} />
                 <input value={contact.phone || ''} onChange={e => updateNested('contact', 'phone', e.target.value)}
                   placeholder="전화번호" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400" />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactEmail || 'mail'} onChange={icon => updateIcon('contactEmail', icon)} />
                 <input value={contact.email || ''} onChange={e => updateNested('contact', 'email', e.target.value)}
                   placeholder="이메일" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactLinkedin || 'globe'} onChange={icon => updateIcon('contactLinkedin', icon)} />
                 <input value={contact.linkedin || ''} onChange={e => updateNested('contact', 'linkedin', e.target.value)}
                   placeholder="LinkedIn" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactInstagram || 'globe'} onChange={icon => updateIcon('contactInstagram', icon)} />
+                <input value={contact.instagram || ''} onChange={e => updateNested('contact', 'instagram', e.target.value)}
+                  placeholder="Instagram" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+              </div>
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactGithub || 'globe'} onChange={icon => updateIcon('contactGithub', icon)} />
                 <input value={contact.github || ''} onChange={e => updateNested('contact', 'github', e.target.value)}
                   placeholder="GitHub" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><Globe size={14} className="text-gray-400" />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactWebsite || 'globe'} onChange={icon => updateIcon('contactWebsite', icon)} />
                 <input value={contact.website || ''} onChange={e => updateNested('contact', 'website', e.target.value)}
                   placeholder="웹사이트" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
@@ -5615,7 +6384,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           {sections.includes('awards') && (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold flex items-center gap-2">Awards</h3>
+                <EditableTitle sectionKey="awards" defaultLabel="Awards" className="text-sm font-bold flex items-center gap-2" />
                 <VisualSectionRecommend sectionType="awards" jobAnalysis={portfolio.jobAnalysis} />
               </div>
               <div className="space-y-2">
@@ -5833,7 +6602,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
       {/* ── Full-width sections (Preview 디자인 + 인라인 편집) ── */}
       <div className="px-10 py-8 border-t border-surface-100 flex flex-col gap-10">
-
         {/* 교과 활동 */}
         {!hiddenSections.includes('curricular') && sections.includes('curricular') && (
         <section id="editor-section-교과 활동" {...getSectionDndProps('curricular')}>
@@ -5845,54 +6613,51 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <button onClick={() => hiddenSectionKey('curricular')} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <div className="bg-surface-50 rounded-xl p-4 mb-4">
-            <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
+          <div className="flex flex-col">
+          <InlineContentBlock sectionKey="curricular" blockKey="summary" defaultOrder={['summary', 'courses', 'credits']}>
+          <div className="mb-4 pl-1">
+            <EditableTitle sectionKey="curricularSummary" defaultLabel="요약 | Summary" className="text-sm font-bold mb-2 text-gray-600" />
             <div className="flex items-center gap-1 text-sm text-gray-700">
-              <span>📚 이수 학점:</span>
+              <EditableTitle sectionKey="curricularCreditsLabel" defaultLabel="📚 이수 학점:" className="inline font-medium" />
               <input value={curr.summary?.credits || ''} onChange={e => update('curricular', { ...curr, summary: { ...curr.summary, credits: e.target.value } })}
                 placeholder="학점" className="w-20 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
             </div>
             <div className="flex items-center gap-1 text-sm text-gray-700 mt-1">
-              <span>📊 평점 평균:</span>
+              <EditableTitle sectionKey="curricularGpaLabel" defaultLabel="📊 평점 평균:" className="inline font-medium" />
               <input value={curr.summary?.gpa || ''} onChange={e => update('curricular', { ...curr, summary: { ...curr.summary, gpa: e.target.value } })}
                 placeholder="GPA" className="w-20 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
             </div>
+            <YooptaMiniEditor
+              value={curr.summary?.noteBlocks || curr.summary?.note || ''}
+              onChange={value => update('curricular', { ...curr, summary: { ...curr.summary, noteBlocks: value, note: richValueToPlainText(value) } })}
+              placeholder="교과 활동 요약을 자유롭게 작성하세요..."
+              minHeight={60}
+              onExternalImageDrop={removeEmbeddedCustomImage}
+              className="mt-2 bg-transparent hover:bg-primary-50/10 rounded px-1"
+            />
           </div>
-          <h4 className="text-sm font-bold mb-2 text-gray-600">교과목 수강 내역 | Course History</h4>
-          <table className="w-full text-sm border-collapse mb-3">
-            <thead>
-              <tr className="bg-surface-50">
-                <th className="text-left px-3 py-2 border border-surface-200">학기</th>
-                <th className="text-left px-3 py-2 border border-surface-200">과목명</th>
-                <th className="text-left px-3 py-2 border border-surface-200">성적</th>
-                <th className="w-8 border border-surface-200"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(curr.courses || []).map((c, i) => (
-                <tr key={i}>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={c.semester || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], semester: e.target.value }; update('curricular', { ...curr, courses }); }}
-                      placeholder="예: 2024-1" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={c.name || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], name: e.target.value }; update('curricular', { ...curr, courses }); }}
-                      placeholder="과목명" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={c.grade || ''} onChange={e => { const courses = [...(curr.courses||[])]; courses[i] = { ...courses[i], grade: e.target.value }; update('curricular', { ...curr, courses }); }}
-                      placeholder="성적" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200 text-center">
-                    <button onClick={() => { const courses = (curr.courses||[]).filter((_,j) => j !== i); update('curricular', { ...curr, courses }); }}
-                      className="text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button onClick={() => update('curricular', { ...curr, courses: [...(curr.courses||[]), { semester: '', name: '', grade: '' }] })}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 과목 추가</button>
+          </InlineContentBlock>
+          <InlineContentBlock sectionKey="curricular" blockKey="courses" defaultOrder={['summary', 'courses', 'credits']}>
+          <EditableTitle sectionKey="curricularCourses" defaultLabel="교과목 수강 내역 | Course History" className="text-sm font-bold mb-2 text-gray-600" />
+          <EditableDataTable
+            columns={curricularCourseColumns}
+            rows={curr.courses || []}
+            onColumnsChange={columns => updateTableColumns('curricularCourses', columns)}
+            onRowsChange={courses => update('curricular', { ...curr, courses })}
+            addLabel="과목 추가"
+          />
+          </InlineContentBlock>
+          <InlineContentBlock sectionKey="curricular" blockKey="credits" defaultOrder={['summary', 'courses', 'credits']}>
+          <EditableTitle sectionKey="curricularCredits" defaultLabel="이수 현황 | Credit Status" className="text-sm font-bold mb-2 text-gray-600" />
+          <EditableDataTable
+            columns={curricularCreditColumns}
+            rows={curr.creditStatus || []}
+            onColumnsChange={columns => updateTableColumns('curricularCredits', columns)}
+            onRowsChange={creditStatus => update('curricular', { ...curr, creditStatus })}
+            addLabel="이수 현황 추가"
+          />
+          </InlineContentBlock>
+          </div>
         </section>
         )}
 
@@ -5907,53 +6672,42 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <button onClick={() => hiddenSectionKey('extracurricular')} className="text-gray-300 hover:text-red-400 transition-colors" title="섹션 숨기기"><X size={14} /></button>
             </div>
           </div>
-          <div className="bg-surface-50 rounded-xl p-4 mb-4">
-            <h4 className="text-sm font-bold mb-2 text-gray-600">요약 | Summary</h4>
+          <div className="flex flex-col">
+          <InlineContentBlock sectionKey="extracurricular" blockKey="summary" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <div className="mb-4 pl-1">
+            <EditableTitle sectionKey="extracurricularSummary" defaultLabel="요약 | Summary" className="text-sm font-bold mb-2 text-gray-600" />
             <YooptaMiniEditor value={extra.summaryBlocks || extra.summary || ''} onChange={v => update('extracurricular', { ...extra, summaryBlocks: v, summary: richValueToPlainText(v) })}
               placeholder="비교과 활동 요약을 입력하세요..." rows={2}
               onExternalImageDrop={removeEmbeddedCustomImage}
               minHeight={70}
               className="bg-transparent hover:bg-primary-50/10 rounded px-1" />
           </div>
-          <h4 className="text-sm font-bold mb-2 text-gray-600">어학 성적 | Language Certification</h4>
-          <table className="w-full text-sm border-collapse mb-3">
-            <thead>
-              <tr className="bg-surface-50">
-                <th className="text-left px-3 py-2 border border-surface-200">시험명</th>
-                <th className="text-left px-3 py-2 border border-surface-200">점수/등급</th>
-                <th className="text-left px-3 py-2 border border-surface-200">취득일</th>
-                <th className="w-8 border border-surface-200"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(extra.languages || []).map((l, i) => (
-                <tr key={i}>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={l.name || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], name: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
-                      placeholder="시험명" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={l.score || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], score: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
-                      placeholder="점수" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200">
-                    <input value={l.date || ''} onChange={e => { const langs = [...(extra.languages||[])]; langs[i] = { ...langs[i], date: e.target.value }; update('extracurricular', { ...extra, languages: langs }); }}
-                      placeholder="취득일" className="w-full outline-none bg-transparent hover:bg-primary-50/30 rounded px-2 py-1 placeholder:text-gray-300" />
-                  </td>
-                  <td className="px-1 py-1 border border-surface-200 text-center">
-                    <button onClick={() => { const langs = (extra.languages||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, languages: langs }); }}
-                      className="text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button onClick={() => update('extracurricular', { ...extra, languages: [...(extra.languages||[]), { name: '', score: '', date: '' }] })}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600 mb-4"><Plus size={12} /> 어학 추가</button>
-          <h4 className="text-sm font-bold mb-2 text-gray-600">세부 사항 | Details</h4>
+          </InlineContentBlock>
+          <InlineContentBlock sectionKey="extracurricular" blockKey="badges" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <EditableTitle sectionKey="extracurricularBadges" defaultLabel="디지털 배지 | Digital Badge" className="text-sm font-bold mb-2 text-gray-600" />
+          <EditableDataTable
+            columns={extracurricularBadgeColumns}
+            rows={extra.badges || []}
+            onColumnsChange={columns => updateTableColumns('extracurricularBadges', columns)}
+            onRowsChange={badges => update('extracurricular', { ...extra, badges })}
+            addLabel="배지 추가"
+          />
+          </InlineContentBlock>
+          <InlineContentBlock sectionKey="extracurricular" blockKey="languages" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <EditableTitle sectionKey="extracurricularLanguages" defaultLabel="어학 성적 | Language Certification" className="text-sm font-bold mb-2 text-gray-600" />
+          <EditableDataTable
+            columns={extracurricularLanguageColumns}
+            rows={extra.languages || []}
+            onColumnsChange={columns => updateTableColumns('extracurricularLanguages', columns)}
+            onRowsChange={languages => update('extracurricular', { ...extra, languages })}
+            addLabel="어학 추가"
+          />
+          </InlineContentBlock>
+          <InlineContentBlock sectionKey="extracurricular" blockKey="details" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <EditableTitle sectionKey="extracurricularDetails" defaultLabel="세부 사항 | Details" className="text-sm font-bold mb-2 text-gray-600" />
           <div className="space-y-3 mb-3">
             {(extra.details || []).map((d, i) => (
-              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 relative group/det">
+              <div key={i} className="relative py-2 pl-1 group/det">
                 <button onClick={() => { const details = (extra.details||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, details }); }}
                   className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/det:opacity-100 transition-opacity"><Trash2 size={12} /></button>
                 <div className="flex items-center gap-2 mb-1">
@@ -5974,6 +6728,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <button onClick={() => update('extracurricular', { ...extra, details: [...(extra.details||[]), { title: '', period: '', description: '' }] })}
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 활동 추가</button>
+          </InlineContentBlock>
+          </div>
         </section>
         )}
 
@@ -6024,7 +6780,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           </div>
           <div className="space-y-3">
             {(p.goals || []).map((g, i) => (
-              <div key={i} className="p-4 bg-surface-50 rounded-lg border border-surface-100 relative group/goal">
+              <div key={i} className="relative group/goal border-b border-surface-100 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/goal:opacity-100 transition-opacity"><Trash2 size={12} /></button>
                 <div className="flex items-center gap-2 mb-1">
@@ -6115,16 +6871,17 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               }} placeholder="제목을 입력하세요"
                 className="w-full text-xl font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mb-4" />
             )}
-            {block.type === 'text' && (
-              <RichContentEditor
-                value={block.segments || block.content || ''}
+            {(block.type === 'text' || block.type === 'table') && (
+              <YooptaMiniEditor
+                value={block.contentBlocks || block.content || ''}
                 onChange={v => {
                   const blocks = [...(p.customBlocks || [])];
-                  blocks[i] = { ...blocks[i], segments: v, content: richValueToPlainText(v) };
+                  blocks[i] = { ...blocks[i], contentBlocks: v, content: richValueToPlainText(v) };
                   update('customBlocks', blocks);
                 }}
                 placeholder="텍스트를 입력하세요"
-                textRows={4}
+                onExternalImageDrop={removeEmbeddedCustomImage}
+                minHeight={120}
               />
             )}
             {block.type === 'image' && (
@@ -6143,15 +6900,21 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 onDragStart={event => event.stopPropagation()}
               >
                 {block.content ? (
-                  <RichContentEditor
-                    value={block.segments || [{ type: 'image', content: block.content, width: block.width }]}
+                  <YooptaMiniEditor
+                    value={block.contentBlocks || createYooptaImageValue(block.content, block.title || 'image', undefined, `custom-image-${i}`)}
                     onChange={v => {
                       const blocks = [...(p.customBlocks || [])];
-                      const imgSeg = Array.isArray(v) ? v.find(s => s.type === 'image') : null;
-                      blocks[i] = { ...blocks[i], segments: v, content: imgSeg?.content ?? block.content, width: imgSeg?.width };
+                      const image = findFirstYooptaImage(v);
+                      blocks[i] = {
+                        ...blocks[i],
+                        contentBlocks: v,
+                        content: image?.src || '',
+                        width: image?.sizes?.width ?? block.width,
+                      };
                       update('customBlocks', blocks);
                     }}
-                    textRows={2}
+                    minHeight={120}
+                    className="bg-transparent"
                   />
                 ) : (
                   <label className="flex flex-col items-center justify-center gap-2 w-full h-48 border-2 border-dashed border-surface-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
@@ -6280,15 +7043,16 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           {showAddBlockMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowAddBlockMenu(false)} />
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-2 w-64">
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-white border border-surface-200 rounded-xl shadow-lg z-20 py-2 w-80 max-h-[70vh] overflow-y-auto">
                 <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">기본 블록</p>
                 {[
                   { type: 'heading', icon: <Type size={14} />, label: '제목', desc: '새 섹션 제목' },
                   { type: 'text', icon: <MessageSquare size={14} />, label: '텍스트', desc: '자유 텍스트 블록' },
                   { type: 'image', icon: <ImageIcon size={14} />, label: '이미지', desc: '사진 첨부' },
-                  { type: 'divider', icon: <span className="text-xs">—</span>, label: '구분선', desc: '섹션 구분선' },
+                  { type: 'table', icon: <Columns size={14} />, label: '표', desc: '행과 열을 편집할 수 있는 표' },
+                  { type: 'divider', icon: <span className="text-xs">―</span>, label: '구분선', desc: '섹션 구분선' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, title: getDefaultCustomBlockTitle(item.type), content: '', order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, title: getDefaultCustomBlockTitle(item.type), content: '', contentBlocks: item.type === 'table' ? createYooptaTableValue() : undefined, order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600">{item.icon}</span>
                     <div><p className="text-sm font-medium text-gray-800">{item.label}</p><p className="text-[12px] text-gray-400">{item.desc}</p></div>
@@ -6301,6 +7065,27 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600"><Briefcase size={14} /></span>
                     <div><p className="text-sm font-medium text-gray-800">프로젝트 / 경험</p><p className="text-[12px] text-gray-400">카드 갤러리, 경험 DB에서 불러오기</p></div>
                   </button>
+                </div>
+                <div className="border-t border-surface-100 mt-1 pt-1">
+                  <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">섹션 패키지</p>
+                  {[
+                    ['profile', '프로필', '사진, 이름, 소개, 가치관'],
+                    ['education', '학력', '학교, 기간, 전공, 상세 내용'],
+                    ['awards', '수상', '날짜, 수상명, 설명'],
+                    ['experiences', '프로젝트 / 경험', '경험 목록과 상세 내용'],
+                    ['curricular', '교과 활동', '요약, 이수 학점, 평점, 수강 내역'],
+                    ['extracurricular', '비교과 활동', '어학, 자격, 활동 내역'],
+                    ['skills', '기술', '언어, 도구, 프레임워크'],
+                    ['goals', '목표와 계획', '단기/중기/장기 목표'],
+                    ['values', '가치관', '자기소개와 가치관 글'],
+                    ['contact', '연락처', '전화, 이메일, 링크'],
+                  ].map(([key, label, desc]) => (
+                    <button key={key} type="button" onClick={() => addSectionPackage(key)}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
+                      <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600"><Plus size={14} /></span>
+                      <div><p className="text-sm font-medium text-gray-800">{label}</p><p className="text-[12px] text-gray-400">{desc}</p></div>
+                    </button>
+                  ))}
                 </div>
               </div>
             </>
