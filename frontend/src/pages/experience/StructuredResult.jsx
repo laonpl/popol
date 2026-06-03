@@ -336,63 +336,65 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
   const clean = (s) => stripMarkdown(String(s || '')).trim();
   const isDraft = (s) => !clean(s) || String(s).trim().startsWith('[작성 필요]');
 
-  const cardsByType = { core: [], derived: [], growth: [] };
-  const seen = { core: new Set(), derived: new Set(), growth: new Set() };
-  const pushCard = (type, text, kws = []) => {
-    const body = clean(text);
+  // 각 역량을 "어디서 얻었는지(source) + 근거(evidence) + 역량 키워드"로 정리
+  const items = [];
+  const seen = new Set();
+  const push = (type, source, evidence, kws = []) => {
+    const body = clean(evidence);
     if (!body) return;
-    const sig = body.replace(/\s+/g, ' ').toLowerCase();
-    if (seen[type].has(sig)) return;
-    seen[type].add(sig);
-    cardsByType[type].push({ body, keywords: (kws || []).map(clean).filter(Boolean) });
+    const t = TYPE_ORDER.includes(type) ? type : 'core';
+    const sig = `${t}|${clean(source)}|${body}`.replace(/\s+/g, ' ').toLowerCase();
+    if (seen.has(sig)) return;
+    seen.add(sig);
+    items.push({ type: t, source: clean(source) || '본문', evidence: body, keywords: (kws || []).map(clean).filter(Boolean) });
   };
 
-  (highlights || []).forEach(h => {
-    const t = TYPE_ORDER.includes(h.type) ? h.type : 'core';
-    pushCard(t, h.text, h.keywords);
-  });
-
-  // 성장 관점 보강: 핵심경험 learning → 없으면 growth 섹션 문장
-  (keyExperiences || []).forEach(ke => { if (!isDraft(ke.learning)) pushCard('growth', ke.learning); });
-  if (cardsByType.growth.length === 0) splitSentences(growthText, 3).forEach(s => pushCard('growth', s));
+  // 본문 하이라이트: 어느 섹션에서 나온 근거인지 함께 표시
+  (highlights || []).forEach(h => push(h.type, SECTION_META[h.field]?.label || '본문', h.text, h.keywords));
+  // 핵심 경험에서 배운 점: 어떤 경험에서 얻은 역량인지 표시
+  (keyExperiences || []).forEach(ke => { if (!isDraft(ke.learning)) push('growth', clean(ke.title) || '핵심 경험', ke.learning, ke.keywords); });
+  if (items.filter(i => i.type === 'growth').length === 0) splitSentences(growthText, 2).forEach(s => push('growth', '성장 경험', s));
 
   const relatedKeywords = [...new Set((keywords || []).map(clean).filter(Boolean))];
 
   const groups = TYPE_ORDER
-    .map(t => ({ type: t, label: highlightColors[t].label, desc: highlightColors[t].desc, color: highlightColors[t].underline, cards: cardsByType[t] }))
-    .filter(g => g.cards.length > 0);
+    .map(t => ({ type: t, label: highlightColors[t].label, desc: highlightColors[t].desc, color: highlightColors[t].underline, items: items.filter(i => i.type === t) }))
+    .filter(g => g.items.length > 0);
 
   if (groups.length === 0 && relatedKeywords.length === 0) return null;
 
   return (
-    <div className="border border-surface-100 rounded-[8px] overflow-hidden mb-5">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
-        <span className="px-2.5 py-1 bg-bluewood-800 text-white rounded-md text-[13px] font-bold tracking-wide uppercase">능력치</span>
-        <span className="text-[14px] font-semibold text-bluewood-700">역량 인사이트</span>
-        <span className="text-[14px] text-bluewood-300 ml-1">— 이 경험에서 발휘한 역량과 배운 점</span>
+    <div className="border border-surface-100 rounded-lg overflow-hidden mb-5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 py-4 border-b border-surface-100">
+        <span className="text-[17px] font-extrabold text-bluewood-900">핵심 역량</span>
+        <span className="text-[13.5px] text-bluewood-400">— 어떤 경험에서 어떤 역량을 얻었는지 근거와 함께 정리했습니다</span>
       </div>
 
       {groups.length > 0 && (
-        <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+        <div className="divide-y divide-surface-100">
           {groups.map(g => (
-            <div key={g.type}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
-                <span className="text-[13px] font-bold text-bluewood-700">{g.label}</span>
-                <span className="text-[12px] text-bluewood-300">{g.cards.length}</span>
+            <div key={g.type} className="px-6 py-5">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color }} />
+                <span className="text-[15px] font-bold text-bluewood-800">{g.label}</span>
+                <span className="text-[13px] text-bluewood-300">· {g.desc}</span>
               </div>
-              <p className="text-[12px] text-bluewood-300 mb-3 leading-snug">{g.desc}</p>
-              <div className="space-y-2.5">
-                {g.cards.map((c, i) => (
-                  <div key={i} className="rounded-[6px] bg-surface-50/70 border-l-[3px] px-3.5 py-2.5" style={{ borderColor: g.color }}>
-                    {c.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {c.keywords.map((k, ki) => (
-                          <span key={ki} className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>{k}</span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[13px] text-bluewood-700 leading-[1.7]" style={{ wordBreak: 'keep-all' }}>{c.body}</p>
+              <div className="space-y-3">
+                {g.items.map((it, i) => (
+                  <div key={i} className="rounded-md border-l-[3px] bg-surface-50/60 px-4 py-3.5" style={{ borderColor: g.color }}>
+                    {/* 어디서 → 어떤 역량 */}
+                    <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                      <span className="inline-flex items-center gap-1.5 text-[13.5px] font-extrabold" style={{ color: g.color }}>
+                        <span className="rounded bg-white px-2 py-0.5 ring-1" style={{ color: g.color, borderColor: g.color }}>{it.source}</span>
+                        에서
+                      </span>
+                      {it.keywords.length > 0 && <span className="text-[12px] text-bluewood-300">→</span>}
+                      {it.keywords.map((k, ki) => (
+                        <span key={ki} className="rounded-full px-2.5 py-0.5 text-[12.5px] font-bold" style={{ backgroundColor: `${g.color}1a`, color: g.color }}>{k}</span>
+                      ))}
+                    </div>
+                    {/* 근거 */}
+                    <p className="text-[14.5px] leading-[1.8] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{it.evidence}</p>
                   </div>
                 ))}
               </div>
@@ -583,258 +585,6 @@ function normalizeSectionSlide({ key, content, structured, research, keyExperien
   };
 }
 
-function PortfolioSectionSlide({
-  sectionKey,
-  meta,
-  value,
-  overview,
-  onOverviewChange,
-  slide,
-  isEditing,
-  viewOnly,
-  field,
-  structured,
-  editedKeywords,
-  onChange,
-  onSlideFieldChange,
-  onSlideCardChange,
-  onEdit,
-  onDone,
-  imageProps,
-  onAddImage,
-  uploadingImage,
-  dragInfo,
-  dropTarget,
-  setDropTarget,
-  handleSectionDrop,
-}) {
-  const isDraft = isInstructionLike(value);
-  const cleanValue = isInstructionLike(value) ? '' : sanitizeTextValue(value || '');
-  const cleanHeadline = sanitizeTextValue(slide.headline || '');
-  const cleanSubcopy = sanitizeTextValue(slide.subcopy || '');
-  const headlineRows = Math.max(3, Math.min(6, Math.ceil(Math.max(cleanHeadline.length, 1) / 22)));
-  const subcopyRows = Math.max(2, Math.min(5, Math.ceil(Math.max(cleanSubcopy.length, 1) / 70)));
-  const displayValue = cleanValue;
-  const visibleCards = slide.cards.slice(0, 3);
-  const hiddenCardCount = Math.max(0, slide.cards.length - visibleCards.length);
-  const accent = '#002F6C'; // 사이트 기본(네이비) — 색상 통일
-  const introMetaItems = sectionKey === 'intro'
-    ? [
-      { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
-      { key: 'role', label: '역할', placeholder: '기획/개발/운영 담당' },
-      { key: 'team', label: '팀 구성', placeholder: '개발 3명, 디자인 1명' },
-      { key: 'scopeOfImpact', label: '영향 범위', placeholder: '사용자/팀/비즈니스 범위' },
-      { key: 'goal', label: '목표', placeholder: '프로젝트의 핵심 목표' },
-    ]
-    : [];
-
-  return (
-    <div className="relative bg-white">
-      <div className="relative mx-auto max-w-[1180px] px-5 py-5 lg:px-6 lg:py-6">
-        <div className="relative overflow-hidden rounded-[14px] border border-surface-200 bg-white shadow-[0_10px_40px_rgba(49,65,87,0.08)]">
-          <div className="h-1 w-full" style={{ backgroundColor: accent }} />
-          <div className="relative flex min-h-[460px] flex-col px-8 py-7 lg:px-10 lg:py-9">
-            <div className="flex items-start justify-between gap-6">
-              <div className="min-w-0 flex-1">
-                {viewOnly ? (
-                  <p className="mb-4 text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500">{sanitizeTextValue(slide.kicker)}</p>
-                ) : (
-                  <input
-                    value={sanitizeTextValue(slide.kicker || '')}
-                    onChange={e => onSlideFieldChange?.(sectionKey, 'kicker', e.target.value.toUpperCase())}
-                    className="mb-4 w-full max-w-[220px] bg-transparent text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-500 outline-none placeholder:text-bluewood-300 focus:bg-white/60"
-                    placeholder="KICKER"
-                  />
-                )}
-                <div className="flex items-start gap-4">
-                  <span className="mt-1 h-14 w-[3px] flex-shrink-0 rounded-full" style={{ backgroundColor: accent }} />
-                  <div className="min-w-0">
-                    {viewOnly ? (
-                      <h3 className="max-w-[780px] break-words text-[25px] font-extrabold leading-[1.28] tracking-normal text-bluewood-900 lg:text-[30px]">
-                        {sanitizeTextValue(slide.headline)}
-                      </h3>
-                    ) : (
-                      <textarea
-                        rows={headlineRows}
-                        value={cleanHeadline}
-                        onChange={e => onSlideFieldChange?.(sectionKey, 'headline', e.target.value)}
-                        className="w-full max-w-[780px] resize-y overflow-y-auto break-words bg-transparent text-[25px] font-extrabold leading-[1.28] tracking-normal text-bluewood-900 outline-none placeholder:text-bluewood-300 focus:bg-white/60 lg:text-[30px]"
-                        placeholder="슬라이드 제목"
-                      />
-                    )}
-                    {(cleanSubcopy || !viewOnly) && (
-                      viewOnly ? (
-                        <p className="mt-4 max-w-[820px] break-words text-[13px] font-medium leading-[1.65] text-bluewood-600">
-                          {renderMarkdown(cleanSubcopy)}
-                        </p>
-                      ) : (
-                        <textarea
-                          rows={subcopyRows}
-                          value={cleanSubcopy}
-                          onChange={e => onSlideFieldChange?.(sectionKey, 'subcopy', e.target.value)}
-                          className="mt-4 w-full max-w-[820px] resize-y overflow-y-auto break-words bg-transparent text-[13px] font-medium leading-[1.65] text-bluewood-600 outline-none placeholder:text-bluewood-300 focus:bg-white/60"
-                          placeholder="슬라이드 설명"
-                        />
-                      )
-                    )}
-                  </div>
-
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
-                <span className="rounded-full px-3 py-1 text-[11px] font-black text-white" style={{ backgroundColor: accent }}>{meta.num}</span>
-                <span className="max-w-[160px] text-[12px] font-bold leading-snug text-bluewood-400">{meta.label}</span>
-                {!viewOnly && (
-                  <button
-                    onClick={onAddImage}
-                    disabled={uploadingImage}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-surface-200 bg-white/80 px-3 py-1.5 text-[12px] font-bold text-bluewood-500 shadow-sm hover:bg-white disabled:opacity-50 transition-colors"
-                  >
-                    {uploadingImage ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
-                    사진 추가
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-5 grid min-h-0 flex-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="flex min-w-0 flex-col">
-                  <div className={`rounded-[10px] border border-surface-200 bg-surface-50/50 p-5 ${isEditing ? 'ring-1 ring-primary-100' : ''}`}>
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: accent }}>DETAIL</p>
-                      {!viewOnly && <span className="text-[11px] font-bold text-primary-500">바로 수정 가능</span>}
-                    </div>
-                    {!viewOnly ? (
-                      <textarea
-                        value={cleanValue}
-                        onChange={e => onChange(e.target.value)}
-                        placeholder={field?.placeholder || '내용을 입력하세요'}
-                        rows={8}
-                        className="min-h-[180px] w-full resize-y overflow-y-auto break-words bg-transparent text-[13px] leading-[1.8] text-bluewood-700 outline-none placeholder:text-bluewood-300 focus:bg-white/50"
-                      />
-                    ) : displayValue ? (
-                      <div className="break-words text-[14px] leading-[1.85] text-bluewood-700 whitespace-pre-wrap">
-                        <HighlightedText
-                          text={displayValue}
-                          highlights={(structured.highlights || []).filter(h => h.field === sectionKey)}
-                          keywords={editedKeywords}
-                          showKeywordUnderline={true}
-                        />
-                      </div>
-                    ) : (
-                      <button onClick={onEdit} className="flex w-full items-center justify-center rounded-[8px] border border-dashed border-surface-300 py-10 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-50 transition-colors">
-                        내용 입력하기
-                      </button>
-                    )}
-                    {introMetaItems.length > 0 && (
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-surface-200/70 pt-3 lg:grid-cols-4">
-                        {introMetaItems.map(item => (
-                          <div key={item.label} className={`rounded-[6px] bg-white/75 px-2.5 py-2 ring-1 ring-surface-200/80 ${item.key === 'goal' ? 'col-span-2 lg:col-span-4' : ''}`}>
-                            <p className="text-[10px] font-black tracking-[0.12em] text-bluewood-300">{item.label}</p>
-                            {viewOnly ? (
-                              <p className="mt-1 break-words text-[12px] font-bold leading-snug text-bluewood-700">{cleanForDisplay(overview?.[item.key]) || '—'}</p>
-                            ) : (
-                              <textarea
-                                rows={2}
-                                value={isInstructionLike(overview?.[item.key]) ? '' : sanitizeTextValue(overview?.[item.key] || '')}
-                                onChange={e => onOverviewChange?.(item.key, sanitizeTextValue(e.target.value))}
-                                placeholder={item.placeholder}
-                                className="mt-1 min-h-[40px] w-full resize-y overflow-y-auto break-words bg-transparent text-[11px] font-bold leading-snug text-bluewood-700 outline-none placeholder:text-bluewood-300"
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <InlineSlideImages
-                      sectionKey={sectionKey}
-                      sectionImages={imageProps.sectionImages}
-                      allImages={imageProps.allImages}
-                      imageConfig={imageProps.imageConfig}
-                      setImageConfig={imageProps.setImageConfig}
-                      handleImageDelete={imageProps.handleImageDelete}
-                      viewOnly={viewOnly}
-                    />
-                  </div>
-              </div>
-
-              <div className="flex min-h-0 flex-col gap-2.5">
-                {visibleCards.length > 0 ? visibleCards.map((card, index) => (
-                  <div key={index} className="min-h-0 rounded-r-[8px] border-l-[3px] bg-white px-3.5 py-3 shadow-sm ring-1 ring-surface-100" style={{ borderColor: accent }}>
-                    <div className="mb-1.5 flex items-center justify-between gap-3">
-                      {viewOnly ? (
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">{sanitizeTextValue(card.label || 'RESEARCH')}</p>
-                      ) : (
-                        <input
-                          value={sanitizeTextValue(card.label || '')}
-                          onChange={e => onSlideCardChange?.(sectionKey, index, 'label', e.target.value.toUpperCase(), card)}
-                          className="w-24 bg-transparent text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300 outline-none placeholder:text-bluewood-200 focus:bg-white/70"
-                          placeholder="LABEL"
-                        />
-                      )}
-                    </div>
-                    {viewOnly ? (
-                      <p className="text-[13px] font-extrabold leading-snug text-bluewood-900">{sanitizeTextValue(card.title)}</p>
-                    ) : (
-                      <textarea
-                        rows={2}
-                        value={sanitizeTextValue(card.title || '')}
-                        onChange={e => onSlideCardChange?.(sectionKey, index, 'title', e.target.value, card)}
-                        className="w-full resize-y overflow-y-auto break-words bg-transparent text-[13px] font-extrabold leading-snug text-bluewood-900 outline-none placeholder:text-bluewood-300 focus:bg-white/70"
-                        placeholder="카드 제목"
-                      />
-                    )}
-                    {viewOnly && sanitizeTextValue(card.body) && (
-                      <p className="mt-1.5 break-words text-[12px] font-medium leading-[1.55] text-bluewood-500">
-                        {sanitizeTextValue(card.body)}
-                      </p>
-                    )}
-                    {!viewOnly && (
-                      <textarea
-                        rows={4}
-                        value={sanitizeTextValue(card.body || '')}
-                        onChange={e => onSlideCardChange?.(sectionKey, index, 'body', e.target.value, card)}
-                        className="mt-1.5 w-full resize-y overflow-y-auto break-words bg-transparent text-[11px] font-medium leading-[1.45] text-bluewood-500 outline-none placeholder:text-bluewood-300 focus:bg-white/70"
-                        placeholder="근거/임팩트 설명"
-                      />
-                    )}
-                  </div>
-                )) : (
-                  <div className="rounded-r-[8px] border-l-[3px] bg-white px-4 py-5 shadow-sm ring-1 ring-surface-100" style={{ borderColor: accent }}>
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">RESEARCH</p>
-                    <p className="mt-2 text-[15px] font-extrabold text-bluewood-900">보강할 근거가 필요합니다</p>
-                    <p className="mt-2 text-[12px] leading-[1.65] text-bluewood-500">시장 자료, 사용자 지표, 의사결정 기준을 추가하면 이 슬라이드가 더 설득력 있게 완성됩니다.</p>
-                  </div>
-                )}
-                {hiddenCardCount > 0 && (
-                  <div className="rounded-full border border-surface-200 bg-white/78 px-3 py-2 text-center text-[11px] font-bold text-bluewood-400 shadow-sm">
-                    추가 근거 {hiddenCardCount}개는 디테일 노트에 반영됨
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 border-t border-surface-200/80 pt-3">
-              {dragInfo && (
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setDropTarget(sectionKey); }}
-                  onDragLeave={() => { if (dropTarget === sectionKey) setDropTarget(null); }}
-                  onDrop={(e) => handleSectionDrop(e, sectionKey)}
-                  className={`mt-2 rounded-lg border-2 border-dashed py-3 text-center text-[13px] font-semibold transition-colors ${
-                    dropTarget === sectionKey ? 'border-bluewood-400 bg-bluewood-50/60 text-bluewood-500' : 'border-surface-200 text-bluewood-300'
-                  }`}
-                >
-                  {dragInfo.fromSection === sectionKey ? '끝으로 이동' : '여기로 이미지 이동'}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const SLIDE_IMAGE_SIZES = [
   { value: 'sm', label: 'S', width: 10 },
   { value: 'md', label: 'M', width: 16 },
@@ -1009,6 +759,7 @@ export default function StructuredResult() {
   const [experience, setExperience] = useState(null);
   const [loading, setLoading] = useState(!navState?.analysis);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editedContent, setEditedContent] = useState({});
   const [editingSections, setEditingSections] = useState({});
   const [editedTitle, setEditedTitle] = useState('');
@@ -1033,6 +784,7 @@ export default function StructuredResult() {
   const [showQualityPanel, setShowQualityPanel] = useState(true);
   const [activeQualityId, setActiveQualityId] = useState('sections');
   const [imageConfig, setImageConfig] = useState({});
+  const [keyExpImages, setKeyExpImages] = useState({}); // 케이스 스터디에서 추가한 핵심 경험 사진 (index → [{url,width}])
   const detailSlidesRef = useRef(null);
   const imageInputRef = useRef(null);
   const [imageUploadTarget, setImageUploadTarget] = useState('_unassigned');
@@ -1043,6 +795,9 @@ export default function StructuredResult() {
   const [sliderCurrent, setSliderCurrent] = useState(0);
   const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
   const [sectionSlideIdx, setSectionSlideIdx] = useState(0);
+  // 고급수정 4탭: 스토리 / 핵심경험 / 분석 / 리서치
+  const [activeTab, setActiveTab] = useState('story');
+  const mobileDefaultTabAppliedRef = useRef(false);
 
   /* ── 역량 키워드 커스터마이징 ── */
   const [newKeywordIdx, setNewKeywordIdx] = useState(null);     // 팝인 애니메이션 대상 인덱스
@@ -1065,6 +820,25 @@ export default function StructuredResult() {
   const [exportCoverImg, setExportCoverImg] = useState(null);
   const [exportDragKey, setExportDragKey] = useState(null);
   const [exportOverKey, setExportOverKey] = useState(null);
+  const hasUnsavedChanges = dirty;
+
+  const markDirty = () => {
+    if (!viewOnly && !navState?.isTutorialDemo) setDirty(true);
+  };
+  const confirmDiscardChanges = () => (
+    !hasUnsavedChanges || window.confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 이동할까요?')
+  );
+  const handleGuardedLinkClick = (event) => {
+    if (!confirmDiscardChanges()) event.preventDefault();
+  };
+  const handleKeyExperiencesChange = (next) => {
+    markDirty();
+    setEditedKeyExperiences(next);
+  };
+  const handleImageConfigChange = (updater) => {
+    markDirty();
+    setImageConfig(updater);
+  };
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience } = useExperienceStore();
@@ -1128,6 +902,7 @@ export default function StructuredResult() {
             setAllImages(imgs);
             setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
             setImageConfig(data.imageConfig || {});
+            setKeyExpImages(data.keyExpImages || {});
             setJobAnalysis(data.jobAnalysis || null);
             if (data.jobCategory) setJobCategory(data.jobCategory);
           }
@@ -1151,6 +926,7 @@ export default function StructuredResult() {
         setAllImages(imgs);
         setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
         setImageConfig(data.imageConfig || {});
+        setKeyExpImages(data.keyExpImages || {});
         const fields = pickSectionFields(data.structuredResult || data.content || {});
         setEditedContent(fields);
         const sr = data.structuredResult || {};
@@ -1201,12 +977,21 @@ export default function StructuredResult() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (mobileDefaultTabAppliedRef.current || loading || activeTab !== 'story' || editedKeyExperiences.length === 0) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setActiveTab('keyexp');
+    }
+    mobileDefaultTabAppliedRef.current = true;
+  }, [activeTab, editedKeyExperiences.length, loading]);
+
   const handleFieldChange = (key, value) => {
     const cleanValue = sanitizeTextValue(value);
     // 빈칸/초안 → 충분한 내용으로 완성될 때 섹션 완성 피드백
     const currentVal = editedContent[key];
     const wasEmpty = !currentVal?.trim() || currentVal.trim().startsWith('[작성 필요]');
     const isNowFilled = !!cleanValue.trim() && !cleanValue.trim().startsWith('[작성 필요]') && cleanValue.trim().length > 15;
+    markDirty();
     setEditedContent(prev => ({ ...prev, [key]: cleanValue }));
     if (wasEmpty && isNowFilled) {
       setFlashedSection(key);
@@ -1214,37 +999,8 @@ export default function StructuredResult() {
     }
   };
 
-  const handleSlideFieldChange = (sectionKey, field, value) => {
-    const cleanValue = sanitizeTextValue(value);
-    setEditedSectionSlides(prev => ({
-      ...prev,
-      [sectionKey]: {
-        ...(prev[sectionKey] || {}),
-        _manual: true,
-        [field]: cleanValue,
-      },
-    }));
-  };
-
-  const handleSlideCardChange = (sectionKey, cardIndex, field, value, baseCard = {}) => {
-    const cleanValue = sanitizeTextValue(value);
-    setEditedSectionSlides(prev => {
-      const currentSlide = prev[sectionKey] || {};
-      const currentCards = Array.isArray(currentSlide.evidenceCards) ? currentSlide.evidenceCards : [];
-      const nextCards = [...currentCards];
-      nextCards[cardIndex] = { ...baseCard, ...(nextCards[cardIndex] || {}), [field]: cleanValue };
-      return {
-        ...prev,
-        [sectionKey]: {
-          ...currentSlide,
-          _manual: true,
-          evidenceCards: nextCards,
-        },
-      };
-    });
-  };
-
   const updateDecisionMetric = (index, field, value) => {
+    markDirty();
     setEditedResearch(prev => ({
       ...prev,
       decisionMetrics: prev.decisionMetrics.map((item, i) => i === index ? { ...item, [field]: value } : item),
@@ -1252,6 +1008,7 @@ export default function StructuredResult() {
   };
 
   const addDecisionMetric = () => {
+    markDirty();
     setEditedResearch(prev => ({
       ...prev,
       decisionMetrics: [...prev.decisionMetrics, { metric: '', whyItMatters: '', recommendedProxy: '', researchBasis: '', confidence: 'medium' }],
@@ -1259,6 +1016,7 @@ export default function StructuredResult() {
   };
 
   const removeDecisionMetric = (index) => {
+    markDirty();
     setEditedResearch(prev => ({
       ...prev,
       decisionMetrics: prev.decisionMetrics.filter((_, i) => i !== index),
@@ -1266,6 +1024,7 @@ export default function StructuredResult() {
   };
 
   const updateSourceNote = (index, field, value) => {
+    markDirty();
     setEditedResearch(prev => ({
       ...prev,
       sourceNotes: prev.sourceNotes.map((item, i) => i === index ? { ...item, [field]: value } : item),
@@ -1303,6 +1062,7 @@ export default function StructuredResult() {
           limitations: prev.limitations?.trim() ? prev.limitations : (res.limitations || ''),
         };
       });
+      markDirty();
       const added = (res.decisionMetrics || []).length;
       toast.success(added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다');
     } catch (err) {
@@ -1376,6 +1136,7 @@ export default function StructuredResult() {
   /* ── 역량 키워드 드래그-재정렬 ── */
   const handleKwDragEnd = () => {
     if (kwDragIdx != null && kwOverIdx != null && kwDragIdx !== kwOverIdx) {
+      markDirty();
       setEditedKeywords(prev => {
         const next = [...prev];
         const [moved] = next.splice(kwDragIdx, 1);
@@ -1416,6 +1177,7 @@ export default function StructuredResult() {
     e.preventDefault();
     if (!dragInfo) return;
     const { fromSection, position } = dragInfo;
+    markDirty();
     setSectionImages(prev => {
       const next = {};
       Object.keys(prev).forEach(k => { next[k] = [...(prev[k] || [])]; });
@@ -1432,6 +1194,7 @@ export default function StructuredResult() {
     e.preventDefault();
     if (!dragInfo) return;
     const { fromSection, position: fromPos } = dragInfo;
+    markDirty();
     setSectionImages(prev => {
       const next = {};
       Object.keys(prev).forEach(k => { next[k] = [...(prev[k] || [])]; });
@@ -1613,6 +1376,7 @@ export default function StructuredResult() {
     if (!snapshot) return;
     if (snapshot.content) setEditedContent(snapshot.content);
     if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+    markDirty();
     toast('이전 내용으로 되돌렸습니다', { icon: '↩️' });
   };
 
@@ -1621,6 +1385,7 @@ export default function StructuredResult() {
     if (!snapshot) return;
     if (snapshot.content) setEditedContent(snapshot.content);
     if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+    markDirty();
     toast('다시 실행했습니다', { icon: '↪️' });
   };
 
@@ -1634,6 +1399,7 @@ export default function StructuredResult() {
         if (snapshot) {
           if (snapshot.content) setEditedContent(snapshot.content);
           if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+          markDirty();
           toast('이전 내용으로 되돌렸습니다', { icon: '↩️' });
         }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
@@ -1642,6 +1408,7 @@ export default function StructuredResult() {
         if (snapshot) {
           if (snapshot.content) setEditedContent(snapshot.content);
           if (snapshot.title !== undefined) setEditedTitle(snapshot.title);
+          markDirty();
           toast('다시 실행했습니다', { icon: '↪️' });
         }
       }
@@ -1732,6 +1499,7 @@ export default function StructuredResult() {
         if (!editedContent[k]?.trim()) newEditing[k] = true;
       });
       setEditingSections(newEditing);
+      setDirty(false);
       toast.success('저장되었습니다');
       navigate(`/app/experience/structured/${id}?view=true`, { replace: true });
     } catch (error) {
@@ -1739,6 +1507,28 @@ export default function StructuredResult() {
     }
     setSaving(false);
   };
+
+  useEffect(() => {
+    if (viewOnly || navState?.isTutorialDemo) return undefined;
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        if (hasUnsavedChanges && !saving) handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSave, hasUnsavedChanges, navState?.isTutorialDemo, saving, viewOnly]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedChanges]);
 
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;
@@ -2002,6 +1792,7 @@ export default function StructuredResult() {
 
   /* 포트폴리오 내보내기 핸들러 */
   const handleExportToPortfolio = () => {
+    if (!confirmDiscardChanges()) return;
     const sr = experience?.structuredResult || {};
     const cleanSections = enabledExportSections.map(normalizeExportSection);
     const sections = cleanSections.map(section => ({
@@ -2124,7 +1915,14 @@ export default function StructuredResult() {
     const nextSlideIdx = Math.min(item.targetSlide ?? 0, SECTION_COUNT - 1);
     setActiveQualityId(item.id);
     setSectionSlideIdx(nextSlideIdx);
-    detailSlidesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 항목이 속한 탭으로 먼저 전환한 뒤 해당 섹션으로 스크롤
+    const tab = item.id === 'keyExperiences' ? 'keyexp' : item.id === 'research' ? 'research' : 'story';
+    setActiveTab(tab);
+    requestAnimationFrame(() => {
+      const sectionKey = SECTION_KEYS[nextSlideIdx];
+      const target = (tab === 'story' && sectionKey && document.getElementById(`story-${sectionKey}`)) || detailSlidesRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   if (loading) {
@@ -2145,126 +1943,112 @@ export default function StructuredResult() {
   /* 작성 완성도 % */
   const completionPct = Math.round((filledCount / SECTION_COUNT) * 100);
 
+  // ── 스토리: 7개 섹션을 슬라이드가 아닌 "한 편의 문서"로 흐르게 표시 ──
+  const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
+  const INTRO_META = [
+    { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
+    { key: 'role', label: '역할', placeholder: '기획/개발/운영 담당' },
+    { key: 'team', label: '팀 구성', placeholder: '개발 3명, 디자인 1명' },
+    { key: 'scopeOfImpact', label: '영향 범위', placeholder: '사용자/팀/비즈니스 범위' },
+    { key: 'goal', label: '목표', placeholder: '프로젝트의 핵심 목표' },
+  ];
+
   const renderDetailSlides = () => (
-    <div ref={detailSlidesRef} className="mb-5 scroll-mt-6">
-      <div className="mb-4 border-b border-surface-200 pb-3">
-        <h1 className="text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
+    <div ref={detailSlidesRef} className="mb-6 scroll-mt-6">
+      {/* 진행률 + 하이라이트 범례 (카드 없이 한 줄) */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
+        <span className="text-[13.5px] font-semibold text-bluewood-400 tabular-nums">{filledCount}/{SECTION_COUNT} 섹션 작성됨</span>
+        {(structured.highlights || []).length > 0 && Object.entries(highlightColors).map(([key, color]) => (
+          <div key={key} className="flex items-center gap-1.5 text-[13px] text-bluewood-500">
+            <span className="inline-block w-4" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
+            {color.label}
+          </div>
+        ))}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-surface-200">
-        <div className="flex items-center justify-between gap-3 px-6 py-3 border-b border-surface-200 bg-white">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600">
-              <span className="tabular-nums">{SECTION_META[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].num}</span>
-              <span className="text-primary-300">·</span>
-              <span className="truncate">{SECTION_META[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].label}</span>
-            </span>
-            <span className="hidden sm:inline text-[13px] text-bluewood-300 font-medium tabular-nums">{filledCount}/{SECTION_COUNT} 완성</span>
-          </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSectionSlideIdx(i => Math.max(0, i - 1))}
-            disabled={sectionSlideIdx === 0}
-            title="이전 슬라이드 (←)"
-            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-bluewood-500 transition-all">
-            <ChevronLeft size={15} />
-          </button>
-          <div className="flex items-center gap-1.5 px-2">
-            {SECTION_KEYS.map((key, index) => {
-              const value = editedContent[key] || '';
-              const done = value.trim() && !value.trim().startsWith('[작성 필요]');
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSectionSlideIdx(index)}
-                  title={`${SECTION_META[key].num} · ${SECTION_META[key].label}`}
-                  aria-label={`${SECTION_META[key].label} 슬라이드로 이동`}
-                  className={`h-2 rounded-full transition-all duration-300 hover:scale-y-150 ${index === sectionSlideIdx ? 'w-6 bg-primary-600' : done ? 'w-2 bg-caribbean-400' : 'w-2 bg-surface-300 hover:bg-bluewood-300'}`}
-                />
-              );
-            })}
-          </div>
-          <span className="min-w-[44px] text-center text-[13px] font-semibold text-bluewood-400 tabular-nums">{sectionSlideIdx + 1}/{SECTION_COUNT}</span>
-          <button
-            onClick={() => setSectionSlideIdx(i => Math.min(SECTION_COUNT - 1, i + 1))}
-            disabled={sectionSlideIdx === SECTION_COUNT - 1}
-            title="다음 슬라이드 (→)"
-            className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-surface-200 bg-white text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-bluewood-500 transition-all">
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-
-      {(structured.highlights || []).length > 0 && (
-        <div className="flex items-center gap-5 px-6 py-2.5 bg-surface-50/60 border-b border-surface-100">
-          {Object.entries(highlightColors).map(([key, color]) => (
-            <div key={key} className="flex items-center gap-2 text-[13px] text-bluewood-500">
-              <span className="inline-block w-5 h-0" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
-              {color.label}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div>
-        {[SECTION_KEYS[Math.min(sectionSlideIdx, SECTION_COUNT - 1)]].map(key => {
+      <div className="divide-y divide-surface-200">
+        {SECTION_KEYS.map((key) => {
           const meta = SECTION_META[key];
           const value = editedContent[key] || '';
-          const isEditing = editingSections[key];
           const field = FRAMEWORKS.STRUCTURED.fields.find(f => f.key === key);
-          const slide = normalizeSectionSlide({
-            key,
-            content: value,
-            structured: { ...structured, sectionSlides: { ...(structured.sectionSlides || {}), ...editedSectionSlides } },
-            research: editedResearch,
-            keyExperiences: editedKeyExperiences,
-            overview: editedOverview,
-          });
-          const imageProps = {
-            sectionImages,
-            allImages,
-            imageConfig,
-            setImageConfig,
-            dragInfo,
-            dropTarget,
-            setDropTarget,
-            handleDragStart,
-            handleDragEnd,
-            handleImageDrop,
-            handleImageDelete,
-          };
+          const display = isInstructionLike(value) ? '' : sanitizeTextValue(value);
+          const sectionHighlights = (structured.highlights || []).filter(h => h.field === key);
 
           return (
-            <div key={key} className="animate-fadeIn">
-            <PortfolioSectionSlide
-              sectionKey={key}
-              meta={meta}
-              overview={editedOverview}
-              onOverviewChange={(overviewKey, overviewValue) => setEditedOverview(prev => ({ ...prev, [overviewKey]: sanitizeTextValue(overviewValue) }))}
-              value={value}
-              slide={slide}
-              isEditing={isEditing}
-              viewOnly={viewOnly}
-              field={field}
-              structured={structured}
-              editedKeywords={editedKeywords}
-              onChange={(nextValue) => handleFieldChange(key, nextValue)}
-              onSlideFieldChange={handleSlideFieldChange}
-              onSlideCardChange={handleSlideCardChange}
-              onEdit={() => handleStartEditing(key)}
-              onDone={() => toggleEditing(key)}
-              imageProps={imageProps}
-              onAddImage={() => openSlideImagePicker(key)}
-              uploadingImage={uploadingImage}
-              dragInfo={dragInfo}
-              dropTarget={dropTarget}
-              setDropTarget={setDropTarget}
-              handleSectionDrop={handleSectionDrop}
-            />
-            </div>
+            <section key={key} className="py-7 first:pt-1 scroll-mt-20" id={`story-${key}`}>
+              {/* 섹션 헤더 */}
+              <div className="mb-3.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
+                <h3 className="text-[21px] sm:text-[24px] font-extrabold leading-snug text-bluewood-900">{meta.label}</h3>
+                <span className="text-[13.5px] text-bluewood-300">{meta.subtitle}</span>
+              </div>
+
+              {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 */}
+              {key === 'intro' && (
+                <div className="mb-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3">
+                  {INTRO_META.map(item => (
+                    <div key={item.key} className={`min-w-0 ${item.key === 'goal' ? 'col-span-2 sm:col-span-3' : ''}`}>
+                      <p className="text-[12px] font-bold text-bluewood-300 mb-0.5">{item.label}</p>
+                      {viewOnly ? (
+                        <p className="text-[14.5px] font-semibold leading-snug text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</p>
+                      ) : (
+                        <textarea
+                          rows={1}
+                          ref={el => autoGrow(el)}
+                          value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
+                          onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
+                          placeholder={item.placeholder}
+                          className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
+                          style={{ overflowWrap: 'anywhere' }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 본문 */}
+              {!viewOnly ? (
+                <textarea
+                  rows={1}
+                  ref={el => autoGrow(el)}
+                  value={display}
+                  onChange={e => { handleFieldChange(key, e.target.value); autoGrow(e.target); }}
+                  placeholder={field?.placeholder || '내용을 입력하세요'}
+                  className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[16.5px] leading-[1.9] text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
+                  style={{ overflowWrap: 'anywhere', minHeight: '3.2rem' }}
+                />
+              ) : display ? (
+                <div className="whitespace-pre-wrap break-words text-[16.5px] leading-[1.9] text-bluewood-700" style={{ overflowWrap: 'anywhere' }}>
+                  <HighlightedText text={display} highlights={sectionHighlights} keywords={editedKeywords} showKeywordUnderline={true} />
+                </div>
+              ) : (
+                <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>
+              )}
+
+              {/* 섹션 이미지 + 추가 */}
+              <InlineSlideImages
+                sectionKey={key}
+                sectionImages={sectionImages}
+                allImages={allImages}
+                imageConfig={imageConfig}
+                setImageConfig={handleImageConfigChange}
+                handleImageDelete={handleImageDelete}
+                viewOnly={viewOnly}
+              />
+              {!viewOnly && (
+                <button
+                  onClick={() => openSlideImagePicker(key)}
+                  disabled={uploadingImage}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-surface-200 px-2.5 py-1 text-[12px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 transition-colors"
+                >
+                  {uploadingImage ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
+                  사진 추가
+                </button>
+              )}
+            </section>
           );
         })}
-      </div>
       </div>
     </div>
   );
@@ -2276,12 +2060,17 @@ export default function StructuredResult() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
         {navState?.isTutorialDemo ? (
-          <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
+          <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
             <ArrowLeft size={15} /> 튜토리얼로 돌아가기
           </Link>
         ) : (
-          <Link to="/app/experience" className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
+          <Link to="/app/experience" onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
             <ArrowLeft size={15} /> 경험 목록으로
+          </Link>
+        )}
+        {!navState?.isTutorialDemo && (
+          <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 hover:text-primary-600 transition-colors">
+            간략하게 보기
           </Link>
         )}
         {!viewOnly && !navState?.isTutorialDemo && (
@@ -2319,8 +2108,15 @@ export default function StructuredResult() {
               </button>
             </div>
 
-            {/* 핵심 경험 슬라이더 컨트롤 그룹 */}
-            {editedKeyExperiences.length > 0 && (
+            {hasUnsavedChanges && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                저장 안 됨
+              </span>
+            )}
+
+            {/* 핵심 경험 슬라이더 컨트롤 그룹 — 핵심경험 탭에서만 */}
+            {activeTab === 'keyexp' && editedKeyExperiences.length > 0 && (
               <div className="inline-flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-2.5 py-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-wide text-bluewood-300">핵심 경험</span>
                 {/* 인디케이터 */}
@@ -2377,7 +2173,7 @@ export default function StructuredResult() {
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
               <Eye size={14} /> 미리보기
             </button>
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving} title="저장 (Ctrl+S / ⌘S)"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
@@ -2386,30 +2182,98 @@ export default function StructuredResult() {
         )}
       </div>
 
-      {renderDetailSlides()}
+      {/* 제목 — 모든 탭에서 표시 */}
+      <div className="mb-4 border-b border-surface-200 pb-3">
+        <h1 className="text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
+      </div>
+
+      {/* ── 고급수정 4탭 네비게이션 ── */}
+      <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-surface-200 bg-white/90 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-12 lg:px-12">
+        <div className="flex gap-1 overflow-x-auto">
+          {[
+            { key: 'story', label: '스토리', count: SECTION_COUNT },
+            { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },
+            { key: 'analysis', label: '역량·분석', count: null },
+            { key: 'research', label: '시장·지표', count: editedResearch.decisionMetrics.length || null },
+          ].map(tab => {
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex items-center gap-2 whitespace-nowrap px-4 py-3 text-[14px] font-bold transition-colors ${active ? 'text-primary-600' : 'text-bluewood-400 hover:text-bluewood-700'}`}
+              >
+                {tab.label}
+                {tab.count != null && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${active ? 'bg-primary-100 text-primary-600' : 'bg-surface-100 text-bluewood-400'}`}>{tab.count}</span>
+                )}
+                {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeTab === 'story' && renderDetailSlides()}
 
       {/* ── 메인 + 우측 기업분석 사이드바 ── */}
       <div className="flex gap-6 sm:gap-8 lg:gap-10 items-start">
         {/* 메인 콘텐츠 */}
         <div className="flex-1 min-w-0">
 
+      <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+
       {/* 핵심 경험 슬라이더 */}
+      {activeTab === 'keyexp' && (
       <div className="mb-5">
         <KeyExperienceSlider
           ref={sliderRef}
           keyExperiences={editedKeyExperiences}
-          onUpdate={viewOnly ? undefined : setEditedKeyExperiences}
+          onUpdate={viewOnly ? undefined : handleKeyExperiencesChange}
           viewOnly={viewOnly}
           forceEditing={!viewOnly}
           hideHeader={!viewOnly}
           onEditingChange={setSliderEditing}
+          onDirty={markDirty}
           onCurrentChange={setSliderCurrent}
           onDeletedCountChange={setSliderDeletedCount}
         />
       </div>
-      <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+      )}
 
-      {/* ── 역량 인사이트 (근거·배운점 카드) ── */}
+      {/* 케이스 스터디에서 추가한 핵심 경험 사진 — 자세히보기에도 자연스럽게 반영 */}
+      {activeTab === 'keyexp' && Object.keys(keyExpImages).length > 0 && (
+        <div className="mb-6 border-t border-surface-200 pt-6">
+          <div className="mb-4 flex items-baseline gap-2">
+            <h3 className="text-[15px] font-extrabold text-bluewood-900">핵심 경험 사진</h3>
+            <span className="text-[12px] text-bluewood-300">케이스 스터디에서 추가한 사진이 함께 반영됩니다</span>
+          </div>
+          <div className="space-y-6">
+            {Object.entries(keyExpImages).map(([idx, imgs]) => {
+              if (!Array.isArray(imgs) || imgs.length === 0) return null;
+              const title = stripMarkdown(editedKeyExperiences[+idx]?.title || '') || `핵심 경험 ${+idx + 1}`;
+              return (
+                <div key={idx}>
+                  <p className="mb-2 flex items-center gap-2 text-[13.5px] font-bold text-bluewood-700">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-black text-white" style={{ backgroundColor: '#002F6C' }}>{+idx + 1}</span>
+                    {title}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    {imgs.map((im, ii) => (
+                      <figure key={ii} className="overflow-hidden rounded-lg border border-surface-200 bg-white" style={{ width: im.width || '100%', maxWidth: '100%' }}>
+                        <img src={im.url} alt={title} className="block w-full object-contain" />
+                      </figure>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── 분석 탭: 역량 인사이트 + 직군 특화 분석 ── */}
+      {activeTab === 'analysis' && (<>
       <CompetencyMeter
         highlights={structured.highlights}
         keywords={editedKeywords}
@@ -2483,6 +2347,7 @@ export default function StructuredResult() {
                             value={val.startsWith('[작성 필요]') ? val.replace(/^\[작성 필요\]\s*/, '') : val}
                             onChange={e => {
                               const v = e.target.value;
+                              markDirty();
                               setEditedJobSpecific(p => ({ ...p, [field.key]: v }));
                               const t = e.target; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
                             }}
@@ -2526,133 +2391,118 @@ export default function StructuredResult() {
           </div>
         );
       })()}
+      </>)}
 
       {/* ╔══════════════════════════════════════════════╗
-         ║  시장/지표 리서치 보강                        ║
+         ║  리서치 탭: 시장/지표 리서치 보강            ║
          ╚══════════════════════════════════════════════╝ */}
-      {(editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (() => {
+      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (() => {
         const R = editedResearch;
-        const confMeta = { high: { bg: '#ecfdf5', bd: '#a7f3d0', fg: '#047857', label: '신뢰 높음' }, medium: { bg: '#fffbeb', bd: '#fde68a', fg: '#b45309', label: '신뢰 보통' }, low: { bg: '#f1f5f9', bd: '#e2e8f0', fg: '#64748b', label: '참고' } };
+        const confMeta = { high: { label: '신뢰 높음', dot: '#10b981' }, medium: { label: '신뢰 보통', dot: '#cbd5e1' }, low: { label: '참고', dot: '#cbd5e1' } };
         const validSources = (R.sourceNotes || []).filter(s => (s.title && s.title.trim()) || /^https?:\/\//.test(s.url || ''));
-        const stats = [
-          { n: R.decisionMetrics.length, label: '추천 지표' },
-          { n: validSources.length, label: '근거 자료' },
-          { n: R.portfolioAngles.length, label: '강조 관점' },
-        ].filter(x => x.n > 0);
         return (
-        <div className="mt-5 border border-surface-200 overflow-hidden rounded-2xl">
+        <div className="mt-2">
           {/* 헤더 */}
-          <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-surface-200 bg-white">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface-200 pb-4 mb-7">
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-primary-600 text-white text-[11px] font-black tracking-wide">AI 리서치</span>
-                <h2 className="text-[15px] font-extrabold text-bluewood-900">시장·지표 근거</h2>
-              </div>
-              <p className="mt-1.5 text-[12.5px] text-bluewood-500 leading-relaxed">최신 뉴스·지표·논문을 조사해 <b className="text-bluewood-700 font-bold">의사결정에 쓸 지표</b>를 추천합니다. 외부 수치는 비교 기준으로만, 실제 성과는 직접 검증하세요.</p>
+              <h2 className="text-[21px] font-extrabold text-bluewood-900">시장·지표 근거</h2>
+              <p className="mt-1.5 text-[14px] text-bluewood-500 leading-relaxed">의사결정에 쓸 지표를 정리합니다. 외부 수치는 비교 기준으로만, 실제 성과는 직접 검증하세요.</p>
             </div>
             {!viewOnly && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={handleResearchMetrics} disabled={researchingMetrics}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-[13.5px] font-bold text-white bg-bluewood-800 hover:bg-bluewood-900 disabled:opacity-50 transition-colors">
                   {researchingMetrics && <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
-                  {researchingMetrics ? '리서치 중...' : 'AI 지표 추천'}
+                  {researchingMetrics ? '리서치 중...' : '지표 추천받기'}
                 </button>
                 <button onClick={addDecisionMetric}
-                  className="px-3 py-2 rounded-lg border border-surface-200 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
+                  className="px-3 py-2 rounded-md border border-surface-200 text-[13.5px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
               </div>
             )}
           </div>
 
-          <div className="p-6 sm:p-8 space-y-7">
-            {/* 신뢰 배너 */}
-            {stats.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-9 gap-y-3 rounded-xl bg-primary-50/60 border border-primary-100 px-6 py-4">
-                {stats.map(s => (
-                  <div key={s.label} className="flex items-baseline gap-1.5">
-                    <span className="text-[24px] font-black leading-none text-primary-600 tabular-nums">{s.n}</span>
-                    <span className="text-[12px] font-semibold text-bluewood-500">{s.label}</span>
-                  </div>
-                ))}
-                <span className="text-[12px] text-bluewood-400 ml-auto">AI가 조사한 근거 기반</span>
-              </div>
-            )}
-
+          <div className="space-y-9">
             {/* 시장 맥락 */}
             {(R.marketOverview || !viewOnly) && (
               <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">시장 맥락</p>
+                <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">시장 맥락</p>
                 {viewOnly ? (
-                  <p className="text-[14px] leading-[1.8] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{R.marketOverview || '—'}</p>
+                  <p className="text-[15.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{R.marketOverview || '—'}</p>
                 ) : (
                   <textarea
                     value={R.marketOverview}
-                    onChange={e => setEditedResearch(prev => ({ ...prev, marketOverview: e.target.value }))}
-                    placeholder="프로젝트와 관련된 시장·사용자·채용 맥락이 여기에 정리됩니다. 'AI 지표 추천'을 누르면 자동으로 채워집니다."
-                    className="w-full min-h-[88px] resize-none rounded-xl border border-surface-200 bg-white p-4 text-[14px] leading-[1.8] text-bluewood-800 outline-none placeholder:text-bluewood-300 focus:ring-2 focus:ring-primary-200"
+                    onChange={e => { markDirty(); setEditedResearch(prev => ({ ...prev, marketOverview: e.target.value })); }}
+                    placeholder="프로젝트와 관련된 시장·사용자·채용 맥락이 여기에 정리됩니다. '지표 추천받기'를 누르면 자동으로 채워집니다."
+                    className="w-full min-h-[88px] resize-y border-0 border-l-2 border-surface-200 bg-transparent pl-4 py-1 text-[15.5px] leading-[1.85] text-bluewood-800 outline-none placeholder:text-bluewood-300 focus:border-primary-300"
                   />
                 )}
               </div>
             )}
 
-            {/* 의사결정 지표 — 주인공 카드 */}
+            {/* 의사결정 지표 — 깔끔한 목록형 */}
             {R.decisionMetrics.length > 0 && (
               <div>
-                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">의사결정에 쓸 지표</p>
-                <div className="grid gap-4 lg:grid-cols-2">
+                <p className="mb-1 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">의사결정에 쓸 지표</p>
+                <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {R.decisionMetrics.map((metric, index) => {
                     const cm = confMeta[metric.confidence] || confMeta.medium;
                     return (
-                      <div key={index} className="rounded-xl border border-surface-200 bg-white overflow-hidden">
-                        <div className="h-1 w-full" style={{ backgroundColor: cm.fg }} />
-                        <div className="p-4">
-                          <div className="flex items-start justify-between gap-3 mb-2.5">
-                            <input
-                              value={metric.metric}
-                              onChange={e => updateDecisionMetric(index, 'metric', e.target.value)}
-                              readOnly={viewOnly}
-                              placeholder="지표명"
-                              className="flex-1 min-w-0 bg-transparent text-[16px] font-extrabold text-bluewood-900 outline-none placeholder:text-bluewood-300"
-                            />
-                            <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: cm.bg, borderColor: cm.bd, color: cm.fg }}>{cm.label}</span>
-                          </div>
-                          <textarea
-                            value={metric.whyItMatters}
-                            onChange={e => updateDecisionMetric(index, 'whyItMatters', e.target.value)}
+                      <div key={index} className="py-5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <input
+                            value={metric.metric}
+                            onChange={e => updateDecisionMetric(index, 'metric', e.target.value)}
                             readOnly={viewOnly}
-                            placeholder="왜 중요한 지표인가요?"
-                            className="w-full min-h-[48px] resize-none bg-transparent text-[13.5px] leading-relaxed text-bluewood-700 outline-none placeholder:text-bluewood-300"
+                            placeholder="지표명"
+                            className="flex-1 min-w-0 bg-transparent text-[17.5px] font-extrabold text-bluewood-900 outline-none placeholder:text-bluewood-300"
                           />
-                          <div className="mt-2.5 rounded-lg bg-surface-50 px-3 py-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-bluewood-400 block mb-1">확인 방법</span>
+                          <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-bluewood-400">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cm.dot }} />
+                            {cm.label}
+                          </span>
+                        </div>
+                        <textarea
+                          value={metric.whyItMatters}
+                          onChange={e => updateDecisionMetric(index, 'whyItMatters', e.target.value)}
+                          readOnly={viewOnly}
+                          placeholder="왜 중요한 지표인가요?"
+                          className="mt-1.5 w-full min-h-[44px] resize-none bg-transparent text-[14.5px] leading-[1.7] text-bluewood-700 outline-none placeholder:text-bluewood-300"
+                        />
+                        <div className="mt-2.5 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+                          <div className="min-w-0">
+                            <span className="block mb-0.5 text-[11.5px] font-bold text-bluewood-400">확인 방법</span>
                             {viewOnly ? (
-                              <p className="text-[13px] font-semibold text-bluewood-700 leading-relaxed whitespace-pre-wrap" style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{metric.recommendedProxy || '—'}</p>
+                              <p className="text-[13.5px] font-semibold text-bluewood-700 leading-[1.6] whitespace-pre-wrap" style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{metric.recommendedProxy || '—'}</p>
                             ) : (
                               <textarea
                                 value={metric.recommendedProxy}
                                 onChange={e => updateDecisionMetric(index, 'recommendedProxy', e.target.value)}
                                 placeholder="확인할 프록시/계산식"
                                 rows={2}
-                                className="w-full resize-y bg-transparent text-[13px] font-semibold text-bluewood-700 leading-relaxed outline-none placeholder:text-bluewood-300"
+                                className="w-full resize-y bg-transparent text-[13.5px] font-semibold text-bluewood-700 leading-[1.6] outline-none placeholder:text-bluewood-300"
                                 style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}
                               />
                             )}
                           </div>
                           {(metric.researchBasis || !viewOnly) && (
-                            <div className="mt-2 flex items-start gap-2">
-                              <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wider text-bluewood-400 pt-1">근거</span>
-                              <textarea
-                                value={metric.researchBasis}
-                                onChange={e => updateDecisionMetric(index, 'researchBasis', e.target.value)}
-                                readOnly={viewOnly}
-                                placeholder="자료 근거 또는 [검증 필요]"
-                                className="flex-1 min-h-[40px] resize-none bg-transparent text-[12.5px] leading-relaxed text-bluewood-500 outline-none placeholder:text-bluewood-300"
-                              />
+                            <div className="min-w-0">
+                              <span className="block mb-0.5 text-[11.5px] font-bold text-bluewood-400">근거</span>
+                              {viewOnly ? (
+                                <p className="text-[13.5px] leading-[1.6] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{metric.researchBasis || '—'}</p>
+                              ) : (
+                                <textarea
+                                  value={metric.researchBasis}
+                                  onChange={e => updateDecisionMetric(index, 'researchBasis', e.target.value)}
+                                  placeholder="자료 근거 또는 [검증 필요]"
+                                  className="w-full min-h-[40px] resize-none bg-transparent text-[13.5px] leading-[1.6] text-bluewood-500 outline-none placeholder:text-bluewood-300"
+                                />
+                              )}
                             </div>
                           )}
-                          {!viewOnly && (
-                            <button onClick={() => removeDecisionMetric(index)} className="mt-2 text-[12px] font-semibold text-bluewood-300 hover:text-red-500 transition-colors">삭제</button>
-                          )}
                         </div>
+                        {!viewOnly && (
+                          <button onClick={() => removeDecisionMetric(index)} className="mt-2 text-[12.5px] font-semibold text-bluewood-300 hover:text-red-500 transition-colors">삭제</button>
+                        )}
                       </div>
                     );
                   })}
@@ -2660,33 +2510,36 @@ export default function StructuredResult() {
               </div>
             )}
 
-            {/* 강조 관점 */}
+            {/* 강조 관점 — 목록형 */}
             {R.portfolioAngles.length > 0 && (
               <div>
-                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">포트폴리오에서 강조할 관점</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="mb-2.5 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">포트폴리오에서 강조할 관점</p>
+                <ul className="space-y-2.5">
                   {R.portfolioAngles.map((angle, i) => (
-                    <span key={i} className="px-3.5 py-2 rounded-lg bg-surface-50 border border-surface-200 text-[13px] font-medium text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{angle}</span>
+                    <li key={i} className="flex gap-2.5 text-[14.5px] leading-[1.7] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
+                      <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: '#002F6C' }} />
+                      {angle}
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
 
-            {/* 근거 자료 (출처) — 신뢰 */}
+            {/* 근거 자료 (출처) */}
             {validSources.length > 0 && (
               <div>
-                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">근거 자료 {validSources.length}건</p>
-                <div className="rounded-xl border border-surface-200 divide-y divide-surface-100 overflow-hidden">
+                <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">근거 자료 {validSources.length}건</p>
+                <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {validSources.map((source, index) => {
                     const hasUrl = /^https?:\/\//.test(source.url || '');
                     return (
-                      <div key={index} className="px-4 py-3">
+                      <div key={index} className="py-3">
                         <div className="flex items-baseline justify-between gap-3">
-                          <p className="text-[13.5px] font-bold text-bluewood-800 truncate">{source.title || source.url}</p>
-                          {source.publisher && <span className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400">{source.publisher}</span>}
+                          <p className="text-[14.5px] font-bold text-bluewood-800 truncate">{source.title || source.url}</p>
+                          {source.publisher && <span className="flex-shrink-0 text-[12.5px] font-semibold text-bluewood-400">{source.publisher}</span>}
                         </div>
                         {hasUrl && (
-                          <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block text-[12px] text-primary-600 underline truncate max-w-full">
+                          <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block text-[12.5px] text-primary-600 underline truncate max-w-full">
                             {source.url}
                           </a>
                         )}
@@ -2699,9 +2552,9 @@ export default function StructuredResult() {
 
             {/* 검증 필요 */}
             {R.limitations && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-5 py-4">
-                <p className="mb-1 text-[12px] font-black text-amber-700">검증 필요</p>
-                <p className="text-[13px] leading-relaxed text-amber-700" style={{ wordBreak: 'keep-all' }}>{R.limitations}</p>
+              <div className="border-l-2 border-surface-300 pl-4">
+                <p className="mb-0.5 text-[12.5px] font-bold text-bluewood-500">검증 필요</p>
+                <p className="text-[14px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{R.limitations}</p>
               </div>
             )}
           </div>
@@ -2833,7 +2686,7 @@ export default function StructuredResult() {
 
       {/* 오른쪽: 프로젝트 타임라인 네비게이터 (고정, 접기/펼치기) */}
       <div className="hidden lg:block fixed right-0 top-20 z-30">
-        <ProjectTimeline experiences={experiences} currentId={id} />
+        <ProjectTimeline experiences={experiences} currentId={id} onBeforeNavigate={confirmDiscardChanges} />
       </div>
 
       {/* 작성 완성도 플로팅 패널 */}
@@ -3235,7 +3088,7 @@ export default function StructuredResult() {
                       <div className="mb-6 flex items-end gap-3">
                         <input
                           value={editedTitle}
-                          onChange={e => setEditedTitle(sanitizeTextValue(e.target.value))}
+                          onChange={e => { markDirty(); setEditedTitle(sanitizeTextValue(e.target.value)); }}
                           className="flex-1 bg-transparent text-[28px] font-extrabold leading-tight text-primary-700 outline-none placeholder:text-bluewood-200"
                           placeholder="프로젝트 제목"
                         />
@@ -3326,7 +3179,7 @@ function parsePeriodStr(exp) {
   return '';
 }
 
-function ProjectTimeline({ experiences, currentId }) {
+function ProjectTimeline({ experiences, currentId, onBeforeNavigate = () => true }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   if (!experiences || experiences.length === 0) return null;
@@ -3358,7 +3211,7 @@ function ProjectTimeline({ experiences, currentId }) {
               return (
                 <button
                   key={exp.id}
-                  onClick={() => { if (!isCurrent) navigate(`/app/experience/structured/${exp.id}?view=true`); }}
+                  onClick={() => { if (!isCurrent && onBeforeNavigate()) navigate(`/app/experience/structured/${exp.id}?view=true`); }}
                   title={expanded ? undefined : title}
                   className={`relative w-full flex items-center gap-2.5 rounded-xl text-left transition-all duration-200 ${
                     expanded ? 'px-2 py-3' : 'px-0 py-2 justify-center'
