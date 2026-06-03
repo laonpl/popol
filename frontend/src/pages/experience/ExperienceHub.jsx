@@ -164,6 +164,7 @@ export default function ExperienceHub() {
   const [editEnd, setEditEnd] = useState('');
 
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
+  const [chooserOpen, setChooserOpen] = useState(false); // 새 경험 추가 방식 선택 모달
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const timelineRef = useRef(null);
@@ -309,7 +310,7 @@ export default function ExperienceHub() {
   };
 
   /* ── 타임라인 바 삭제 ── */
-  const handleTimelineDelete = useCallback((exp, e) => {
+  const handleTimelineDelete = useCallback(async (exp, e) => {
     e.stopPropagation();
     if (exp.isTutorialDemo) {
       setTutorialDemoBuildStep('idle');
@@ -318,11 +319,17 @@ export default function ExperienceHub() {
       toast.success('가상 경험을 지웠습니다');
       return;
     }
-    if (window.confirm(`"${stripMd(exp.title)}" 경험을 삭제하시겠습니까?`)) {
-      deleteExperience(exp.id);
+    if (!window.confirm(`"${stripMd(exp.title)}" 경험을 삭제하시겠습니까?`)) return;
+    // Firestore 삭제가 끝난 뒤에만 성공 처리. 실패 시 안내(낙관적 토스트로 삭제된 것처럼 보이는 문제 방지)
+    try {
+      await deleteExperience(exp.id);
+      if (selectedId === exp.id) setSelectedId(null);
       toast.success('삭제되었습니다');
+    } catch (err) {
+      console.error('경험 삭제 실패:', err);
+      toast.error('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
-  }, [deleteExperience]);
+  }, [deleteExperience, selectedId]);
 
   useEffect(() => {
     if (user?.uid) fetchExperiences(user.uid);
@@ -461,26 +468,26 @@ export default function ExperienceHub() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Link
-              to="/app/experience/interview"
+            <button
+              type="button"
+              data-tour="experience-new"
+              onClick={() => {
+                // 튜토리얼 진행 중엔 기존 흐름(직접 작성 화면) 유지
+                if (tutorialVisible || forceTutorial) {
+                  if (tutorialVisible && tutorialCurrentStep === 0) {
+                    dismissTutorial(false);
+                    setTutorialDemoExperience(null);
+                    setTutorialDemoBuildStep('idle');
+                  }
+                  navigate('/app/experience/new?tutorial=1');
+                  return;
+                }
+                setChooserOpen(true);
+              }}
               className="flex items-center px-5 py-3 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-sm shadow-primary-600/20"
             >
-              AI 인터뷰로 시작
-            </Link>
-            <Link
-              data-tour="experience-new"
-              to={tutorialVisible || forceTutorial ? '/app/experience/new?tutorial=1' : '/app/experience/new'}
-              onClick={() => {
-                if (tutorialVisible && tutorialCurrentStep === 0) {
-                  dismissTutorial(false);
-                  setTutorialDemoExperience(null);
-                  setTutorialDemoBuildStep('idle');
-                }
-              }}
-              className="flex items-center px-5 py-3 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[15px] font-bold hover:bg-surface-50 transition-colors"
-            >
-              직접 작성
-            </Link>
+              + 새 경험 추가
+            </button>
           </div>
         </div>
         {/* 컨트롤 바 */}
@@ -697,7 +704,7 @@ export default function ExperienceHub() {
                                     }
                                   }}
                                   onDoubleClick={() => {
-                                    if (!exp.isTutorialDemo) navigate(`/app/experience/structured/${exp.id}?view=true`);
+                                    if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                                   }}
                                 >
                                   <span className={`text-[15px] font-semibold ${theme.barText} truncate block pr-12`}>
@@ -831,7 +838,7 @@ export default function ExperienceHub() {
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
                       onDoubleClick={() => {
-                        if (!exp.isTutorialDemo) navigate(`/app/experience/structured/${exp.id}?view=true`);
+                        if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                       }}
                       className={`group grid grid-cols-[28px_28px_48px_1fr_160px_140px_72px] items-center gap-3 px-6 py-4 cursor-pointer transition-all duration-150 ${
                         isDragging ? 'opacity-40' : ''
@@ -898,7 +905,7 @@ export default function ExperienceHub() {
                           <Pencil size={13} />
                         </button>
                         <button
-                          onClick={e => {
+                          onClick={async e => {
                             e.stopPropagation();
                             if (exp.isTutorialDemo) {
                               setTutorialDemoBuildStep('idle');
@@ -907,7 +914,15 @@ export default function ExperienceHub() {
                               toast.success('가상 경험을 지웠습니다');
                               return;
                             }
-                            if (confirm('이 경험을 삭제하시겠습니까?')) deleteExperience(exp.id);
+                            if (!confirm('이 경험을 삭제하시겠습니까?')) return;
+                            try {
+                              await deleteExperience(exp.id);
+                              if (selectedId === exp.id) setSelectedId(null);
+                              toast.success('삭제되었습니다');
+                            } catch (err) {
+                              console.error('경험 삭제 실패:', err);
+                              toast.error('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                            }
                           }}
                           className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                           title="삭제"
@@ -952,11 +967,49 @@ export default function ExperienceHub() {
                 backUrl: '/app/experience?tutorial=1&step=2',
               },
             });
-          } : undefined}
+          } : () => {
+            setDetailData(null);
+            navigate(`/app/experience/result/${detailData.id}`);
+          }}
         />
       )}
       {exportData && (
         <ExportModal type="experience" data={exportData} onClose={() => setExportData(null)} />
+      )}
+
+      {/* 새 경험 추가 — 방식 선택 모달 */}
+      {chooserOpen && (
+        <div
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setChooserOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white p-6 sm:p-7 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h2 className="text-[19px] font-extrabold text-bluewood-900">새 경험 추가</h2>
+              <button onClick={() => setChooserOpen(false)} className="text-bluewood-300 hover:text-bluewood-600 text-[20px] leading-none">×</button>
+            </div>
+            <p className="text-[13.5px] text-bluewood-400 mb-5">어떤 방식으로 정리할까요? 둘 다 빠른 초안이 만들어지고, 이후 AI로 완성할 수 있어요.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => { setChooserOpen(false); navigate('/app/experience/interview'); }}
+                className="text-left rounded-xl border border-surface-200 p-5 hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
+              >
+                <p className="text-[15px] font-extrabold text-bluewood-900 mb-1.5">AI 인터뷰</p>
+                <p className="text-[12.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>AI가 핵심을 콕 집어 질문하고, 답하면 알아서 정리해줘요. 뭘 써야 할지 막막할 때.</p>
+              </button>
+              <button
+                onClick={() => { setChooserOpen(false); navigate('/app/experience/new'); }}
+                className="text-left rounded-xl border border-surface-200 p-5 hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
+              >
+                <p className="text-[15px] font-extrabold text-bluewood-900 mb-1.5">직접 입력</p>
+                <p className="text-[12.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>자료(이력서·기획서 등)를 올리거나 직접 적어서 정리해요. 이미 정리된 내용이 있을 때.</p>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
 

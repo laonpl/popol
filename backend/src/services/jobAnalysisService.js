@@ -211,6 +211,14 @@ export async function scrapeJobPosting(url) {
     console.log('[Job] HTTP 스크래핑 실패, Puppeteer로 폴백:', maskedHost, httpErr.code || httpErr.message);
   }
 
+  // 메모리 제약 호스트(예: Render 무료 512MB) 보호 스위치.
+  // PUPPETEER_DISABLED=true 면 OOM 위험이 큰 Chromium 실행을 건너뛰고
+  // 사용자에게 직접 붙여넣기를 안내한다. (미설정 시 기존 동작 유지)
+  if (process.env.PUPPETEER_DISABLED === 'true') {
+    console.log('[Job] PUPPETEER_DISABLED=true → 브라우저 스크래핑 생략:', maskedHost);
+    throw new Error('채용공고 자동 수집을 사용할 수 없습니다. 공고 내용을 직접 붙여넣어주세요.');
+  }
+
   // Puppeteer 동시 인스턴스 제한
   try {
     await acquirePuppeteer();

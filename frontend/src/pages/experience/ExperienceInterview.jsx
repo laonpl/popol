@@ -20,7 +20,7 @@ function Spinner({ light = false, size = 16 }) {
 export default function ExperienceInterview() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
-  const { generateInterviewQuestions, createExperience } = useExperienceStore();
+  const { generateInterviewQuestions, createExperience, draftAnalyze } = useExperienceStore();
 
   const [phase, setPhase] = useState('intro'); // intro | interview | review | building
   const [title, setTitle] = useState('');
@@ -167,26 +167,41 @@ export default function ExperienceInterview() {
         learning: '',
         keywords: [],
       }];
-      const analysis = buildDraftStructuredResult({
-        title: title.trim(),
-        jobCategory: jobCategory || 'common',
-        moments: reviewedMoments,
-        collectedText: sourceText,
-        content: { rawInput: finalText },
-      });
+
+      // 1차: 빠른 AI 초안 (flash 1회). 답변/자료의 노이즈를 줄인 텍스트만 전달.
+      // 2차(폴백): AI 실패 시 로컬에서 즉시 초안 구성 → 속도 보장.
+      let analysis;
+      try {
+        const draftContent = {
+          ...(hasUsableSource ? { 자료: cleanedSource } : {}),
+          인터뷰답변: readableTranscript || answersOnly,
+        };
+        analysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
+      } catch (draftErr) {
+        console.warn('[Interview] AI 초안 실패 → 로컬 초안 폴백:', draftErr?.message);
+        analysis = buildDraftStructuredResult({
+          title: title.trim(),
+          jobCategory: jobCategory || 'common',
+          moments: reviewedMoments,
+          collectedText: sourceText,
+          content: { rawInput: finalText },
+        });
+      }
+
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
         jobCategory: jobCategory || 'common',
         content: { rawInput: finalText },
-        momentsCount: reviewedMoments.length,
-        reviewedMoments,
+        // 보강(analyze) 시 핵심경험을 1개로 잠그지 않도록 reviewedMoments는 저장하지 않는다.
+        // (인터뷰 답변은 content.rawInput에 모두 들어 있어 AI가 여러 핵심경험을 추출 가능)
+        momentsCount: 3,
         structuredResult: analysis,
         keywords: analysis.keywords || [],
         analysisMode: 'draft',
       });
-      toast.success('빠른 초안이 완성되었습니다. 결과 화면에서 AI로 보강할 수 있어요.');
-      navigate(`/app/experience/structured/${experienceId}`, {
+      toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
+      navigate(`/app/experience/result/${experienceId}`, {
         state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
       });
     } catch (err) {

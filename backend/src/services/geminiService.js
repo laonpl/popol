@@ -17,6 +17,7 @@ import {
   buildRefineKeyExperiencePrompt,
   buildMetricsResearchPrompt,
   buildInterviewQuestionsPrompt,
+  buildDraftAnalysisPrompt,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -552,6 +553,87 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
       'Which part was directly owned by you?',
       'What trade-off or decision reason should be made explicit?',
     ],
+  };
+}
+
+/**
+ * 빠른 초안(Draft) 생성 — 검색·분할 없이 flash 1회 호출.
+ * "봐줄 수준"의 초안을 빠르게 만들고, 깊이 있는 보강은 analyzeExperience가 담당.
+ * 실패 시 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
+ */
+export async function generateDraftAnalysis(content, jobCategory = 'common') {
+  const entries = Object.entries(content || {}).filter(([, val]) => val && String(val).trim().length > 0);
+  if (entries.length === 0) {
+    throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
+  }
+
+  let contentText = entries
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 3000)}`)
+    .join('\n');
+  if (contentText.length > 12000) contentText = contentText.substring(0, 12000);
+
+  const prompt = buildDraftAnalysisPrompt(contentText, jobCategory);
+  const text = await withTimeout(
+    generateWithRetry(prompt, {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1200,
+      rateLimitDelayMs: 4000,
+      callTimeoutMs: 45000,
+    }),
+    55000,
+    'DraftAnalysis'
+  );
+  const json = parseJSON(text);
+
+  const ov = json.projectOverview || {};
+  const keyExperiences = (Array.isArray(json.keyExperiences) ? json.keyExperiences : [])
+    .map(k => ({
+      title: k.title || '',
+      metric: k.metric || '',
+      metricLabel: k.metricLabel || '',
+      beforeMetric: k.beforeMetric || '',
+      afterMetric: k.afterMetric || '',
+      context: k.context ?? k.situation ?? '',
+      action: k.action || '',
+      result: k.result || '',
+      learning: k.learning || '',
+      keywords: Array.isArray(k.keywords) ? k.keywords : [],
+      chartType: k.chartType || 'horizontalBar',
+    }))
+    .filter(k => k.title || k.context || k.action || k.result);
+
+  return {
+    _draft: true,
+    _draftMode: 'ai',
+    projectOverview: {
+      summary: ov.summary || '',
+      background: ov.background || '',
+      goal: ov.goal || '',
+      role: ov.role || '',
+      team: ov.team || '',
+      duration: ov.duration || '',
+      scopeOfImpact: ov.scopeOfImpact || '',
+      techStack: Array.isArray(ov.techStack) ? ov.techStack : [],
+    },
+    marketResearch: {
+      marketOverview: '', decisionMetrics: [], sourceNotes: [], portfolioAngles: [],
+      limitations: '빠른 초안 모드로 생성되어 시장/직무 근거는 AI 보강 후 채워집니다.',
+    },
+    keyExperiences,
+    intro: json.intro || '',
+    overview: json.overview || '',
+    task: json.task || '',
+    process: json.process || '',
+    output: json.output || '',
+    growth: json.growth || '',
+    competency: json.competency || '',
+    sectionSlides: {},
+    jobCategory: jobCategory || 'common',
+    jobSpecific: {},
+    keywords: Array.isArray(json.keywords) ? json.keywords : [],
+    highlights: keyExperiences.map(k => k.result || k.metric || k.title).filter(Boolean).slice(0, 5),
+    followUpQuestions: [],
   };
 }
 

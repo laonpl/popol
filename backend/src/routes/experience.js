@@ -4,6 +4,7 @@ import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
 import {
   analyzeExperience,
+  generateDraftAnalysis,
   buildFallbackExperienceAnalysis,
   extractMoments,
   refineKeyExperience,
@@ -108,6 +109,32 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
     res.json(analysis);
   } catch (error) {
     next(error);
+  }
+});
+
+// POST /api/experience/draft - 빠른 초안 생성 (flash 1회, 검색 없음)
+// 경험 생성 전 호출되므로 experienceId 없이 content를 직접 받는다.
+// 실패 시 502 → 프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
+router.post('/draft', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { content, jobCategory } = req.body;
+    if (!content || typeof content !== 'object' || Object.keys(content).length === 0) {
+      return res.status(400).json({ error: 'content가 필요합니다' });
+    }
+    const analysis = await generateDraftAnalysis(content, jobCategory || 'common');
+    res.json(analysis);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('비어있습니다')) {
+      return res.status(400).json({ error: msg });
+    }
+    const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('요청 한도') || msg.includes('RESOURCE_EXHAUSTED');
+    if (isQuota) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    // 그 외 실패는 프론트 로컬 폴백을 유도 (502)
+    console.warn('[Draft] 빠른 초안 생성 실패 → 프론트 로컬 폴백 유도:', msg);
+    return res.status(502).json({ error: '초안 생성에 실패했습니다.', detail: msg });
   }
 });
 

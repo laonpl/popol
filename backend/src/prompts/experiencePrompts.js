@@ -212,6 +212,54 @@ const JOB_META = {
 };
 
 // ============================================================
+// 빠른 초안(Draft) — 단일 호출용 경량 프롬프트
+//   목적: 검색·분할 없이 flash 1회로 "봐줄 수준"의 초안을 빠르게 생성.
+//   깊이 있는 보강(시장지표/검색/핵심경험 N개)은 이후 analyze 단계가 담당.
+// ============================================================
+export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
+  const jobInfo = JOB_META[jobCategory] || JOB_META.common;
+  return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
+아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
+완성본이 아니라 초안이지만, 그대로 읽어도 어색하지 않은 자연스러운 한국어가 되어야 합니다.
+대상 직군: ${jobInfo.label}
+
+${NO_HALLUCINATION_RULES}
+
+${WRITING_QUALITY_RULES}
+
+[초안 작성 규칙]
+- 자료(답변)에 실제로 있는 내용만 사용하세요. 수치·기술·회사명·성과를 지어내지 마세요.
+- 근거가 없는 섹션은 억지로 채우거나 "~을 보강해 주세요" 같은 안내 문구를 넣지 말고, 그냥 빈 문자열("")로 두세요.
+- 같은 문장을 여러 섹션에 그대로 복사하지 마세요. 각 섹션의 역할에 맞게 다르게 정리하세요.
+- 인터뷰 답변의 구어체("~했어요")는 포트폴리오 문체("~함/~했다")로 자연스럽게 다듬으세요.
+- keyExperiences는 자료에서 뚜렷하게 드러나는 경험 1~3개만. 없으면 빈 배열.
+
+[섹션 역할]
+- intro: 가장 큰 성과/핵심을 앞세운 2~3문장 요약
+- overview: 프로젝트 배경·목적·범위
+- task: 내가 직접 맡은 과제와 문제
+- process: 행동과 의사결정 과정 (왜 그렇게 했는지)
+- output: 결과·산출물 (수치가 있으면 포함)
+- growth: 배운 점·관점 변화
+- competency: 드러난 역량과 기여
+
+경험 자료:
+${contentText}
+
+아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
+{
+  "projectOverview": { "summary": "", "background": "", "goal": "", "role": "", "team": "", "duration": "", "techStack": [] },
+  "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
+  "keyExperiences": [
+    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar" }
+  ],
+  "keywords": []
+}
+
+근거가 없는 필드는 빈 문자열/빈 배열로 두세요. 지어내지 마세요.`;
+}
+
+// ============================================================
 // 분할 Step 1: 프로젝트 개요 + 7개 공통 섹션 + 직군 특화 섹션 추출
 // ============================================================
 export function buildOverviewPrompt(contentText, jobCategory = 'common') {

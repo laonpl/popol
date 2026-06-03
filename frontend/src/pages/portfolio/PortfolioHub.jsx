@@ -102,7 +102,9 @@ export default function PortfolioHub() {
         title: '새 포트폴리오',
         userName: user.displayName || '',
       });
-      navigate(`/app/portfolio/edit-notion/${id}`);
+      // 경험 내보내기 중이면 새 포트폴리오에도 경험을 함께 전달해 자동 추가되게 한다.
+      if (exportConfig) navigate(`/app/portfolio/edit-notion/${id}`, { state: { exportConfig } });
+      else navigate(`/app/portfolio/edit-notion/${id}`);
     } catch (error) {
       console.error(error);
     }

@@ -1026,7 +1026,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
    ══════════════════════════════════════════════ */
 const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   keyExperiences = [], onUpdate, viewOnly = false,
-  hideHeader = false, forceEditing = false, onEditingChange, onCurrentChange, onDeletedCountChange,
+  hideHeader = false, forceEditing = false, onEditingChange, onCurrentChange, onDeletedCountChange, onDirty,
 }, ref) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -1046,6 +1046,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
     setIsRefining(true);
     try {
       const refined = await refineKeyExperience(localExp, freeFormText);
+      onDirty?.();
       setLocalExp(prev => ({ ...prev, ...refined }));
       setFreeFormText('');
     } catch (err) {
@@ -1141,6 +1142,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       if (!editing) { setLocalExp({ ...exp }); _setEditing(true); }
       return;
     }
+    onDirty?.();
     setLocalExp(prev => ({ ...(prev || exp), [key]: val }));
   };
 

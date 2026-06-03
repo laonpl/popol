@@ -477,6 +477,14 @@ export async function importFromFile(buffer, mimeType, fileName) {
       }
     }
   } else if (mimeType.startsWith('image/')) {
+    // 메모리 제약 호스트(예: Render 무료 512MB) 보호 스위치.
+    // 로컬 Tesseract OCR은 이미지에 따라 메모리를 크게 쓰며, OOM은 깔끔히
+    // throw되지 않고 프로세스를 죽여 폴백이 동작하지 않는다.
+    // OCR_PREFER_VISION=true 면 Tesseract를 건너뛰고 바로 Gemini Vision API 사용.
+    if (process.env.OCR_PREFER_VISION === 'true') {
+      console.log('[Import] OCR_PREFER_VISION=true → Tesseract 생략, Gemini Vision OCR 사용');
+      extractedText = await extractWithGeminiVision(buffer, mimeType);
+    } else {
     // 이미지 → Tesseract OCR (무료/로컬)
     console.log('[Import] 이미지 감지, Tesseract OCR 시도');
     try {
@@ -489,6 +497,7 @@ export async function importFromFile(buffer, mimeType, fileName) {
     } catch (e) {
       console.warn('Tesseract OCR 실패, Gemini Vision으로 대체합니다:', e.message);
       extractedText = await extractWithGeminiVision(buffer, mimeType);
+    }
     }
   } else if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
