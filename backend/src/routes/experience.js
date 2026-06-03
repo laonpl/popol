@@ -10,6 +10,7 @@ import {
   refineKeyExperience,
   researchMarketMetrics,
   generateInterviewQuestions,
+  judgeEvidenceLabels,
 } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
@@ -273,6 +274,22 @@ router.post('/research-metrics', authMiddleware, aiRateLimiter, async (req, res,
       return res.status(400).json({ error: '리서치할 프로젝트 내용이 부족합니다' });
     }
     const result = await researchMarketMetrics({ title, sections, keywords, projectOverview, jobCategory });
+    res.json(result);
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
+    next(error);
+  }
+});
+
+// POST /api/experience/evidence-labels - 각 섹션 근거 라벨(사실/추정/가정/해석 + A~D) AI 자동 판단
+router.post('/evidence-labels', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { sections } = req.body;
+    if (!sections || typeof sections !== 'object' || Object.keys(sections).length === 0) {
+      return res.status(400).json({ error: '판단할 섹션 내용이 없습니다' });
+    }
+    const result = await judgeEvidenceLabels(sections);
     res.json(result);
   } catch (error) {
     const msg = error.message || '';

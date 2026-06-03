@@ -303,6 +303,91 @@ const highlightColors = {
   growth:  { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
 };
 
+/* ── 근거 레벨 (A~D) — 주장의 증거 강도. 보고서: A 직접증거 ~ D 추정 ── */
+const EVIDENCE_LEVELS = {
+  A: { name: '직접 증거', desc: '시스템 로그·원본 문서·배포물', color: '#16a34a', bg: 'bg-green-50',  text: 'text-green-700',  ring: 'ring-green-200'  },
+  B: { name: '기록 증거', desc: '회의록·피드백·이메일',       color: '#0284c7', bg: 'bg-sky-50',    text: 'text-sky-700',    ring: 'ring-sky-200'    },
+  C: { name: '회상·증언', desc: '기억 회상·동료 증언',         color: '#d97706', bg: 'bg-amber-50',  text: 'text-amber-700',  ring: 'ring-amber-200'  },
+  D: { name: '추정',     desc: '근거가 약한 추정치·가정',     color: '#dc2626', bg: 'bg-red-50',    text: 'text-red-700',    ring: 'ring-red-200'    },
+};
+const EVIDENCE_ORDER = ['A', 'B', 'C', 'D'];
+
+/* ── 인라인 사실/추정 라벨 — 본문에 [사실]/[추정]/[가정]/[해석] 토큰을 칩으로 표시 ── */
+const EVIDENCE_TAGS = {
+  사실: { bg: 'bg-green-50', text: 'text-green-700', ring: 'ring-green-200' },
+  추정: { bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-200' },
+  가정: { bg: 'bg-red-50',   text: 'text-red-700',   ring: 'ring-red-200'   },
+  해석: { bg: 'bg-violet-50', text: 'text-violet-700', ring: 'ring-violet-200' },
+};
+const EVIDENCE_TAG_SPLIT_RE = /(\[(?:사실|추정|가정|해석)\])/g;
+
+function EvidenceTag({ kind }) {
+  const t = EVIDENCE_TAGS[kind];
+  if (!t) return null;
+  return <span className={`mx-0.5 inline-flex items-center rounded px-1 py-px align-middle text-[11px] font-bold ${t.bg} ${t.text} ring-1 ${t.ring}`}>{kind}</span>;
+}
+
+/* ── 섹션 근거 바: 주장 성격(사실/추정/가정/해석) + 근거 레벨(A~D) 단일 선택 ── */
+function SectionEvidenceBar({ claim, level, onClaim, onLevel, viewOnly }) {
+  if (viewOnly) {
+    if (!claim && !level) return null;
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {claim && <EvidenceTag kind={claim} />}
+        {level && EVIDENCE_LEVELS[level] && (
+          <span
+            className={`inline-flex items-center rounded px-1.5 py-px text-[11px] font-bold ${EVIDENCE_LEVELS[level].bg} ${EVIDENCE_LEVELS[level].text} ring-1 ${EVIDENCE_LEVELS[level].ring}`}
+            title={EVIDENCE_LEVELS[level].desc}
+          >
+            근거 {level} · {EVIDENCE_LEVELS[level].name}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      {/* 주장 성격 */}
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-surface-200 bg-white p-0.5">
+        <span className="px-1.5 text-[10px] font-bold text-bluewood-300">성격</span>
+        {Object.keys(EVIDENCE_TAGS).map(kind => {
+          const on = claim === kind;
+          const t = EVIDENCE_TAGS[kind];
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => onClaim(kind)}
+              className={`rounded-md px-2 py-1 text-[11px] font-bold transition-all ${on ? `${t.bg} ${t.text} ring-1 ${t.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
+            >
+              {kind}
+            </button>
+          );
+        })}
+      </div>
+      {/* 근거 레벨 */}
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-surface-200 bg-white p-0.5" title="근거 강도 (A 직접증거 ~ D 추정)">
+        <span className="px-1.5 text-[10px] font-bold text-bluewood-300">근거</span>
+        {EVIDENCE_ORDER.map(lv => {
+          const on = level === lv;
+          const m = EVIDENCE_LEVELS[lv];
+          return (
+            <button
+              key={lv}
+              type="button"
+              onClick={() => onLevel(lv)}
+              title={`${m.name} — ${m.desc}`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-black transition-all ${on ? `${m.bg} ${m.text} ring-1 ${m.ring}` : 'text-bluewood-300 hover:bg-surface-50 hover:text-bluewood-500'}`}
+            >
+              {lv}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
 const SECTION_COUNT = SECTION_KEYS.length;
 
@@ -761,6 +846,9 @@ export default function StructuredResult() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editedContent, setEditedContent] = useState({});
+  const [evidenceLevels, setEvidenceLevels] = useState({}); // sectionKey → 'A'|'B'|'C'|'D'
+  const [evidenceTags, setEvidenceTags] = useState({});     // sectionKey → '사실'|'추정'|'가정'|'해석'
+  const [judgingLabels, setJudgingLabels] = useState(false);
   const [editingSections, setEditingSections] = useState({});
   const [editedTitle, setEditedTitle] = useState('');
   const [editedOverview, setEditedOverview] = useState({ background: '', goal: '', role: '', team: '', duration: '', summary: '', scopeOfImpact: '', techStack: [] });
@@ -841,7 +929,7 @@ export default function StructuredResult() {
   };
 
   /* ── 프로젝트 타임라인용: 전체 경험 목록 로드 ── */
-  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience } = useExperienceStore();
+  const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience, judgeEvidenceLabels } = useExperienceStore();
   const [researchingMetrics, setResearchingMetrics] = useState(false);
   const [enhancingDraft, setEnhancingDraft] = useState(false);
   useEffect(() => {
@@ -882,6 +970,8 @@ export default function StructuredResult() {
       });
       setEditedResearch(normalizeMarketResearch(structured.marketResearch));
       setEditedSectionSlides(structured.sectionSlides || {});
+      setEvidenceLevels(structured.evidenceLevels || {});
+      setEvidenceTags(structured.evidenceTags || {});
       setEditedKeywords(structured.keywords || []);
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
       setJobCategory(structured.jobCategory || 'common');
@@ -944,6 +1034,8 @@ export default function StructuredResult() {
         });
         setEditedResearch(normalizeMarketResearch(sr.marketResearch));
         setEditedSectionSlides(sr.sectionSlides || {});
+        setEvidenceLevels(sr.evidenceLevels || {});
+        setEvidenceTags(sr.evidenceTags || {});
         setEditedKeywords(sr.keywords || data.keywords || []);
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         setJobCategory(data.jobCategory || sr.jobCategory || 'common');
@@ -996,6 +1088,59 @@ export default function StructuredResult() {
     if (wasEmpty && isNowFilled) {
       setFlashedSection(key);
       setTimeout(() => setFlashedSection(null), 1300);
+    }
+  };
+
+  /* ── 근거 레벨 토글 (같은 레벨 다시 누르면 해제) ── */
+  const setEvidenceLevel = (key, level) => {
+    markDirty();
+    setEvidenceLevels(prev => {
+      const next = { ...prev };
+      if (next[key] === level) delete next[key];
+      else next[key] = level;
+      return next;
+    });
+  };
+
+  /* ── 주장 성격 라벨 토글 (같은 라벨 다시 누르면 해제) ── */
+  const setEvidenceTag = (key, kind) => {
+    markDirty();
+    setEvidenceTags(prev => {
+      const next = { ...prev };
+      if (next[key] === kind) delete next[key];
+      else next[key] = kind;
+      return next;
+    });
+  };
+
+  /* ── AI가 각 섹션 본문을 보고 근거 라벨(성격 + 레벨)을 자동 판단 ── */
+  const handleJudgeLabels = async () => {
+    const sections = {};
+    SECTION_KEYS.forEach(k => {
+      const v = editedContent[k];
+      if (v && !isInstructionLike(v) && v.trim()) sections[k] = stripMarkdown(v);
+    });
+    if (Object.keys(sections).length === 0) { toast.error('먼저 섹션 내용을 입력해주세요'); return; }
+    setJudgingLabels(true);
+    try {
+      const result = await judgeEvidenceLabels(sections);
+      if (!result || Object.keys(result).length === 0) { toast('판단할 근거가 충분하지 않았어요', { icon: 'ℹ️' }); return; }
+      setEvidenceTags(prev => {
+        const next = { ...prev };
+        Object.entries(result).forEach(([k, v]) => { if (v?.label) next[k] = v.label; });
+        return next;
+      });
+      setEvidenceLevels(prev => {
+        const next = { ...prev };
+        Object.entries(result).forEach(([k, v]) => { if (v?.level) next[k] = v.level; });
+        return next;
+      });
+      markDirty();
+      toast.success('AI가 근거 라벨을 판단했어요');
+    } catch {
+      toast.error('근거 판단에 실패했어요');
+    } finally {
+      setJudgingLabels(false);
     }
   };
 
@@ -1090,6 +1235,8 @@ export default function StructuredResult() {
     });
     setEditedResearch(normalizeMarketResearch(structured.marketResearch));
     setEditedSectionSlides(structured.sectionSlides || {});
+    if (structured.evidenceLevels) setEvidenceLevels(structured.evidenceLevels);
+    if (structured.evidenceTags) setEvidenceTags(structured.evidenceTags);
     setEditedKeywords(structured.keywords || []);
     setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
     setJobCategory(structured.jobCategory || 'common');
@@ -1461,6 +1608,8 @@ export default function StructuredResult() {
         projectOverview: { ...cleanOverview },
         marketResearch: { ...editedResearch },
         sectionSlides: { ...cleanSectionSlides },
+        evidenceLevels: { ...evidenceLevels },
+        evidenceTags: { ...evidenceTags },
         keywords: editedKeywords,
         keyExperiences: keyExperiencesForSave,
         jobCategory,
@@ -1954,9 +2103,9 @@ export default function StructuredResult() {
   ];
 
   const renderDetailSlides = () => (
-    <div ref={detailSlidesRef} className="mb-6 scroll-mt-6">
+    <div ref={detailSlidesRef} className="mb-6 max-w-[820px] scroll-mt-6">
       {/* 진행률 + 하이라이트 범례 (카드 없이 한 줄) */}
-      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
+      <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
         <span className="text-[13.5px] font-semibold text-bluewood-400 tabular-nums">{filledCount}/{SECTION_COUNT} 섹션 작성됨</span>
         {(structured.highlights || []).length > 0 && Object.entries(highlightColors).map(([key, color]) => (
           <div key={key} className="flex items-center gap-1.5 text-[13px] text-bluewood-500">
@@ -1964,6 +2113,29 @@ export default function StructuredResult() {
             {color.label}
           </div>
         ))}
+      </div>
+
+      {/* 근거 범례 + AI 판단 — 각 섹션 주장의 성격과 근거 강도 */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-bluewood-400">
+        <span className="font-bold text-bluewood-500">근거 레벨</span>
+        {EVIDENCE_ORDER.map(lv => (
+          <span key={lv} className="inline-flex items-center gap-1.5">
+            <span className={`inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-black ${EVIDENCE_LEVELS[lv].bg} ${EVIDENCE_LEVELS[lv].text} ring-1 ${EVIDENCE_LEVELS[lv].ring}`}>{lv}</span>
+            <span>{EVIDENCE_LEVELS[lv].name}</span>
+          </span>
+        ))}
+        {!viewOnly && (
+          <button
+            type="button"
+            onClick={handleJudgeLabels}
+            disabled={judgingLabels}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-[12px] font-bold text-primary-700 hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
+            title="AI가 각 섹션 본문을 읽고 사실/추정/가정/해석과 근거 레벨을 자동으로 판단합니다"
+          >
+            {judgingLabels ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {judgingLabels ? 'AI가 근거 판단 중…' : 'AI 근거 판단'}
+          </button>
+        )}
       </div>
 
       <div className="divide-y divide-surface-200">
@@ -1985,26 +2157,29 @@ export default function StructuredResult() {
 
               {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 */}
               {key === 'intro' && (
-                <div className="mb-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3">
-                  {INTRO_META.map(item => (
-                    <div key={item.key} className={`min-w-0 ${item.key === 'goal' ? 'col-span-2 sm:col-span-3' : ''}`}>
-                      <p className="text-[12px] font-bold text-bluewood-300 mb-0.5">{item.label}</p>
-                      {viewOnly ? (
-                        <p className="text-[14.5px] font-semibold leading-snug text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</p>
-                      ) : (
-                        <textarea
-                          rows={1}
-                          ref={el => autoGrow(el)}
-                          value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
-                          onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
-                          placeholder={item.placeholder}
-                          className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
-                          style={{ overflowWrap: 'anywhere' }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <dl className="mb-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border border-surface-200 bg-surface-50/60 px-5 py-4 sm:grid-cols-3">
+                  {INTRO_META.map(item => {
+                    const fullWidth = item.key === 'scopeOfImpact' || item.key === 'goal';
+                    return (
+                      <div key={item.key} className={`min-w-0 ${fullWidth ? 'col-span-2 sm:col-span-3' : ''}`}>
+                        <dt className="mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-bluewood-400">{item.label}</dt>
+                        {viewOnly ? (
+                          <dd className="text-[14.5px] font-semibold leading-snug text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</dd>
+                        ) : (
+                          <textarea
+                            rows={1}
+                            ref={el => autoGrow(el)}
+                            value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
+                            onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
+                            placeholder={item.placeholder}
+                            className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
+                            style={{ overflowWrap: 'anywhere' }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </dl>
               )}
 
               {/* 본문 */}
@@ -2024,6 +2199,17 @@ export default function StructuredResult() {
                 </div>
               ) : (
                 <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>
+              )}
+
+              {/* 근거 바 — 주장 성격(사실/추정/가정/해석) + 근거 레벨(A~D). AI가 판단, 직접 교체 가능 */}
+              {(!viewOnly || evidenceTags[key] || evidenceLevels[key]) && (
+                <SectionEvidenceBar
+                  claim={evidenceTags[key]}
+                  level={evidenceLevels[key]}
+                  onClaim={kind => setEvidenceTag(key, kind)}
+                  onLevel={lv => setEvidenceLevel(key, lv)}
+                  viewOnly={viewOnly}
+                />
               )}
 
               {/* 섹션 이미지 + 추가 */}
@@ -2055,7 +2241,7 @@ export default function StructuredResult() {
 
   return (
     <>
-    <div className="animate-fadeIn w-full max-w-[95%] 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 pb-16">
+    <div className="animate-fadeIn w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
@@ -2187,9 +2373,9 @@ export default function StructuredResult() {
         <h1 className="text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
       </div>
 
-      {/* ── 고급수정 4탭 네비게이션 ── */}
-      <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-surface-200 bg-white/90 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-12 lg:px-12">
-        <div className="flex gap-1 overflow-x-auto">
+      {/* ── 고급수정 4탭 네비게이션 (굵은 밑줄 탭) ── */}
+      <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-surface-200 bg-white/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+        <div className="flex gap-6 overflow-x-auto sm:gap-8">
           {[
             { key: 'story', label: '스토리', count: SECTION_COUNT },
             { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },
@@ -2201,13 +2387,13 @@ export default function StructuredResult() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-2 whitespace-nowrap px-4 py-3 text-[14px] font-bold transition-colors ${active ? 'text-primary-600' : 'text-bluewood-400 hover:text-bluewood-700'}`}
+                className={`relative flex items-center gap-2 whitespace-nowrap pb-3 pt-1 text-[16px] font-extrabold tracking-tight transition-colors ${active ? 'text-bluewood-900' : 'text-bluewood-300 hover:text-bluewood-500'}`}
               >
                 {tab.label}
                 {tab.count != null && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${active ? 'bg-primary-100 text-primary-600' : 'bg-surface-100 text-bluewood-400'}`}>{tab.count}</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${active ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-300'}`}>{tab.count}</span>
                 )}
-                {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary-600" />}
+                {active && <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-full bg-primary-600" />}
               </button>
             );
           })}
@@ -3527,13 +3713,25 @@ function HighlightedText({ text, highlights, keywords = [], showKeywordUnderline
     return result;
   };
 
+  /* 평문 조각 안의 [사실]/[추정]/[가정]/[해석] 토큰을 칩으로 렌더 (인라인 유지) */
+  const renderWithLabels = (str) => {
+    const segs = str.split(EVIDENCE_TAG_SPLIT_RE);
+    if (segs.length === 1) return applyKeywordUnderlines(str);
+    return segs.map((seg, si) => {
+      const m = seg.match(/^\[(사실|추정|가정|해석)\]$/);
+      if (m) return <EvidenceTag key={`lbl-${si}`} kind={m[1]} />;
+      if (!seg) return null;
+      return <span key={`seg-${si}`}>{applyKeywordUnderlines(seg)}</span>;
+    });
+  };
+
   return (
     <p>
       {parts.map((part, i) =>
         part.type ? (
           <HighlightSpan key={i} text={part.text} type={part.type} keywords={part.keywords} />
         ) : (
-          <span key={i}>{applyKeywordUnderlines(part.text)}</span>
+          <span key={i}>{renderWithLabels(part.text)}</span>
         )
       )}
     </p>

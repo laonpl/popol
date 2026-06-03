@@ -240,6 +240,12 @@ const useExperienceStore = create((set, get) => ({
     return data;
   },
 
+  // AI 근거 라벨 판단 (섹션별 사실/추정/가정/해석 + 근거 레벨 A~D)
+  judgeEvidenceLabels: async (sections) => {
+    const { data } = await api.post('/experience/evidence-labels', { sections }, { timeout: 120000 });
+    return data || {};
+  },
+
   // 대화형 추출 인터뷰: 초안에서 핵심 정보를 끌어내는 질문 생성
   generateInterviewQuestions: async (braindump, jobCategory) => {
     const { data } = await api.post('/experience/interview-questions', { braindump, jobCategory }, { timeout: 120000 });
