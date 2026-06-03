@@ -1624,6 +1624,7 @@ export default function NotionPortfolioEditor() {
       <VisualEditor
         portfolio={portfolio}
         update={update}
+        updateMany={updateMany}
         updateNested={updateNested}
         addToArray={addToArray}
         removeFromArray={removeFromArray}
@@ -3079,10 +3080,13 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, o
 }
 
 /* ── Visual Inline Editor — 템플릿 자체에서 인라인 편집 ── */
-function VisualInlineEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const [showExpPicker, setShowExpPicker] = useState(false);
   const [selectedExpDetail, setSelectedExpDetail] = useState(null); // { exp, idx }
+  const safeUpdateMany = updateMany || ((fields = {}) => {
+    Object.entries(fields).forEach(([field, value]) => update(field, value));
+  });
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -3101,7 +3105,7 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
   // ec = edit callbacks object passed to visual templates
   const ec = {
     update,
-    updateMany,
+    updateMany: safeUpdateMany,
     updateNested,
     addToArray,
     removeFromArray,
@@ -3218,11 +3222,12 @@ function VisualInlineEditor({ portfolio, update, updateNested, addToArray, remov
 }
 
 /* ── Visual Template Editor Wrapper ── */
-function VisualTemplateEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function VisualTemplateEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   return (
     <VisualInlineEditor
       portfolio={portfolio}
       update={update}
+      updateMany={updateMany}
       updateNested={updateNested}
       addToArray={addToArray}
       removeFromArray={removeFromArray}
@@ -8701,10 +8706,17 @@ function ValuesSection({ portfolio, update, templateId, jobAnalysis }) {
   const rows = templateId === 'ashley' ? 14 : 10;
   return (
     <SectionCard title={sectionTitle} icon={MessageSquare} description={sectionDesc} sectionType="values" jobAnalysis={jobAnalysis}>
-      <TextareaField label={templateId === 'ashley' ? '나의 이야기' : templateId === 'academic' ? '자기소개 에세이' : '가치관 에세이'}
-        value={portfolio.valuesEssay}
-        onChange={v => update('valuesEssay', v)}
-        placeholder={placeholder} rows={rows} />
+      <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+        {templateId === 'ashley' ? '나의 이야기' : templateId === 'academic' ? '자기소개 에세이' : '가치관 에세이'}
+      </label>
+      <div className="rounded-lg border border-surface-200 px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200 min-h-[140px]">
+        <YooptaMiniEditor
+          value={portfolio.valuesEssayBlocks || portfolio.valuesEssay || ''}
+          onChange={v => { update('valuesEssayBlocks', v); update('valuesEssay', richValueToPlainText(v)); }}
+          placeholder={placeholder}
+          minHeight={120}
+        />
+      </div>
     </SectionCard>
   );
 }
