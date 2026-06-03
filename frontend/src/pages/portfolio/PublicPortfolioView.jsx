@@ -1,25 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
-  Loader2, Code, Tag, X
+  Loader2
 } from 'lucide-react';
-import KeyExperienceSlider from '../../components/KeyExperienceSlider';
-import { FRAMEWORKS } from '../../stores/experienceStore';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 
-const EXP_SECTION_META = {
-  intro:      { num: '01', label: '프로젝트 소개' },
-  overview:   { num: '02', label: '프로젝트 개요' },
-  task:       { num: '03', label: '진행한 일' },
-  process:    { num: '04', label: '과정' },
-  output:     { num: '05', label: '결과물' },
-  growth:     { num: '06', label: '성장한 점' },
-  competency: { num: '07', label: '나의 역량' },
-};
-const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
+const DEFAULT_PROJECT_LOGO = '/logo.png';
+
+function withDefaultProjectLogos(portfolio) {
+  if (!portfolio) return portfolio;
+  return {
+    ...portfolio,
+    experiences: (portfolio.experiences || []).map(exp => ({
+      ...exp,
+      thumbnailUrl: exp.thumbnailUrl || DEFAULT_PROJECT_LOGO,
+    })),
+  };
+}
 
 function hasCustomBlockContent(block) {
   if (!block) return false;
@@ -87,13 +88,13 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
                 {cards.map((card, cardIndex) => {
                   const body = (
                     <>
-                      {card.thumbnailUrl && <img src={card.thumbnailUrl} alt="" className="mb-3 aspect-[16/9] w-full rounded-lg object-cover" />}
+                      <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt="" className="mb-3 aspect-[16/9] w-full rounded-lg object-cover" />
                       <div className="flex items-start justify-between gap-3">
                         <h3 className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'}>{card.title || '프로젝트'}</h3>
                         {card.link && <ExternalLink size={13} className={warm ? 'text-[#c4a882]' : 'text-gray-400'} />}
                       </div>
-                      {card.date && <p className={warm ? 'mt-1 text-xs text-[#8a8578]' : 'mt-1 text-xs text-gray-400'}>{card.date}</p>}
-                      {card.description && <p className={warm ? 'mt-2 text-xs leading-relaxed text-[#5a564e]' : 'mt-2 text-xs leading-relaxed text-gray-600'}>{card.description}</p>}
+                      {false && card.date && <p className={warm ? 'mt-1 text-xs text-[#8a8578]' : 'mt-1 text-xs text-gray-400'}>{card.date}</p>}
+                      {false && card.description && <p className={warm ? 'mt-2 text-xs leading-relaxed text-[#5a564e]' : 'mt-2 text-xs leading-relaxed text-gray-600'}>{card.description}</p>}
                     </>
                   );
                   return card.link ? (
@@ -133,14 +134,14 @@ export default function PublicPortfolioView() {
         const qSnap = await getDocs(q);
         if (!qSnap.empty) {
           const d = qSnap.docs[0];
-          setPortfolio({ id: d.id, ...d.data() });
+          setPortfolio(withDefaultProjectLogos({ id: d.id, ...d.data() }));
         } else {
           // 2차: doc ID로 직접 조회
           const snap = await getDoc(doc(db, 'portfolios', id));
           if (snap.exists()) {
             const data = snap.data();
             if (data.isPublic) {
-              setPortfolio({ id: snap.id, ...data });
+              setPortfolio(withDefaultProjectLogos({ id: snap.id, ...data }));
             } else {
               setError('비공개 포트폴리오입니다.');
             }
@@ -320,9 +321,9 @@ export default function PublicPortfolioView() {
                 const st = STATUS_MAP[e.status] || STATUS_MAP.finished;
                 const sr = e.structuredResult || {};
                 const overview = sr.projectOverview || {};
-                const cardSummary = overview.summary || sr.intro || e.description || '';
-                const cardRole = overview.role || e.role || '';
-                const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
+                const cardSummary = '';
+                const cardRole = '';
+                const cardTech = [];
                 return (
                   <button key={i} onClick={() => setSelectedExp(e)} className="group bg-white rounded-xl border border-gray-200 overflow-hidden text-left hover:shadow-md transition-all flex flex-col">
                     <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative flex-shrink-0">
@@ -545,9 +546,9 @@ export default function PublicPortfolioView() {
                 {p.experiences.map((e, i) => {
                   const sr = e.structuredResult || {};
                   const overview = sr.projectOverview || {};
-                  const cardSummary = overview.summary || sr.intro || e.description || '';
-                  const cardRole = overview.role || e.role || '';
-                  const cardTech = (overview.techStack?.length > 0 ? overview.techStack : e.skills) || [];
+                  const cardSummary = '';
+                  const cardRole = '';
+                  const cardTech = [];
                   const stMap = { expected: 'bg-blue-500', doing: 'bg-green-500', finished: 'bg-gray-400' };
                   return (
                     <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all flex flex-col">
@@ -558,7 +559,7 @@ export default function PublicPortfolioView() {
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
                         <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
-                        <p className="text-xs text-gray-400">{e.date || ''}</p>
+                        {false && <p className="text-xs text-gray-400">{e.date || ''}</p>}
                         {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
                         {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
                         {cardTech.length > 0 && (
@@ -687,8 +688,8 @@ export default function PublicPortfolioView() {
                 {p.experiences.map((e, i) => {
                   const sr = e.structuredResult || {};
                   const overview = sr.projectOverview || {};
-                  const cardSummary = overview.summary || sr.intro || e.description || '';
-                  const cardRole = overview.role || e.role || '';
+                  const cardSummary = '';
+                  const cardRole = '';
                   return (
                     <button key={i} onClick={() => setSelectedExp(e)} className="group text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-lg transition-all flex flex-col">
                       <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden flex-shrink-0">
@@ -697,10 +698,10 @@ export default function PublicPortfolioView() {
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
                         <h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
-                        <p className="text-xs text-[#8a8578]">{e.date || ''}</p>
+                        {false && <p className="text-xs text-[#8a8578]">{e.date || ''}</p>}
                         {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
                         {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
-                        {(e.classify || []).length > 0 && (
+                        {false && (e.classify || []).length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-auto pt-1.5">{e.classify.slice(0, 2).map((t, ti) => (
                             <span key={ti} className="px-1.5 py-0.5 bg-[#f7f5f0] text-[#8a8578] rounded text-[10px]">{t}</span>
                           ))}</div>
@@ -807,8 +808,8 @@ export default function PublicPortfolioView() {
                   {[...(p.experiences || [])].sort((a, b) => (b.period || '').localeCompare(a.period || '')).map((exp, i) => {
                     const sr = exp.structuredResult || {};
                     const overview = sr.projectOverview || {};
-                    const cardSummary = overview.summary || sr.intro || exp.description || '';
-                    const cardRole = overview.role || exp.role || '';
+                    const cardSummary = '';
+                    const cardRole = '';
                     return (
                       <div key={i} className="flex items-start gap-3 relative cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setSelectedExp(exp)}>
                         <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-1 z-10 border-2 border-white ${exp.category === 'award' ? 'bg-amber-400' : exp.category === 'study' ? 'bg-purple-400' : 'bg-blue-400'}`} />
@@ -859,229 +860,11 @@ export default function PublicPortfolioView() {
   );
 }
 
-// ── Public Experience Detail Modal (동일한 스타일로 공유 링크에서도 사용) ──
+// ── Public Experience Detail Modal (공유 링크 — 읽기전용) ──
 function PublicExperienceDetailModal({ exp, onClose }) {
-  const fw = exp.framework && FRAMEWORKS[exp.framework];
-  const hasSections = (exp.sections || []).some(s => s.title && s.content);
-  const hasFramework = !hasSections && fw && exp.frameworkContent && Object.keys(exp.frameworkContent).length > 0;
-  const keyExperiences = (exp.structuredResult?.keyExperiences || []).filter(Boolean);
-
-  const structured = exp?.structuredResult || {};
-  const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
-    acc[k] = (typeof structured[k] === 'string' ? structured[k] : '') || '';
-    return acc;
-  }, {});
-  const hasStructuredSections = EXP_SECTION_KEYS.some(k => sectionContents[k]?.trim());
-
-  // Firestore에서 이미지 로드 (experienceId가 있을 때)
-  const [allImages, setAllImages] = useState([]);
-  const [sectionImages, setSectionImages] = useState({});
-  const [imageConfig, setImageConfig] = useState({});
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-
-  useEffect(() => {
-    const expId = exp?.experienceId;
-    if (!expId) { setImagesLoaded(true); return; }
-    (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'experiences', expId));
-        if (snap.exists()) {
-          const data = snap.data();
-          setAllImages(data.images || []);
-          setSectionImages(data.sectionImages || {});
-          setImageConfig(data.imageConfig || {});
-        }
-      } catch {}
-      setImagesLoaded(true);
-    })();
-  }, [exp?.experienceId]);
-
-  // 섹션 내 이미지 렌더링
-  const renderSectionImages = (sectionKey, position) => {
-    const imgIndices = sectionImages[sectionKey] || [];
-    const sizeMap = { sm: 'max-w-[140px]', md: 'max-w-[280px]', lg: 'max-w-full' };
-    const filtered = imgIndices.map((imgIdx, pos) => ({ imgIdx, pos })).filter(({ imgIdx }) => {
-      const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
-      return (cfg.position || 'below') === position;
-    });
-    if (filtered.length === 0) return null;
-    return (
-      <div className={`flex flex-wrap gap-3 ${position === 'above' ? 'mb-3' : 'mt-3'}`}>
-        {filtered.map(({ imgIdx }) => {
-          const img = allImages[imgIdx];
-          if (!img) return null;
-          const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
-          const size = cfg.size || 'md';
-          return (
-            <div key={`${sectionKey}-${imgIdx}`} className={sizeMap[size] || sizeMap.md}>
-              <img src={img.url} alt={img.name || '이미지'} className="w-full rounded-lg border border-gray-200 shadow-sm" />
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const overview = structured.projectOverview || {};
-  const coverImg = structured.exportConfig?.coverImg || exp.thumbnailUrl || null;
-  const duration = overview.duration || exp.date || '';
-  const role = overview.role || exp.role || '';
-  const techStack = (overview.techStack?.length > 0 ? overview.techStack : null)
-    || (exp.skills?.length > 0 ? exp.skills : null)
-    || [];
-  const keywords = exp.keywords || [];
-  const goal = overview.goal || '';
-
-  // 섹션 목록
-  const exportCfg = structured.exportConfig;
-  const sectionsToRender = (() => {
-    if (exportCfg?.sections?.length > 0) {
-      return exportCfg.sections.filter(s => s.content?.trim()).map(s => ({ label: s.label, content: s.content, key: s.key }));
-    }
-    if (hasSections) {
-      return (exp.sections || []).filter(s => s.title && s.content).map(s => ({ label: s.title, content: s.content, key: s.title }));
-    }
-    if (hasStructuredSections) {
-      return EXP_SECTION_KEYS.filter(k => sectionContents[k]?.trim()).map(k => ({ label: EXP_SECTION_META[k].label, content: sectionContents[k], key: k }));
-    }
-    return [];
-  })();
-
-  const FIELD_ACCENTS = [
-    'border-l-red-400', 'border-l-amber-400', 'border-l-green-400',
-    'border-l-blue-400', 'border-l-purple-400',
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-[1400px] w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* 커버 이미지 영역 */}
-        <div className={`relative w-full flex-shrink-0 ${coverImg ? 'h-40' : 'h-10'} bg-gray-50`}>
-          {coverImg && <img src={coverImg} alt="cover" className="w-full h-full object-cover" />}
-          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur-sm text-gray-500 hover:text-gray-700 rounded-lg shadow-sm">
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* 문서 본문 */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-12 pb-10 pt-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-              
-              {/* 좌측 영역: 제목 + 메타 프로퍼티 + 핵심 경험 */}
-              <div className="lg:col-span-6 space-y-6">
-                <div>
-                  <h1 className="text-[28px] font-extrabold text-blue-600 leading-tight">
-                    {exp.title || '(제목 없음)'}
-                  </h1>
-                </div>
-
-                {/* 프로퍼티 테이블 */}
-                <div className="space-y-2 border-b border-gray-200 pb-5">
-                  {duration && (
-                    <div className="flex items-center gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">기간</span>
-                      <span className="text-[15px] text-gray-700">{duration}</span>
-                    </div>
-                  )}
-                  {role && (
-                    <div className="flex items-start gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
-                      <span className="text-[15px] text-gray-700 leading-relaxed">{role}</span>
-                    </div>
-                  )}
-                  {techStack.length > 0 && (
-                    <div className="flex items-start gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {techStack.map((t, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[14px]">
-                            {typeof t === 'string' ? t : t?.name || ''}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {keywords.length > 0 && (
-                    <div className="flex items-start gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {keywords.slice(0, 6).map((kw, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded text-[14px] font-medium">
-                            {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {goal && (
-                    <div className="flex items-start gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
-                      <span className="text-[15px] text-gray-700 leading-relaxed">{goal}</span>
-                    </div>
-                  )}
-                  {exp.link && (
-                    <div className="flex items-center gap-4">
-                      <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">링크</span>
-                      <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-blue-600 hover:underline">
-                        <ExternalLink size={12} /> {exp.link}
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {/* 핵심 경험 슬라이드 */}
-                {keyExperiences.length > 0 && (
-                  <div>
-                    <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-2 mb-4">핵심 경험 &amp; 성과</h2>
-                    <KeyExperienceSlider keyExperiences={keyExperiences} />
-                  </div>
-                )}
-              </div>
-
-              {/* 우측 영역: 상세 섹션 본문 (또는 프레임워크 기반 상세) */}
-              <div className="lg:col-span-6 space-y-6 lg:border-l lg:border-gray-100 lg:pl-12">
-                {sectionsToRender.length > 0 && (
-                  <div className="space-y-7">
-                    {sectionsToRender.map((sec, i) => (
-                      <div key={i}>
-                        <h2 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-2 mb-3">
-                          {sec.label}
-                        </h2>
-                        {imagesLoaded && renderSectionImages(sec.key, 'above')}
-                        <p className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap">{sec.content}</p>
-                        {imagesLoaded && renderSectionImages(sec.key, 'below')}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 프레임워크 기반 상세 */}
-                {sectionsToRender.length === 0 && hasFramework && (
-                  <div className="space-y-4">
-                    {fw.fields.map((field, idx) => {
-                      const val = exp.frameworkContent[field.key];
-                      if (!val) return null;
-                      return (
-                        <div key={field.key} className={`border-l-4 ${FIELD_ACCENTS[idx % FIELD_ACCENTS.length]} pl-4 py-1`}>
-                          <p className="text-xs font-bold text-gray-500 mb-1">{field.label}</p>
-                          <p className="text-[16px] text-gray-700 leading-[1.8] whitespace-pre-line">{val}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* 아무 내용도 없을 때 */}
-                {sectionsToRender.length === 0 && !hasFramework && keyExperiences.length === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-8">상세 내용이 없습니다</p>
-                )}
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={null}>
+      <ProjectDetailModal exp={exp} readOnly onClose={onClose} />
+    </Suspense>
   );
 }

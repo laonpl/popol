@@ -7,7 +7,7 @@ import {
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
   PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
-  Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy
+  Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy, Camera
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -15,11 +15,11 @@ import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
 import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
-import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import ProjectDetailModal from '../../components/ProjectDetailModal';
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
@@ -89,267 +89,12 @@ function normalizePortfolioSection(section = {}) {
   };
 }
 
-function updateSectionTextBlock(section, content) {
-  const normalized = normalizePortfolioSection(section);
-  const cleanContent = sanitizePortfolioText(content);
-  const textIndex = normalized.blocks.findIndex(block => block.type === 'text');
-  const blocks = textIndex >= 0
-    ? normalized.blocks.map((block, index) => index === textIndex ? { ...block, content: cleanContent } : block)
-    : [{ id: `${section.key || section.title || 'section'}-text`, type: 'text', content: cleanContent }, ...normalized.blocks];
-  return normalizePortfolioSection({ ...normalized, content: portfolioBlocksToText(blocks), blocks });
-}
-
-function makeEmptySectionTextBlock(section = {}) {
-  return {
-    id: `${section.key || section.title || 'section'}-text-${Date.now()}`,
-    type: 'text',
-    content: '',
-  };
-}
-
-function getEditableSectionBlocks(section = {}) {
-  const normalized = normalizePortfolioSection(section);
-  if (normalized.blocks.length > 0) return normalized.blocks;
-  return [makeEmptySectionTextBlock(normalized)];
-}
-
-function updateSectionBlocks(section, blocks) {
-  const normalized = normalizePortfolioSection(section);
-  const nextBlocks = (Array.isArray(blocks) ? blocks : [])
-    .map(normalizePortfolioBlock)
-    .filter(Boolean);
-  const safeBlocks = nextBlocks.length > 0 ? nextBlocks : [makeEmptySectionTextBlock(normalized)];
-  return normalizePortfolioSection({
-    ...normalized,
-    blocks: safeBlocks,
-    content: portfolioBlocksToText(safeBlocks),
-  });
-}
-
-function EditablePortfolioBlocks({ blocks = [], onChange, sectionKey }) {
-  const updateBlock = (index, changes) => {
-    onChange(blocks.map((block, blockIndex) => blockIndex === index ? normalizePortfolioBlock({ ...block, ...changes }) : block));
-  };
-  const removeBlock = (index) => {
-    const next = blocks.filter((_, blockIndex) => blockIndex !== index);
-    onChange(next.length > 0 ? next : [{ id: `${sectionKey}-text-${Date.now()}`, type: 'text', content: '' }]);
-  };
-  const addBlock = (type) => {
-    const id = `${sectionKey}-${type}-${Date.now()}`;
-    const nextBlock = type === 'image'
-      ? { id, type: 'image', content: '', alt: '', width: '100%' }
-      : { id, type: 'text', content: '' };
-    onChange([...blocks, nextBlock]);
-  };
-  const moveBlock = (from, to) => {
-    if (to < 0 || to >= blocks.length) return;
-    onChange(reorderItems(blocks, from, to));
-  };
-
-  return (
-    <div className="space-y-4">
-      {blocks.map((block, index) => {
-        if (block.type === 'image') {
-          return (
-            <div key={block.id || index} className="group/block rounded-xl border border-gray-100 bg-gray-50/70 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-[12px] font-semibold text-gray-400">Image</span>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => moveBlock(index, index - 1)} disabled={index === 0} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={13} /></button>
-                  <button type="button" onClick={() => moveBlock(index, index + 1)} disabled={index === blocks.length - 1} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={13} /></button>
-                  <button type="button" onClick={() => removeBlock(index)} className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
-                </div>
-              </div>
-              {block.content ? (
-                <img src={block.content} alt={block.alt || ''} className="mb-3 block max-h-[420px] w-full rounded-lg object-contain" />
-              ) : (
-                <div className="mb-3 flex h-36 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white text-xs text-gray-400">이미지를 선택하세요</div>
-              )}
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                <input
-                  value={block.alt || ''}
-                  onChange={e => updateBlock(index, { alt: e.target.value })}
-                  placeholder="이미지 설명"
-                  className="min-w-0 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200"
-                />
-                <select
-                  value={block.width || '100%'}
-                  onChange={e => updateBlock(index, { width: e.target.value })}
-                  className="rounded-lg border border-gray-100 bg-white px-2 py-2 text-xs text-gray-500 outline-none focus:ring-2 focus:ring-primary-200"
-                >
-                  <option value="100%">Full</option>
-                  <option value="75%">75%</option>
-                  <option value="50%">50%</option>
-                  <option value="33%">33%</option>
-                </select>
-                <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs font-medium text-gray-500 hover:text-primary-600">
-                  <ImagePlus size={13} /> 교체
-                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file) return;
-                    try {
-                      const content = await resizeToBase64Global(file, 1200, 0.82);
-                      updateBlock(index, { content });
-                    } catch {
-                      toast.error('이미지 처리 실패');
-                    }
-                  }} />
-                </label>
-              </div>
-            </div>
-          );
-        }
-
-        if (block.type === 'slide') {
-          const cards = Array.isArray(block.cards) ? block.cards : [];
-          return (
-            <div key={block.id || index} className="rounded-xl border border-blue-100 bg-blue-50/30 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-[12px] font-semibold text-blue-400">Slide</span>
-                <button type="button" onClick={() => removeBlock(index)} className="p-1 text-blue-200 hover:text-red-500"><Trash2 size={13} /></button>
-              </div>
-              <div className="space-y-2">
-                <input value={block.title || ''} onChange={e => updateBlock(index, { title: e.target.value })} placeholder="슬라이드 제목" className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary-200" />
-                <textarea value={block.subtitle || ''} onChange={e => updateBlock(index, { subtitle: e.target.value })} placeholder="부제목" rows={2} className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                <textarea value={block.content || ''} onChange={e => updateBlock(index, { content: e.target.value })} placeholder="본문" rows={3} className="w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                {cards.map((card, cardIndex) => (
-                  <div key={cardIndex} className="grid gap-2 sm:grid-cols-2">
-                    <input value={card.title || ''} onChange={e => {
-                      const nextCards = cards.map((item, itemIndex) => itemIndex === cardIndex ? { ...item, title: e.target.value } : item);
-                      updateBlock(index, { cards: nextCards });
-                    }} placeholder="카드 제목" className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-200" />
-                    <input value={card.body || ''} onChange={e => {
-                      const nextCards = cards.map((item, itemIndex) => itemIndex === cardIndex ? { ...item, body: e.target.value } : item);
-                      updateBlock(index, { cards: nextCards });
-                    }} placeholder="카드 내용" className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-200" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <div key={block.id || index} className="group/block relative">
-            <textarea
-              value={block.content || ''}
-              onChange={e => updateBlock(index, { content: e.target.value })}
-              rows={4}
-              className="w-full resize-y rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[16px] leading-[1.9] text-gray-800 outline-none transition-shadow focus:ring-2 focus:ring-primary-200"
-            />
-            <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/block:opacity-100 focus-within:opacity-100">
-              <button type="button" onClick={() => moveBlock(index, index - 1)} disabled={index === 0} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
-              <button type="button" onClick={() => moveBlock(index, index + 1)} disabled={index === blocks.length - 1} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
-              <button type="button" onClick={() => removeBlock(index)} className="rounded bg-white p-1 text-gray-300 shadow-sm hover:text-red-500"><Trash2 size={12} /></button>
-            </div>
-          </div>
-        );
-      })}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => addBlock('text')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600">
-          <Plus size={13} /> 텍스트 추가
-        </button>
-        <button type="button" onClick={() => addBlock('image')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600">
-          <ImagePlus size={13} /> 이미지 추가
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PortfolioBlockViewer({ blocks = [] }) {
-  const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
-  if (normalized.length === 0) return null;
-  return (
-    <div className="space-y-4">
-      {normalized.map(block => {
-        if (block.type === 'image') {
-          return (
-            <figure key={block.id} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm" style={{ width: block.width || '100%', maxWidth: '100%' }}>
-              <img src={block.content} alt={block.alt || ''} className="block max-h-[560px] w-full object-contain" />
-            </figure>
-          );
-        }
-        if (block.type === 'slide') {
-          return (
-            <div key={block.id} className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{block.kicker || block.label || 'SLIDE'}</p>
-                  <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{block.title || block.label}</h3>
-                </div>
-                {block.slideKey && <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{block.slideKey}</span>}
-              </div>
-              {block.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{block.subtitle}</p>}
-              {block.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{block.content}</p>}
-              {block.cards?.length > 0 && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {block.cards.slice(0, 2).map((card, index) => (
-                    <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
-                      <p className="mt-1 text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
-                      {card.body && <p className="mt-1 text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        }
-        return <p key={block.id} className="text-[16px] text-gray-700 leading-[1.9] whitespace-pre-wrap break-words">{sanitizePortfolioText(block.content)}</p>;
-      })}
-    </div>
-  );
-}
-
-function PortfolioSlideDeck({ blocks = [] }) {
-  const slides = blocks.map(normalizePortfolioBlock).filter(block => block?.type === 'slide');
-  const [activeIdx, setActiveIdx] = useState(0);
-  if (slides.length === 0) return null;
-  const safeIdx = Math.min(activeIdx, slides.length - 1);
-  const slide = slides[safeIdx];
-  const go = (dir) => setActiveIdx(prev => (prev + dir + slides.length) % slides.length);
-
-  return (
-    <div className="rounded-xl border border-blue-100 bg-[#f7f9fb] p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">{slide.kicker || slide.label || 'SLIDE'}</p>
-          <h3 className="mt-1 break-words text-[18px] font-extrabold leading-snug text-gray-900">{slide.title || slide.label}</h3>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => go(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="이전 슬라이드">
-            <ChevronLeft size={15} />
-          </button>
-          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-blue-600 ring-1 ring-blue-100">{safeIdx + 1}/{slides.length}</span>
-          <button type="button" onClick={() => go(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 ring-1 ring-gray-100 hover:bg-blue-50 hover:text-blue-600" aria-label="다음 슬라이드">
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-      {slide.subtitle && <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-gray-600">{slide.subtitle}</p>}
-      {slide.content && <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-gray-500">{slide.content}</p>}
-      {slide.cards?.length > 0 && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {slide.cards.slice(0, 3).map((card, index) => (
-            <div key={index} className="border-l-[3px] border-blue-500 bg-white px-3 py-2 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{card.label || 'POINT'}</p>
-              <p className="mt-1 break-words text-[13px] font-extrabold leading-snug text-gray-900">{card.title}</p>
-              {card.body && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-500">{card.body}</p>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function recommendationToText(rec) {
   return [rec?.title, rec?.content].filter(Boolean).map(stripMd).join('\n\n');
 }
 
 const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
+const DEFAULT_PROJECT_LOGO = '/logo.png';
 
 function toRichTextBlocks(existing, text) {
   const cleanText = stripMd(text);
@@ -849,8 +594,9 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
   };
 
   useEffect(() => {
-    if (!titleRef.current || document.activeElement === titleRef.current) return;
-    titleRef.current.innerHTML = titleSegmentsToHtml(segments, fallbackLabel);
+    if (!titleRef.current) return;
+    const nextHtml = titleSegmentsToHtml(segments, fallbackLabel);
+    if (titleRef.current.innerHTML !== nextHtml) titleRef.current.innerHTML = nextHtml;
   }, [segments, fallbackLabel]);
 
   return (
@@ -1280,8 +1026,7 @@ export default function NotionPortfolioEditor() {
         const active = document.activeElement;
         if (
           active?.closest?.('.yoopta-mini-editor') ||
-          active?.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(active?.tagName)
+          active?.tagName === 'SELECT'
         ) return;
       event.preventDefault();
       event.stopPropagation();
@@ -2226,856 +1971,17 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
 }
 
 /* ── 경험/프로젝트 카드 상세 모달 (모듈 레벨) ── */
-const EXP_SECTION_META = {
-  intro:      { num: '01', label: '프로젝트 소개' },
-  overview:   { num: '02', label: '프로젝트 개요' },
-  task:       { num: '03', label: '진행한 일' },
-  process:    { num: '04', label: '과정' },
-  output:     { num: '05', label: '결과물' },
-  growth:     { num: '06', label: '성장한 점' },
-  competency: { num: '07', label: '나의 역량' },
-};
-const EXP_SECTION_KEYS = ['intro', 'overview', 'task', 'process', 'output', 'growth', 'competency'];
-
-function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, onTailorApply, analysisMode, genericMode = false }) {
-  const keyExps = exp?.structuredResult?.keyExperiences || [];
-  const structured = exp?.structuredResult || {};
-  const sectionContents = EXP_SECTION_KEYS.reduce((acc, k) => {
-    acc[k] = (typeof structured[k] === 'string' ? structured[k] : '') || '';
-    return acc;
-  }, {});
-  const renderableSections = useMemo(() => {
-    const exportCfg = structured.exportConfig;
-    const jobSpecific = structured.jobSpecific || {};
-    if (exportCfg?.sections?.length > 0) {
-      return exportCfg.sections
-        .map((section, index) => normalizePortfolioSection({ ...section, key: section.key || `export-${index}`, title: section.title || section.label }))
-        .filter(section => section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide'));
-    }
-    const jobSects = Object.entries(jobSpecific)
-      .filter(([, v]) => v?.trim?.())
-      .map(([k, v]) => normalizePortfolioSection({ key: k, label: k, type: 'job', content: v }));
-    const baseSects = EXP_SECTION_KEYS
-      .filter(k => sectionContents[k]?.trim())
-      .map(k => normalizePortfolioSection({ key: k, label: EXP_SECTION_META[k].label, type: 'base', content: sectionContents[k] }));
-    return [...jobSects, ...baseSects];
-  }, [structured, exp?.sections]);
-  const hasSections = renderableSections.length > 0;
-  const hasRichData = keyExps.length > 0 || hasSections;
-  const isSimpleCard = genericMode && !hasRichData;
-  const isBlankCard = !hasRichData && !exp?.title && !exp?.description && !exp?.date && !exp?.thumbnailUrl;
-  const makeMetaDraft = () => {
-    const ov = structured.projectOverview || {};
-    return {
-      title: exp?.title || '',
-      date: exp?.date || ov.duration || '',
-      role: exp?.role || ov.role || '',
-      skills: (exp?.skills || []).join(', '),
-      keywords: (exp?.keywords || []).map(k => typeof k === 'string' ? k : k?.name || k?.keyword || '').join(', '),
-      goal: ov.goal || '',
-      description: exp?.description || ov.background || ov.summary || '',
-      link: exp?.link || '',
-      thumbnailUrl: exp?.thumbnailUrl || '',
-    };
-  };
-  const [editingMeta, setEditingMeta] = useState(isBlankCard);
-  const [metaDraft, setMetaDraft] = useState(() => isBlankCard ? makeMetaDraft() : null);
-
-  // 첨삭 관련 state
-  const [tailorMode, setTailorMode] = useState(null); // null | 'key' | 'section'
-  const [tailorResult, setTailorResult] = useState(null);
-  const [tailoring, setTailoring] = useState(false);
-  const [tailorError, setTailorError] = useState(null);
-  const [appliedSections, setAppliedSections] = useState({});
-  const [appliedKeyExperiences, setAppliedKeyExperiences] = useState({});
-  const [savedKeyExps, setSavedKeyExps] = useState(null);
-  const sliderRef = useRef(null);
-
-  const handleTailor = async (mode) => {
-    if (!jobAnalysis) return;
-    const originalKeyExps = savedKeyExps !== null ? savedKeyExps : [...(exp?.structuredResult?.keyExperiences || [])];
-    const baseStructured = exp?.structuredResult || {};
-    setTailoring(true);
-    setTailorError(null);
-    setAppliedSections({});
-    setAppliedKeyExperiences({});
-    try {
-      if (mode === 'section') {
-        const sectionsForTailor = renderableSections.map((section, index) => ({
-          key: section.key || `section-${index}`,
-          title: section.label || section.title || `섹션 ${index + 1}`,
-          content: sanitizePortfolioText(portfolioBlocksToText(section.blocks || []) || section.content || ''),
-        })).filter(section => section.content.trim());
-        if (sectionsForTailor.length === 0) {
-          setTailorResult({ portfolioSections: [], overallNote: '첨삭할 섹션 내용이 없습니다.' });
-          setTailoring(false);
-          return;
-        }
-        const { data } = await api.post('/job/tailor-portfolio', { jobAnalysis, sections: sectionsForTailor });
-        setTailorResult({
-          ...data,
-          portfolioSections: (data.sections || []).map(item => ({
-            ...item,
-            key: sectionsForTailor[item.index]?.key,
-            label: sectionsForTailor[item.index]?.title,
-            originalContent: sectionsForTailor[item.index]?.content || '',
-          })),
-        });
-        setTailoring(false);
-        return;
-      }
-      const expForTailor = { ...exp, structuredResult: { ...baseStructured, keyExperiences: originalKeyExps } };
-      const { data } = await api.post('/job/tailor-experience', { jobAnalysis, experience: expForTailor });
-      if (mode === 'key') {
-        if (savedKeyExps === null) setSavedKeyExps(originalKeyExps);
-        onUpdate({ structuredResult: { ...baseStructured, keyExperiences: [] } });
-      }
-      setTailorResult(data.tailored);
-    } catch (err) {
-      setTailorError(err.response?.data?.error || 'AI 첨삭에 실패했습니다');
-    }
-    setTailoring(false);
-  };
-
-  const openTailor = (mode) => {
-    if (tailorMode === mode) {
-      // 같은 버튼 다시 누르면 닫기
-      if (mode === 'key' && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
-        onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: savedKeyExps } });
-        setSavedKeyExps(null);
-      }
-      setTailorMode(null);
-      return;
-    }
-    // 다른 모드로 전환 시 key 모드 복원 처리
-    if (tailorMode === 'key' && savedKeyExps !== null && Object.keys(appliedKeyExperiences).length === 0) {
-      onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: savedKeyExps } });
-      setSavedKeyExps(null);
-    }
-    setTailorMode(mode);
-    setTailorResult(null);
-    setTailorError(null);
-    handleTailor(mode);
-  };
-
-  const applySectionContent = (sectionKey, content) => {
-    if (!content?.trim()) return;
-    const currentStructured = exp?.structuredResult || {};
-    const exportCfg = currentStructured.exportConfig || null;
-    if (exportCfg?.sections?.length > 0) {
-      const updatedSections = exportCfg.sections.map((section, index) => {
-        const key = section.key || `export-${index}`;
-        if (key !== sectionKey) return normalizePortfolioSection({ ...section, key });
-        return updateSectionTextBlock({ ...section, key }, content);
-      });
-      const exportSections = updatedSections.map(section => ({
-        key: section.key,
-        label: section.label || section.title,
-        type: section.type || 'custom',
-        content: section.content,
-        blocks: section.blocks || [],
-      }));
-      onUpdate({
-        sections: exportSections.map(section => ({ title: section.label, content: section.content, blocks: section.blocks, key: section.key, type: section.type })),
-        structuredResult: { ...currentStructured, exportConfig: { ...exportCfg, sections: exportSections, draftSections: exportSections } },
-      });
-      return;
-    }
-    if (EXP_SECTION_KEYS.includes(sectionKey)) {
-      onUpdate({ structuredResult: { ...currentStructured, [sectionKey]: content } });
-      return;
-    }
-    onTailorApply?.(sectionKey, content);
-  };
-
-  const applySingleSection = (sectionKey) => {
-    const portfolioSection = tailorResult?.portfolioSections?.find(section => section.key === sectionKey);
-    const nextContent = portfolioSection?.tailoredContent || tailorResult?.sections?.[sectionKey]?.content;
-    if (!nextContent) return;
-    applySectionContent(sectionKey, nextContent);
-    setAppliedSections(prev => ({ ...prev, [sectionKey]: true }));
-  };
-
-  const applyAllSections = () => {
-    if (tailorResult?.portfolioSections?.length > 0) {
-      tailorResult.portfolioSections.forEach(section => {
-        if (section.key && section.tailoredContent?.trim()) applySectionContent(section.key, section.tailoredContent);
-      });
-      setAppliedSections(Object.fromEntries(tailorResult.portfolioSections.filter(section => section.key && section.tailoredContent?.trim()).map(section => [section.key, true])));
-      return;
-    }
-    if (!tailorResult?.sections) return;
-    EXP_SECTION_KEYS.forEach(k => {
-      if (tailorResult.sections[k]?.content?.trim()) applySectionContent(k, tailorResult.sections[k].content);
-    });
-    const allApplied = {};
-    EXP_SECTION_KEYS.forEach(k => { if (tailorResult.sections[k]?.content?.trim()) allApplied[k] = true; });
-    setAppliedSections(allApplied);
-  };
-
-  // 핵심 경험 첨삭 적용: AI 추천 경험을 새 항목으로 추가 (기존 목록은 이미 초기화된 상태)
-  const applyKeyExperience = (ke, ki) => {
-    if (!onUpdate) return;
-    const currentKeyExps = exp?.structuredResult?.keyExperiences || [];
-    // slideIndex가 있으면 원본 슬라이드에서 시각화 지표 복원
-    const originalSlide = (savedKeyExps && ke.slideIndex != null) ? (savedKeyExps[ke.slideIndex] || {}) : {};
-    const newEntry = {
-      title: ke.title || originalSlide.title || '',
-      situation: ke.situation || ke.problem || originalSlide.situation || '',
-      action: ke.action || originalSlide.action || '',
-      result: ke.result || originalSlide.result || '',
-      // 시각화 지표: AI가 반환하면 우선, 없으면 원본 슬라이드에서 복원
-      metric: ke.metric || originalSlide.metric || '',
-      metricLabel: ke.metricLabel || originalSlide.metricLabel || '',
-      beforeMetric: ke.beforeMetric || originalSlide.beforeMetric || '',
-      afterMetric: ke.afterMetric || originalSlide.afterMetric || '',
-      chartType: ke.chartType || originalSlide.chartType || 'horizontalBar',
-      keywords: ke.keywords?.length ? ke.keywords : (originalSlide.keywords || []),
-    };
-    const updatedKeyExps = [...currentKeyExps, newEntry];
-    onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedKeyExps } });
-    setAppliedKeyExperiences(prev => ({ ...prev, [ki]: true }));
-    setTimeout(() => sliderRef.current?.goTo(updatedKeyExps.length - 1), 150);
-  };
-
-  const [editingSections, setEditingSections] = useState(false);
-  const [sectionDraft, setSectionDraft] = useState({});
-  const [sectionBlockDraft, setSectionBlockDraft] = useState({});
-
-  const startSectionEdit = () => {
-    setSectionDraft(Object.fromEntries(renderableSections.map(section => [section.key, section.content || portfolioBlocksToText(section.blocks || [])])));
-    setSectionBlockDraft(Object.fromEntries(renderableSections.map(section => [section.key, getEditableSectionBlocks(section)])));
-    setEditingSections(true);
-  };
-
-  const saveSectionEdit = () => {
-    const currentStructured = exp?.structuredResult || {};
-    const exportCfg = currentStructured.exportConfig || null;
-    if (exportCfg?.sections?.length > 0) {
-      const updatedSections = exportCfg.sections.map((section, index) => {
-        const key = section.key || `export-${index}`;
-        if (Object.prototype.hasOwnProperty.call(sectionBlockDraft, key)) {
-          return updateSectionBlocks({ ...section, key }, sectionBlockDraft[key]);
-        }
-        if (Object.prototype.hasOwnProperty.call(sectionDraft, key)) {
-          return updateSectionTextBlock({ ...section, key }, sectionDraft[key]);
-        }
-        return normalizePortfolioSection(section);
-      });
-      const exportSections = updatedSections.map(section => ({
-        key: section.key,
-        label: section.label || section.title,
-        type: section.type || 'custom',
-        content: section.content,
-        blocks: section.blocks || [],
-      }));
-      onUpdate({
-        sections: exportSections.map(section => ({ title: section.label, content: section.content, blocks: section.blocks, key: section.key, type: section.type })),
-        structuredResult: { ...currentStructured, exportConfig: { ...exportCfg, sections: exportSections, draftSections: exportSections } },
-      });
-    } else {
-      const updatedStructured = { ...currentStructured, ...sectionDraft };
-      onUpdate({ structuredResult: updatedStructured });
-    }
-    setSectionBlockDraft({});
-    setEditingSections(false);
-  };
-
-  const cancelSectionEdit = () => {
-    setSectionDraft({});
-    setSectionBlockDraft({});
-    setEditingSections(false);
-  };
-
-  // Firestore에서 이미지 로드 (experienceId가 있을 때)
-  const [allImages, setAllImages] = useState([]);
-  const [sectionImages, setSectionImages] = useState({});
-  const [imageConfig, setImageConfig] = useState({});
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-
-  useEffect(() => {
-    const expId = exp?.experienceId;
-    if (!expId) { setImagesLoaded(true); return; }
-    (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'experiences', expId));
-        if (snap.exists()) {
-          const data = snap.data();
-          setAllImages(data.images || []);
-          setSectionImages(data.sectionImages || {});
-          setImageConfig(data.imageConfig || {});
-        }
-      } catch {}
-      setImagesLoaded(true);
-    })();
-  }, [exp?.experienceId]);
-
-  if (!exp) return null;
-
-  // 섹션 내 이미지 렌더링 (읽기 전용)
-  const renderSectionImages = (sectionKey, position) => {
-    const imgIndices = sectionImages[sectionKey] || [];
-    const sizeMap = { sm: 'max-w-[140px]', md: 'max-w-[280px]', lg: 'max-w-full' };
-    const filtered = imgIndices.map((imgIdx, pos) => ({ imgIdx, pos })).filter(({ imgIdx }) => {
-      const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
-      return (cfg.position || 'below') === position;
-    });
-    if (filtered.length === 0) return null;
-    return (
-      <div className={`flex flex-wrap gap-3 ${position === 'above' ? 'mb-3' : 'mt-3'}`}>
-        {filtered.map(({ imgIdx }) => {
-          const img = allImages[imgIdx];
-          if (!img) return null;
-          const cfg = imageConfig[`${sectionKey}:${imgIdx}`] || {};
-          const size = cfg.size || 'md';
-          return (
-            <div key={`${sectionKey}-${imgIdx}`} className={sizeMap[size] || sizeMap.md}>
-              <img src={img.url} alt={img.name || '이미지'} className="w-full rounded-lg border border-surface-200 shadow-sm" />
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
+function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, genericMode = false, userExperiences = [] }) {
   return (
-    <div
-      className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-3"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 h-[92vh]"
-        style={{ width: tailorMode ? 'min(1760px, calc(100vw - 24px))' : 'min(1400px, calc(100vw - 24px))' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[480px]">{exp.title || (genericMode ? '카드 상세' : '경험 상세')}</h3>
-            <button
-              onClick={() => {
-                if (!editingMeta) {
-                  setMetaDraft(makeMetaDraft());
-                }
-                setEditingMeta(v => !v);
-              }}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all border ${editingMeta ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-primary-700 border-primary-200 hover:bg-primary-50'}`}
-            >
-              {editingMeta ? '닫기' : '수정'}
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {jobAnalysis && !genericMode && (
-              <button
-                onClick={() => openTailor('section')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  tailorMode === 'section'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                }`}
-              >
-                전체 첨삭
-              </button>
-            )}
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-hidden flex">
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            {/* ── 상세보기 ── */}
-            <div className="px-12 pb-10 pt-8">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-                
-                {/* 좌측 영역 (col-span-6): 제목, 기본정보, 핵심경험 슬라이더 */}
-                <div className={`${isSimpleCard ? 'lg:col-span-12 max-w-3xl' : 'lg:col-span-6'} space-y-6`}>
-                  {/* ── 메타 인라인 편집 ── */}
-                  {editingMeta && metaDraft && (
-                    <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">제목</label>
-                        <input value={metaDraft.title} onChange={e => setMetaDraft(d => ({ ...d, title: e.target.value }))}
-                          placeholder="예: 읽은 책 이름, 활동명, 프로젝트명"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-semibold text-gray-500 mb-1 block">기간</label>
-                          <input value={metaDraft.date} onChange={e => setMetaDraft(d => ({ ...d, date: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '보조 정보' : '역할'}</label>
-                          <input value={metaDraft.role} onChange={e => setMetaDraft(d => ({ ...d, role: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '태그 (쉼표로 구분)' : '기술 (쉼표로 구분)'}</label>
-                        <input value={metaDraft.skills} onChange={e => setMetaDraft(d => ({ ...d, skills: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">키워드 (쉼표로 구분)</label>
-                        <input value={metaDraft.keywords} onChange={e => setMetaDraft(d => ({ ...d, keywords: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '메모 / 한줄평' : '목표'}</label>
-                        <textarea value={metaDraft.goal} onChange={e => setMetaDraft(d => ({ ...d, goal: e.target.value }))}
-                          rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{genericMode ? '상세 내용' : '간단한 소개'}</label>
-                        <textarea value={metaDraft.description} onChange={e => setMetaDraft(d => ({ ...d, description: e.target.value }))}
-                          rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200 resize-none" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">링크 (선택)</label>
-                        <input value={metaDraft.link} onChange={e => setMetaDraft(d => ({ ...d, link: e.target.value }))}
-                          placeholder="https://"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-200" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 mb-1 block">대표 이미지 (선택)</label>
-                        <div className="flex items-center gap-3">
-                          {metaDraft.thumbnailUrl && <img src={metaDraft.thumbnailUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />}
-                          <label className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 bg-white hover:bg-gray-50 cursor-pointer">
-                            <ImagePlus size={14} /> 이미지 선택
-                            <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                              const file = e.target.files?.[0];
-                              if (!file || !resizeToBase64) return;
-                              try {
-                                const thumbnailUrl = await resizeToBase64(file, 800, 0.8);
-                                setMetaDraft(d => ({ ...d, thumbnailUrl }));
-                              } catch { toast.error('이미지 처리에 실패했습니다'); }
-                            }} />
-                          </label>
-                          {metaDraft.thumbnailUrl && (
-                            <button type="button" onClick={() => setMetaDraft(d => ({ ...d, thumbnailUrl: '' }))}
-                              className="text-xs text-gray-400 hover:text-red-500">이미지 제거</button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">취소</button>
-                        <button onClick={() => {
-                          const skills = metaDraft.skills.split(',').map(s => s.trim()).filter(Boolean);
-                          const keywords = metaDraft.keywords.split(',').map(s => s.trim()).filter(Boolean);
-                          const newSr = {
-                            ...(exp.structuredResult || {}),
-                            projectOverview: {
-                              ...((exp.structuredResult || {}).projectOverview || {}),
-                              duration: metaDraft.date,
-                              role: metaDraft.role,
-                              goal: metaDraft.goal,
-                            },
-                          };
-                          onUpdate({ title: metaDraft.title, date: metaDraft.date, role: metaDraft.role, skills, keywords, description: metaDraft.description, link: metaDraft.link, thumbnailUrl: metaDraft.thumbnailUrl, structuredResult: newSr });
-                          setEditingMeta(false);
-                        }} className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700">저장</button>
-                      </div>
-                    </div>
-                  )}
-                  {/* 커버 이미지 */}
-                  {structured.exportConfig?.coverImg && (
-                    <div className="w-full h-40 rounded-xl overflow-hidden -mx-0 -mt-0">
-                      <img src={structured.exportConfig.coverImg} alt="cover" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-
-                  {/* Notion 스타일 프로퍼티 */}
-                  {(() => {
-                    const ov = structured.projectOverview || {};
-                    const duration = ov.duration || exp.date || '';
-                    const role = ov.role || exp.role || '';
-                    const techStack = (ov.techStack?.length > 0 ? ov.techStack : null) || (exp.skills?.length > 0 ? exp.skills : null) || [];
-                    const keywords = exp.keywords || [];
-                    const goal = ov.goal || '';
-                    const hasAny = duration || role || techStack.length > 0 || keywords.length > 0 || goal;
-                    if (!hasAny) return null;
-                    return (
-                      <div className="space-y-2 border-b border-surface-100 pb-4">
-                        {duration && (
-                          <div className="flex items-center gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">기간</span>
-                            <span className="text-[15px] text-gray-700">{duration}</span>
-                          </div>
-                        )}
-                        {role && (
-                          <div className="flex items-start gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">역할</span>
-                            <span className="text-[15px] text-gray-700 leading-relaxed">{role}</span>
-                          </div>
-                        )}
-                        {techStack.length > 0 && (
-                          <div className="flex items-start gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">기술</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {techStack.map((t, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-surface-100 text-gray-600 rounded text-[14px]">
-                                  {typeof t === 'string' ? t : t?.name || ''}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {keywords.length > 0 && (
-                          <div className="flex items-start gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">키워드</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {keywords.slice(0, 6).map((kw, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-primary-50 text-primary-500 rounded text-[14px] font-medium">
-                                  {typeof kw === 'string' ? kw : kw?.name || kw?.keyword || ''}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {goal && (
-                          <div className="flex items-start gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0 mt-0.5">목표</span>
-                            <span className="text-[15px] text-gray-700 leading-relaxed">{goal}</span>
-                          </div>
-                        )}
-                        {exp.link && (
-                          <div className="flex items-center gap-4">
-                            <span className="w-14 text-[14px] text-gray-400 flex-shrink-0">링크</span>
-                            <a href={exp.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[15px] text-primary-600 hover:underline">
-                              <ExternalLink size={12} /> {exp.link}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* 설명 또는 배경 */}
-                  {(exp.description || structured.projectOverview?.background || structured.projectOverview?.summary) && (
-                    <p className="text-sm text-gray-600 leading-relaxed bg-surface-50 rounded-xl p-4">
-                      {exp.description || structured.projectOverview?.background || structured.projectOverview?.summary}
-                    </p>
-                  )}
-
-                  {/* 핵심 경험 슬라이더 */}
-                  {(!genericMode || keyExps.length > 0) && <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-bold text-gray-700">핵심 경험 &amp; 성과</h4>
-                      {jobAnalysis && (
-                        <button
-                          onClick={() => openTailor('key')}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            tailorMode === 'key'
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                          }`}
-                        >
-                          핵심 경험 첨삭
-                        </button>
-                      )}
-                    </div>
-                    {keyExps.length > 0 && (
-                      <KeyExperienceSlider
-                        ref={sliderRef}
-                        keyExperiences={keyExps}
-                        onUpdate={(updatedExps) => onUpdate({ structuredResult: { ...(exp?.structuredResult || {}), keyExperiences: updatedExps } })}
-                      />
-                    )}
-                  </div>}
-                </div>
-
-                {/* 우측 영역 (col-span-6): Notion 스타일 상세 섹션 */}
-                <div className={`${isSimpleCard ? 'hidden' : 'lg:col-span-6'} space-y-6 lg:border-l lg:border-surface-100 lg:pl-12`}>
-                  {/* ── Notion 스타일 상세 섹션 ── */}
-                  {hasSections && (() => {
-                    const sectionsToRender = renderableSections;
-
-                    return (
-                      <div className="bg-white rounded-xl border border-surface-100 overflow-hidden">
-                        {/* Notion 스타일 헤더 */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
-                          <span className="text-[16px] font-bold text-gray-800">상세 내용</span>
-                          <div className="flex items-center gap-2">
-                            {editingSections ? (
-                              <>
-                                <button onClick={cancelSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
-                                  <X size={12} /> 취소
-                                </button>
-                                <button onClick={saveSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 shadow-sm transition-colors">
-                                  <Check size={12} /> 저장
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {jobAnalysis && (
-                                  <button
-                                    onClick={() => openTailor('section')}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                      tailorMode === 'section'
-                                        ? 'bg-indigo-600 text-white shadow-sm'
-                                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                                    }`}
-                                  >
-                                    AI 첨삭
-                                  </button>
-                                )}
-                                <button onClick={startSectionEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors">
-                                  <PenLine size={12} /> 수정
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Notion 문서 스타일 본문 */}
-                        <div className="px-6 py-2 divide-y divide-gray-50">
-                          {sectionsToRender.map((sect, i) => {
-                            const isJobType = sect.type === 'job';
-                            const isSlideDeck = sect.type === 'slides' || sect.key === 'detail-slides' || (sect.blocks?.length > 0 && sect.blocks.every(block => block?.type === 'slide'));
-                            const editVal = editingSections ? (sectionDraft[sect.key] ?? sect.content) : sect.content;
-                            return (
-                              <div key={sect.key} className="py-5">
-                                {/* Notion 스타일 헤딩 */}
-                                <div className="flex items-center gap-2 mb-2.5">
-                                  {isJobType && (
-                                    <span className="inline-block w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
-                                  )}
-                                  <h3 className={`text-[15px] font-bold ${isJobType ? 'text-violet-700' : 'text-gray-500'} uppercase tracking-wide`}>
-                                    {sect.label}
-                                  </h3>
-                                  {isJobType && (
-                                    <span className="text-[12px] bg-violet-50 text-violet-500 px-1.5 py-0.5 rounded-full font-medium">직군특화</span>
-                                  )}
-                                </div>
-                                {/* Notion 스타일 본문 */}
-                                {editingSections ? (
-                                  <EditablePortfolioBlocks
-                                    sectionKey={sect.key}
-                                    blocks={sectionBlockDraft[sect.key] || getEditableSectionBlocks(sect)}
-                                    onChange={nextBlocks => {
-                                      setSectionBlockDraft(prev => ({ ...prev, [sect.key]: nextBlocks }));
-                                      setSectionDraft(prev => ({ ...prev, [sect.key]: portfolioBlocksToText(nextBlocks) }));
-                                    }}
-                                  />
-                                ) : isSlideDeck ? (
-                                  <PortfolioSlideDeck blocks={sect.blocks || []} />
-                                ) : (
-                                  <PortfolioBlockViewer blocks={sect.blocks?.length ? sect.blocks : [{ type: 'text', content: editVal }]} />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-              </div>
-            </div>
-          </div>
-
-        {/* ── 우측 첨삭 패널 ── */}
-        {tailorMode && (
-          <div className="flex-shrink-0 border-l border-gray-100 overflow-y-auto bg-gradient-to-b from-indigo-50/30 to-white" style={{ width: 'clamp(320px, 38vw, 400px)' }}>
-            <div className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-indigo-800">
-                  {tailorMode === 'key' ? '핵심 경험 첨삭' : '개요 첨삭'}
-                </h4>
-                <div className="flex items-center gap-2">
-                  {tailorResult && !tailoring && (
-                    <button onClick={() => handleTailor(tailorMode)} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
-                      다시 첨삭
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 기업 정보 */}
-              {jobAnalysis?.company && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                  <span className="text-xs font-medium text-blue-800">{jobAnalysis.company}</span>
-                  {jobAnalysis.position && <span className="text-xs text-blue-500">· {jobAnalysis.position}</span>}
-                </div>
-              )}
-
-              {/* 로딩 */}
-              {tailoring && (
-                <div className="flex flex-col items-center py-10">
-                  <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
-                  <p className="text-sm text-gray-500">첨삭 중입니다...</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {tailorMode === 'key' ? '핵심 경험을 기업에 맞게 재구성합니다' : '7개 섹션을 기업에 맞게 재구성합니다'}
-                  </p>
-                </div>
-              )}
-
-              {/* 에러 */}
-              {tailorError && !tailoring && (
-                <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-                  <p className="text-xs text-red-600">{tailorError}</p>
-                  <button onClick={() => handleTailor(tailorMode)} className="text-xs text-red-500 hover:text-red-700 mt-1 underline">다시 시도</button>
-                </div>
-              )}
-
-              {/* 섹션별 첨삭 결과 */}
-              {tailorResult && !tailoring && (
-                <div className="space-y-3">
-
-                  {/* ── 기업 맞춤 추천 핵심 경험 ── */}
-                  {tailorMode === 'key' && tailorResult.keyExperiences?.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-xs font-bold text-indigo-700">기업 맞춤 추천 핵심 경험</span>
-                        <span className="text-[12px] text-indigo-400">{Math.min(tailorResult.keyExperiences.length, 3)}개 선별됨</span>
-                      </div>
-                      <p className="text-[12px] text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2 border border-indigo-100">
-                        기존 핵심 경험은 초기화되었습니다. 적용할 항목을 선택해 추가하세요.
-                      </p>
-                      {tailorResult.keyExperiences.slice(0, 3).map((ke, ki) => {
-                        const isApplied = appliedKeyExperiences[ki];
-                        return (
-                          <div key={ki} className="rounded-xl border border-indigo-200 overflow-hidden bg-white">
-                            {/* 헤더 */}
-                            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100">
-                              <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white text-[11px] font-bold flex items-center justify-center">{ki + 1}</span>
-                              <span className="text-xs font-bold text-gray-800 flex-1 leading-tight truncate">{ke.title}</span>
-                              <button
-                                onClick={() => applyKeyExperience(ke, ki)}
-                                disabled={isApplied}
-                                className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-medium transition-colors ${
-                                  isApplied
-                                    ? 'bg-green-100 text-green-700 cursor-default'
-                                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                                }`}
-                              >
-                                {isApplied ? <><Check size={10} />적용됨</> : <>적용</>}
-                              </button>
-                            </div>
-                            {/* 적합 이유 */}
-                            {ke.relevance && (
-                              <div className="px-3 pt-2.5 pb-1">
-                                <p className="text-[12px] text-indigo-500 italic leading-relaxed">{ke.relevance}</p>
-                              </div>
-                            )}
-                            {/* 첨삭 내용 필드들 */}
-                            <div className="divide-y divide-gray-50 px-3 pb-2">
-                              {ke.title && (
-                                <div className="py-2">
-                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">제목</p>
-                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.title)}</p>
-                                </div>
-                              )}
-                              {/* 문제 상황: situation 우선, 없으면 problem */}
-                              {(ke.situation || ke.problem) && (
-                                <div className="py-2">
-                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">문제 상황</p>
-                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.situation || ke.problem)}</p>
-                                </div>
-                              )}
-                              {ke.action && (
-                                <div className="py-2">
-                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">핵심 행동</p>
-                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.action)}</p>
-                                </div>
-                              )}
-                              {ke.result && (
-                                <div className="py-2">
-                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">성과</p>
-                                  <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(ke.result)}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* 전체 적용 버튼 */}
-                  {tailorMode === 'section' && (() => {
-                    const tailoredList = tailorResult.portfolioSections?.length > 0
-                      ? tailorResult.portfolioSections.filter(section => section.tailoredContent?.trim())
-                      : EXP_SECTION_KEYS.filter(k => tailorResult.sections?.[k]?.content?.trim()).map(k => ({ key: k }));
-                    const availableCount = tailoredList.length;
-                    const appliedCount = Object.keys(appliedSections).length;
-                    const allApplied = availableCount > 0 && appliedCount >= availableCount;
-                    return availableCount > 0 && (
-                      <button
-                        onClick={applyAllSections}
-                        disabled={allApplied}
-                        className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                          allApplied
-                            ? 'bg-green-100 text-green-700 cursor-default'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                        }`}
-                      >
-                        {allApplied ? <><Check size={13} />전체 적용 완료</> : <>전체 적용 ({availableCount}개 섹션)</>}
-                      </button>
-                    );
-                  })()}
-
-                  {/* 각 섹션 */}
-                  {tailorMode === 'section' && (tailorResult.portfolioSections?.length > 0
-                    ? tailorResult.portfolioSections
-                    : EXP_SECTION_KEYS.map(key => ({ key, label: EXP_SECTION_META[key].label, content: tailorResult.sections?.[key]?.content, reason: tailorResult.sections?.[key]?.reason, num: EXP_SECTION_META[key].num }))
-                  ).map((section, sectionIndex) => {
-                    const key = section.key || `tailor-${sectionIndex}`;
-                    const content = section.tailoredContent || section.content;
-                    if (!content?.trim()) return null;
-                    const isApplied = appliedSections[key];
-                    return (
-                      <div key={key} className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 border-b border-gray-100">
-                          <span className="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-500 text-white flex items-center justify-center text-[11px] font-bold">{section.num || String(sectionIndex + 1).padStart(2, '0')}</span>
-                          <span className="text-xs font-bold text-gray-700 flex-1">{section.label || '섹션'}</span>
-                          <button
-                            onClick={() => applySingleSection(key)}
-                            disabled={isApplied}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-medium transition-colors ${
-                              isApplied
-                                ? 'bg-green-100 text-green-700 cursor-default'
-                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'
-                            }`}
-                          >
-                            {isApplied ? <><Check size={10} />적용됨</> : <>적용</>}
-                          </button>
-                        </div>
-                        <div className="p-3">
-                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{stripMd(content)}</p>
-                          {(section.reason || section.changeReason) && (
-                            <p className="text-[12px] text-indigo-500 mt-2 pt-2 border-t border-gray-50 italic">{stripMd(section.reason || section.changeReason)}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* 강조 스킬 */}
-                  {tailorMode === 'section' && tailorResult.highlightedSkills?.length > 0 && (
-                    <div className="pt-2">
-                      <p className="text-[12px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">기업 어필 스킬</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tailorResult.highlightedSkills.map((s, si) => (
-                          <span key={si} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[12px] font-medium">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 적합도 메모 */}
-                  {tailorMode === 'section' && tailorResult.relevanceNote && (
-                    <p className="text-[12px] text-gray-500 italic bg-gray-50 rounded-xl px-3 py-2">{stripMd(tailorResult.relevanceNote)}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        </div>{/* end flex row */}
-      </div>
-    </div>
+    <ProjectDetailModal
+      exp={exp}
+      onUpdate={onUpdate}
+      onClose={onClose}
+      resizeToBase64={resizeToBase64}
+      jobAnalysis={jobAnalysis}
+      userExperiences={userExperiences}
+      genericMode={genericMode}
+    />
   );
 }
 
@@ -3204,6 +2110,7 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
       {/* 경험 상세편집 모달 (첨삭 포함) */}
       {selectedExpDetail && (
         <ExpDetailModal
+              userExperiences={userExperiences}
           exp={selectedExpDetail.exp}
           onUpdate={(changes) => updateArrayItem('experiences', selectedExpDetail.idx, changes)}
           onClose={() => setSelectedExpDetail(null)}
@@ -3975,9 +2882,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(p.experiences || []).map((e, i) => (
               <div key={i} className="group/exp text-left bg-white rounded-xl border border-[#e8e4dc] overflow-hidden relative hover:shadow-lg transition-all cursor-pointer" onClick={() => setExpDetailIdx(i)}>
                 <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
-                  {e.thumbnailUrl
-                    ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center opacity-30"><Briefcase size={24} className="text-gray-400" /></div>}
+                  <img src={e.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={e.title || ''} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-3">
                   <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
@@ -3994,6 +2899,19 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     </div>
                   )}
                 </div>
+                <label onClick={ev => ev.stopPropagation()}
+                  className="absolute top-1.5 right-8 bg-white/80 p-1 rounded-full text-[#c4b89a] hover:text-[#8a6c4a] shadow-sm cursor-pointer transition-opacity">
+                  <Camera size={11} />
+                  <input type="file" accept="image/*" className="hidden" onChange={async ev => {
+                    const file = ev.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const base64 = await resizeToBase64(file, 800, 0.8);
+                      updateArrayItem('experiences', i, { thumbnailUrl: base64 });
+                    } catch { toast.error('이미지 처리 실패'); }
+                    ev.target.value = '';
+                  }} />
+                </label>
                 <button onClick={ev => { ev.stopPropagation(); removeFromArray('experiences', i); }}
                   className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-[#c4b89a] hover:text-red-400 shadow-sm transition-opacity">
                   <Trash2 size={11} />
@@ -4202,7 +3120,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                         <div key={ci} className="group/card relative bg-[#f7f5f0] rounded-xl border border-[#e8e4dc] overflow-hidden hover:shadow-md transition-all cursor-pointer"
                           onClick={() => setExpDetailIdx({ blockIdx: i, cardIdx: ci })}>
                           <div className="aspect-[4/3] bg-[#f0ece4] overflow-hidden">
-                            {card.thumbnailUrl ? <img src={card.thumbnailUrl} alt={card.title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Briefcase size={24} className="text-[#c4b89a]"/></div>}
+                            <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={card.title || ''} className="w-full h-full object-cover" />
                           </div>
                           <div className="p-3">
                             <p className="text-sm font-bold text-[#2d2a26] truncate">{card.title||'(제목 없음)'}</p>
@@ -4367,6 +3285,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
           if (!card) return null;
           return (
             <ExpDetailModal
+              userExperiences={userExperiences}
               exp={card}
               onUpdate={(changes) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, ...changes } : c);
@@ -4388,6 +3307,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         if (!p.experiences?.[expDetailIdx]) return null;
         return (
           <ExpDetailModal
+              userExperiences={userExperiences}
             exp={p.experiences[expDetailIdx]}
             onUpdate={(changes) => updateArrayItem('experiences', expDetailIdx, changes)}
             onClose={() => setExpDetailIdx(null)}
@@ -4910,9 +3830,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             {(p.experiences || []).map((e, i) => (
               <div key={i} className="group/exp relative border border-surface-200 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer" onClick={() => setExpDetailIdx(i)}>
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden">
-                  {e.thumbnailUrl
-                    ? <img src={e.thumbnailUrl} alt={e.title} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center opacity-40"><Briefcase size={24} className="text-gray-300" /></div>}
+                  <img src={e.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={e.title || ''} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-3">
                   <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
@@ -5119,7 +4037,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                     {(block.content || []).map((card, ci) => (
                       <div key={ci} className="border border-surface-200 rounded-xl overflow-hidden cursor-pointer hover:shadow-md transition-all" onClick={() => setExpDetailIdx({blockIdx:i,cardIdx:ci})}>
                         <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden">
-                          {card.thumbnailUrl ? <img src={card.thumbnailUrl} alt={card.title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Briefcase size={20} className="text-gray-300 opacity-40" /></div>}
+                          <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={card.title || ''} className="w-full h-full object-cover" />
                         </div>
                         <div className="p-2.5">
                           <input value={card.title||''} onChange={ev=>{ev.stopPropagation();const nb=[...(p.customBlocks||[])];const nc=[...(nb[i].content||[])];nc[ci]={...nc[ci],title:ev.target.value};nb[i]={...nb[i],content:nc};update('customBlocks',nb);}} onClick={ev=>ev.stopPropagation()}
@@ -5209,6 +4127,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
           if (!card) return null;
           return (
             <ExpDetailModal
+              userExperiences={userExperiences}
               exp={card}
               onUpdate={(changes) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, ...changes } : c);
@@ -5230,6 +4149,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
         if (!p.experiences?.[expDetailIdx]) return null;
         return (
           <ExpDetailModal
+              userExperiences={userExperiences}
             exp={p.experiences[expDetailIdx]}
             onUpdate={(changes) => updateArrayItem('experiences', expDetailIdx, changes)}
             onClose={() => setExpDetailIdx(null)}
@@ -6508,13 +5428,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             <div key={i} onClick={() => setExpDetailIdx(i)} className="group/exp bg-white rounded-xl border border-surface-200 overflow-hidden relative hover:shadow-md transition-all cursor-pointer">
               {/* Thumbnail */}
               <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative">
-                {exp.thumbnailUrl ? (
-                  <img src={exp.thumbnailUrl} alt={exp.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-100 to-surface-50">
-                    <span className="text-4xl opacity-50"><Briefcase size={28} className="text-gray-300" /></span>
-                  </div>
-                )}
+                <img src={exp.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={exp.title || ''} className="w-full h-full object-cover" />
               </div>
               {/* Card body inline edit */}
               <div className="p-3">
@@ -6524,6 +5438,19 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   placeholder="날짜" className="w-full text-[13px] text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded mt-1" />
               </div>
               {/* Delete button */}
+              <label onClick={e => e.stopPropagation()}
+                className="absolute top-1.5 right-8 bg-white/80 p-1 rounded-full text-gray-400 hover:text-gray-700 transition-opacity shadow-sm cursor-pointer">
+                <Camera size={12} />
+                <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const base64 = await resizeToBase64(file, 800, 0.8);
+                    updateArrayItem('experiences', i, { thumbnailUrl: base64 });
+                  } catch { toast.error('이미지 처리 실패'); }
+                  e.target.value = '';
+                }} />
+              </label>
               <button onClick={() => removeFromArray('experiences', i)}
                 className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 transition-opacity shadow-sm">
                 <Trash2 size={12} />
@@ -6590,6 +5517,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
         }
         return exp ? (
           <ExpDetailModal
+              userExperiences={userExperiences}
             exp={exp}
             onUpdate={onUpdate}
             onClose={() => setExpDetailIdx(null)}
