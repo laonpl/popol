@@ -16,6 +16,17 @@ const YooptaMiniEditor = lazy(() => import('../../components/YooptaMiniEditor'))
 import RichTextRenderer, { richValueHasContent, richValueToPlainText } from '../../components/RichTextRenderer';
 
 const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
+const DEFAULT_PROJECT_LOGO = '/logo.png';
+const VISUAL_SECTION_TITLE_SIZE_OPTIONS = [
+  { label: '기본', value: '' },
+  { label: '12pt', value: '12pt' },
+  { label: '14pt', value: '14pt' },
+  { label: '16pt', value: '16pt' },
+  { label: '18pt', value: '18pt' },
+  { label: '22pt', value: '22pt' },
+  { label: '28pt', value: '28pt' },
+  { label: '36pt', value: '36pt' },
+];
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
@@ -24,6 +35,48 @@ function stripMd(s) {
 function sanitizePortfolioText(text) {
   if (text == null) return '';
   return String(text).replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]+/g, '').replace(/\n{3,}/g, '\n\n');
+}
+
+function escapeVisualHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function visualTitleSegmentsToHtml(segments, fallback) {
+  const safeSegments = Array.isArray(segments) && segments.length > 0
+    ? segments
+    : [{ text: fallback || '', fontSize: '', bold: false }];
+  return safeSegments.map(segment => {
+    const text = escapeVisualHtml(segment?.text || '');
+    const fontSize = VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment?.fontSize) ? segment.fontSize : '';
+    const styles = [
+      fontSize ? `font-size:${fontSize}` : '',
+      segment?.bold ? 'font-weight:700' : '',
+    ].filter(Boolean).join(';');
+    return styles ? `<span style="${styles}">${text}</span>` : text;
+  }).join('');
+}
+
+function readVisualTitleSegmentsFromElement(element) {
+  const segments = [];
+  const walk = (node, inherited = {}) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent) segments.push({ text: node.textContent, fontSize: inherited.fontSize || '', bold: !!inherited.bold });
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const fontSize = VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)
+      ? node.style.fontSize
+      : inherited.fontSize || '';
+    const bold = inherited.bold || node.tagName === 'B' || node.tagName === 'STRONG' || parseInt(node.style?.fontWeight || '0', 10) >= 600;
+    Array.from(node.childNodes).forEach(child => walk(child, { fontSize, bold }));
+  };
+  Array.from(element.childNodes).forEach(child => walk(child));
+  return segments.filter(segment => segment.text.length > 0);
 }
 
 function normalizePortfolioBlock(block) {
@@ -495,9 +548,10 @@ function SectionHeader({ children, sectionType, ec, className = '' }) {
 export function EditText({ value, onChange, placeholder = '클릭하여 편집', className = '', tag: Tag = 'span' }) {
   const ref = useRef(null);
   const editing = useRef(false);
-  // sync from outside only when not editing
+  // Sync from outside when the DOM differs. Normal typing updates prevValue first,
+  // so this will not fight the caret, but undo/redo can still repaint the text.
   const prevValue = useRef(value);
-  if (!editing.current && prevValue.current !== value) {
+  if (prevValue.current !== value) {
     prevValue.current = value;
     if (ref.current && ref.current.textContent !== (value || '')) {
       ref.current.textContent = value || '';
@@ -524,6 +578,11 @@ export function EditText({ value, onChange, placeholder = '클릭하여 편집',
       contentEditable
       suppressContentEditableWarning
       onFocus={() => { editing.current = true; if (!ref.current.textContent) ref.current.textContent = ''; }}
+      onInput={e => {
+        const t = e.currentTarget.textContent;
+        prevValue.current = t;
+        onChange(t);
+      }}
       onBlur={e => {
         editing.current = false;
         const t = e.currentTarget.textContent;
@@ -554,7 +613,7 @@ export function EditTextarea({ value, onChange, placeholder = '클릭하여 편�
   const ref = useRef(null);
   const editing = useRef(false);
   const prevValue = useRef(value);
-  if (!editing.current && prevValue.current !== value) {
+  if (prevValue.current !== value) {
     prevValue.current = value;
     if (ref.current && ref.current.innerText !== (value || '')) {
       ref.current.innerText = value || '';
@@ -581,6 +640,11 @@ export function EditTextarea({ value, onChange, placeholder = '클릭하여 편�
       contentEditable
       suppressContentEditableWarning
       onFocus={() => { editing.current = true; if (!ref.current.innerText) ref.current.textContent = ''; }}
+      onInput={e => {
+        const t = e.currentTarget.innerText;
+        prevValue.current = t;
+        onChange(t);
+      }}
       onBlur={e => {
         editing.current = false;
         const t = e.currentTarget.innerText;
@@ -644,18 +708,381 @@ function RichBody({
   return null;
 }
 
-// ── 편집 가능 섹션 제목 헬퍼 (ec 있으면 인라인 편집, 없으면 정적 텍스트) ──
-function EH({ ec, value, sectionKey, className = '' }) {
-  if (!ec) return <>{value}</>;
-  const stored = ec.portfolio?.sectionTitles?.[sectionKey];
-  const displayVal = stored !== undefined ? stored : value;
+function ExperienceRichText({ ec, exp, idx, className = '', viewClassName = '', dark = false, placeholder = '프로젝트 설명을 입력하세요. / 로 블록 추가' }) {
+  if (ec) {
+    return (
+      <Suspense fallback={<div className={`text-xs ${dark ? 'text-[#A0A0A0]' : 'text-gray-400'} py-2`}>에디터 불러오는 중...</div>}>
+        <YooptaMiniEditor
+          value={exp.descriptionBlocks || exp.description || exp.desc || ''}
+          onChange={value => ec.updateArrayItem('experiences', idx, {
+            descriptionBlocks: value,
+            description: richValueToPlainText(value),
+          })}
+          placeholder={placeholder}
+          className={className}
+        />
+      </Suspense>
+    );
+  }
+  if (richValueHasContent(exp.descriptionBlocks)) {
+    return <RichTextRenderer value={exp.descriptionBlocks} className={viewClassName} dark={dark} />;
+  }
+  const plain = exp.description || exp.desc;
+  return plain ? <p className={viewClassName}>{plain}</p> : null;
+}
+
+function visualGenerateId() {
+  return `visual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createVisualYooptaTableValue(rows = 3, columns = 3) {
+  const blockId = visualGenerateId();
+  return {
+    [blockId]: {
+      id: blockId,
+      type: 'Table',
+      value: [{
+        id: visualGenerateId(),
+        type: 'table',
+        props: { headerRow: true, headerColumn: false, columnWidths: Array(columns).fill(200) },
+        children: Array.from({ length: rows }, (_, rowIndex) => ({
+          id: visualGenerateId(),
+          type: 'table-row',
+          children: Array.from({ length: columns }, () => ({
+            id: visualGenerateId(),
+            type: 'table-data-cell',
+            props: { asHeader: rowIndex === 0 },
+            children: [{ text: '' }],
+          })),
+        })),
+      }],
+      meta: { order: 0, depth: 0 },
+    },
+  };
+}
+
+function readVisualImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => resolve(event.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function getVisualBlockTitle(type) {
+  if (type === 'heading') return '제목';
+  if (type === 'image') return '이미지';
+  if (type === 'table') return '표';
+  if (type === 'divider') return '구분선';
+  if (type === 'project') return '프로젝트 / 경험';
+  return '텍스트';
+}
+
+function makeVisualSectionPackage(sectionKey) {
+  const labels = {
+    education: '학력 | Education',
+    awards: '수상 | Awards',
+    experiences: '프로젝트 / 경험',
+    curricular: '교과 활동 | Curricular Activities',
+    extracurricular: '비교과 활동 | Extracurricular Activities',
+    skills: '기술 | Skills',
+    goals: '목표와 계획 | Future Plans',
+    values: '가치관 | Values',
+    contact: '연락처 | Contact',
+  };
+  const body = {
+    education: '학교명\n기간\n전공\n상세 내용',
+    awards: '날짜\n수상명\n기관\n설명',
+    experiences: '프로젝트명\n기간\n역할\n설명\n성과',
+    curricular: '요약\n이수 학점:\n평점 평균:\n\n교과목 수강 내역',
+    extracurricular: '요약\n\n디지털 배지\n\n어학 성적\n\n세부 사항',
+    skills: '언어\n도구\n프레임워크\n기타 역량',
+    goals: '단기 목표\n중기 목표\n장기 목표\n상세 계획',
+    values: '내가 중요하게 생각하는 가치\n\n경험과 연결되는 이야기',
+    contact: '전화\n이메일\nLinkedIn\nGitHub\n웹사이트',
+  };
+  const base = [
+    { type: 'heading', title: labels[sectionKey] || '새 섹션', content: labels[sectionKey] || '새 섹션' },
+    { type: 'text', title: '내용', content: body[sectionKey] || '' },
+  ];
+  if (sectionKey === 'curricular') {
+    base.push(
+      { type: 'table', title: '교과목 수강 내역', content: '', contentBlocks: createVisualYooptaTableValue(3, 3) },
+      { type: 'table', title: '이수 현황', content: '', contentBlocks: createVisualYooptaTableValue(3, 6) },
+    );
+  }
+  if (sectionKey === 'extracurricular') {
+    base.push(
+      { type: 'table', title: '디지털 배지', content: '', contentBlocks: createVisualYooptaTableValue(3, 2) },
+      { type: 'table', title: '어학 성적', content: '', contentBlocks: createVisualYooptaTableValue(3, 3) },
+    );
+  }
+  return base.map((block, index) => ({ ...block, id: visualGenerateId(), order: Date.now() + index }));
+}
+
+function VisualCustomBlocks({ portfolio, ec, dark = false }) {
+  const [open, setOpen] = useState(false);
+  const blocks = portfolio?.customBlocks || [];
+  const visibleBlocks = [...blocks].sort((a, b) => (a?.order ?? 0) - (b?.order ?? 0));
+  const textColor = dark ? 'text-[#EBEBEB]' : 'text-gray-800';
+  const muted = dark ? 'text-[#A0A0A0]' : 'text-gray-400';
+  const panelClass = dark ? 'border-[#3A3A3A] bg-[#1E1E1E]' : 'border-surface-200 bg-white';
+  const updateBlocks = next => ec?.update('customBlocks', next);
+  const updateBlock = (id, changes) => updateBlocks(blocks.map(block => (block.id || block.order) === id ? { ...block, ...changes } : block));
+  const removeBlock = id => updateBlocks(blocks.filter(block => (block.id || block.order) !== id));
+  const addBlock = (type) => {
+    const next = {
+      id: visualGenerateId(),
+      type,
+      title: getVisualBlockTitle(type),
+      content: '',
+      order: Date.now(),
+      contentBlocks: type === 'table' ? createVisualYooptaTableValue() : undefined,
+    };
+    updateBlocks([...blocks, next]);
+    setOpen(false);
+  };
+  const addPackage = (sectionKey) => {
+    updateBlocks([...blocks, ...makeVisualSectionPackage(sectionKey)]);
+    setOpen(false);
+  };
+
+  if (!ec && blocks.length === 0) return null;
+
   return (
-    <EditText
-      value={displayVal}
-      onChange={v => ec.update('sectionTitles', { ...(ec.portfolio?.sectionTitles || {}), [sectionKey]: v })}
-      placeholder={value}
-      className={className}
-    />
+    <div className="mt-6 w-full">
+      <div className="space-y-5">
+        {visibleBlocks.map((block, index) => {
+          const blockId = block.id || block.order || index;
+          return (
+            <div key={blockId} className={`group/block relative pb-5 last:pb-0 ${dark ? 'border-[#333]' : 'border-gray-100'}`}>
+              {ec && (
+                <button type="button" onClick={() => removeBlock(blockId)}
+                  className="absolute right-0 top-0 rounded p-1 text-gray-300 opacity-0 transition-opacity hover:text-red-400 group-hover/block:opacity-100">
+                  <Trash2 size={14} />
+                </button>
+              )}
+              {ec ? (
+                <EditText value={block.title ?? getVisualBlockTitle(block.type)}
+                  onChange={value => updateBlock(blockId, { title: value })}
+                  className={`mb-3 block pr-7 text-lg font-bold ${textColor}`}
+                  placeholder="블록 제목" />
+              ) : block.title ? (
+                <h3 className={`mb-3 text-lg font-bold ${textColor}`}>{block.title}</h3>
+              ) : null}
+
+              {block.type === 'heading' && (ec
+                ? <EditText value={block.content || ''} onChange={value => updateBlock(blockId, { content: value })} className={`block text-2xl font-extrabold ${textColor}`} placeholder="제목" />
+                : <h2 className={`text-2xl font-extrabold ${textColor}`}>{block.content}</h2>
+              )}
+
+              {(block.type === 'text' || block.type === 'table') && (ec ? (
+                <Suspense fallback={<div className={`text-sm ${muted}`}>에디터 불러오는 중...</div>}>
+                  <YooptaMiniEditor
+                    value={block.contentBlocks || block.content || ''}
+                    onChange={value => updateBlock(blockId, { contentBlocks: value, content: richValueToPlainText(value) })}
+                    placeholder="본문을 입력하세요..."
+                    minHeight={120}
+                  />
+                </Suspense>
+              ) : richValueHasContent(block.contentBlocks)
+                ? <RichTextRenderer value={block.contentBlocks} dark={dark} />
+                : block.content && <p className={`whitespace-pre-wrap text-sm leading-relaxed ${dark ? 'text-[#D4D4D4]' : 'text-gray-600'}`}>{block.content}</p>
+              )}
+
+              {block.type === 'image' && (ec ? (
+                <label className={`flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed ${dark ? 'border-[#3A3A3A] text-[#A0A0A0] hover:border-[#5C7CFA]' : 'border-gray-200 text-gray-400 hover:border-primary-300 hover:text-primary-600'}`}>
+                  {block.content ? <img src={block.content} alt={block.title || ''} className="max-h-[420px] w-full object-contain" /> : <><Upload size={22} /><span className="text-xs">이미지 업로드</span></>}
+                  <input type="file" accept="image/*" className="hidden" onChange={async event => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      updateBlock(blockId, { content: await readVisualImageFile(file) });
+                    } catch {
+                      toast.error('이미지 처리 실패');
+                    }
+                    event.target.value = '';
+                  }} />
+                </label>
+              ) : block.content ? <img src={block.content} alt={block.title || ''} className="max-h-[520px] w-full rounded-xl object-contain" /> : null)}
+
+              {block.type === 'divider' && <hr className={dark ? 'border-[#3A3A3A]' : 'border-gray-200'} />}
+            </div>
+          );
+        })}
+      </div>
+
+      {ec && (
+        <div className="relative mt-5">
+          <button type="button" onClick={() => setOpen(value => !value)}
+            className={`flex w-full items-center justify-center gap-2 border-y border-dashed py-3 text-sm transition-colors ${dark ? 'border-[#3A3A3A] text-[#A0A0A0] hover:border-[#5C7CFA] hover:text-[#EBEBEB]' : 'border-gray-200 text-gray-400 hover:border-primary-300 hover:text-primary-600'}`}>
+            <Plus size={16} /> 블록 / 섹션 추가
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+              <div className={`absolute left-1/2 z-30 mb-2 max-h-[70vh] w-80 -translate-x-1/2 overflow-y-auto rounded-xl border py-2 shadow-xl ${panelClass}`} style={{ bottom: '100%' }}>
+                <p className={`px-3 py-1 text-[12px] font-bold uppercase tracking-wider ${muted}`}>기본 블록</p>
+                {[
+                  ['heading', FileText, '제목', '새 섹션 제목'],
+                  ['text', FileText, '텍스트', 'todo, 표, 이미지까지 가능한 본문'],
+                  ['image', Upload, '이미지', '사진 첨부'],
+                  ['table', Columns, '표', '편집 가능한 표'],
+                  ['divider', MoreHorizontal, '구분선', '섹션 구분'],
+                ].map(([type, Icon, label, desc]) => (
+                  <button key={type} type="button" onClick={() => addBlock(type)}
+                    className={`flex w-full items-center gap-3 px-3 py-2 text-left ${dark ? 'hover:bg-[#2A2A2A]' : 'hover:bg-gray-50'}`}>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded ${dark ? 'bg-[#2A2A2A] text-[#EBEBEB]' : 'bg-primary-50 text-primary-600'}`}><Icon size={14} /></span>
+                    <span><span className={`block text-sm font-medium ${textColor}`}>{label}</span><span className={`block text-[12px] ${muted}`}>{desc}</span></span>
+                  </button>
+                ))}
+                <div className={`mt-1 border-t pt-1 ${dark ? 'border-[#333]' : 'border-gray-100'}`}>
+                  <p className={`px-3 py-1 text-[12px] font-bold uppercase tracking-wider ${muted}`}>섹션 패키지</p>
+                  {[
+                    ['education', '학력'], ['awards', '수상'], ['experiences', '프로젝트 / 경험'],
+                    ['curricular', '교과 활동'], ['extracurricular', '비교과 활동'], ['skills', '기술'],
+                    ['goals', '목표와 계획'], ['values', '가치관'], ['contact', '연락처'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" onClick={() => addPackage(key)}
+                      className={`flex w-full items-center gap-3 px-3 py-2 text-left ${dark ? 'hover:bg-[#2A2A2A]' : 'hover:bg-gray-50'}`}>
+                      <span className={`flex h-6 w-6 items-center justify-center rounded ${dark ? 'bg-[#2A2A2A] text-[#EBEBEB]' : 'bg-primary-50 text-primary-600'}`}><Plus size={14} /></span>
+                      <span><span className={`block text-sm font-medium ${textColor}`}>{label}</span><span className={`block text-[12px] ${muted}`}>섹션 세트 추가</span></span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getVisualSectionPlainTitle(portfolio, sectionKey, fallback) {
+  const segments = portfolio?.customSectionTitleSegments?.[sectionKey];
+  if (Array.isArray(segments) && segments.length > 0) {
+    return segments.map(segment => segment.text || '').join('') || fallback;
+  }
+  return portfolio?.customSectionLabels?.[sectionKey]
+    ?? portfolio?.sectionTitles?.[sectionKey]
+    ?? fallback;
+}
+
+// ── 편집 가능 섹션 제목 헬퍼 (선택 글자만 굵게/크기 변경 가능) ──
+function EH({ ec, value, sectionKey, className = '' }) {
+  const titleRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const portfolio = ec?.portfolio;
+  const segments = portfolio?.customSectionTitleSegments?.[sectionKey];
+  const fallbackLabel = getVisualSectionPlainTitle(portfolio, sectionKey, value);
+
+  const updateSegments = () => {
+    if (!titleRef.current || !ec) return;
+    const nextSegments = readVisualTitleSegmentsFromElement(titleRef.current);
+    const plain = nextSegments.map(segment => segment.text).join('') || value;
+    const fields = {
+      customSectionTitleSegments: { ...(portfolio?.customSectionTitleSegments || {}), [sectionKey]: nextSegments },
+      customSectionLabels: { ...(portfolio?.customSectionLabels || {}), [sectionKey]: plain },
+      sectionTitles: { ...(portfolio?.sectionTitles || {}), [sectionKey]: plain },
+    };
+    if (ec.updateMany) ec.updateMany(fields);
+    else Object.entries(fields).forEach(([field, nextValue]) => ec.update(field, nextValue));
+  };
+
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !titleRef.current?.contains(selection.anchorNode)) return;
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+  };
+
+  const restoreSelection = () => {
+    const selection = window.getSelection();
+    const range = savedRangeRef.current;
+    if (!selection || !range || !titleRef.current?.contains(range.commonAncestorContainer)) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  };
+
+  const applyFontSize = (fontSize) => {
+    const selection = window.getSelection();
+    const liveRange = selection?.rangeCount && titleRef.current?.contains(selection.anchorNode)
+      ? selection.getRangeAt(0)
+      : null;
+    const range = liveRange || savedRangeRef.current;
+    if (!range || !titleRef.current?.contains(range.commonAncestorContainer) || range.collapsed) return;
+    const wrapper = document.createElement('span');
+    if (fontSize) wrapper.style.fontSize = fontSize;
+    try {
+      range.surroundContents(wrapper);
+    } catch {
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+    }
+    titleRef.current.normalize();
+    updateSegments();
+    saveSelection();
+  };
+
+  const applyBold = () => {
+    if (!restoreSelection()) return;
+    document.execCommand('bold', false, null);
+    updateSegments();
+    saveSelection();
+  };
+
+  useEffect(() => {
+    if (!ec || !titleRef.current) return;
+    const nextHtml = visualTitleSegmentsToHtml(segments, fallbackLabel);
+    if (titleRef.current.innerHTML !== nextHtml) titleRef.current.innerHTML = nextHtml;
+  }, [ec, segments, fallbackLabel]);
+
+  if (!ec) {
+    return <span dangerouslySetInnerHTML={{ __html: visualTitleSegmentsToHtml(segments, fallbackLabel) }} />;
+  }
+
+  return (
+    <span className="group/title relative inline-flex max-w-full items-center gap-1 align-baseline">
+      <span
+        ref={titleRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={updateSegments}
+        onBlur={updateSegments}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
+        onPaste={event => {
+          event.preventDefault();
+          document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+        }}
+        className={`min-w-0 rounded bg-transparent px-1 outline-none hover:bg-blue-50/30 ${className}`}
+        dangerouslySetInnerHTML={{ __html: visualTitleSegmentsToHtml(segments, fallbackLabel) }}
+      />
+      <button
+        type="button"
+        onMouseDown={event => { event.preventDefault(); applyBold(); }}
+        className="h-6 min-w-6 rounded border border-gray-200 bg-white px-1 text-[11px] font-bold text-gray-600 opacity-0 shadow-sm transition-opacity hover:bg-gray-50 group-hover/title:opacity-100 focus:opacity-100"
+        title="선택 글자 굵게"
+      >
+        B
+      </button>
+      <select
+        defaultValue=""
+        onChange={event => {
+          applyFontSize(event.target.value);
+          event.target.value = '';
+        }}
+        className="h-6 rounded border border-gray-200 bg-white px-1 text-[11px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title:opacity-100 focus:opacity-100"
+        title="선택 글자 크기"
+        aria-label="선택 글자 크기"
+      >
+        {VISUAL_SECTION_TITLE_SIZE_OPTIONS.map(option => (
+          <option key={option.value || 'default'} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -664,6 +1091,7 @@ const SECTION_ICON_LUCIDE = {
   Folder, Briefcase, Target, Code, Mail, FileText, Award, Star,
   GraduationCap, Globe, Sparkles, Lightbulb, Database, LayoutGrid,
   List, Palette, UserCircle2, Phone, MapPin, CheckCircle2,
+  ExternalLink, Instagram,
 };
 
 const SECTION_ICON_EMOJIS = [
@@ -679,6 +1107,7 @@ function sectionIconEmojiSize(className) {
 }
 
 function renderSectionIconNode(stored, Fallback, className) {
+  if (stored === '') return null;
   if (stored && SECTION_ICON_LUCIDE[stored]) {
     const Icon = SECTION_ICON_LUCIDE[stored];
     return <Icon className={className} />;
@@ -724,7 +1153,7 @@ function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, cl
         title="아이콘 변경"
         className="inline-flex items-center justify-center rounded ring-1 ring-transparent hover:ring-blue-300 hover:bg-blue-50/40 transition-all cursor-pointer"
       >
-        {node}
+        {node || <span className="inline-flex h-4 w-4 items-center justify-center text-[12px] text-gray-300">+</span>}
       </button>
       {open && createPortal(
         <>
@@ -753,8 +1182,8 @@ function EditableSectionIcon({ ec, portfolio, sectionKey, fallback: Fallback, cl
               ))}
             </div>
             <button type="button" onClick={() => setIcon('')}
-              className="mt-2 w-full text-[11px] text-gray-400 hover:text-gray-600 py-1 border-t border-gray-100 pt-2">
-              기본 아이콘으로 되돌리기
+              className="mt-2 w-full text-[11px] text-gray-400 hover:text-red-500 py-1 border-t border-gray-100 pt-2">
+              아이콘 없음
             </button>
           </div>
         </>,
@@ -1524,10 +1953,10 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg hover:shadow-md transition-shadow bg-white relative">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
                   <ImageUploadSlot
-                    src={proj.thumbnailUrl}
+                    src={projectImageSrc(proj)}
                     onUpload={null}
                     className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`}
                     imgClassName="w-full h-full object-cover"
@@ -1544,10 +1973,13 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg mb-1 block" placeholder="프로젝트명" />
                     : <h3 className="font-bold text-lg mb-1 flex items-center gap-1">{proj.name} <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" /></h3>
                   }
-                  {ec
-                    ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-[#787774] mb-3 block" placeholder="설명" />
-                    : <p className="text-sm text-[#787774] mb-3 line-clamp-2">{proj.desc}</p>
-                  }
+                  <ExperienceRichText
+                    ec={ec}
+                    exp={proj}
+                    idx={idx}
+                    className="text-sm text-[#787774] mb-3 block"
+                    viewClassName="text-sm text-[#787774] mb-3 line-clamp-2"
+                  />
                   <span className={`text-[12px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                 </div>
               </div>
@@ -1618,27 +2050,28 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
             <hr className="border-[#ededed] my-8" />
             <div className="mb-12 group/section">
               <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-2"><Mail className="w-6 h-6" /><h2 className="text-2xl font-bold">Contact</h2></div>
+                <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactHeader" fallback={Mail} className="w-6 h-6" /><h2 className="text-2xl font-bold"><EH ec={ec} value="Contact" sectionKey="contact" /></h2></div>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
                   <>
-                    <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
-                    <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
-                    <div className="flex items-center gap-3"><Globe className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
-                    <div className="flex items-center gap-3"><ExternalLink className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4 text-gray-400 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-400 py-0.5" /></div>
                   </>
                 ) : (
                   <>
-                    {data.email && <p className="flex items-center gap-2"><Mail className="w-4 h-4" /> {data.email}</p>}
-                    {data.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4" /> {data.phone}</p>}
+                    {data.email && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4" /> {data.email}</p>}
+                    {data.phone && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4" /> {data.phone}</p>}
                   </>
                 )}
               </div>
             </div>
           </div>
         )}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-8 mb-4">
             <div className="border border-dashed border-gray-200 rounded-xl p-4">
@@ -1689,7 +2122,9 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </h3>
           <div className="flex justify-between items-center">
             <div className="flex-1">
-              <h4 className="text-lg font-bold mb-4">About me</h4>
+              <h4 className="text-lg font-bold mb-4">
+                <EH ec={ec} value="About me" sectionKey="about" />
+              </h4>
               <div className="border-l-4 border-black pl-4 py-1">
                 <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
                   viewClassName="text-sm font-sans text-gray-700 leading-relaxed" placeholder="소개를 입력하세요..." />
@@ -1704,8 +2139,10 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </div>
         </div>
         <div className="flex justify-between gap-2 py-8 border-b border-gray-100 font-sans text-sm">
-          {[['RESUME', 't2-resume'], ['PROJECT', 't2-projects'], ['SKILLS', 't2-skills'], ['CONTACT', 't2-contact']].map(([label, sectionId]) => (
-            <div key={label} onClick={() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">{label}</div>
+          {[['RESUME', 'resume', 't2-resume'], ['PROJECT', 'projects', 't2-projects'], ['SKILLS', 'skills', 't2-skills'], ['CONTACT', 'contact', 't2-contact']].map(([label, sectionKey, sectionId]) => (
+            <div key={label} onClick={() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} className="flex-1 bg-[#f3f2eb] text-center py-2 rounded text-gray-700 font-bold cursor-pointer hover:bg-[#e8e4db]">
+              {getVisualSectionPlainTitle(ec?.portfolio || portfolio, sectionKey, label)}
+            </div>
           ))}
         </div>
         {/* Reorderable sections */}
@@ -1718,7 +2155,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 font-sans">
             <div>
               <div className="flex items-center justify-between gap-2 mb-6">
-                <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1">Education</div>
+                <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1"><EH ec={ec} value="Education" sectionKey="education" /></div>
                 {ec?.jobAnalysis && <VisualSectionRecommend sectionType="education" jobAnalysis={ec.jobAnalysis} />}
               </div>
               {eduList.map((edu, idx) => (
@@ -1746,14 +2183,14 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
             </div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-6">
-                <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1">Experience</div>
+                <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1"><EH ec={ec} value="Experience" sectionKey="experiences" /></div>
                 {ec?.jobAnalysis && <VisualSectionRecommend sectionType="experiences" jobAnalysis={ec.jobAnalysis} />}
               </div>
               <ExperienceTimeline expList={expList} ec={ec} />
               {awardList.length > 0 && (
                 <>
                   <div className="flex items-center justify-between gap-2 mb-6 mt-10">
-                    <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1">Awards</div>
+                    <div className="bg-[#f3f2eb] text-center py-1 font-bold flex-1"><EH ec={ec} value="Awards" sectionKey="awards" /></div>
                     {ec?.jobAnalysis && <VisualSectionRecommend sectionType="awards" jobAnalysis={ec.jobAnalysis} />}
                   </div>
                   {awardList.map((award, idx) => (
@@ -1793,9 +2230,9 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md cursor-pointer hover:shadow-md transition group relative">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-md`}>
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-md`} imgClassName="w-full h-40 object-cover" rounded="">
+                  <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-md`} imgClassName="w-full h-40 object-cover" rounded="">
                     <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center font-bold text-lg text-gray-800`}>
                       {ec
                         ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-800" placeholder="프로젝트명" />
@@ -1807,7 +2244,15 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
                 </div>
                 <div className="p-3 bg-white">
                   {ec
-                    ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-gray-600 block" placeholder="설명" />
+                    ? (
+                      <ExperienceRichText
+                        ec={ec}
+                        exp={proj}
+                        idx={idx}
+                        className="text-sm text-gray-600 block"
+                        viewClassName="text-sm text-gray-600"
+                      />
+                    )
                     : <div className="text-sm text-gray-600 flex items-center gap-1 group-hover:text-black transition-colors"><ChevronRight className="w-4 h-4"/> 상세보기</div>
                   }
                 </div>
@@ -1847,16 +2292,16 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         {/* Contact */}
         {!isHidden2('contact') && <div className="py-10 border-t border-gray-100 font-serif pb-20 group/section" id="t2-contact" {...dp('contact')}>
           <div className="flex items-center justify-between gap-3 mb-8">
-            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1">Contact</h2>
+            <h2 className="text-2xl font-bold border-b border-black inline-block pb-1"><EH ec={ec} value="Contact" sectionKey="contact" /></h2>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
           </div>
           <div className="border-l-2 border-black pl-4 mb-6 font-sans space-y-2">
             {ec ? (
               <>
-                <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
-                <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
-                <div className="flex items-center gap-2 text-sm"><Globe className="w-4 h-4 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
-                <div className="flex items-center gap-2 text-sm"><ExternalLink className="w-4 h-4 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
+                <div className="flex items-center gap-2 text-sm"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
+                <div className="flex items-center gap-2 text-sm"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
+                <div className="flex items-center gap-2 text-sm"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-4 h-4 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
+                <div className="flex items-center gap-2 text-sm"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-black" /></div>
               </>
             ) : (
               <>
@@ -1867,6 +2312,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </div>
         </div>}
         </div>{/* end flex col reorderable sections */}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-4 mb-8">
             <div className="border border-dashed border-gray-200 rounded-xl p-4 font-sans">
@@ -1931,21 +2377,21 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                     <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-sm text-gray-500" />
                   </div>
               }
-              <h4 className="font-bold text-sm mb-2 border-b pb-1">contact</h4>
+              <h4 className="font-bold text-sm mb-2 border-b pb-1"><EH ec={ec} value="contact" sectionKey="contact" /></h4>
               <div className="space-y-1 text-xs text-gray-600">
                 {ec ? (
                   <>
-                    <div className="flex items-center gap-2"><Phone className="w-3 h-3"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
-                    <div className="flex items-center gap-2"><Mail className="w-3 h-3"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
-                    <div className="flex items-center gap-2"><Instagram className="w-3 h-3"/><input value={contact.instagram || ''} onChange={e => ec.updateNested('contact','instagram',e.target.value)} placeholder="Instagram" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
-                    <div className="flex items-center gap-2"><MapPin className="w-3 h-3"/><input value={portfolio.location || ''} onChange={e => ec.update('location',e.target.value)} placeholder="위치" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-3 h-3"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-3 h-3"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactInstagram" fallback={Instagram} className="w-3 h-3"/><input value={contact.instagram || ''} onChange={e => ec.updateNested('contact','instagram',e.target.value)} placeholder="Instagram" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactLocation" fallback={MapPin} className="w-3 h-3"/><input value={portfolio.location || ''} onChange={e => ec.update('location',e.target.value)} placeholder="위치" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-200 focus:border-gray-500" /></div>
                   </>
                 ) : (
                   <>
-                    {data.phone && <p className="flex items-center gap-2"><Phone className="w-3 h-3"/> {data.phone}</p>}
-                    {data.email && <p className="flex items-center gap-2"><Mail className="w-3 h-3"/> {data.email}</p>}
-                    {data.social.instagram && <p className="flex items-center gap-2"><Instagram className="w-3 h-3"/> {data.social.instagram}</p>}
-                    {data.location && <p className="flex items-center gap-2"><MapPin className="w-3 h-3"/> {data.location}</p>}
+                    {data.phone && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-3 h-3"/> {data.phone}</p>}
+                    {data.email && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-3 h-3"/> {data.email}</p>}
+                    {data.social.instagram && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactInstagram" fallback={Instagram} className="w-3 h-3"/> {data.social.instagram}</p>}
+                    {data.location && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactLocation" fallback={MapPin} className="w-3 h-3"/> {data.location}</p>}
                   </>
                 )}
               </div>
@@ -2003,9 +2449,9 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`} imgClassName="w-full h-40 object-cover" rounded="">
+                  <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`} imgClassName="w-full h-40 object-cover" rounded="">
                     <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{proj.name || proj.company || proj.title}</div>
                   </ImageUploadSlot>
                   <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
@@ -2017,10 +2463,13 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                   }
                   <p className="text-xs text-gray-400 mb-2">{proj.period}</p>
                   <span className={`text-[12px] px-1.5 py-0.5 rounded ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
-                  {ec
-                    ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-xs text-gray-500 mt-2 block" placeholder="설명" />
-                    : <p className="text-xs text-gray-500 mt-2 line-clamp-1">{proj.desc || proj.description}</p>
-                  }
+                  <ExperienceRichText
+                    ec={ec}
+                    exp={proj}
+                    idx={idx}
+                    className="text-xs text-gray-500 mt-2 block"
+                    viewClassName="text-xs text-gray-500 mt-2 line-clamp-1"
+                  />
                 </div>
               </div>
             ))}
@@ -2076,6 +2525,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <SkillsEditorPanel portfolio={portfolio} ec={ec} />
         </div>}{/* end skills */}
         </div>{/* end flex col reorderable sections */}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-4 mb-8">
             <div className="border border-dashed border-gray-200 rounded-xl p-4">
@@ -2101,13 +2551,13 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
             <div className="space-y-1 text-sm text-gray-700 ml-6">
               {ec ? (
                 <>
-                  <div className="flex items-center gap-2"><Phone className="w-4 h-4"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-yellow-300 focus:border-yellow-500 text-sm" /></div>
-                  <div className="flex items-center gap-2"><Mail className="w-4 h-4"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-yellow-300 focus:border-yellow-500 text-sm" /></div>
+                  <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-yellow-300 focus:border-yellow-500 text-sm" /></div>
+                  <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-yellow-300 focus:border-yellow-500 text-sm" /></div>
                 </>
               ) : (
                 <>
-                  {data.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {data.phone}</p>}
-                  {data.email && <p className="flex items-center gap-2"><Mail className="w-4 h-4"/> {data.email}</p>}
+                  {data.phone && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4"/> {data.phone}</p>}
+                  {data.email && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4"/> {data.email}</p>}
                 </>
               )}
             </div>
@@ -2161,22 +2611,22 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
           <div className="lg:col-span-1 space-y-10">
             {!isHidden4('contact') && <section className="group/section" {...dp('contact')}>
               <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2 mb-4">
-                <h2 className="text-lg font-bold flex items-center gap-2"><Mail className="w-5 h-5 text-gray-400" /> Contact</h2>
+                <h2 className="text-lg font-bold flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactHeader" fallback={Mail} className="w-5 h-5 text-gray-400" /> <EH ec={ec} value="Contact" sectionKey="contact" /></h2>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
                   <>
-                    <div className="flex items-center gap-2"><Phone className="w-4 h-4 flex-shrink-0"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><Mail className="w-4 h-4 flex-shrink-0"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><Globe className="w-4 h-4 flex-shrink-0"/><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><ExternalLink className="w-4 h-4 flex-shrink-0"/><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4 flex-shrink-0"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4 flex-shrink-0"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-4 h-4 flex-shrink-0"/><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4 flex-shrink-0"/><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
                   </>
                 ) : (
                   <>
-                    {data.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {data.phone}</p>}
-                    {data.email && <p className="flex items-center gap-2"><Mail className="w-4 h-4"/> {data.email}</p>}
-                    {data.social?.blog && <p className="flex items-center gap-2"><ExternalLink className="w-4 h-4"/> {data.social.blog}</p>}
+                    {data.phone && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4"/> {data.phone}</p>}
+                    {data.email && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4"/> {data.email}</p>}
+                    {data.social?.blog && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4"/> {data.social.blog}</p>}
                   </>
                 )}
               </div>
@@ -2270,9 +2720,9 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {projList.map((proj, idx) => (
                   <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
-                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                    <ProjectCardActions ec={ec} idx={idx} />
                     <div className="h-32 w-full overflow-hidden bg-blue-50 relative rounded-t-lg">
-                      <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
+                      <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
                         <div className={`h-32 ${proj.img || 'bg-blue-50'} w-full flex items-center justify-center overflow-hidden`}>
                           <div className="text-gray-400 text-sm font-bold opacity-50">{proj.name || proj.company || '프로젝트'}</div>
                         </div>
@@ -2285,10 +2735,13 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                         : <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">{proj.name}</h3>
                       }
                       <p className="text-xs text-gray-400 mb-3">{proj.period}</p>
-                      {ec
-                        ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-gray-600 mb-4 flex-1 block" placeholder="설명" />
-                        : <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">{proj.desc}</p>
-                      }
+                      <ExperienceRichText
+                        ec={ec}
+                        exp={proj}
+                        idx={idx}
+                        className="text-sm text-gray-600 mb-4 flex-1 block"
+                        viewClassName="text-sm text-gray-600 mb-4 line-clamp-2 flex-1"
+                      />
                       <span className={`text-[12px] px-2 py-1 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
                     </div>
                   </div>
@@ -2298,6 +2751,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
             </section>}
           </div>
         </div>
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-8 mb-4">
             <div className="border border-dashed border-gray-200 rounded-xl p-4">
@@ -2349,15 +2803,15 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           {ec ? (
             <>
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                <Mail className="w-5 h-5 mb-1 text-blue-500"/>
+                <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-5 h-5 mb-1 text-blue-500"/>
                 <input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="text-xs font-bold text-gray-700 text-center outline-none bg-transparent w-full" />
               </div>
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                <Phone className="w-5 h-5 mb-1 text-green-500"/>
+                <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-5 h-5 mb-1 text-green-500"/>
                 <input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="text-xs font-bold text-gray-700 text-center outline-none bg-transparent w-full" />
               </div>
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                <Globe className="w-5 h-5 mb-1 text-pink-500"/>
+                <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-5 h-5 mb-1 text-pink-500"/>
                 <input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="text-xs font-bold text-gray-700 text-center outline-none bg-transparent w-full" />
               </div>
             </>
@@ -2387,9 +2841,9 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           <div className="space-y-4">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4 relative group">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} />
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100 relative">
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
+                  <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
                     <div className={`w-16 h-16 rounded-lg ${proj.img || 'bg-blue-50'} flex-shrink-0 border border-gray-100`}></div>
                   </ImageUploadSlot>
                   <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} className="bottom-0.5 right-0.5" />
@@ -2485,6 +2939,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors mt-3"><Plus size={12}/> 수상 추가</button>}
           </div>
         )}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="w-full mt-4 mb-10">
@@ -2557,9 +3012,9 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {projList.map((proj, idx) => (
               <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col relative">
-                {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} />
                 <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100 relative">
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
+                  <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
                     <div className={`w-full aspect-[4/3] rounded-2xl ${proj.img || 'bg-blue-50'} overflow-hidden relative`}>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
                         <span className="opacity-0 group-hover:opacity-100 bg-white text-black px-4 py-2 rounded-full text-sm font-bold transition-opacity shadow-lg transform translate-y-4 group-hover:translate-y-0 duration-300">View Project</span>
@@ -2576,10 +3031,13 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                     }
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-md font-medium inline-block mb-2 ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
-                  {ec
-                    ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-sm text-gray-500 block" placeholder="설명" />
-                    : <p className="text-sm text-gray-500 line-clamp-2">{proj.desc}</p>
-                  }
+                  <ExperienceRichText
+                    ec={ec}
+                    exp={proj}
+                    idx={idx}
+                    className="text-sm text-gray-500 block"
+                    viewClassName="text-sm text-gray-500 line-clamp-2"
+                  />
                 </div>
               </div>
             ))}
@@ -2670,29 +3128,30 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
             </div>
             {!isHidden6('contact') && <div className="group/section" {...dp6('contact')}>
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-xl font-bold">Contact</h2>
+                <h2 className="text-xl font-bold"><EH ec={ec} value="Contact" sectionKey="contact" /></h2>
                 <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp6('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 {ec ? (
                   <>
-                    <div className="flex items-center gap-2"><Mail className="w-4 h-4 flex-shrink-0"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><Phone className="w-4 h-4 flex-shrink-0"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><Globe className="w-4 h-4 flex-shrink-0"/><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
-                    <div className="flex items-center gap-2"><ExternalLink className="w-4 h-4 flex-shrink-0"/><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4 flex-shrink-0"/><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4 flex-shrink-0"/><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-4 h-4 flex-shrink-0"/><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
+                    <div className="flex items-center gap-2"><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4 flex-shrink-0"/><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트" className="flex-1 outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary-400 text-sm" /></div>
                   </>
                 ) : (
                   <>
-                    {data.email && <p className="flex items-center gap-2"><Mail className="w-4 h-4"/> {data.email}</p>}
-                    {data.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {data.phone}</p>}
-                    {data.social?.github && <p className="flex items-center gap-2"><Globe className="w-4 h-4"/> {data.social.github}</p>}
-                    {data.social?.blog && <p className="flex items-center gap-2"><ExternalLink className="w-4 h-4"/> {data.social.blog}</p>}
+                    {data.email && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactEmail" fallback={Mail} className="w-4 h-4"/> {data.email}</p>}
+                    {data.phone && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactPhone" fallback={Phone} className="w-4 h-4"/> {data.phone}</p>}
+                    {data.social?.github && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactGithub" fallback={Globe} className="w-4 h-4"/> {data.social.github}</p>}
+                    {data.social?.blog && <p className="flex items-center gap-2"><EditableSectionIcon portfolio={portfolio} sectionKey="contactWebsite" fallback={ExternalLink} className="w-4 h-4"/> {data.social.blog}</p>}
                   </>
                 )}
               </div>
             </div>}
           </div>}
         </div>
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-8 mb-4">
             <div className="border border-dashed border-gray-200 rounded-xl p-4">
@@ -2751,16 +3210,16 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-500 cursor-grab" /></span>{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>}
             {ec ? (
               <>
-                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">phone</span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">email</span><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">github</span><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">blog</span><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="블로그/웹사이트" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH ec={ec} value="phone" sectionKey="contactPhoneLabel" /></span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH ec={ec} value="email" sectionKey="contactEmailLabel" /></span><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH ec={ec} value="github" sectionKey="contactGithubLabel" /></span><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH ec={ec} value="blog" sectionKey="contactWebsiteLabel" /></span><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="블로그/웹사이트" className="flex-1 text-[#EBEBEB] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
               </>
             ) : (
               <>
-                {data.phone && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">phone</span> <span className="text-[#EBEBEB]">{data.phone}</span></div>}
-                {data.email && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">email</span> <span className="text-[#EBEBEB]">{data.email}</span></div>}
-                {data.social?.blog && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left">blog</span> <span className="text-[#EBEBEB] hover:text-[#5C7CFA] cursor-pointer">{data.social.blog}</span></div>}
+                {data.phone && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH value="phone" sectionKey="contactPhoneLabel" /></span> <span className="text-[#EBEBEB]">{data.phone}</span></div>}
+                {data.email && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH value="email" sectionKey="contactEmailLabel" /></span> <span className="text-[#EBEBEB]">{data.email}</span></div>}
+                {data.social?.blog && <div className="flex w-72 justify-between items-center"><span className="w-16 text-left"><EH value="blog" sectionKey="contactWebsiteLabel" /></span> <span className="text-[#EBEBEB] hover:text-[#5C7CFA] cursor-pointer">{data.social.blog}</span></div>}
               </>
             )}
           </div>}
@@ -2809,22 +3268,26 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             <SectionDeleteBtn ec={ec} sectionKey="projects" dark />
           </div>
           <div className="flex items-center gap-2 mb-6">
-            <span className="bg-[#2F2F2F] text-sm px-3 py-1.5 rounded-md flex items-center gap-2 font-bold text-white"><LayoutGrid className="w-4 h-4"/> Project</span>
+            <span className="bg-[#2F2F2F] text-sm px-3 py-1.5 rounded-md flex items-center gap-2 font-bold text-white"><LayoutGrid className="w-4 h-4"/> <EH ec={ec} value="Project" sectionKey="projectLabel" /></span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projList.map((proj, idx) => (
               <div key={idx} className="bg-[#2A2A2A] rounded-xl shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
-                {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} dark />
                 <div className="p-5 pb-10">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-sm mb-4 text-white block" placeholder="프로젝트명" />
                     : <h4 className="font-bold text-sm mb-4 text-white">{proj.name}</h4>
                   }
                   <p className="text-xs text-[#A0A0A0] mb-2">{proj.period}</p>
-                  {ec
-                    ? <EditText value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-xs text-[#A0A0A0] block" placeholder="설명" />
-                    : <p className="text-xs text-[#A0A0A0] line-clamp-2">{proj.desc}</p>
-                  }
+                  <ExperienceRichText
+                    ec={ec}
+                    exp={proj}
+                    idx={idx}
+                    className="text-xs text-[#A0A0A0] block"
+                    viewClassName="text-xs text-[#A0A0A0] line-clamp-2"
+                    dark
+                  />
                 </div>
                 <div className="bg-[#333333] px-5 py-3 flex items-center gap-2 text-sm font-bold border-t border-[#3A3A3A] group-hover:bg-[#3A3A3A] transition-colors">
                   <FileText className="w-4 h-4 text-white"/> {proj.tag || 'Project'}
@@ -2899,6 +3362,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
             {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-600 rounded-lg text-xs text-gray-400 hover:border-[#5C7CFA] hover:text-[#5C7CFA] transition-colors mt-3"><Plus size={12}/> 상장 추가</button>}
           </div></div>)}{/* end awards */}
         </div>{/* end flex col reorderable sections */}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} dark />
       </div>
       {/* 숨겨진 섹션 복원 버튼 (편집 모드) */}
       {ec && hidden.length > 0 && (
@@ -2978,7 +3442,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           <div className="space-y-12 pl-2">
             {projList.map((proj, idx) => (
               <div key={idx} className="border-b border-[#333] pb-8 last:border-0 relative group">
-                {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} dark />
                 {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} dark />}
                 {ec
                   ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="text-lg font-bold text-white mb-4 block" placeholder="프로젝트명" />
@@ -2991,10 +3455,29 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                     <span className="bg-[#2D2D2D] text-[#EB5757] px-1.5 py-0.5 rounded font-mono text-xs">{proj.tag || 'Project'}</span>
                   </div>
                   {ec
-                    ? <EditTextarea value={proj.description || proj.desc || ''} onChange={v => ec.updateArrayItem('experiences', idx, { description: v })} className="text-xs text-[#D4D4D4] ml-14" />
-                    : <ul className="list-disc list-outside ml-14 mt-4 space-y-1.5 text-[#D4D4D4]">
-                        {proj.details?.map((d, i) => <li key={i}>{d}</li>)}
-                      </ul>
+                    ? (
+                      <div className="mt-3 ml-14 rounded-lg bg-white/10 px-3 py-2">
+                        <Suspense fallback={<div className="text-xs text-[#A0A0A0] py-2">에디터 불러오는 중…</div>}>
+                          <YooptaMiniEditor
+                            value={proj.descriptionBlocks || proj.description || proj.desc || ''}
+                            onChange={v => ec.updateArrayItem('experiences', idx, {
+                              descriptionBlocks: v,
+                              description: richValueToPlainText(v),
+                            })}
+                            placeholder="프로젝트 설명을 입력하세요. / 로 블록 추가"
+                            className="text-xs text-[#D4D4D4]"
+                          />
+                        </Suspense>
+                      </div>
+                    )
+                    : richValueHasContent(proj.descriptionBlocks)
+                      ? <div className="ml-14 mt-3"><RichTextRenderer value={proj.descriptionBlocks} dark /></div>
+                      : <ul className="list-disc list-outside ml-14 mt-4 space-y-1.5 text-[#D4D4D4]">
+                          {proj.details?.map((d, i) => <li key={i}>{d}</li>)}
+                          {!proj.details?.length && (proj.description || proj.desc) && (
+                            <li>{proj.description || proj.desc}</li>
+                          )}
+                        </ul>
                   }
                 </div>
               </div>
@@ -3017,9 +3500,9 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
             {projList.map((proj, idx) => (
               <div key={idx} className="bg-[#252525] rounded-xl shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
-                {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('experiences', idx)} />}
+                <ProjectCardActions ec={ec} idx={idx} dark />
                 <div className="w-full h-36 overflow-hidden relative rounded-t-xl">
-                  <ImageUploadSlot src={proj.thumbnailUrl} onUpload={null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
+                  <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
                     <div className={`w-full h-36 ${proj.img || 'bg-blue-50'} flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity`}></div>
                   </ImageUploadSlot>
                   <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} dark />
@@ -3133,16 +3616,16 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
         )}
         {!isHidden8('contact') && <div className="mb-16 group/section" {...dp('contact')}>
           <div className="flex items-center justify-between gap-2 bg-[#1E2A3A] text-[#EBEBEB] p-3 rounded-lg font-bold mb-8 shadow-sm border border-[#2A3A4A]">
-            <span><Mail className="w-4 h-4 text-[#EBEBEB] inline" /> CONTACT</span>
+            <span><EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey="contactHeader" fallback={Mail} className="w-4 h-4 text-[#EBEBEB] inline" /> <EH ec={ec} value="CONTACT" sectionKey="contact" className="text-[#EBEBEB] font-bold" /></span>
             <div className="flex items-center gap-1">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}{ec && <span {...gp('contact')}><GripVertical size={14} /></span>}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>
           </div>
           <div className="space-y-3 pl-2 text-sm">
             {ec ? (
               <>
-                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16">email</span><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16">phone</span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16">github</span><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
-                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16">blog</span><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="블로그/웹사이트" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16"><EH ec={ec} value="email" sectionKey="contactEmailLabel" /></span><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16"><EH ec={ec} value="phone" sectionKey="contactPhoneLabel" /></span><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16"><EH ec={ec} value="github" sectionKey="contactGithubLabel" /></span><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
+                <div className="flex gap-6 items-center"><span className="text-[#A0A0A0] w-16"><EH ec={ec} value="blog" sectionKey="contactWebsiteLabel" /></span><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="블로그/웹사이트" className="flex-1 text-[#D4D4D4] bg-transparent outline-none border-b border-dashed border-[#3A3A3A] focus:border-[#5C7CFA]" /></div>
               </>
             ) : (
               <>
@@ -3155,6 +3638,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           </div>
         </div>}
         </div>{/* end flex col reorderable sections */}
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} dark />
         {ec && (ec.hiddenSections || []).length > 0 && (
           <div className="mt-8 mb-4">
             <div className="border border-dashed border-[#444] rounded-xl p-4">
@@ -3191,4 +3675,18 @@ export default function VisualPortfolioRenderer({ portfolio, ec }) {
   if (templateId === 'visual-7') return <VisualTemplate7 {...props} />;
   if (templateId === 'visual-8') return <VisualTemplate8 {...props} />;
   return null;
+}
+
+function projectImageSrc(project) {
+  return project?.thumbnailUrl || DEFAULT_PROJECT_LOGO;
+}
+
+function ProjectCardActions({ ec, idx, dark = false }) {
+  if (!ec) return null;
+  return (
+    <>
+      <CameraUploadBtn onUpload={f => ec.onUploadExpImage(f, idx)} dark={dark} className="-top-2 right-5" />
+      <RemoveBtn dark={dark} onClick={() => ec.removeFromArray('experiences', idx)} />
+    </>
+  );
 }
