@@ -18,6 +18,7 @@ import {
   buildMetricsResearchPrompt,
   buildInterviewQuestionsPrompt,
   buildDraftAnalysisPrompt,
+  buildEvidenceLabelPrompt,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -888,6 +889,32 @@ export async function researchMarketMetrics(context = {}) {
     portfolioAngles: arr(parsed.portfolioAngles).filter(Boolean),
     limitations: typeof parsed.limitations === 'string' ? parsed.limitations : '',
   };
+}
+
+/**
+ * 근거 라벨 자동 판단 — 각 섹션 본문을 읽고 주장 성격(사실/추정/가정/해석)과 근거 레벨(A~D)을 매핑.
+ * 반환: { intro: { label, level }, ... } (본문이 있는 섹션만)
+ */
+export async function judgeEvidenceLabels(sections = {}) {
+  const hasContent = Object.values(sections || {}).some(v => v && String(v).trim());
+  if (!hasContent) return {};
+  const VALID_LABEL = new Set(['사실', '추정', '가정', '해석']);
+  const VALID_LEVEL = new Set(['A', 'B', 'C', 'D']);
+  try {
+    const prompt = buildEvidenceLabelPrompt(sections);
+    const text = await callProFirst(prompt, 'EvidenceLabels');
+    const parsed = parseJSON(text) || {};
+    const out = {};
+    for (const [key, v] of Object.entries(parsed)) {
+      const label = VALID_LABEL.has(v?.label) ? v.label : null;
+      const level = VALID_LEVEL.has(v?.level) ? v.level : null;
+      if (label || level) out[key] = { label, level };
+    }
+    return out;
+  } catch (err) {
+    console.warn('[EvidenceLabels] AI judgement failed:', err.message);
+    return {};
+  }
 }
 
 /**

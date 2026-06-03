@@ -2,9 +2,12 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
-  GripVertical, CalendarDays, List, Star, ArrowUpDown,
+  GripVertical, CalendarDays, Star, ArrowUpDown,
+  UserRound, RotateCcw, Save,
 } from 'lucide-react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
@@ -144,7 +147,7 @@ function saveFavs(set) {
 }
 
 export default function ExperienceHub() {
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const location = useLocation();
   const tutorialKey = user?.uid ? `experience-flow-tutorial-${user.uid}` : null;
   const forceTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
@@ -382,6 +385,27 @@ export default function ExperienceHub() {
   }, [displayExperiences]);
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
+  const headerSummary = useMemo(() => {
+    if (displayExperiences.length === 0) {
+      return { empty: true, message: '첫 경험을 추가하고 나만의 아카이브를 시작해보세요' };
+    }
+    if (viewMode === 'timeline') {
+      return {
+        count: ganttData?.items.length ?? 0,
+        suffix: `개의 경험이 ${selectedYear}년 타임라인에 표시되어 있어요`,
+      };
+    }
+    if (viewMode === 'profile') {
+      return {
+        count: displayExperiences.length,
+        suffix: '개의 경험이 프로필에 반영되어 있어요',
+      };
+    }
+    return {
+      count: displayExperiences.length,
+      suffix: '개의 경험이 목록에 정리되어 있어요',
+    };
+  }, [displayExperiences.length, ganttData?.items.length, selectedYear, viewMode]);
 
   const experienceTutorialSteps = useMemo(() => [
     {
@@ -399,8 +423,8 @@ export default function ExperienceHub() {
     },
     {
       selector: '[data-tour="experience-view-toggle"]',
-      title: '표 보기를 눌러서 비교해보세요',
-      body: '타임라인에서 기간을 확인했다면 표 보기로 바꿔보세요. 키워드와 성과를 한 줄씩 비교하기 좋아집니다.',
+      title: '프로필 보기를 눌러서 나를 한눈에 정리해보세요',
+      body: '타임라인에서 기간을 확인했다면 프로필 보기로 바꿔보세요. 한 문장 소개, 대표 역량, 기술 스택, 커리어 요약이 자동으로 정리됩니다.',
       onEnter: () => setViewMode('timeline'),
     },
     {
@@ -462,9 +486,9 @@ export default function ExperienceHub() {
           <div>
             <h1 className="text-[34px] font-extrabold text-gray-900 tracking-[-0.03em] leading-tight">경험 정리</h1>
             <p className="text-[16px] text-gray-500 mt-2 font-medium">
-              {displayExperiences.length > 0
-                ? <><span className="text-primary-600 font-bold text-[18px]">{displayExperiences.length}</span>개의 경험이 타임라인에 쌓여있어요</>
-                : '첫 경험을 추가하고 나만의 아카이브를 시작해보세요'}
+              {headerSummary.empty
+                ? headerSummary.message
+                : <><span className="text-primary-600 font-bold text-[18px]">{headerSummary.count}</span>{headerSummary.suffix}</>}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -539,14 +563,14 @@ export default function ExperienceHub() {
             </button>
             <button
               onClick={() => {
-                setViewMode('table');
+                setViewMode('profile');
                 if (tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
               }}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all ${
-                viewMode === 'table' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
+                viewMode === 'profile' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
               }`}
             >
-              <List size={13} />표
+              <UserRound size={13} />프로필
             </button>
           </div>
         </div>
@@ -592,6 +616,9 @@ export default function ExperienceHub() {
                     )}
                   </div>
                   <span className="text-[15px] font-bold text-bluewood-700">경험 타임라인</span>
+                  <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
+                    {ganttData.items.length}개
+                  </span>
                 </div>
                 {/* 팔레트 선택 */}
                 <div className="flex items-center gap-1.5">
@@ -936,6 +963,11 @@ export default function ExperienceHub() {
               </div>
             </div>
           )}
+
+          {/* ═══ 프로필 (나를 한눈에) ═══ */}
+          {viewMode === 'profile' && (
+            <ProfileView experiences={sortedExperiences} user={user} profile={profile} />
+          )}
         </>
       )}
 
@@ -1045,6 +1077,269 @@ export default function ExperienceHub() {
       })()}
     </div>
     </>
+  );
+}
+
+/* ── 전체 경험에서 프로필 초안 자동 생성 (블로그 기법: 한 문장 + 역량 3키워드 + 기술 집계) ── */
+function buildProfileDraft(experiences = []) {
+  const skillCount = new Map();
+  const kwCount = new Map();
+  const kwProjects = new Map(); // 키워드 → 등장한 프로젝트 제목 Set
+  let firstRole = '';
+
+  experiences.forEach(exp => {
+    const ov = exp.structuredResult?.projectOverview || {};
+    if (!firstRole && ov.role) firstRole = stripMd(ov.role).split(/[,/·]/)[0].trim();
+    const stack = Array.isArray(ov.techStack) ? ov.techStack : [];
+    const skills = Array.isArray(exp.skills) ? exp.skills : [];
+    [...stack, ...skills].forEach(s => {
+      const k = String(s).trim();
+      if (k) skillCount.set(k, (skillCount.get(k) || 0) + 1);
+    });
+    const kws = exp.keywords || exp.structuredResult?.keywords || [];
+    kws.forEach(s => {
+      const k = String(s).trim();
+      if (!k) return;
+      kwCount.set(k, (kwCount.get(k) || 0) + 1);
+      if (!kwProjects.has(k)) kwProjects.set(k, new Set());
+      kwProjects.get(k).add(stripMd(exp.title || ''));
+    });
+  });
+
+  const skills = [...skillCount.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+  const topKw = [...kwCount.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  const competencies = topKw.slice(0, 3).map(keyword => {
+    const projs = [...(kwProjects.get(keyword) || [])].filter(Boolean).slice(0, 2);
+    return { keyword, definition: projs.length ? `${projs.join(', ')} 등에서 발휘한 역량` : '' };
+  });
+  const oneLiner = topKw.length
+    ? `${topKw.slice(0, 2).join('·')}${firstRole ? ` · ${firstRole}` : ''}로 ${experiences.length}개의 경험을 쌓아온 사람`
+    : '';
+
+  return { oneLiner, competencies, skills };
+}
+
+function SectionLabel({ children }) {
+  return <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-gray-400">{children}</p>;
+}
+
+function ProfileView({ experiences, user, profile }) {
+  const navigate = useNavigate();
+  const uid = user?.uid;
+  const draft = useMemo(() => buildProfileDraft(experiences), [experiences]);
+  const [saved, setSaved] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [form, setForm] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  // 저장된 프로필 로드
+  useEffect(() => {
+    if (!uid) { setLoaded(true); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'profiles', uid));
+        if (alive) setSaved(snap.exists() ? (snap.data().careerProfile || null) : null);
+      } catch { /* 무시 — 초안으로 시작 */ }
+      if (alive) setLoaded(true);
+    })();
+    return () => { alive = false; };
+  }, [uid]);
+
+  // 로드 완료 후 편집 폼 초기화 (저장본 우선, 없으면 초안)
+  useEffect(() => {
+    if (!loaded || form) return;
+    setForm({
+      oneLiner: saved?.oneLiner ?? draft.oneLiner,
+      competencies: (saved?.competencies?.length ? saved.competencies : draft.competencies).slice(0, 3),
+    });
+  }, [loaded, form, saved, draft]);
+
+  const updateOneLiner = (v) => { setForm(f => ({ ...f, oneLiner: v })); setDirty(true); };
+  const updateComp = (i, field, v) => {
+    setForm(f => ({ ...f, competencies: f.competencies.map((c, idx) => idx === i ? { ...c, [field]: v } : c) }));
+    setDirty(true);
+  };
+  const resetToDraft = () => {
+    setForm({ oneLiner: draft.oneLiner, competencies: draft.competencies.slice(0, 3) });
+    setDirty(true);
+  };
+  const save = async () => {
+    if (!uid) { toast.error('로그인이 필요합니다'); return; }
+    setSaving(true);
+    try {
+      const careerProfile = { oneLiner: form.oneLiner || '', competencies: form.competencies || [], updatedAt: new Date().toISOString() };
+      // profiles 보안 규칙: request.resource.data.uid == userId 필요 → uid 동봉
+      await setDoc(doc(db, 'profiles', uid), { uid, careerProfile }, { merge: true });
+      setSaved(careerProfile);
+      setDirty(false);
+      setEditing(false);
+      toast.success('프로필이 저장되었습니다');
+    } catch {
+      toast.error('저장에 실패했습니다');
+    }
+    setSaving(false);
+  };
+
+  const careerItems = useMemo(
+    () => [...experiences].map(exp => ({ exp, ...parsePeriod(exp) })).sort((a, b) => b.start - a.start),
+    [experiences],
+  );
+
+  if (!form) {
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" /></div>;
+  }
+
+  const name = profile?.nameKo || user?.displayName || '이름';
+  const email = user?.email || profile?.email || '';
+  const competencies = form.competencies || [];
+  const maxSkill = draft.skills[0]?.count || 1;
+  const topSkills = draft.skills.slice(0, 10);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-8 py-10 sm:px-12 sm:py-12">
+      {/* ── 헤더: Resume + 이름 + 한 문장 ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.22em] text-gray-300">Resume</p>
+          <h2 className="mt-1.5 text-[40px] sm:text-[52px] font-extrabold leading-none tracking-tight text-gray-900">{name}</h2>
+        </div>
+        {/* 편집 도구 */}
+        {editing ? (
+          <div className="flex flex-shrink-0 items-center gap-1.5">
+            <button onClick={resetToDraft} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors" title="자동 초안으로 다시 채우기">
+              <RotateCcw size={12} /> 초안
+            </button>
+            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm hover:bg-primary-700 disabled:opacity-40 transition-colors">
+              {saving ? <span className="h-3 w-3 animate-spin rounded-full border-b-2 border-white" /> : <Save size={12} />} 저장
+            </button>
+            <button onClick={() => setEditing(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="편집 닫기">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setEditing(true)} className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
+            <Pencil size={12} /> 편집
+          </button>
+        )}
+      </div>
+
+      {/* 한 문장 (태그라인) */}
+      {editing ? (
+        <textarea
+          rows={2}
+          value={form.oneLiner}
+          onChange={e => updateOneLiner(e.target.value)}
+          placeholder="나를 표현하는 한 문장 (예: 사용자 문제를 데이터로 정의하고 빠르게 검증하는 디자이너)"
+          className="mt-4 w-full resize-none border-b border-dashed border-gray-200 bg-transparent pb-2 text-[16px] leading-relaxed text-gray-600 outline-none transition-colors placeholder:text-gray-300 focus:border-primary-300"
+          style={{ wordBreak: 'keep-all' }}
+        />
+      ) : (
+        form.oneLiner && <p className="mt-4 max-w-[640px] text-[16px] leading-relaxed text-gray-500" style={{ wordBreak: 'keep-all' }}>{form.oneLiner}</p>
+      )}
+
+      {/* ── 3단 컬럼 ── */}
+      <div className="mt-12 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)_minmax(0,1.15fr)]">
+        {/* 좌: 연락처 + 역량 */}
+        <div className="space-y-9">
+          {email && (
+            <div>
+              <SectionLabel>CONTACT</SectionLabel>
+              <p className="mt-3 text-[14px] text-gray-700 break-all">{email}</p>
+            </div>
+          )}
+
+          <div>
+            <SectionLabel>STRENGTHS</SectionLabel>
+            <div className="mt-4 space-y-5">
+              {competencies.length === 0 && (
+                <p className="text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 키워드가 쌓이면 대표 역량이 자동으로 제안됩니다.</p>
+              )}
+              {competencies.map((c, i) => (
+                editing ? (
+                  <div key={i} className="space-y-1.5">
+                    <input
+                      value={c.keyword}
+                      onChange={e => updateComp(i, 'keyword', e.target.value)}
+                      placeholder={`역량 ${i + 1}`}
+                      className="w-full border-b border-dashed border-gray-200 bg-transparent pb-1 text-[15px] font-extrabold text-gray-900 outline-none placeholder:text-gray-300 focus:border-primary-300"
+                    />
+                    <textarea
+                      rows={2}
+                      value={c.definition}
+                      onChange={e => updateComp(i, 'definition', e.target.value)}
+                      placeholder="이 역량을 어떻게 발휘했는지 한 줄로"
+                      className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-gray-500 outline-none placeholder:text-gray-300"
+                      style={{ wordBreak: 'keep-all' }}
+                    />
+                  </div>
+                ) : (
+                  (c.keyword || c.definition) && (
+                    <div key={i}>
+                      {c.keyword && <p className="text-[15px] font-extrabold text-gray-900">{c.keyword}</p>}
+                      {c.definition && <p className="mt-0.5 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{c.definition}</p>}
+                    </div>
+                  )
+                )
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 중: TOOLS (사용 빈도 막대) */}
+        <div>
+          <SectionLabel>TOOLS</SectionLabel>
+          {topSkills.length > 0 ? (
+            <div className="mt-4 space-y-4">
+              {topSkills.map(({ name: skill, count }) => (
+                <div key={skill}>
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <span className="text-[13.5px] font-semibold text-gray-700">{skill}</span>
+                    <span className="text-[11px] text-gray-300 tabular-nums">프로젝트 {count}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-gray-100">
+                    <div className="h-1.5 rounded-full bg-gray-900" style={{ width: `${Math.max(8, Math.round((count / maxSkill) * 100))}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 기술 스택을 추가하면 여기에 모여요.</p>
+          )}
+        </div>
+
+        {/* 우: PROJECTS */}
+        <div>
+          <SectionLabel>PROJECTS</SectionLabel>
+          <div className="mt-4 space-y-6">
+            {careerItems.map(({ exp, start, end }) => {
+              const ov = exp.structuredResult?.projectOverview || {};
+              const ke = exp.structuredResult?.keyExperiences?.[0] || {};
+              const desc = stripMd(ov.summary || exp.structuredResult?.intro || ke.title || '');
+              const yr = start.getFullYear() === end.getFullYear()
+                ? `${start.getFullYear()}`
+                : `${start.getFullYear()} - ${end.getFullYear()}`;
+              return (
+                <button
+                  key={exp.id}
+                  type="button"
+                  onClick={() => navigate(`/app/experience/result/${exp.id}`)}
+                  className="group block w-full text-left -mx-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-[15px] font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors" style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
+                    <span className="flex-shrink-0 text-[12px] text-gray-300 tabular-nums">{yr}</span>
+                  </div>
+                  {desc && <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{desc}</p>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
