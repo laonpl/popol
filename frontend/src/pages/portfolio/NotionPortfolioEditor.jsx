@@ -4494,6 +4494,26 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLabel = '행 추가' }) {
   const [draggingColumn, setDraggingColumn] = useState(null);
   const [draggingRow, setDraggingRow] = useState(null);
+  const scrollRef = useRef(null);
+  // 마우스로 좌우 드래그해서 넘쳐난 표를 스크롤한다. (입력·버튼·재정렬 핸들은 제외)
+  const handlePanStart = (event) => {
+    const el = scrollRef.current;
+    if (!el || event.button !== 0) return;
+    if (event.target.closest('input, textarea, select, button, [draggable="true"]')) return;
+    if (el.scrollWidth <= el.clientWidth) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startScroll = el.scrollLeft;
+    el.style.cursor = 'grabbing';
+    const onMove = (moveEvent) => { el.scrollLeft = startScroll - (moveEvent.clientX - startX); };
+    const onUp = () => {
+      el.style.cursor = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const moveItem = (items, fromIndex, toIndex) => {
     if (fromIndex === toIndex) return items;
     const next = [...items];
@@ -4528,7 +4548,7 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
   const clearCell = (rowIndex, key) => updateCell(rowIndex, key, '');
 
   return (
-    <div className="editable-data-table group/table mb-4 overflow-x-auto">
+    <div ref={scrollRef} onMouseDown={handlePanStart} className="editable-data-table group/table mb-4 overflow-x-auto">
       <table className="w-full min-w-[520px] text-sm border-collapse mb-2">
         <thead>
           <tr className="bg-surface-50/70">
@@ -4930,7 +4950,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           setContentBlockDragging(null);
           setContentBlockDropTarget(null);
         }}
-        className={`group/content-block relative transition-all ${contentBlockDragging === dragKey ? 'opacity-40' : ''} ${contentBlockDropTarget === dragKey && contentBlockDragging !== dragKey ? 'bg-primary-50/30' : ''}`}
+        className={`group/content-block relative min-w-0 transition-all ${contentBlockDragging === dragKey ? 'opacity-40' : ''} ${contentBlockDropTarget === dragKey && contentBlockDragging !== dragKey ? 'bg-primary-50/30' : ''}`}
       >
         <span
           draggable
@@ -4944,7 +4964,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             setContentBlockDragging(null);
             setContentBlockDropTarget(null);
           }}
-          className="absolute -left-6 top-1 inline-flex cursor-grab text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/content-block:opacity-100"
+          className="absolute -left-6 top-1 inline-flex cursor-grab rounded p-0.5 text-gray-300 opacity-40 transition-opacity hover:bg-primary-50 hover:text-primary-500 group-hover/content-block:opacity-100"
           title="본문 블록 드래그 이동"
         >
           <GripVertical size={14} />
@@ -5642,7 +5662,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(extra.details || []).map((d, i) => (
               <div key={i} className="relative py-2 pl-1 group/det">
                 <button onClick={() => { const details = (extra.details||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, details }); }}
-                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/det:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                  className="absolute top-1 right-1 rounded p-1 text-gray-300 opacity-40 transition-opacity hover:bg-red-50 hover:text-red-400 group-hover/det:opacity-100" title="삭제"><Trash2 size={15} /></button>
                 <div className="flex items-center gap-2 mb-1">
                   <input value={d.title || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], title: e.target.value }; update('extracurricular', { ...extra, details }); }}
                     placeholder="활동명" className="text-sm font-bold text-gray-800 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
@@ -5715,7 +5735,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(p.goals || []).map((g, i) => (
               <div key={i} className="relative group/goal border-b border-surface-100 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
-                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/goal:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                  className="absolute top-1 right-1 rounded p-1 text-gray-300 opacity-40 transition-opacity hover:bg-red-50 hover:text-red-400 group-hover/goal:opacity-100" title="삭제"><Trash2 size={15} /></button>
                 <div className="flex items-center gap-2 mb-1">
                   <select value={g.type || 'short'} onChange={e => updateArrayItem('goals', i, { type: e.target.value })}
                     className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 outline-none border-none cursor-pointer">
@@ -5909,8 +5929,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           )}
                         </div>
                         <button onClick={ev => { ev.stopPropagation(); removeCard(ci); }}
-                          className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity">
-                          <Trash2 size={12} />
+                          className="absolute top-1.5 right-1.5 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity" title="삭제">
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     ))}

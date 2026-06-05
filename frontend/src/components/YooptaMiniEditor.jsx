@@ -131,12 +131,19 @@ function CornerResizableImageElement(props) {
     const syncFrame = () => {
       const wrapperRect = wrapper.getBoundingClientRect();
       const imageRect = image.getBoundingClientRect();
-      setFrame({
+      const next = {
         left: imageRect.left - wrapperRect.left,
         top: imageRect.top - wrapperRect.top,
         width: imageRect.width,
         height: imageRect.height,
-      });
+      };
+      // 값이 실질적으로 같으면 setState를 생략해 ResizeObserver 무한 루프를 막는다.
+      setFrame(prev => (prev
+        && Math.abs(prev.left - next.left) < 0.5
+        && Math.abs(prev.top - next.top) < 0.5
+        && Math.abs(prev.width - next.width) < 0.5
+        && Math.abs(prev.height - next.height) < 0.5)
+        ? prev : next);
     };
     const normalizeAspectRatio = () => {
       if (!image.naturalWidth || !image.naturalHeight) return;
@@ -167,8 +174,7 @@ function CornerResizableImageElement(props) {
     event.stopPropagation();
     const wrapper = wrapperRef.current;
     const image = wrapper?.querySelector('img');
-    const resizeTarget = image?.parentElement;
-    if (!wrapper || !image || !resizeTarget) return;
+    if (!wrapper || !image) return;
     const startX = event.clientX;
     const startWidth = image.offsetWidth;
     const startHeight = image.offsetHeight;
@@ -177,8 +183,8 @@ function CornerResizableImageElement(props) {
       const width = Math.max(100, Math.min(wrapper.offsetWidth, startWidth + ((moveEvent.clientX - startX) * direction)));
       const height = Math.round(width * startHeight / startWidth);
       nextSizes = { width: Math.round(width), height };
-      resizeTarget.style.width = `${nextSizes.width}px`;
-      resizeTarget.style.height = `${nextSizes.height}px`;
+      // 폭만 CSS 변수로 제어하고 높이는 auto(원본 비율)로 둔다. shadcn 내부 크기와 충돌하지 않는다.
+      wrapper.style.setProperty('--fp-img-w', `${nextSizes.width}px`);
       setFrame(current => current ? { ...current, width: nextSizes.width, height: nextSizes.height } : current);
     };
     const onUp = () => {
@@ -187,6 +193,10 @@ function CornerResizableImageElement(props) {
         type: 'image',
         props: { ...element.props, sizes: nextSizes },
       });
+      // 크기 변경을 래퍼가 onChange로 발행하도록 알림 (발행 누락 시 재렌더에서 원본 크기로 되돌아가는 문제 방지)
+      window.dispatchEvent(new CustomEvent('fitpoly:yoopta-editor-touched', {
+        detail: { editorId: editorInstanceId },
+      }));
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -198,6 +208,7 @@ function CornerResizableImageElement(props) {
     <div
       ref={wrapperRef}
       className="yoopta-corner-image group/corner-image relative"
+      style={element.props.sizes?.width ? { '--fp-img-w': `${element.props.sizes.width}px` } : undefined}
       draggable
       onDragStart={event => {
         if (!element?.props?.src) {
@@ -229,6 +240,12 @@ function CornerResizableImageElement(props) {
         }
         .yoopta-corner-image .h-10.w-1\\.5.rounded-full {
           display: none !important;
+        }
+        /* 저장된 폭(CSS 변수)으로 이미지 크기를 결정하고 높이는 비율 유지. shadcn 내부 크기를 덮어쓴다. */
+        .yoopta-corner-image img {
+          width: var(--fp-img-w, auto) !important;
+          height: auto !important;
+          max-width: 100% !important;
         }
       `}</style>
       <ShadcnImageElement {...props} />
@@ -563,11 +580,24 @@ export default function YooptaMiniEditor({
     const onMoved = (event) => {
       const detail = event.detail || {};
       if (detail.editorId !== editorInstanceIdRef.current || !detail.blockId) return;
-      if (!deleteYooptaBlockById(editor, detail.blockId)) return;
-      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+      // 드롭 이벤트/커밋 사이클 밖에서 삭제한다. 선택된 이미지의 floating 툴바(@floating-ui)가
+      // 언마운트되며 ref detach 중 setState를 호출해 무한 업데이트가 나는 것을 막는다.
+      setTimeout(() => {
+        if (!deleteYooptaBlockById(editor, detail.blockId)) return;
+        handleEditorChange(editor.getEditorValue(), { immediate: true });
+      }, 0);
     };
     window.addEventListener('fitpoly:yoopta-image-moved', onMoved);
     return () => window.removeEventListener('fitpoly:yoopta-image-moved', onMoved);
+  }, [editor, handleEditorChange]);
+
+  useEffect(() => {
+    const onTouched = (event) => {
+      if (event.detail?.editorId !== editorInstanceIdRef.current) return;
+      handleEditorChange(editor.getEditorValue(), { immediate: true });
+    };
+    window.addEventListener('fitpoly:yoopta-editor-touched', onTouched);
+    return () => window.removeEventListener('fitpoly:yoopta-editor-touched', onTouched);
   }, [editor, handleEditorChange]);
 
   useEffect(() => {
@@ -644,6 +674,10 @@ export default function YooptaMiniEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
+            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              return;
+            }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
               if (payload.source === 'yoopta' && payload.sourceEditorId && payload.sourceEditorId !== editorInstanceIdRef.current) {
                 window.dispatchEvent(new CustomEvent('fitpoly:yoopta-image-moved', {
@@ -805,11 +839,24 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     const onMoved = (event) => {
       const detail = event.detail || {};
       if (detail.editorId !== editorInstanceIdRef.current || !detail.blockId) return;
-      if (!deleteYooptaBlockById(editor, detail.blockId)) return;
-      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+      // 드롭 이벤트/커밋 사이클 밖에서 삭제한다. 선택된 이미지의 floating 툴바(@floating-ui)가
+      // 언마운트되며 ref detach 중 setState를 호출해 무한 업데이트가 나는 것을 막는다.
+      setTimeout(() => {
+        if (!deleteYooptaBlockById(editor, detail.blockId)) return;
+        handleEditorChange(editor.getEditorValue(), { immediate: true });
+      }, 0);
     };
     window.addEventListener('fitpoly:yoopta-image-moved', onMoved);
     return () => window.removeEventListener('fitpoly:yoopta-image-moved', onMoved);
+  }, [editor, handleEditorChange]);
+
+  useEffect(() => {
+    const onTouched = (event) => {
+      if (event.detail?.editorId !== editorInstanceIdRef.current) return;
+      handleEditorChange(editor.getEditorValue(), { immediate: true });
+    };
+    window.addEventListener('fitpoly:yoopta-editor-touched', onTouched);
+    return () => window.removeEventListener('fitpoly:yoopta-editor-touched', onTouched);
   }, [editor, handleEditorChange]);
 
   // 외부 value 변경 동기화 (읽기전용 뷰에서 다른 프로젝트로 전환 시 중요)
@@ -917,6 +964,10 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
+            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              return;
+            }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
               if (payload.source === 'yoopta' && payload.sourceEditorId && payload.sourceEditorId !== editorInstanceIdRef.current) {
                 window.dispatchEvent(new CustomEvent('fitpoly:yoopta-image-moved', {
