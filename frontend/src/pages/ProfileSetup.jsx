@@ -456,6 +456,117 @@ export default function ProfileSetup() {
     <div className={`rounded-2xl border border-surface-200 bg-white p-6 ${className}`}>{children}</div>
   );
 
+  const renderAdditionalSection = (key) => {
+    switch (key) {
+      case 'awards':
+        return (
+          <Card key={key}>
+            <Section title="수상" optional first onRemove={() => deactivateSection('awards')}>
+              <RepeatableRows items={form.awards} onChange={items => update('awards', items)} addLabel="수상 추가" cols={2}
+                fields={[
+                  { key: 'title', label: '수상명', placeholder: '공모전 대상' },
+                  { key: 'date', label: '날짜', placeholder: '2024.06' },
+                  { key: 'organization', label: '기관', placeholder: '주최 기관' },
+                  { key: 'description', label: '설명', placeholder: '간단한 설명', full: true },
+                ]} />
+            </Section>
+          </Card>
+        );
+      case 'goals':
+        return (
+          <Card key={key}>
+            <Section title="목표와 계획" optional first onRemove={() => deactivateSection('goals')}>
+              <RepeatableRows items={form.goals} onChange={items => update('goals', items)} addLabel="목표 추가" cols={1}
+                fields={[
+                  { key: 'title', label: '목표', placeholder: '예: 3년 안에 프로젝트 매니저로 성장' },
+                  { key: 'description', label: '상세 계획', placeholder: '구체적인 실행 계획을 적어주세요', textarea: true, full: true },
+                ]} />
+            </Section>
+          </Card>
+        );
+      case 'values':
+        return (
+          <Card key={key}>
+            <Section title="가치관" optional first onRemove={() => deactivateSection('values')}>
+              <p className="mb-2 text-[13px] font-semibold text-bluewood-600">중요하게 생각하는 가치</p>
+              <RepeatableRows items={form.values} onChange={items => update('values', items)} addLabel="가치 추가" cols={1}
+                fields={[{ key: 'keyword', label: '가치 키워드', placeholder: '예: 성장, 책임감, 협업' }]} />
+              <div className="mt-4">
+                <Label>경험과 연결되는 이야기</Label>
+                <textarea value={form.valuesEssay} onChange={e => update('valuesEssay', e.target.value)}
+                  placeholder="가치관을 보여준 경험을 자유롭게 적어주세요" rows={3} className={INPUT_CLS} />
+              </div>
+            </Section>
+          </Card>
+        );
+      case 'contact':
+        return (
+          <Card key={key}>
+            <Section title="연락처" optional first onRemove={() => deactivateSection('contact')}>
+              <p className="mb-3 text-[13px] text-bluewood-400">전화번호와 이메일은 기본 정보에서 가져옵니다. 추가 링크만 입력해주세요.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="LinkedIn" value={form.contact.linkedin} onChange={v => update('contact', { ...form.contact, linkedin: v })} placeholder="linkedin.com/in/..." maxLength={150} />
+                <Field label="GitHub" value={form.contact.github} onChange={v => update('contact', { ...form.contact, github: v })} placeholder="github.com/..." maxLength={150} />
+                <Field label="Instagram" value={form.contact.instagram} onChange={v => update('contact', { ...form.contact, instagram: v })} placeholder="@username" maxLength={100} />
+                <Field label="웹사이트" value={form.contact.website} onChange={v => update('contact', { ...form.contact, website: v })} placeholder="https://..." maxLength={150} />
+              </div>
+            </Section>
+          </Card>
+        );
+      case 'curricular':
+        return (
+          <Card key={key}>
+            <Section title="교과 활동" optional first onRemove={() => deactivateSection('curricular')}>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <Field label="이수 학점" value={form.curricular.credits} onChange={v => update('curricular', { ...form.curricular, credits: v })} placeholder="120" maxLength={10} />
+                <Field label="평점 평균" value={form.curricular.gpa} onChange={v => update('curricular', { ...form.curricular, gpa: v })} placeholder="4.0 / 4.5" maxLength={10} />
+              </div>
+              <p className="mb-2 text-[13px] font-semibold text-bluewood-600">수강 과목</p>
+              <RepeatableRows items={form.curricular.courses} onChange={items => updateNestedArr('curricular', 'courses', items)} addLabel="과목 추가" cols={1}
+                fields={[
+                  { key: 'semester', label: '학기', placeholder: '2023-1' },
+                  { key: 'name', label: '과목명', placeholder: '자료구조' },
+                  { key: 'grade', label: '성적', placeholder: 'A+' },
+                ]} />
+            </Section>
+          </Card>
+        );
+      case 'extracurricular':
+        return (
+          <Card key={key}>
+            <Section title="비교과 활동" optional first onRemove={() => deactivateSection('extracurricular')}>
+              <div className="mb-4">
+                <Label>요약</Label>
+                <textarea value={form.extracurricular.summary} onChange={e => update('extracurricular', { ...form.extracurricular, summary: e.target.value })}
+                  placeholder="비교과 활동을 한 줄로 요약해주세요" rows={2} className={INPUT_CLS} />
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <p className="mb-2 text-[13px] font-semibold text-bluewood-600">디지털 배지 / 자격</p>
+                  <RepeatableRows items={form.extracurricular.badges} onChange={items => updateNestedArr('extracurricular', 'badges', items)} addLabel="배지 추가" cols={1}
+                    fields={[
+                      { key: 'name', label: '배지명 또는 자격명', placeholder: '정보처리기사' },
+                      { key: 'issuer', label: '발급 기관', placeholder: '한국산업인력공단' },
+                    ]} />
+                </div>
+                <div>
+                  <p className="mb-2 text-[13px] font-semibold text-bluewood-600">세부 활동</p>
+                  <RepeatableRows items={form.extracurricular.details} onChange={items => updateNestedArr('extracurricular', 'details', items)} addLabel="활동 추가" cols={1}
+                    fields={[
+                      { key: 'title', label: '활동명', placeholder: '동아리 회장' },
+                      { key: 'period', label: '기간', placeholder: '2023.03 - 2024.02' },
+                      { key: 'description', label: '설명', placeholder: '활동 내용', full: true },
+                    ]} />
+                </div>
+              </div>
+            </Section>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-surface-50/40 py-10 px-5">
       <div className="mx-auto max-w-6xl">
@@ -608,6 +719,8 @@ export default function ProfileSetup() {
             </Section>
           </Card>
 
+          {activeSections.map(renderAdditionalSection)}
+
           {/* ── 섹션 추가 (어학 성적 아래 빈 공간 채움) ── */}
           {ADDABLE_SECTIONS.some(s => !activeSections.includes(s.key)) && (
             <div className="rounded-2xl border border-surface-200 bg-white p-6">
@@ -645,7 +758,7 @@ export default function ProfileSetup() {
         </div>
 
         {/* ── 추가 섹션 (2열 그리드) ── */}
-        {activeSections.length > 0 && (
+        {false && activeSections.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {activeSections.includes('awards') && (
               <Card>

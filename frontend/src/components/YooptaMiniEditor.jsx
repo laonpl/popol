@@ -33,7 +33,7 @@ import { DividerUI } from '@yoopta/themes-shadcn/divider';
 import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
 import '@yoopta/themes-shadcn/variables.css';
-import { Bold as BoldIcon, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
+import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
 import { insertYooptaBlocks } from '../utils/projectSections';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
@@ -41,6 +41,78 @@ export const CUSTOM_PALETTE_DRAG_TYPE = 'application/x-fitpoly-palette';
 
 const YooptaMiniEditorIdContext = createContext(null);
 let activeYooptaImageDrag = null;
+
+function openYooptaContextMenu(event, items) {
+  if (!items?.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.dispatchEvent(new CustomEvent('fitpoly:open-context-menu', {
+    detail: { x: event.clientX, y: event.clientY, items },
+  }));
+}
+
+const YOOPTA_TEXT_MARKS = ['bold', 'italic', 'underline', 'strike', 'code', 'highlight'];
+const YOOPTA_BLOCK_ELEMENT_TYPES = {
+  Paragraph: 'paragraph',
+  HeadingOne: 'heading-one',
+  HeadingTwo: 'heading-two',
+  HeadingThree: 'heading-three',
+  BulletedList: 'bulleted-list',
+  NumberedList: 'numbered-list',
+  TodoList: 'todo-list',
+};
+const YOOPTA_TEXT_BLOCK_TYPES = new Set(Object.keys(YOOPTA_BLOCK_ELEMENT_TYPES));
+
+function mapYooptaTextLeaves(node, mapper) {
+  if (Array.isArray(node)) return node.map(item => mapYooptaTextLeaves(item, mapper));
+  if (!node || typeof node !== 'object') return node;
+  if (typeof node.text === 'string') return mapper(node);
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, mapYooptaTextLeaves(value, mapper)]),
+  );
+}
+
+function hasYooptaTextMark(node, mark) {
+  if (Array.isArray(node)) return node.some(item => hasYooptaTextMark(item, mark));
+  if (!node || typeof node !== 'object') return false;
+  if (typeof node.text === 'string') return !!node[mark];
+  return Object.values(node).some(value => hasYooptaTextMark(value, mark));
+}
+
+function updateYooptaWholeTextMark(value, mark) {
+  const isActive = hasYooptaTextMark(value, mark);
+  return mapYooptaTextLeaves(value, leaf => {
+    const next = { ...leaf };
+    if (isActive) {
+      delete next[mark];
+      return next;
+    }
+    next[mark] = mark === 'highlight' ? { backgroundColor: '#fef08a' } : true;
+    return next;
+  });
+}
+
+function clearYooptaWholeTextMarks(value) {
+  return mapYooptaTextLeaves(value, leaf => {
+    const next = { ...leaf };
+    YOOPTA_TEXT_MARKS.forEach(mark => delete next[mark]);
+    return next;
+  });
+}
+
+function updateYooptaWholeBlockType(value, type) {
+  const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
+  if (!elementType) return value;
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type)) return [blockId, block];
+      const nextValue = Array.isArray(block.value)
+        ? block.value.map(element => ({ ...element, type: elementType }))
+        : block.value;
+      return [blockId, { ...block, type, value: nextValue }];
+    }),
+  );
+}
 
 function deleteYooptaBlockById(editor, blockId) {
   const value = editor.getEditorValue();
@@ -645,11 +717,75 @@ export default function YooptaMiniEditor({
     })));
     return insertImageSources(images);
   };
+  const commitContextAction = (action) => {
+    action();
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    editor.setEditorValue(nextValue);
+    handleEditorChange(nextValue, { immediate: true });
+  };
+  const toggleContextTextMark = (type, selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.toggle(editor, { type }));
+      return;
+    }
+    commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
+  };
+  const clearContextTextMarks = (selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.clear(editor));
+      return;
+    }
+    commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
+  };
+  const setWholeContextBlockType = (type) => {
+    commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const openEditorContextMenu = (event) => {
+    if (event.target.closest('button, select, input, textarea, label')) return;
+    const current = Selection.getCurrent(editor);
+    const block = current != null ? editor.getBlock({ at: current }) : null;
+    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    openYooptaContextMenu(event, [
+      { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
+      { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
+      { label: '밑줄', icon: UnderlineIcon, onClick: () => toggleContextTextMark('underline', selectedText) },
+      { label: '취소선', icon: Strikethrough, onClick: () => toggleContextTextMark('strike', selectedText) },
+      { label: '코드', icon: CodeIcon, onClick: () => toggleContextTextMark('code', selectedText) },
+      {
+        label: '강조',
+        icon: Highlighter,
+        onClick: () => selectedText
+          ? commitContextAction(() => {
+              if (Marks.isActive(editor, { type: 'highlight' })) Marks.remove(editor, { type: 'highlight' });
+              else Marks.update(editor, { type: 'highlight', value: { backgroundColor: '#fef08a' } });
+            })
+          : toggleContextTextMark('highlight', selectedText),
+      },
+      { label: '서식 지우기', icon: Eraser, onClick: () => clearContextTextMarks(selectedText) },
+      ...(!selectedText ? [
+        { label: '문단', icon: Eraser, onClick: () => setWholeContextBlockType('Paragraph') },
+        { label: '제목 1', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingOne') },
+        { label: '제목 2', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingTwo') },
+        { label: '제목 3', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingThree') },
+        { label: '글머리 목록', icon: Check, onClick: () => setWholeContextBlockType('BulletedList') },
+        { label: '번호 목록', icon: Check, onClick: () => setWholeContextBlockType('NumberedList') },
+        { label: '할 일 목록', icon: Check, onClick: () => setWholeContextBlockType('TodoList') },
+        { label: '이미지 추가', icon: ImagePlus, onClick: () => imageInputRef.current?.click() },
+        ...(block?.id ? [
+          { label: '복제', icon: ImagePlus, onClick: () => commitContextAction(() => Blocks.duplicateBlock(editor, { blockId: block.id })) },
+          { label: '삭제', icon: Eraser, danger: true, onClick: () => commitContextAction(() => Blocks.deleteBlock(editor, { blockId: block.id })) },
+        ] : []),
+      ] : []),
+    ]);
+  };
 
   return (
     <div
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
       style={{ minHeight: editorMinHeight }}
+      onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
         if (!files.some(file => file.type.startsWith('image/'))) return;
@@ -902,6 +1038,69 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     const images = await Promise.all(imageFiles.map(async file => ({ ...await readImageFile(file), alt: file.name })));
     return insertImageSources(images);
   };
+  const commitContextAction = (action) => {
+    action();
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    editor.setEditorValue(nextValue);
+    handleEditorChange(nextValue, { immediate: true });
+  };
+  const toggleContextTextMark = (type, selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.toggle(editor, { type }));
+      return;
+    }
+    commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
+  };
+  const clearContextTextMarks = (selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.clear(editor));
+      return;
+    }
+    commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
+  };
+  const setWholeContextBlockType = (type) => {
+    commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const openEditorContextMenu = (event) => {
+    if (event.target.closest('button, select, input, textarea, label')) return;
+    const current = Selection.getCurrent(editor);
+    const block = current != null ? editor.getBlock({ at: current }) : null;
+    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    openYooptaContextMenu(event, [
+      { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
+      { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
+      { label: '밑줄', icon: UnderlineIcon, onClick: () => toggleContextTextMark('underline', selectedText) },
+      { label: '취소선', icon: Strikethrough, onClick: () => toggleContextTextMark('strike', selectedText) },
+      { label: '코드', icon: CodeIcon, onClick: () => toggleContextTextMark('code', selectedText) },
+      {
+        label: '강조',
+        icon: Highlighter,
+        onClick: () => selectedText
+          ? commitContextAction(() => {
+              if (Marks.isActive(editor, { type: 'highlight' })) Marks.remove(editor, { type: 'highlight' });
+              else Marks.update(editor, { type: 'highlight', value: { backgroundColor: '#fef08a' } });
+            })
+          : toggleContextTextMark('highlight', selectedText),
+      },
+      { label: '서식 지우기', icon: Eraser, onClick: () => clearContextTextMarks(selectedText) },
+      ...(!selectedText ? [
+        { label: '문단', icon: Eraser, onClick: () => setWholeContextBlockType('Paragraph') },
+        { label: '제목 1', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingOne') },
+        { label: '제목 2', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingTwo') },
+        { label: '제목 3', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingThree') },
+        { label: '글머리 목록', icon: Check, onClick: () => setWholeContextBlockType('BulletedList') },
+        { label: '번호 목록', icon: Check, onClick: () => setWholeContextBlockType('NumberedList') },
+        { label: '할 일 목록', icon: Check, onClick: () => setWholeContextBlockType('TodoList') },
+        { label: '이미지 추가', icon: ImagePlus, onClick: () => imageInputRef.current?.click() },
+        ...(block?.id ? [
+          { label: '복제', icon: ImagePlus, onClick: () => commitContextAction(() => Blocks.duplicateBlock(editor, { blockId: block.id })) },
+          { label: '삭제', icon: Eraser, danger: true, onClick: () => commitContextAction(() => Blocks.deleteBlock(editor, { blockId: block.id })) },
+        ] : []),
+      ] : []),
+    ]);
+  };
 
   const handlePaletteDrop = (event) => {
     const raw = event.dataTransfer?.getData(CUSTOM_PALETTE_DRAG_TYPE);
@@ -939,6 +1138,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   return (
     <div
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
+      onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
         if (!files.some(file => file.type.startsWith('image/'))) return;

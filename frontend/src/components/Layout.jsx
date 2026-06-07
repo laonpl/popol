@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
-import { useEffect } from 'react';
-import { Coins, Settings } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Settings } from 'lucide-react';
 import useCreditStore from '../stores/creditStore';
 
 const navItems = [
@@ -13,6 +13,8 @@ export default function Layout() {
   const { user, profile, signOut } = useAuthStore();
   const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
   const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsMenuRef = useRef(null);
 
   const handleSignOut = async () => {
     await signOut();
@@ -27,6 +29,28 @@ export default function Layout() {
     window.addEventListener('credits:refresh', refreshWallet);
     return () => window.removeEventListener('credits:refresh', refreshWallet);
   }, [loadWallet, refreshWallet]);
+
+  useEffect(() => {
+    if (!settingsOpen) return undefined;
+    const closeOnOutside = (event) => {
+      if (settingsMenuRef.current?.contains(event.target)) return;
+      setSettingsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setSettingsOpen(false);
+    };
+    window.addEventListener('mousedown', closeOnOutside);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutside);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [settingsOpen]);
+
+  const goSettings = (path) => {
+    setSettingsOpen(false);
+    navigate(path);
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
@@ -61,12 +85,11 @@ export default function Layout() {
           <div className="ml-auto flex items-center gap-3">
             <button
               onClick={() => navigate('/app/settings/credits')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
-              title="크레딧 충전"
+              className="flex items-center px-3 py-1.5 rounded-full bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
+              title="크레딧 관리"
             >
-              <Coins size={14} />
-              <span className="text-xs font-bold tabular-nums">
-                {Math.max(0, Number(wallet?.balance || 0)).toLocaleString('ko-KR', { maximumFractionDigits: 0 })} C
+              <span className="text-xs font-bold">
+                크레딧 관리
               </span>
             </button>
             <span className="text-sm font-medium text-bluewood-700">
@@ -79,13 +102,35 @@ export default function Layout() {
                 {displayName[0]}
               </div>
             )}
-            <button
-              onClick={() => navigate('/app/settings/credits')}
-              className="p-1.5 text-bluewood-400 hover:text-primary-600 transition-colors"
-              title="프로필 수정"
-            >
-              <Settings size={16} />
-            </button>
+            <div ref={settingsMenuRef} className="relative">
+              <button
+                onClick={() => setSettingsOpen(open => !open)}
+                className="p-1.5 text-bluewood-400 hover:text-primary-600 transition-colors"
+                title="설정"
+                aria-label="설정"
+                aria-expanded={settingsOpen}
+              >
+                <Settings size={16} />
+              </button>
+              {settingsOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-lg border border-surface-200 bg-white py-1 shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => goSettings('/app/settings/credits')}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] font-medium text-bluewood-700 transition-colors hover:bg-surface-50 hover:text-primary-600"
+                  >
+                    크레딧 충전
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goSettings('/app/profile-setup')}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] font-medium text-bluewood-700 transition-colors hover:bg-surface-50 hover:text-primary-600"
+                  >
+                    내 정보 관리
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleSignOut}
               className="text-xs text-bluewood-400 hover:text-red-500 transition-colors ml-1"
