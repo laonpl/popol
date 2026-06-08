@@ -168,6 +168,7 @@ export function buildDraftStructuredResult({
     projectOverview,
     marketResearch: {
       marketOverview: '',
+      deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' },
       decisionMetrics: [],
       sourceNotes: [],
       portfolioAngles: [],

@@ -34,13 +34,28 @@ import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
 import '@yoopta/themes-shadcn/variables.css';
 import { Bold as BoldIcon, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
-import { insertYooptaBlocks } from '../utils/projectSections';
+import { insertYooptaBlocks, blocksToYooptaValue } from '../utils/projectSections';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
 export const CUSTOM_PALETTE_DRAG_TYPE = 'application/x-fitpoly-palette';
+export const CUSTOM_BLOCK_DRAG_TYPE = 'application/x-fitpoly-block';
 
 const YooptaMiniEditorIdContext = createContext(null);
 let activeYooptaImageDrag = null;
+// 블록 드래그(핸들로 위/아래 이동) 진행 상태 — 같은 에디터 안에서만 재정렬
+let activeBlockDrag = null; // { blockId, editorId }
+const BLOCK_DRAG_SCROLL_BAND = 64; // 위/아래 자동 스크롤 존 높이(px)
+
+/** 가장 가까운 스크롤 가능한 조상 요소 (드래그 중 자동 스크롤 대상) */
+function findScrollParent(node) {
+  let el = node?.parentElement;
+  while (el) {
+    const style = window.getComputedStyle(el);
+    if (/(auto|scroll|overlay)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 4) return el;
+    el = el.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
+}
 
 function deleteYooptaBlockById(editor, blockId) {
   const value = editor.getEditorValue();
@@ -295,24 +310,219 @@ function getImageSizes(src) {
   });
 }
 
-function readImageFile(file) {
+// 이미지 파일 → 압축 base64 (Canvas 리사이즈). 원본 그대로 넣으면 base64가 수 MB가 되어
+// Firestore 문서 1MB 한도를 넘겨 저장이 실패하므로, 캔버스 삽입 이미지도 1200px/JPEG로 줄인다.
+function readImageFile(file, maxPx = 1200, quality = 0.78) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const src = String(reader.result || '');
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (!width || !height) { resolve({ src: '', sizes: { width: 720, height: 420 } }); return; }
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round((height * maxPx) / width); width = maxPx; }
+        else { width = Math.round((width * maxPx) / height); height = maxPx; }
+      }
       try {
-        resolve({ src, sizes: await getImageSizes(src) });
-      } catch {
-        resolve({ src, sizes: { width: 720, height: 420 } });
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve({ src: canvas.toDataURL('image/jpeg', quality), sizes: { width, height } });
+      } catch (err) {
+        reject(err);
       }
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 불러오지 못했습니다')); };
+    img.src = url;
   });
+}
+
+/**
+ * useBlockDndReorder — 블록 핸들 드래그로 위/아래 자유 이동(이미지 포함 모든 블록).
+ *  - 드롭 위치를 가리키는 인디케이터 라인 표시
+ *  - 드래그 중 화면 위/아래 끝에 자동 스크롤 존을 보여주고, 그 위로 가져가면 자동 스크롤
+ * 같은 에디터 안에서만 재정렬한다(editorId로 구분).
+ */
+function useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange) {
+  const wrapperRef = useRef(null);
+  const scrollParentRef = useRef(null);
+  const rafRef = useRef(0);
+  const dirRef = useRef(0);     // -1: 위로, +1: 아래로
+  const speedRef = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [dropLine, setDropLine] = useState(null);
+  const [zones, setZones] = useState(null);
+
+  const stopAuto = useCallback(() => {
+    dirRef.current = 0;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = 0;
+  }, []);
+
+  const tick = useCallback(() => {
+    const sp = scrollParentRef.current;
+    if (sp && dirRef.current) {
+      sp.scrollTop += dirRef.current * speedRef.current;
+      rafRef.current = requestAnimationFrame(tick);
+    } else {
+      rafRef.current = 0;
+    }
+  }, []);
+  const runAuto = useCallback(() => { if (!rafRef.current) rafRef.current = requestAnimationFrame(tick); }, [tick]);
+
+  const dimDragged = useCallback((on) => {
+    const id = activeBlockDrag?.blockId;
+    const root = wrapperRef.current;
+    if (!id || !root) return;
+    const node = root.querySelector(`[data-yoopta-block-id="${id}"]`);
+    if (node) node.style.opacity = on ? '0.4' : '';
+  }, []);
+
+  useEffect(() => {
+    const onStart = (e) => {
+      if (e.detail?.editorId !== editorInstanceIdRef.current) return;
+      const sp = findScrollParent(wrapperRef.current);
+      scrollParentRef.current = sp;
+      const r = sp.getBoundingClientRect();
+      setZones({ top: r.top, bottom: r.bottom, left: r.left, width: r.width });
+      setDragging(true);
+      dimDragged(true);
+    };
+    const onEnd = () => {
+      stopAuto();
+      dimDragged(false);
+      setDragging(false);
+      setDropLine(null);
+      setZones(null);
+    };
+    window.addEventListener('fitpoly:block-drag-start', onStart);
+    window.addEventListener('fitpoly:block-drag-end', onEnd);
+    return () => {
+      window.removeEventListener('fitpoly:block-drag-start', onStart);
+      window.removeEventListener('fitpoly:block-drag-end', onEnd);
+      stopAuto();
+    };
+  }, [editorInstanceIdRef, stopAuto, dimDragged]);
+
+  // 최상위 블록 DOM 노드만 (중첩/중복 제외)
+  const topLevelBlockNodes = useCallback(() => {
+    const root = wrapperRef.current;
+    if (!root) return [];
+    const value = editor.getEditorValue();
+    const seen = new Set();
+    return Array.from(root.querySelectorAll('[data-yoopta-block-id]')).filter(node => {
+      const id = node.getAttribute('data-yoopta-block-id');
+      if (!id || !value[id] || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [editor]);
+
+  const insertIndexAt = useCallback((clientY, nodes) => {
+    for (let i = 0; i < nodes.length; i += 1) {
+      const rect = nodes[i].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return i;
+    }
+    return nodes.length;
+  }, []);
+
+  const onDragOver = useCallback((event) => {
+    if (!activeBlockDrag || activeBlockDrag.editorId !== editorInstanceIdRef.current) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    const y = event.clientY;
+    const nodes = topLevelBlockNodes();
+    const idx = insertIndexAt(y, nodes);
+    if (nodes.length === 0) setDropLine(null);
+    else if (idx < nodes.length) {
+      const rect = nodes[idx].getBoundingClientRect();
+      setDropLine({ top: rect.top, left: rect.left, width: rect.width });
+    } else {
+      const rect = nodes[nodes.length - 1].getBoundingClientRect();
+      setDropLine({ top: rect.bottom, left: rect.left, width: rect.width });
+    }
+    const sp = scrollParentRef.current;
+    if (sp) {
+      const r = sp.getBoundingClientRect();
+      if (y < r.top + BLOCK_DRAG_SCROLL_BAND) {
+        dirRef.current = -1; speedRef.current = Math.max(4, Math.ceil((r.top + BLOCK_DRAG_SCROLL_BAND - y) / 5)); runAuto();
+      } else if (y > r.bottom - BLOCK_DRAG_SCROLL_BAND) {
+        dirRef.current = 1; speedRef.current = Math.max(4, Math.ceil((y - (r.bottom - BLOCK_DRAG_SCROLL_BAND)) / 5)); runAuto();
+      } else {
+        stopAuto();
+      }
+    }
+    return true;
+  }, [editorInstanceIdRef, topLevelBlockNodes, insertIndexAt, runAuto, stopAuto]);
+
+  const reorderById = useCallback((blockId, insertIndex, idsInOrder) => {
+    const value = editor.getEditorValue();
+    const ids = idsInOrder.filter(id => value[id]);
+    const from = ids.indexOf(blockId);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    let to = insertIndex;
+    if (from < insertIndex) to -= 1;
+    to = Math.max(0, Math.min(ids.length, to));
+    if (to === from) return;
+    ids.splice(to, 0, blockId);
+    const next = {};
+    ids.forEach((id, i) => { next[id] = { ...value[id], meta: { ...value[id].meta, order: i } }; });
+    Object.values(value).forEach(b => { if (!next[b.id]) next[b.id] = { ...b, meta: { ...b.meta, order: ids.length } }; });
+    editor.setEditorValue(next);
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+  }, [editor, handleEditorChange]);
+
+  const onDrop = useCallback((event) => {
+    if (!activeBlockDrag || activeBlockDrag.editorId !== editorInstanceIdRef.current) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const nodes = topLevelBlockNodes();
+    const ids = nodes.map(node => node.getAttribute('data-yoopta-block-id'));
+    const idx = insertIndexAt(event.clientY, nodes);
+    const blockId = activeBlockDrag.blockId;
+    reorderById(blockId, idx, ids);
+    activeBlockDrag = null;
+    stopAuto();
+    dimDragged(false);
+    setDragging(false);
+    setDropLine(null);
+    setZones(null);
+    window.dispatchEvent(new CustomEvent('fitpoly:block-drag-end'));
+    return true;
+  }, [editorInstanceIdRef, topLevelBlockNodes, insertIndexAt, reorderById, stopAuto, dimDragged]);
+
+  const overlay = dragging ? (
+    <>
+      {zones && (
+        <>
+          <div className="fixed z-[400] pointer-events-none flex items-start justify-center overflow-hidden" style={{ top: zones.top, left: zones.left, width: zones.width, height: BLOCK_DRAG_SCROLL_BAND }}>
+            <div className="absolute inset-0 bg-gradient-to-b from-primary-500/20 to-transparent" />
+            <div className="mt-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[11px] font-bold text-white shadow-lg">▲ 위로 스크롤</div>
+          </div>
+          <div className="fixed z-[400] pointer-events-none flex items-end justify-center overflow-hidden" style={{ top: zones.bottom - BLOCK_DRAG_SCROLL_BAND, left: zones.left, width: zones.width, height: BLOCK_DRAG_SCROLL_BAND }}>
+            <div className="absolute inset-0 bg-gradient-to-t from-primary-500/20 to-transparent" />
+            <div className="mb-1.5 rounded-full bg-primary-600/95 px-3 py-1 text-[11px] font-bold text-white shadow-lg">▼ 아래로 스크롤</div>
+          </div>
+        </>
+      )}
+      {dropLine && (
+        <div className="fixed z-[401] pointer-events-none" style={{ top: dropLine.top - 1.5, left: dropLine.left, width: dropLine.width }}>
+          <div className="h-[3px] w-full rounded-full bg-primary-600 shadow-[0_0_8px_rgba(0,47,108,0.5)]" />
+        </div>
+      )}
+    </>
+  ) : null;
+
+  return { wrapperRef, onDragOver, onDrop, overlay };
 }
 
 function MiniBlockActions({ onEditorChange }) {
   const editor = useYooptaEditor();
+  const editorId = useContext(YooptaMiniEditorIdContext);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [blockOptionsOpen, setBlockOptionsOpen] = useState(false);
   const addButtonRef = useRef(null);
@@ -360,10 +570,22 @@ function MiniBlockActions({ onEditorChange }) {
           </FloatingBlockActions.Button>
           <FloatingBlockActions.Button
             ref={dragHandleRef}
+            draggable
             onClick={() => setBlockOptionsOpen(true)}
-            title="Block options"
+            onDragStart={event => {
+              if (!blockId) return;
+              activeBlockDrag = { blockId, editorId };
+              event.dataTransfer.effectAllowed = 'move';
+              try { event.dataTransfer.setData(CUSTOM_BLOCK_DRAG_TYPE, blockId); } catch { /* noop */ }
+              window.dispatchEvent(new CustomEvent('fitpoly:block-drag-start', { detail: { editorId } }));
+            }}
+            onDragEnd={() => {
+              activeBlockDrag = null;
+              window.dispatchEvent(new CustomEvent('fitpoly:block-drag-end'));
+            }}
+            title="드래그하여 이동 · 클릭하여 옵션"
           >
-            <span className="text-sm">::</span>
+            <span className="text-sm">⠿</span>
           </FloatingBlockActions.Button>
           <BlockOptions
             open={addMenuOpen}
@@ -554,6 +776,21 @@ export default function YooptaMiniEditor({
     changeTimerRef.current = setTimeout(() => publishEditorChange(pendingValueRef.current), 120);
   }, [publishEditorChange]);
 
+  const blockDnd = useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange);
+
+  // 브라우저 맞춤법 검사(빨간 밑줄) 비활성화 — Slate가 spellCheck=true를 강제하므로 DOM에서 끈다.
+  useEffect(() => {
+    const root = blockDnd.wrapperRef.current;
+    if (!root) return undefined;
+    const disable = () => root.querySelectorAll('[contenteditable]').forEach(el => {
+      if (el.getAttribute('spellcheck') !== 'false') el.setAttribute('spellcheck', 'false');
+    });
+    disable();
+    const observer = new MutationObserver(disable);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['spellcheck', 'contenteditable'] });
+    return () => observer.disconnect();
+  }, [blockDnd.wrapperRef]);
+
   useEffect(() => () => {
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     if (pendingValueRef.current) onChangeRef.current?.(pendingValueRef.current);
@@ -626,7 +863,9 @@ export default function YooptaMiniEditor({
         event.preventDefault();
         insertImageFiles(files);
       }}
+      ref={blockDnd.wrapperRef}
       onDragOverCapture={event => {
+        if (blockDnd.onDragOver(event)) return;
         const hasExternalImage = Array.from(event.dataTransfer?.types || []).includes(CUSTOM_IMAGE_DRAG_TYPE);
         const hasImageFile = Array.from(event.dataTransfer?.items || []).some(item => item.type.startsWith('image/'));
         if (hasExternalImage || hasImageFile) {
@@ -636,6 +875,7 @@ export default function YooptaMiniEditor({
         }
       }}
       onDropCapture={async event => {
+        if (blockDnd.onDrop(event)) return;
         // Slate(에디터 내부)가 contentEditable에 자체 onDrop을 달아 드롭 데이터를
         // 먼저 가로채므로, 캡처 단계에서 이미지 드롭을 먼저 처리하고 전파를 막는다.
         const externalImage = event.dataTransfer?.getData(CUSTOM_IMAGE_DRAG_TYPE);
@@ -750,6 +990,7 @@ export default function YooptaMiniEditor({
       >
         <ImagePlus size={15} />
       </button>
+      {blockDnd.overlay}
     </div>
   );
 }
@@ -763,6 +1004,40 @@ export default function YooptaMiniEditor({
  *  - readOnly: 읽기전용(미리보기·링크공유)
  *  - resolvePaletteBlocks(payload): 팔레트에서 드롭한 항목을 Yoopta 블록 배열로 변환
  */
+function readPalettePayload(dataTransfer) {
+  const candidates = [
+    dataTransfer?.getData(CUSTOM_PALETTE_DRAG_TYPE),
+    dataTransfer?.getData('application/json'),
+    dataTransfer?.getData('text/plain'),
+  ].filter(Boolean);
+  for (const raw of candidates) {
+    const text = String(raw || '').startsWith('fitpoly-palette:')
+      ? String(raw).slice('fitpoly-palette:'.length)
+      : raw;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.kind) return parsed;
+    } catch {
+      // Continue to the next transfer format.
+    }
+  }
+  return null;
+}
+
+function yooptaNodeText(node) {
+  if (!node) return '';
+  if (typeof node.text === 'string') return node.text;
+  return (node.children || []).map(yooptaNodeText).join('');
+}
+
+function isEditorValueEmpty(value) {
+  const blocks = Object.values(value || {});
+  if (blocks.length !== 1) return false;
+  const block = blocks[0];
+  if (!block || block.type !== 'Paragraph') return false;
+  return !(block.value || []).some(node => yooptaNodeText(node).trim());
+}
+
 export const NotionDocEditor = forwardRef(function NotionDocEditor({
   value,
   onChange,
@@ -795,6 +1070,21 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => publishEditorChange(pendingValueRef.current), 150);
   }, [publishEditorChange]);
+
+  const blockDnd = useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange);
+
+  // 브라우저 맞춤법 검사(빨간 밑줄) 비활성화 — Slate가 spellCheck=true를 강제하므로 DOM에서 끈다.
+  useEffect(() => {
+    const root = blockDnd.wrapperRef.current;
+    if (!root) return undefined;
+    const disable = () => root.querySelectorAll('[contenteditable]').forEach(el => {
+      if (el.getAttribute('spellcheck') !== 'false') el.setAttribute('spellcheck', 'false');
+    });
+    disable();
+    const observer = new MutationObserver(disable);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['spellcheck', 'contenteditable'] });
+    return () => observer.disconnect();
+  }, [blockDnd.wrapperRef]);
 
   useEffect(() => () => {
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
@@ -831,6 +1121,14 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
       insertYooptaBlocks(editor, blocks, null);
       queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
     },
+    // 캔버스 내용을 통째로 교체 (초안 만들기 — 빈 화면에서 시작)
+    replaceBlocks: (blocks) => {
+      if (!Array.isArray(blocks) || blocks.length === 0) return;
+      editor.setEditorValue(blocksToYooptaValue(blocks));
+      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+    },
+    // 이미지 파일 선택창 열기 (자유 이미지 추가)
+    openImagePicker: () => imageInputRef.current?.click(),
   }), [editor, handleEditorChange]);
 
   const insertImageSources = async (images) => {
@@ -857,17 +1155,20 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   };
 
   const handlePaletteDrop = (event) => {
-    const raw = event.dataTransfer?.getData(CUSTOM_PALETTE_DRAG_TYPE);
-    if (!raw || !resolvePaletteBlocks) return false;
+    const payload = readPalettePayload(event.dataTransfer);
+    if (!payload || !resolvePaletteBlocks) return false;
     event.preventDefault();
     event.stopPropagation();
     try {
-      const payload = JSON.parse(raw);
       const blocks = resolvePaletteBlocks(payload);
       if (Array.isArray(blocks) && blocks.length > 0) {
-        const current = Selection.getCurrent(editor);
-        const atOrder = typeof current === 'number' ? current + 1 : null;
-        insertYooptaBlocks(editor, blocks, atOrder);
+        if (isEditorValueEmpty(editor.getEditorValue())) {
+          editor.setEditorValue(blocksToYooptaValue(blocks));
+        } else {
+          const current = Selection.getCurrent(editor);
+          const atOrder = typeof current === 'number' ? current + 1 : null;
+          insertYooptaBlocks(editor, blocks, atOrder);
+        }
         queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
       }
     } catch { /* 잘못된 드래그 페이로드는 무시 */ }
@@ -898,9 +1199,11 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         event.preventDefault();
         insertImageFiles(files);
       }}
+      ref={blockDnd.wrapperRef}
       onDragOverCapture={event => {
+        if (blockDnd.onDragOver(event)) return;
         const types = Array.from(event.dataTransfer?.types || []);
-        const hasPalette = types.includes(CUSTOM_PALETTE_DRAG_TYPE);
+        const hasPalette = types.includes(CUSTOM_PALETTE_DRAG_TYPE) || types.includes('application/json');
         const hasExternalImage = types.includes(CUSTOM_IMAGE_DRAG_TYPE);
         const hasImageFile = Array.from(event.dataTransfer?.items || []).some(item => item.type.startsWith('image/'));
         if (hasPalette || hasExternalImage || hasImageFile) {
@@ -910,6 +1213,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         }
       }}
       onDropCapture={async event => {
+        if (blockDnd.onDrop(event)) return;
         if (handlePaletteDrop(event)) return;
         const externalImage = event.dataTransfer?.getData(CUSTOM_IMAGE_DRAG_TYPE);
         if (externalImage) {
@@ -995,6 +1299,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         hidden
         onChange={event => { insertImageFiles(event.target.files); event.target.value = ''; }}
       />
+      {blockDnd.overlay}
     </div>
   );
 });

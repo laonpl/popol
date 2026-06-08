@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, Undo2, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
+import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { analyzeJobUrl } from '../../services/jobAI';
 import toast from 'react-hot-toast';
@@ -60,6 +61,90 @@ function makeTextBlock(content = '') {
   return { id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: sanitizeTextValue(content) };
 }
 
+function isValidHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function numberOrNull(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const match = String(value ?? '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeInfographicCard(card = {}, index = 0) {
+  const bars = Array.isArray(card.bars) ? card.bars.map(bar => ({
+    label: sanitizeTextValue(bar?.label || '').slice(0, 40),
+    value: numberOrNull(bar?.value),
+    unit: sanitizeTextValue(bar?.unit || card.unit || '%').slice(0, 8),
+  })).filter(bar => bar.label && bar.value != null).slice(0, 5) : [];
+  const value = numberOrNull(card.value);
+  const chartType = ['donut', 'bar', 'stat'].includes(card.chartType)
+    ? card.chartType
+    : (bars.length ? 'bar' : 'stat');
+  return {
+    id: card.id || `research-card-${index + 1}`,
+    question: sanitizeTextValue(card.question || '').slice(0, 90),
+    finding: sanitizeTextValue(card.finding || '').slice(0, 160),
+    chartType,
+    value,
+    unit: sanitizeTextValue(card.unit || '%').slice(0, 8),
+    valueLabel: sanitizeTextValue(card.valueLabel || '').slice(0, 44),
+    remainderLabel: sanitizeTextValue(card.remainderLabel || '').slice(0, 44),
+    sampleBase: sanitizeTextValue(card.sampleBase || '').slice(0, 90),
+    bars,
+    sourceTitle: sanitizeTextValue(card.sourceTitle || '').slice(0, 140),
+    sourcePublisher: sanitizeTextValue(card.sourcePublisher || '').slice(0, 80),
+    sourceUrl: sanitizeTextValue(card.sourceUrl || ''),
+    checkedAt: sanitizeTextValue(card.checkedAt || '').slice(0, 24),
+    interpretation: sanitizeTextValue(card.interpretation || '').slice(0, 140),
+  };
+}
+
+function normalizeDeskResearchInfographic(value = {}) {
+  const cards = Array.isArray(value.cards)
+    ? value.cards.map(normalizeInfographicCard).filter(card => (
+      isValidHttpUrl(card.sourceUrl)
+      && (card.value != null || card.bars.length > 0)
+    )).slice(0, 4)
+    : [];
+  return {
+    title: sanitizeTextValue(value.title || '').slice(0, 100),
+    subtitle: sanitizeTextValue(value.subtitle || '').slice(0, 180),
+    cards,
+    conclusion: sanitizeTextValue(value.conclusion || '').slice(0, 220),
+    limitations: sanitizeTextValue(value.limitations || '').slice(0, 220),
+  };
+}
+
+function infographicToText(infographic = {}) {
+  const info = normalizeDeskResearchInfographic(infographic);
+  return [
+    info.title,
+    info.subtitle,
+    ...info.cards.map(card => [
+      card.question,
+      card.finding,
+      card.value != null ? `${card.valueLabel || '수치'}: ${card.value}${card.unit || ''}` : '',
+      card.bars.map(bar => `${bar.label} ${bar.value}${bar.unit}`).join(', '),
+      card.sourcePublisher || card.sourceTitle ? `출처: ${[card.sourcePublisher, card.sourceTitle].filter(Boolean).join(' · ')}` : '',
+      card.sourceUrl,
+      card.interpretation,
+    ].filter(Boolean).join('\n')),
+    info.conclusion,
+    info.limitations && `한계: ${info.limitations}`,
+  ].filter(Boolean).join('\n\n');
+}
+
+function makeInfographicBlock(infographic = {}) {
+  return {
+    id: `infographic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type: 'infographic',
+    infographic: normalizeDeskResearchInfographic(infographic),
+  };
+}
+
 function portfolioBlocksToText(blocks = []) {
   return blocks.map(block => {
     if (block?.type === 'text') return sanitizeTextValue(block.content || '');
@@ -67,6 +152,7 @@ function portfolioBlocksToText(blocks = []) {
       const cardText = (block.cards || []).map(card => [card.label, card.title, card.body, card.metric].filter(Boolean).join(' ')).filter(Boolean).join('\n');
       return [block.title, block.subtitle, block.content, cardText].filter(Boolean).map(sanitizeTextValue).join('\n');
     }
+    if (block?.type === 'infographic') return infographicToText(block.infographic);
     return '';
   }).filter(Boolean).join('\n\n');
 }
@@ -93,6 +179,13 @@ function normalizePortfolioBlock(block) {
       subtitle: sanitizeTextValue(block.subtitle || block.subcopy || ''),
       content: sanitizeTextValue(block.content || ''),
       cards: Array.isArray(block.cards) ? block.cards.map(card => sanitizeTextObject(card)) : [],
+    };
+  }
+  if (block.type === 'infographic') {
+    return {
+      id: block.id || `infographic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: 'infographic',
+      infographic: normalizeDeskResearchInfographic(block.infographic || block),
     };
   }
   return { ...(block || {}), id: block.id || `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: 'text', content: sanitizeTextValue(block.content || block.text || '') };
@@ -159,6 +252,133 @@ function moveSlidesToStandaloneSection(sections = []) {
   return sections.map(normalizeExportSection);
 }
 
+function clampPercent(value) {
+  const n = numberOrNull(value);
+  if (n == null) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function ResearchDonut({ card }) {
+  const value = clampPercent(card.value);
+  const rest = Math.max(0, 100 - value);
+  return (
+    <div className="flex items-center justify-center gap-4">
+      <div
+        className="relative h-28 w-28 flex-shrink-0 rounded-full"
+        style={{ background: `conic-gradient(#6947f5 0 ${value}%, #c9c5ce ${value}% 100%)` }}
+        aria-label={`${card.valueLabel || '값'} ${card.value}${card.unit || ''}`}
+      >
+        <div className="absolute inset-[24px] rounded-full bg-[#f1eff3]" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[13px] font-black text-[#6947f5]">{card.valueLabel || '주요 응답'}</p>
+        <p className="mt-0.5 text-[30px] font-black leading-none text-[#6947f5]">{card.value}{card.unit || ''}</p>
+        {card.remainderLabel && (
+          <p className="mt-2 text-[12px] font-bold text-bluewood-300">{card.remainderLabel} {Math.round(rest * 10) / 10}{card.unit || ''}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResearchBars({ card }) {
+  const bars = card.bars || [];
+  const max = Math.max(...bars.map(bar => Math.abs(bar.value || 0)), 1);
+  return (
+    <div className="space-y-2.5">
+      {bars.map((bar, index) => {
+        const width = Math.max(7, Math.min(100, Math.abs(bar.value || 0) / max * 100));
+        const active = index === 0;
+        return (
+          <div key={`${bar.label}-${index}`}>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className={`truncate text-[12px] font-black ${active ? 'text-white' : 'text-bluewood-600'}`}>{bar.label}</span>
+              <span className={`text-[12px] font-black ${active ? 'text-[#6947f5]' : 'text-bluewood-400'}`}>{bar.value}{bar.unit || card.unit || ''}</span>
+            </div>
+            <div className="h-8 rounded-md bg-[#cbc7cd]">
+              <div
+                className={`flex h-8 items-center rounded-md px-3 text-[12px] font-black text-white ${active ? 'bg-[#6947f5]' : 'bg-[#a9a5ac]'}`}
+                style={{ width: `${width}%`, minWidth: '64px' }}
+              >
+                {bar.label}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ResearchStat({ card }) {
+  return (
+    <div className="rounded-xl bg-white/70 px-4 py-5 text-center">
+      <p className="text-[13px] font-black text-bluewood-400">{card.valueLabel || '핵심 수치'}</p>
+      <p className="mt-2 text-[38px] font-black leading-none text-[#6947f5]">{card.value}{card.unit || ''}</p>
+      {card.sampleBase && <p className="mt-2 text-[12px] font-semibold text-bluewood-400">{card.sampleBase}</p>}
+    </div>
+  );
+}
+
+function ResearchChart({ card }) {
+  if (card.chartType === 'bar' && card.bars?.length) return <ResearchBars card={card} />;
+  if (card.chartType === 'stat') return <ResearchStat card={card} />;
+  return <ResearchDonut card={card} />;
+}
+
+function DeskResearchInfographic({ infographic, compact = false }) {
+  const info = normalizeDeskResearchInfographic(infographic);
+  if (info.cards.length === 0) return null;
+  return (
+    <section className={`overflow-hidden rounded-[8px] bg-[#f7f6f8] ${compact ? 'p-5' : 'p-8'} text-bluewood-900`}>
+      <div className="mb-7">
+        <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#6947f5]">Desk Research</p>
+        <h3 className={`${compact ? 'mt-2 text-[22px]' : 'mt-3 text-[31px]'} font-black leading-tight tracking-normal text-bluewood-950`} style={{ wordBreak: 'keep-all' }}>
+          {info.title || '이 프로젝트와 연결되는 시장 문제는 무엇일까요?'}
+        </h3>
+        {info.subtitle && <p className="mt-4 text-[13.5px] font-medium leading-relaxed text-bluewood-500">{info.subtitle}</p>}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {info.cards.map((card, index) => (
+          <article key={card.id || index} className="rounded-[18px] bg-[#ebe9ee] p-5 shadow-sm">
+            <div className="min-h-[86px]">
+              <p className="text-[15px] font-black leading-snug text-bluewood-950" style={{ wordBreak: 'keep-all' }}>{card.question || `Q${index + 1}. 시장 근거`}</p>
+              {card.finding && <p className="mt-1.5 text-[14px] font-bold leading-snug text-[#6947f5]" style={{ wordBreak: 'keep-all' }}>{card.finding}</p>}
+              <p className="mt-3 text-[11.5px] font-semibold text-bluewood-400">
+                출처: {card.sourcePublisher || card.sourceTitle || '확인된 자료'}
+              </p>
+            </div>
+            <div className="mt-4">
+              <ResearchChart card={card} />
+            </div>
+            {card.sampleBase && <p className="mt-3 text-right text-[11.5px] font-semibold text-bluewood-400">{card.sampleBase}</p>}
+            {card.interpretation && (
+              <div className="mt-4 rounded-[10px] bg-[#4f4852] px-4 py-3 text-center text-[13px] font-black leading-snug text-white" style={{ wordBreak: 'keep-all' }}>
+                {card.interpretation}
+              </div>
+            )}
+            {isValidHttpUrl(card.sourceUrl) && (
+              <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex max-w-full items-center gap-1 text-[11.5px] font-semibold text-primary-600 underline">
+                <ExternalLink size={11} /> <span className="truncate">{card.sourceTitle || card.sourceUrl}</span>
+              </a>
+            )}
+          </article>
+        ))}
+      </div>
+
+      {info.conclusion && (
+        <div className="mt-5 rounded-[14px] bg-[#4f4852] px-5 py-4 text-center text-[15px] font-black leading-relaxed text-white" style={{ wordBreak: 'keep-all' }}>
+          {info.conclusion}
+        </div>
+      )}
+      {info.limitations && (
+        <p className="mt-3 text-[12px] leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>해석 한계: {info.limitations}</p>
+      )}
+    </section>
+  );
+}
+
 function PortfolioBlockViewer({ blocks = [], compact = false }) {
   const normalized = blocks.map(normalizePortfolioBlock).filter(Boolean);
   if (normalized.length === 0) return null;
@@ -197,6 +417,9 @@ function PortfolioBlockViewer({ blocks = [], compact = false }) {
               )}
             </div>
           );
+        }
+        if (block.type === 'infographic') {
+          return <DeskResearchInfographic key={block.id} infographic={block.infographic} compact={compact} />;
         }
         return <p key={block.id} className="whitespace-pre-wrap break-words text-[13px] leading-[1.75] text-bluewood-700">{sanitizeTextValue(block.content)}</p>;
       })}
@@ -401,6 +624,14 @@ const SECTION_META = {
   competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary', accentHex: '#0d9488' },
 };
 
+/* ── 탭별 안내: 무엇을 / 어떻게 / 어디에 쓰이는지 (사용자가 헤매지 않도록) ── */
+const TAB_GUIDE = {
+  story:    { title: '프로젝트를 한 편의 글로 정리', desc: '배경·문제·과정·결과 순서로 작성해요. 여기 내용이 포트폴리오와 미리보기의 본문이 됩니다.' },
+  keyexp:   { title: '면접에서 말할 대표 사례 2~3개', desc: '상황·행동·결과·성과 수치로 정리하면 미리보기에 카드로 들어갑니다.' },
+  analysis: { title: '내 역량 자동 정리', desc: '작성한 내용에서 핵심·파생·성장 역량을 모아 보여줘요. 자기소개와 강점 어필에 활용하세요.' },
+  research: { title: '시장 근거와 판단 지표', desc: '내 경험과 연결되는 시장 기준·지표를 정리해 성과의 맥락과 신뢰도를 보강합니다.' },
+};
+
 /* ── 역량 키워드 카테고리 스타일 ── */
 const KW_CATEGORY_STYLES = {
   tech:       { dot: '#0284c7', bg: 'bg-sky-50',      text: 'text-sky-700',      border: 'border-sky-200',     label: '기술'   },
@@ -446,6 +677,14 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
     .map(t => ({ type: t, label: highlightColors[t].label, desc: highlightColors[t].desc, color: highlightColors[t].underline, items: items.filter(i => i.type === t) }))
     .filter(g => g.items.length > 0);
 
+  // ── 그래프용 집계 (실제 데이터 기반, 수치 조작 없음) ──
+  const typeStats = groups.map(g => ({ type: g.type, label: g.label, color: g.color, count: g.items.length }));
+  const maxTypeCount = Math.max(1, ...typeStats.map(s => s.count));
+  const kwFreq = {};
+  items.forEach(it => it.keywords.forEach(k => { kwFreq[k] = (kwFreq[k] || 0) + 1; }));
+  const topKeywords = Object.entries(kwFreq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxKwFreq = Math.max(1, ...topKeywords.map(([, c]) => c));
+
   if (groups.length === 0 && relatedKeywords.length === 0) return null;
 
   return (
@@ -454,6 +693,42 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
         <span className="text-[17px] font-extrabold text-bluewood-900">핵심 역량</span>
         <span className="text-[13.5px] text-bluewood-400">— 어떤 경험에서 어떤 역량을 얻었는지 근거와 함께 정리했습니다</span>
       </div>
+
+      {/* ── 나의 역량 한눈에 (그래프) ── */}
+      {(typeStats.length > 0 || topKeywords.length > 0) && (
+        <div className="px-6 py-5 border-b border-surface-100 bg-surface-50/40">
+          <p className="mb-3.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">나의 역량 한눈에</p>
+          {typeStats.length > 0 && (
+            <div className="space-y-2.5">
+              {typeStats.map(s => (
+                <div key={s.type} className="flex items-center gap-3">
+                  <span className="w-[60px] flex-shrink-0 text-[12.5px] font-bold text-bluewood-600">{s.label}</span>
+                  <div className="relative h-3.5 flex-1 overflow-hidden rounded-full bg-surface-100">
+                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(8, (s.count / maxTypeCount) * 100)}%`, backgroundColor: s.color }} />
+                  </div>
+                  <span className="w-6 flex-shrink-0 text-right text-[12.5px] font-extrabold tabular-nums" style={{ color: s.color }}>{s.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {topKeywords.length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">자주 발휘한 역량 키워드</p>
+              <div className="space-y-1.5">
+                {topKeywords.map(([k, c]) => (
+                  <div key={k} className="flex items-center gap-3">
+                    <span className="w-[96px] flex-shrink-0 truncate text-[12.5px] font-semibold text-bluewood-600" title={k}>{k}</span>
+                    <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-100">
+                      <div className="h-full rounded-full bg-primary-500 transition-all duration-700" style={{ width: `${Math.max(10, (c / maxKwFreq) * 100)}%` }} />
+                    </div>
+                    <span className="w-6 flex-shrink-0 text-right text-[12px] font-bold tabular-nums text-bluewood-400">{c}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {groups.length > 0 && (
         <div className="divide-y divide-surface-100">
@@ -517,6 +792,7 @@ function normalizeMarketResearch(value) {
   const src = value || {};
   return {
     marketOverview: typeof src.marketOverview === 'string' ? src.marketOverview : '',
+    deskResearchInfographic: normalizeDeskResearchInfographic(src.deskResearchInfographic),
     decisionMetrics: Array.isArray(src.decisionMetrics) ? src.decisionMetrics.map(item => ({
       metric: item?.metric || '',
       whyItMatters: item?.whyItMatters || '',
@@ -682,6 +958,9 @@ const INLINE_IMAGE_SIZES = {
   lg: { label: 'L', width: '100%', minWidth: 260 },
 };
 
+/* 포트폴리오용 이미지 역할 — 면접관이 "무엇을 보여주는 사진인지" 바로 알 수 있게 */
+const IMAGE_ROLES = ['화면', '결과물', '구조도', '데이터', '기타'];
+
 function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -700,6 +979,10 @@ function InlineSlideImages({ sectionKey, sectionImages, allImages, imageConfig, 
       [cfgKey]: { ...(prev[cfgKey] || {}), size: next },
     }));
   };
+  const updateCfg = (cfgKey, patch) => setImageConfig(prev => ({
+    ...prev,
+    [cfgKey]: { ...(prev[cfgKey] || {}), ...patch },
+  }));
 
   return (
     <div className="mt-4 flex flex-wrap items-start gap-3 border-t border-surface-200/70 pt-4">
@@ -708,33 +991,70 @@ function InlineSlideImages({ sectionKey, sectionImages, allImages, imageConfig, 
         const cfg = imageConfig?.[cfgKey] || {};
         const sizeKey = cfg.size || 'lg';
         const size = INLINE_IMAGE_SIZES[sizeKey] || INLINE_IMAGE_SIZES.lg;
+        const showCaptionBar = !viewOnly || !!cfg.caption;
 
         return (
           <figure
             key={cfgKey}
-            className="group relative overflow-hidden rounded-[8px] border border-surface-200 bg-white shadow-sm"
+            className="group flex flex-col overflow-hidden rounded-[8px] border border-surface-200 bg-white shadow-sm"
             style={{ width: size.width, minWidth: size.minWidth, maxWidth: '100%' }}
           >
-            <img src={img.url} alt={img.name || '이미지'} className="block max-h-[360px] w-full object-contain" />
-            {!viewOnly && (
-              <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  type="button"
-                  onClick={() => cycleSize(cfgKey, sizeKey)}
-                  className="rounded bg-black/65 px-2 py-1 text-[11px] font-black text-white hover:bg-black/80"
-                  title="사진 크기 변경"
-                >
-                  {size.label}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleImageDelete(imgIdx)}
-                  className="rounded bg-red-500/85 p-1.5 text-white hover:bg-red-600"
-                  title="사진 삭제"
-                >
-                  <X size={12} />
-                </button>
-              </div>
+            <div className="relative">
+              <img src={img.url} alt={cfg.caption || img.name || '이미지'} className="block max-h-[360px] w-full object-contain" />
+              {viewOnly && cfg.role && (
+                <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white">{cfg.role}</span>
+              )}
+              {!viewOnly && (
+                <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => cycleSize(cfgKey, sizeKey)}
+                    className="rounded bg-black/65 px-2 py-1 text-[11px] font-black text-white hover:bg-black/80"
+                    title="사진 크기 변경"
+                  >
+                    {size.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleImageDelete(imgIdx)}
+                    className="rounded bg-red-500/85 p-1.5 text-white hover:bg-red-600"
+                    title="사진 삭제"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+            {showCaptionBar && (
+              <figcaption className="border-t border-surface-100 px-2.5 py-2">
+                {!viewOnly ? (
+                  <>
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {IMAGE_ROLES.map(role => {
+                        const on = cfg.role === role;
+                        return (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => updateCfg(cfgKey, { role: on ? '' : role })}
+                            className={`rounded px-1.5 py-0.5 text-[10.5px] font-bold transition-colors ${on ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-400 hover:bg-surface-200'}`}
+                          >
+                            {role}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      value={cfg.caption || ''}
+                      onChange={e => updateCfg(cfgKey, { caption: e.target.value })}
+                      placeholder="이미지 설명(캡션)을 입력하세요"
+                      className="w-full bg-transparent text-[12px] leading-snug text-bluewood-600 outline-none placeholder:text-bluewood-300"
+                    />
+                  </>
+                ) : (
+                  <p className="text-[12px] leading-snug text-bluewood-500">{cfg.caption}</p>
+                )}
+              </figcaption>
             )}
           </figure>
         );
@@ -851,6 +1171,7 @@ export default function StructuredResult() {
   const [judgingLabels, setJudgingLabels] = useState(false);
   const [editingSections, setEditingSections] = useState({});
   const [editedTitle, setEditedTitle] = useState('');
+  const [editedLink, setEditedLink] = useState('');
   const [editedOverview, setEditedOverview] = useState({ background: '', goal: '', role: '', team: '', duration: '', summary: '', scopeOfImpact: '', techStack: [] });
   const [editedSectionSlides, setEditedSectionSlides] = useState({});
   const [editedResearch, setEditedResearch] = useState(() => normalizeMarketResearch());
@@ -877,11 +1198,8 @@ export default function StructuredResult() {
   const imageInputRef = useRef(null);
   const [imageUploadTarget, setImageUploadTarget] = useState('_unassigned');
   const sectionTextareaRefs = useRef({});
-  // 핵심 경험 슬라이더 ref & 동기화 state
+  // 핵심 경험 리스트 ref (저장 시 편집 커밋용)
   const sliderRef = useRef(null);
-  const [sliderEditing, setSliderEditing] = useState(false);
-  const [sliderCurrent, setSliderCurrent] = useState(0);
-  const [sliderDeletedCount, setSliderDeletedCount] = useState(0);
   const [sectionSlideIdx, setSectionSlideIdx] = useState(0);
   // 고급수정 4탭: 스토리 / 핵심경험 / 분석 / 리서치
   const [activeTab, setActiveTab] = useState('story');
@@ -901,11 +1219,13 @@ export default function StructuredResult() {
 
   /* ── 포트폴리오 내보내기 커스텀 패널 ── */
   const [showExportPanel, setShowExportPanel] = useState(false);
+  const [showProjectPreviewEditor, setShowProjectPreviewEditor] = useState(false);
   const [exportEnabled, setExportEnabled] = useState({});
   const [exportOrder, setExportOrder] = useState([]);
   const [exportCustomSections, setExportCustomSections] = useState([]);
   const [activeExportSectionKey, setActiveExportSectionKey] = useState(null);
   const [exportCoverImg, setExportCoverImg] = useState(null);
+  const [projectNotionDoc, setProjectNotionDoc] = useState(null);
   const [exportDragKey, setExportDragKey] = useState(null);
   const [exportOverKey, setExportOverKey] = useState(null);
   const hasUnsavedChanges = dirty;
@@ -993,7 +1313,9 @@ export default function StructuredResult() {
             setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
             setImageConfig(data.imageConfig || {});
             setKeyExpImages(data.keyExpImages || {});
+            setProjectNotionDoc(data.notionDoc || null);
             setJobAnalysis(data.jobAnalysis || null);
+            setEditedLink(data.link || '');
             if (data.jobCategory) setJobCategory(data.jobCategory);
           }
         } catch (err) {
@@ -1017,6 +1339,7 @@ export default function StructuredResult() {
         setSectionImages(data.sectionImages || { _unassigned: imgs.map((_, i) => i) });
         setImageConfig(data.imageConfig || {});
         setKeyExpImages(data.keyExpImages || {});
+        setProjectNotionDoc(data.notionDoc || null);
         const fields = pickSectionFields(data.structuredResult || data.content || {});
         setEditedContent(fields);
         const sr = data.structuredResult || {};
@@ -1040,6 +1363,7 @@ export default function StructuredResult() {
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         setJobCategory(data.jobCategory || sr.jobCategory || 'common');
         setEditedJobSpecific(sr.jobSpecific || {});
+        setEditedLink(data.link || '');
         setExportCoverImg(sr.exportConfig?.coverImg || null);
         const savedExportSections = Array.isArray(sr.exportConfig?.draftSections) && sr.exportConfig.draftSections.length > 0
           ? sr.exportConfig.draftSections
@@ -1198,9 +1522,26 @@ export default function StructuredResult() {
         });
         const angleKeys = new Set((prev.portfolioAngles || []).map(norm));
         const newAngles = (res.portfolioAngles || []).filter(a => a && !angleKeys.has(norm(a)));
+        const prevInfographic = normalizeDeskResearchInfographic(prev.deskResearchInfographic);
+        const nextInfographic = normalizeDeskResearchInfographic(res.deskResearchInfographic);
+        const cardKeys = new Set(prevInfographic.cards.map(card => norm(card.sourceUrl) || norm(card.question)));
+        const mergedCards = [
+          ...prevInfographic.cards,
+          ...nextInfographic.cards.filter(card => {
+            const key = norm(card.sourceUrl) || norm(card.question);
+            return key && !cardKeys.has(key);
+          }),
+        ].slice(0, 4);
         return {
           ...prev,
           marketOverview: prev.marketOverview?.trim() ? prev.marketOverview : (res.marketOverview || ''),
+          deskResearchInfographic: {
+            title: prevInfographic.title || nextInfographic.title,
+            subtitle: prevInfographic.subtitle || nextInfographic.subtitle,
+            cards: mergedCards,
+            conclusion: prevInfographic.conclusion || nextInfographic.conclusion,
+            limitations: prevInfographic.limitations || nextInfographic.limitations,
+          },
           decisionMetrics: [...prev.decisionMetrics, ...newMetrics],
           sourceNotes: [...prev.sourceNotes, ...newSources],
           portfolioAngles: [...(prev.portfolioAngles || []), ...newAngles],
@@ -1209,7 +1550,10 @@ export default function StructuredResult() {
       });
       markDirty();
       const added = (res.decisionMetrics || []).length;
-      toast.success(added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다');
+      const cardCount = normalizeDeskResearchInfographic(res.deskResearchInfographic).cards.length;
+      toast.success(cardCount > 0
+        ? `AI가 시장조사 카드 ${cardCount}개와 지표 ${added}개를 반영했습니다`
+        : (added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다'));
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI 지표 추천에 실패했습니다');
     } finally {
@@ -1601,7 +1945,7 @@ export default function StructuredResult() {
         evidenceCards: Array.isArray(slide?.evidenceCards) ? slide.evidenceCards.map(card => sanitizeTextObject(card)) : slide?.evidenceCards,
       }]));
       const cleanExportSections = moveSlidesToStandaloneSection(exportCustomSections);
-      const cleanEnabledExportSections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide')));
+      const cleanEnabledExportSections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide' || block.type === 'infographic')));
       const updatedStructured = {
         ...(experience.structuredResult || {}),
         ...cleanEditedContent,
@@ -1633,16 +1977,26 @@ export default function StructuredResult() {
           };
         })(),
       };
-      await updateDoc(ref, {
+      const savePayload = {
         title: editedTitle,
+        link: editedLink || null,
+        notionDoc: projectNotionDoc || null,
         structuredResult: updatedStructured,
         keywords: editedKeywords,
         images: allImages,
         sectionImages,
         imageConfig,
         updatedAt: new Date(),
-      });
-      setExperience(prev => ({ ...prev, title: editedTitle, structuredResult: updatedStructured, keywords: editedKeywords }));
+      };
+      // Firestore 문서 한도(1MB) 초과 시 updateDoc이 실패하므로 미리 안내한다.
+      const approxBytes = new Blob([JSON.stringify(savePayload)]).size;
+      if (approxBytes > 1_000_000) {
+        toast.error('내용·이미지 용량이 너무 큽니다(1MB 초과). 이미지 개수를 줄이거나 더 작은 이미지를 사용해 주세요.');
+        setSaving(false);
+        return;
+      }
+      await updateDoc(ref, savePayload);
+      setExperience(prev => ({ ...prev, title: editedTitle, link: editedLink || '', notionDoc: projectNotionDoc || null, structuredResult: updatedStructured, keywords: editedKeywords }));
       const newEditing = {};
       SECTION_KEYS.forEach(k => {
         if (!editedContent[k]?.trim()) newEditing[k] = true;
@@ -1652,7 +2006,11 @@ export default function StructuredResult() {
       toast.success('저장되었습니다');
       navigate(`/app/experience/structured/${id}?view=true`, { replace: true });
     } catch (error) {
-      toast.error('저장에 실패했습니다');
+      console.error('저장 실패:', error);
+      const tooLarge = /longer than|exceeds the maximum|1048487|invalid-argument/i.test(error?.message || '');
+      toast.error(tooLarge
+        ? '이미지 용량이 너무 커서 저장에 실패했습니다. 이미지 수나 크기를 줄여 주세요.'
+        : `저장에 실패했습니다${error?.message ? ` (${error.message})` : ''}`);
     }
     setSaving(false);
   };
@@ -1714,6 +2072,11 @@ export default function StructuredResult() {
       ].filter(Boolean).join('\n')),
       editedResearch.limitations && `검증 필요: ${editedResearch.limitations}`,
     ].filter(Boolean).join('\n\n');
+    const researchInfographic = normalizeDeskResearchInfographic(editedResearch.deskResearchInfographic);
+    const researchBlocks = [
+      ...(researchInfographic.cards.length > 0 ? [makeInfographicBlock(researchInfographic)] : []),
+      ...(researchText.trim() ? [makeTextBlock(researchText)] : []),
+    ];
     const jobSections = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(field => ({
       key: `job-${field.key}`,
       sourceKey: field.key,
@@ -1733,20 +2096,119 @@ export default function StructuredResult() {
     return [
       { key: 'project-meta', label: '프로젝트 정보', type: 'meta', content: metaLines, enabled: true },
       { key: 'key-experiences', label: '핵심 경험 & 성과', type: 'summary', content: keyExperienceText, enabled: editedKeyExperiences.length > 0 },
-      { key: 'market-research', label: '시장/지표 리서치', type: 'research', content: researchText, enabled: !!researchText.trim() },
+      { key: 'market-research', label: '시장/지표 리서치', type: 'research', content: researchText, blocks: researchBlocks, enabled: !!researchText.trim() || researchInfographic.cards.length > 0 },
       ...jobSections,
       ...baseSections,
-    ].map(section => normalizeExportSection({ ...section, blocks: section.content ? [makeTextBlock(section.content)] : [] }));
+    ].map(section => normalizeExportSection({ ...section, blocks: section.blocks || (section.content ? [makeTextBlock(section.content)] : []) }));
   };
 
   const normalizedExportSections = moveSlidesToStandaloneSection(exportCustomSections);
   const enabledExportSections = normalizedExportSections
-    .filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide')));
+    .filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide' || block.type === 'infographic')));
   const activeExportSectionRaw = normalizedExportSections.find(section => section.key === activeExportSectionKey) || normalizedExportSections.find(section => !isSlideDeckSection(section)) || normalizedExportSections[0];
   const activeExportSection = activeExportSectionRaw ? normalizeExportSection(activeExportSectionRaw) : null;
   const activeIsSlideDeck = activeExportSection ? isSlideDeckSection(activeExportSection) : false;
   const slideDeckSection = normalizedExportSections.find(isSlideDeckSection) || createSlideDeckSection([]);
   const slideDeckBlocks = slideDeckSection.blocks.filter(block => block.type === 'slide');
+  const projectDetailExperience = experience ? {
+    ...experience,
+    id,
+    experienceId: id,
+    title: editedTitle || experience.title || '',
+    date: editedOverview.duration || '',
+    role: editedOverview.role || '',
+    skills: editedOverview.techStack || [],
+    keywords: editedKeywords || [],
+    description: editedOverview.summary || editedOverview.background || editedContent.intro || '',
+    link: editedLink || experience.link || '',
+    thumbnailUrl: exportCoverImg || experience.thumbnailUrl || '',
+    notionDoc: projectNotionDoc || experience.notionDoc || null,
+    jobCategory,
+    structuredResult: {
+      ...(experience.structuredResult || {}),
+      ...editedContent,
+      projectOverview: { ...editedOverview },
+      marketResearch: editedResearch,
+      sectionSlides: editedSectionSlides,
+      keywords: editedKeywords,
+      keyExperiences: editedKeyExperiences,
+      jobCategory,
+      jobSpecific: editedJobSpecific,
+      exportConfig: {
+        ...(experience.structuredResult?.exportConfig || {}),
+        coverImg: exportCoverImg || experience.structuredResult?.exportConfig?.coverImg || null,
+        sections: enabledExportSections.map(section => ({
+          key: section.key,
+          label: section.label,
+          type: section.type || 'custom',
+          content: section.content,
+          blocks: section.blocks || [],
+        })),
+        draftSections: normalizedExportSections,
+      },
+    },
+  } : null;
+
+  const handleProjectPreviewUpdate = (changes = {}) => {
+    markDirty();
+    if (Object.prototype.hasOwnProperty.call(changes, 'title')) {
+      setEditedTitle(sanitizeTextValue(changes.title));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'date')) {
+      setEditedOverview(prev => ({ ...prev, duration: sanitizeTextValue(changes.date) }));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'role')) {
+      setEditedOverview(prev => ({ ...prev, role: sanitizeTextValue(changes.role) }));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'description')) {
+      setEditedOverview(prev => ({ ...prev, summary: sanitizeTextValue(changes.description) }));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'skills')) {
+      setEditedOverview(prev => ({ ...prev, techStack: Array.isArray(changes.skills) ? changes.skills : [] }));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'keywords')) {
+      setEditedKeywords(Array.isArray(changes.keywords) ? changes.keywords : []);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'thumbnailUrl')) {
+      setExportCoverImg(changes.thumbnailUrl || null);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'link')) {
+      setEditedLink(sanitizeTextValue(changes.link || ''));
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'notionDoc')) {
+      setProjectNotionDoc(changes.notionDoc || null);
+    }
+
+    const nextStructured = changes.structuredResult;
+    if (nextStructured) {
+      if (nextStructured.projectOverview) {
+        setEditedOverview(prev => ({
+          ...prev,
+          ...sanitizeTextObject(nextStructured.projectOverview),
+          techStack: Array.isArray(nextStructured.projectOverview.techStack)
+            ? nextStructured.projectOverview.techStack
+            : prev.techStack,
+        }));
+      }
+      if (Array.isArray(nextStructured.keyExperiences)) {
+        setEditedKeyExperiences(nextStructured.keyExperiences.map(item => ({ ...item })));
+      }
+      if (nextStructured.marketResearch) {
+        setEditedResearch(normalizeMarketResearch(nextStructured.marketResearch));
+      }
+      if (nextStructured.sectionSlides) {
+        setEditedSectionSlides(nextStructured.sectionSlides);
+      }
+      if (nextStructured.jobSpecific) {
+        setEditedJobSpecific(nextStructured.jobSpecific);
+      }
+      const nextFields = pickSectionFields(nextStructured);
+      const hasSectionContent = Object.values(nextFields).some(value => String(value || '').trim());
+      if (hasSectionContent) {
+        setEditedContent(prev => ({ ...prev, ...nextFields }));
+      }
+    }
+  };
 
   const updateExportSection = (key, patch) => {
     const cleanPatch = sanitizeTextObject(patch);
@@ -1964,6 +2426,7 @@ export default function StructuredResult() {
       projectOverview: editedOverview,
       marketResearch: editedResearch,
       coverImg: exportCoverImg || sr.exportConfig?.coverImg || null,
+      notionDoc: projectNotionDoc || experience?.notionDoc || null,
     };
 
     navigate('/app/portfolio', { state: { exportConfig } });
@@ -1972,7 +2435,7 @@ export default function StructuredResult() {
   /* 포트폴리오 미리보기 - 섹션 구성 Firestore 저장 */
   const handleSaveExportConfig = async () => {
     const cleanExportSections = moveSlidesToStandaloneSection(exportCustomSections);
-    const sections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide'))).map(section => ({
+    const sections = cleanExportSections.filter(section => section.enabled !== false && (section.content?.trim() || section.blocks?.some(block => block.type === 'image' || block.type === 'slide' || block.type === 'infographic'))).map(section => ({
       key: section.key,
       label: section.label,
       type: section.type || 'custom',
@@ -2051,10 +2514,10 @@ export default function StructuredResult() {
     { id: 'meta',           label: '소개 슬라이드 메타 입력', targetSlide: 0, check: () => !!editedOverview.duration?.trim() && !!editedOverview.role?.trim() && !!editedOverview.team?.trim(), tip: '기간, 역할, 팀 구성은 읽는 사람이 프로젝트 규모와 본인 기여 범위를 바로 판단하는 기준입니다.' },
     { id: 'techStack',      label: '기술 스택 입력', targetSlide: 0, check: () => editedOverview.techStack.length > 0, tip: '기술 스택은 많이 나열하기보다 이 경험의 핵심 판단에 쓰인 도구를 우선 배치해 주세요.' },
     { id: 'keywords',       label: '키워드 3개 이상', targetSlide: 0, check: () => editedKeywords.length >= 3, tip: '키워드는 역할, 문제 해결 방식, 성과 방향이 섞이도록 3개 이상 구성하면 슬라이드 인상이 선명해집니다.' },
-    { id: 'keyExperiences', label: '핵심 경험 슬라이드 추가', targetSlide: 3, check: () => editedKeyExperiences.length > 0, tip: '핵심 경험은 행동 나열보다 의사결정의 이유와 trade-off가 보이게 정리하면 좋습니다.' },
-    { id: 'research',       label: '시장/지표 근거 보강', targetSlide: 1, check: () => !!editedResearch.marketOverview?.trim() || editedResearch.decisionMetrics.length > 0, tip: '시장/지표 근거는 내 성과로 둔갑시키지 말고, 판단 기준이나 비교 기준으로 연결해 주세요.' },
+    { id: 'keyExperiences', label: '핵심 경험 추가 (2~3개 권장)', targetSlide: 3, check: () => editedKeyExperiences.length > 0, tip: '핵심 경험은 행동 나열보다 의사결정의 이유와 trade-off가 보이게, 2~3개로 정리하면 면접관이 한눈에 보기 좋습니다.' },
+    { id: 'research',       label: '시장/지표 근거 보강', targetSlide: 1, check: () => !!editedResearch.marketOverview?.trim() || editedResearch.decisionMetrics.length > 0 || normalizeDeskResearchInfographic(editedResearch.deskResearchInfographic).cards.length > 0, tip: '시장/지표 근거는 내 성과로 둔갑시키지 말고, 출처가 확인된 시장 기준이나 비교 기준으로 연결해 주세요.' },
     { id: 'metrics',        label: '수치/성과 근거 포함', targetSlide: 4, check: () => SECTION_KEYS.some(k => /\d+\s*[%배ms개원만억]/.test(editedContent[k] || '')) || editedKeyExperiences.some(k => k.metric || k.afterMetric), tip: '성과 슬라이드에는 전후 변화, 처리량, 시간 절감, 사용자 반응처럼 검증 가능한 수치를 우선 배치해 주세요.' },
-    { id: 'images',         label: '슬라이드 이미지 배치', targetSlide: sectionSlideIdx, check: () => allImages.length > 0, tip: '이미지는 설명을 대신하는 증거로 쓰는 게 좋아요. 현재 슬라이드에서 결과물, 화면, 구조도를 필요한 위치에 배치해 보세요.' },
+    { id: 'images',         label: '결과물/화면 이미지 배치', targetSlide: sectionSlideIdx, check: () => allImages.length > 0, tip: '이미지는 설명을 대신하는 증거예요. 각 섹션에 결과물·화면·구조도를 넣고, 캡션과 역할 라벨(화면/결과물/구조도)을 붙이면 면접관이 바로 이해합니다.' },
     { id: 'sections',       label: `${SECTION_COUNT}개 섹션 완성 (${filledCount}/${SECTION_COUNT})`, targetSlide: firstIncompleteSlideIdx >= 0 ? firstIncompleteSlideIdx : 0, check: () => filledCount === SECTION_COUNT, tip: '비어 있는 섹션부터 채우면 전체 흐름이 빨리 안정됩니다. 각 슬라이드는 배경, 문제, 행동, 결과가 겹치지 않게 역할을 나눠 주세요.' },
   ];
   const passedChecks = qualityChecks.filter(c => c.check()).length;
@@ -2178,6 +2641,30 @@ export default function StructuredResult() {
                 <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>
               )}
 
+              {/* 핵심 포인트 — 편집 중에도 수치/역량 키워드를 강조해 보여준다 */}
+              {!viewOnly && (() => {
+                const metricTokens = [...new Set((display.match(/\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위)/g) || []).map(s => s.trim()))].slice(0, 6);
+                const kwSeen = new Set();
+                const hlKw = [];
+                (sectionHighlights || []).forEach(h => (h.keywords || []).forEach(k => {
+                  const kk = stripMarkdown(String(k || '')).trim();
+                  if (kk && !kwSeen.has(kk)) { kwSeen.add(kk); hlKw.push({ k: kk, type: h.type }); }
+                }));
+                if (metricTokens.length === 0 && hlKw.length === 0) return null;
+                return (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-bluewood-300">핵심 포인트</span>
+                    {metricTokens.map((m, i) => (
+                      <span key={`m${i}`} className="rounded-md bg-primary-50 px-2 py-0.5 text-[12px] font-extrabold text-primary-700">{m}</span>
+                    ))}
+                    {hlKw.slice(0, 6).map((h, i) => {
+                      const c = highlightColors[h.type]?.underline || '#64748b';
+                      return <span key={`k${i}`} className="rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${c}1a`, color: c }}>{h.k}</span>;
+                    })}
+                  </div>
+                );
+              })()}
+
               {/* 섹션 이미지 + 추가 */}
               <InlineSlideImages
                 sectionKey={key}
@@ -2267,48 +2754,6 @@ export default function StructuredResult() {
               </span>
             )}
 
-            {/* 핵심 경험 슬라이더 컨트롤 그룹 — 핵심경험 탭에서만 */}
-            {activeTab === 'keyexp' && editedKeyExperiences.length > 0 && (
-              <div className="inline-flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-2.5 py-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-bluewood-300">핵심 경험</span>
-                {/* 인디케이터 */}
-                <div className="flex items-center gap-1">
-                  {editedKeyExperiences.map((_, i) => {
-                    const colors = ['#ef4444', '#2563eb', '#7c3aed'];
-                    return (
-                      <button key={i} onClick={() => sliderRef.current?.goTo(i)} className="p-0.5" aria-label={`${i + 1}번 핵심 경험`}>
-                        <div className={`h-[6px] rounded-full transition-all duration-300 ${i === sliderCurrent ? 'w-5' : 'w-[6px] hover:w-3'}`}
-                          style={{ backgroundColor: i === sliderCurrent ? colors[i % 3] : '#d1d5db' }} />
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="text-xs text-bluewood-400 tabular-nums font-medium">{sliderCurrent + 1}/{editedKeyExperiences.length}</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => sliderRef.current?.goPrev()} aria-label="이전 핵심 경험"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-200 text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 transition-all">
-                    <ChevronLeft size={15} />
-                  </button>
-                  <button onClick={() => sliderRef.current?.goNext()} aria-label="다음 핵심 경험"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-surface-200 text-bluewood-500 hover:bg-surface-50 hover:border-primary-200 hover:text-primary-600 active:scale-95 transition-all">
-                    <ChevronRight size={15} />
-                  </button>
-                </div>
-                <div className="w-px h-5 bg-surface-200" />
-                {/* 삭제된 항목 되돌리기 */}
-                {sliderDeletedCount > 0 && (
-                  <button onClick={() => sliderRef.current?.undoDelete()}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 active:scale-95 transition-all">
-                    <Undo2 size={12} /> ({sliderDeletedCount})
-                  </button>
-                )}
-                <button onClick={() => sliderRef.current?.deleteSlide()} title="현재 핵심 경험 삭제"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-white text-red-400 border-red-200 hover:bg-red-50 active:scale-95 transition-all">
-                  <Trash2 size={13} /> 삭제
-                </button>
-              </div>
-            )}
-
             {experience?.structuredResult?._draft && (
               <button
                 onClick={handleEnhanceDraft}
@@ -2321,7 +2766,7 @@ export default function StructuredResult() {
             )}
 
             <button
-              onClick={() => setShowExportPanel(true)}
+              onClick={() => setShowProjectPreviewEditor(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
               <Eye size={14} /> 미리보기
             </button>
@@ -2340,7 +2785,7 @@ export default function StructuredResult() {
       </div>
 
       {/* ── 고급수정 4탭 네비게이션 (굵은 밑줄 탭) ── */}
-      <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-surface-200 bg-white/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 border-b border-surface-200 bg-white/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
         <div className="flex gap-6 overflow-x-auto sm:gap-8">
           {[
             { key: 'story', label: '스토리', count: SECTION_COUNT },
@@ -2366,6 +2811,17 @@ export default function StructuredResult() {
         </div>
       </div>
 
+      {/* 현재 탭이 무엇을·어떻게·어디에 쓰이는지 안내 (사이트 난이도 완화) */}
+      {TAB_GUIDE[activeTab] && (
+        <div className="mb-6 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3">
+          <p className="text-[13px] leading-relaxed text-bluewood-500">
+            <span className="font-bold text-bluewood-800">{TAB_GUIDE[activeTab].title}</span>
+            <span className="text-bluewood-300"> — </span>
+            {TAB_GUIDE[activeTab].desc}
+          </p>
+        </div>
+      )}
+
       {activeTab === 'story' && renderDetailSlides()}
 
       {/* ── 메인 + 우측 기업분석 사이드바 ── */}
@@ -2383,12 +2839,8 @@ export default function StructuredResult() {
           keyExperiences={editedKeyExperiences}
           onUpdate={viewOnly ? undefined : handleKeyExperiencesChange}
           viewOnly={viewOnly}
-          forceEditing={!viewOnly}
-          hideHeader={!viewOnly}
-          onEditingChange={setSliderEditing}
+          listMode={!viewOnly}
           onDirty={markDirty}
-          onCurrentChange={setSliderCurrent}
-          onDeletedCountChange={setSliderDeletedCount}
         />
       </div>
       )}
@@ -2548,24 +3000,25 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  리서치 탭: 시장/지표 리서치 보강            ║
          ╚══════════════════════════════════════════════╝ */}
-      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || !viewOnly) && (() => {
+      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || editedResearch.deskResearchInfographic?.cards?.length > 0 || !viewOnly) && (() => {
         const R = editedResearch;
         const confMeta = { high: { label: '신뢰 높음', dot: '#10b981' }, medium: { label: '신뢰 보통', dot: '#cbd5e1' }, low: { label: '참고', dot: '#cbd5e1' } };
         const validSources = (R.sourceNotes || []).filter(s => (s.title && s.title.trim()) || /^https?:\/\//.test(s.url || ''));
+        const infographic = normalizeDeskResearchInfographic(R.deskResearchInfographic);
         return (
         <div className="mt-2">
           {/* 헤더 */}
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface-200 pb-4 mb-7">
             <div className="min-w-0">
               <h2 className="text-[21px] font-extrabold text-bluewood-900">시장·지표 근거</h2>
-              <p className="mt-1.5 text-[14px] text-bluewood-500 leading-relaxed">의사결정에 쓸 지표를 정리합니다. 외부 수치는 비교 기준으로만, 실제 성과는 직접 검증하세요.</p>
+              <p className="mt-1.5 text-[14px] text-bluewood-500 leading-relaxed">AI가 실제 출처 기반 시장조사 인포그래픽과 의사결정 지표를 정리합니다. 외부 수치는 비교 기준으로만 사용합니다.</p>
             </div>
             {!viewOnly && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={handleResearchMetrics} disabled={researchingMetrics}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-[13.5px] font-bold text-white bg-bluewood-800 hover:bg-bluewood-900 disabled:opacity-50 transition-colors">
                   {researchingMetrics && <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
-                  {researchingMetrics ? '리서치 중...' : '지표 추천받기'}
+                  {researchingMetrics ? '리서치 중...' : '시장조사 만들기'}
                 </button>
                 <button onClick={addDecisionMetric}
                   className="px-3 py-2 rounded-md border border-surface-200 text-[13.5px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
@@ -2588,6 +3041,16 @@ export default function StructuredResult() {
                     className="w-full min-h-[88px] resize-y border-0 border-l-2 border-surface-200 bg-transparent pl-4 py-1 text-[15.5px] leading-[1.85] text-bluewood-800 outline-none placeholder:text-bluewood-300 focus:border-primary-300"
                   />
                 )}
+              </div>
+            )}
+
+            {infographic.cards.length > 0 && (
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">시장조사 인포그래픽</p>
+                  <span className="text-[12px] font-semibold text-bluewood-300">출처 URL이 확인된 수치만 표시</span>
+                </div>
+                <DeskResearchInfographic infographic={infographic} />
               </div>
             )}
 
@@ -2896,6 +3359,17 @@ export default function StructuredResult() {
         >
           <Check size={15} /> 작성 완성도 {qualityPct}%
         </button>
+      )}
+
+      {showProjectPreviewEditor && projectDetailExperience && (
+        <ProjectDetailModal
+          exp={projectDetailExperience}
+          readOnly={viewOnly}
+          onUpdate={viewOnly ? undefined : handleProjectPreviewUpdate}
+          onClose={() => setShowProjectPreviewEditor(false)}
+          resizeToBase64={resizeToBase64}
+          jobAnalysis={jobAnalysis}
+        />
       )}
 
       {/* ── 포트폴리오 내보내기 모달 ── */}

@@ -534,6 +534,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     },
     marketResearch: {
       marketOverview: '',
+      deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' },
       decisionMetrics: [],
       sourceNotes: [],
       portfolioAngles: [],
@@ -618,7 +619,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
       techStack: Array.isArray(ov.techStack) ? ov.techStack : [],
     },
     marketResearch: {
-      marketOverview: '', decisionMetrics: [], sourceNotes: [], portfolioAngles: [],
+      marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [],
       limitations: '빠른 초안 모드로 생성되어 시장/직무 근거는 AI 보강 후 채워집니다.',
     },
     keyExperiences,
@@ -801,7 +802,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
       summary: '', background: '', goal: '', role: '', team: '', duration: '', techStack: [],
     },
     marketResearch: overviewJson.marketResearch || {
-      marketOverview: '', decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
+      marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
     },
     keyExperiences,
     intro: overviewJson.intro || '',
@@ -870,8 +871,65 @@ export async function researchMarketMetrics(context = {}) {
     console.warn('[Research-Metrics] AI research failed. Returning empty fallback:', err.message);
   }
   const arr = (v) => (Array.isArray(v) ? v : []);
+  const today = new Date().toISOString().slice(0, 10);
+  const isUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
+  const sourceNotes = arr(parsed.sourceNotes).map(s => ({
+    title: s?.title || '',
+    publisher: s?.publisher || '',
+    url: s?.url || '',
+    checkedAt: s?.checkedAt || today,
+    usage: s?.usage || '',
+  })).filter(s => s.title || s.url);
+  const sourceByIndex = (index) => Number.isInteger(Number(index)) ? sourceNotes[Number(index)] : null;
+  const toNum = (value) => {
+    const n = typeof value === 'number'
+      ? value
+      : Number(String(value ?? '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/)?.[0]);
+    return Number.isFinite(n) ? n : null;
+  };
+  const infographicRaw = parsed.deskResearchInfographic && typeof parsed.deskResearchInfographic === 'object'
+    ? parsed.deskResearchInfographic
+    : {};
+  const infographicCards = arr(infographicRaw.cards).map((card, index) => {
+    const source = isUrl(card?.sourceUrl) ? null : sourceByIndex(card?.sourceIndex);
+    const sourceUrl = isUrl(card?.sourceUrl) ? card.sourceUrl : (isUrl(source?.url) ? source.url : '');
+    const bars = arr(card?.bars).map(bar => ({
+      label: compactFallbackText(bar?.label, 32),
+      value: toNum(bar?.value),
+      unit: compactFallbackText(bar?.unit || card?.unit || '%', 8),
+    })).filter(bar => bar.label && bar.value != null).slice(0, 5);
+    const value = toNum(card?.value);
+    const chartType = ['donut', 'bar', 'stat'].includes(card?.chartType) ? card.chartType : (bars.length ? 'bar' : 'stat');
+    const hasChartData = chartType === 'bar' ? bars.length > 0 : value != null;
+    if (!sourceUrl || !hasChartData) return null;
+    return {
+      id: card?.id || `research-card-${index + 1}`,
+      question: compactFallbackText(card?.question, 80),
+      finding: compactFallbackText(card?.finding, 140),
+      chartType,
+      value,
+      unit: compactFallbackText(card?.unit || '%', 8),
+      valueLabel: compactFallbackText(card?.valueLabel, 40),
+      remainderLabel: compactFallbackText(card?.remainderLabel, 40),
+      sampleBase: compactFallbackText(card?.sampleBase, 80),
+      bars,
+      sourceTitle: compactFallbackText(card?.sourceTitle || source?.title, 120),
+      sourcePublisher: compactFallbackText(card?.sourcePublisher || source?.publisher, 80),
+      sourceUrl,
+      checkedAt: compactFallbackText(card?.checkedAt || source?.checkedAt || today, 20),
+      interpretation: compactFallbackText(card?.interpretation, 120),
+    };
+  }).filter(Boolean).slice(0, 4);
+
   return {
     marketOverview: typeof parsed.marketOverview === 'string' ? parsed.marketOverview : '',
+    deskResearchInfographic: {
+      title: compactFallbackText(infographicRaw.title, 90),
+      subtitle: compactFallbackText(infographicRaw.subtitle, 160),
+      cards: infographicCards,
+      conclusion: compactFallbackText(infographicRaw.conclusion, 180),
+      limitations: compactFallbackText(infographicRaw.limitations, 180),
+    },
     decisionMetrics: arr(parsed.decisionMetrics).map(m => ({
       metric: m?.metric || '',
       whyItMatters: m?.whyItMatters || '',
@@ -879,15 +937,12 @@ export async function researchMarketMetrics(context = {}) {
       researchBasis: m?.researchBasis || '',
       confidence: m?.confidence || 'medium',
     })).filter(m => m.metric),
-    sourceNotes: arr(parsed.sourceNotes).map(s => ({
-      title: s?.title || '',
-      publisher: s?.publisher || '',
-      url: s?.url || '',
-      checkedAt: s?.checkedAt || new Date().toISOString().slice(0, 10),
-      usage: s?.usage || '',
-    })).filter(s => s.title || s.url),
+    sourceNotes,
     portfolioAngles: arr(parsed.portfolioAngles).filter(Boolean),
-    limitations: typeof parsed.limitations === 'string' ? parsed.limitations : '',
+    limitations: [
+      typeof parsed.limitations === 'string' ? parsed.limitations : '',
+      infographicCards.length === 0 && infographicRaw.cards?.length ? '출처 URL 또는 숫자가 확인되지 않은 인포그래픽 카드는 제외했습니다.' : '',
+    ].filter(Boolean).join('\n'),
   };
 }
 

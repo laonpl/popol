@@ -2,7 +2,7 @@
  * ProjectDetailModal — 프로젝트(경험) 상세 모달 (편집/미리보기/링크공유 공용).
  *
  * 본문은 하나의 자유 노션 캔버스(NotionDocEditor)로 편집한다.
- *  - 좌측: 팔레트(내 경험 + 빈 섹션) — 드래그하여 캔버스에 삽입 (편집 모드)
+ *  - 좌측: 팔레트(섹션 + 핵심 경험) — 드래그하여 캔버스에 삽입 (편집 모드)
  *  - 중앙: 속성 헤더(기간/역할/기술/키워드/목표/링크 + 핵심경험) + 자유 캔버스
  *  - 우측: AI 첨삭 패널 (jobAnalysis 연결 시, 편집 모드)
  *
@@ -10,25 +10,162 @@
  *  - exp: 프로젝트(경험) 객체. 캔버스는 exp.notionDoc(Yoopta JSON)에 저장.
  *  - readOnly: 읽기전용(미리보기·링크공유)
  *  - onUpdate(changes): 편집 모드에서 변경 저장
- *  - onClose, jobAnalysis, resizeToBase64, userExperiences, genericMode
+ *  - onClose, jobAnalysis, resizeToBase64, genericMode
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { X, ExternalLink, ImagePlus, PenLine, Check, Loader2, Layers, FileText, GripVertical, Sparkles } from 'lucide-react';
+import { X, ExternalLink, ImagePlus, Check, Loader2, FileText, GripVertical, Sparkles, Wand2, List, ChevronDown, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import KeyExperienceSlider from './KeyExperienceSlider';
+import GuidedTutorial from './GuidedTutorial';
+import { useOnboarding } from './OnboardingOverlay';
 import { NotionDocEditor, CUSTOM_PALETTE_DRAG_TYPE } from './YooptaMiniEditor';
 import {
   buildNotionDocFromExperience,
-  sectionTemplateToBlocks,
-  experienceToBlocks,
+  allKeyExperiencePaletteBlocks,
+  blocksToYooptaValue,
+  buildRenderableSections,
+  sectionPaletteBlocks,
+  keyExperiencePaletteBlocks,
   tailoredToBlocks,
   getSectionTemplates,
   extractSectionsFromDoc,
+  experienceDraftBlocks,
+  extractHeadingsFromDoc,
+  emptyNotionDoc,
 } from '../utils/projectSections';
 import { stripMd } from '../utils/textUtils';
+
+function slatePlainText(node) {
+  if (!node) return '';
+  if (typeof node.text === 'string') return node.text;
+  return (node.children || []).map(slatePlainText).join('');
+}
+
+function docHasMeaningfulContent(value) {
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value).some(block => {
+    if (!block) return false;
+    if (block.type === 'Image' || block.type === 'Table' || block.type === 'Divider') return true;
+    return (block.value || []).some(node => slatePlainText(node).trim());
+  });
+}
+
+function PaletteGroup({ title, icon, open, onToggle, children }) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left text-[12px] font-bold text-gray-600 hover:bg-white"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          {icon}
+          <span className="truncate">{title}</span>
+        </span>
+        {open ? <ChevronDown size={13} className="text-gray-400" /> : <ChevronRight size={13} className="text-gray-400" />}
+      </button>
+      {open && <div className="mt-1.5 space-y-1">{children}</div>}
+    </div>
+  );
+}
+
+function setPaletteDragPayload(event, payload) {
+  const json = JSON.stringify(payload);
+  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData(CUSTOM_PALETTE_DRAG_TYPE, json);
+  event.dataTransfer.setData('application/json', json);
+  event.dataTransfer.setData('text/plain', `fitpoly-palette:${json}`);
+}
+
+const QUICK_MENU_PANEL_WIDTH = 224;
+
+function QuickMenu({ headings, activeId, onSelect, anchorRef, scrollRootRef }) {
+  const [position, setPosition] = useState({ left: -9999, top: -9999 });
+
+  useEffect(() => {
+    const updatePosition = () => {
+      const anchor = anchorRef?.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const gap = 16;
+      // 본문 컬럼 오른쪽 여백(거터)에 두되, 패널이 오른쪽으로 펼쳐질 공간을 확보해
+      // 본문을 가리지 않도록 left를 (뷰포트 우측 - 패널 너비) 안쪽으로 제한한다.
+      const left = Math.min(rect.right + gap, window.innerWidth - QUICK_MENU_PANEL_WIDTH - 16);
+      setPosition({
+        left: Math.max(16, left),
+        top: Math.max(96, Math.min(rect.top + 120, window.innerHeight - 360)),
+      });
+    };
+
+    updatePosition();
+    const root = scrollRootRef?.current;
+    root?.addEventListener('scroll', updatePosition, { passive: true });
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      root?.removeEventListener('scroll', updatePosition);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [anchorRef, scrollRootRef]);
+
+  return (
+    <aside
+      data-tour="project-detail-quick-menu"
+      className="group/quick fixed z-[360] hidden lg:block"
+      style={position}
+    >
+      {/* 접힘: 선 핸들 — 펼칠 때는 사라지고 그 자리에서 목차가 펼쳐진다 */}
+      <button
+        type="button"
+        className="flex h-[78px] w-[34px] flex-col items-center justify-center gap-2.5 rounded-xl border border-transparent opacity-55 transition-opacity duration-200 hover:opacity-100 group-hover/quick:opacity-0 group-focus-within/quick:opacity-0"
+        aria-label="Quick Menu 열기"
+      >
+        <span className="h-[3px] w-[20px] rounded-full bg-primary-500 shadow-[0_0_8px_rgba(0,47,108,0.18)]" />
+        <span className="h-[3px] w-[20px] rounded-full bg-bluewood-300/75" />
+        <span className="h-[3px] w-[20px] rounded-full bg-bluewood-300/75" />
+      </button>
+
+      {/* 펼침: 핸들 자리(좌상단)에서 오른쪽·아래로 펼쳐진다 */}
+      <div
+        className="pointer-events-none absolute left-0 top-0 -translate-y-1 opacity-0 transition-all duration-200 group-hover/quick:pointer-events-auto group-hover/quick:translate-y-0 group-hover/quick:opacity-100 group-focus-within/quick:pointer-events-auto group-focus-within/quick:translate-y-0 group-focus-within/quick:opacity-100"
+        style={{ width: QUICK_MENU_PANEL_WIDTH }}
+      >
+        <div className="rounded-2xl border border-surface-200 bg-white/98 p-3 shadow-card-hover backdrop-blur">
+          <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-black uppercase tracking-[0.18em] text-bluewood-300">
+            <List size={12} /> Quick
+          </div>
+          {headings.length === 0 ? (
+            <p className="px-1 py-1 text-[12px] leading-relaxed text-bluewood-300">제목 블록을 추가하면 목차가 생깁니다.</p>
+          ) : (
+            <div className="max-h-[300px] space-y-0.5 overflow-y-auto pr-1">
+              {headings.map(item => {
+                const active = activeId === item.id;
+                const indent = item.level === 1 ? '' : item.level === 2 ? 'pl-3' : 'pl-6';
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onSelect(item.id)}
+                    className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-[12px] font-semibold transition-colors ${indent} ${
+                      active
+                        ? 'bg-primary-50 text-primary-700'
+                        : 'text-bluewood-500 hover:bg-surface-50 hover:text-bluewood-800'
+                    }`}
+                    title={item.text}
+                  >
+                    {item.text}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 export default function ProjectDetailModal({
   exp,
@@ -37,7 +174,6 @@ export default function ProjectDetailModal({
   onClose,
   jobAnalysis,
   resizeToBase64,
-  userExperiences = [],
   genericMode = false,
 }) {
   const structured = exp?.structuredResult || {};
@@ -67,21 +203,92 @@ export default function ProjectDetailModal({
     return () => { alive = false; };
   }, [exp?.experienceId]);
 
-  // ── 캔버스 초기 문서: 저장된 notionDoc 우선, 없으면 기존 섹션 → 노션 블록 변환 ──
+  // ── 캔버스 초기 문서: 편집 모드는 저장 문서가 없으면 빈 페이지, 읽기 전용은 기존 섹션을 자동 변환 ──
   const hasSavedDoc = exp?.notionDoc && Object.keys(exp.notionDoc).length > 0;
   const initialDoc = useMemo(() => {
     if (hasSavedDoc) return exp.notionDoc;
     if (!imagesLoaded) return null;
+    if (!readOnly) return emptyNotionDoc();
     return buildNotionDocFromExperience(exp, { allImages, sectionImages, imageConfig });
-  }, [hasSavedDoc, exp, imagesLoaded, allImages, sectionImages, imageConfig]);
+  }, [hasSavedDoc, readOnly, exp, imagesLoaded, allImages, sectionImages, imageConfig]);
 
   const docValueRef = useRef(initialDoc);
-  useEffect(() => { if (initialDoc) docValueRef.current = initialDoc; }, [initialDoc]);
+  const [headings, setHeadings] = useState([]);
+  const [activeHeadingId, setActiveHeadingId] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState({ sections: true, keyexp: true });
+  const [docIsEmpty, setDocIsEmpty] = useState(true);
+  useEffect(() => {
+    if (!initialDoc) return;
+    docValueRef.current = initialDoc;
+    setHeadings(extractHeadingsFromDoc(initialDoc));
+    setDocIsEmpty(!docHasMeaningfulContent(initialDoc));
+  }, [initialDoc]);
   const canvasRef = useRef(null);
+  const scrollAreaRef = useRef(null);
+  const documentColumnRef = useRef(null);
+  const coverInputRef = useRef(null);
+  const tutorialRef = useRef(null);
+  const tutorial = useOnboarding(!readOnly ? 'project_detail_canvas' : null);
 
   const handleDocChange = (nextDoc) => {
     docValueRef.current = nextDoc;
+    setHeadings(extractHeadingsFromDoc(nextDoc));
+    setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
     onUpdate?.({ notionDoc: nextDoc });
+  };
+
+  const replaceCanvasWithDraft = () => {
+    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 초안으로 교체할까요?')) return;
+    const blocks = experienceDraftBlocks(exp, { allImages, sectionImages, imageConfig });
+    const nextDoc = blocksToYooptaValue(blocks);
+    canvasRef.current?.replaceBlocks(blocks);
+    docValueRef.current = nextDoc;
+    setHeadings(extractHeadingsFromDoc(nextDoc));
+    setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
+    onUpdate?.({ notionDoc: nextDoc });
+    toast.success('경험 정리 내용을 바탕으로 초안을 만들었습니다');
+  };
+
+  const uploadCoverImage = async (file) => {
+    if (!file) return;
+    if (!resizeToBase64) {
+      toast.error('이미지 업로드를 사용할 수 없습니다');
+      return;
+    }
+    try {
+      const url = await resizeToBase64(file, 1400, 0.84);
+      onUpdate?.({
+        thumbnailUrl: url,
+        structuredResult: {
+          ...structured,
+          exportConfig: { ...(structured.exportConfig || {}), coverImg: url },
+        },
+      });
+      toast.success('커버 사진을 설정했습니다');
+    } catch {
+      toast.error('이미지 처리에 실패했습니다');
+    }
+  };
+
+  const removeCoverImage = () => {
+    onUpdate?.({
+      thumbnailUrl: '',
+      structuredResult: {
+        ...structured,
+        exportConfig: { ...(structured.exportConfig || {}), coverImg: null },
+      },
+    });
+  };
+
+  const scrollToHeading = (id) => {
+    if (!id) return;
+    setActiveHeadingId(id);
+    const target = document.querySelector(`[data-yoopta-block-id="${id}"]`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+  };
+
+  const togglePalette = (key) => {
+    setPaletteOpen(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   // ── 메타(속성) 인라인 편집 ──
@@ -176,14 +383,26 @@ export default function ProjectDetailModal({
     setAppliedSections(Object.fromEntries(list.map((_, i) => [i, true])));
   };
 
-  // ── 팔레트 드래그 → 블록 변환 ──
+  // ── 팔레트 드래그 → 블록 변환 (작성된 섹션/핵심 경험을 캔버스에 재활용) ──
   const resolvePaletteBlocks = (payload) => {
-    if (payload?.kind === 'section') return sectionTemplateToBlocks(payload.label);
-    if (payload?.kind === 'experience') {
-      const found = userExperiences.find(e => (e.id || e.experienceId) === payload.id);
-      return found ? experienceToBlocks(found) : [];
-    }
+    if (payload?.kind === 'section') return sectionPaletteBlocks(exp, payload.key, payload.label);
+    if (payload?.kind === 'all-keyexperiences') return allKeyExperiencePaletteBlocks(exp);
+    if (payload?.kind === 'keyexperience') return keyExperiencePaletteBlocks(exp, payload.index);
     return [];
+  };
+
+  const insertPalettePayload = (payload) => {
+    const blocks = resolvePaletteBlocks(payload);
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      toast.error('추가할 내용이 없습니다');
+      return;
+    }
+    if (docIsEmpty) {
+      canvasRef.current?.replaceBlocks(blocks);
+    } else {
+      canvasRef.current?.insertBlocks(blocks);
+    }
+    toast.success('캔버스에 추가했습니다');
   };
 
   if (!exp) return null;
@@ -197,12 +416,53 @@ export default function ProjectDetailModal({
   const keyExps = (structured.keyExperiences || []).filter(Boolean);
   const description = exp.description || overview.background || overview.summary || '';
   const sectionTemplates = getSectionTemplates(exp?.jobCategory || structured.exportConfig?.jobCategory);
+  const renderedSections = buildRenderableSections(exp);
+  const sectionContentMap = new Map(renderedSections.map(section => [section.key, section]));
+  const tutorialSteps = [
+    {
+      selector: '[data-tour="project-detail-palette"]',
+      title: '섹션을 끌어와 구성하세요',
+      body: '왼쪽 섹션은 제목만이 아니라 경험 정리에서 이미 작성된 본문까지 함께 가져옵니다. 필요한 위치에 드래그해서 넣으면 됩니다.',
+    },
+    {
+      selector: '[data-tour="project-detail-draft"]',
+      title: '빈 화면이 부담되면 초안을 만드세요',
+      body: '초안 만들기는 속성, 작성된 섹션, 핵심 경험을 한 번에 캔버스에 배치합니다.',
+      actionLabel: '초안 만들기',
+      onAction: replaceCanvasWithDraft,
+    },
+    {
+      selector: '[data-tour="project-detail-keyexp"]',
+      title: '핵심 경험도 블록처럼 추가합니다',
+      body: '전체 핵심 경험을 한 번에 넣거나, 특정 경험만 골라서 캔버스 중간에 배치할 수 있습니다.',
+    },
+    {
+      selector: '[data-tour="project-detail-cover"]',
+      title: '커버 사진을 설정하세요',
+      body: '프로젝트의 첫인상을 보여주는 화면, 결과물, 구조도 이미지를 커버로 지정할 수 있습니다.',
+    },
+    {
+      selector: '[data-tour="project-detail-image"]',
+      title: '이미지는 자유롭게 붙여 넣습니다',
+      body: '버튼으로 추가해도 되고, 캔버스 중간에 이미지를 붙여넣거나 드롭해도 됩니다.',
+    },
+    {
+      selector: '[data-tour="project-detail-quick-menu"]',
+      title: 'Quick Menu가 자동으로 따라옵니다',
+      body: '캔버스에 제목 블록을 추가하면 오른쪽 목차가 자동 갱신되어 긴 문서에서도 바로 이동할 수 있습니다.',
+    },
+  ];
 
   const showPalette = !readOnly;
   const showTailorPanel = !readOnly && tailorOpen;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-3" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-3"
+      onClick={event => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
       <div
         className="bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] transition-all duration-300"
         style={{ width: showTailorPanel ? 'min(1700px, calc(100vw - 24px))' : 'min(1400px, calc(100vw - 24px))' }}
@@ -237,60 +497,132 @@ export default function ProjectDetailModal({
         <div className="flex-1 overflow-hidden flex">
           {/* ── 좌측 팔레트 ── */}
           {showPalette && (
-            <div className="w-[230px] flex-shrink-0 border-r border-gray-100 bg-[#fafaf8] overflow-y-auto p-3">
-              <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">드래그하여 추가</p>
-
-              <div className="mt-2 flex items-center gap-1.5 px-1 text-[12px] font-bold text-gray-600"><FileText size={13} /> 빈 섹션</div>
-              <div className="mt-1.5 space-y-1">
-                {sectionTemplates.map(tpl => (
-                  <div
-                    key={tpl.key}
-                    draggable
-                    onDragStart={e => {
-                      e.dataTransfer.effectAllowed = 'copy';
-                      e.dataTransfer.setData(CUSTOM_PALETTE_DRAG_TYPE, JSON.stringify({ kind: 'section', label: tpl.label }));
-                    }}
-                    className="group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 cursor-grab active:cursor-grabbing hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
-                  >
-                    <GripVertical size={12} className="text-gray-300 group-hover:text-primary-400" />
-                    <span className="truncate">{tpl.label}</span>
-                  </div>
-                ))}
+            <div data-tour="project-detail-palette" className="w-[248px] flex-shrink-0 border-r border-gray-100 bg-[#fafaf8] overflow-y-auto p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bluewood-300">Blocks</p>
+                <button
+                  type="button"
+                  onClick={tutorial.show}
+                  className="rounded-md px-2 py-1 text-[11px] font-bold text-primary-600 hover:bg-primary-50"
+                >
+                  도움말
+                </button>
               </div>
 
-              {userExperiences.length > 0 && (
-                <>
-                  <div className="mt-4 flex items-center gap-1.5 px-1 text-[12px] font-bold text-gray-600"><Layers size={13} /> 내 경험</div>
-                  <div className="mt-1.5 space-y-1">
-                    {userExperiences.map(e => (
+              <PaletteGroup
+                title="섹션"
+                icon={<FileText size={13} />}
+                open={paletteOpen.sections}
+                onToggle={() => togglePalette('sections')}
+              >
+                {sectionTemplates.map(tpl => {
+                  const filled = !!sectionContentMap.get(tpl.key)?.content?.trim();
+                  return (
+                    <div
+                      key={tpl.key}
+                      draggable
+                      onDragStart={e => {
+                        setPaletteDragPayload(e, { kind: 'section', key: tpl.key, label: tpl.label });
+                      }}
+                      onDoubleClick={() => insertPalettePayload({ kind: 'section', key: tpl.key, label: tpl.label })}
+                      title="드래그하거나 더블클릭해 추가"
+                      className="group flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[13px] text-gray-700 cursor-grab active:cursor-grabbing hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
+                    >
+                      <GripVertical size={12} className="text-gray-300 group-hover:text-primary-400" />
+                      <span className="min-w-0 flex-1 truncate">{tpl.label}</span>
+                      {filled && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">작성됨</span>}
+                    </div>
+                  );
+                })}
+              </PaletteGroup>
+
+              {keyExps.length > 0 && (
+                <div data-tour="project-detail-keyexp" className="mt-4">
+                  <PaletteGroup
+                    title="핵심 경험"
+                    icon={<Sparkles size={13} />}
+                    open={paletteOpen.keyexp}
+                    onToggle={() => togglePalette('keyexp')}
+                  >
+                    <div
+                      draggable
+                      onDragStart={e => {
+                        setPaletteDragPayload(e, { kind: 'all-keyexperiences' });
+                      }}
+                      onDoubleClick={() => insertPalettePayload({ kind: 'all-keyexperiences' })}
+                      title="드래그하거나 더블클릭해 추가"
+                      className="group flex items-center gap-1.5 rounded-md border border-primary-200 bg-primary-50 px-2 py-1.5 text-[13px] font-bold text-primary-700 cursor-grab active:cursor-grabbing hover:bg-primary-100 transition-colors"
+                    >
+                      <GripVertical size={12} className="text-primary-300" />
+                      <span className="min-w-0 flex-1 truncate">전체 핵심 경험</span>
+                      <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-primary-500">{keyExps.length}</span>
+                    </div>
+                    {keyExps.map((item, index) => (
                       <div
-                        key={e.id || e.experienceId}
+                        key={`${item.title || 'keyexp'}-${index}`}
                         draggable
-                        onDragStart={ev => {
-                          ev.dataTransfer.effectAllowed = 'copy';
-                          ev.dataTransfer.setData(CUSTOM_PALETTE_DRAG_TYPE, JSON.stringify({ kind: 'experience', id: e.id || e.experienceId }));
+                        onDragStart={e => {
+                          setPaletteDragPayload(e, { kind: 'keyexperience', index });
                         }}
-                        className="group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 cursor-grab active:cursor-grabbing hover:border-emerald-300 hover:bg-emerald-50/40 transition-colors"
-                        title={e.title}
+                        onDoubleClick={() => insertPalettePayload({ kind: 'keyexperience', index })}
+                        title="드래그하거나 더블클릭해 추가"
+                        className="group flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[13px] text-gray-700 cursor-grab active:cursor-grabbing hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
                       >
-                        <GripVertical size={12} className="text-gray-300 group-hover:text-emerald-400" />
-                        <span className="truncate">{e.title || '(제목 없음)'}</span>
+                        <GripVertical size={12} className="text-gray-300 group-hover:text-primary-400" />
+                        <span className="min-w-0 flex-1 truncate">{stripMd(item.title) || `핵심 경험 ${index + 1}`}</span>
                       </div>
                     ))}
-                  </div>
-                </>
+                  </PaletteGroup>
+                </div>
               )}
+
             </div>
           )}
 
-          {/* ── 중앙: 속성 헤더 + 캔버스 ── */}
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            {coverImg && (
-              <div className="w-full h-40 bg-surface-50">
-                <img src={coverImg} alt="cover" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <div className="px-10 pb-12 pt-8 max-w-3xl mx-auto">
+          {/* ── 중앙: 속성 헤더 + 캔버스 + Quick Menu ── */}
+          <div ref={scrollAreaRef} className="flex-1 min-w-0 overflow-y-auto bg-white">
+            <div className="px-5 pb-12 pt-6">
+              <div ref={documentColumnRef} className="relative mx-auto max-w-3xl">
+                <main data-tour="project-detail-canvas" className="min-w-0 flex-1 max-w-3xl">
+                  {(!readOnly || coverImg) && (
+                    <div data-tour="project-detail-cover" className={`group relative mb-6 overflow-hidden rounded-lg border border-surface-200 bg-surface-50 ${coverImg ? 'h-40' : 'h-24'}`}>
+                      {coverImg ? (
+                        <img src={coverImg} alt="cover" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[13px] font-semibold text-bluewood-300">커버 사진</div>
+                      )}
+                      {!readOnly && (
+                        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => coverInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-white/70 bg-white/92 px-2.5 py-1.5 text-[12px] font-bold text-bluewood-700 shadow-sm backdrop-blur hover:bg-white"
+                          >
+                            <ImagePlus size={13} /> 커버 설정
+                          </button>
+                          {coverImg && (
+                            <button
+                              type="button"
+                              onClick={removeCoverImage}
+                              className="rounded-md border border-white/70 bg-white/92 px-2.5 py-1.5 text-[12px] font-bold text-red-500 shadow-sm backdrop-blur hover:bg-white"
+                            >
+                              제거
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={event => {
+                          uploadCoverImage(event.target.files?.[0]);
+                          event.target.value = '';
+                        }}
+                      />
+                    </div>
+                  )}
               {/* 메타 편집 폼 */}
               {editingMeta && metaDraft && (
                 <div className="mb-6 bg-surface-50 border border-surface-200 rounded-xl p-4 space-y-3">
@@ -417,7 +749,34 @@ export default function ProjectDetailModal({
 
               {/* ── 자유 캔버스 ── */}
               <div>
-                <h4 className="text-[14px] font-bold uppercase tracking-widest text-gray-400 border-b border-surface-100 pb-2 mb-3">상세 내용</h4>
+                <div className="mb-3 flex items-center justify-between gap-3 border-b border-surface-100 pb-2">
+                  <h4 className="text-[14px] font-bold uppercase tracking-widest text-gray-400">상세 내용</h4>
+                  {!readOnly && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        data-tour="project-detail-draft"
+                        type="button"
+                        onClick={replaceCanvasWithDraft}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-bluewood-800 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-bluewood-900 active:scale-95 transition-all"
+                      >
+                        <Wand2 size={13} /> 초안 만들기
+                      </button>
+                      <button
+                        data-tour="project-detail-image"
+                        type="button"
+                        onClick={() => canvasRef.current?.openImagePicker()}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-3 py-1.5 text-[12px] font-bold text-bluewood-600 hover:border-primary-200 hover:bg-primary-50 active:scale-95 transition-all"
+                      >
+                        <ImagePlus size={13} /> 이미지 추가
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {!readOnly && docIsEmpty && (
+                  <div className="mb-3 rounded-lg border border-dashed border-primary-200 bg-primary-50/45 px-4 py-3 text-[13px] leading-relaxed text-bluewood-500">
+                    빈 캔버스입니다. 왼쪽 블록을 드래그하거나 초안 만들기로 시작하세요.
+                  </div>
+                )}
                 {initialDoc ? (
                   <NotionDocEditor
                     key={exp.experienceId || exp.id || exp.title || 'project'}
@@ -430,6 +789,15 @@ export default function ProjectDetailModal({
                 ) : (
                   <div className="flex items-center justify-center py-12 text-gray-400"><Loader2 size={20} className="animate-spin" /></div>
                 )}
+              </div>
+                </main>
+                <QuickMenu
+                  headings={headings}
+                  activeId={activeHeadingId}
+                  onSelect={scrollToHeading}
+                  anchorRef={documentColumnRef}
+                  scrollRootRef={scrollAreaRef}
+                />
               </div>
             </div>
           </div>
@@ -511,6 +879,15 @@ export default function ProjectDetailModal({
           )}
         </div>
       </div>
+      {!readOnly && (
+        <GuidedTutorial
+          ref={tutorialRef}
+          visible={tutorial.visible}
+          steps={tutorialSteps}
+          onSkip={() => tutorial.dismiss(false)}
+          onNeverShow={() => tutorial.dismiss(true)}
+        />
+      )}
     </div>
   );
 }

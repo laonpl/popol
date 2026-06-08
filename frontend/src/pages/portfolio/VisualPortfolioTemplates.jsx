@@ -1847,7 +1847,7 @@ function makeSectionOrderUtils(portfolio, ec, defaultSections) {
 }
 
 // ── 템플릿 1: 기본 버전의 정의 ──
-export const VisualTemplate1 = ({ portfolio, ec }) => {
+export const VisualTemplate1 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -1952,7 +1952,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg hover:shadow-md transition-shadow bg-white relative">
+              <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-[#ededed] rounded-lg hover:shadow-md transition-shadow bg-white relative">
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`aspect-video ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
                   <ImageUploadSlot
@@ -2094,7 +2094,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 2: 베이지 톤 ──
-export const VisualTemplate2 = ({ portfolio, ec }) => {
+export const VisualTemplate2 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -2229,7 +2229,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md cursor-pointer hover:shadow-md transition group relative">
+              <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-md cursor-pointer hover:shadow-md transition group relative">
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-md`}>
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-md`} imgClassName="w-full h-40 object-cover" rounded="">
@@ -2339,7 +2339,7 @@ const DatabaseHeader = () => (
   <div className="mb-4 border-b border-gray-100 pb-2" />
 );
 
-export const VisualTemplate3 = ({ portfolio, ec }) => {
+export const VisualTemplate3 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -2448,7 +2448,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
           <DatabaseHeader />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
+              <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="border border-gray-200 rounded-lg shadow-sm bg-white group hover:border-gray-300 transition-colors relative cursor-pointer">
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`} imgClassName="w-full h-40 object-cover" rounded="">
@@ -2571,7 +2571,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 4: 문제해결 중심형 ──
-export const VisualTemplate4 = ({ portfolio, ec }) => {
+export const VisualTemplate4 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -2719,7 +2719,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {projList.map((proj, idx) => (
-                  <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
+                  <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col relative">
                     <ProjectCardActions ec={ec} idx={idx} />
                     <div className="h-32 w-full overflow-hidden bg-blue-50 relative rounded-t-lg">
                       <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
@@ -2774,7 +2774,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 5: 프로필 링크형 ──
-export const VisualTemplate5 = ({ portfolio, ec }) => {
+export const VisualTemplate5 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -2840,7 +2840,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           </div>
           <div className="space-y-4">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4 relative group">
+              <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="w-full bg-white border border-gray-200 p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4 relative group">
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100 relative">
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-16 h-16 rounded-lg overflow-hidden bg-blue-50 flex-shrink-0 border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-lg">
@@ -2962,7 +2962,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 6: 비주얼 갤러리형 ──
-export const VisualTemplate6 = ({ portfolio, ec }) => {
+export const VisualTemplate6 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -3011,7 +3011,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {projList.map((proj, idx) => (
-              <div key={idx} onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col relative">
+              <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col relative">
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100 relative">
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-sm border border-gray-100" imgClassName="w-full h-full object-cover" rounded="rounded-2xl">
@@ -3174,7 +3174,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 7: 다크 모드형 ──
-export const VisualTemplate7 = ({ portfolio, ec }) => {
+export const VisualTemplate7 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const accentColor = "text-[#5C7CFA]";
@@ -3272,7 +3272,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#2A2A2A] rounded-xl shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#2A2A2A] rounded-xl shadow-lg border border-[#3A3A3A] hover:border-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 <ProjectCardActions ec={ec} idx={idx} dark />
                 <div className="p-5 pb-10">
                   {ec
@@ -3390,7 +3390,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
 };
 
 // ── 템플릿 8: 개발자 다크형 ──
-export const VisualTemplate8 = ({ portfolio, ec }) => {
+export const VisualTemplate8 = ({ portfolio, ec, onOpenExpDetail }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const data = mapPortfolioToTemplateData(portfolio);
   const expList = ec ? (portfolio.experiences || []) : data.experience;
@@ -3499,7 +3499,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
             {projList.map((proj, idx) => (
-              <div key={idx} className="bg-[#252525] rounded-xl shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec ? ec.onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
+              <div key={idx} className="bg-[#252525] rounded-xl shadow-lg hover:shadow-2xl hover:ring-1 ring-[#5C7CFA] transition-all cursor-pointer group relative" onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)}>
                 <ProjectCardActions ec={ec} idx={idx} dark />
                 <div className="w-full h-36 overflow-hidden relative rounded-t-xl">
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="w-full h-36 overflow-hidden" imgClassName="w-full h-full object-cover" rounded="">
@@ -3663,9 +3663,9 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
 // ── 템플릿 라우터 ──
 export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8'];
 
-export default function VisualPortfolioRenderer({ portfolio, ec }) {
+export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail }) {
   const templateId = portfolio?.templateId;
-  const props = { portfolio, ec };
+  const props = { portfolio, ec, onOpenExpDetail };
   if (templateId === 'visual-1') return <VisualTemplate1 {...props} />;
   if (templateId === 'visual-2') return <VisualTemplate2 {...props} />;
   if (templateId === 'visual-3') return <VisualTemplate3 {...props} />;
