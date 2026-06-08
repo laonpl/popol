@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { getComposedTemplate, buildTemplateFromPptxTheme, SlidePreview, exportDeckToPptx, prepareDeckForExport, analyzeDeckQuality, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
+const DEFAULT_LAYOUT_ID = SLIDE_LAYOUTS[0]?.id || 'narrative';
 
 export default function AiPptExport() {
   const { id } = useParams();
@@ -19,8 +20,8 @@ export default function AiPptExport() {
   const initTemplateParam = searchParams.get('template') || 'beige-minimal';
   const initLayoutParam = searchParams.get('layout') || searchParams.get('layoutId');
   const layoutIds = SLIDE_LAYOUTS.map(layout => layout.id);
-  const initTemplateIsLayout = layoutIds.includes(initTemplateParam) && initTemplateParam !== 'standard';
-  const initLayout = initLayoutParam || (initTemplateIsLayout ? initTemplateParam : 'standard');
+  const initTemplateIsLayout = layoutIds.includes(initTemplateParam);
+  const initLayout = initLayoutParam || (initTemplateIsLayout ? initTemplateParam : DEFAULT_LAYOUT_ID);
   const initTemplate = initTemplateIsLayout ? 'beige-minimal' : initTemplateParam;
   const autostart = searchParams.get('autostart') === 'true';
   const [templateId, setTemplateId] = useState(initTemplate);

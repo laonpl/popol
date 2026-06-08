@@ -575,52 +575,188 @@ function SectionHeader({ children, sectionType, ec, className = '' }) {
   );
 }
 
-// Inline editable text - used in edit mode
-export function EditText({ value, onChange, placeholder = '클릭하여 편집', className = '', tag: Tag = 'span' }) {
+// ── 인라인 평문 필드의 리치 서식 ──
+// 이름/학교명/수상명 등도 우클릭으로 굵게·기울임·밑줄·취소선·강조·글자크기를 적용할 수 있게 한다.
+// 값은 살균된 HTML 문자열로 저장하고, 편집/미리보기/공개링크 모두 dangerouslySetInnerHTML로 렌더한다.
+// PDF/AI 내보내기는 inlineHtmlToPlainText로 태그를 제거해 평문으로 쓴다.
+const INLINE_ALLOWED_TAGS = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, MARK: 1, BR: 1, FONT: 1, DIV: 1, P: 1 };
+const INLINE_ALLOWED_STYLE_PROPS = ['font-size', 'font-weight', 'font-style', 'text-decoration', 'text-decoration-line', 'background-color', 'color', 'font-family'];
+
+export function sanitizeInlineHtml(html) {
+  if (html == null) return '';
+  const str = String(html);
+  if (!/[<&]/.test(str)) return str; // 순수 텍스트면 그대로 둔다
+  if (typeof document === 'undefined') return str;
+  const container = document.createElement('div');
+  container.innerHTML = str;
+  const clean = (parent) => {
+    Array.from(parent.childNodes).forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) return;
+      if (node.nodeType !== Node.ELEMENT_NODE) { node.remove(); return; }
+      clean(node);
+      if (!INLINE_ALLOWED_TAGS[node.tagName]) {
+        while (node.firstChild) parent.insertBefore(node.firstChild, node);
+        parent.removeChild(node);
+        return;
+      }
+      Array.from(node.attributes).forEach(attr => {
+        const name = attr.name.toLowerCase();
+        if (name === 'style') {
+          const safe = attr.value.split(';').map(s => s.trim()).filter(Boolean)
+            .filter(decl => INLINE_ALLOWED_STYLE_PROPS.includes((decl.split(':')[0] || '').trim().toLowerCase()) && !/url\(|expression|javascript:/i.test(decl))
+            .join(';');
+          if (safe) node.setAttribute('style', safe); else node.removeAttribute('style');
+        } else if (node.tagName === 'FONT' && (name === 'size' || name === 'color')) {
+          // execCommand가 만든 레거시 font 속성은 유지
+        } else {
+          node.removeAttribute(attr.name);
+        }
+      });
+    });
+  };
+  clean(container);
+  return container.innerHTML;
+}
+
+export function inlineHtmlToPlainText(html) {
+  if (html == null) return '';
+  const str = String(html);
+  if (!/[<&]/.test(str)) return str;
+  if (typeof document === 'undefined') return str.replace(/<[^>]+>/g, '');
+  const el = document.createElement('div');
+  el.innerHTML = str;
+  return el.textContent || '';
+}
+
+// 뷰 모드 인라인 서식 렌더 — 텍스트로 escape하지 않고 저장된 서식을 적용한다.
+export function VHtml({ value, as: As = 'span', className = '' }) {
+  return <As className={className} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(value || '') }} />;
+}
+
+function selectNodeContents(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// 공용 인라인 리치 에디터 (EditText=span, EditTextarea=div multiline)
+// contentEditable을 비제어로 다룬다: innerHTML은 ref로 명령형 주입하고 JSX엔 children/
+// dangerouslySetInnerHTML을 주지 않는다. → 부모가 리렌더돼도 React가 입력 중인 글자를 지우지 않는다.
+// 부모 커밋(onChange)은 blur·서식 적용 시에만 한다 → 매 키 입력마다 거대한 portfolio를
+// JSON.stringify 비교하던 랙을 제거한다.
+function RichInline({ value, onChange, placeholder = '클릭하여 편집', className = '', tag: Tag = 'span', multiline = false, onClick }) {
   const ref = useRef(null);
-  const editing = useRef(false);
-  // Sync from outside when the DOM differs. Normal typing updates prevValue first,
-  // so this will not fight the caret, but undo/redo can still repaint the text.
-  const prevValue = useRef(value);
-  if (prevValue.current !== value) {
-    prevValue.current = value;
-    if (ref.current && ref.current.textContent !== (value || '')) {
-      ref.current.textContent = value || '';
-    }
-  }
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && e.shiftKey) {
+  const focusedRef = useRef(false);
+  const savedRange = useRef(null);
+  const lastValueRef = useRef(value ?? '');
+
+  // 마운트 1회 + 외부 값 변경(undo/redo·다른 항목 전환) 시, 포커스가 없을 때만 DOM에 반영.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || focusedRef.current) return;
+    const next = value || '';
+    if (el.innerHTML !== next) el.innerHTML = next;
+    lastValueRef.current = next;
+  }, [value]);
+
+  const emit = () => {
+    if (!ref.current) return;
+    const html = sanitizeInlineHtml(ref.current.innerHTML);
+    if (html === lastValueRef.current) return;
+    lastValueRef.current = html;
+    onChange(html);
+  };
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount || !ref.current?.contains(sel.anchorNode)) return;
+    savedRange.current = sel.getRangeAt(0).cloneRange();
+  };
+  const restoreSelection = () => {
+    const sel = window.getSelection();
+    const range = savedRange.current;
+    if (!sel || !range || !ref.current?.contains(range.commonAncestorContainer)) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  };
+  // 선택 영역이 있으면 그 부분에만, 없으면 필드 전체에 서식을 적용한다(템플릿1 제목과 동일 UX).
+  const ensureSelection = () => {
+    ref.current.focus();
+    const restored = restoreSelection();
+    const sel = window.getSelection();
+    if (!restored || !sel.rangeCount || sel.getRangeAt(0).collapsed) selectNodeContents(ref.current);
+  };
+  const runMark = (cmd, val = null) => {
+    ensureSelection();
+    try { document.execCommand('styleWithCSS', false, true); } catch { /* 일부 브라우저 미지원 */ }
+    document.execCommand(cmd, false, val);
+    emit();
+    saveSelection();
+  };
+  const runFontSize = (size) => {
+    ensureSelection();
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return;
+    const span = document.createElement('span');
+    if (size) span.style.fontSize = size;
+    try { range.surroundContents(span); }
+    catch { span.appendChild(range.extractContents()); range.insertNode(span); }
+    ref.current.normalize();
+    emit();
+    saveSelection();
+  };
+  const runClear = () => {
+    ensureSelection();
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const text = range.toString();
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+    ref.current.normalize();
+    emit();
+  };
+  const openMenu = (event) => {
+    saveSelection();
+    openVisualContextMenu(event, [
+      { label: '굵게', icon: Bold, onClick: () => runMark('bold') },
+      { label: '기울임', icon: PenLine, onClick: () => runMark('italic') },
+      { label: '밑줄', icon: Type, onClick: () => runMark('underline') },
+      { label: '취소선', icon: Type, onClick: () => runMark('strikeThrough') },
+      { label: '강조', icon: Sparkles, onClick: () => runMark('hiliteColor', '#fef08a') },
+      { label: '서식 지우기', icon: Eraser, onClick: runClear },
+      ...VISUAL_SECTION_TITLE_SIZE_OPTIONS.map(option => ({
+        label: option.value ? `글자 크기 ${option.label}` : '기본 글자 크기',
+        icon: Type,
+        onClick: () => runFontSize(option.value),
+      })),
+    ]);
+  };
+  const handleKeyDown = (e) => {
+    if (multiline && e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      const br = document.createTextNode('\n');
-      range.insertNode(br);
-      range.setStartAfter(br);
-      range.setEndAfter(br);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      document.execCommand('insertLineBreak');
     }
-  }
+  };
+
   return (
     <Tag
       ref={ref}
       contentEditable
       suppressContentEditableWarning
-      onFocus={() => { editing.current = true; if (!ref.current.textContent) ref.current.textContent = ''; }}
-      onInput={e => {
-        const t = e.currentTarget.textContent;
-        prevValue.current = t;
-        onChange(t);
-      }}
-      onBlur={e => {
-        editing.current = false;
-        const t = e.currentTarget.textContent;
-        prevValue.current = t;
-        if (t !== (value || '')) onChange(t);
-      }}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; emit(); }}
+      onClick={onClick}
       onKeyDown={handleKeyDown}
+      onContextMenu={openMenu}
+      onPaste={(e) => {
+        e.preventDefault();
+        document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+      }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
       onDrop={(e) => {
         const text = e.dataTransfer.getData('text/plain');
@@ -628,77 +764,21 @@ export function EditText({ value, onChange, placeholder = '클릭하여 편집',
         e.preventDefault();
         ref.current.focus();
         document.execCommand('insertText', false, text);
-        editing.current = true;
-        const newVal = ref.current.textContent;
-        prevValue.current = newVal;
-        onChange(newVal);
+        emit();
       }}
-      className={`${className} outline-none cursor-text ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-50/20 rounded-sm transition-all`}
-      dangerouslySetInnerHTML={editing.current ? undefined : { __html: value || '' }}
-      data-placeholder={!value ? placeholder : undefined}
+      className={`fp-rich-inline ${className} outline-none cursor-text ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-50/20 rounded-sm transition-all${multiline ? ' whitespace-pre-wrap' : ''}`}
+      data-placeholder={placeholder}
     />
   );
 }
 
+// Inline editable text - used in edit mode (리치 서식 지원)
+export function EditText({ value, onChange, placeholder = '클릭하여 편집', className = '', tag = 'span', onClick }) {
+  return <RichInline value={value} onChange={onChange} placeholder={placeholder} className={className} tag={tag} onClick={onClick} />;
+}
+
 export function EditTextarea({ value, onChange, placeholder = '클릭하여 편집', className = '' }) {
-  const ref = useRef(null);
-  const editing = useRef(false);
-  const prevValue = useRef(value);
-  if (prevValue.current !== value) {
-    prevValue.current = value;
-    if (ref.current && ref.current.innerText !== (value || '')) {
-      ref.current.innerText = value || '';
-    }
-  }
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault();
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      const br = document.createTextNode('\n');
-      range.insertNode(br);
-      range.setStartAfter(br);
-      range.setEndAfter(br);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }
-  return (
-    <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      onFocus={() => { editing.current = true; if (!ref.current.innerText) ref.current.textContent = ''; }}
-      onInput={e => {
-        const t = e.currentTarget.innerText;
-        prevValue.current = t;
-        onChange(t);
-      }}
-      onBlur={e => {
-        editing.current = false;
-        const t = e.currentTarget.innerText;
-        prevValue.current = t;
-        if (t !== (value || '')) onChange(t);
-      }}
-      onKeyDown={handleKeyDown}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-      onDrop={(e) => {
-        const text = e.dataTransfer.getData('text/plain');
-        if (!text || !ref.current) return;
-        e.preventDefault();
-        ref.current.focus();
-        document.execCommand('insertText', false, text);
-        editing.current = true;
-        const newVal = ref.current.innerText;
-        prevValue.current = newVal;
-        onChange(newVal);
-      }}
-      className={`${className} outline-none cursor-text ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-50/20 rounded-sm transition-all whitespace-pre-wrap`}
-      dangerouslySetInnerHTML={editing.current ? undefined : { __html: value || '' }}
-    />
-  );
+  return <RichInline value={value} onChange={onChange} placeholder={placeholder} className={className} tag="div" multiline />;
 }
 
 // ── 노션식 리치 본문 (편집=YooptaMiniEditor / 뷰=RichTextRenderer) ──
@@ -900,12 +980,12 @@ function VisualCustomBlocks({ portfolio, ec, dark = false }) {
                   className={`mb-3 block pr-7 text-lg font-bold ${textColor}`}
                   placeholder="블록 제목" />
               ) : block.title ? (
-                <h3 className={`mb-3 text-lg font-bold ${textColor}`}>{block.title}</h3>
+                <VHtml as="h3" className={`mb-3 text-lg font-bold ${textColor}`} value={block.title} />
               ) : null}
 
               {block.type === 'heading' && (ec
                 ? <EditText value={block.content || ''} onChange={value => updateBlock(blockId, { content: value })} className={`block text-2xl font-extrabold ${textColor}`} placeholder="제목" />
-                : <h2 className={`text-2xl font-extrabold ${textColor}`}>{block.content}</h2>
+                : <VHtml as="h2" className={`text-2xl font-extrabold ${textColor}`} value={block.content} />
               )}
 
               {(block.type === 'text' || block.type === 'table') && (ec ? (
@@ -1413,7 +1493,7 @@ function ExperienceTimeline({ expList, ec, dark = false, accentDot = '' }) {
               <span className={`font-medium text-sm ${titleColor}`}>
                 {ec
                   ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className={`font-medium text-sm ${titleColor}`} placeholder="프로젝트명" />
-                  : (exp.company || exp.title || '')
+                  : <VHtml value={exp.company || exp.title || ''} />
                 }
               </span>
               {(exp.role || exp.subtitle) && (
@@ -1423,7 +1503,7 @@ function ExperienceTimeline({ expList, ec, dark = false, accentDot = '' }) {
             <div className={`text-[13px] ${periodColor} mt-0.5`}>
               {ec
                 ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} className={`text-[13px] ${periodColor}`} placeholder="기간 (예: 2024.03 - 2024.06)" />
-                : exp.period
+                : <VHtml value={exp.period} />
               }
             </div>
           </div>
@@ -1975,7 +2055,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
           </ImageUploadSlot>
         </div>
 
-        <h1 className="text-4xl font-bold mb-4">{ec ? <EditText value={portfolio.portfolioTitle || ('Portfolio of ' + (portfolio.userName || ''))} onChange={v => ec.update('portfolioTitle', v)} placeholder="Portfolio of 이름" className="text-4xl font-bold" /> : (portfolio.portfolioTitle || 'Portfolio of ' + data.name)}</h1>
+        <h1 className="text-4xl font-bold mb-4">{ec ? <EditText value={portfolio.portfolioTitle || ('Portfolio of ' + (portfolio.userName || ''))} onChange={v => ec.update('portfolioTitle', v)} placeholder="Portfolio of 이름" className="text-4xl font-bold" /> : <VHtml value={portfolio.portfolioTitle || ('Portfolio of ' + (data.name || ''))} />}</h1>
         <div className="mb-8">
           <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
             viewClassName="text-[#787774] text-lg" placeholder="소개를 입력하세요. ‘/’ 또는 + 버튼으로 제목·목록·체크리스트·표·이미지를 추가할 수 있어요." />
@@ -2003,11 +2083,11 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                   <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-8 hover:bg-gray-50 p-2 -ml-2 rounded-md relative group">
                     {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
                     <div className="w-full md:w-1/4 text-[#787774] shrink-0 pt-1">
-                      {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="text-sm text-[#787774]" /> : edu.period}
+                      {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="text-sm text-[#787774]" /> : <VHtml value={edu.period} />}
                     </div>
                     <div>
-                      {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="font-bold block" placeholder="학교명" /> : <h3 className="font-bold">{edu.school}</h3>}
-                      {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-sm text-gray-500 block" placeholder="전공/학위" /> : <p className="text-sm text-gray-500">{edu.major}</p>}
+                      {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="font-bold block" placeholder="학교명" /> : <VHtml as="h3" className="font-bold" value={edu.school} />}
+                      {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-sm text-gray-500 block" placeholder="전공/학위" /> : <VHtml as="p" className="text-sm text-gray-500" value={edu.major} />}
                     </div>
                   </div>
                 ))}
@@ -2056,7 +2136,7 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                 <div className="p-4">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg mb-1 block" placeholder="프로젝트명" />
-                    : <h3 className="font-bold text-lg mb-1 flex items-center gap-1">{proj.name} <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" /></h3>
+                    : <h3 className="font-bold text-lg mb-1 flex items-center gap-1"><VHtml value={proj.name} /> <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" /></h3>
                   }
                   <ExperienceRichText
                     ec={ec}
@@ -2088,10 +2168,10 @@ export const VisualTemplate1 = ({ portfolio, ec }) => {
                   <div key={idx} className="flex gap-8 hover:bg-gray-50 p-2 -ml-2 rounded-md relative group">
                     {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
                     <div className="w-1/4 text-[#787774] text-sm pt-0.5">
-                      {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-sm text-[#787774]" /> : award.date}
+                      {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-sm text-[#787774]" /> : <VHtml value={award.date} />}
                     </div>
                     <div>
-                      {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-medium block" placeholder="수상명" /> : <span className="font-medium">{award.title}</span>}
+                      {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-medium block" placeholder="수상명" /> : <VHtml className="font-medium" value={award.title} />}
                       {ec && <EditText value={award.org || ''} onChange={v => ec.updateArrayItem('awards', idx, { org: v })} className="text-sm text-gray-500 block" placeholder="수여 기관" />}
                     </div>
                   </div>
@@ -2198,12 +2278,12 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
         <div className="py-12 border-b-2 border-gray-100">
           <h1 className="text-6xl font-light text-[#dedbd2] tracking-tighter uppercase mb-4">PORTFOLIO</h1>
           <h2 className="text-2xl font-bold text-gray-800">
-            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-2xl font-bold" /> : data.name}
+            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-2xl font-bold" /> : <VHtml value={data.name} />}
           </h2>
         </div>
         <div className="py-10 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-500 mb-6">
-            {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-xl font-bold text-gray-500" /> : data.title}
+            {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-xl font-bold text-gray-500" /> : <VHtml value={data.title} />}
           </h3>
           <div className="flex justify-between items-center">
             <div className="flex-1">
@@ -2248,15 +2328,15 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
                   {ec
                     ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="font-bold text-lg block" placeholder="학교명" />
-                    : <h4 className="font-bold text-lg">{edu.school}</h4>
+                    : <VHtml as="h4" className="font-bold text-lg" value={edu.school} />
                   }
                   {ec
                     ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-sm text-gray-600 mb-2 block" placeholder="전공" />
-                    : <p className="text-sm text-gray-600 mb-2">{edu.major}</p>
+                    : <VHtml as="p" className="text-sm text-gray-600 mb-2" value={edu.major} />
                   }
                   {ec
                     ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} className="text-xs text-gray-400 mb-2 block" placeholder="기간" />
-                    : <p className="text-xs text-gray-400 mb-2">{edu.period}</p>
+                    : <VHtml as="p" className="text-xs text-gray-400 mb-2" value={edu.period} />
                   }
                 </div>
               ))}
@@ -2283,11 +2363,11 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
                       {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
                       {ec
                         ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-bold text-lg block" placeholder="수상명" />
-                        : <h4 className="font-bold text-lg">{award.title}</h4>
+                        : <VHtml as="h4" className="font-bold text-lg" value={award.title} />
                       }
                       {ec
                         ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-xs text-gray-400 block" placeholder="날짜" />
-                        : <p className="text-xs text-gray-400">{award.date}</p>
+                        : <VHtml as="p" className="text-xs text-gray-400" value={award.date} />
                       }
                     </div>
                   ))}
@@ -2321,7 +2401,7 @@ export const VisualTemplate2 = ({ portfolio, ec }) => {
                     <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center font-bold text-lg text-gray-800`}>
                       {ec
                         ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-lg text-gray-800" placeholder="프로젝트명" />
-                        : proj.name
+                        : <VHtml value={proj.name} />
                       }
                     </div>
                   </ImageUploadSlot>
@@ -2442,7 +2522,7 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
       <div className="max-w-4xl mx-auto px-6">
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold mb-8">
-            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-bold" /> : data.name} 포트폴리오
+            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-bold" /> : <VHtml value={data.name} />} 포트폴리오
           </h1>
           <div className="flex flex-col md:flex-row items-center gap-8 justify-center">
             {/* Profile Image */}
@@ -2453,12 +2533,12 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
               {ec && <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-400 cursor-grab" /></span>{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
               {ec
                 ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다.`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold text-lg mb-2 block" />
-                : <h3 className="font-bold text-lg mb-2">{data.greeting || `안녕하세요! ${data.name}입니다.`}</h3>
+                : <VHtml as="h3" className="font-bold text-lg mb-2" value={data.greeting || `안녕하세요! ${inlineHtmlToPlainText(data.name)}입니다.`} />
               }
               {ec
                 ? <div className="mb-4"><RichBody ec={ec} portfolio={portfolio} field="about" placeholder="소개를 입력하세요..." /></div>
                 : <div className="text-sm text-gray-500 mb-4">
-                    {data.title && <p className="mb-1">{data.title}</p>}
+                    {data.title && <VHtml as="p" className="mb-1" value={data.title} />}
                     <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="text-sm text-gray-500" />
                   </div>
               }
@@ -2499,11 +2579,11 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
                   {ec
                     ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} className="text-sm text-gray-500 w-40" placeholder="기간" />
-                    : <span className="text-sm text-gray-500 w-40">{edu.period}</span>
+                    : <VHtml className="text-sm text-gray-500 w-40" value={edu.period} />
                   }
                   <span className="font-bold text-sm">▶ {ec
                     ? <><EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="font-bold text-sm" placeholder="학교" /> <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-sm" placeholder="전공" /></>
-                    : <>{edu.school} {edu.major}</>
+                    : <><VHtml value={edu.school} /> <VHtml value={edu.major} /></>
                   }</span>
                 </div>
               ))}
@@ -2537,14 +2617,14 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
                 <ProjectCardActions ec={ec} idx={idx} />
                 <div className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden relative rounded-t-lg`}>
                   <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className={`h-40 ${proj.img || 'bg-blue-50'} overflow-hidden rounded-t-lg`} imgClassName="w-full h-40 object-cover" rounded="">
-                    <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{proj.name || proj.company || proj.title}</div>
+                    <div className={`h-40 ${proj.img || 'bg-blue-50'} flex items-center justify-center text-gray-600/50 text-xs font-bold`}>{inlineHtmlToPlainText(proj.name || proj.company || proj.title)}</div>
                   </ImageUploadSlot>
                   <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
                 </div>
                 <div className="p-4">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold mb-1 block" placeholder="프로젝트명" />
-                    : <h3 className="font-bold mb-1">{proj.name}</h3>
+                    : <VHtml as="h3" className="font-bold mb-1" value={proj.name} />
                   }
                   <p className="text-xs text-gray-400 mb-2">{proj.period}</p>
                   <span className={`text-[12px] px-1.5 py-0.5 rounded ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
@@ -2574,8 +2654,8 @@ export const VisualTemplate3 = ({ portfolio, ec }) => {
               {awardList.map((award, idx) => (
                 <div key={idx} className="flex items-center gap-4 hover:bg-gray-50 p-1 rounded relative group">
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
-                  {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-sm text-gray-500 w-32" placeholder="날짜" /> : <span className="text-sm text-gray-500 w-32">{award.date}</span>}
-                  <span className="font-bold text-sm">▶ {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-bold text-sm" placeholder="수상명" /> : award.title}</span>
+                  {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-sm text-gray-500 w-32" placeholder="날짜" /> : <VHtml className="text-sm text-gray-500 w-32" value={award.date} />}
+                  <span className="font-bold text-sm">▶ {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-bold text-sm" placeholder="수상명" /> : <VHtml value={award.title} />}</span>
                 </div>
               ))}
             </div>
@@ -2677,10 +2757,10 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
           </ImageUploadSlot>
           <div className="flex-1">
             <h1 className="text-4xl font-extrabold mb-2 tracking-tight">
-              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-4xl font-extrabold" /> : data.name}
+              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-4xl font-extrabold" /> : <VHtml value={data.name} />}
             </h1>
             <p className="text-xl text-gray-500 font-medium mb-8">
-              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-xl text-gray-500 font-medium" /> : data.title}
+              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-xl text-gray-500 font-medium" /> : <VHtml value={data.title} />}
             </p>
             <div className="bg-[#f7f6f3] border border-gray-200 rounded-lg p-5 flex items-start gap-4">
               <div className="flex-1">
@@ -2728,11 +2808,11 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                       {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
                       {ec
                         ? <EditText value={edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { school: v })} className="font-semibold text-sm text-gray-900 block" placeholder="학교명" />
-                        : <p className="font-semibold text-sm text-gray-900">{edu.school}</p>
+                        : <VHtml as="p" className="font-semibold text-sm text-gray-900" value={edu.school} />
                       }
                       {ec
                         ? <EditText value={edu.major || edu.degree || ''} onChange={v => ec.updateArrayItem('education', idx, { major: v })} className="text-xs text-gray-500 block" placeholder="전공/학위" />
-                        : <p className="text-xs text-gray-500">{edu.major || edu.degree}</p>
+                        : <VHtml as="p" className="text-xs text-gray-500" value={edu.major || edu.degree} />
                       }
                     </div>
                   ))}
@@ -2752,11 +2832,11 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                       {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
                       {ec
                         ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-sm text-gray-800 font-medium block" placeholder="수상명" />
-                        : <p className="text-sm text-gray-800 font-medium">{award.title}</p>
+                        : <VHtml as="p" className="text-sm text-gray-800 font-medium" value={award.title} />
                       }
                       {ec
                         ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-xs text-gray-500 block" placeholder="날짜" />
-                        : <p className="text-xs text-gray-500">{award.date}</p>
+                        : <VHtml as="p" className="text-xs text-gray-500" value={award.date} />
                       }
                     </div>
                   ))}
@@ -2809,7 +2889,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                     <div className="h-32 w-full overflow-hidden bg-blue-50 relative rounded-t-lg">
                       <ImageUploadSlot src={projectImageSrc(proj)} onUpload={null} className="h-32 w-full overflow-hidden bg-blue-50" imgClassName="w-full h-full object-cover" rounded="">
                         <div className={`h-32 ${proj.img || 'bg-blue-50'} w-full flex items-center justify-center overflow-hidden`}>
-                          <div className="text-gray-400 text-sm font-bold opacity-50">{proj.name || proj.company || '프로젝트'}</div>
+                          <div className="text-gray-400 text-sm font-bold opacity-50">{inlineHtmlToPlainText(proj.name || proj.company || '프로젝트')}</div>
                         </div>
                       </ImageUploadSlot>
                       <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
@@ -2817,7 +2897,7 @@ export const VisualTemplate4 = ({ portfolio, ec }) => {
                     <div className="p-4 flex flex-col flex-1">
                       {ec
                         ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900 block mb-1" placeholder="프로젝트명" />
-                        : <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">{proj.name}</h3>
+                        : <VHtml as="h3" className="font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors" value={proj.name} />
                       }
                       <p className="text-xs text-gray-400 mb-3">{proj.period}</p>
                       <ExperienceRichText
@@ -2878,10 +2958,10 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
           <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200"><UserCircle2 className="w-14 h-14 text-gray-300" /></div>
         </ImageUploadSlot>
         <h1 className="text-3xl font-extrabold mb-2 text-center">
-          {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-extrabold" /> : data.name}
+          {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-extrabold" /> : <VHtml value={data.name} />}
         </h1>
         <p className="text-gray-500 font-medium mb-6 text-center">
-          {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-gray-500 font-medium" /> : data.title}
+          {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-gray-500 font-medium" /> : <VHtml value={data.title} />}
         </p>
         {!isHidden5('contact') && <div className="w-full grid grid-cols-3 gap-3 mb-10 group/section relative">
           {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" /></div>}
@@ -2936,7 +3016,7 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
                 <div className="flex-1 min-w-0">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-gray-900 block" placeholder="프로젝트명" />
-                    : <h3 className="font-bold text-gray-900 truncate">{proj.name}</h3>
+                    : <VHtml as="h3" className="font-bold text-gray-900 truncate" value={proj.name} />
                   }
                   <p className="text-xs text-gray-400 mb-1">{proj.period}</p>
                   <span className={`text-[12px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
@@ -2988,11 +3068,11 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
                   {ec
                     ? <EditText value={edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { school: v })} className="font-bold text-gray-900 block" placeholder="학교명" />
-                    : <h3 className="font-bold text-gray-900">{edu.school}</h3>
+                    : <VHtml as="h3" className="font-bold text-gray-900" value={edu.school} />
                   }
                   {ec
                     ? <EditText value={edu.major || edu.degree || ''} onChange={v => ec.updateArrayItem('education', idx, { major: v })} className="text-sm text-blue-600 font-medium block" placeholder="전공/학위" />
-                    : <p className="text-sm text-blue-600 font-medium">{edu.major || edu.degree}</p>
+                    : <VHtml as="p" className="text-sm text-blue-600 font-medium" value={edu.major || edu.degree} />
                   }
                 </div>
               ))}
@@ -3012,11 +3092,11 @@ export const VisualTemplate5 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
                   {ec
                     ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-bold text-gray-900 block" placeholder="수상명" />
-                    : <h3 className="font-bold text-gray-900">{award.title}</h3>
+                    : <VHtml as="h3" className="font-bold text-gray-900" value={award.title} />
                   }
                   {ec
                     ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-xs text-gray-500 block" placeholder="날짜" />
-                    : <p className="text-xs text-gray-500">{award.date}</p>
+                    : <VHtml as="p" className="text-xs text-gray-500" value={award.date} />
                   }
                 </div>
               ))}
@@ -3075,10 +3155,10 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
           </ImageUploadSlot>
           <div className="pb-2">
             <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-4xl font-extrabold text-gray-900" /> : data.name}
+              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-4xl font-extrabold text-gray-900" /> : <VHtml value={data.name} />}
             </h1>
             <p className="text-lg text-gray-500 font-medium">
-              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-lg text-gray-500 font-medium" /> : data.title}
+              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-lg text-gray-500 font-medium" /> : <VHtml value={data.title} />}
             </p>
           </div>
         </div>
@@ -3112,7 +3192,7 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                   <div className="flex justify-between items-start mb-1">
                     {ec
                       ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-xl text-gray-900" placeholder="프로젝트명" />
-                      : <h3 className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">{proj.name}</h3>
+                      : <VHtml as="h3" className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors" value={proj.name} />
                     }
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-md font-medium inline-block mb-2 ${proj.tagColor || 'bg-blue-100 text-blue-700'}`}>{proj.tag || 'Project'}</span>
@@ -3151,11 +3231,11 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                       <div>
                         {ec
                           ? <EditText value={edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { school: v })} className="font-bold text-gray-900 block" placeholder="학교명" />
-                          : <h3 className="font-bold text-gray-900">{edu.school}</h3>
+                          : <VHtml as="h3" className="font-bold text-gray-900" value={edu.school} />
                         }
                         {ec
                           ? <EditText value={edu.major || edu.degree || ''} onChange={v => ec.updateArrayItem('education', idx, { major: v })} className="text-sm text-gray-600 block" placeholder="전공/학위" />
-                          : <p className="text-sm text-gray-600">{edu.major || edu.degree}</p>
+                          : <VHtml as="p" className="text-sm text-gray-600" value={edu.major || edu.degree} />
                         }
                       </div>
                     </div>
@@ -3176,11 +3256,11 @@ export const VisualTemplate6 = ({ portfolio, ec }) => {
                       {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
                       {ec
                         ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-medium text-gray-900 flex-1" placeholder="수상명" />
-                        : <span className="font-medium text-gray-900 flex-1">{award.title}</span>
+                        : <VHtml className="font-medium text-gray-900 flex-1" value={award.title} />
                       }
                       {ec
                         ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-sm text-gray-400 w-20" placeholder="날짜" />
-                        : <span className="text-sm text-gray-400">{award.date}</span>
+                        : <VHtml className="text-sm text-gray-400" value={award.date} />
                       }
                     </div>
                   ))}
@@ -3283,13 +3363,13 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
       <div className="max-w-4xl mx-auto px-6 -mt-8 relative z-10">
         <div className="text-center mb-16">
           <h1 className="text-3xl font-extrabold mb-12 tracking-wide text-white">
-            {ec ? <EditText value={portfolio.portfolioTitle || '디자인 포트폴리오'} onChange={v => ec.update('portfolioTitle', v)} placeholder="포트폴리오 제목" className="text-3xl font-extrabold text-white" /> : (portfolio.portfolioTitle || '디자인 포트폴리오')}
+            {ec ? <EditText value={portfolio.portfolioTitle || '디자인 포트폴리오'} onChange={v => ec.update('portfolioTitle', v)} placeholder="포트폴리오 제목" className="text-3xl font-extrabold text-white" /> : <VHtml value={portfolio.portfolioTitle || '디자인 포트폴리오'} />}
           </h1>
           <h2 className="text-2xl font-bold mb-3">
-            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-2xl font-bold text-[#EBEBEB]" /> : data.name}
+            {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-2xl font-bold text-[#EBEBEB]" /> : <VHtml value={data.name} />}
           </h2>
           <p className="text-[#EBEBEB] font-medium flex justify-center items-center gap-2 mb-10">
-            {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-[#EBEBEB] font-medium" /> : data.title}
+            {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="헤드라인" className="text-[#EBEBEB] font-medium" /> : <VHtml value={data.title} />}
           </p>
           {!isHidden('contact') && <div className="flex flex-col items-center text-sm text-[#A0A0A0] gap-3 group/section relative" {...(ec ? dp('contact') : {})}>
             {ec && <div className="absolute -top-5 right-0 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity"><span {...gp('contact')}><GripVertical size={14} className="text-gray-500 cursor-grab" /></span>{ec?.jobAnalysis && <VisualSectionRecommend sectionType="contact" jobAnalysis={ec.jobAnalysis} />}<SectionDeleteBtn ec={ec} sectionKey="contact" dark /></div>}
@@ -3318,7 +3398,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
           </div>
           {ec
             ? <EditText value={portfolio.greeting || `안녕하세요! ${portfolio.userName || ''}입니다!`} onChange={v => ec.update('greeting', v)} placeholder="인사말" className="font-bold mb-4 text-[#EBEBEB] block" />
-            : <p className="font-bold mb-4 text-[#EBEBEB]">{data.greeting || `안녕하세요! ${data.name}입니다!`}</p>
+            : <VHtml as="p" className="font-bold mb-4 text-[#EBEBEB]" value={data.greeting || `안녕하세요! ${inlineHtmlToPlainText(data.name)}입니다!`} />
           }
           <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about} dark
             viewClassName="text-sm text-[#A0A0A0] leading-relaxed" placeholder="소개를 입력하세요..." />
@@ -3362,7 +3442,7 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                 <div className="p-5 pb-10">
                   {ec
                     ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-sm mb-4 text-white block" placeholder="프로젝트명" />
-                    : <h4 className="font-bold text-sm mb-4 text-white">{proj.name}</h4>
+                    : <VHtml as="h4" className="font-bold text-sm mb-4 text-white" value={proj.name} />
                   }
                   <p className="text-xs text-[#A0A0A0] mb-2">{proj.period}</p>
                   <ExperienceRichText
@@ -3404,16 +3484,16 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                 <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-8 relative group">
                   {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('education', idx)} />}
                   <div className="w-full md:w-36 flex-shrink-0 text-[#A0A0A0] text-sm">
-                    {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} className="text-[#A0A0A0] text-sm" placeholder="기간" /> : edu.period}
+                    {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} className="text-[#A0A0A0] text-sm" placeholder="기간" /> : <VHtml value={edu.period} />}
                   </div>
                   <div>
                     {ec
                       ? <EditText value={edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { school: v })} className="font-bold text-[#EBEBEB] block" placeholder="학교명" />
-                      : <h4 className="font-bold text-[#EBEBEB]">{edu.school}</h4>
+                      : <VHtml as="h4" className="font-bold text-[#EBEBEB]" value={edu.school} />
                     }
                     {ec
                       ? <EditText value={edu.major || edu.degree || ''} onChange={v => ec.updateArrayItem('education', idx, { major: v })} className="text-sm text-[#A0A0A0] block" placeholder="전공/학위" />
-                      : <p className="text-sm text-[#A0A0A0]">{edu.major || edu.degree}</p>
+                      : <VHtml as="p" className="text-sm text-[#A0A0A0]" value={edu.major || edu.degree} />
                     }
                   </div>
                 </div>
@@ -3435,11 +3515,11 @@ export const VisualTemplate7 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('awards', idx)} />}
                   {ec
                     ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-[#EBEBEB] font-bold w-20 text-sm flex-shrink-0" placeholder="날짜" />
-                    : <span className="text-[#EBEBEB] font-bold w-20 text-sm flex-shrink-0">{award.date}</span>
+                    : <VHtml className="text-[#EBEBEB] font-bold w-20 text-sm flex-shrink-0" value={award.date} />
                   }
                   {ec
                     ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-[#A0A0A0] text-sm" placeholder="수상명" />
-                    : <span className="text-[#A0A0A0] text-sm">{award.title}</span>
+                    : <VHtml className="text-[#A0A0A0] text-sm" value={award.title} />
                   }
                 </div>
               ))}
@@ -3515,7 +3595,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
       </ImageUploadSlot>
       <div className="max-w-4xl mx-auto px-6 -mt-8 relative z-10">
         <h1 className="text-3xl font-extrabold mb-16 tracking-wide text-white text-center">
-          {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-extrabold text-white" /> : data.name}
+          {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-3xl font-extrabold text-white" /> : <VHtml value={data.name} />}
         </h1>
         {/* Reorderable sections */}
         <div className="flex flex-col">
@@ -3531,7 +3611,7 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                 {ec && <ExpDetailBtn exp={proj} idx={idx} ec={ec} dark />}
                 {ec
                   ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="text-lg font-bold text-white mb-4 block" placeholder="프로젝트명" />
-                  : <h3 className="text-lg font-bold text-white mb-4">{proj.name}</h3>
+                  : <VHtml as="h3" className="text-lg font-bold text-white mb-4" value={proj.name} />
                 }
                 <div className="space-y-3 text-sm">
                   <p><span className="text-[#A0A0A0] inline-block w-12 font-bold">기간</span> : {proj.period}</p>
@@ -3648,11 +3728,11 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('awards', idx)} />}
                   {ec
                     ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} className="text-[#EBEBEB] font-bold w-20 text-sm" placeholder="날짜" />
-                    : <span className="text-[#EBEBEB] font-bold w-20 text-sm">{award.date}</span>
+                    : <VHtml className="text-[#EBEBEB] font-bold w-20 text-sm" value={award.date} />
                   }
                   {ec
                     ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-[#D4D4D4] text-sm" placeholder="수상명" />
-                    : <span className="text-[#D4D4D4] text-sm">{award.title}</span>
+                    : <VHtml className="text-[#D4D4D4] text-sm" value={award.title} />
                   }
                 </div>
               ))}
@@ -3685,12 +3765,12 @@ export const VisualTemplate8 = ({ portfolio, ec }) => {
                   {ec && <RemoveBtn dark onClick={() => ec.removeFromArray('education', idx)} />}
                   {ec
                     ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm" placeholder="기간" />
-                    : <span className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm">{edu.period}</span>
+                    : <VHtml className="text-[#EBEBEB] font-bold md:w-36 flex-shrink-0 text-sm" value={edu.period} />
                   }
                   <span className="text-[#D4D4D4] text-sm">
                     {ec
                       ? <><EditText value={edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { school: v })} className="text-[#D4D4D4] text-sm" placeholder="학교명" /> - <EditText value={edu.major || edu.degree || ''} onChange={v => ec.updateArrayItem('education', idx, { major: v })} className="text-[#D4D4D4] text-sm" placeholder="전공" /></>
-                      : <>{edu.school} - {edu.major || edu.degree}</>
+                      : <><VHtml value={edu.school} /> - <VHtml value={edu.major || edu.degree} /></>
                     }
                   </span>
                 </div>

@@ -7,6 +7,28 @@ import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFuncti
 
 const router = Router();
 
+// 프런트의 인라인 리치 서식(이름/학교명/수상명 등에 굵게·크기 등 적용 시 HTML 태그 저장)을
+// 내보내기·AI 입력에서는 평문으로 환원한다. (서식 태그가 슬라이드/텍스트에 그대로 노출되지 않게)
+const stripTags = (s) => (typeof s === 'string' ? s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() : s);
+function stripPortfolioInlineHtml(portfolio) {
+  if (!portfolio || typeof portfolio !== 'object') return portfolio;
+  ['userName', 'headline', 'portfolioTitle', 'greeting', 'catchphrase'].forEach(f => {
+    if (typeof portfolio[f] === 'string') portfolio[f] = stripTags(portfolio[f]);
+  });
+  const stripItems = (arr, fields) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(item => { if (item && typeof item === 'object') fields.forEach(f => { item[f] = stripTags(item[f]); }); });
+  };
+  stripItems(portfolio.education, ['school', 'name', 'major', 'degree', 'period', 'detail']);
+  stripItems(portfolio.awards, ['title', 'date', 'org', 'detail']);
+  stripItems(portfolio.experiences, ['company', 'title', 'period', 'date']);
+  stripItems(portfolio.goals, ['title']);
+  stripItems(portfolio.activityRecords, ['title', 'date']);
+  stripItems(portfolio.customBlocks, ['title', 'content']);
+  if (Array.isArray(portfolio.interests)) portfolio.interests = portfolio.interests.map(stripTags);
+  return portfolio;
+}
+
 // POST /api/portfolio/validate - 체크리스트 6개 항목 검증
 router.post('/validate', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
@@ -252,6 +274,7 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
         .filter(exp => exp.userId === req.user.uid);
       portfolio.experiences = linkedExperiences.length ? linkedExperiences : (portfolio.experiences || []);
     }
+    stripPortfolioInlineHtml(portfolio);
     const deck = await generateAiPptDeck({ portfolio, templateHint: templateHint || 'standard:proposal', customTemplate: customTemplate || null });
     res.json({ deck });
   } catch (error) {
@@ -270,6 +293,7 @@ router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, ne
       const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
       if (snap.exists) portfolio = { id: snap.id, ...snap.data() };
     }
+    stripPortfolioInlineHtml(portfolio);
     const updated = await reviseAiPptSlide({ slide, instruction, portfolio });
     res.json({ slide: updated });
   } catch (error) {

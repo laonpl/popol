@@ -292,6 +292,12 @@ textarea {
   color: #b8c4d0;
   font-style: normal;
 }
+/* 인라인 리치 필드(EditText/RichInline) 빈 값일 때 placeholder 표시 */
+.fp-rich-inline:empty::before {
+  content: attr(data-placeholder);
+  color: #aab2c0;
+  pointer-events: none;
+}
 
 /* Keep mini editors stable when theme package classes are outside Tailwind's scan path. */
 .yoopta-mini-editor .yoopta-editor h1 {

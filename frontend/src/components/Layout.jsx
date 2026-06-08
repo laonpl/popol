@@ -83,15 +83,6 @@ export default function Layout() {
 
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
-            <button
-              onClick={() => navigate('/app/settings/credits')}
-              className="flex items-center px-3 py-1.5 rounded-full bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
-              title="크레딧 관리"
-            >
-              <span className="text-xs font-bold">
-                크레딧 관리
-              </span>
-            </button>
             <span className="text-sm font-medium text-bluewood-700">
               {displayName}
             </span>
@@ -119,7 +110,7 @@ export default function Layout() {
                     onClick={() => goSettings('/app/settings/credits')}
                     className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] font-medium text-bluewood-700 transition-colors hover:bg-surface-50 hover:text-primary-600"
                   >
-                    크레딧 충전
+                    크레딧 관리
                   </button>
                   <button
                     type="button"

@@ -126,7 +126,7 @@ export async function assertHasCredits() {
   if (!userId) return;
   const wallet = await getOrCreateWallet(userId);
   if (Number(wallet.balance || 0) <= 0) {
-    const error = new Error('크레딧이 부족합니다. 설정의 크레딧 충전 메뉴에서 충전해주세요.');
+    const error = new Error('크레딧이 부족합니다. 설정의 크레딧 관리 메뉴에서 충전해주세요.');
     error.status = 402;
     error.code = 'INSUFFICIENT_CREDITS';
     throw error;

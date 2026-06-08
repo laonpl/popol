@@ -10,7 +10,7 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import toast from 'react-hot-toast';
-import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
@@ -796,7 +796,7 @@ export default function NotionPortfolioPreview() {
                       }`}>
                         {g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}
                       </span>
-                      <h4 className="text-sm font-bold text-gray-800">{g.title}</h4>
+                      <VHtml as="h4" className="text-sm font-bold text-gray-800" value={g.title} />
                       <span className={`ml-auto text-xs ${g.status === 'done' ? 'text-green-600' : g.status === 'ing' ? 'text-blue-600' : 'text-gray-400'}`}>
                         {g.status === 'done' ? '완료' : g.status === 'ing' ? '진행 중' : '예정'}
                       </span>
@@ -1144,7 +1144,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
     <div className={outerClass}>
       {visibleBlocks.map((block, index) => {
         if (block.type === 'divider') return <hr key={index} className={warm ? 'border-[#e8e4dc]' : 'border-surface-200'} />;
-        if (block.type === 'heading') return <h2 key={index} className={titleClass}>{block.content}</h2>;
+        if (block.type === 'heading') return <VHtml key={index} as="h2" className={titleClass} value={block.content} />;
         if (block.type === 'project') {
           const cards = Array.isArray(block.content) ? block.content : [];
           return (
@@ -1155,7 +1155,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
                     <>
                       <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt="" className="mb-3 aspect-[16/9] w-full rounded-lg object-cover" />
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'}>{card.title || '프로젝트'}</h3>
+                        <VHtml as="h3" className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'} value={card.title || '프로젝트'} />
                         {card.link && <ExternalLink size={13} className={warm ? 'text-[#c4a882]' : 'text-gray-400'} />}
                       </div>
                       {false && card.date && <p className={warm ? 'mt-1 text-xs text-[#8a8578]' : 'mt-1 text-xs text-gray-400'}>{card.date}</p>}
@@ -1200,9 +1200,9 @@ function AcademicLayout({ p, setSelectedExp }) {
             <div className="w-28 h-28 rounded-2xl bg-white/10 border-4 border-white/20 flex items-center justify-center text-5xl">👤</div>
           )}
           <div className="flex-1 pb-1">
-            <h1 className="text-3xl font-bold text-white mb-1">{p.userName || '이름'}</h1>
-            {p.nameEn && <p className="text-blue-200 text-sm">{p.nameEn}</p>}
-            <p className="text-blue-300/70 text-xs mt-2">{p.headline || p.title || ''}</p>
+            <VHtml as="h1" className="text-3xl font-bold text-white mb-1" value={p.userName || '이름'} />
+            {p.nameEn && <VHtml as="p" className="text-blue-200 text-sm" value={p.nameEn} />}
+            <VHtml as="p" className="text-blue-300/70 text-xs mt-2" value={p.headline || p.title || ''} />
           </div>
           <div className="pb-1 text-right">
             {p.location && <p className="text-blue-200/60 text-xs flex items-center gap-1 justify-end"><MapPin size={11} /> {p.location}</p>}
@@ -1265,10 +1265,10 @@ function AcademicLayout({ p, setSelectedExp }) {
                   <div key={i} className="flex items-start gap-3 relative">
                     <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800">{edu.name}</h4>
-                      {edu.degree && <p className="text-xs text-gray-500">{edu.degree}</p>}
-                      <p className="text-xs text-gray-400 mt-0.5">{edu.period}</p>
-                      {edu.detail && <p className="text-xs text-gray-500 mt-1">{edu.detail}</p>}
+                      <VHtml as="h4" className="text-sm font-bold text-gray-800" value={edu.name} />
+                      {edu.degree && <VHtml as="p" className="text-xs text-gray-500" value={edu.degree} />}
+                      <VHtml as="p" className="text-xs text-gray-400 mt-0.5" value={edu.period} />
+                      {edu.detail && <VHtml as="p" className="text-xs text-gray-500 mt-1" value={edu.detail} />}
                     </div>
                   </div>
                 ))}
@@ -1288,8 +1288,8 @@ function AcademicLayout({ p, setSelectedExp }) {
                 {(p.awards || []).map((a, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div>
-                      <p className="text-sm font-medium text-gray-800">{a.title}</p>
-                      <p className="text-xs text-gray-400">{a.date}</p>
+                      <VHtml as="p" className="text-sm font-medium text-gray-800" value={a.title} />
+                      <VHtml as="p" className="text-xs text-gray-400" value={a.date} />
                     </div>
                   </div>
                 ))}
@@ -1317,8 +1317,8 @@ function AcademicLayout({ p, setSelectedExp }) {
                     <div key={i} className="flex items-start gap-3 relative">
                       <div className={`w-3.5 h-3.5 rounded-full ${catColors[act.category] || 'bg-gray-400'} border-2 border-white z-10 mt-0.5 flex-shrink-0`} />
                       <div className="flex-1">
-                        <h4 className="text-sm font-medium text-gray-800">{act.title || '(제목 없음)'}</h4>
-                        <p className="text-xs text-gray-400 mt-0.5">{act.date || ''}</p>
+                        <VHtml as="h4" className="text-sm font-medium text-gray-800" value={act.title || '(제목 없음)'} />
+                        <VHtml as="p" className="text-xs text-gray-400 mt-0.5" value={act.date || ''} />
                       </div>
                       <span className="text-xs text-gray-500 bg-gray-100 rounded-md px-2 py-0.5">{act.category || 'other'}</span>
                     </div>
@@ -1355,7 +1355,7 @@ function AcademicLayout({ p, setSelectedExp }) {
                       <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${stMap[e.status] || stMap.finished}`} />
                     </div>
                     <div className="p-3 flex-1 flex flex-col">
-                      <h4 className="text-sm font-bold text-gray-800 mb-1">{e.title || '(제목 없음)'}</h4>
+                      <VHtml as="h4" className="text-sm font-bold text-gray-800 mb-1" value={e.title || '(제목 없음)'} />
                       {false && <p className="text-xs text-gray-400">{e.date || ''}</p>}
                       {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1">{cardRole}</p>}
                       {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed mt-1">{cardSummary}</p>}
@@ -1492,7 +1492,7 @@ function AcademicLayout({ p, setSelectedExp }) {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs px-2 py-0.5 rounded-full bg-surface-100 text-gray-500 font-medium">{g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}</span>
-                      <h4 className="text-sm font-bold text-gray-800">{g.title}</h4>
+                      <VHtml as="h4" className="text-sm font-bold text-gray-800" value={g.title} />
                     </div>
                     {richValueHasContent(g.descriptionBlocks)
                       ? <RichTextPreview value={g.descriptionBlocks} className="mt-1" />
@@ -1531,9 +1531,9 @@ function AshleyLayout({ p, setSelectedExp }) {
         <div className="px-10 pt-10 pb-8">
           <div className="flex items-start gap-6">
             <div className="flex-1">
-              <h1 className="text-4xl font-bold text-[#2d2a26] mb-2 tracking-tight">{p.userName || '이름'}</h1>
-              {p.nameEn && <p className="text-[#8a8578] text-sm mb-3">{p.nameEn}</p>}
-              <p className="text-[#5a564e] text-sm leading-relaxed">{p.headline || p.title || ''}</p>
+              <VHtml as="h1" className="text-4xl font-bold text-[#2d2a26] mb-2 tracking-tight" value={p.userName || '이름'} />
+              {p.nameEn && <VHtml as="p" className="text-[#8a8578] text-sm mb-3" value={p.nameEn} />}
+              <VHtml as="p" className="text-[#5a564e] text-sm leading-relaxed" value={p.headline || p.title || ''} />
               <div className="flex items-center gap-4 mt-4 text-xs text-[#8a8578]">
                 {contact.email && <span>{contact.email}</span>}
                 {contact.instagram && <span>Instagram</span>}
@@ -1559,7 +1559,7 @@ function AshleyLayout({ p, setSelectedExp }) {
                 {p.birthDate && <div className="flex justify-between"><span className="text-[#8a8578]">생년월일</span><span className="font-medium text-[#2d2a26]">{p.birthDate}</span></div>}
                 {contact.email && <div className="flex justify-between"><span className="text-[#8a8578]">이메일</span><span className="font-medium text-[#2d2a26] text-xs">{contact.email}</span></div>}
                 {contact.phone && <div className="flex justify-between"><span className="text-[#8a8578]">연락처</span><span className="font-medium text-[#2d2a26]">{contact.phone}</span></div>}
-                {(p.education || []).length > 0 && <div className="flex justify-between"><span className="text-[#8a8578]">학교</span><span className="font-medium text-[#2d2a26] text-xs text-right">{p.education[0].name}</span></div>}
+                {(p.education || []).length > 0 && <div className="flex justify-between"><span className="text-[#8a8578]">학교</span><VHtml className="font-medium text-[#2d2a26] text-xs text-right" value={p.education[0].name} /></div>}
               </div>
             </div>
             {/* 저는 이런 사람이에요 */}
@@ -1597,7 +1597,7 @@ function AshleyLayout({ p, setSelectedExp }) {
                 {p.experiences.slice(0, 3).map((e, i) => (
                   <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => setSelectedExp(e)}>
                     <div className="flex-1">
-                      <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. {e.title}에 대해 이야기해주세요.</p>
+                      <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. <VHtml value={e.title} />에 대해 이야기해주세요.</p>
                       <p className="text-sm text-[#8a8578] leading-relaxed">{e.description || (e.sections || []).find(s => s.content)?.content || '클릭하여 자세한 내용을 확인하세요.'}</p>
                     </div>
                     {e.thumbnailUrl && (
@@ -1631,7 +1631,7 @@ function AshleyLayout({ p, setSelectedExp }) {
                     )}
                   </div>
                   <div className="p-3 flex-1 flex flex-col">
-                    <h4 className="text-sm font-bold text-[#2d2a26] mb-1">{e.title || '(제목 없음)'}</h4>
+                    <VHtml as="h4" className="text-sm font-bold text-[#2d2a26] mb-1" value={e.title || '(제목 없음)'} />
                     {false && <p className="text-xs text-[#8a8578]">{e.date || ''}</p>}
                     {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1">{cardRole}</p>}
                     {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed mt-1">{cardSummary}</p>}
@@ -1698,7 +1698,7 @@ function AshleyLayout({ p, setSelectedExp }) {
             <h3 className="font-bold text-lg text-[#2d2a26] mb-4">🌿 관심사</h3>
             <div className="flex flex-wrap gap-2">
               {p.interests.map((interest, i) => (
-                <span key={i} className="px-4 py-2 bg-white rounded-full text-sm text-[#5a564e] border border-[#e8e4dc]">{interest}</span>
+                <VHtml key={i} className="px-4 py-2 bg-white rounded-full text-sm text-[#5a564e] border border-[#e8e4dc]" value={interest} />
               ))}
             </div>
           </div>
@@ -1762,9 +1762,9 @@ function TimelineLayout({ p, setSelectedExp }) {
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl ring-4 ring-white/20">👤</div>
           )}
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-white">{p.headline || p.userName || '대시보드'}</h1>
+            <VHtml as="h1" className="text-2xl font-bold text-white" value={p.headline || p.userName || '대시보드'} />
             {p.education?.length > 0 && (
-              <p className="text-blue-200/70 text-xs mt-0.5">{p.education[0].name} · {p.education[0].degree}</p>
+              <p className="text-blue-200/70 text-xs mt-0.5"><VHtml value={p.education[0].name} /> · <VHtml value={p.education[0].degree} /></p>
             )}
           </div>
           <div className="flex gap-2 flex-shrink-0">

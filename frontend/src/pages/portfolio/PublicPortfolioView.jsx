@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
@@ -79,7 +79,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
     <div className={outerClass}>
       {visibleBlocks.map((block, index) => {
         if (block.type === 'divider') return <hr key={index} className={warm ? 'border-[#e8e4dc]' : 'border-gray-200'} />;
-        if (block.type === 'heading') return <h2 key={index} className={titleClass}>{block.content}</h2>;
+        if (block.type === 'heading') return <VHtml key={index} as="h2" className={titleClass} value={block.content} />;
         if (block.type === 'project') {
           const cards = Array.isArray(block.content) ? block.content : [];
           return (
@@ -90,7 +90,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
                     <>
                       <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt="" className="mb-3 aspect-[16/9] w-full rounded-lg object-cover" />
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'}>{card.title || '프로젝트'}</h3>
+                        <VHtml as="h3" className={warm ? 'text-sm font-bold text-[#2d2a26]' : 'text-sm font-bold text-gray-900'} value={card.title || '프로젝트'} />
                         {card.link && <ExternalLink size={13} className={warm ? 'text-[#c4a882]' : 'text-gray-400'} />}
                       </div>
                       {false && card.date && <p className={warm ? 'mt-1 text-xs text-[#8a8578]' : 'mt-1 text-xs text-gray-400'}>{card.date}</p>}
@@ -438,7 +438,7 @@ export default function PublicPortfolioView() {
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${g.status === 'done' ? 'bg-green-100 text-green-700' : g.status === 'ing' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
                       {g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}
                     </span>
-                    <h4 className="text-sm font-bold text-gray-800">{g.title}</h4>
+                    <VHtml as="h4" className="text-sm font-bold text-gray-800" value={g.title} />
                   </div>
                   {g.description && <p className="text-sm text-gray-600 mt-1">{g.description}</p>}
                 </div>
@@ -480,9 +480,9 @@ export default function PublicPortfolioView() {
               <div className="w-28 h-28 rounded-2xl bg-white/10 border-4 border-white/20 flex items-center justify-center text-5xl">👤</div>
             )}
             <div className="flex-1 pb-1">
-              <h1 className="text-3xl font-bold text-white mb-1">{p.userName || '이름'}</h1>
-              {p.nameEn && <p className="text-blue-200 text-sm">{p.nameEn}</p>}
-              <p className="text-blue-300/70 text-xs mt-2">{p.headline || p.title || ''}</p>
+              <VHtml as="h1" className="text-3xl font-bold text-white mb-1" value={p.userName || '이름'} />
+              {p.nameEn && <VHtml as="p" className="text-blue-200 text-sm" value={p.nameEn} />}
+              <VHtml as="p" className="text-blue-300/70 text-xs mt-2" value={p.headline || p.title || ''} />
             </div>
           </div>
         </div>
@@ -518,9 +518,9 @@ export default function PublicPortfolioView() {
                     <div key={i} className="flex items-start gap-3 relative">
                       <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
                       <div>
-                        <h4 className="text-sm font-bold text-gray-800">{edu.name}</h4>
-                        {edu.degree && <p className="text-xs text-gray-500">{edu.degree}</p>}
-                        <p className="text-xs text-gray-400 mt-0.5">{edu.period}</p>
+                        <VHtml as="h4" className="text-sm font-bold text-gray-800" value={edu.name} />
+                        {edu.degree && <VHtml as="p" className="text-xs text-gray-500" value={edu.degree} />}
+                        <VHtml as="p" className="text-xs text-gray-400 mt-0.5" value={edu.period} />
                       </div>
                     </div>
                   ))}
@@ -531,7 +531,7 @@ export default function PublicPortfolioView() {
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><span className="w-1.5 h-6 bg-amber-500 rounded-full inline-block" /> 수상</h2>
                 <div className="space-y-3">
                   {(p.awards || []).map((a, i) => (
-                    <div key={i} className="flex items-start gap-3"><span className="text-lg">🏆</span><div><p className="text-sm font-medium text-gray-800">{a.title}</p><p className="text-xs text-gray-400">{a.date}</p></div></div>
+                    <div key={i} className="flex items-start gap-3"><span className="text-lg">🏆</span><div><VHtml as="p" className="text-sm font-medium text-gray-800" value={a.title} /><VHtml as="p" className="text-xs text-gray-400" value={a.date} /></div></div>
                   ))}
                   {(p.awards || []).length === 0 && <p className="text-xs text-gray-400">수상 내역 없음</p>}
                 </div>
@@ -558,7 +558,7 @@ export default function PublicPortfolioView() {
                         <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${stMap[e.status] || stMap.finished}`} />
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
-                        <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                        <VHtml as="h4" className="text-sm font-bold text-gray-800 line-clamp-1 mb-1" value={e.title || '(제목 없음)'} />
                         {false && <p className="text-xs text-gray-400">{e.date || ''}</p>}
                         {cardRole && <p className="text-[11px] text-violet-600 font-medium mt-1 truncate">{cardRole}</p>}
                         {cardSummary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
@@ -601,7 +601,7 @@ export default function PublicPortfolioView() {
               <div className="space-y-3">{p.goals.map((g, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${g.status === 'done' ? 'bg-green-500' : g.status === 'ing' ? 'bg-blue-500' : 'bg-gray-400'}`}>{g.status === 'done' ? '✓' : '→'}</div>
-                  <div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}</span><h4 className="text-sm font-bold text-gray-800">{g.title}</h4></div>
+                  <div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{g.type === 'long' ? '장기' : g.type === 'mid' ? '중기' : '단기'}</span><VHtml as="h4" className="text-sm font-bold text-gray-800" value={g.title} /></div>
                   {g.description && <p className="text-xs text-gray-500 mt-1">{g.description}</p>}</div>
                 </div>
               ))}</div>
@@ -625,9 +625,9 @@ export default function PublicPortfolioView() {
           <div className="px-10 pt-10 pb-8">
             <div className="flex items-start gap-6">
               <div className="flex-1">
-                <h1 className="text-4xl font-bold text-[#2d2a26] mb-2 tracking-tight">{p.userName || '이름'}</h1>
-                {p.nameEn && <p className="text-[#8a8578] text-sm mb-3">{p.nameEn}</p>}
-                <p className="text-[#5a564e] text-sm leading-relaxed">{p.headline || p.title || ''}</p>
+                <VHtml as="h1" className="text-4xl font-bold text-[#2d2a26] mb-2 tracking-tight" value={p.userName || '이름'} />
+                {p.nameEn && <VHtml as="p" className="text-[#8a8578] text-sm mb-3" value={p.nameEn} />}
+                <VHtml as="p" className="text-[#5a564e] text-sm leading-relaxed" value={p.headline || p.title || ''} />
                 <div className="flex items-center gap-4 mt-4 text-xs text-[#8a8578]">
                   {contact.email && <span>{contact.email}</span>}
                   {contact.instagram && <span>Instagram</span>}
@@ -647,7 +647,7 @@ export default function PublicPortfolioView() {
                   {p.location && <div className="flex justify-between"><span className="text-[#8a8578]">위치</span><span className="font-medium text-[#2d2a26]">{p.location}</span></div>}
                   {p.birthDate && <div className="flex justify-between"><span className="text-[#8a8578]">생년월일</span><span className="font-medium text-[#2d2a26]">{p.birthDate}</span></div>}
                   {contact.email && <div className="flex justify-between"><span className="text-[#8a8578]">이메일</span><span className="font-medium text-[#2d2a26] text-xs">{contact.email}</span></div>}
-                  {(p.education || []).length > 0 && <div className="flex justify-between"><span className="text-[#8a8578]">학교</span><span className="font-medium text-[#2d2a26] text-xs">{p.education[0].name}</span></div>}
+                  {(p.education || []).length > 0 && <div className="flex justify-between"><span className="text-[#8a8578]">학교</span><VHtml className="font-medium text-[#2d2a26] text-xs" value={p.education[0].name} /></div>}
                 </div>
               </div>
               <div className="bg-white rounded-xl p-5 border border-[#e8e4dc]">
@@ -671,7 +671,7 @@ export default function PublicPortfolioView() {
                 <div className="space-y-5">{p.experiences.slice(0, 3).map((e, i) => (
                   <div key={i} className="flex gap-5 cursor-pointer group" onClick={() => setSelectedExp(e)}>
                     <div className="flex-1">
-                      <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. {e.title}에 대해 이야기해주세요.</p>
+                      <p className="font-medium text-[#2d2a26] text-sm mb-1 group-hover:text-[#c4a882] transition-colors">Q. <VHtml value={e.title} />에 대해 이야기해주세요.</p>
                       <p className="text-sm text-[#8a8578] leading-relaxed line-clamp-3">{e.description || '클릭하여 확인'}</p>
                     </div>
                     {e.thumbnailUrl && <img src={e.thumbnailUrl} alt="" className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />}
@@ -697,7 +697,7 @@ export default function PublicPortfolioView() {
                         : <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">{['🎯','📱','🎨'][i % 3]}</div>}
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
-                        <h4 className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1">{e.title || '(제목 없음)'}</h4>
+                        <VHtml as="h4" className="text-sm font-bold text-[#2d2a26] line-clamp-1 mb-1" value={e.title || '(제목 없음)'} />
                         {false && <p className="text-xs text-[#8a8578]">{e.date || ''}</p>}
                         {cardRole && <p className="text-[11px] text-[#c4a882] font-medium mt-1 truncate">{cardRole}</p>}
                         {cardSummary && <p className="text-[11px] text-[#8a8578] leading-relaxed line-clamp-2 mt-1">{cardSummary}</p>}
@@ -759,9 +759,9 @@ export default function PublicPortfolioView() {
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-3xl ring-4 ring-white/20">👤</div>
             )}
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-white">{p.headline || p.userName || '대시보드'}</h1>
+              <VHtml as="h1" className="text-2xl font-bold text-white" value={p.headline || p.userName || '대시보드'} />
               {(p.education || []).length > 0 && (
-                <p className="text-blue-200/70 text-xs mt-0.5">{p.education[0].name} · {p.education[0].degree}</p>
+                <p className="text-blue-200/70 text-xs mt-0.5"><VHtml value={p.education[0].name} /> · <VHtml value={p.education[0].degree} /></p>
               )}
             </div>
           </div>

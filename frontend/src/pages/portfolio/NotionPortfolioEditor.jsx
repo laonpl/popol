@@ -18,7 +18,7 @@ import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } fro
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
-import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS } from './VisualPortfolioTemplates';
+import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, EditText, VHtml } from './VisualPortfolioTemplates';
 import ProjectDetailModal from '../../components/ProjectDetailModal';
 
 function stripMd(s) {
@@ -2754,12 +2754,12 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
         <div className="px-10 pt-10 pb-8">
           <div className="flex items-start gap-6">
             <div className="flex-1">
-              <input value={p.userName || ''} onChange={e => update('userName', e.target.value)}
-                placeholder="이름" className="w-full text-4xl font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a] mb-2 tracking-tight" />
-              <input value={p.nameEn || ''} onChange={e => update('nameEn', e.target.value)}
-                placeholder="English Name" className="w-full text-[#8a8578] text-sm outline-none bg-transparent placeholder:text-[#c4b89a] mb-3" />
-              <input value={p.headline || ''} onChange={e => update('headline', e.target.value)}
-                placeholder="한 줄 소개" className="w-full text-[#5a564e] text-sm outline-none bg-transparent placeholder:text-[#c4b89a] leading-relaxed" />
+              <EditText tag="div" value={p.userName || ''} onChange={v => update('userName', v)}
+                placeholder="이름" className="w-full text-4xl font-bold text-[#2d2a26] bg-transparent mb-2 tracking-tight" />
+              <EditText tag="div" value={p.nameEn || ''} onChange={v => update('nameEn', v)}
+                placeholder="English Name" className="w-full text-[#8a8578] text-sm bg-transparent mb-3" />
+              <EditText tag="div" value={p.headline || ''} onChange={v => update('headline', v)}
+                placeholder="한 줄 소개" className="w-full text-[#5a564e] text-sm bg-transparent leading-relaxed" />
               <div className="flex items-center gap-4 mt-4 text-xs text-[#8a8578]">
                 <input value={contact.email || ''} onChange={e => updateNested('contact', 'email', e.target.value)}
                   placeholder="이메일" className="text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] w-36" />
@@ -2903,19 +2903,19 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <GraduationCap size={16} className="text-[#c4a882] flex-shrink-0 mt-1" />
                 <div className="flex-1 min-w-0">
                   <div className="flex gap-2">
-                    <input value={edu.name || ''} onChange={e => updateArrayItem('education', i, { name: e.target.value })}
-                      placeholder="학교명" className="flex-1 text-sm font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
-                    <input value={edu.major || ''} onChange={e => updateArrayItem('education', i, { major: e.target.value })}
-                      placeholder="전공" className="flex-1 text-sm text-[#5a564e] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                    <EditText value={edu.name || ''} onChange={v => updateArrayItem('education', i, { name: v })}
+                      placeholder="학교명" className="flex-1 text-sm font-medium text-[#2d2a26] bg-transparent" />
+                    <EditText value={edu.major || ''} onChange={v => updateArrayItem('education', i, { major: v })}
+                      placeholder="전공" className="flex-1 text-sm text-[#5a564e] bg-transparent" />
                   </div>
                   <div className="flex gap-2 mt-1">
-                    <input value={edu.degree || ''} onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
-                      placeholder="학위" className="w-20 text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a]" />
-                    <input value={edu.period || ''} onChange={e => updateArrayItem('education', i, { period: e.target.value })}
-                      placeholder="기간" className="w-40 text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                    <EditText value={edu.degree || ''} onChange={v => updateArrayItem('education', i, { degree: v })}
+                      placeholder="학위" className="w-20 text-xs text-[#8a8578] bg-transparent" />
+                    <EditText value={edu.period || ''} onChange={v => updateArrayItem('education', i, { period: v })}
+                      placeholder="기간" className="w-40 text-xs text-[#8a8578] bg-transparent" />
                   </div>
-                  <input value={edu.detail || ''} onChange={e => updateArrayItem('education', i, { detail: e.target.value })}
-                    placeholder="상세 내용 (GPA, 관련 과목 등)" className="w-full text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] mt-1" />
+                  <EditText tag="div" value={edu.detail || ''} onChange={v => updateArrayItem('education', i, { detail: v })}
+                    placeholder="상세 내용 (GPA, 관련 과목 등)" className="w-full text-xs text-[#8a8578] bg-transparent mt-1" />
                 </div>
                 <button onClick={() => removeFromArray('education', i)} className="text-[#c4b89a] hover:text-red-400"><X size={12} /></button>
               </div>
@@ -2940,12 +2940,12 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(p.awards || []).map((a, i) => (
               <div key={i} className="flex items-center gap-3 bg-white rounded-xl p-4 border border-[#e8e4dc] group/award">
                 <Award size={16} className="text-[#c4a882] flex-shrink-0" />
-                <input value={a.date || ''} onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
-                  placeholder="날짜" className="w-24 text-xs font-medium text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a]" />
-                <input value={a.title || ''} onChange={e => updateArrayItem('awards', i, { title: e.target.value })}
-                  placeholder="수상명" className="flex-1 text-sm font-medium text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
-                <input value={a.detail || ''} onChange={e => updateArrayItem('awards', i, { detail: e.target.value })}
-                  placeholder="상세" className="flex-1 text-sm text-[#5a564e] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                <EditText value={a.date || ''} onChange={v => updateArrayItem('awards', i, { date: v })}
+                  placeholder="날짜" className="w-24 text-xs font-medium text-[#8a8578] bg-transparent" />
+                <EditText value={a.title || ''} onChange={v => updateArrayItem('awards', i, { title: v })}
+                  placeholder="수상명" className="flex-1 text-sm font-medium text-[#2d2a26] bg-transparent" />
+                <EditText value={a.detail || ''} onChange={v => updateArrayItem('awards', i, { detail: v })}
+                  placeholder="상세" className="flex-1 text-sm text-[#5a564e] bg-transparent" />
                 <button onClick={() => removeFromArray('awards', i)} className="text-[#c4b89a] hover:text-red-400"><X size={12} /></button>
               </div>
             ))}
@@ -3025,10 +3025,10 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   <img src={e.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={e.title || ''} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-3">
-                  <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
-                    placeholder="제목" className="w-full text-sm font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
-                  <input value={e.date || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { date: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
-                    placeholder="날짜" className="w-full text-xs text-[#8a8578] outline-none bg-transparent placeholder:text-[#c4b89a] mt-1" />
+                  <EditText tag="div" value={e.title || ''} onChange={v => updateArrayItem('experiences', i, { title: v })} onClick={ev => ev.stopPropagation()}
+                    placeholder="제목" className="w-full text-sm font-bold text-[#2d2a26] bg-transparent" />
+                  <EditText tag="div" value={e.date || ''} onChange={v => updateArrayItem('experiences', i, { date: v })} onClick={ev => ev.stopPropagation()}
+                    placeholder="날짜" className="w-full text-xs text-[#8a8578] bg-transparent mt-1" />
                   {e.description && <p className="text-[13px] text-[#8a8578] mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
                   {(e.skills || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -3151,8 +3151,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               <div key={i} className="relative group/goal border-b border-[#e8e4dc]/60 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 text-[#c4b89a] hover:text-red-400"><Trash2 size={12} /></button>
-                <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
-                  placeholder="목표명" className="w-full text-sm font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                <EditText tag="div" value={g.title || ''} onChange={v => updateArrayItem('goals', i, { title: v })}
+                  placeholder="목표명" className="w-full text-sm font-bold text-[#2d2a26] bg-transparent" />
                 <div className="mt-1">
                   <RichContentEditor
                     value={g.blocks || g.description || ''}
@@ -3213,9 +3213,9 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <button onClick={() => removeFromArray('customBlocks', i)} className="text-[#c4b89a] hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
               </div>
               {block.type === 'heading' && (
-                <input value={block.content || ''} onChange={e => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:e.target.value}; update('customBlocks',b); }}
+                <EditText tag="div" value={block.content || ''} onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:v}; update('customBlocks',b); }}
                   placeholder="제목을 입력하세요"
-                  className="w-full text-xl font-bold text-[#2d2a26] outline-none bg-transparent placeholder:text-[#c4b89a]" />
+                  className="w-full text-xl font-bold text-[#2d2a26] bg-transparent" />
               )}
               {block.type === 'text' && (
                 <RichContentEditor
@@ -3380,8 +3380,8 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <div className="flex flex-wrap gap-2">
             {(p.interests || []).map((interest, i) => (
               <div key={i} className="group/int flex items-center gap-1 px-4 py-2 bg-white rounded-full border border-[#e8e4dc]">
-                <input value={interest || ''} onChange={e => updateArrayItem('interests', i, e.target.value)}
-                  className="text-sm text-[#5a564e] outline-none bg-transparent w-20" />
+                <EditText value={interest || ''} onChange={v => updateArrayItem('interests', i, v)}
+                  className="text-sm text-[#5a564e] bg-transparent w-20" />
                 <button onClick={() => removeFromArray('interests', i)} className="text-[#c4b89a] hover:text-red-400"><X size={10} /></button>
               </div>
             ))}
@@ -3745,12 +3745,12 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             </div>
           </button>
           <div className="flex-1 pb-1">
-            <input value={p.userName || ''} onChange={e => update('userName', e.target.value)}
-              placeholder="이름" className="w-full text-3xl font-bold text-white outline-none bg-transparent placeholder:text-blue-300/50 mb-1" />
-            <input value={p.nameEn || ''} onChange={e => update('nameEn', e.target.value)}
-              placeholder="English Name" className="w-full text-blue-200 text-sm outline-none bg-transparent placeholder:text-blue-300/50" />
-            <input value={p.headline || ''} onChange={e => update('headline', e.target.value)}
-              placeholder="한 줄 소개" className="w-full text-blue-300/70 text-xs outline-none bg-transparent placeholder:text-blue-300/40 mt-2" />
+            <EditText tag="div" value={p.userName || ''} onChange={v => update('userName', v)}
+              placeholder="이름" className="w-full text-3xl font-bold text-white bg-transparent mb-1" />
+            <EditText tag="div" value={p.nameEn || ''} onChange={v => update('nameEn', v)}
+              placeholder="English Name" className="w-full text-blue-200 text-sm bg-transparent" />
+            <EditText tag="div" value={p.headline || ''} onChange={v => update('headline', v)}
+              placeholder="한 줄 소개" className="w-full text-blue-300/70 text-xs bg-transparent mt-2" />
           </div>
         </div>
       </div>
@@ -3800,14 +3800,14 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   <div key={i} className="flex items-start gap-3 group/edu relative">
                     <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white z-10 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <input value={edu.name || ''} onChange={e => updateArrayItem('education', i, { name: e.target.value })}
-                        placeholder="학교명" className="text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 w-full" />
-                      <input value={edu.degree || ''} onChange={e => updateArrayItem('education', i, { degree: e.target.value })}
-                        placeholder="학위 · 전공" className="text-xs text-gray-500 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
-                      <input value={edu.period || ''} onChange={e => updateArrayItem('education', i, { period: e.target.value })}
-                        placeholder="기간" className="text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
-                      <input value={edu.detail || ''} onChange={e => updateArrayItem('education', i, { detail: e.target.value })}
-                        placeholder="상세 내용" className="w-full text-sm text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mt-1" />
+                      <EditText tag="div" value={edu.name || ''} onChange={v => updateArrayItem('education', i, { name: v })}
+                        placeholder="학교명" className="text-sm font-bold text-gray-800 bg-transparent w-full" />
+                      <EditText tag="div" value={edu.degree || ''} onChange={v => updateArrayItem('education', i, { degree: v })}
+                        placeholder="학위 · 전공" className="text-xs text-gray-500 bg-transparent w-full mt-0.5" />
+                      <EditText tag="div" value={edu.period || ''} onChange={v => updateArrayItem('education', i, { period: v })}
+                        placeholder="기간" className="text-xs text-gray-400 bg-transparent w-full mt-0.5" />
+                      <EditText tag="div" value={edu.detail || ''} onChange={v => updateArrayItem('education', i, { detail: v })}
+                        placeholder="상세 내용" className="w-full text-sm text-gray-500 bg-transparent hover:bg-primary-50/30 rounded px-1 mt-1" />
                     </div>
                     <button onClick={() => removeFromArray('education', i)} className="text-gray-300 hover:text-red-400"><X size={11} /></button>
                   </div>
@@ -3828,10 +3828,10 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   <div key={i} className="flex items-start gap-3 group/aw">
                     <Award size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <input value={a.title || ''} onChange={e => updateArrayItem('awards', i, { title: e.target.value })}
-                        placeholder="수상명" className="text-sm font-medium text-gray-800 outline-none bg-transparent placeholder:text-gray-300 w-full" />
-                      <input value={a.date || ''} onChange={e => updateArrayItem('awards', i, { date: e.target.value })}
-                        placeholder="날짜" className="text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 w-full mt-0.5" />
+                      <EditText tag="div" value={a.title || ''} onChange={v => updateArrayItem('awards', i, { title: v })}
+                        placeholder="수상명" className="text-sm font-medium text-gray-800 bg-transparent w-full" />
+                      <EditText tag="div" value={a.date || ''} onChange={v => updateArrayItem('awards', i, { date: v })}
+                        placeholder="날짜" className="text-xs text-gray-400 bg-transparent w-full mt-0.5" />
                     </div>
                     <button onClick={() => removeFromArray('awards', i)} className="text-gray-300 hover:text-red-400"><X size={11} /></button>
                   </div>
@@ -3880,10 +3880,10 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   <div key={i} className="flex items-start gap-3 group/act relative">
                     <div className={`w-3.5 h-3.5 rounded-full ${dotColor} border-2 border-white z-10 mt-0.5 flex-shrink-0`} />
                     <div className="flex-1">
-                      <input value={act.title || ''} onChange={e => updateArrayItem('activityRecords', i, { title: e.target.value })}
-                        placeholder="활동명" className="w-full text-sm font-medium text-gray-800 outline-none bg-transparent placeholder:text-gray-300" />
-                      <input value={act.date || ''} onChange={e => updateArrayItem('activityRecords', i, { date: e.target.value })}
-                        placeholder="YYYY.MM" className="w-full text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 mt-0.5" />
+                      <EditText tag="div" value={act.title || ''} onChange={v => updateArrayItem('activityRecords', i, { title: v })}
+                        placeholder="활동명" className="w-full text-sm font-medium text-gray-800 bg-transparent" />
+                      <EditText tag="div" value={act.date || ''} onChange={v => updateArrayItem('activityRecords', i, { date: v })}
+                        placeholder="YYYY.MM" className="w-full text-xs text-gray-400 bg-transparent mt-0.5" />
                     </div>
                     <select
                       value={act.category || 'other'}
@@ -3973,10 +3973,10 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                   <img src={e.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={e.title || ''} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-3">
-                  <input value={e.title || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { title: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
-                    placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300" />
-                  <input value={e.date || ''} onChange={ev => { ev.stopPropagation(); updateArrayItem('experiences', i, { date: ev.target.value }); }} onClick={ev => ev.stopPropagation()}
-                    placeholder="날짜" className="w-full text-xs text-gray-400 outline-none bg-transparent placeholder:text-gray-300 mt-0.5" />
+                  <EditText tag="div" value={e.title || ''} onChange={v => updateArrayItem('experiences', i, { title: v })} onClick={ev => ev.stopPropagation()}
+                    placeholder="제목" className="w-full text-sm font-bold text-gray-800 bg-transparent" />
+                  <EditText tag="div" value={e.date || ''} onChange={v => updateArrayItem('experiences', i, { date: v })} onClick={ev => ev.stopPropagation()}
+                    placeholder="날짜" className="w-full text-xs text-gray-400 bg-transparent mt-0.5" />
                   {e.description && <p className="text-[13px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{e.description}</p>}
                   {(e.skills || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -4087,8 +4087,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               <div key={i} className="group/goal relative border-b border-surface-100 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
                   className="absolute top-2 right-2 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
-                <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
-                  placeholder="목표명" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
+                <EditText tag="div" value={g.title || ''} onChange={v => updateArrayItem('goals', i, { title: v })}
+                  placeholder="목표명" className="w-full text-sm font-bold text-gray-800 bg-transparent hover:bg-primary-50/30 rounded px-1" />
                 <div className="mt-1">
                   <RichContentEditor
                     value={g.blocks || g.description || ''}
@@ -4143,8 +4143,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                 <button onClick={() => removeFromArray('customBlocks', i)} className="text-gray-300 hover:text-red-400"><Trash2 size={14}/></button>
               </div>
               {block.type === 'heading' && (
-                <input value={block.content || ''} onChange={e => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:e.target.value}; update('customBlocks',b); }}
-                  placeholder="제목 입력..." className="w-full text-xl font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300" />
+                <EditText tag="div" value={block.content || ''} onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:v}; update('customBlocks',b); }}
+                  placeholder="제목 입력..." className="w-full text-xl font-bold text-gray-800 bg-transparent" />
               )}
               {block.type === 'text' && (
                 <RichContentEditor value={block.content || ''} onChange={v => { const b=[...(p.customBlocks||[])]; b[i]={...b[i],content:v}; update('customBlocks',b); }}
@@ -4180,8 +4180,8 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
                           <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={card.title || ''} className="w-full h-full object-cover" />
                         </div>
                         <div className="p-2.5">
-                          <input value={card.title||''} onChange={ev=>{ev.stopPropagation();const nb=[...(p.customBlocks||[])];const nc=[...(nb[i].content||[])];nc[ci]={...nc[ci],title:ev.target.value};nb[i]={...nb[i],content:nc};update('customBlocks',nb);}} onClick={ev=>ev.stopPropagation()}
-                            placeholder="제목" className="w-full text-xs font-bold text-gray-700 outline-none bg-transparent placeholder:text-gray-300"/>
+                          <EditText tag="div" value={card.title||''} onChange={v=>{const nb=[...(p.customBlocks||[])];const nc=[...(nb[i].content||[])];nc[ci]={...nc[ci],title:v};nb[i]={...nb[i],content:nc};update('customBlocks',nb);}} onClick={ev=>ev.stopPropagation()}
+                            placeholder="제목" className="w-full text-xs font-bold text-gray-700 bg-transparent"/>
                         </div>
                         <button onClick={ev=>{ev.stopPropagation();const nb=[...(p.customBlocks||[])];const nc=[...(nb[i].content||[])];nc.splice(ci,1);nb[i]={...nb[i],content:nc};update('customBlocks',nb);}}
                           className="absolute top-1 right-1 bg-white/80 p-0.5 rounded-full text-gray-400 hover:text-red-500"><X size={10}/></button>
@@ -4401,17 +4401,19 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
             />
           </div>
           <div className="flex-1">
-            <input
+            <EditText
+              tag="div"
               value={p.headline || ''}
-              onChange={e => update('headline', e.target.value)}
+              onChange={v => update('headline', v)}
               placeholder="나의 대시보드 제목"
-              className="w-full bg-transparent text-2xl font-bold text-white placeholder-white/30 outline-none"
+              className="w-full bg-transparent text-2xl font-bold text-white"
             />
-            <input
+            <EditText
+              tag="div"
               value={p.userName || ''}
-              onChange={e => update('userName', e.target.value)}
+              onChange={v => update('userName', v)}
               placeholder="이름"
-              className="w-full bg-transparent text-sm text-blue-200/70 placeholder-blue-200/30 outline-none mt-1"
+              className="w-full bg-transparent text-sm text-blue-200/70 mt-1"
             />
           </div>
           {/* Social links */}
@@ -4670,6 +4672,33 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
     cellSelectionRef.current = anchor;
     selectCellRange(anchor, anchor);
     setOpenCellSettings(null);
+
+    // 다중 선택 드래그 중 포인터가 표 좌/우 가장자리에 닿으면 자동으로 가로 스크롤한다.
+    // → 끌어서 여러 칸을 선택하는 동시에 숨은 칸으로 표가 슬라이드된다(둘 다 동작).
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    let pointerX = event.clientX;
+    let raf = 0;
+    const onMove = (moveEvent) => { pointerX = moveEvent.clientX; };
+    const tick = () => {
+      if (!cellSelectionRef.current) { raf = 0; return; }
+      const rect = scroller.getBoundingClientRect();
+      const edge = 48;
+      const maxSpeed = 20;
+      let delta = 0;
+      if (pointerX > rect.right - edge) delta = maxSpeed * Math.min(1, (pointerX - (rect.right - edge)) / edge);
+      else if (pointerX < rect.left + edge) delta = -maxSpeed * Math.min(1, ((rect.left + edge) - pointerX) / edge);
+      if (delta && scroller.scrollWidth > scroller.clientWidth) scroller.scrollLeft += delta;
+      raf = requestAnimationFrame(tick);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    window.addEventListener('mousemove', onMove, true);
+    window.addEventListener('mouseup', onUp, true);
+    raf = requestAnimationFrame(tick);
   };
   const extendCellSelection = (rowIndex, columnIndex, columnKey) => {
     const anchor = cellSelectionRef.current;
@@ -6394,8 +6423,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     <option value="mid">중기</option>
                     <option value="long">장기</option>
                   </select>
-                  <input value={g.title || ''} onChange={e => updateArrayItem('goals', i, { title: e.target.value })}
-                    placeholder="목표를 입력하세요" className="flex-1 text-sm font-bold text-gray-800 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
+                  <EditText value={g.title || ''} onChange={v => updateArrayItem('goals', i, { title: v })}
+                    placeholder="목표를 입력하세요" className="flex-1 text-sm font-bold text-gray-800 bg-transparent hover:bg-primary-50/30 rounded px-1" />
                   <select value={g.status || 'planned'} onChange={e => updateArrayItem('goals', i, { status: e.target.value })}
                     className={`px-2 py-0.5 rounded text-xs outline-none border-none cursor-pointer ${
                       g.status === 'done' ? 'text-green-600' : g.status === 'ing' ? 'text-blue-600' : 'text-gray-400'
@@ -6458,22 +6487,23 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 <Trash2 size={14} />
               </button>
             </div>
-            <input
+            <EditText
+              tag="div"
               value={block.title ?? getDefaultCustomBlockTitle(block.type)}
-              onChange={e => {
+              onChange={v => {
                 const blocks = [...(p.customBlocks || [])];
-                blocks[i] = { ...blocks[i], title: e.target.value };
+                blocks[i] = { ...blocks[i], title: v };
                 update('customBlocks', blocks);
               }}
               placeholder="소제목을 입력하세요"
-              className="w-full text-xl font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 pb-1 mb-4 border-b-2 border-primary-300"
+              className="w-full text-xl font-bold text-gray-900 bg-transparent hover:bg-primary-50/30 rounded px-1 pb-1 mb-4 border-b-2 border-primary-300"
             />
             {block.type === 'heading' && (
-              <input value={block.content || ''} onChange={e => {
-                const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: e.target.value };
+              <EditText tag="div" value={block.content || ''} onChange={v => {
+                const blocks = [...(p.customBlocks || [])]; blocks[i] = { ...blocks[i], content: v };
                 update('customBlocks', blocks);
               }} placeholder="제목을 입력하세요"
-                className="w-full text-xl font-bold text-gray-900 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1 mb-4" />
+                className="w-full text-xl font-bold text-gray-900 bg-transparent hover:bg-primary-50/30 rounded px-1 mb-4" />
             )}
             {(block.type === 'text' || block.type === 'table') && (
               <YooptaMiniEditor

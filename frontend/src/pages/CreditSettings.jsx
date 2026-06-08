@@ -81,7 +81,7 @@ export default function CreditSettings() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-xs font-semibold text-primary-600 mb-1">설정</p>
-          <h1 className="text-2xl font-bold text-bluewood-800">크레딧 충전</h1>
+          <h1 className="text-2xl font-bold text-bluewood-800">크레딧 관리</h1>
           <p className="text-sm text-bluewood-400 mt-1">AI 기능과 모델 사용량에 따라 크레딧이 차감됩니다.</p>
         </div>
         <Link to="/app/profile-setup" className="px-4 py-2 text-sm font-semibold text-bluewood-500 bg-white border border-surface-200 rounded-lg hover:border-primary-300">

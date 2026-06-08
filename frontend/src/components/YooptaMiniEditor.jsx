@@ -51,6 +51,53 @@ function openYooptaContextMenu(event, items) {
   }));
 }
 
+// 가로로 넓은 표를 셀에서 드래그하면 슬라이드처럼 가로 스크롤(패닝)한다.
+// 단순 클릭(이동 4px 미만)은 그대로 통과해 셀 편집/커서 이동이 가능하고,
+// 가로로 끌면 텍스트 선택 대신 표가 좌우로 이동한다.
+function useTableDragScroll(wrapperRef) {
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return undefined;
+    const onMouseDown = (event) => {
+      if (event.button !== 0) return;
+      const block = event.target.closest?.('[data-yoopta-block-type="Table"]');
+      if (!block) return;
+      // 우리 CSS가 이 블록에 overflow-x:auto를 주므로 이 블록이 가로 스크롤 컨테이너.
+      // 혹시 다른 요소가 스크롤된다면 target→블록 경로에서 overflow-x auto/scroll인 것을 찾는다.
+      let scroller = block;
+      let node = event.target;
+      while (node && node !== block) {
+        if (node.scrollWidth - node.clientWidth > 1) {
+          const overflowX = window.getComputedStyle(node).overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll') { scroller = node; break; }
+        }
+        node = node.parentElement;
+      }
+      if (scroller.scrollWidth - scroller.clientWidth <= 1) return; // 넘칠 내용이 없으면 패닝 불필요
+      const startX = event.clientX;
+      const startScroll = scroller.scrollLeft;
+      let panning = false;
+      const onMove = (moveEvent) => {
+        const dx = moveEvent.clientX - startX;
+        if (!panning && Math.abs(dx) < 4) return;
+        panning = true;
+        moveEvent.preventDefault();
+        window.getSelection?.()?.removeAllRanges?.(); // 드래그 중 텍스트 선택 방지
+        scroller.scrollLeft = startScroll - dx;
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove, true);
+        window.removeEventListener('mouseup', onUp, true);
+        if (panning) window.getSelection?.()?.removeAllRanges?.();
+      };
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+    };
+    root.addEventListener('mousedown', onMouseDown, true);
+    return () => root.removeEventListener('mousedown', onMouseDown, true);
+  }, [wrapperRef]);
+}
+
 const YOOPTA_TEXT_MARKS = ['bold', 'italic', 'underline', 'strike', 'code', 'highlight'];
 const YOOPTA_BLOCK_ELEMENT_TYPES = {
   Paragraph: 'paragraph',
@@ -610,6 +657,8 @@ export default function YooptaMiniEditor({
   onExternalImageDrop,
 }) {
   const imageInputRef = useRef(null);
+  const wrapperRef = useRef(null);
+  useTableDragScroll(wrapperRef);
   const editorInstanceIdRef = useRef(generateId());
   const editorMinHeight = Math.min(minHeight, 36);
   const initialValue = useMemo(() => textToYooptaValue(value), []);
@@ -783,6 +832,7 @@ export default function YooptaMiniEditor({
 
   return (
     <div
+      ref={wrapperRef}
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
       style={{ minHeight: editorMinHeight }}
       onContextMenuCapture={openEditorContextMenu}
@@ -942,6 +992,8 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   resolvePaletteBlocks,
 }, ref) {
   const imageInputRef = useRef(null);
+  const wrapperRef = useRef(null);
+  useTableDragScroll(wrapperRef);
   const editorInstanceIdRef = useRef(generateId());
   const initialValue = useMemo(() => textToYooptaValue(value), []);
   const editor = useMemo(() => createYooptaEditor({ plugins: PLUGINS, marks: MARKS, value: initialValue }), []);
@@ -1137,6 +1189,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
 
   return (
     <div
+      ref={wrapperRef}
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
       onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {

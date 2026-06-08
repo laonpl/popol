@@ -246,13 +246,6 @@ export function renderContentBox(slide, content, opts = {}, template = getTempla
 // ── 합격 포트폴리오형 슬라이드 레이아웃 구조 ──
 export const SLIDE_LAYOUTS = [
   {
-    id: 'standard',
-    name: '제안서형',
-    description: '표지 · 목차 · 제안 배경 · 소개 · 서비스 방안 · 계획 및 조건을 제안서 흐름으로 구성',
-    tag: '실무 제안',
-    available: true,
-  },
-  {
     id: 'narrative',
     name: '스토리형',
     description: '한 줄 포지셔닝 → 문제의 시작 → 전환점 → 성과 → 다음 기여로 이어지는 성장 서사형',
@@ -285,6 +278,13 @@ export const SLIDE_LAYOUTS = [
     name: '케이스 스터디',
     description: '대표 프로젝트 하나를 문제 · 제약 · 의사결정 · 실행 로그 · 결과 · 학습까지 깊게 파는 심화형',
     tag: '대표 사례',
+    available: true,
+  },
+  {
+    id: 'standard',
+    name: '제안서형',
+    description: '표지 · 목차 · 제안 배경 · 소개 · 서비스 방안 · 계획 및 조건을 제안서 흐름으로 구성',
+    tag: '실무 제안',
     available: true,
   },
 ];
