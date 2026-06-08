@@ -128,8 +128,8 @@ router.post('/analyze', authMiddleware, async (req, res) => {
 
     let postingText = text;
     let scrapedUrl = null;
-    let scrapeFailed = false;
     let safeUrl = '';
+    let scrapeFailed = false;
 
     // URL이 있으면 SSRF 검증 후 스크래핑
     if (url && !text) {
@@ -143,8 +143,8 @@ router.post('/analyze', authMiddleware, async (req, res) => {
         postingText = await scrapeJobPosting(safeUrl);
       } catch (e) {
         scrapeFailed = true;
-        console.warn('[Job] 스크래핑 실패, URL 검색 기반 분석으로 전환:', e.message);
-        postingText = `채용공고 URL: ${safeUrl}`;
+        console.warn('[Job] 스크래핑 실패, 검색 기반 기업 분석으로 전환:', e.message);
+        postingText = '';
       }
     }
 
@@ -160,12 +160,12 @@ router.post('/analyze', authMiddleware, async (req, res) => {
       ].filter(Boolean).join('\n');
     }
 
-    // Gemini로 구조화 분석
+    // Gemini로 구조화 분석. 스크래핑 실패 시에도 URL+검색 기반으로 기업 분석은 계속 수행한다.
     const analysis = scrapeFailed && safeUrl
       ? await analyzeJobPostingFromUrl(safeUrl, postingText)
-      : await analyzeJobPosting(postingText);
+      : await analyzeJobPosting(postingText, { sourceUrl: safeUrl || url || '' });
     analysis._scrapedUrl = scrapedUrl;
-    if (scrapeFailed) analysis._scrapeWarning = '공고 페이지 직접 수집에 실패해 URL 검색 기반으로 분석했습니다.';
+    if (scrapeFailed) analysis._scrapeWarning = '공고 원문 자동 수집이 제한되어 공개 검색 기반 기업 분석으로 보강했습니다.';
 
     res.json({ analysis });
   } catch (err) {

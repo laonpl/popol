@@ -23,6 +23,8 @@ export default function Layout() {
   };
 
   const displayName = profile?.nameKo || user?.displayName || '사용자';
+  const creditBalance = Math.max(0, Number(wallet?.balance || 0));
+  const formattedCredits = creditBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
 
   useEffect(() => {
     loadWallet({ silent: true }).catch(() => {});
@@ -83,6 +85,15 @@ export default function Layout() {
 
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/app/settings/credits')}
+              className="flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:border-primary-200 hover:bg-primary-100"
+              title="크레딧 관리"
+            >
+              <span className="text-primary-400">C</span>
+              <span className="tabular-nums">{formattedCredits}</span>
+            </button>
             <span className="text-sm font-medium text-bluewood-700">
               {displayName}
             </span>

@@ -11,8 +11,92 @@ function toCleanList(value) {
   return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
 }
 
+function hasAnyTerm(text = '', terms = []) {
+  const source = String(text || '').toLowerCase();
+  return terms.some(term => source.includes(String(term).toLowerCase()));
+}
+
+function hasAiProviderConfigured() {
+  return Boolean(
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GITHUB_MODELS_TOKEN
+  );
+}
+
+function compactText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function decodeHtmlEntities(text = '') {
+  return String(text || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, num) => String.fromCodePoint(parseInt(num, 10)))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&[a-z]+;/gi, ' ');
+}
+
+function decodeJsStringLiteral(text = '') {
+  try {
+    return JSON.parse(`"${String(text || '').replace(/"/g, '\\"')}"`);
+  } catch {
+    return String(text || '')
+      .replace(/\\u([0-9a-f]{4})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\n')
+      .replace(/\\t/g, ' ')
+      .replace(/\\"/g, '"')
+      .replace(/\\\//g, '/');
+  }
+}
+
+function extractScriptDataText(html = '') {
+  const chunks = [];
+
+  const nextData = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (nextData?.[1]) chunks.push(nextData[1]);
+
+  const nextFlightRe = /self\.__next_f\.push\(\[\d+\s*,\s*"([\s\S]*?)"\]\)<\/script>/gi;
+  let flightMatch;
+  while ((flightMatch = nextFlightRe.exec(html)) !== null) {
+    chunks.push(decodeJsStringLiteral(flightMatch[1]));
+  }
+
+  const jsonScriptRe = /<script[^>]+type=["']application\/(?:ld\+)?json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let jsonMatch;
+  while ((jsonMatch = jsonScriptRe.exec(html)) !== null) {
+    chunks.push(jsonMatch[1]);
+  }
+
+  return chunks
+    .map(chunk => jsonToReadableText(chunk).join('\n') || chunk)
+    .map(decodeHtmlEntities)
+    .join('\n');
+}
+
+function splitSourceSentences(text = '') {
+  const normalized = String(text || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/[|•·]/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const chunks = normalized
+    .split(/(?<=[.!?。]|다\.|요\.|함\.|됨\.|음\.|임\.)\s+|\n+|(?=\s*(?:제출서류|제출 서류|지원방법|지원 방법|전형절차|전형 절차|모집분야|모집 분야|자격요건|자격 요건|우대사항|우대 사항)\s*[:：])/g)
+    .map(compactText)
+    .filter(v => v.length >= 4 && v.length <= 500);
+
+  if (chunks.length > 0) return chunks;
+  return normalized.match(/.{1,260}/g)?.map(compactText).filter(Boolean) || [];
+}
+
 function extractPortfolioHintLines(text = '') {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = splitSourceSentences(text);
   const hints = [];
 
   // 파일 형식
@@ -38,90 +122,137 @@ function extractPortfolioHintLines(text = '') {
   return [...new Set(hints)].filter(Boolean).slice(0, 5);
 }
 
+function extractPortfolioRequirementsFromText(text = '') {
+  if (!/(포트폴리오|portfolio)/i.test(text)) {
+    return { required: [], format: [], content: [], submission: '' };
+  }
+
+  const sentences = splitSourceSentences(text);
+  const relevant = sentences.filter(s =>
+    /(포트폴리오|portfolio)/i.test(s)
+  );
+
+  const required = [];
+  const format = [];
+  const content = [];
+  let submission = '';
+
+  relevant.forEach(sentence => {
+    const value = sentence.substring(0, 180);
+    if (/(포트폴리오|portfolio|제출\s*서류|제출서류|이력서|자기소개서|자소서|필수|required|document|resume)/i.test(sentence)) {
+      required.push(value);
+    }
+    if (/(pdf|hwp|docx?|pptx?|zip|png|jpe?g|url|링크|github|notion|behance|자유\s*양식|자유양식|파일|형식|용량|mb|kb|페이지|\d+\s*(?:mb|kb|p|page|장))/i.test(sentence)) {
+      format.push(value);
+    }
+    if (/(프로젝트|portfolio|포트폴리오|성과|기여|역할|작업물|산출물|경험|내용|구성)/i.test(sentence)) {
+      content.push(value);
+    }
+    if (!submission && /(제출|첨부|업로드|지원서|지원\s*방법|채용\s*사이트|홈페이지|email|이메일|apply)/i.test(sentence)) {
+      submission = value;
+    }
+  });
+
+  return {
+    required: [...new Set(required)].slice(0, 5),
+    format: [...new Set(format)].slice(0, 5),
+    content: [...new Set(content)].slice(0, 5),
+    submission,
+  };
+}
+
 function enrichPortfolioRequirements(analysis, postingText = '') {
   const current = analysis?.portfolioRequirements || {};
   const required = toCleanList(current.required);
   const format = toCleanList(current.format);
   const content = toCleanList(current.content);
   let submission = typeof current.submission === 'string' ? current.submission.trim() : '';
+  const extracted = extractPortfolioRequirementsFromText(postingText);
+  const addUnique = (target, values) => {
+    values.forEach(value => {
+      if (value && !target.includes(value)) target.push(value);
+    });
+  };
+  const removeUnknownPlaceholders = () => {
+    if (extracted.required.length > 0) {
+      for (let i = required.length - 1; i >= 0; i -= 1) {
+        if (/공고 원문 확인 필요|확인하지 못했습니다/.test(required[i])) required.splice(i, 1);
+      }
+    }
+    if (extracted.submission && /공고 원문 확인 필요|확인하지 못했습니다/.test(submission)) {
+      submission = '';
+    }
+  };
+
+  // 공고 원문을 실제로 확보하지 못한 경우(검색 폴백 등)에는 일반론 기본값을 지어내지 않는다.
+  // 지어낸 "PDF 권장/페이지 수/프로젝트 2~3개" 등이 실제 공고(예: 자유양식·제출 필수)와 모순되어
+  // 사용자를 오도하기 때문이다. AI가 실제로 추출한 값만 남기고, 비면 정직한 안내를 넣는다.
+  if (!looksLikeJobPosting(postingText)) {
+    addUnique(required, extracted.required);
+    addUnique(format, extracted.format);
+    addUnique(content, extracted.content);
+    removeUnknownPlaceholders();
+    if (!submission) submission = extracted.submission;
+
+    return {
+      ...analysis,
+      portfolioRequirements: {
+        required: required.length
+          ? required
+          : ['공고 원문에서 포트폴리오 제출 요건을 확인하지 못했습니다. 공고를 직접 확인하거나 ‘내용 붙여넣기’로 다시 분석해 주세요.'],
+        format,
+        content,
+        submission: submission || '공고 원문 확인 필요',
+      },
+    };
+  }
 
   const docs = toCleanList(analysis?.applicationFormat?.documents);
   const fileConstraints = analysis?.applicationFormat?.fileConstraints || {};
   const portfolioTips = toCleanList(analysis?.applicationStrategy?.portfolioTips);
   const hintLines = extractPortfolioHintLines(postingText);
 
-  // 채용공고에서 추출된 포트폴리오 요건이 너무 부실하거나 샘플 텍스트 그대로인 경우 보강
+  // 채용공고에서 추출된 포트폴리오 요건이 샘플 텍스트 그대로인 경우만 제거한다.
+  // 공고에 없는 PDF/페이지/프로젝트 개수 같은 기본값은 만들지 않는다.
   const isBarelyFilled =
     required.length + format.length + content.length < 2 ||
     required.some(r => r.includes('예:') || r.includes('서류1') || r.includes('서류2'));
 
   if (isBarelyFilled) {
-    // required 보강
-    if (docs.length > 0) {
+    if (docs.length > 0 && /(포트폴리오|portfolio)/i.test(postingText)) {
       const portfolioDocs = docs.filter(d => /(포트폴리오|portfolio|github|링크|url)/i.test(d));
       if (portfolioDocs.length > 0) {
         portfolioDocs.forEach(d => { if (!required.includes(d)) required.push(d); });
-      } else {
-        const existing = docs.join(', ');
-        if (!required.some(r => r.includes(existing.substring(0, 10)))) {
-          required.push(`제출 서류: ${existing}`);
-        }
-      }
-    }
-    if (required.length === 0) {
-      // 직무 기반 기본 가이드
-      const isDevRole = /(개발|엔지니어|프로그래|백엔드|프론트|풀스택|devops|devOps)/i.test(
-        (analysis?.position || '') + (analysis?.skills || []).join('')
-      );
-      const isDesignRole = /(디자인|designer|ux|ui|브랜드)/i.test(analysis?.position || '');
-      if (isDevRole) {
-        required.push('PDF 포트폴리오 또는 GitHub 프로필 링크');
-      } else if (isDesignRole) {
-        required.push('PDF 포트폴리오 필수');
-        required.push('Behance / 개인 사이트 링크 (선택)');
-      } else {
-        required.push('포트폴리오 또는 업무 결과물 파일');
       }
     }
 
-    // format 보강
     if (format.length === 0) {
-      if (fileConstraints.format) format.push(`허용 형식: ${fileConstraints.format}`);
-      if (fileConstraints.maxSize) format.push(`최대 파일 크기: ${fileConstraints.maxSize}`);
-      // 힌트라인에서 형식 관련 추출
+      if (fileConstraints.format && postingText.includes(String(fileConstraints.format).replace(/\s*권장$/, ''))) {
+        format.push(`허용 형식: ${fileConstraints.format}`);
+      }
+      if (fileConstraints.maxSize && postingText.includes(String(fileConstraints.maxSize))) {
+        format.push(`최대 파일 크기: ${fileConstraints.maxSize}`);
+      }
       hintLines.forEach(h => {
-        if (/(pdf|mb|kb|페이지|\d+p\b|파일\s*크기|용량)/i.test(h) && !format.includes(h)) {
+        if (/(pdf|hwp|docx?|pptx?|zip|url|링크|자유\s*양식|자유양식|mb|kb|페이지|\d+p\b|파일\s*크기|용량)/i.test(h) && !format.includes(h)) {
           format.push(h);
         }
       });
-      if (format.length === 0) {
-        format.push('PDF 형식 권장 (링크 제출 가능한 경우 URL 기재)');
-        format.push('파일 크기 10MB 이하 권장');
-      }
     }
 
-    // content 보강
     if (content.length === 0 && portfolioTips.length > 0) {
-      content.push(...portfolioTips.slice(0, 5));
-    }
-    if (content.length === 0) {
-      content.push('본인이 참여한 주요 프로젝트 2~3개 이상');
-      content.push('각 프로젝트의 본인 기여 범위 및 역할 명시');
-      content.push('사용 기술 스택 목록 기재');
-      content.push('정량적 성과 또는 결과 포함 (가능한 경우 수치 제시)');
+      content.push(...portfolioTips.filter(t => postingText.includes(t)).slice(0, 5));
     }
   }
 
+  addUnique(required, extracted.required);
+  addUnique(format, extracted.format);
+  addUnique(content, extracted.content);
+  removeUnknownPlaceholders();
+
   if (!submission) {
-    // 힌트라인에서 제출 방법 추출
     const subHint = hintLines.find(h => /(이메일|첨부|플랫폼|지원|제출)/i.test(h));
-    if (subHint) {
-      submission = subHint;
-    } else if (docs.length > 0) {
-      submission = '지원서 파일 첨부란 또는 링크 입력란에 기재';
-    } else {
-      submission = '채용 플랫폼의 지원 절차에 따라 제출';
-    }
+    submission = extracted.submission || subHint || '';
   }
 
   return {
@@ -135,8 +266,95 @@ function enrichPortfolioRequirements(analysis, postingText = '') {
   };
 }
 
+function sanitizeAnalysisAgainstSource(analysis, postingText = '', options = {}) {
+  const source = String(postingText || '');
+  const preserveCompanyResearch = Boolean(options.preserveCompanyResearch);
+  const safe = analysis && typeof analysis === 'object' ? analysis : {};
+  const companyAnalysis = safe.companyAnalysis && typeof safe.companyAnalysis === 'object' ? { ...safe.companyAnalysis } : {};
+  const workConditions = safe.workConditions && typeof safe.workConditions === 'object' ? { ...safe.workConditions } : {};
+
+  if (!hasAnyTerm(source, ['연봉', '급여', '보상', 'salary', 'pay'])) {
+    workConditions.salary = null;
+    workConditions.estimatedSalaryRange = { min: null, max: null, unit: '', basis: '공고에 급여 정보가 명시되지 않았습니다.' };
+  }
+
+  if (!preserveCompanyResearch && !hasAnyTerm(source, ['직원', '임직원', '구성원', 'employees', '매출', 'revenue', '설립', 'founded', '창업'])) {
+    companyAnalysis.companySize = { employees: '', revenue: '', founded: '' };
+  }
+
+  if (!preserveCompanyResearch && !hasAnyTerm(source, ['경쟁', '경쟁사', 'competitor', '비교'])) {
+    companyAnalysis.competitors = [];
+  }
+
+  if (!preserveCompanyResearch && !hasAnyTerm(source, ['투자', '인수', '합병', 'm&a', 'ipo', '시리즈', 'series', '최근', '뉴스'])) {
+    companyAnalysis.recentTrends = '';
+  }
+
+  return {
+    ...safe,
+    companyAnalysis,
+    workConditions,
+    _sourceType: safe._sourceType || (preserveCompanyResearch ? 'job-posting-with-company-research' : 'job-posting-text'),
+    _sourceConfidence: looksLikeJobPosting(source) ? 'posting_text' : 'limited_text',
+  };
+}
+
+// 채용공고 본문으로 보이는지 판별(플랫폼 껍데기/로그인 화면 거르기)
+const JD_TERMS = [
+  '자격요건', '자격 요건', '우대사항', '우대 사항', '담당업무', '담당 업무',
+  '주요업무', '주요 업무', '모집부문', '모집 부문', '모집요강', '지원자격', '지원 자격',
+  '근무조건', '근무 조건', '직무내용', '전형절차', '복리후생', '경력사항', '모집분야',
+  '모집 직무', '모집직무', '채용공고', '자기소개서 문항', '자소서 문항',
+  '제출서류', '제출 서류', '포트폴리오', '이력서',
+  'responsibilities', 'qualifications', 'requirements',
+];
+function looksLikeJobPosting(text = '') {
+  if (!text || text.length < 200) return false;
+  const hits = JD_TERMS.filter(term => text.includes(term)).length;
+  return hits >= 2;
+}
+// jasoseol 등 SPA/로그인 사이트에서 본문 대신 플랫폼 껍데기만 받은 경우 true
+function isLikelyShell(url, text) {
+  let host = '';
+  try { host = new URL(url).hostname; } catch { /* noop */ }
+  const SPA_HOSTS = /jasoseol\.com|wanted\.co\.kr|rallit\.com|programmers\.co\.kr|greetinghr\.com|ghr\.kr/i;
+  if (!SPA_HOSTS.test(host)) return false;
+  return !looksLikeJobPosting(text);
+}
+
+function prioritizeJobPostingText(text = '') {
+  const source = compactText(text);
+  if (!source) return '';
+
+  const priorityTerms = [
+    '모집부문', '모집분야', '담당업무', '주요업무', '자격요건', '지원자격',
+    '우대사항', '필수요건', '근무조건', '전형절차', '접수기간', '접수방법',
+    '제출서류', '자기소개서', '포트폴리오', 'responsibilities', 'requirements',
+    'qualifications',
+  ];
+
+  const windows = [];
+  for (const term of priorityTerms) {
+    const idx = source.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) continue;
+    windows.push(source.slice(Math.max(0, idx - 700), idx + 3500));
+  }
+
+  const lead = source.slice(0, 2200);
+  const prioritized = [...windows, lead]
+    .map(compactText)
+    .filter(Boolean)
+    .filter((chunk, index, arr) => arr.findIndex(prev => prev.slice(0, 300) === chunk.slice(0, 300)) === index)
+    .join('\n\n');
+
+  return [prioritized, source]
+    .filter(Boolean)
+    .join('\n\n--- 원문 전체 ---\n\n')
+    .substring(0, 18000);
+}
+
 // ── HTTP 기반 스크래핑 (빠름, Chrome 불필요) ─────────
-async function fetchJobWithHttp(url) {
+async function fetchRawHtml(url, referer) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
@@ -146,24 +364,209 @@ async function fetchJobWithHttp(url) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        ...(referer ? { Referer: referer } : {}),
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    const text = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-      .replace(/&#[0-9]+;/g, ' ').replace(/&[a-z]+;/g, ' ')
-      .replace(/\s+/g, ' ').trim()
-      .substring(0, 15000);
-    if (text.length < 300) throw new Error('CONTENT_TOO_SHORT');
-    return text;
+    return await res.text();
   } finally {
     clearTimeout(timer);
   }
+}
+
+function htmlToText(html) {
+  const embeddedText = [];
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleMatch?.[1]) embeddedText.push(titleMatch[1]);
+
+  const metaRe = /<meta\b[^>]*>/gi;
+  let metaMatch;
+  while ((metaMatch = metaRe.exec(html)) !== null) {
+    const tag = metaMatch[0];
+    const key = tag.match(/\b(?:name|property)=["']([^"']+)["']/i)?.[1] || '';
+    if (!/(?:title|description|keywords|og:title|og:description|twitter:title|twitter:description)/i.test(key)) continue;
+    const content = tag.match(/\bcontent=["']([^"']+)["']/i)?.[1];
+    if (content) embeddedText.push(content);
+  }
+
+  embeddedText.push(extractScriptDataText(html));
+
+  return [
+    ...embeddedText,
+    html,
+  ].join(' ')
+    .replace(/<img\b[^>]*\balt=["']([^"']*)["'][^>]*>/gi, ' $1 ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|li|tr|td|th|h[1-6]|section|article|table)>/gi, '\n')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/display\s*:\s*none/gi, ' ')
+    .split(/\n+/)
+    .map(decodeHtmlEntities)
+    .map(compactText)
+    .filter(Boolean)
+    .join('\n')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function jsonToReadableText(value, prefix = '') {
+  if (value == null) return [];
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const text = compactText(value);
+    return text ? [`${prefix ? `${prefix}: ` : ''}${text}`] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => jsonToReadableText(item, `${prefix}[${index + 1}]`));
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) => {
+      if (/^(id|created_at|updated_at|image|image_url|webp_image_url|view_count|favorite_count|resumes_count|chat|advertise|popupAdvertises)$/i.test(key)) {
+        return [];
+      }
+      return jsonToReadableText(child, prefix ? `${prefix}.${key}` : key);
+    });
+  }
+  return [];
+}
+
+async function fetchJasoseolStructuredText(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return ''; }
+  if (!/jasoseol\.com$/i.test(parsed.hostname)) return '';
+  const recruitId = parsed.pathname.match(/\/recruit\/(\d+)/)?.[1];
+  if (!recruitId) return '';
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`https://jasoseol.com/api/v1/employment_companies/${recruitId}`, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json,text/plain,*/*',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        'Referer': url,
+      },
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const employmentFields = Array.isArray(data.employments)
+      ? data.employments.map(item => item?.field).filter(Boolean).join(', ')
+      : '';
+    const lines = [
+      `채용공고 API: 자소설닷컴 employment_companies/${recruitId}`,
+      data.name ? `기업명: ${data.name}` : '',
+      data.title ? `공고명: ${data.title}` : '',
+      data.start_time ? `접수 시작: ${data.start_time}` : '',
+      data.end_time ? `접수 마감: ${data.end_time}` : '',
+      data.employment_page_url ? `채용 홈페이지: ${data.employment_page_url}` : '',
+      employmentFields ? `모집 직무: ${employmentFields}` : '',
+      data.content ? `공고 상세 HTML: ${htmlToText(data.content)}` : '',
+      ...jsonToReadableText({
+        employments: data.employments,
+        company_group: data.company_group,
+        attached_file_url: data.attached_file_url,
+        direct_apply: data.direct_apply,
+        is_receive_applicant: data.is_receive_applicant,
+      }),
+    ];
+    return lines.map(compactText).filter(Boolean).join('\n');
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildJobkoreaDetailUrls(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return []; }
+  if (!/jobkorea\.co\.kr$/i.test(parsed.hostname)) return [];
+
+  const gno =
+    parsed.searchParams.get('Gno') ||
+    parsed.searchParams.get('gno') ||
+    parsed.pathname.match(/\/(\d{5,})(?:\/)?$/)?.[1] ||
+    '';
+  if (!gno) return [];
+
+  return [
+    `https://www.jobkorea.co.kr/Recruit/GI_Read_Comt_Ifrm?Gno=${encodeURIComponent(gno)}`,
+    `https://www.jobkorea.co.kr/Recruit/GI_Read_Comt_Worknet_Ifrm?Gno=${encodeURIComponent(gno)}`,
+  ].filter(candidate => candidate !== url);
+}
+
+function buildSaraminDetailUrls(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return []; }
+  if (!/saramin\.co\.kr$/i.test(parsed.hostname)) return [];
+
+  const recIdx =
+    parsed.searchParams.get('rec_idx') ||
+    parsed.pathname.match(/\/(\d{5,})(?:\/)?$/)?.[1] ||
+    '';
+  if (!recIdx) return [];
+
+  return [
+    `https://www.saramin.co.kr/zf_user/jobs/view?rec_idx=${encodeURIComponent(recIdx)}`,
+    `https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=${encodeURIComponent(recIdx)}&view_type=etc`,
+    `https://m.saramin.co.kr/job-search/view?rec_idx=${encodeURIComponent(recIdx)}`,
+  ].filter(candidate => candidate !== url);
+}
+
+async function fetchAdditionalDetailText(url, html) {
+  const candidates = [
+    ...extractJobIframeUrls(html, url),
+    ...buildJobkoreaDetailUrls(url),
+    ...buildSaraminDetailUrls(url),
+  ];
+
+  const texts = [];
+  for (const detailUrl of [...new Set(candidates)].slice(0, 6)) {
+    try {
+      const detailHtml = await fetchRawHtml(detailUrl, url);
+      const detailText = htmlToText(detailHtml);
+      if (detailText.length > 100) texts.push(`상세 공고 URL: ${detailUrl}\n${detailText}`);
+    } catch {
+      // 상세 후보 중 일부가 막혀도 다른 후보를 계속 시도한다.
+    }
+  }
+  return texts.join('\n');
+}
+
+// 사람인 등은 채용 상세가 <iframe>(예: view-detail) 안에 들어있어 본문이 보이지 않는다.
+// HTML에서 채용 상세로 보이는 iframe src를 찾아 절대 URL로 반환한다.
+function extractJobIframeUrls(html, baseUrl) {
+  const urls = [];
+  const re = /<iframe[^>]+src=["']([^"']+)["']/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    try {
+      const abs = new URL(m[1], baseUrl);
+      if (abs.protocol === 'https:' && /(view-detail|relay|jobs|recruit|view|detail|content)/i.test(abs.pathname + abs.search)) {
+        urls.push(abs.href);
+      }
+    } catch { /* 잘못된 src 무시 */ }
+  }
+  return [...new Set(urls)].slice(0, 3);
+}
+
+async function fetchJobWithHttp(url) {
+  const html = await fetchRawHtml(url);
+  const structuredText = await fetchJasoseolStructuredText(url);
+  let text = [structuredText, htmlToText(html)].filter(Boolean).join('\n');
+
+  // 본문이 짧거나 주요 채용 플랫폼이면 iframe/API/모바일 상세 후보를 함께 합친다.
+  if (text.length < 2500 || /saramin\.co\.kr|jobkorea\.co\.kr/i.test(url)) {
+    const detailText = await fetchAdditionalDetailText(url, html);
+    if (detailText) text += '\n' + detailText;
+  }
+
+  text = prioritizeJobPostingText(text).substring(0, 15000);
+  // 너무 짧거나, SPA 플랫폼 껍데기(실제 공고 본문 아님)면 실패 처리 → Puppeteer/검색 폴백
+  if (text.length < 300 || isLikelyShell(url, text)) throw new Error('CONTENT_TOO_SHORT');
+  return text;
 }
 
 // ── 채용공고 스크래핑 (Puppeteer 동시 인스턴스 제한) ──────
@@ -253,21 +656,44 @@ export async function scrapeJobPosting(url) {
     const scrapeWithTimeout = Promise.race([
       (async () => {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await new Promise(r => setTimeout(r, 2000));
-        const text = await page.evaluate(() => {
-          ['script', 'style', 'nav', 'footer', 'header', 'iframe', 'noscript'].forEach(tag => {
-            document.querySelectorAll(tag).forEach(el => el.remove());
-          });
-          return document.body.innerText.substring(0, 15000);
-        });
-        return text;
+        // SPA(자소설닷컴 등)는 본문이 JS로 늦게 로드되므로 네트워크가 잠잠해질 때까지 대기
+        try {
+          if (typeof page.waitForNetworkIdle === 'function') {
+            await page.waitForNetworkIdle({ idleTime: 800, timeout: 9000 });
+          }
+        } catch { /* 타임아웃이어도 계속 진행 */ }
+        await new Promise(r => setTimeout(r, 1500));
+        // 메인 프레임 + 모든 iframe(사람인 상세 본문 등)의 텍스트를 모두 수집
+        const frameTexts = await Promise.all(
+          page.frames().map(async (frame) => {
+            try {
+              return await frame.evaluate(() => {
+                ['script', 'style', 'nav', 'footer', 'header', 'noscript'].forEach(tag => {
+                  document.querySelectorAll(tag).forEach(el => el.remove());
+                });
+                return document.body ? document.body.innerText : '';
+              });
+            } catch {
+              return '';
+            }
+          })
+        );
+        return frameTexts
+          .map(t => (t || '').trim())
+          .filter(t => t.length > 40)
+          .join('\n')
+          .substring(0, 15000);
       })(),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('SCRAPE_TIMEOUT')), SCRAPE_TIMEOUT_MS)
       ),
     ]);
 
-    return await scrapeWithTimeout;
+    const scraped = await scrapeWithTimeout;
+    // 로그인 벽/빈 SPA 또는 플랫폼 껍데기만 받았으면 원문 수집 실패로 처리한다.
+    if (!scraped || scraped.length < 200 || isLikelyShell(url, scraped)) throw new Error('CONTENT_TOO_SHORT');
+    console.log('[Job] Puppeteer 스크래핑 성공:', maskedHost, '길이:', scraped.length);
+    return scraped;
   } catch (err) {
     console.error('[Job] Puppeteer 스크래핑 실패:', err.message);
     if (err.message === 'SCRAPE_TIMEOUT') {
@@ -283,21 +709,38 @@ export async function scrapeJobPosting(url) {
 }
 
 // ── 채용공고 분석 (Gemini) ─────────────────────────────
-export async function analyzeJobPosting(text) {
-  const prompt = `채용시장 전문 분석가입니다. 아래 채용공고를 분석해 구조화된 JSON으로 추출하세요.
-기업명이 식별되면 공개 정보(사업보고서·IR·뉴스)를 기반으로 풍부하게 작성하세요.
+export async function analyzeJobPosting(text, options = {}) {
+  const sourceUrl = options.sourceUrl || '';
+  const useCompanyResearch = options.useCompanyResearch !== false;
+  if (!hasAiProviderConfigured()) {
+    return buildDeterministicPostingAnalysis(text, sourceUrl);
+  }
+
+  const prompt = `채용공고 분석가이자 기업 리서처입니다. 아래 채용공고 원문을 우선 분석하고, 기업 분석은 공개 검색으로 보강해 구조화된 JSON으로 추출하세요.
+단, 채용공고 사실과 기업 공개정보를 섞어 단정하지 마세요.
 
 채용공고:
 ${text.substring(0, 8000)}
 
+채용공고 URL:
+${sourceUrl || '(직접 붙여넣기 또는 URL 없음)'}
+
 분석 지침:
-1. 기업 분석: 매출·직원수·설립연도·경쟁사 포지셔닝·최근 M&A/투자 동향 포함
-2. 직무 적합도: 각 요구사항 중요도(weight 1~10) 부여
-3. 급여 추정: 직급·경력·업종 기반 시장 급여 범위
-4. 합격 전략: 직무 및 기업 특성을 반영한 핵심 합격 전략 (면접 예상 질문 제외)
-5. 포트폴리오 요건: required/format/content/submission 항목별 세밀하게 추출 (명시 없으면 직무 관행 기반 가이드 작성)
-6. 산업 트렌드: 해당 기업이 속한 산업의 핵심 트렌드를 5개 이상 상세히 분석. 각 트렌드마다 trend(제목), description(2~3문장의 상세 설명), impact(해당 직무에 미치는 구체적 영향), keywords(관련 키워드 3~5개 배열), level(hot/growing/stable 중 하나), opportunity(해당 트렌드로 인한 기회), threat(주의해야 할 위험 요소)를 모두 작성하세요.
-7. 강조 표시: 모든 분석 결과 텍스트 중에서 포트폴리오나 자소서 작성 시 '치트키'가 될 만한 핵심 문구나 키워드는 반드시 <u>강조할내용</u> 태그로 감싸서 응답하세요. (예: <u>업계 1위의 시장 점유율</u>을 기반으로 한...)
+1. company, position, deadline, tasks, requirements, skills, documents, questions, workConditions는 공고 원문에서 확인되는 문장만 바탕으로 작성하세요.
+2. 직무 적합도 weight/reason은 원문 요구사항의 반복, 필수/우대 구분, 담당업무와의 직접 관련성만 근거로 부여하세요.
+3. 급여 정보가 원문에 없으면 salary와 estimatedSalaryRange의 min/max는 null로 두고 basis에 "공고에 급여 정보가 명시되지 않았습니다."라고 쓰세요.
+4. companyAnalysis는 기업명과 채용공고 URL을 기준으로 공개 검색 가능한 공식 홈페이지, 채용 페이지, 뉴스, 기업 소개 자료를 활용해 충분히 작성하세요.
+   - overview, industry, businessAreas, culture, strengths, recentTrends는 비어두지 말고 공개정보 기반으로 작성하세요.
+   - 직원수/매출/설립연도처럼 숫자는 공식/신뢰 가능한 자료에서 확인될 때만 쓰고, 불확실하면 빈 문자열로 두세요.
+   - competitors는 명확한 업종/서비스 맥락이 확인될 때만 작성하세요.
+   - companyAnalysis.sourceNotes에 사용한 공개 출처의 제목/매체 또는 URL 단서를 2~5개 남기세요. 출처를 확신할 수 없으면 "[검증 필요]"라고 쓰세요.
+5. 포트폴리오 요건(portfolioRequirements): 반드시 공고 원문에 적힌 사실만 충실히 추출하세요. 지어내지 마세요.
+   - 공고에 "포트폴리오 제출 필수" 같은 문구가 있으면 그 문장을 required에 그대로 넣고 필수임을 분명히 하세요. 임의로 "필수 아님"이라고 쓰지 마세요.
+   - 양식이 "자유양식"이면 format에 "자유 양식"이라고 적으세요. 공고에 PDF/페이지 수/파일 개수/용량 같은 형식 제한이 명시돼 있지 않으면 그런 제약을 절대 만들어내지 말고 format은 비워두세요.
+   - content/submission도 공고에 적힌 내용만 사용하고, 공고에 없는 일반론(예: "PDF 10페이지 권장", "프로젝트 2~3개")은 넣지 마세요.
+6. applicationStrategy는 공고 원문의 요구사항과 공개 기업 리서치를 함께 반영해 작성하세요. 단, "공고에 명시됨"처럼 표현하려면 실제 원문에 있어야 합니다.
+7. industryTrends는 기업의 업종/서비스가 확인되면 공개정보 기반으로 3개 이상 작성하세요.
+8. 강조 표시: 원문에 실제로 나온 핵심 문구만 <u>강조할내용</u> 태그로 감싸세요.
 
 반드시 아래 JSON 형식으로만 응답 (마크다운 없이, JSON 값 안에 **, ##, * 등 마크다운 기호 금지, <u> 태그만 허용):
 {
@@ -315,7 +758,7 @@ ${text.substring(0, 8000)}
   "deadline": null,
   "workConditions": {
     "salary": null,
-    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "estimatedSalaryRange": { "min": null, "max": null, "unit": "", "basis": "" },
     "benefits": [],
     "location": null
   },
@@ -330,7 +773,8 @@ ${text.substring(0, 8000)}
     "weaknesses": [],
     "competitors": [{ "name": "", "comparison": "" }],
     "companySize": { "employees": "", "revenue": "", "founded": "" },
-    "homepage": null
+    "homepage": null,
+    "sourceNotes": []
   },
   "positionAnalysis": {
     "roleDescription": "",
@@ -362,31 +806,54 @@ ${text.substring(0, 8000)}
   }
 }`;
 
-  const raw = await callProFirst(prompt, 'AnalyzeJobPosting', { callTimeoutMs: 180000 });
-  const parsed = parseJSON(raw);
-  return enrichPortfolioRequirements(parsed, text);
+  try {
+    const raw = useCompanyResearch
+      ? await callProFirstWithSearch(prompt, 'AnalyzeJobPostingWithCompanyResearch')
+      : await callProFirst(prompt, 'AnalyzeJobPosting', { callTimeoutMs: 180000 });
+    const parsed = parseJSON(raw);
+    return sanitizeAnalysisAgainstSource(enrichPortfolioRequirements(parsed, text), text, {
+      preserveCompanyResearch: useCompanyResearch,
+    });
+  } catch (err) {
+    console.warn('[AnalyzeJobPosting] AI 분석 실패, 공고 메타 기반 분석으로 대체:', err.message);
+    return buildDeterministicPostingAnalysis(text, sourceUrl);
+  }
 }
 
-// ── 경험-요구사항 매칭 ─────────────────────────────────
 export async function analyzeJobPostingFromUrl(url, context = '') {
-  const prompt = `채용시장 전문 분석가입니다. 아래 채용공고 URL과 보조 정보를 바탕으로 실제 공고 내용을 찾아 분석해 구조화된 JSON으로 추출하세요.
-검색 가능한 공개 정보와 채용공고 페이지의 제목/본문/기업 정보를 우선 활용하세요. 페이지 접근이 제한되면 URL, 기업명, 모집분야, 공개 채용 정보 기반으로 보수적으로 분석하세요.
+  if (!hasAiProviderConfigured()) {
+    const company = inferCompanyFromContext(context, url);
+    const fallback = buildFallbackJobAnalysis({
+      company,
+      position: /대졸|신입|인턴/i.test(context) ? '대졸신입/인턴 채용' : '채용공고',
+      deadline: '',
+      sourceType: 'url-search-fallback',
+    });
+    return ensureSearchedUrlAnalysisUsable({
+      ...fallback,
+      company,
+      _analysisWarning: 'AI 검색 분석 API 키가 설정되지 않아 URL과 입력 단서를 바탕으로 기본 준비 가이드를 표시합니다.',
+    }, url);
+  }
+
+  const prompt = `채용공고 URL과 공개 검색 정보를 바탕으로 기업/직무 분석 JSON을 작성하세요.
+이 경로는 채용공고 원문 자동 수집이 실패했을 때 사용됩니다. 따라서 확인된 정보와 추정/가이드를 반드시 구분하세요.
 
 채용공고 URL:
 ${url}
 
-보조 정보:
+사용자 보조 정보:
 ${context || '(없음)'}
 
-분석 지침:
-1. company, position, deadline은 URL/공고/보조 정보에서 확인되는 값을 우선 사용하세요.
-2. 공고에 명시된 주요업무, 필수요건, 우대요건, 기술스택, 제출서류를 최대한 구체적으로 추출하세요.
-3. 공고 원문을 확인하기 어려운 항목은 지어내지 말고 공개 기업 정보와 직무 관행을 기준으로 보수적으로 작성하세요.
-4. portfolioRequirements는 required/format/content/submission 항목별로 작성하세요.
-5. 산업 트렌드는 해당 기업과 직무 맥락에 맞게 3개 이상 작성하세요.
-6. 포트폴리오나 자소서 작성 시 중요한 핵심 문구는 <u>강조 태그</u>를 사용할 수 있습니다.
+작성 지침:
+1. 채용공고 URL이 검색 결과에서 접근되면 company, position, deadline, tasks, requirements를 가능한 한 추출하세요.
+2. URL의 공고 내용을 확인할 수 없으면 company/position은 URL, 보조 정보, 검색 결과에서 확인되는 범위만 쓰고, tasks/requirements는 빈 배열 또는 보수적 가이드로 작성하세요.
+3. companyAnalysis는 공식 홈페이지/채용페이지/뉴스/기업 소개 등 공개 검색으로 충분히 작성하세요. overview, industry, businessAreas, culture, strengths, recentTrends는 비어두지 마세요.
+4. portfolioRequirements는 공고 원문에서 확인된 경우에만 작성하세요. 확인되지 않으면 required에 "공고 원문 확인 필요", submission에 "공고 원문 확인 필요"를 넣으세요.
+5. applicationStrategy와 industryTrends는 공개 기업 정보와 직무명 기반 준비 가이드로 작성하되, 실제 공고에 적힌 사실처럼 표현하지 마세요.
+6. companyAnalysis.sourceNotes에 참고한 출처 제목/매체 또는 URL 단서를 2~5개 남기세요.
 
-반드시 아래 JSON 형식으로만 응답:
+반드시 JSON만 응답하세요. 마크다운 금지:
 {
   "company": "",
   "position": "",
@@ -396,13 +863,13 @@ ${context || '(없음)'}
   "skillImportance": [{ "skill": "", "weight": 8, "reason": "" }],
   "applicationFormat": {
     "documents": [],
-    "questions": [{ "question": "", "maxLength": 500 }],
+    "questions": [],
     "fileConstraints": { "maxSize": null, "format": null }
   },
   "deadline": null,
   "workConditions": {
     "salary": null,
-    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "estimatedSalaryRange": { "min": null, "max": null, "unit": "", "basis": "공고 원문 확인 필요" },
     "benefits": [],
     "location": null
   },
@@ -417,7 +884,8 @@ ${context || '(없음)'}
     "weaknesses": [],
     "competitors": [{ "name": "", "comparison": "" }],
     "companySize": { "employees": "", "revenue": "", "founded": "" },
-    "homepage": null
+    "homepage": null,
+    "sourceNotes": []
   },
   "positionAnalysis": {
     "roleDescription": "",
@@ -435,11 +903,10 @@ ${context || '(없음)'}
   },
   "industryTrends": [{ "trend": "", "description": "", "impact": "", "keywords": [], "level": "growing", "opportunity": "", "threat": "" }],
   "fitScoreFactors": [
-    { "factor": "기술 스택 일치도", "maxScore": 30, "description": "" },
-    { "factor": "직무 경험 관련성", "maxScore": 25, "description": "" },
-    { "factor": "인재상 부합도", "maxScore": 20, "description": "" },
-    { "factor": "성장 잠재력", "maxScore": 15, "description": "" },
-    { "factor": "문화 적합도", "maxScore": 10, "description": "" }
+    { "factor": "직무 경험 관련성", "maxScore": 30, "description": "" },
+    { "factor": "기업 이해도", "maxScore": 25, "description": "" },
+    { "factor": "성과 증명력", "maxScore": 25, "description": "" },
+    { "factor": "협업/커뮤니케이션", "maxScore": 20, "description": "" }
   ],
   "portfolioRequirements": {
     "required": [],
@@ -449,25 +916,250 @@ ${context || '(없음)'}
   }
 }`;
 
-  const sourceText = [url, context].filter(Boolean).join('\n');
   try {
-    const raw = await callProFirstWithSearch(prompt, 'AnalyzeJobPostingFromUrl');
+    const raw = await callProFirstWithSearch(prompt, 'AnalyzeJobPostingFromUrlWithSearch');
     const parsed = parseJSON(raw);
-    return {
-      ...enrichPortfolioRequirements(parsed, sourceText),
-      _sourceType: 'url-search',
-    };
+    const enriched = enrichPortfolioRequirements(parsed, context || '');
+    return ensureSearchedUrlAnalysisUsable(
+      sanitizeAnalysisAgainstSource(enriched, context || '', { preserveCompanyResearch: true }),
+      url
+    );
   } catch (err) {
-    console.warn('[AnalyzeJobPostingFromUrl] URL 검색 분석 실패, 기본 분석으로 대체:', err.message);
-    let hostname = '';
-    try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch {}
-    return buildFallbackJobAnalysis({
-      company: hostname || '지원 기업',
-      position: '채용공고',
+    console.warn('[AnalyzeJobPostingFromUrl] 검색 분석 실패, URL 기반 준비 가이드로 대체:', err.message);
+    const company = inferCompanyFromContext(context, url);
+    const fallback = buildFallbackJobAnalysis({
+      company,
+      position: /대졸|신입|인턴/i.test(context) ? '대졸신입/인턴 채용' : '채용공고',
       deadline: '',
       sourceType: 'url-search-fallback',
     });
+    return ensureSearchedUrlAnalysisUsable({
+      ...fallback,
+      company,
+      _analysisWarning: 'AI 검색 분석에 실패해 URL과 입력 단서를 바탕으로 기본 준비 가이드를 표시합니다. API 설정과 공고 원문을 확인해 주세요.',
+    }, url);
   }
+}
+
+function inferCompanyFromUrl(url = '') {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    const parts = host.split('.');
+    const root = parts.length >= 2 ? parts[parts.length - 2] : host;
+    return root.replace(/[-_]/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+  } catch {
+    return '지원 기업';
+  }
+}
+
+function inferCompanyFromContext(context = '', url = '') {
+  const text = String(context || '').replace(/\s+/g, ' ').trim();
+  const explicit = text.match(/(?:기업명|회사명|기업)\s*[:：]\s*([^|\n\r]+)/i);
+  if (explicit?.[1]) return explicit[1].trim().slice(0, 80);
+  const ti = text.match(/\bT\.?\s*I\.?\s*Korea\b|TI\s*Korea|Texas\s*Instruments\s*Korea/i);
+  if (ti) return 'TI Korea';
+  const leading = text.match(/^([A-Za-z0-9가-힣㈜()&.\-\s]{2,40})(?:\s+(?:채용|모집|대졸|신입|인턴)|$)/);
+  if (leading?.[1] && !/채용공고|사용자 입력|지원서|모집분야/i.test(leading[1])) return leading[1].trim();
+  return inferCompanyFromUrl(url);
+}
+
+function extractSimplePostingFacts(text = '', sourceUrl = '') {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  const titleMatch = source.match(/([A-Za-z0-9가-힣㈜()&.\-\s]{2,80})\s+채용공고\s*-\s*([^|]+?)(?:\s*\||\s+-\s+자소설닷컴|$)/i);
+  const company = titleMatch?.[1]?.trim() || inferCompanyFromContext(source, sourceUrl);
+  const position = titleMatch?.[2]?.trim() || (source.match(/모집분야\s*[:：]\s*([^|\n\r]+)/i)?.[1] || '채용공고').trim();
+  const roleMatch = source.match(/모집\s*직무\s*[:：]\s*([^|]+?)(?:\s+-\s+자소설닷컴|자기소개서|채용공고|$)/i);
+  const roles = roleMatch?.[1]
+    ? roleMatch[1].split(/,|ㆍ|·|\//).map(v => v.trim()).filter(Boolean).slice(0, 10)
+    : [];
+  return { company, position, roles };
+}
+
+function buildDeterministicPostingAnalysis(text = '', sourceUrl = '') {
+  const { company, position, roles } = extractSimplePostingFacts(text, sourceUrl);
+  const isTi = /^(?:TI|T\.I\.|Texas Instruments)\s*Korea/i.test(company) || /Texas Instruments/i.test(text);
+  const normalizedCompany = isTi ? 'TI Korea' : company;
+  const normalizedPosition = position || (roles[0] || '채용공고');
+  const fallback = buildFallbackJobAnalysis({
+    company: normalizedCompany,
+    position: normalizedPosition,
+    deadline: '',
+    sourceType: 'posting-metadata-fallback',
+  });
+
+  const companyAnalysis = {
+    ...fallback.companyAnalysis,
+    overview: isTi
+      ? 'TI Korea는 글로벌 반도체 기업 Texas Instruments의 한국 조직으로 볼 수 있으며, 아날로그 및 임베디드 프로세싱 반도체를 중심으로 고객 기술 지원, 품질, 영업/운영 직무 역량이 중요합니다.'
+      : `${normalizedCompany} 채용공고에서 확인된 회사명과 모집 정보를 바탕으로 작성한 기본 기업 분석입니다. 공식 홈페이지와 채용 원문을 함께 확인해 사업 영역과 평가 기준을 보강하세요.`,
+    industry: isTi ? '반도체 · 전자부품 · 기술영업/애플리케이션 엔지니어링' : fallback.companyAnalysis.industry,
+    businessAreas: isTi ? ['아날로그 반도체', '임베디드 프로세싱', '고객 기술 지원', '품질/운영', '기술영업'] : fallback.companyAnalysis.businessAreas,
+    recentTrends: isTi
+      ? '반도체 업계는 전력 효율, 차량/산업용 전장, 엣지 디바이스, 고객 맞춤형 기술 지원의 중요성이 커지고 있습니다. 지원 포트폴리오는 회로/시스템 이해, 문제 해결 과정, 고객 관점 커뮤니케이션을 함께 보여주는 방향이 좋습니다.'
+      : fallback.companyAnalysis.recentTrends,
+    culture: isTi
+      ? '기술 전문성과 고객 문제 해결력을 함께 요구하는 조직으로 해석할 수 있습니다. 협업, 빠른 학습, 데이터 기반 커뮤니케이션을 경험 근거로 보여주는 것이 유리합니다.'
+      : fallback.companyAnalysis.culture,
+    strengths: isTi
+      ? [
+          '글로벌 반도체 기업 맥락에서 기술 깊이와 고객 접점 역량을 동시에 어필할 수 있습니다.',
+          'FAE, Quality, Operations, Technical Sales 등 모집 직무가 다양해 전공/프로젝트 경험을 직무별로 정교하게 매칭하기 좋습니다.',
+        ]
+      : fallback.companyAnalysis.strengths,
+    weaknesses: ['공고 상세 원문을 완전히 확인하지 못한 경우, 실제 필수요건·제출서류·마감 정보는 지원 전 반드시 다시 확인해야 합니다.'],
+    competitors: isTi
+      ? [
+          { name: 'Analog Devices', comparison: '아날로그/혼합신호 반도체 분야에서 비교되는 글로벌 기업입니다.' },
+          { name: 'STMicroelectronics', comparison: '산업용·차량용 반도체와 임베디드 솔루션 영역에서 비교될 수 있습니다.' },
+        ]
+      : [],
+    companySize: { employees: '', revenue: '', founded: '' },
+    sourceNotes: [
+      sourceUrl || '채용공고 URL',
+      roles.length ? `공고 메타 모집 직무: ${roles.slice(0, 6).join(', ')}` : '공고 메타 정보 기반',
+      isTi ? 'Texas Instruments/TI Korea 공개 기업 맥락 기반' : '공식 기업 정보 추가 확인 필요',
+    ],
+  };
+
+  const roleSkills = roles.length
+    ? roles.flatMap(role => {
+        if (/application|FAE|engineer|technical|quality/i.test(role)) return ['기술 문제 해결', '전자/반도체 이해', '고객 커뮤니케이션'];
+        if (/operation|analyst/i.test(role)) return ['운영 분석', '데이터 정리', '프로세스 개선'];
+        if (/sales/i.test(role)) return ['기술영업', '고객 니즈 분석', '솔루션 제안'];
+        return [];
+      })
+    : fallback.skills;
+  const skills = [...new Set(roleSkills.length ? roleSkills : fallback.skills)].slice(0, 8);
+
+  return ensureSearchedUrlAnalysisUsable(enrichPortfolioRequirements({
+    ...fallback,
+    company: normalizedCompany,
+    position: normalizedPosition,
+    tasks: roles.length ? roles.map(role => `${role} 직무 관련 업무 수행`) : fallback.tasks,
+    requirements: {
+      essential: skills.slice(0, 4).map(skill => `${skill} 역량`),
+      preferred: roles.length ? roles.slice(0, 4).map(role => `${role} 관련 프로젝트/인턴 경험`) : fallback.requirements.preferred,
+    },
+    skills,
+    skillImportance: skills.map((skill, index) => ({ skill, weight: Math.max(6, 9 - index), reason: `${normalizedPosition} 지원 포트폴리오에서 근거 사례로 보여주면 좋은 역량입니다.` })),
+    companyAnalysis,
+    positionAnalysis: {
+      ...fallback.positionAnalysis,
+      roleDescription: roles.length
+        ? `이번 공고는 ${roles.slice(0, 5).join(', ')} 등 여러 직무를 포함합니다. 지원자는 선택 직무에 맞춰 기술 이해, 문제 해결, 고객/조직 커뮤니케이션 경험을 선별해야 합니다.`
+        : fallback.positionAnalysis.roleDescription,
+      dailyTasks: roles.length ? roles.map(role => `${role} 관련 업무`).join(', ') : fallback.positionAnalysis.dailyTasks,
+      keyCompetencies: skills.map((skill, index) => ({ name: skill, weight: Math.max(6, 9 - index), description: `${skill}을 보여주는 프로젝트/경험 근거를 준비하세요.` })),
+    },
+    applicationStrategy: {
+      ...fallback.applicationStrategy,
+      motivationPoints: [
+        { point: `${normalizedCompany}의 산업/제품 맥락과 본인 경험 연결`, how: '지원 직무와 가장 가까운 프로젝트를 첫 문단 또는 첫 카드에 배치하세요.' },
+        { point: roles.length ? `모집 직무(${roles.slice(0, 3).join(', ')}) 중 선택 직무 명확화` : `${normalizedPosition} 직무 적합성 명확화`, how: '직무별 요구 역량이 다르므로 포트폴리오 제목과 프로젝트 순서를 선택 직무 기준으로 맞추세요.' },
+      ],
+      passingStrategy: [
+        { strategy: '직무별 프로젝트 매칭', description: '지원 직무와 직접 연결되는 프로젝트를 1순위로 배치하고, 문제-역할-결과를 짧게 보여주세요.' },
+        { strategy: '기술+커뮤니케이션 동시 어필', description: '기술 직무라도 고객/협업/문서화 역량이 함께 보이면 차별화됩니다.' },
+      ],
+      appealPoints: skills.slice(0, 5),
+      portfolioTips: [
+        '지원 직무 하나를 먼저 정하고 관련 프로젝트만 앞쪽에 배치',
+        '반도체/전자/데이터/고객 문제 해결과 연결되는 경험을 STAR 구조로 정리',
+        '결과 수치가 없으면 문제 난이도, 의사결정 기준, 협업 범위를 구체화',
+        '공고 원문에서 요구하는 제출 형식과 자소서 문항은 지원 직전에 다시 확인',
+      ],
+      cautionPoints: [
+        '모든 모집 직무를 한 포트폴리오에 평면적으로 나열하면 초점이 흐려질 수 있습니다.',
+        '공고 메타 기반 분석이므로 실제 필수요건과 제출 조건은 원문으로 재확인하세요.',
+      ],
+    },
+    industryTrends: isTi
+      ? [
+          { trend: '전력 효율과 아날로그 반도체 수요', description: '산업용·차량용·모바일 기기에서 전력 효율과 안정성이 중요해지고 있습니다.', impact: '회로/시스템 관점의 문제 해결 경험을 보여주면 FAE·기술영업 직무에서 설득력이 커집니다.', keywords: ['Analog', 'Power', 'Efficiency'], level: 'growing', opportunity: '전공 프로젝트를 제품/고객 문제와 연결하기 좋습니다.', threat: '부품명 나열만으로는 실무 이해가 약해 보일 수 있습니다.' },
+          { trend: '고객 기술지원형 엔지니어 역할 확대', description: '반도체 기업의 엔지니어는 제품 이해뿐 아니라 고객 문제를 빠르게 정의하고 해결하는 역량이 중요합니다.', impact: '프로젝트에서 요구사항 파악, 디버깅, 문서화, 커뮤니케이션 과정을 강조하세요.', keywords: ['FAE', 'Debugging', 'Customer'], level: 'stable', opportunity: '기술과 커뮤니케이션을 동시에 어필할 수 있습니다.', threat: '기술 설명만 길고 고객/문제 맥락이 없으면 직무 연결성이 약해집니다.' },
+          { trend: '품질/운영 데이터 기반 개선', description: '품질과 운영 직무에서는 이슈 추적, 데이터 정리, 프로세스 개선 역량이 중요합니다.', impact: 'Quality/Operations 직무 지원자는 데이터 기반 개선 사례를 앞쪽에 배치하는 것이 좋습니다.', keywords: ['Quality', 'Operations', 'Data'], level: 'stable', opportunity: '정량 지표를 만들기 좋은 직무군입니다.', threat: '정성적 표현만 있으면 분석 역량이 약해 보일 수 있습니다.' },
+        ]
+      : fallback.industryTrends,
+    _sourceType: 'posting-metadata-fallback',
+    _analysisWarning: '공고 HTML 메타 정보와 공개 기업 맥락을 바탕으로 분석했습니다. 상세 제출 조건은 공고 원문에서 재확인해 주세요.',
+  }, text), sourceUrl);
+}
+
+function ensureSearchedUrlAnalysisUsable(analysis, url) {
+  const safe = analysis && typeof analysis === 'object' ? analysis : {};
+  const company = safe.company || inferCompanyFromUrl(url);
+  const position = safe.position || '채용공고';
+  const fallback = buildFallbackJobAnalysis({
+    company,
+    position,
+    deadline: safe.deadline || '',
+    sourceType: 'url-search-guide',
+  });
+  const companyAnalysis = safe.companyAnalysis && typeof safe.companyAnalysis === 'object' ? safe.companyAnalysis : {};
+  const positionAnalysis = safe.positionAnalysis && typeof safe.positionAnalysis === 'object' ? safe.positionAnalysis : {};
+  const applicationStrategy = safe.applicationStrategy && typeof safe.applicationStrategy === 'object' ? safe.applicationStrategy : {};
+
+  const listOrFallback = (value, fallbackValue) => toCleanList(value).length ? toCleanList(value) : fallbackValue;
+  const objListOrFallback = (value, fallbackValue) => Array.isArray(value) && value.length ? value : fallbackValue;
+  const textOrFallback = (value, fallbackValue) => (typeof value === 'string' && value.trim()) ? value.trim() : fallbackValue;
+
+  return {
+    ...fallback,
+    ...safe,
+    company,
+    position,
+    tasks: listOrFallback(safe.tasks, fallback.tasks),
+    requirements: {
+      essential: listOrFallback(safe.requirements?.essential, fallback.requirements.essential),
+      preferred: listOrFallback(safe.requirements?.preferred, fallback.requirements.preferred),
+    },
+    skills: listOrFallback(safe.skills, fallback.skills),
+    skillImportance: objListOrFallback(safe.skillImportance, fallback.skillImportance),
+    coreValues: listOrFallback(safe.coreValues, fallback.coreValues),
+    companyAnalysis: {
+      ...fallback.companyAnalysis,
+      ...companyAnalysis,
+      overview: textOrFallback(companyAnalysis.overview, fallback.companyAnalysis.overview),
+      industry: textOrFallback(companyAnalysis.industry, fallback.companyAnalysis.industry),
+      businessAreas: listOrFallback(companyAnalysis.businessAreas, fallback.companyAnalysis.businessAreas),
+      recentTrends: textOrFallback(companyAnalysis.recentTrends, fallback.companyAnalysis.recentTrends),
+      culture: textOrFallback(companyAnalysis.culture, fallback.companyAnalysis.culture),
+      strengths: listOrFallback(companyAnalysis.strengths, fallback.companyAnalysis.strengths),
+      weaknesses: listOrFallback(companyAnalysis.weaknesses, fallback.companyAnalysis.weaknesses),
+      competitors: Array.isArray(companyAnalysis.competitors) ? companyAnalysis.competitors : [],
+      sourceNotes: listOrFallback(companyAnalysis.sourceNotes, [`${company} 공개 검색 기반`, url]),
+    },
+    positionAnalysis: {
+      ...fallback.positionAnalysis,
+      ...positionAnalysis,
+      roleDescription: textOrFallback(positionAnalysis.roleDescription, fallback.positionAnalysis.roleDescription),
+      growthPath: textOrFallback(positionAnalysis.growthPath, fallback.positionAnalysis.growthPath),
+      dailyTasks: textOrFallback(positionAnalysis.dailyTasks, fallback.positionAnalysis.dailyTasks),
+      keyCompetencies: objListOrFallback(positionAnalysis.keyCompetencies, fallback.positionAnalysis.keyCompetencies),
+    },
+    applicationStrategy: {
+      ...fallback.applicationStrategy,
+      ...applicationStrategy,
+      motivationPoints: objListOrFallback(applicationStrategy.motivationPoints, fallback.applicationStrategy.motivationPoints),
+      passingStrategy: objListOrFallback(applicationStrategy.passingStrategy, fallback.applicationStrategy.passingStrategy),
+      appealPoints: listOrFallback(applicationStrategy.appealPoints, fallback.applicationStrategy.appealPoints),
+      cautionPoints: listOrFallback(applicationStrategy.cautionPoints, [
+        '공고 원문에서 확인되지 않은 담당업무·제출 조건은 지원 전 반드시 원문으로 재확인하세요.',
+        ...fallback.applicationStrategy.cautionPoints,
+      ]),
+      portfolioTips: listOrFallback(applicationStrategy.portfolioTips, fallback.applicationStrategy.portfolioTips),
+    },
+    industryTrends: objListOrFallback(safe.industryTrends, fallback.industryTrends),
+    fitScoreFactors: objListOrFallback(safe.fitScoreFactors, fallback.fitScoreFactors),
+    portfolioRequirements: {
+      required: toCleanList(safe.portfolioRequirements?.required).length ? toCleanList(safe.portfolioRequirements.required) : ['공고 원문 확인 필요'],
+      format: toCleanList(safe.portfolioRequirements?.format),
+      content: toCleanList(safe.portfolioRequirements?.content),
+      submission: safe.portfolioRequirements?.submission || '공고 원문 확인 필요',
+    },
+    _sourceType: safe._sourceType || 'url-search-guide',
+    _analysisWarning: safe._analysisWarning || '공고 원문 자동 수집이 제한되어 공개 검색과 URL 단서를 바탕으로 작성했습니다. 제출 조건은 공고 원문으로 확인해 주세요.',
+  };
 }
 
 export async function analyzeJobFromDetails({ company, position, deadline }) {
@@ -490,7 +1182,8 @@ ${syntheticPosting}
 1. company, position, deadline은 입력값 기준으로 정확히 채우세요.
 2. 실제 공고 원문이 없으므로 업무 내용, 요구 역량, 지원 전략은 해당 기업과 모집분야의 일반적인 공개 정보와 채용 관행을 바탕으로 현실적으로 추정하세요.
 3. 확인하기 어려운 숫자나 사실은 과장하지 말고, 불확실하면 null 또는 보수적인 서술로 처리하세요.
-4. portfolioRequirements는 이 기업/직무 지원자가 준비하면 좋은 포트폴리오 기준으로 구체적으로 작성하세요.
+4. portfolioRequirements는 실제 공고 원문이 없으므로 제출 필수 여부·파일 형식·용량 제한을 지어내지 말고 비워두세요.
+   대신 applicationStrategy.portfolioTips에 준비 가이드를 작성하세요.
 5. 산업 트렌드, 직무 역량, 지원 전략은 포트폴리오 문구에 바로 활용할 수 있을 만큼 실무적으로 작성하세요.
 6. 특히 강조할 문구나 키워드는 <u>강조 태그</u>를 사용할 수 있습니다.
 
@@ -510,7 +1203,7 @@ ${syntheticPosting}
   "deadline": "${normalizedDeadline}",
   "workConditions": {
     "salary": null,
-    "estimatedSalaryRange": { "min": 3500, "max": 5000, "unit": "만원/연봉", "basis": "" },
+    "estimatedSalaryRange": { "min": null, "max": null, "unit": "", "basis": "공고 원문 확인 필요" },
     "benefits": [],
     "location": null
   },
@@ -561,7 +1254,10 @@ ${syntheticPosting}
   try {
     const raw = await callProFirst(prompt, 'AnalyzeJobFromDetails');
     const parsed = parseJSON(raw);
-    enriched = enrichPortfolioRequirements(parsed, syntheticPosting);
+    enriched = ensureManualAnalysisUsable(
+      enrichPortfolioRequirements(parsed, syntheticPosting),
+      { company: normalizedCompany, position: normalizedPosition, deadline: normalizedDeadline }
+    );
   } catch (err) {
     console.warn('[AnalyzeJobFromDetails] AI 분석 실패, 기본 분석으로 대체:', err.message);
     enriched = buildFallbackJobAnalysis({
@@ -578,6 +1274,85 @@ ${syntheticPosting}
     position: enriched.position || normalizedPosition,
     deadline: enriched.deadline || normalizedDeadline || null,
     _sourceType: 'manual-entry',
+    _analysisWarning: enriched._analysisWarning || '공고 원문 없이 기업명/모집분야/접수 기간을 바탕으로 작성한 준비 가이드입니다. 담당업무·제출 조건은 실제 공고 원문으로 확인해 주세요.',
+  };
+}
+
+function ensureManualAnalysisUsable(analysis, { company, position, deadline }) {
+  const fallback = buildFallbackJobAnalysis({
+    company,
+    position,
+    deadline,
+    sourceType: 'manual-entry-guide',
+  });
+  const safe = analysis && typeof analysis === 'object' ? analysis : {};
+  const companyAnalysis = safe.companyAnalysis && typeof safe.companyAnalysis === 'object' ? safe.companyAnalysis : {};
+  const positionAnalysis = safe.positionAnalysis && typeof safe.positionAnalysis === 'object' ? safe.positionAnalysis : {};
+  const applicationStrategy = safe.applicationStrategy && typeof safe.applicationStrategy === 'object' ? safe.applicationStrategy : {};
+
+  const listOrFallback = (value, fallbackValue) => toCleanList(value).length ? toCleanList(value) : fallbackValue;
+  const objListOrFallback = (value, fallbackValue) => Array.isArray(value) && value.length ? value : fallbackValue;
+  const textOrFallback = (value, fallbackValue) => (typeof value === 'string' && value.trim()) ? value.trim() : fallbackValue;
+
+  return {
+    ...fallback,
+    ...safe,
+    tasks: listOrFallback(safe.tasks, fallback.tasks),
+    requirements: {
+      essential: listOrFallback(safe.requirements?.essential, fallback.requirements.essential),
+      preferred: listOrFallback(safe.requirements?.preferred, fallback.requirements.preferred),
+    },
+    skills: listOrFallback(safe.skills, fallback.skills),
+    skillImportance: objListOrFallback(safe.skillImportance, fallback.skillImportance),
+    coreValues: listOrFallback(safe.coreValues, fallback.coreValues),
+    workConditions: {
+      ...fallback.workConditions,
+      ...(safe.workConditions || {}),
+      estimatedSalaryRange: {
+        min: null,
+        max: null,
+        unit: '',
+        basis: safe.workConditions?.estimatedSalaryRange?.basis || '공고 원문 확인 필요',
+      },
+    },
+    companyAnalysis: {
+      ...fallback.companyAnalysis,
+      ...companyAnalysis,
+      overview: textOrFallback(companyAnalysis.overview, fallback.companyAnalysis.overview),
+      recentTrends: textOrFallback(companyAnalysis.recentTrends, fallback.companyAnalysis.recentTrends),
+      culture: textOrFallback(companyAnalysis.culture, fallback.companyAnalysis.culture),
+      strengths: listOrFallback(companyAnalysis.strengths, fallback.companyAnalysis.strengths),
+      weaknesses: listOrFallback(companyAnalysis.weaknesses, fallback.companyAnalysis.weaknesses),
+      competitors: Array.isArray(companyAnalysis.competitors) ? companyAnalysis.competitors : [],
+      companySize: { employees: '', revenue: '', founded: '' },
+    },
+    positionAnalysis: {
+      ...fallback.positionAnalysis,
+      ...positionAnalysis,
+      roleDescription: textOrFallback(positionAnalysis.roleDescription, fallback.positionAnalysis.roleDescription),
+      growthPath: textOrFallback(positionAnalysis.growthPath, fallback.positionAnalysis.growthPath),
+      dailyTasks: textOrFallback(positionAnalysis.dailyTasks, fallback.positionAnalysis.dailyTasks),
+      keyCompetencies: objListOrFallback(positionAnalysis.keyCompetencies, fallback.positionAnalysis.keyCompetencies),
+    },
+    applicationStrategy: {
+      ...fallback.applicationStrategy,
+      ...applicationStrategy,
+      motivationPoints: objListOrFallback(applicationStrategy.motivationPoints, fallback.applicationStrategy.motivationPoints),
+      passingStrategy: objListOrFallback(applicationStrategy.passingStrategy, fallback.applicationStrategy.passingStrategy),
+      appealPoints: listOrFallback(applicationStrategy.appealPoints, fallback.applicationStrategy.appealPoints),
+      cautionPoints: listOrFallback(applicationStrategy.cautionPoints, fallback.applicationStrategy.cautionPoints),
+      portfolioTips: listOrFallback(applicationStrategy.portfolioTips, fallback.applicationStrategy.portfolioTips),
+    },
+    industryTrends: objListOrFallback(safe.industryTrends, fallback.industryTrends),
+    fitScoreFactors: objListOrFallback(safe.fitScoreFactors, fallback.fitScoreFactors),
+    portfolioRequirements: {
+      required: ['공고 원문 확인 필요'],
+      format: [],
+      content: [],
+      submission: '공고 원문 확인 필요',
+    },
+    _sourceType: 'manual-entry-guide',
+    _analysisWarning: '공고 원문 없이 기업명/모집분야/접수 기간을 바탕으로 작성한 준비 가이드입니다. 담당업무·제출 조건은 실제 공고 원문으로 확인해 주세요.',
   };
 }
 
@@ -655,10 +1430,10 @@ function buildFallbackJobAnalysis({ company, position, deadline, sourceType = 'm
       { factor: '협업/커뮤니케이션', maxScore: 20, description: '팀 내 역할과 의사결정 과정 설명 수준' },
     ],
     portfolioRequirements: {
-      required: ['포트폴리오 또는 주요 업무 결과물'],
-      format: ['PDF 형식 권장', '링크 제출 가능 여부는 공고 확인 필요'],
-      content: portfolioContent,
-      submission: '채용 플랫폼의 지원 절차에 따라 제출',
+      required: ['공고 원문 확인 필요'],
+      format: [],
+      content: [],
+      submission: '공고 원문 확인 필요',
     },
     _sourceType: sourceType,
     _analysisWarning: 'AI 상세 분석에 실패해 기본 분석으로 대체했습니다.',
