@@ -62,6 +62,9 @@ const COLOR_PALETTES = {
 };
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+const MONTH_VALUES = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const CURRENT_YEAR = new Date().getFullYear();
+const PERIOD_YEAR_OPTIONS = Array.from({ length: 21 }, (_, i) => CURRENT_YEAR + 5 - i);
 
 const SORT_OPTIONS = [
   { value: 'custom',    label: '직접 정렬' },
@@ -69,6 +72,14 @@ const SORT_OPTIONS = [
   { value: 'period',    label: '기간순' },
   { value: 'favorite',  label: '즐겨찾기순' },
 ];
+
+function updateYearMonth(value, part, nextValue) {
+  const [year = '', month = ''] = String(value || '').split('-');
+  const nextYear = part === 'year' ? nextValue : year;
+  const nextMonth = part === 'month' ? nextValue : month;
+  if (!nextYear && !nextMonth) return '';
+  return `${nextYear || CURRENT_YEAR}-${nextMonth || '01'}`;
+}
 
 function createTutorialExperience() {
   const year = new Date().getFullYear();
@@ -299,6 +310,10 @@ export default function ExperienceHub() {
   const saveEditing = async (e) => {
     e?.stopPropagation();
     if (!editingId || !editTitle.trim()) return;
+    if (!editStart || !editEnd) {
+      toast.error('시작/종료 연도와 월을 선택해주세요');
+      return;
+    }
     if (editingId === tutorialDemoExperience?.id) {
       setTutorialDemoExperience(prev => prev ? { ...prev, title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` } : prev);
       toast.success('가상 경험이 수정되었습니다');
@@ -696,13 +711,37 @@ export default function ExperienceHub() {
                                 <div className="flex flex-col gap-1.5 mb-2">
                                   <div className="flex items-center gap-2">
                                     <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">시작</span>
-                                    <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
-                                      className="flex-1 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                    <select
+                                      value={editStart.split('-')[0] || ''}
+                                      onChange={e => setEditStart(prev => updateYearMonth(prev, 'year', e.target.value))}
+                                      className="w-20 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                    >
+                                      {PERIOD_YEAR_OPTIONS.map(year => <option key={year} value={year}>{year}년</option>)}
+                                    </select>
+                                    <select
+                                      value={editStart.split('-')[1] || ''}
+                                      onChange={e => setEditStart(prev => updateYearMonth(prev, 'month', e.target.value))}
+                                      className="w-14 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                    >
+                                      {MONTH_VALUES.map(month => <option key={month} value={month}>{Number(month)}월</option>)}
+                                    </select>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-[11px] text-gray-400 w-6 flex-shrink-0">종료</span>
-                                    <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
-                                      className="flex-1 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400" />
+                                    <select
+                                      value={editEnd.split('-')[0] || ''}
+                                      onChange={e => setEditEnd(prev => updateYearMonth(prev, 'year', e.target.value))}
+                                      className="w-20 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                    >
+                                      {PERIOD_YEAR_OPTIONS.map(year => <option key={year} value={year}>{year}년</option>)}
+                                    </select>
+                                    <select
+                                      value={editEnd.split('-')[1] || ''}
+                                      onChange={e => setEditEnd(prev => updateYearMonth(prev, 'month', e.target.value))}
+                                      className="w-14 text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-400 bg-white"
+                                    >
+                                      {MONTH_VALUES.map(month => <option key={month} value={month}>{Number(month)}월</option>)}
+                                    </select>
                                   </div>
                                 </div>
                                 <div className="flex justify-end gap-1">
