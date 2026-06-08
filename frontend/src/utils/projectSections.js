@@ -31,6 +31,21 @@ function normBlock(block) {
   if (block.type === 'image') {
     return { type: 'image', content: block.content || block.src || '', alt: sanitizeText(block.alt || ''), width: block.width || '100%' };
   }
+  if (block.type === 'infographic') {
+    const info = block.infographic || block;
+    const cards = (Array.isArray(info.cards) ? info.cards : []).map(card => [
+      card?.question,
+      card?.finding,
+      card?.value != null ? `${card.valueLabel || '수치'}: ${card.value}${card.unit || ''}` : '',
+      Array.isArray(card?.bars) ? card.bars.map(bar => `${bar?.label || ''} ${bar?.value ?? ''}${bar?.unit || card?.unit || ''}`.trim()).filter(Boolean).join(', ') : '',
+      card?.interpretation,
+      card?.sourceUrl ? `출처: ${card.sourceUrl}` : '',
+    ].filter(Boolean).join('\n')).filter(Boolean).join('\n\n');
+    return {
+      type: 'text',
+      content: sanitizeText([info.title, info.subtitle, cards, info.conclusion, info.limitations && `해석 한계: ${info.limitations}`].filter(Boolean).join('\n\n')),
+    };
+  }
   if (block.type === 'slide') {
     const cardText = (block.cards || []).map(c => [c?.label, c?.title, c?.body, c?.metric].filter(Boolean).join(' ')).filter(Boolean).join('\n');
     return { type: 'text', content: sanitizeText([block.title, block.subtitle, block.content, cardText].filter(Boolean).join('\n')) };
@@ -154,12 +169,112 @@ export function sectionTemplateToBlocks(label) {
   return [headingBlock(label || '새 섹션', 'HeadingTwo'), paragraphBlock('')];
 }
 
-/** 경험 한 건 → 제목(H1) + 상세 섹션 블록 */
-export function experienceToBlocks(exp) {
-  const blocks = [headingBlock(exp?.title || '제목 없음', 'HeadingOne')];
-  buildRenderableSections(exp).forEach(section => blocks.push(...sectionToBlocks(section)));
+/** 빈 노션 문서(빈 단락 1개) — 미리보기 캔버스를 빈 화면으로 시작할 때 사용 */
+export function emptyNotionDoc() {
+  return blocksToYooptaValue([]);
+}
+
+function isPlaceholderText(text) {
+  const t = String(text || '').trim();
+  return !t || t.startsWith('[작성 필요]') || t.startsWith('[검증 필요]');
+}
+
+/** 특정 섹션 키의 작성된 본문 (없거나 플레이스홀더면 '') */
+function sectionContentForKey(exp, key) {
+  const sr = exp?.structuredResult || {};
+  const base = typeof sr[key] === 'string' ? sr[key] : '';
+  if (base && !isPlaceholderText(base)) return base;
+  const job = sr.jobSpecific?.[key];
+  if (typeof job === 'string' && job.trim() && !isPlaceholderText(job)) return job;
+  return '';
+}
+
+/** 팔레트 섹션 드래그 → 작성된 내용이 있으면 채워서, 없으면 빈 템플릿으로 */
+export function sectionPaletteBlocks(exp, key, label) {
+  const rendered = buildRenderableSections(exp).find(section => (
+    (key && section.key === key) || (label && section.label === label)
+  ));
+  if (rendered && (rendered.content?.trim() || rendered.blocks?.length > 0)) {
+    return sectionToBlocks(rendered);
+  }
+  const content = key ? sectionContentForKey(exp, key) : '';
+  if (content) return [headingBlock(label || '새 섹션', 'HeadingTwo'), ...textToParagraphs(content)];
+  return sectionTemplateToBlocks(label);
+}
+
+/** 핵심 경험 1건 → 블록 (H3 제목 + 요약 줄) */
+function keyExperienceToBlocks(ke, index) {
+  const blocks = [headingBlock(sanitizeText(ke?.title) || `핵심 경험 ${index + 1}`, 'HeadingThree')];
+  const lines = [
+    ke?.metric && `성과 · ${ke.metric}`,
+    (ke?.situation || ke?.context) && `상황 · ${ke.situation || ke.context}`,
+    ke?.action && `행동 · ${ke.action}`,
+    ke?.result && `결과 · ${ke.result}`,
+    ke?.learning && `배운 점 · ${ke.learning}`,
+  ].filter(Boolean).filter(line => !isPlaceholderText(line));
+  lines.forEach(line => blocks.push(...textToParagraphs(line)));
   if (blocks.length === 1) blocks.push(paragraphBlock(''));
   return blocks;
+}
+
+/** 팔레트에서 핵심 경험을 캔버스에 끼워 넣을 때 쓰는 블록 */
+export function keyExperiencePaletteBlocks(exp, index = 0) {
+  const keyExps = Array.isArray(exp?.structuredResult?.keyExperiences)
+    ? exp.structuredResult.keyExperiences
+    : [];
+  const item = keyExps[index];
+  return item ? keyExperienceToBlocks(item, index) : [];
+}
+
+/** 팔레트에서 모든 핵심 경험을 한 번에 끼워 넣을 때 쓰는 블록 */
+export function allKeyExperiencePaletteBlocks(exp) {
+  const keyExps = Array.isArray(exp?.structuredResult?.keyExperiences)
+    ? exp.structuredResult.keyExperiences.filter(Boolean)
+    : [];
+  if (keyExps.length === 0) return [];
+  const blocks = [headingBlock('핵심 경험', 'HeadingTwo')];
+  keyExps.forEach((item, index) => blocks.push(...keyExperienceToBlocks(item, index)));
+  return blocks;
+}
+
+/** 경험 정리 전체 → 초안 블록 (제목 + 속성 + 작성된 섹션 + 핵심경험) */
+export function experienceDraftBlocks(exp, imageData = {}) {
+  const sr = exp?.structuredResult || {};
+  const overview = sr.projectOverview || {};
+  const blocks = [headingBlock(sanitizeText(exp?.title) || '제목 없음', 'HeadingOne')];
+
+  const props = [
+    overview.duration && `기간 · ${overview.duration}`,
+    overview.role && `역할 · ${overview.role}`,
+    (Array.isArray(overview.techStack) && overview.techStack.length > 0) && `기술 · ${overview.techStack.join(', ')}`,
+    overview.goal && `목표 · ${overview.goal}`,
+  ].filter(Boolean).filter(line => !isPlaceholderText(line));
+  props.forEach(line => blocks.push(paragraphBlock(sanitizeText(line))));
+
+  buildRenderableSections(exp).forEach(section => { blocks.push(...sectionToBlocks(section, imageData)); });
+
+  const keyExps = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : []).filter(Boolean);
+  if (keyExps.length > 0) {
+    blocks.push(headingBlock('핵심 경험', 'HeadingTwo'));
+    keyExps.forEach((ke, i) => blocks.push(...keyExperienceToBlocks(ke, i)));
+  }
+
+  if (blocks.length <= 1) blocks.push(paragraphBlock(''));
+  return blocks;
+}
+
+/** 노션 문서(value) → 헤딩 목차 [{ id, level, text }] (Quick Menu용) */
+export function extractHeadingsFromDoc(value) {
+  if (!value || typeof value !== 'object') return [];
+  const ordered = Object.values(value).filter(Boolean).sort((a, b) => (a.meta?.order ?? 0) - (b.meta?.order ?? 0));
+  const out = [];
+  ordered.forEach(block => {
+    const level = block.type === 'HeadingOne' ? 1 : block.type === 'HeadingTwo' ? 2 : block.type === 'HeadingThree' ? 3 : 0;
+    if (!level) return;
+    const text = (block.value || []).map(slateText).join('').trim();
+    if (text) out.push({ id: block.id, level, text });
+  });
+  return out;
 }
 
 /** AI 첨삭 결과 → 제목(H2) + 본문 블록 */

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
@@ -84,7 +84,7 @@ export default function NotionPortfolioPreview() {
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [selectedExp, setSelectedExp] = useState(null);
+  const [selectedExpDetail, setSelectedExpDetail] = useState(null);
   const [isPublic, setIsPublic] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -95,16 +95,59 @@ export default function NotionPortfolioPreview() {
   const { visible: previewTutorialVisible, dismiss: dismissPreviewTutorial } = useOnboarding(previewTutorialKey, { force: forcePreviewTutorial });
   const previewTutorialRef = useRef(null);
   const [previewTutorialCurrentStep, setPreviewTutorialCurrentStep] = useState(0);
+  const autoSaveTimer = useRef(null);
+  const pendingSaveRef = useRef(false);
+  const queuedPortfolioRef = useRef(null);
+  const lastScheduledSnapshotRef = useRef(null);
 
-  useEffect(() => { loadData(); }, [id]);
+  useEffect(() => { loadData(); }, [id, user?.uid]);
+
+  const persistPortfolio = useCallback(async (snapshot) => {
+    if (!snapshot) return;
+    if (pendingSaveRef.current) {
+      queuedPortfolioRef.current = snapshot;
+      return;
+    }
+    pendingSaveRef.current = true;
+    try {
+      const { id: _id, ...data } = snapshot;
+      await updatePortfolio(id, data);
+    } catch {
+      toast.error('프로젝트 수정사항 저장에 실패했습니다');
+    } finally {
+      pendingSaveRef.current = false;
+      const queued = queuedPortfolioRef.current;
+      queuedPortfolioRef.current = null;
+      if (queued && queued !== snapshot) persistPortfolio(queued);
+    }
+  }, [id, updatePortfolio]);
+
+  const schedulePortfolioSave = useCallback((snapshot) => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    lastScheduledSnapshotRef.current = snapshot;
+    autoSaveTimer.current = setTimeout(() => {
+      const scheduledSnapshot = lastScheduledSnapshotRef.current;
+      lastScheduledSnapshotRef.current = null;
+      persistPortfolio(scheduledSnapshot);
+    }, 700);
+  }, [persistPortfolio]);
+
+  useEffect(() => () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    if (lastScheduledSnapshotRef.current) {
+      persistPortfolio(lastScheduledSnapshotRef.current);
+      lastScheduledSnapshotRef.current = null;
+    }
+  }, [persistPortfolio]);
 
   const loadData = async () => {
     try {
       const snap = await getDoc(doc(db, 'portfolios', id));
       if (snap.exists()) {
         const p = { id: snap.id, ...snap.data() };
-        setPortfolio(withDefaultProjectLogos(p));
-        setCurrentPortfolio(p);
+        const nextPortfolio = withDefaultProjectLogos(p);
+        setPortfolio(nextPortfolio);
+        setCurrentPortfolio(nextPortfolio);
         setIsPublic(!!p.isPublic);
         setCustomSlug(p.customSlug || '');
       }
@@ -112,14 +155,54 @@ export default function NotionPortfolioPreview() {
     setLoading(false);
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
-  if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
-
   const closePreviewTutorial = (permanent = false) => {
     setShowExportModal(false);
-    setSelectedExp(null);
+    setSelectedExpDetail(null);
     dismissPreviewTutorial(permanent);
   };
+
+  const resolveExperienceIndex = useCallback((exp, idx) => {
+    const list = portfolio?.experiences || [];
+    if (Number.isInteger(idx) && idx >= 0 && idx < list.length) return idx;
+    return list.findIndex(item => {
+      if (item === exp) return true;
+      if (exp?.experienceId && item?.experienceId === exp.experienceId) return true;
+      if (exp?.id && item?.id === exp.id) return true;
+      return item?.title === exp?.title && (item?.date || item?.period || '') === (exp?.date || exp?.period || '');
+    });
+  }, [portfolio?.experiences]);
+
+  const openExperienceDetail = useCallback((exp, idx) => {
+    if (!exp) {
+      setSelectedExpDetail(null);
+      return;
+    }
+    const resolvedIdx = resolveExperienceIndex(exp, idx);
+    const currentExp = resolvedIdx >= 0 ? (portfolio?.experiences || [])[resolvedIdx] : exp;
+    setSelectedExpDetail({ exp: currentExp, idx: resolvedIdx });
+  }, [portfolio?.experiences, resolveExperienceIndex]);
+
+  const updateSelectedExperience = useCallback((changes) => {
+    const idx = selectedExpDetail?.idx;
+    if (!Number.isInteger(idx) || idx < 0) return;
+
+    setSelectedExpDetail(prev => {
+      if (!prev) return prev;
+      const merged = { ...(prev.exp || {}), ...changes };
+      return { ...prev, exp: merged };
+    });
+
+    setPortfolio(prev => {
+      if (!prev) return prev;
+      const experiences = [...(prev.experiences || [])];
+      if (!experiences[idx]) return prev;
+      experiences[idx] = { ...experiences[idx], ...changes };
+      const next = withDefaultProjectLogos({ ...prev, experiences });
+      setCurrentPortfolio(next);
+      schedulePortfolioSave(next);
+      return next;
+    });
+  }, [schedulePortfolioSave, selectedExpDetail?.idx, setCurrentPortfolio]);
 
   const previewTutorialSteps = [
     {
@@ -151,7 +234,7 @@ export default function NotionPortfolioPreview() {
       body: '노션 포트폴리오에서는 프로젝트 카드나 경험 항목을 누르면 상세 페이지처럼 열립니다. 데이터가 없을 때도 예시 화면으로 먼저 확인할 수 있습니다.',
       actionLabel: '상세 예시 열기',
       onEnter: () => setShowExportModal(false),
-      onAction: () => setSelectedExp((portfolio.experiences || [])[0] || TUTORIAL_PORTFOLIO_EXPERIENCE),
+      onAction: () => openExperienceDetail((portfolio?.experiences || [])[0] || TUTORIAL_PORTFOLIO_EXPERIENCE, 0),
     },
     {
       selector: '[data-tour="portfolio-detail-modal"]',
@@ -170,6 +253,9 @@ export default function NotionPortfolioPreview() {
   const pptLayoutIds = ['narrative', 'star', 'kpi-dashboard', 'timeline', 'case-study'];
   const pptTemplateQuery = pptLayoutIds.includes(portfolio?.templateId) ? `?template=${portfolio.templateId}` : '';
   const pptExportUrl = `/app/portfolio/ai-ppt/${id}${pptTemplateQuery}`;
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
+  if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
   // 비주얼 템플릿이면 별도 렌더러로 분기
   if (VISUAL_TEMPLATE_IDS.includes(portfolio?.templateId)) {
@@ -256,7 +342,7 @@ export default function NotionPortfolioPreview() {
         </div>
 
         <div data-tour="portfolio-preview-surface" className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-visible">
-          <VisualPortfolioRenderer portfolio={portfolio} />
+          <VisualPortfolioRenderer portfolio={portfolio} onOpenExpDetail={openExperienceDetail} />
         </div>
 
         {/* Link Export Modal */}
@@ -280,10 +366,14 @@ export default function NotionPortfolioPreview() {
             onClose={() => setShowExportModal(false)}
           />
         )}
-        {selectedExp && (
+        {selectedExpDetail && (
           <ExperienceDetailModal
-            exp={selectedExp}
-            onClose={() => setSelectedExp(null)}
+            exp={selectedExpDetail.exp}
+            readOnly={selectedExpDetail.idx < 0}
+            onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+            onClose={() => setSelectedExpDetail(null)}
+            resizeToBase64={resizeToBase64Global}
+            jobAnalysis={portfolio?.jobAnalysis}
           />
         )}
       </div>
@@ -524,7 +614,7 @@ export default function NotionPortfolioPreview() {
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2">Experience</h3>
                 <div className="space-y-1.5">
                   {p.experiences.slice(0, 5).map((e, i) => (
-                    <button key={i} onClick={() => setSelectedExp(e)}
+                    <button key={i} onClick={() => openExperienceDetail(e, i)}
                       className="w-full text-left text-sm group hover:bg-white rounded-lg p-1 -mx-1 transition-colors">
                       <span className="font-semibold text-gray-600 underline">{e.date}</span>{' '}
                       <span className="text-gray-700">{e.title}</span>
@@ -555,7 +645,7 @@ export default function NotionPortfolioPreview() {
                 const cardTech = [];
                 const topAchievement = null;
                 return (
-                  <button key={i} onClick={() => setSelectedExp(e)}
+                  <button key={i} onClick={() => openExperienceDetail(e, i)}
                     className="group bg-white rounded-xl border border-surface-200 overflow-hidden text-left hover:shadow-md hover:border-surface-300 transition-all flex flex-col">
                     {/* Thumbnail */}
                     <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative flex-shrink-0">
@@ -855,11 +945,11 @@ export default function NotionPortfolioPreview() {
         </div>
       </div>
       ) : p.templateId === 'academic' ? (
-        <AcademicLayout p={p} setSelectedExp={setSelectedExp} />
+        <AcademicLayout p={p} setSelectedExp={openExperienceDetail} />
       ) : p.templateId === 'timeline' ? (
-        <TimelineLayout p={p} setSelectedExp={setSelectedExp} />
+        <TimelineLayout p={p} setSelectedExp={openExperienceDetail} />
       ) : (
-        <AshleyLayout p={p} setSelectedExp={setSelectedExp} />
+        <AshleyLayout p={p} setSelectedExp={openExperienceDetail} />
       )}
 
       {/* Link Export Modal */}
@@ -885,10 +975,14 @@ export default function NotionPortfolioPreview() {
       )}
 
       {/* Experience Detail Modal */}
-      {selectedExp && (
+      {selectedExpDetail && (
         <ExperienceDetailModal
-          exp={selectedExp}
-          onClose={() => setSelectedExp(null)}
+          exp={selectedExpDetail.exp}
+          readOnly={selectedExpDetail.idx < 0}
+          onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+          onClose={() => setSelectedExpDetail(null)}
+          resizeToBase64={resizeToBase64Global}
+          jobAnalysis={portfolio?.jobAnalysis}
         />
       )}
     </div>
@@ -1716,11 +1810,46 @@ function AshleyLayout({ p, setSelectedExp }) {
   );
 }
 
+function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // ── Experience Detail Modal (Notion Page Style) ──
-function ExperienceDetailModal({ exp, onClose }) {
+function ExperienceDetailModal({
+  exp,
+  readOnly = false,
+  onUpdate,
+  onClose,
+  resizeToBase64,
+  jobAnalysis,
+}) {
   return (
     <Suspense fallback={null}>
-      <ProjectDetailModal exp={exp} readOnly onClose={onClose} />
+      <ProjectDetailModal
+        exp={exp}
+        readOnly={readOnly}
+        onUpdate={onUpdate}
+        onClose={onClose}
+        resizeToBase64={resizeToBase64}
+        jobAnalysis={jobAnalysis}
+      />
     </Suspense>
   );
 }

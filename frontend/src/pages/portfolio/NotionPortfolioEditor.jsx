@@ -1019,16 +1019,20 @@ export default function NotionPortfolioEditor() {
         if (!mergedPf.customSectionStyles) mergedPf.customSectionStyles = {};
         if (!mergedPf.customSectionTitleSegments) mergedPf.customSectionTitleSegments = {};
         const existing = mergedPf.experiences || [];
-        const alreadyImported = existing.find(e => e.experienceId === exportConfig.experienceId);
-        if (!alreadyImported) {
+        const importedIndex = exportConfig.experienceId
+          ? existing.findIndex(e => e.experienceId === exportConfig.experienceId)
+          : -1;
+        {
           const sr = exportConfig.structuredResult || {};
           const overview = exportConfig.projectOverview || sr.projectOverview || {};
           const importedSections = (exportConfig.sections || []).map(section => normalizePortfolioSection({ ...section, title: section.title || section.label }));
+          const carriedNotionDoc = exportConfig.notionDoc || null;
           const newExp = {
             date: overview.duration || '',
             title: exportConfig.title || '',
             description: overview.summary || sr.intro || '',
             experienceId: exportConfig.experienceId || null,
+            notionDoc: carriedNotionDoc,
             framework: 'STRUCTURED',
             frameworkContent: {},
             keywords: exportConfig.keywords || [],
@@ -1055,11 +1059,18 @@ export default function NotionPortfolioEditor() {
             link: '',
             sections: importedSections.map(section => ({ title: section.label || section.title, content: section.content, blocks: section.blocks || [], key: section.key, type: section.type || 'custom' })),
           };
-          const updatedExps = [...existing, newExp];
-          setPortfolio(prev => ({ ...prev, experiences: updatedExps }));
-          toast.success(`"${exportConfig.title}" 경험이 포트폴리오에 추가되었습니다`);
-        } else {
-          toast(`"${exportConfig.title}"은 이미 포함되어 있습니다`, { icon: 'ℹ️' });
+          const updatedExps = importedIndex >= 0
+            ? existing.map((item, index) => (index === importedIndex ? { ...item, ...newExp } : item))
+            : [...existing, newExp];
+          setPortfolio(prev => {
+            const next = { ...(prev || mergedPf), experiences: updatedExps };
+            setCurrentPortfolio(next);
+            return next;
+          });
+          await updatePortfolio(id, { experiences: updatedExps });
+          toast.success(importedIndex >= 0
+            ? `"${exportConfig.title}" 경험의 미리보기를 최신 상태로 업데이트했습니다`
+            : `"${exportConfig.title}" 경험이 포트폴리오에 추가되었습니다`);
         }
         // state 초기화
         window.history.replaceState({}, '', window.location.pathname);
@@ -1333,6 +1344,7 @@ export default function NotionPortfolioEditor() {
       description,
       // 원본 경험 ID 보존 (상세 모달에서 이미지 로딩용)
       experienceId: exp.id || null,
+      notionDoc: exp.notionDoc || null,
       // 상세 데이터 보존 (AI 분석 결과 우선)
       framework: exp.framework || 'STRUCTURED',
       frameworkContent: contentSource,
@@ -2076,7 +2088,7 @@ function VisualSectionRecommend({ sectionType, jobAnalysis }) {
 }
 
 /* ── 경험/프로젝트 카드 상세 모달 (모듈 레벨) ── */
-function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, genericMode = false, userExperiences = [] }) {
+function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, genericMode = false }) {
   return (
     <ProjectDetailModal
       exp={exp}
@@ -2084,7 +2096,6 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, g
       onClose={onClose}
       resizeToBase64={resizeToBase64}
       jobAnalysis={jobAnalysis}
-      userExperiences={userExperiences}
       genericMode={genericMode}
     />
   );
@@ -2098,6 +2109,16 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
   const safeUpdateMany = updateMany || ((fields = {}) => {
     Object.entries(fields).forEach(([field, value]) => update(field, value));
   });
+
+  const updateSelectedExpDetail = (changes = {}) => {
+    const idx = selectedExpDetail?.idx;
+    if (!Number.isInteger(idx) || idx < 0) return;
+    setSelectedExpDetail(prev => {
+      if (!prev) return prev;
+      return { ...prev, exp: { ...(prev.exp || {}), ...changes } };
+    });
+    updateArrayItem('experiences', idx, changes);
+  };
 
   // 기업 맞춤 경험 추천
   const [recLoading, setRecLoading] = useState(false);
@@ -2215,9 +2236,8 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
       {/* 경험 상세편집 모달 (첨삭 포함) */}
       {selectedExpDetail && (
         <ExpDetailModal
-              userExperiences={userExperiences}
           exp={selectedExpDetail.exp}
-          onUpdate={(changes) => updateArrayItem('experiences', selectedExpDetail.idx, changes)}
+          onUpdate={updateSelectedExpDetail}
           onClose={() => setSelectedExpDetail(null)}
           resizeToBase64={resizeToBase64Global}
           jobAnalysis={p?.jobAnalysis}

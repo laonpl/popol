@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ChevronLeft, ChevronRight, PenLine, Check, X, Plus, Trash2, Undo2, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PenLine, Check, X, Plus, Trash2, Undo2 } from 'lucide-react';
 import { stripMd } from '../utils/textUtils';
 import useExperienceStore from '../stores/experienceStore';
 
@@ -1026,7 +1026,7 @@ function SlideContent({ exp, theme, editing = false, onChange }) {
    ══════════════════════════════════════════════ */
 const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   keyExperiences = [], onUpdate, viewOnly = false,
-  hideHeader = false, forceEditing = false, onEditingChange, onCurrentChange, onDeletedCountChange, onDirty,
+  hideHeader = false, forceEditing = false, listMode = false, onEditingChange, onCurrentChange, onDeletedCountChange, onDirty,
 }, ref) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -1035,6 +1035,9 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   const [deletedStack, setDeletedStack] = useState([]);
   const [freeFormText, setFreeFormText] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+  const [collapsedIdx, setCollapsedIdx] = useState({});   // 리스트 모드: 카드별 접힘
+  const [listRefine, setListRefine] = useState({});        // 리스트 모드: 카드별 AI 보강 메모
+  const [listRefiningIdx, setListRefiningIdx] = useState(null);
   const refineKeyExperience = useExperienceStore(s => s.refineKeyExperience);
   const touchStartX = useRef(null);
   const stateRef = useRef({});
@@ -1093,6 +1096,123 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       if (!editing) _setEditing(true);
     }
   }, [forceEditing, onUpdate, keyExperiences.length, current, editing, localExp]);
+
+  /* ── 리스트 모드: 모든 핵심 경험을 세로로 쌓아 개별 편집 ── */
+  if (listMode && onUpdate && !viewOnly) {
+    const blankExp = { title: '', metric: '', metricLabel: '', beforeMetric: '', afterMetric: '', situation: '', action: '', result: '', learning: '', keywords: [] };
+    const updateAt = (index, field, val) => {
+      if (field === '_editHint') return;
+      onDirty?.();
+      onUpdate(keyExperiences.map((e, i) => (i === index ? { ...e, [field]: val } : e)));
+    };
+    const addCard = () => {
+      onDirty?.();
+      onUpdate([...keyExperiences, { ...blankExp }]);
+    };
+    const deleteCard = (index) => {
+      onDirty?.();
+      _setDeletedStack(prev => [...prev, { item: keyExperiences[index], index }]);
+      onUpdate(keyExperiences.filter((_, i) => i !== index));
+    };
+    const undoDelete = () => {
+      if (deletedStack.length === 0) return;
+      const last = deletedStack[deletedStack.length - 1];
+      _setDeletedStack(prev => prev.slice(0, -1));
+      const insertIdx = Math.min(last.index, keyExperiences.length);
+      onUpdate([...keyExperiences.slice(0, insertIdx), last.item, ...keyExperiences.slice(insertIdx)]);
+    };
+    const refineCard = async (index) => {
+      const text = (listRefine[index] || '').trim();
+      if (!text) return;
+      setListRefiningIdx(index);
+      try {
+        const refined = await refineKeyExperience(keyExperiences[index], text);
+        onDirty?.();
+        onUpdate(keyExperiences.map((e, i) => (i === index ? { ...e, ...refined } : e)));
+        setListRefine(prev => ({ ...prev, [index]: '' }));
+      } catch (err) {
+        alert(err.message || 'AI 보강에 실패했습니다.');
+      } finally {
+        setListRefiningIdx(null);
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[13px] text-bluewood-400">
+            핵심 경험 <span className="font-bold text-bluewood-600">{keyExperiences.length}개</span> · 면접관이 한 화면에서 훑어볼 수 있게 정리하세요
+          </p>
+          {deletedStack.length > 0 && (
+            <button onClick={undoDelete}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all">
+              <Undo2 size={12} /> 삭제 되돌리기 ({deletedStack.length})
+            </button>
+          )}
+        </div>
+
+        {keyExperiences.map((e, i) => {
+          const t = THEMES[i % THEMES.length];
+          const collapsed = !!collapsedIdx[i];
+          const title = stripMd(e.title) || `핵심 경험 ${i + 1}`;
+          const metric = stripMd(e.metric);
+          return (
+            <div key={i} className="rounded-[14px] border border-surface-200 bg-white overflow-hidden" style={{ boxShadow: '0 10px 40px rgba(49,65,87,0.06)' }}>
+              <div className="h-1 w-full" style={{ backgroundColor: NAVY }} />
+              <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-surface-100">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-lg text-white text-[12px] font-black flex items-center justify-center" style={{ backgroundColor: t.color }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="text-[15px] font-extrabold text-bluewood-900 truncate" style={{ wordBreak: 'keep-all' }}>{title}</span>
+                  {metric && <span className="flex-shrink-0 text-[12px] font-black px-2 py-0.5 rounded text-white" style={{ backgroundColor: t.color }}>{metric}</span>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => setCollapsedIdx(prev => ({ ...prev, [i]: !collapsed }))} title={collapsed ? '펼치기' : '접기'}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-200 text-bluewood-500 hover:bg-surface-50 active:scale-95 transition-all">
+                    {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                  </button>
+                  <button onClick={() => deleteCard(i)} title="이 핵심 경험 삭제"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-red-200 text-red-400 hover:bg-red-50 active:scale-95 transition-all">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+              {!collapsed && (
+                <div className="px-5 py-5">
+                  {/* 자유 보강 메모 — 적으면 아래 항목으로 자동 정리 */}
+                  <div className="mb-4 rounded-xl border border-surface-200 bg-surface-50 p-3.5">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[12.5px] font-bold text-bluewood-700">자유 보강 메모</p>
+                        <p className="text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적으면 아래 상황·행동·결과·지표에 자동으로 정리됩니다.</p>
+                      </div>
+                      <button onClick={() => refineCard(i)} disabled={!listRefine[i]?.trim() || listRefiningIdx === i}
+                        className="flex-shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50">
+                        {listRefiningIdx === i ? '정리 중...' : '보강하기'}
+                      </button>
+                    </div>
+                    <textarea
+                      value={listRefine[i] || ''}
+                      onChange={ev => setListRefine(prev => ({ ...prev, [i]: ev.target.value }))}
+                      placeholder="예: 매출 30% 증가, 리텐션 20%→45% 개선. 초기 예상과 달리 네트워크 비용이 문제라서..."
+                      className="w-full h-16 px-3 py-2 text-[13px] rounded-lg border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
+                    />
+                  </div>
+                  <SlideContent exp={e} theme={t} editing onChange={(field, val) => updateAt(i, field, val)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <button onClick={addCard}
+          className="w-full py-3 border-2 border-dashed border-surface-200 rounded-xl text-[14px] font-medium text-bluewood-400 hover:border-primary-300 hover:text-primary-500 transition-colors flex items-center justify-center gap-1.5">
+          <Plus size={15} /> 핵심 경험 추가
+        </button>
+      </div>
+    );
+  }
 
   if (keyExperiences.length === 0) return null;
 
@@ -1284,31 +1404,28 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
       </div>
       )}
 
-      {/* 자유 프롬프트 보강 (편집 모드 시) */}
+      {/* 자유 보강 메모 (편집 모드 시) */}
       {editing && (
-        <div className="mb-4 p-4 rounded-xl border border-primary-200 bg-primary-50/50">
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-[13px] font-bold text-primary-700 flex items-center gap-1.5">
-              <Sparkles size={14} className="text-primary-500" />
-              자유 보강 메모 (AI 자동 분석)
-            </label>
+        <div className="mb-4 rounded-xl border border-surface-200 bg-surface-50 p-4">
+          <div className="mb-2 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-bluewood-700">자유 보강 메모</p>
+              <p className="text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적으면 아래 항목이 자동으로 정리됩니다.</p>
+            </div>
             <button
               onClick={handleRefine}
               disabled={!freeFormText?.trim() || isRefining}
-              className="px-3 py-1.5 text-[12px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              className="flex-shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
-              {isRefining ? '분석 중...' : '보강하기'}
+              {isRefining ? '정리 중...' : '보강하기'}
             </button>
           </div>
           <textarea
             value={freeFormText}
             onChange={e => setFreeFormText(e.target.value)}
             placeholder="예: 매출 30% 증가시켰고, 사용자 리텐션은 기존 20%에서 45%로 개선했습니다. 초기 예상과 달리 네트워크 비용이 문제라서..."
-            className="w-full h-20 px-3 py-2 text-[13px] rounded-lg border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
+            className="w-full h-20 px-3 py-2 text-[13px] rounded-lg border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
           />
-          <p className="mt-1.5 text-[11px] text-primary-600/70">
-            성과나 내용을 자유롭게 적어주시면 AI가 아래 항목들을 자동으로 보완해줍니다.
-          </p>
         </div>
       )}
 
