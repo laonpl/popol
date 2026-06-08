@@ -265,10 +265,15 @@ textarea {
 .yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] th,
 .yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] td {
   min-width: 120px;
+  height: 38px;
   border: 1px solid #e5e7eb;
   padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
+}
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] th > *,
+.yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] td > * {
+  min-height: 1.25rem;
 }
 .yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] th,
 .yoopta-portfolio-wrapper [data-yoopta-block-type="Table"] tr:first-child td {

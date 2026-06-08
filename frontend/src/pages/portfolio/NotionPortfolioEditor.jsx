@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -6,8 +6,8 @@ import {
   GraduationCap, Award, Briefcase, Mail, Phone, Globe,
   MapPin, Calendar, Heart, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X,
   BookOpen, Code, Target, Star, MessageSquare, Upload, Sparkles, ImagePlus,
-  PanelLeft, Columns, GripVertical, Type, Image as ImageIcon,
-  Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy, Camera
+  PanelLeft, Columns, GripVertical, Type, Bold, Image as ImageIcon,
+  Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy, Camera, Eraser
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -527,32 +527,77 @@ function escapeHtml(value = '') {
     .replace(/'/g, '&#39;');
 }
 
+function titleSegmentStyle(segment = {}) {
+  const styles = [];
+  const fontSize = SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment.fontSize) ? segment.fontSize : '';
+  if (fontSize) styles.push(`font-size:${fontSize}`);
+  if (segment.bold) styles.push('font-weight:700');
+  if (segment.italic) styles.push('font-style:italic');
+  const decorations = [
+    segment.underline ? 'underline' : '',
+    segment.strike ? 'line-through' : '',
+  ].filter(Boolean).join(' ');
+  if (decorations) styles.push(`text-decoration:${decorations}`);
+  if (segment.code) styles.push('font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace', 'background:#f3f4f6', 'border-radius:3px', 'padding:0 2px');
+  if (segment.highlight) styles.push('background:#fef08a');
+  return styles.join(';');
+}
+
+function titlePatchToStyle(patch = {}) {
+  return titleSegmentStyle({
+    fontSize: patch.fontSize,
+    bold: patch.bold,
+    italic: patch.italic,
+    underline: patch.underline,
+    strike: patch.strike,
+    code: patch.code,
+    highlight: patch.highlight,
+  });
+}
+
 function titleSegmentsToHtml(segments, fallback) {
   const safeSegments = Array.isArray(segments) && segments.length > 0
     ? segments
     : [{ text: fallback || '', fontSize: '' }];
   return safeSegments.map(segment => {
     const text = escapeHtml(segment?.text || '');
-    const fontSize = SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment?.fontSize) ? segment.fontSize : '';
-    return fontSize ? `<span style="font-size:${fontSize}">${text}</span>` : text;
+    const style = titleSegmentStyle(segment);
+    return style ? `<span style="${style}">${text}</span>` : text;
   }).join('');
 }
 
 function readTitleSegmentsFromElement(element) {
   const segments = [];
-  const walk = (node, inheritedSize = '') => {
+  const walk = (node, inherited = {}) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      if (node.textContent) segments.push({ text: node.textContent, fontSize: inheritedSize });
+      if (node.textContent) segments.push({ text: node.textContent, ...inherited });
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const size = SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)
-      ? node.style.fontSize
-      : inheritedSize;
-    Array.from(node.childNodes).forEach(child => walk(child, size));
+    const next = { ...inherited };
+    if (SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)) next.fontSize = node.style.fontSize;
+    const tag = node.tagName?.toLowerCase();
+    const fontWeight = String(node.style?.fontWeight || '');
+    if (tag === 'strong' || tag === 'b' || fontWeight === 'bold' || Number(fontWeight) >= 600) next.bold = true;
+    if (tag === 'em' || tag === 'i' || node.style?.fontStyle === 'italic') next.italic = true;
+    const decoration = node.style?.textDecoration || node.style?.textDecorationLine || '';
+    if (tag === 'u' || decoration.includes('underline')) next.underline = true;
+    if (tag === 's' || tag === 'strike' || decoration.includes('line-through')) next.strike = true;
+    if (tag === 'code' || node.style?.fontFamily?.includes('mono')) next.code = true;
+    if (node.style?.backgroundColor && node.style.backgroundColor !== 'transparent') next.highlight = true;
+    Array.from(node.childNodes).forEach(child => walk(child, next));
   };
   Array.from(element.childNodes).forEach(child => walk(child));
   return segments.filter(segment => segment.text.length > 0);
+}
+
+function openPortfolioContextMenu(event, items) {
+  if (!items?.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.dispatchEvent(new CustomEvent('fitpoly:open-context-menu', {
+    detail: { x: event.clientX, y: event.clientY, items },
+  }));
 }
 
 function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, className = '', hoverClassName = 'hover:bg-primary-50/30' }) {
@@ -572,16 +617,39 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
     if (!selection?.rangeCount || !titleRef.current?.contains(selection.anchorNode)) return;
     savedRangeRef.current = selection.getRangeAt(0).cloneRange();
   };
-  const applyFontSize = (fontSize) => {
+  const getSelectedTitleRange = () => {
     const selection = window.getSelection();
     const liveRange = selection?.rangeCount && titleRef.current?.contains(selection.anchorNode)
       ? selection.getRangeAt(0)
       : null;
-    const range = liveRange || savedRangeRef.current;
-    if (!range || !titleRef.current?.contains(range.commonAncestorContainer)) return;
-    if (range.collapsed) return;
+    const savedRange = savedRangeRef.current;
+    const range = liveRange && !liveRange.collapsed ? liveRange : savedRange;
+    if (!range || range.collapsed || !titleRef.current?.contains(range.commonAncestorContainer)) return null;
+    return range;
+  };
+  const patchAllTitleSegments = (patch, toggleKey = null) => {
+    const currentSegments = readTitleSegmentsFromElement(titleRef.current);
+    const targetSegments = currentSegments.length ? currentSegments : [{ text: fallbackLabel || '' }];
+    const shouldDisable = toggleKey && targetSegments.every(segment => !!segment[toggleKey]);
+    const nextSegments = targetSegments.map(segment => {
+      const next = { ...segment, ...patch };
+      if (toggleKey) next[toggleKey] = !shouldDisable;
+      if (patch.fontSize !== undefined) next.fontSize = patch.fontSize;
+      return next;
+    });
+    update('customSectionTitleSegments', { ...titleSegments, [sectionKey]: nextSegments });
+    update('customSectionLabels', { ...labels, [sectionKey]: nextSegments.map(segment => segment.text).join('') || defaultLabel });
+  };
+  const applyTitlePatch = (patch, toggleKey = null) => {
+    const selection = window.getSelection();
+    const range = getSelectedTitleRange();
+    if (!range) {
+      patchAllTitleSegments(patch, toggleKey);
+      return;
+    }
     const wrapper = document.createElement('span');
-    if (fontSize) wrapper.style.fontSize = fontSize;
+    const style = titlePatchToStyle(patch);
+    if (style) wrapper.setAttribute('style', style);
     try {
       range.surroundContents(wrapper);
     } catch {
@@ -592,6 +660,25 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
     updateSegments();
     selection.removeAllRanges();
   };
+  const clearTitleFormatting = () => {
+    const selection = window.getSelection();
+    const range = getSelectedTitleRange();
+    if (!range) {
+      const currentSegments = readTitleSegmentsFromElement(titleRef.current);
+      const targetSegments = currentSegments.length ? currentSegments : [{ text: fallbackLabel || '' }];
+      const nextSegments = targetSegments.map(segment => ({ text: segment.text }));
+      update('customSectionTitleSegments', { ...titleSegments, [sectionKey]: nextSegments });
+      update('customSectionLabels', { ...labels, [sectionKey]: nextSegments.map(segment => segment.text).join('') || defaultLabel });
+      return;
+    }
+    const plainText = range.toString();
+    range.deleteContents();
+    range.insertNode(document.createTextNode(plainText));
+    titleRef.current.normalize();
+    updateSegments();
+    selection.removeAllRanges();
+  };
+  const applyFontSize = (fontSize) => applyTitlePatch({ fontSize });
 
   useEffect(() => {
     if (!titleRef.current) return;
@@ -609,6 +696,23 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
         onBlur={updateSegments}
         onMouseUp={saveSelection}
         onKeyUp={saveSelection}
+        onContextMenu={event => {
+          saveSelection();
+          openPortfolioContextMenu(event, [
+            { label: '글자 굵게', icon: Bold, onClick: () => applyTitlePatch({ bold: true }, 'bold') },
+            { label: '기울임', icon: PenLine, onClick: () => applyTitlePatch({ italic: true }, 'italic') },
+            { label: '밑줄', icon: Type, onClick: () => applyTitlePatch({ underline: true }, 'underline') },
+            { label: '취소선', icon: Type, onClick: () => applyTitlePatch({ strike: true }, 'strike') },
+            { label: '코드', icon: Code, onClick: () => applyTitlePatch({ code: true }, 'code') },
+            { label: '강조', icon: Sparkles, onClick: () => applyTitlePatch({ highlight: true }, 'highlight') },
+            { label: '서식 지우기', icon: Eraser, onClick: clearTitleFormatting },
+            ...SECTION_TITLE_SIZE_OPTIONS.map(option => ({
+              label: option.value ? `글자 크기 ${option.label}` : '기본 글자 크기',
+              icon: Type,
+              onClick: () => applyFontSize(option.value),
+            })),
+          ]);
+        }}
         onPaste={event => {
           event.preventDefault();
           document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
@@ -635,17 +739,18 @@ function EditableSectionTitle({ portfolio, update, sectionKey, defaultLabel, cla
 }
 
 function EditableIcon({ value, onChange, className = 'text-gray-400', size = 14 }) {
-  const Icon = EDITABLE_ICON_MAP[value] || Globe;
+  const Icon = value ? (EDITABLE_ICON_MAP[value] || Globe) : null;
   return (
-    <span className="group/icon relative inline-flex flex-shrink-0 items-center">
-      <Icon size={size} className={className} />
+    <span className="group/icon relative inline-flex min-h-[1em] min-w-[1em] flex-shrink-0 items-center justify-center">
+      {Icon && <Icon size={size} className={className} />}
       <select
-        value={value || 'globe'}
+        value={value || ''}
         onChange={event => onChange(event.target.value)}
         className="absolute -inset-1 cursor-pointer opacity-0"
         title="아이콘 변경"
         aria-label="아이콘 변경"
       >
+        <option value="">삭제</option>
         {Object.keys(EDITABLE_ICON_MAP).map(key => (
           <option key={key} value={key}>{key}</option>
         ))}
@@ -2173,11 +2278,21 @@ function VisualTemplateEditor({ portfolio, update, updateMany, updateNested, add
 /* ── Visual Editor (Notion-like inline editing) ── */
 function VisualEditor(props) {
   const { templateId } = props;
-  if (VISUAL_TEMPLATE_IDS.includes(templateId)) return <VisualTemplateEditor {...props} />;
-  if (templateId === 'ashley') return <AshleyVisualEditor {...props} />;
-  if (templateId === 'academic') return <AcademicVisualEditor {...props} />;
-  if (templateId === 'timeline') return <TimelineVisualEditor {...props} />;
-  return <NotionVisualEditor {...props} />;
+  // 우클릭 컨텍스트 메뉴 호스트를 모든 템플릿에서 마운트한다.
+  // (예전에는 NotionVisualEditor=템플릿1 안에서만 렌더돼, 템플릿 2~10의 YooptaMiniEditor
+  //  우클릭 메뉴가 열리지 않았다. 호스트는 portal+window 이벤트라 한 번만 두면 전역 동작한다.)
+  let editor;
+  if (VISUAL_TEMPLATE_IDS.includes(templateId)) editor = <VisualTemplateEditor {...props} />;
+  else if (templateId === 'ashley') editor = <AshleyVisualEditor {...props} />;
+  else if (templateId === 'academic') editor = <AcademicVisualEditor {...props} />;
+  else if (templateId === 'timeline') editor = <TimelineVisualEditor {...props} />;
+  else editor = <NotionVisualEditor {...props} />;
+  return (
+    <>
+      {editor}
+      <ContextMenuHost />
+    </>
+  );
 }
 
 /* ── 공통 유틸: 이미지 base64 변환 ── */
@@ -2310,6 +2425,30 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
 
   const defaultTextClass = textClassName || 'w-full text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-2 py-1 resize-y leading-relaxed';
   const addTextAfter = (i, variant = 'paragraph') => insertSegmentAfter(i, { type: 'text', variant, content: '', checked: false });
+  const openSegmentContextMenu = (event, seg, index) => {
+    if (event.target.closest('button, select, input[type="file"]')) return;
+    const items = seg.type === 'text'
+      ? [
+          ...RICH_TEXT_SEGMENT_TYPES.map(item => ({
+            label: item.label,
+            icon: Type,
+            onClick: () => updateSeg(index, { variant: item.value }),
+          })),
+          ...(seg.variant === 'todo'
+            ? [{ label: seg.checked ? '할 일 해제' : '할 일 완료', icon: Check, onClick: () => updateSeg(index, { checked: !seg.checked }) }]
+            : []),
+          { label: '아래에 텍스트 추가', icon: Plus, onClick: () => addTextAfter(index) },
+          { label: '아래에 할 일 추가', icon: Check, onClick: () => addTextAfter(index, 'todo') },
+          { label: '아래에 이미지 추가', icon: ImageIcon, onClick: () => insertImageAfter(index) },
+          ...(segments.length > 1 ? [{ label: '삭제', icon: Trash2, danger: true, onClick: () => removeSeg(index) }] : []),
+        ]
+      : [
+          { label: '아래에 텍스트 추가', icon: Plus, onClick: () => addTextAfter(index) },
+          { label: '아래에 이미지 추가', icon: ImageIcon, onClick: () => insertImageAfter(index) },
+          { label: '삭제', icon: Trash2, danger: true, onClick: () => removeSeg(index) },
+        ];
+    openPortfolioContextMenu(event, items);
+  };
 
   return (
     <div className="space-y-0.5">
@@ -2339,6 +2478,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
             if (!isNaN(from) && from !== i) moveSeg(from, i);
             setDragOver(null);
           }}
+          onContextMenu={event => openSegmentContextMenu(event, seg, i)}
           data-rce-row="1"
           data-no-block-drag="true"
           className={`relative group/rseg flex gap-1 items-start transition-all ${dragOver === i ? 'ring-2 ring-blue-300 rounded-lg bg-blue-50/50' : ''}`}
@@ -4511,9 +4651,116 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   );
 }
 
-function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLabel = '행 추가' }) {
+function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLabel = '행 추가', sectionKey, blockKey, defaultOrder = [], onDeleteTable }) {
+  const tableCtx = useContext(NotionEditorCtx);
   const [draggingColumn, setDraggingColumn] = useState(null);
   const [draggingRow, setDraggingRow] = useState(null);
+  const [draggingCell, setDraggingCell] = useState(null);
+  const [cellDropTarget, setCellDropTarget] = useState(null);
+  const [openCellSettings, setOpenCellSettings] = useState(null);
+  const [cellMenuPosition, setCellMenuPosition] = useState({ x: 0, y: 0 });
+  const [selectedCells, setSelectedCells] = useState(() => new Set());
+  const cellSelectionRef = useRef(null);
+  const scrollRef = useRef(null);
+  const getCellKey = (rowIndex, columnKey) => `${rowIndex}:${columnKey}`;
+  const buildCellRange = (anchor, focus) => {
+    if (!anchor || !focus) return [];
+    const fromRow = Math.min(anchor.rowIndex, focus.rowIndex);
+    const toRow = Math.max(anchor.rowIndex, focus.rowIndex);
+    const fromColumn = Math.min(anchor.columnIndex, focus.columnIndex);
+    const toColumn = Math.max(anchor.columnIndex, focus.columnIndex);
+    const keys = [];
+    for (let rowIndex = fromRow; rowIndex <= toRow; rowIndex += 1) {
+      for (let columnIndex = fromColumn; columnIndex <= toColumn; columnIndex += 1) {
+        const column = columns[columnIndex];
+        if (column) keys.push(getCellKey(rowIndex, column.key));
+      }
+    }
+    return keys;
+  };
+  const selectCellRange = (anchor, focus) => {
+    setSelectedCells(new Set(buildCellRange(anchor, focus)));
+  };
+  const startCellSelection = (event, rowIndex, columnIndex, columnKey) => {
+    if (event.button !== 0) return;
+    if (event.target.closest('button, select, [data-table-cell-action="true"], [data-table-cell-drag="true"]')) return;
+    if (!event.target.closest('input')) event.preventDefault();
+    event.stopPropagation();
+    const anchor = { rowIndex, columnIndex, columnKey };
+    cellSelectionRef.current = anchor;
+    selectCellRange(anchor, anchor);
+    setOpenCellSettings(null);
+  };
+  const extendCellSelection = (rowIndex, columnIndex, columnKey) => {
+    const anchor = cellSelectionRef.current;
+    if (!anchor) return;
+    selectCellRange(anchor, { rowIndex, columnIndex, columnKey });
+  };
+  const openCellSettingsMenu = (event, cellKey) => {
+    event.preventDefault();
+    event.stopPropagation();
+    cellSelectionRef.current = null;
+    if (!selectedCells.has(cellKey)) setSelectedCells(new Set([cellKey]));
+    const x = Math.min(event.clientX, window.innerWidth - 208);
+    const y = Math.min(event.clientY, window.innerHeight - 320);
+    setCellMenuPosition({ x: Math.max(8, x), y: Math.max(8, y) });
+    setOpenCellSettings(cellKey);
+  };
+  const toggleCellSettingsMenu = (event, cellKey) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedCells.has(cellKey)) setSelectedCells(new Set([cellKey]));
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.min(rect.right + 8, window.innerWidth - 208);
+    const y = Math.min(rect.top, window.innerHeight - 320);
+    setCellMenuPosition({ x: Math.max(8, x), y: Math.max(8, y) });
+    setOpenCellSettings(openCellSettings === cellKey ? null : cellKey);
+  };
+  const isCellDragBlocked = (target) => (
+    target instanceof Element
+    && !!target.closest('button, select, [data-table-cell-action="true"]')
+  );
+  const startCellDrag = (event, rowIndex, columnKey, cellKey) => {
+    if (isCellDragBlocked(event.target)) {
+      event.preventDefault();
+      return;
+    }
+    setDraggingCell(cellKey);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-fitpoly-table-cell-row', String(rowIndex));
+    event.dataTransfer.setData('application/x-fitpoly-table-cell-key', columnKey);
+  };
+  // 마우스로 좌우 드래그해서 넘쳐난 표를 스크롤한다. (입력·버튼·재정렬 핸들은 제외)
+  const handlePanStart = (event) => {
+    const el = scrollRef.current;
+    if (!el || event.button !== 0) return;
+    if (event.target.closest('textarea, select, button, [data-table-cell="true"], [data-table-cell-action="true"], [data-table-cell-drag="true"]')) return;
+    if (el.scrollWidth <= el.clientWidth) return;
+    const startX = event.clientX;
+    const startScroll = el.scrollLeft;
+    let isPanning = false;
+    let previousUserSelect = '';
+    const onMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      if (!isPanning && Math.abs(deltaX) < 4) return;
+      if (!isPanning) {
+        isPanning = true;
+        previousUserSelect = document.body.style.userSelect;
+        document.body.style.userSelect = 'none';
+        el.style.cursor = 'grabbing';
+      }
+      moveEvent.preventDefault();
+      el.scrollLeft = startScroll - deltaX;
+    };
+    const onUp = () => {
+      el.style.cursor = '';
+      if (isPanning) document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const moveItem = (items, fromIndex, toIndex) => {
     if (fromIndex === toIndex) return items;
     const next = [...items];
@@ -4521,6 +4768,13 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
     next.splice(toIndex, 0, moved);
     return next;
   };
+  useEffect(() => {
+    const stopCellSelection = () => {
+      cellSelectionRef.current = null;
+    };
+    window.addEventListener('mouseup', stopCellSelection);
+    return () => window.removeEventListener('mouseup', stopCellSelection);
+  }, []);
   const updateColumn = (index, label) => {
     const next = [...columns];
     next[index] = { ...next[index], label };
@@ -4540,21 +4794,101 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
     const key = `custom_${Date.now()}`;
     onColumnsChange([...columns, { key, label: '새 열' }]);
   };
+  const addRow = () => onRowsChange([...rows, {}]);
   const updateCell = (rowIndex, key, value) => {
     const next = [...rows];
     next[rowIndex] = { ...next[rowIndex], [key]: value };
     onRowsChange(next);
   };
   const clearCell = (rowIndex, key) => updateCell(rowIndex, key, '');
+  const getColumnSettings = (key) => columns.find(column => column.key === key)?.__cellSettings || {};
+  const clearSelectedCells = (fallbackRowIndex, fallbackKey) => {
+    const fallbackCellKey = getCellKey(fallbackRowIndex, fallbackKey);
+    const targetCells = selectedCells.has(fallbackCellKey)
+      ? Array.from(selectedCells)
+      : [fallbackCellKey];
+    const next = [...rows];
+    targetCells.forEach(cellKey => {
+      const [targetRowIndexText, targetColumnKey] = cellKey.split(':');
+      const targetRowIndex = Number(targetRowIndexText);
+      if (Number.isNaN(targetRowIndex) || !targetColumnKey || !next[targetRowIndex]) return;
+      next[targetRowIndex] = { ...next[targetRowIndex], [targetColumnKey]: '' };
+    });
+    onRowsChange(next);
+  };
+  const getCellSettings = (row, key) => row.__cellSettings?.[key] || { type: 'text' };
+  const updateCellSettings = (rowIndex, key, patch) => {
+    const currentCellKey = getCellKey(rowIndex, key);
+    const targetCells = selectedCells.has(currentCellKey)
+      ? Array.from(selectedCells)
+      : [currentCellKey];
+    const next = [...rows];
+    let nextColumns = null;
+    targetCells.forEach(cellKey => {
+      const [targetRowIndexText, targetColumnKey] = cellKey.split(':');
+      const targetRowIndex = Number(targetRowIndexText);
+      if (Number.isNaN(targetRowIndex) || !targetColumnKey) return;
+      if (targetRowIndex === -1) {
+        nextColumns = (nextColumns || columns).map(column => (
+          column.key === targetColumnKey
+            ? { ...column, __cellSettings: { ...(column.__cellSettings || {}), ...patch } }
+            : column
+        ));
+        return;
+      }
+      const row = next[targetRowIndex] || {};
+      next[targetRowIndex] = {
+        ...row,
+        __cellSettings: {
+          ...(row.__cellSettings || {}),
+          [targetColumnKey]: { ...getCellSettings(row, targetColumnKey), ...patch },
+        },
+      };
+    });
+    if (nextColumns) onColumnsChange(nextColumns);
+    onRowsChange(next);
+  };
+  const moveCellInRow = (rowIndex, fromKey, toKey) => {
+    if (fromKey === toKey) return;
+    const next = [...rows];
+    const row = next[rowIndex] || {};
+    const settings = row.__cellSettings || {};
+    next[rowIndex] = {
+      ...row,
+      [fromKey]: row[toKey] || '',
+      [toKey]: row[fromKey] || '',
+      __cellSettings: {
+        ...settings,
+        [fromKey]: settings[toKey] || { type: 'text' },
+        [toKey]: settings[fromKey] || { type: 'text' },
+      },
+    };
+    onRowsChange(next);
+  };
+  const moveCellBy = (rowIndex, columnIndex, direction) => {
+    const nextColumn = columns[columnIndex + direction];
+    if (!nextColumn) return;
+    moveCellInRow(rowIndex, columns[columnIndex].key, nextColumn.key);
+  };
 
   return (
-    <div className="editable-data-table group/table mb-4 overflow-x-auto">
+    <div ref={scrollRef} onMouseDown={handlePanStart} className="editable-data-table group/table mb-4 overflow-x-auto">
       <table className="w-full min-w-[520px] text-sm border-collapse mb-2">
         <thead>
           <tr className="bg-surface-50/70">
-            {columns.map((column, index) => (
+            {columns.map((column, index) => {
+              const cellKey = getCellKey(-1, column.key);
+              const settings = getColumnSettings(column.key);
+              const isSelected = selectedCells.has(cellKey);
+              const settingsTargetCount = isSelected ? selectedCells.size : 1;
+              const textAlignClass = settings.align === 'center' ? 'text-center' : settings.align === 'right' ? 'text-right' : 'text-left';
+              const textWeightClass = settings.bold ? 'font-bold' : 'font-semibold';
+              return (
               <th
                 key={column.key}
+                onMouseDown={event => startCellSelection(event, -1, index, column.key)}
+                onMouseEnter={() => extendCellSelection(-1, index, column.key)}
+                onContextMenu={event => openCellSettingsMenu(event, cellKey)}
                 onDragOver={event => {
                   if (draggingColumn == null) return;
                   event.preventDefault();
@@ -4567,7 +4901,8 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                   setDraggingColumn(null);
                 }}
                 onDragEnd={() => setDraggingColumn(null)}
-                className={`group/column min-w-[120px] border-b border-r border-surface-200 px-1 py-1 text-left transition-opacity ${draggingColumn === index ? 'opacity-40' : ''}`}
+                data-table-cell="true"
+                className={`group/column relative min-w-[120px] cursor-crosshair border-b border-r border-surface-200 px-1 py-1 text-left transition-opacity ${isSelected ? 'bg-primary-50/70 ring-1 ring-inset ring-primary-300' : ''} ${draggingColumn === index ? 'opacity-40' : ''}`}
               >
                 <div className="flex items-center gap-1">
                   <span
@@ -4586,8 +4921,74 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                   <input
                     value={column.label}
                     onChange={event => updateColumn(index, event.target.value)}
-                    className="min-w-0 flex-1 bg-transparent px-2 py-1 font-semibold outline-none hover:bg-primary-50/30"
+                    className={`min-w-0 flex-1 bg-transparent px-2 py-1 outline-none hover:bg-primary-50/30 ${textAlignClass} ${textWeightClass}`}
                   />
+                  <div className="relative" data-table-cell-action="true">
+                    <button
+                      type="button"
+                      onClick={event => toggleCellSettingsMenu(event, cellKey)}
+                      className="text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/column:opacity-100"
+                      title="셀 설정"
+                    >
+                      <Type size={11} />
+                    </button>
+                    {openCellSettings === cellKey && (
+                      <div className="fixed z-[1002] w-48 rounded-md border border-surface-200 bg-white p-2 text-xs shadow-lg" style={{ left: cellMenuPosition.x, top: cellMenuPosition.y }}>
+                        <div className="mb-2 flex items-center justify-between text-[11px] text-gray-400">
+                          <span>속성 · 선택 {settingsTargetCount}칸</span>
+                          {selectedCells.size > 0 && (
+                            <button type="button" onClick={() => setSelectedCells(new Set())} className="hover:text-red-400">
+                              해제
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateCellSettings(-1, column.key, { bold: !settings.bold })}
+                          className={`mb-2 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${settings.bold ? 'bg-primary-50 text-primary-600' : 'text-gray-600 hover:bg-surface-50'}`}
+                        >
+                          <Bold size={12} /> 글자 굵게
+                        </button>
+                        <div className="mb-2 grid grid-cols-3 overflow-hidden rounded border border-surface-200">
+                          {[
+                            ['left', '왼쪽'],
+                            ['center', '가운데'],
+                            ['right', '오른쪽'],
+                          ].map(([align, label]) => (
+                            <button
+                              key={align}
+                              type="button"
+                              onClick={() => updateCellSettings(-1, column.key, { align })}
+                              className={`px-2 py-1 text-[11px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="border-t border-surface-100 pt-1">
+                          {sectionKey && blockKey && defaultOrder.length > 0 && (
+                            <>
+                              <button type="button" onClick={() => { tableCtx?.moveContentBlockBy?.(sectionKey, blockKey, defaultOrder, -1); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                                <ChevronUp size={12} /> 위로 이동
+                              </button>
+                              <button type="button" onClick={() => { tableCtx?.moveContentBlockBy?.(sectionKey, blockKey, defaultOrder, 1); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                                <ChevronDown size={12} /> 아래로 이동
+                              </button>
+                            </>
+                          )}
+                          <button type="button" onClick={addRow} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                            <Plus size={12} /> 표 행 추가
+                          </button>
+                          <button type="button" onClick={addColumn} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                            <Plus size={12} /> 표 열 추가
+                          </button>
+                          <button type="button" onClick={() => { onDeleteTable ? onDeleteTable() : removeColumn(index); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-red-500 hover:bg-red-50">
+                            <Trash2 size={12} /> 삭제
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {columns.length > 1 && (
                     <button type="button" onClick={() => removeColumn(index)} className="text-gray-300 transition-opacity hover:text-red-400" title="열 삭제">
                       <X size={12} />
@@ -4595,7 +4996,8 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                   )}
                 </div>
               </th>
-            ))}
+              );
+            })}
             <th className="w-10 border-b border-surface-200 bg-white text-center text-[10px] font-medium text-gray-300">행</th>
           </tr>
         </thead>
@@ -4616,15 +5018,126 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
               }}
               className={`group/row transition-opacity ${draggingRow === rowIndex ? 'opacity-40' : ''}`}
             >
-              {columns.map(column => (
-                <td key={column.key} className="group/cell border-b border-r border-surface-200 px-1 py-1">
+              {columns.map((column, columnIndex) => {
+                const cellKey = getCellKey(rowIndex, column.key);
+                const settings = getCellSettings(row, column.key);
+                const isSelected = selectedCells.has(cellKey);
+                const settingsTargetCount = isSelected ? selectedCells.size : 1;
+                const textAlignClass = settings.align === 'center' ? 'text-center' : settings.align === 'right' ? 'text-right' : 'text-left';
+                const textWeightClass = settings.bold ? 'font-bold' : '';
+                return (
+                <td
+                  key={column.key}
+                  onMouseDown={event => startCellSelection(event, rowIndex, columnIndex, column.key)}
+                  onMouseEnter={() => extendCellSelection(rowIndex, columnIndex, column.key)}
+                  onContextMenu={event => openCellSettingsMenu(event, cellKey)}
+                  onDragOver={event => {
+                    const fromRow = Number(event.dataTransfer.getData('application/x-fitpoly-table-cell-row'));
+                    if (!draggingCell || fromRow !== rowIndex) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    setCellDropTarget(cellKey);
+                  }}
+                  onDragLeave={() => setCellDropTarget(current => current === cellKey ? null : current)}
+                  onDrop={event => {
+                    event.preventDefault();
+                    const fromRow = Number(event.dataTransfer.getData('application/x-fitpoly-table-cell-row'));
+                    const fromKey = event.dataTransfer.getData('application/x-fitpoly-table-cell-key');
+                    if (fromRow === rowIndex && fromKey) moveCellInRow(rowIndex, fromKey, column.key);
+                    setDraggingCell(null);
+                    setCellDropTarget(null);
+                  }}
+                  data-table-cell="true"
+                  className={`group/cell relative cursor-crosshair border-b border-r border-surface-200 px-1 py-1 transition-colors ${isSelected ? 'bg-primary-50/70 ring-1 ring-inset ring-primary-300' : ''} ${cellDropTarget === cellKey && draggingCell !== cellKey ? 'bg-primary-50/60 ring-1 ring-inset ring-primary-200' : ''} ${draggingCell === cellKey ? 'opacity-40' : ''}`}
+                >
                   <div className="flex items-center gap-1">
+                    <span
+                      data-table-cell-drag="true"
+                      draggable
+                      onDragStart={event => startCellDrag(event, rowIndex, column.key, cellKey)}
+                      onDragEnd={() => {
+                        setDraggingCell(null);
+                        setCellDropTarget(null);
+                      }}
+                      className="inline-flex shrink-0 cursor-grab text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/cell:opacity-100"
+                      title="셀 좌우 이동"
+                    >
+                      <GripVertical size={11} />
+                    </span>
                     <input
                       value={row[column.key] || ''}
                       onChange={event => updateCell(rowIndex, column.key, event.target.value)}
                       placeholder={column.label}
-                      className="min-w-0 flex-1 rounded bg-transparent px-2 py-1 outline-none placeholder:text-gray-300 hover:bg-primary-50/30"
+                      type="text"
+                      draggable={false}
+                      className={`min-w-0 flex-1 rounded bg-transparent px-2 py-1 outline-none placeholder:text-gray-300 hover:bg-primary-50/30 ${textAlignClass} ${textWeightClass}`}
                     />
+                    <div className="relative" data-table-cell-action="true">
+                      <button
+                        type="button"
+                        onClick={event => toggleCellSettingsMenu(event, cellKey)}
+                        className="text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/cell:opacity-100"
+                        title="셀 기능 설정"
+                      >
+                        <Type size={11} />
+                      </button>
+                      {openCellSettings === cellKey && (
+                        <div className="fixed z-[1002] w-48 rounded-md border border-surface-200 bg-white p-2 text-xs shadow-lg" style={{ left: cellMenuPosition.x, top: cellMenuPosition.y }}>
+                          <div className="mb-2 flex items-center justify-between text-[11px] text-gray-400">
+                            <span>속성 · 선택 {settingsTargetCount}칸</span>
+                            {selectedCells.size > 0 && (
+                              <button type="button" onClick={() => setSelectedCells(new Set())} className="hover:text-red-400">
+                                해제
+                              </button>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateCellSettings(rowIndex, column.key, { bold: !settings.bold })}
+                            className={`mb-2 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${settings.bold ? 'bg-primary-50 text-primary-600' : 'text-gray-600 hover:bg-surface-50'}`}
+                          >
+                            <Bold size={12} /> 글자 굵게
+                          </button>
+                          <div className="mb-2 grid grid-cols-3 overflow-hidden rounded border border-surface-200">
+                            {[
+                              ['left', '왼쪽'],
+                              ['center', '가운데'],
+                              ['right', '오른쪽'],
+                            ].map(([align, label]) => (
+                              <button
+                                key={align}
+                                type="button"
+                                onClick={() => updateCellSettings(rowIndex, column.key, { align })}
+                                className={`px-2 py-1 text-[11px] transition-colors ${settings.align === align || (!settings.align && align === 'left') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-surface-50'}`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="border-t border-surface-100 pt-1">
+                            {sectionKey && blockKey && defaultOrder.length > 0 && (
+                              <>
+                                <button type="button" onClick={() => { tableCtx?.moveContentBlockBy?.(sectionKey, blockKey, defaultOrder, -1); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                                  <ChevronUp size={12} /> 위로 이동
+                                </button>
+                                <button type="button" onClick={() => { tableCtx?.moveContentBlockBy?.(sectionKey, blockKey, defaultOrder, 1); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                                  <ChevronDown size={12} /> 아래로 이동
+                                </button>
+                              </>
+                            )}
+                            <button type="button" onClick={addRow} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                              <Plus size={12} /> 표 행 추가
+                            </button>
+                            <button type="button" onClick={addColumn} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-gray-600 hover:bg-surface-50">
+                              <Plus size={12} /> 표 열 추가
+                            </button>
+                            <button type="button" onClick={() => { onDeleteTable ? onDeleteTable() : clearSelectedCells(rowIndex, column.key); setOpenCellSettings(null); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-red-500 hover:bg-red-50">
+                              <Trash2 size={12} /> 삭제
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {!!row[column.key] && (
                       <button type="button" onClick={() => clearCell(rowIndex, column.key)} className="text-gray-300 opacity-0 transition-opacity hover:text-red-400 group-hover/cell:opacity-100" title="셀 내용 지우기">
                         <X size={11} />
@@ -4632,7 +5145,8 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
                     )}
                   </div>
                 </td>
-              ))}
+                );
+              })}
               <td className="w-10 border-b border-surface-200 bg-white px-1 py-1 text-center">
                 <span
                   draggable
@@ -4668,6 +5182,122 @@ function EditableDataTable({ columns, rows, onColumnsChange, onRowsChange, addLa
 }
 
 /* ── Notion Visual Editor (기존 3컬럼) ── */
+// 노션형 비주얼 에디터 공용 컨텍스트 — 본문 블록/제목 컴포넌트를 모듈 스코프로 끌어올려
+// 키 입력마다 리마운트되던 문제(타이핑 끊김)를 없애기 위해 의존성을 컨텍스트로 주입한다.
+const NotionEditorCtx = createContext(null);
+
+function EditableTitle({ sectionKey, defaultLabel, className = '' }) {
+  const { portfolio, update } = useContext(NotionEditorCtx);
+  return <EditableSectionTitle portfolio={portfolio} update={update} sectionKey={sectionKey} defaultLabel={defaultLabel} className={className} />;
+}
+
+function InlineContentBlock({ sectionKey, blockKey, defaultOrder, children, extraMenuItems, onDelete }) {
+  const {
+    portfolio: p, contentBlockDragging, setContentBlockDragging, contentBlockDropTarget, setContentBlockDropTarget,
+    moveContentBlock, isContentBlockHidden, setContentBlockHidden, moveContentBlockBy, openContextMenu,
+  } = useContext(NotionEditorCtx);
+  const saved = p.contentBlockOrder?.[sectionKey];
+  const ordered = Array.isArray(saved)
+    ? [...saved.filter(key => defaultOrder.includes(key)), ...defaultOrder.filter(key => !saved.includes(key))]
+    : defaultOrder;
+  const dragKey = `${sectionKey}:${blockKey}`;
+  if (isContentBlockHidden(sectionKey, blockKey)) return null;
+  const handleBlockContextMenu = (event) => {
+    openContextMenu(event, [
+      { label: '위로 이동', icon: ChevronUp, onClick: () => moveContentBlockBy(sectionKey, blockKey, defaultOrder, -1) },
+      { label: '아래로 이동', icon: ChevronDown, onClick: () => moveContentBlockBy(sectionKey, blockKey, defaultOrder, 1) },
+      ...(extraMenuItems || []),
+      { label: '삭제', icon: Trash2, danger: true, onClick: () => (onDelete ? onDelete() : setContentBlockHidden(sectionKey, blockKey, true)) },
+    ]);
+  };
+  return (
+    <div
+      onContextMenu={handleBlockContextMenu}
+      style={{ order: ordered.indexOf(blockKey) }}
+      onDragOver={event => {
+        if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setContentBlockDropTarget(dragKey);
+      }}
+      onDrop={event => {
+        if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        moveContentBlock(sectionKey, contentBlockDragging.split(':')[1], blockKey, defaultOrder);
+        setContentBlockDragging(null);
+        setContentBlockDropTarget(null);
+      }}
+      className={`group/content-block relative min-w-0 transition-all ${contentBlockDragging === dragKey ? 'opacity-40' : ''} ${contentBlockDropTarget === dragKey && contentBlockDragging !== dragKey ? 'bg-primary-50/30' : ''}`}
+    >
+      <span
+        draggable
+        onDragStart={event => {
+          event.stopPropagation();
+          setContentBlockDragging(dragKey);
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('application/x-fitpoly-content-block', dragKey);
+        }}
+        onDragEnd={() => {
+          setContentBlockDragging(null);
+          setContentBlockDropTarget(null);
+        }}
+        className="absolute -left-6 top-1 inline-flex cursor-grab rounded p-0.5 text-gray-300 opacity-40 transition-opacity hover:bg-primary-50 hover:text-primary-500 group-hover/content-block:opacity-100"
+        title="본문 블록 드래그 이동"
+      >
+        <GripVertical size={14} />
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// 우클릭 컨텍스트 메뉴 호스트 — 'fitpoly:open-context-menu' 이벤트로만 열려, 에디터 본체를 리렌더하지 않는다.
+function ContextMenuHost() {
+  const [menu, setMenu] = useState(null); // { x, y, items: [{ label, icon, onClick, danger }] }
+  useEffect(() => {
+    const onOpen = (event) => {
+      const items = event.detail?.items;
+      if (!items?.length) return;
+      const x = Math.max(8, Math.min(event.detail.x, window.innerWidth - 180));
+      const y = Math.max(8, Math.min(event.detail.y, window.innerHeight - (items.length * 40 + 16)));
+      setMenu({ x, y, items });
+    };
+    const onClose = () => setMenu(null);
+    const onKey = (event) => { if (event.key === 'Escape') setMenu(null); };
+    window.addEventListener('fitpoly:open-context-menu', onOpen);
+    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('fitpoly:open-context-menu', onOpen);
+      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+  if (!menu) return null;
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[1000]"
+        onClick={() => setMenu(null)}
+        onContextMenu={e => { e.preventDefault(); setMenu(null); }} />
+      <div className="fixed z-[1001] min-w-[168px] overflow-y-auto rounded-lg border border-surface-200 bg-white py-1 shadow-xl"
+        style={{ top: menu.y, left: menu.x, maxHeight: 'min(520px, calc(100vh - 16px))' }}>
+        {menu.items.map((item, i) => (
+          <button key={i} type="button"
+            onClick={() => { item.onClick?.(); setMenu(null); }}
+            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors ${item.danger ? 'text-red-500 hover:bg-red-50' : 'text-bluewood-700 hover:bg-surface-50'}`}>
+            {item.icon && <item.icon size={14} />} {item.label}
+          </button>
+        ))}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
   const p = portfolio;
   const contact = p.contact || {};
@@ -4712,13 +5342,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const [contentBlockDropTarget, setContentBlockDropTarget] = useState(null);
   const profileImageInputRef = useRef(null);
 
+  // 컨텍스트 메뉴는 별도 호스트(ContextMenuHost)가 자체 상태로 그린다.
+  // 여기서 setState를 하면 에디터 전체가 리렌더/리마운트되어 화면이 위로 튀므로 이벤트로만 연다.
+  const openContextMenu = (event, items) => {
+    if (!items?.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.dispatchEvent(new CustomEvent('fitpoly:open-context-menu', {
+      detail: { x: event.clientX, y: event.clientY, items },
+    }));
+  };
+
   useDragEdgeAutoScroll(sectionDragging !== null);
 
   // 섹션 이름 편집 헬퍼
-  const EditableTitle = ({ sectionKey, defaultLabel, className = '' }) => (
-    <EditableSectionTitle portfolio={p} update={update} sectionKey={sectionKey} defaultLabel={defaultLabel} className={className} />
-  );
-
   // 경험 상세 모달
   const [expDetailIdx, setExpDetailIdx] = useState(null);
 
@@ -4926,52 +5563,38 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     current.splice(toIndex, 0, moved);
     update('contentBlockOrder', { ...(p.contentBlockOrder || {}), [sectionKey]: current });
   };
-  const InlineContentBlock = ({ sectionKey, blockKey, defaultOrder, children }) => {
+  // 본문 블록 숨김(삭제) 관리 — 편집기 표시에 반영된다.
+  const hiddenContentBlocks = p.hiddenContentBlocks || {};
+  const isContentBlockHidden = (sectionKey, blockKey) => (hiddenContentBlocks[sectionKey] || []).includes(blockKey);
+  const setContentBlockHidden = (sectionKey, blockKey, hidden) => {
+    const cur = hiddenContentBlocks[sectionKey] || [];
+    const next = hidden ? [...new Set([...cur, blockKey])] : cur.filter(key => key !== blockKey);
+    update('hiddenContentBlocks', { ...hiddenContentBlocks, [sectionKey]: next });
+  };
+  const CONTENT_BLOCK_LABELS = { summary: '요약', badges: '디지털 배지', languages: '어학 성적', details: '세부 사항', courses: '교과목 수강 내역', credits: '이수 현황' };
+  const renderHiddenContentRestore = (sectionKey) => {
+    const hidden = hiddenContentBlocks[sectionKey] || [];
+    if (!hidden.length) return null;
+    return (
+      <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
+        {hidden.map(bk => (
+          <button key={bk} type="button" onClick={() => setContentBlockHidden(sectionKey, bk, false)}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-surface-300 px-2.5 py-1 text-[11px] text-gray-400 transition-colors hover:border-primary-300 hover:text-primary-600">
+            <Plus size={11} /> {CONTENT_BLOCK_LABELS[bk] || bk} 복원
+          </button>
+        ))}
+      </div>
+    );
+  };
+  const moveContentBlockBy = (sectionKey, blockKey, defaultOrder, dir) => {
     const saved = p.contentBlockOrder?.[sectionKey];
     const ordered = Array.isArray(saved)
       ? [...saved.filter(key => defaultOrder.includes(key)), ...defaultOrder.filter(key => !saved.includes(key))]
-      : defaultOrder;
-    const dragKey = `${sectionKey}:${blockKey}`;
-    return (
-      <div
-        style={{ order: ordered.indexOf(blockKey) }}
-        onDragOver={event => {
-          if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          event.dataTransfer.dropEffect = 'move';
-          setContentBlockDropTarget(dragKey);
-        }}
-        onDrop={event => {
-          if (!contentBlockDragging?.startsWith(`${sectionKey}:`)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          moveContentBlock(sectionKey, contentBlockDragging.split(':')[1], blockKey, defaultOrder);
-          setContentBlockDragging(null);
-          setContentBlockDropTarget(null);
-        }}
-        className={`group/content-block relative transition-all ${contentBlockDragging === dragKey ? 'opacity-40' : ''} ${contentBlockDropTarget === dragKey && contentBlockDragging !== dragKey ? 'bg-primary-50/30' : ''}`}
-      >
-        <span
-          draggable
-          onDragStart={event => {
-            event.stopPropagation();
-            setContentBlockDragging(dragKey);
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('application/x-fitpoly-content-block', dragKey);
-          }}
-          onDragEnd={() => {
-            setContentBlockDragging(null);
-            setContentBlockDropTarget(null);
-          }}
-          className="absolute -left-6 top-1 inline-flex cursor-grab text-gray-300 opacity-0 transition-opacity hover:text-primary-500 group-hover/content-block:opacity-100"
-          title="본문 블록 드래그 이동"
-        >
-          <GripVertical size={14} />
-        </span>
-        {children}
-      </div>
-    );
+      : [...defaultOrder];
+    const idx = ordered.indexOf(blockKey);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= ordered.length) return;
+    moveContentBlock(sectionKey, blockKey, ordered[target], defaultOrder);
   };
 
   // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
@@ -5048,8 +5671,18 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setShowAddBlockMenu(false);
   };
 
+  const notionEditorCtx = {
+    portfolio: p, update,
+    contentBlockDragging, setContentBlockDragging,
+    contentBlockDropTarget, setContentBlockDropTarget,
+    moveContentBlock, isContentBlockHidden, setContentBlockHidden,
+    moveContentBlockBy, openContextMenu,
+  };
+
   return (
+    <NotionEditorCtx.Provider value={notionEditorCtx}>
     <div className="flex gap-4 items-start">
+      {/* 우클릭 컨텍스트 메뉴 호스트는 상위 VisualEditor에서 전 템플릿 공통으로 마운트한다. */}
       {/* ── 사이드바 왼쪽 (Notion) [비활성화] ── */}
       {false && (
       <div className="w-[360px] flex-shrink-0">
@@ -5295,27 +5928,27 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <div className="mb-8">
             <EditableTitle sectionKey="contact" defaultLabel="Contact" className="text-lg font-bold mb-3 flex items-center gap-2" />
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactPhone || 'phone'} onChange={icon => updateIcon('contactPhone', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactPhone ?? 'phone'} onChange={icon => updateIcon('contactPhone', icon)} />
                 <input value={contact.phone || ''} onChange={e => updateNested('contact', 'phone', e.target.value)}
                   placeholder="전화번호" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactEmail || 'mail'} onChange={icon => updateIcon('contactEmail', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactEmail ?? 'mail'} onChange={icon => updateIcon('contactEmail', icon)} />
                 <input value={contact.email || ''} onChange={e => updateNested('contact', 'email', e.target.value)}
                   placeholder="이메일" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactLinkedin || 'globe'} onChange={icon => updateIcon('contactLinkedin', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactLinkedin ?? 'globe'} onChange={icon => updateIcon('contactLinkedin', icon)} />
                 <input value={contact.linkedin || ''} onChange={e => updateNested('contact', 'linkedin', e.target.value)}
                   placeholder="LinkedIn" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactInstagram || 'globe'} onChange={icon => updateIcon('contactInstagram', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactInstagram ?? 'globe'} onChange={icon => updateIcon('contactInstagram', icon)} />
                 <input value={contact.instagram || ''} onChange={e => updateNested('contact', 'instagram', e.target.value)}
                   placeholder="Instagram" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactGithub || 'globe'} onChange={icon => updateIcon('contactGithub', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactGithub ?? 'globe'} onChange={icon => updateIcon('contactGithub', icon)} />
                 <input value={contact.github || ''} onChange={e => updateNested('contact', 'github', e.target.value)}
                   placeholder="GitHub" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
-              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactWebsite || 'globe'} onChange={icon => updateIcon('contactWebsite', icon)} />
+              <div className="flex items-center gap-2"><EditableIcon value={customIcons.contactWebsite ?? 'globe'} onChange={icon => updateIcon('contactWebsite', icon)} />
                 <input value={contact.website || ''} onChange={e => updateNested('contact', 'website', e.target.value)}
                   placeholder="웹사이트" className="flex-1 text-gray-600 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded px-1" />
               </div>
@@ -5590,7 +6223,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             />
           </div>
           </InlineContentBlock>
-          <InlineContentBlock sectionKey="curricular" blockKey="courses" defaultOrder={['summary', 'courses', 'credits']}>
+          <InlineContentBlock sectionKey="curricular" blockKey="courses" defaultOrder={['summary', 'courses', 'credits']}
+            extraMenuItems={[
+              { label: '표 행 추가', icon: Plus, onClick: () => update('curricular', { ...curr, courses: [...(curr.courses || []), {}] }) },
+              { label: '표 열 추가', icon: Plus, onClick: () => updateTableColumns('curricularCourses', [...curricularCourseColumns, { key: `custom_${Date.now()}`, label: '새 열' }]) },
+            ]}
+            onDelete={() => setContentBlockHidden('curricular', 'courses', true)}>
           <EditableTitle sectionKey="curricularCourses" defaultLabel="교과목 수강 내역 | Course History" className="text-sm font-bold mb-2 text-gray-600" />
           <EditableDataTable
             columns={curricularCourseColumns}
@@ -5598,9 +6236,18 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onColumnsChange={columns => updateTableColumns('curricularCourses', columns)}
             onRowsChange={courses => update('curricular', { ...curr, courses })}
             addLabel="과목 추가"
+            sectionKey="curricular"
+            blockKey="courses"
+            defaultOrder={['summary', 'courses', 'credits']}
+            onDeleteTable={() => setContentBlockHidden('curricular', 'courses', true)}
           />
           </InlineContentBlock>
-          <InlineContentBlock sectionKey="curricular" blockKey="credits" defaultOrder={['summary', 'courses', 'credits']}>
+          <InlineContentBlock sectionKey="curricular" blockKey="credits" defaultOrder={['summary', 'courses', 'credits']}
+            extraMenuItems={[
+              { label: '표 행 추가', icon: Plus, onClick: () => update('curricular', { ...curr, creditStatus: [...(curr.creditStatus || []), {}] }) },
+              { label: '표 열 추가', icon: Plus, onClick: () => updateTableColumns('curricularCredits', [...curricularCreditColumns, { key: `custom_${Date.now()}`, label: '새 열' }]) },
+            ]}
+            onDelete={() => setContentBlockHidden('curricular', 'credits', true)}>
           <EditableTitle sectionKey="curricularCredits" defaultLabel="이수 현황 | Credit Status" className="text-sm font-bold mb-2 text-gray-600" />
           <EditableDataTable
             columns={curricularCreditColumns}
@@ -5608,8 +6255,13 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onColumnsChange={columns => updateTableColumns('curricularCredits', columns)}
             onRowsChange={creditStatus => update('curricular', { ...curr, creditStatus })}
             addLabel="이수 현황 추가"
+            sectionKey="curricular"
+            blockKey="credits"
+            defaultOrder={['summary', 'courses', 'credits']}
+            onDeleteTable={() => setContentBlockHidden('curricular', 'credits', true)}
           />
           </InlineContentBlock>
+          {renderHiddenContentRestore('curricular')}
           </div>
         </section>
         )}
@@ -5636,7 +6288,12 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               className="bg-transparent hover:bg-primary-50/10 rounded px-1" />
           </div>
           </InlineContentBlock>
-          <InlineContentBlock sectionKey="extracurricular" blockKey="badges" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <InlineContentBlock sectionKey="extracurricular" blockKey="badges" defaultOrder={['summary', 'badges', 'languages', 'details']}
+            extraMenuItems={[
+              { label: '표 행 추가', icon: Plus, onClick: () => update('extracurricular', { ...extra, badges: [...(extra.badges || []), {}] }) },
+              { label: '표 열 추가', icon: Plus, onClick: () => updateTableColumns('extracurricularBadges', [...extracurricularBadgeColumns, { key: `custom_${Date.now()}`, label: '새 열' }]) },
+            ]}
+            onDelete={() => setContentBlockHidden('extracurricular', 'badges', true)}>
           <EditableTitle sectionKey="extracurricularBadges" defaultLabel="디지털 배지 | Digital Badge" className="text-sm font-bold mb-2 text-gray-600" />
           <EditableDataTable
             columns={extracurricularBadgeColumns}
@@ -5644,9 +6301,18 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onColumnsChange={columns => updateTableColumns('extracurricularBadges', columns)}
             onRowsChange={badges => update('extracurricular', { ...extra, badges })}
             addLabel="배지 추가"
+            sectionKey="extracurricular"
+            blockKey="badges"
+            defaultOrder={['summary', 'badges', 'languages', 'details']}
+            onDeleteTable={() => setContentBlockHidden('extracurricular', 'badges', true)}
           />
           </InlineContentBlock>
-          <InlineContentBlock sectionKey="extracurricular" blockKey="languages" defaultOrder={['summary', 'badges', 'languages', 'details']}>
+          <InlineContentBlock sectionKey="extracurricular" blockKey="languages" defaultOrder={['summary', 'badges', 'languages', 'details']}
+            extraMenuItems={[
+              { label: '표 행 추가', icon: Plus, onClick: () => update('extracurricular', { ...extra, languages: [...(extra.languages || []), {}] }) },
+              { label: '표 열 추가', icon: Plus, onClick: () => updateTableColumns('extracurricularLanguages', [...extracurricularLanguageColumns, { key: `custom_${Date.now()}`, label: '새 열' }]) },
+            ]}
+            onDelete={() => setContentBlockHidden('extracurricular', 'languages', true)}>
           <EditableTitle sectionKey="extracurricularLanguages" defaultLabel="어학 성적 | Language Certification" className="text-sm font-bold mb-2 text-gray-600" />
           <EditableDataTable
             columns={extracurricularLanguageColumns}
@@ -5654,6 +6320,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onColumnsChange={columns => updateTableColumns('extracurricularLanguages', columns)}
             onRowsChange={languages => update('extracurricular', { ...extra, languages })}
             addLabel="어학 추가"
+            sectionKey="extracurricular"
+            blockKey="languages"
+            defaultOrder={['summary', 'badges', 'languages', 'details']}
+            onDeleteTable={() => setContentBlockHidden('extracurricular', 'languages', true)}
           />
           </InlineContentBlock>
           <InlineContentBlock sectionKey="extracurricular" blockKey="details" defaultOrder={['summary', 'badges', 'languages', 'details']}>
@@ -5662,7 +6332,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(extra.details || []).map((d, i) => (
               <div key={i} className="relative py-2 pl-1 group/det">
                 <button onClick={() => { const details = (extra.details||[]).filter((_,j) => j !== i); update('extracurricular', { ...extra, details }); }}
-                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/det:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                  className="absolute top-1 right-1 rounded p-1 text-gray-300 opacity-40 transition-opacity hover:bg-red-50 hover:text-red-400 group-hover/det:opacity-100" title="삭제"><Trash2 size={15} /></button>
                 <div className="flex items-center gap-2 mb-1">
                   <input value={d.title || ''} onChange={e => { const details = [...(extra.details||[])]; details[i] = { ...details[i], title: e.target.value }; update('extracurricular', { ...extra, details }); }}
                     placeholder="활동명" className="text-sm font-bold text-gray-800 outline-none bg-transparent hover:bg-primary-50/30 rounded px-1 placeholder:text-gray-300" />
@@ -5682,6 +6352,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
           <button onClick={() => update('extracurricular', { ...extra, details: [...(extra.details||[]), { title: '', period: '', description: '' }] })}
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary-600"><Plus size={12} /> 활동 추가</button>
           </InlineContentBlock>
+          {renderHiddenContentRestore('extracurricular')}
           </div>
         </section>
         )}
@@ -5735,7 +6406,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
             {(p.goals || []).map((g, i) => (
               <div key={i} className="relative group/goal border-b border-surface-100 py-3 last:border-b-0">
                 <button onClick={() => removeFromArray('goals', i)}
-                  className="absolute top-2 right-2 text-gray-300 hover:text-red-400 opacity-0 group-hover/goal:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                  className="absolute top-1 right-1 rounded p-1 text-gray-300 opacity-40 transition-opacity hover:bg-red-50 hover:text-red-400 group-hover/goal:opacity-100" title="삭제"><Trash2 size={15} /></button>
                 <div className="flex items-center gap-2 mb-1">
                   <select value={g.type || 'short'} onChange={e => updateArrayItem('goals', i, { type: e.target.value })}
                     className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 outline-none border-none cursor-pointer">
@@ -5929,8 +6600,8 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                           )}
                         </div>
                         <button onClick={ev => { ev.stopPropagation(); removeCard(ci); }}
-                          className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity">
-                          <Trash2 size={12} />
+                          className="absolute top-1.5 right-1.5 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity" title="삭제">
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     ))}
@@ -6070,6 +6741,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
 
     </div>
+    </NotionEditorCtx.Provider>
   );
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CreditCard, Loader2, RefreshCw, WalletCards } from 'lucide-react';
+import { Check, CreditCard, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import useCreditStore from '../stores/creditStore';
 
 const METHOD_ICON = { card: 'CARD', kakaopay: 'KAKAO', tosspay: 'TOSS' };
+const SUPPORT_MESSAGE = '인스타그램 fitpoly_으로 DM 혹은 gudrbs14@naver.com로 문의주세요.';
 
 function formatCredits(value) {
   return Number(value || 0).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
@@ -40,7 +41,8 @@ export default function CreditSettings() {
   const [transactions, setTransactions] = useState([]);
   const [packageId, setPackageId] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('card');
-  const [checkingOut, setCheckingOut] = useState(false);
+  const remainingCredits = Math.max(0, Number(wallet?.balance || 0));
+  const isCreditDepleted = !loading && remainingCredits <= 0;
 
   const load = async () => {
     try {
@@ -70,29 +72,8 @@ export default function CreditSettings() {
     }
   }, []);
 
-  const checkout = async () => {
-    setCheckingOut(true);
-    try {
-      const { data } = await api.post('/billing/checkout', { packageId, paymentMethod });
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-      if (data.paymentConfig) {
-        const PortOne = await loadPortOne();
-        const response = await PortOne.requestPayment(data.paymentConfig);
-        if (response?.code) throw new Error(response.message || '결제가 취소됐습니다.');
-        await api.post('/billing/complete', { orderId: data.orderId, paymentId: response.paymentId || data.orderId });
-        toast.success('크레딧 충전이 완료됐습니다.');
-        await load();
-        return;
-      }
-      toast(data.message);
-    } catch (error) {
-      toast.error(error.response?.data?.error || error.message || '결제 요청을 만들지 못했습니다.');
-    } finally {
-      setCheckingOut(false);
-    }
+  const checkout = () => {
+    toast(SUPPORT_MESSAGE, { duration: 8000 });
   };
 
   return (
@@ -111,10 +92,16 @@ export default function CreditSettings() {
       <section className="bg-bluewood-800 text-white rounded-2xl p-6 mb-6 flex items-center justify-between">
         <div>
           <p className="text-sm text-white/60 mb-2">사용 가능한 크레딧</p>
-          <p className="text-4xl font-bold tabular-nums">{loading ? '-' : formatCredits(Math.max(0, Number(wallet?.balance || 0)))} <span className="text-lg text-white/70">C</span></p>
+          <p className="text-4xl font-bold tabular-nums">{loading ? '-' : formatCredits(remainingCredits)} <span className="text-lg text-white/70">C</span></p>
         </div>
         <button onClick={load} className="p-2.5 rounded-full bg-white/10 hover:bg-white/20" title="새로고침"><RefreshCw size={18} /></button>
       </section>
+
+      {isCreditDepleted && (
+        <div className="mb-6 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4 text-sm font-medium text-primary-700">
+          {SUPPORT_MESSAGE}
+        </div>
+      )}
 
       <section className="bg-white rounded-2xl border border-surface-200 p-6 mb-6">
         <h2 className="font-bold text-bluewood-800 mb-4">충전할 크레딧</h2>
@@ -144,10 +131,9 @@ export default function CreditSettings() {
           ))}
         </div>
 
-        <button onClick={checkout} disabled={checkingOut}
-          className="w-full mt-6 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold flex justify-center items-center gap-2">
-          {checkingOut ? <Loader2 size={17} className="animate-spin" /> : <WalletCards size={17} />}
-          {checkingOut ? '결제 요청 생성 중...' : '선택한 수단으로 결제하기'}
+        <button onClick={checkout}
+          className="w-full mt-6 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold">
+          선택한 수단으로 결제하기
         </button>
       </section>
 

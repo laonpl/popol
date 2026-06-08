@@ -33,7 +33,7 @@ import { DividerUI } from '@yoopta/themes-shadcn/divider';
 import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
 import '@yoopta/themes-shadcn/variables.css';
-import { Bold as BoldIcon, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
+import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
 import { insertYooptaBlocks, blocksToYooptaValue } from '../utils/projectSections';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
@@ -55,6 +55,78 @@ function findScrollParent(node) {
     el = el.parentElement;
   }
   return document.scrollingElement || document.documentElement;
+}
+
+function openYooptaContextMenu(event, items) {
+  if (!items?.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.dispatchEvent(new CustomEvent('fitpoly:open-context-menu', {
+    detail: { x: event.clientX, y: event.clientY, items },
+  }));
+}
+
+const YOOPTA_TEXT_MARKS = ['bold', 'italic', 'underline', 'strike', 'code', 'highlight'];
+const YOOPTA_BLOCK_ELEMENT_TYPES = {
+  Paragraph: 'paragraph',
+  HeadingOne: 'heading-one',
+  HeadingTwo: 'heading-two',
+  HeadingThree: 'heading-three',
+  BulletedList: 'bulleted-list',
+  NumberedList: 'numbered-list',
+  TodoList: 'todo-list',
+};
+const YOOPTA_TEXT_BLOCK_TYPES = new Set(Object.keys(YOOPTA_BLOCK_ELEMENT_TYPES));
+
+function mapYooptaTextLeaves(node, mapper) {
+  if (Array.isArray(node)) return node.map(item => mapYooptaTextLeaves(item, mapper));
+  if (!node || typeof node !== 'object') return node;
+  if (typeof node.text === 'string') return mapper(node);
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, mapYooptaTextLeaves(value, mapper)]),
+  );
+}
+
+function hasYooptaTextMark(node, mark) {
+  if (Array.isArray(node)) return node.some(item => hasYooptaTextMark(item, mark));
+  if (!node || typeof node !== 'object') return false;
+  if (typeof node.text === 'string') return !!node[mark];
+  return Object.values(node).some(value => hasYooptaTextMark(value, mark));
+}
+
+function updateYooptaWholeTextMark(value, mark) {
+  const isActive = hasYooptaTextMark(value, mark);
+  return mapYooptaTextLeaves(value, leaf => {
+    const next = { ...leaf };
+    if (isActive) {
+      delete next[mark];
+      return next;
+    }
+    next[mark] = mark === 'highlight' ? { backgroundColor: '#fef08a' } : true;
+    return next;
+  });
+}
+
+function clearYooptaWholeTextMarks(value) {
+  return mapYooptaTextLeaves(value, leaf => {
+    const next = { ...leaf };
+    YOOPTA_TEXT_MARKS.forEach(mark => delete next[mark]);
+    return next;
+  });
+}
+
+function updateYooptaWholeBlockType(value, type) {
+  const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
+  if (!elementType) return value;
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type)) return [blockId, block];
+      const nextValue = Array.isArray(block.value)
+        ? block.value.map(element => ({ ...element, type: elementType }))
+        : block.value;
+      return [blockId, { ...block, type, value: nextValue }];
+    }),
+  );
 }
 
 function deleteYooptaBlockById(editor, blockId) {
@@ -146,12 +218,19 @@ function CornerResizableImageElement(props) {
     const syncFrame = () => {
       const wrapperRect = wrapper.getBoundingClientRect();
       const imageRect = image.getBoundingClientRect();
-      setFrame({
+      const next = {
         left: imageRect.left - wrapperRect.left,
         top: imageRect.top - wrapperRect.top,
         width: imageRect.width,
         height: imageRect.height,
-      });
+      };
+      // 값이 실질적으로 같으면 setState를 생략해 ResizeObserver 무한 루프를 막는다.
+      setFrame(prev => (prev
+        && Math.abs(prev.left - next.left) < 0.5
+        && Math.abs(prev.top - next.top) < 0.5
+        && Math.abs(prev.width - next.width) < 0.5
+        && Math.abs(prev.height - next.height) < 0.5)
+        ? prev : next);
     };
     const normalizeAspectRatio = () => {
       if (!image.naturalWidth || !image.naturalHeight) return;
@@ -182,8 +261,7 @@ function CornerResizableImageElement(props) {
     event.stopPropagation();
     const wrapper = wrapperRef.current;
     const image = wrapper?.querySelector('img');
-    const resizeTarget = image?.parentElement;
-    if (!wrapper || !image || !resizeTarget) return;
+    if (!wrapper || !image) return;
     const startX = event.clientX;
     const startWidth = image.offsetWidth;
     const startHeight = image.offsetHeight;
@@ -192,8 +270,8 @@ function CornerResizableImageElement(props) {
       const width = Math.max(100, Math.min(wrapper.offsetWidth, startWidth + ((moveEvent.clientX - startX) * direction)));
       const height = Math.round(width * startHeight / startWidth);
       nextSizes = { width: Math.round(width), height };
-      resizeTarget.style.width = `${nextSizes.width}px`;
-      resizeTarget.style.height = `${nextSizes.height}px`;
+      // 폭만 CSS 변수로 제어하고 높이는 auto(원본 비율)로 둔다. shadcn 내부 크기와 충돌하지 않는다.
+      wrapper.style.setProperty('--fp-img-w', `${nextSizes.width}px`);
       setFrame(current => current ? { ...current, width: nextSizes.width, height: nextSizes.height } : current);
     };
     const onUp = () => {
@@ -202,6 +280,10 @@ function CornerResizableImageElement(props) {
         type: 'image',
         props: { ...element.props, sizes: nextSizes },
       });
+      // 크기 변경을 래퍼가 onChange로 발행하도록 알림 (발행 누락 시 재렌더에서 원본 크기로 되돌아가는 문제 방지)
+      window.dispatchEvent(new CustomEvent('fitpoly:yoopta-editor-touched', {
+        detail: { editorId: editorInstanceId },
+      }));
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -213,6 +295,7 @@ function CornerResizableImageElement(props) {
     <div
       ref={wrapperRef}
       className="yoopta-corner-image group/corner-image relative"
+      style={element.props.sizes?.width ? { '--fp-img-w': `${element.props.sizes.width}px` } : undefined}
       draggable
       onDragStart={event => {
         if (!element?.props?.src) {
@@ -244,6 +327,12 @@ function CornerResizableImageElement(props) {
         }
         .yoopta-corner-image .h-10.w-1\\.5.rounded-full {
           display: none !important;
+        }
+        /* 저장된 폭(CSS 변수)으로 이미지 크기를 결정하고 높이는 비율 유지. shadcn 내부 크기를 덮어쓴다. */
+        .yoopta-corner-image img {
+          width: var(--fp-img-w, auto) !important;
+          height: auto !important;
+          max-width: 100% !important;
         }
       `}</style>
       <ShadcnImageElement {...props} />
@@ -800,11 +889,24 @@ export default function YooptaMiniEditor({
     const onMoved = (event) => {
       const detail = event.detail || {};
       if (detail.editorId !== editorInstanceIdRef.current || !detail.blockId) return;
-      if (!deleteYooptaBlockById(editor, detail.blockId)) return;
-      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+      // 드롭 이벤트/커밋 사이클 밖에서 삭제한다. 선택된 이미지의 floating 툴바(@floating-ui)가
+      // 언마운트되며 ref detach 중 setState를 호출해 무한 업데이트가 나는 것을 막는다.
+      setTimeout(() => {
+        if (!deleteYooptaBlockById(editor, detail.blockId)) return;
+        handleEditorChange(editor.getEditorValue(), { immediate: true });
+      }, 0);
     };
     window.addEventListener('fitpoly:yoopta-image-moved', onMoved);
     return () => window.removeEventListener('fitpoly:yoopta-image-moved', onMoved);
+  }, [editor, handleEditorChange]);
+
+  useEffect(() => {
+    const onTouched = (event) => {
+      if (event.detail?.editorId !== editorInstanceIdRef.current) return;
+      handleEditorChange(editor.getEditorValue(), { immediate: true });
+    };
+    window.addEventListener('fitpoly:yoopta-editor-touched', onTouched);
+    return () => window.removeEventListener('fitpoly:yoopta-editor-touched', onTouched);
   }, [editor, handleEditorChange]);
 
   useEffect(() => {
@@ -852,11 +954,75 @@ export default function YooptaMiniEditor({
     })));
     return insertImageSources(images);
   };
+  const commitContextAction = (action) => {
+    action();
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    editor.setEditorValue(nextValue);
+    handleEditorChange(nextValue, { immediate: true });
+  };
+  const toggleContextTextMark = (type, selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.toggle(editor, { type }));
+      return;
+    }
+    commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
+  };
+  const clearContextTextMarks = (selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.clear(editor));
+      return;
+    }
+    commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
+  };
+  const setWholeContextBlockType = (type) => {
+    commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const openEditorContextMenu = (event) => {
+    if (event.target.closest('button, select, input, textarea, label')) return;
+    const current = Selection.getCurrent(editor);
+    const block = current != null ? editor.getBlock({ at: current }) : null;
+    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    openYooptaContextMenu(event, [
+      { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
+      { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
+      { label: '밑줄', icon: UnderlineIcon, onClick: () => toggleContextTextMark('underline', selectedText) },
+      { label: '취소선', icon: Strikethrough, onClick: () => toggleContextTextMark('strike', selectedText) },
+      { label: '코드', icon: CodeIcon, onClick: () => toggleContextTextMark('code', selectedText) },
+      {
+        label: '강조',
+        icon: Highlighter,
+        onClick: () => selectedText
+          ? commitContextAction(() => {
+              if (Marks.isActive(editor, { type: 'highlight' })) Marks.remove(editor, { type: 'highlight' });
+              else Marks.update(editor, { type: 'highlight', value: { backgroundColor: '#fef08a' } });
+            })
+          : toggleContextTextMark('highlight', selectedText),
+      },
+      { label: '서식 지우기', icon: Eraser, onClick: () => clearContextTextMarks(selectedText) },
+      ...(!selectedText ? [
+        { label: '문단', icon: Eraser, onClick: () => setWholeContextBlockType('Paragraph') },
+        { label: '제목 1', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingOne') },
+        { label: '제목 2', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingTwo') },
+        { label: '제목 3', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingThree') },
+        { label: '글머리 목록', icon: Check, onClick: () => setWholeContextBlockType('BulletedList') },
+        { label: '번호 목록', icon: Check, onClick: () => setWholeContextBlockType('NumberedList') },
+        { label: '할 일 목록', icon: Check, onClick: () => setWholeContextBlockType('TodoList') },
+        { label: '이미지 추가', icon: ImagePlus, onClick: () => imageInputRef.current?.click() },
+        ...(block?.id ? [
+          { label: '복제', icon: ImagePlus, onClick: () => commitContextAction(() => Blocks.duplicateBlock(editor, { blockId: block.id })) },
+          { label: '삭제', icon: Eraser, danger: true, onClick: () => commitContextAction(() => Blocks.deleteBlock(editor, { blockId: block.id })) },
+        ] : []),
+      ] : []),
+    ]);
+  };
 
   return (
     <div
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
       style={{ minHeight: editorMinHeight }}
+      onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
         if (!files.some(file => file.type.startsWith('image/'))) return;
@@ -884,6 +1050,10 @@ export default function YooptaMiniEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
+            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              return;
+            }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
               if (payload.source === 'yoopta' && payload.sourceEditorId && payload.sourceEditorId !== editorInstanceIdRef.current) {
                 window.dispatchEvent(new CustomEvent('fitpoly:yoopta-image-moved', {
@@ -1095,11 +1265,24 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     const onMoved = (event) => {
       const detail = event.detail || {};
       if (detail.editorId !== editorInstanceIdRef.current || !detail.blockId) return;
-      if (!deleteYooptaBlockById(editor, detail.blockId)) return;
-      queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+      // 드롭 이벤트/커밋 사이클 밖에서 삭제한다. 선택된 이미지의 floating 툴바(@floating-ui)가
+      // 언마운트되며 ref detach 중 setState를 호출해 무한 업데이트가 나는 것을 막는다.
+      setTimeout(() => {
+        if (!deleteYooptaBlockById(editor, detail.blockId)) return;
+        handleEditorChange(editor.getEditorValue(), { immediate: true });
+      }, 0);
     };
     window.addEventListener('fitpoly:yoopta-image-moved', onMoved);
     return () => window.removeEventListener('fitpoly:yoopta-image-moved', onMoved);
+  }, [editor, handleEditorChange]);
+
+  useEffect(() => {
+    const onTouched = (event) => {
+      if (event.detail?.editorId !== editorInstanceIdRef.current) return;
+      handleEditorChange(editor.getEditorValue(), { immediate: true });
+    };
+    window.addEventListener('fitpoly:yoopta-editor-touched', onTouched);
+    return () => window.removeEventListener('fitpoly:yoopta-editor-touched', onTouched);
   }, [editor, handleEditorChange]);
 
   // 외부 value 변경 동기화 (읽기전용 뷰에서 다른 프로젝트로 전환 시 중요)
@@ -1153,6 +1336,69 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     const images = await Promise.all(imageFiles.map(async file => ({ ...await readImageFile(file), alt: file.name })));
     return insertImageSources(images);
   };
+  const commitContextAction = (action) => {
+    action();
+    queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    editor.setEditorValue(nextValue);
+    handleEditorChange(nextValue, { immediate: true });
+  };
+  const toggleContextTextMark = (type, selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.toggle(editor, { type }));
+      return;
+    }
+    commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
+  };
+  const clearContextTextMarks = (selectedText) => {
+    if (selectedText) {
+      commitContextAction(() => Marks.clear(editor));
+      return;
+    }
+    commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
+  };
+  const setWholeContextBlockType = (type) => {
+    commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const openEditorContextMenu = (event) => {
+    if (event.target.closest('button, select, input, textarea, label')) return;
+    const current = Selection.getCurrent(editor);
+    const block = current != null ? editor.getBlock({ at: current }) : null;
+    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    openYooptaContextMenu(event, [
+      { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
+      { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
+      { label: '밑줄', icon: UnderlineIcon, onClick: () => toggleContextTextMark('underline', selectedText) },
+      { label: '취소선', icon: Strikethrough, onClick: () => toggleContextTextMark('strike', selectedText) },
+      { label: '코드', icon: CodeIcon, onClick: () => toggleContextTextMark('code', selectedText) },
+      {
+        label: '강조',
+        icon: Highlighter,
+        onClick: () => selectedText
+          ? commitContextAction(() => {
+              if (Marks.isActive(editor, { type: 'highlight' })) Marks.remove(editor, { type: 'highlight' });
+              else Marks.update(editor, { type: 'highlight', value: { backgroundColor: '#fef08a' } });
+            })
+          : toggleContextTextMark('highlight', selectedText),
+      },
+      { label: '서식 지우기', icon: Eraser, onClick: () => clearContextTextMarks(selectedText) },
+      ...(!selectedText ? [
+        { label: '문단', icon: Eraser, onClick: () => setWholeContextBlockType('Paragraph') },
+        { label: '제목 1', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingOne') },
+        { label: '제목 2', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingTwo') },
+        { label: '제목 3', icon: BoldIcon, onClick: () => setWholeContextBlockType('HeadingThree') },
+        { label: '글머리 목록', icon: Check, onClick: () => setWholeContextBlockType('BulletedList') },
+        { label: '번호 목록', icon: Check, onClick: () => setWholeContextBlockType('NumberedList') },
+        { label: '할 일 목록', icon: Check, onClick: () => setWholeContextBlockType('TodoList') },
+        { label: '이미지 추가', icon: ImagePlus, onClick: () => imageInputRef.current?.click() },
+        ...(block?.id ? [
+          { label: '복제', icon: ImagePlus, onClick: () => commitContextAction(() => Blocks.duplicateBlock(editor, { blockId: block.id })) },
+          { label: '삭제', icon: Eraser, danger: true, onClick: () => commitContextAction(() => Blocks.deleteBlock(editor, { blockId: block.id })) },
+        ] : []),
+      ] : []),
+    ]);
+  };
 
   const handlePaletteDrop = (event) => {
     const payload = readPalettePayload(event.dataTransfer);
@@ -1193,6 +1439,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   return (
     <div
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
+      onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
         if (!files.some(file => file.type.startsWith('image/'))) return;
@@ -1221,6 +1468,10 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
+            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              return;
+            }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
               if (payload.source === 'yoopta' && payload.sourceEditorId && payload.sourceEditorId !== editorInstanceIdRef.current) {
                 window.dispatchEvent(new CustomEvent('fitpoly:yoopta-image-moved', {

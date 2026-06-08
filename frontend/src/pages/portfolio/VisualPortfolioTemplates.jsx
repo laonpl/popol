@@ -6,7 +6,8 @@ import {
   Filter, ArrowUpDown, MoreHorizontal, Plus, ChevronDown,
   Phone, MapPin, Instagram, Star, Lightbulb, CheckCircle2,
   ExternalLink, Target, X, UserCircle2, Database, Trash2, GripVertical, Loader2,
-  Upload, GraduationCap, Award, Globe, Sparkles, Camera, Copy
+  Upload, GraduationCap, Award, Globe, Sparkles, Camera, Copy,
+  Bold, PenLine, Type, Eraser
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -46,18 +47,31 @@ function escapeVisualHtml(value = '') {
     .replace(/'/g, '&#39;');
 }
 
+// 제목 세그먼트 → 인라인 스타일. 템플릿 1(EditableSectionTitle)과 동일한 서식 집합 지원.
+function visualTitleSegmentStyle(segment = {}) {
+  const styles = [];
+  const fontSize = VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment.fontSize) ? segment.fontSize : '';
+  if (fontSize) styles.push(`font-size:${fontSize}`);
+  if (segment.bold) styles.push('font-weight:700');
+  if (segment.italic) styles.push('font-style:italic');
+  const decorations = [
+    segment.underline ? 'underline' : '',
+    segment.strike ? 'line-through' : '',
+  ].filter(Boolean).join(' ');
+  if (decorations) styles.push(`text-decoration:${decorations}`);
+  if (segment.code) styles.push('font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace', 'background:#f3f4f6', 'border-radius:3px', 'padding:0 2px');
+  if (segment.highlight) styles.push('background:#fef08a');
+  return styles.join(';');
+}
+
 function visualTitleSegmentsToHtml(segments, fallback) {
   const safeSegments = Array.isArray(segments) && segments.length > 0
     ? segments
-    : [{ text: fallback || '', fontSize: '', bold: false }];
+    : [{ text: fallback || '', fontSize: '' }];
   return safeSegments.map(segment => {
     const text = escapeVisualHtml(segment?.text || '');
-    const fontSize = VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === segment?.fontSize) ? segment.fontSize : '';
-    const styles = [
-      fontSize ? `font-size:${fontSize}` : '',
-      segment?.bold ? 'font-weight:700' : '',
-    ].filter(Boolean).join(';');
-    return styles ? `<span style="${styles}">${text}</span>` : text;
+    const style = visualTitleSegmentStyle(segment);
+    return style ? `<span style="${style}">${text}</span>` : text;
   }).join('');
 }
 
@@ -65,18 +79,35 @@ function readVisualTitleSegmentsFromElement(element) {
   const segments = [];
   const walk = (node, inherited = {}) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      if (node.textContent) segments.push({ text: node.textContent, fontSize: inherited.fontSize || '', bold: !!inherited.bold });
+      if (node.textContent) segments.push({ text: node.textContent, ...inherited });
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const fontSize = VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)
-      ? node.style.fontSize
-      : inherited.fontSize || '';
-    const bold = inherited.bold || node.tagName === 'B' || node.tagName === 'STRONG' || parseInt(node.style?.fontWeight || '0', 10) >= 600;
-    Array.from(node.childNodes).forEach(child => walk(child, { fontSize, bold }));
+    const next = { ...inherited };
+    if (VISUAL_SECTION_TITLE_SIZE_OPTIONS.some(option => option.value === node.style?.fontSize)) next.fontSize = node.style.fontSize;
+    const tag = node.tagName?.toLowerCase();
+    const fontWeight = String(node.style?.fontWeight || '');
+    if (tag === 'strong' || tag === 'b' || fontWeight === 'bold' || Number(fontWeight) >= 600) next.bold = true;
+    if (tag === 'em' || tag === 'i' || node.style?.fontStyle === 'italic') next.italic = true;
+    const decoration = node.style?.textDecoration || node.style?.textDecorationLine || '';
+    if (tag === 'u' || decoration.includes('underline')) next.underline = true;
+    if (tag === 's' || tag === 'strike' || decoration.includes('line-through')) next.strike = true;
+    if (tag === 'code' || node.style?.fontFamily?.includes('mono')) next.code = true;
+    if (node.style?.backgroundColor && node.style.backgroundColor !== 'transparent') next.highlight = true;
+    Array.from(node.childNodes).forEach(child => walk(child, next));
   };
   Array.from(element.childNodes).forEach(child => walk(child));
   return segments.filter(segment => segment.text.length > 0);
+}
+
+// 우클릭 컨텍스트 메뉴 열기 — NotionPortfolioEditor의 ContextMenuHost가 받아 그린다.
+function openVisualContextMenu(event, items) {
+  if (!items?.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.dispatchEvent(new CustomEvent('fitpoly:open-context-menu', {
+    detail: { x: event.clientX, y: event.clientY, items },
+  }));
 }
 
 function normalizePortfolioBlock(block) {
@@ -970,7 +1001,10 @@ function getVisualSectionPlainTitle(portfolio, sectionKey, fallback) {
     ?? fallback;
 }
 
-// ── 편집 가능 섹션 제목 헬퍼 (선택 글자만 굵게/크기 변경 가능) ──
+// ── 편집 가능 섹션 제목 헬퍼 ──
+// 템플릿 1(EditableSectionTitle)과 동일 동작: 텍스트를 선택하면 그 부분에만,
+// 선택이 없으면 제목 전체에 굵게/기울임/밑줄/취소선/코드/강조/글자크기를 적용한다.
+// 우클릭 시 동일한 서식 메뉴를 띄운다(ContextMenuHost가 받아 그림).
 function EH({ ec, value, sectionKey, className = '' }) {
   const titleRef = useRef(null);
   const savedRangeRef = useRef(null);
@@ -978,9 +1012,8 @@ function EH({ ec, value, sectionKey, className = '' }) {
   const segments = portfolio?.customSectionTitleSegments?.[sectionKey];
   const fallbackLabel = getVisualSectionPlainTitle(portfolio, sectionKey, value);
 
-  const updateSegments = () => {
-    if (!titleRef.current || !ec) return;
-    const nextSegments = readVisualTitleSegmentsFromElement(titleRef.current);
+  const commitSegments = (nextSegments) => {
+    if (!ec) return;
     const plain = nextSegments.map(segment => segment.text).join('') || value;
     const fields = {
       customSectionTitleSegments: { ...(portfolio?.customSectionTitleSegments || {}), [sectionKey]: nextSegments },
@@ -991,30 +1024,51 @@ function EH({ ec, value, sectionKey, className = '' }) {
     else Object.entries(fields).forEach(([field, nextValue]) => ec.update(field, nextValue));
   };
 
+  const updateSegments = () => {
+    if (!titleRef.current || !ec) return;
+    commitSegments(readVisualTitleSegmentsFromElement(titleRef.current));
+  };
+
   const saveSelection = () => {
     const selection = window.getSelection();
     if (!selection?.rangeCount || !titleRef.current?.contains(selection.anchorNode)) return;
     savedRangeRef.current = selection.getRangeAt(0).cloneRange();
   };
 
-  const restoreSelection = () => {
-    const selection = window.getSelection();
-    const range = savedRangeRef.current;
-    if (!selection || !range || !titleRef.current?.contains(range.commonAncestorContainer)) return false;
-    selection.removeAllRanges();
-    selection.addRange(range);
-    return true;
-  };
-
-  const applyFontSize = (fontSize) => {
+  const getSelectedTitleRange = () => {
     const selection = window.getSelection();
     const liveRange = selection?.rangeCount && titleRef.current?.contains(selection.anchorNode)
       ? selection.getRangeAt(0)
       : null;
-    const range = liveRange || savedRangeRef.current;
-    if (!range || !titleRef.current?.contains(range.commonAncestorContainer) || range.collapsed) return;
+    const savedRange = savedRangeRef.current;
+    const range = liveRange && !liveRange.collapsed ? liveRange : savedRange;
+    if (!range || range.collapsed || !titleRef.current?.contains(range.commonAncestorContainer)) return null;
+    return range;
+  };
+
+  const patchAllTitleSegments = (patch, toggleKey = null) => {
+    const currentSegments = readVisualTitleSegmentsFromElement(titleRef.current);
+    const targetSegments = currentSegments.length ? currentSegments : [{ text: fallbackLabel || '' }];
+    const shouldDisable = toggleKey && targetSegments.every(segment => !!segment[toggleKey]);
+    const nextSegments = targetSegments.map(segment => {
+      const next = { ...segment, ...patch };
+      if (toggleKey) next[toggleKey] = !shouldDisable;
+      if (patch.fontSize !== undefined) next.fontSize = patch.fontSize;
+      return next;
+    });
+    commitSegments(nextSegments);
+  };
+
+  const applyTitlePatch = (patch, toggleKey = null) => {
+    const selection = window.getSelection();
+    const range = getSelectedTitleRange();
+    if (!range) {
+      patchAllTitleSegments(patch, toggleKey);
+      return;
+    }
     const wrapper = document.createElement('span');
-    if (fontSize) wrapper.style.fontSize = fontSize;
+    const style = visualTitleSegmentStyle(patch);
+    if (style) wrapper.setAttribute('style', style);
     try {
       range.surroundContents(wrapper);
     } catch {
@@ -1023,14 +1077,44 @@ function EH({ ec, value, sectionKey, className = '' }) {
     }
     titleRef.current.normalize();
     updateSegments();
-    saveSelection();
+    selection.removeAllRanges();
   };
 
-  const applyBold = () => {
-    if (!restoreSelection()) return;
-    document.execCommand('bold', false, null);
+  const clearTitleFormatting = () => {
+    const selection = window.getSelection();
+    const range = getSelectedTitleRange();
+    if (!range) {
+      const currentSegments = readVisualTitleSegmentsFromElement(titleRef.current);
+      const targetSegments = currentSegments.length ? currentSegments : [{ text: fallbackLabel || '' }];
+      commitSegments(targetSegments.map(segment => ({ text: segment.text })));
+      return;
+    }
+    const plainText = range.toString();
+    range.deleteContents();
+    range.insertNode(document.createTextNode(plainText));
+    titleRef.current.normalize();
     updateSegments();
+    selection.removeAllRanges();
+  };
+
+  const applyFontSize = (fontSize) => applyTitlePatch({ fontSize });
+
+  const openTitleContextMenu = (event) => {
     saveSelection();
+    openVisualContextMenu(event, [
+      { label: '글자 굵게', icon: Bold, onClick: () => applyTitlePatch({ bold: true }, 'bold') },
+      { label: '기울임', icon: PenLine, onClick: () => applyTitlePatch({ italic: true }, 'italic') },
+      { label: '밑줄', icon: Type, onClick: () => applyTitlePatch({ underline: true }, 'underline') },
+      { label: '취소선', icon: Type, onClick: () => applyTitlePatch({ strike: true }, 'strike') },
+      { label: '코드', icon: Code, onClick: () => applyTitlePatch({ code: true }, 'code') },
+      { label: '강조', icon: Sparkles, onClick: () => applyTitlePatch({ highlight: true }, 'highlight') },
+      { label: '서식 지우기', icon: Eraser, onClick: clearTitleFormatting },
+      ...VISUAL_SECTION_TITLE_SIZE_OPTIONS.map(option => ({
+        label: option.value ? `글자 크기 ${option.label}` : '기본 글자 크기',
+        icon: Type,
+        onClick: () => applyFontSize(option.value),
+      })),
+    ]);
   };
 
   useEffect(() => {
@@ -1053,6 +1137,7 @@ function EH({ ec, value, sectionKey, className = '' }) {
         onBlur={updateSegments}
         onMouseUp={saveSelection}
         onKeyUp={saveSelection}
+        onContextMenu={openTitleContextMenu}
         onPaste={event => {
           event.preventDefault();
           document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
@@ -1062,9 +1147,9 @@ function EH({ ec, value, sectionKey, className = '' }) {
       />
       <button
         type="button"
-        onMouseDown={event => { event.preventDefault(); applyBold(); }}
+        onMouseDown={event => { event.preventDefault(); saveSelection(); applyTitlePatch({ bold: true }, 'bold'); }}
         className="h-6 min-w-6 rounded border border-gray-200 bg-white px-1 text-[11px] font-bold text-gray-600 opacity-0 shadow-sm transition-opacity hover:bg-gray-50 group-hover/title:opacity-100 focus:opacity-100"
-        title="선택 글자 굵게"
+        title="글자 굵게 (선택 또는 제목 전체)"
       >
         B
       </button>
@@ -1075,8 +1160,8 @@ function EH({ ec, value, sectionKey, className = '' }) {
           event.target.value = '';
         }}
         className="h-6 rounded border border-gray-200 bg-white px-1 text-[11px] text-gray-500 opacity-0 shadow-sm transition-opacity group-hover/title:opacity-100 focus:opacity-100"
-        title="선택 글자 크기"
-        aria-label="선택 글자 크기"
+        title="글자 크기 (선택 또는 제목 전체)"
+        aria-label="글자 크기"
       >
         {VISUAL_SECTION_TITLE_SIZE_OPTIONS.map(option => (
           <option key={option.value || 'default'} value={option.value}>{option.label}</option>
