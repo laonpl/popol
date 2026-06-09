@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
+import FeedbackModal from '../../components/FeedbackModal';
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -333,8 +334,11 @@ export default function ExperienceResult() {
   const [loading, setLoading] = useState(!state?.analysis);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const keyExpFileRef = useRef(null);
   const pendingKeyExpApply = useRef(null);
+  const feedbackContext = state?.feedbackContext || 'experience_complete';
+  const feedbackPromptKey = `fitpoly-feedback:${id}:${feedbackContext}`;
 
   const initCaseStudy = useCallback((data) => {
     setCs(data.caseStudy ? normalizeCaseStudy(data.caseStudy) : deriveCaseStudy(data));
@@ -359,6 +363,18 @@ export default function ExperienceResult() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (!state?.showFeedback || !id) return undefined;
+    if (window.localStorage.getItem(feedbackPromptKey) === '1') return undefined;
+    const timer = window.setTimeout(() => setFeedbackOpen(true), 900);
+    return () => window.clearTimeout(timer);
+  }, [state?.showFeedback, id, feedbackPromptKey]);
+
+  const closeFeedback = () => {
+    if (id) window.localStorage.setItem(feedbackPromptKey, '1');
+    setFeedbackOpen(false);
+  };
 
   const patch = (updater) => { setCs(prev => updater(prev)); setDirty(true); };
   const setField = (key, val) => patch(prev => ({ ...prev, [key]: val }));
@@ -459,6 +475,14 @@ export default function ExperienceResult() {
   ];
 
   return (
+    <>
+    <FeedbackModal
+      open={feedbackOpen}
+      onClose={closeFeedback}
+      context={feedbackContext}
+      experienceId={id}
+      title={cs?.title || exp?.title || state?.title || ''}
+    />
     <div className="min-h-screen bg-white">
       <input ref={keyExpFileRef} type="file" accept="image/*" className="hidden" onChange={onKeyExpFile} />
 
@@ -660,5 +684,6 @@ export default function ExperienceResult() {
         </div>
       </article>
     </div>
+    </>
   );
 }

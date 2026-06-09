@@ -12,6 +12,7 @@ import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
 import { analyzeJobUrl } from '../../services/jobAI';
+import FeedbackModal from '../../components/FeedbackModal';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -1253,6 +1254,8 @@ export default function StructuredResult() {
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience, judgeEvidenceLabels } = useExperienceStore();
   const [researchingMetrics, setResearchingMetrics] = useState(false);
   const [enhancingDraft, setEnhancingDraft] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const feedbackPromptKey = `fitpoly-feedback:${id}:experience_enhance_complete`;
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -1614,8 +1617,12 @@ export default function StructuredResult() {
       applyStructuredResult(structured);
       if (structured?._fallback) {
         toast('AI 보강이 일시적으로 불안정해 초안을 유지했습니다. 다시 시도할 수 있어요.');
-      } else
-      toast.success('AI 보강이 완료되었습니다');
+      } else {
+        toast.success('AI 보강이 완료되었습니다');
+        if (window.localStorage.getItem(feedbackPromptKey) !== '1') {
+          setFeedbackOpen(true);
+        }
+      }
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -2707,6 +2714,16 @@ export default function StructuredResult() {
 
   return (
     <>
+    <FeedbackModal
+      open={feedbackOpen}
+      onClose={() => {
+        if (id) window.localStorage.setItem(feedbackPromptKey, '1');
+        setFeedbackOpen(false);
+      }}
+      context="experience_enhance_complete"
+      experienceId={id}
+      title={editedTitle || experience?.title || ''}
+    />
     <div className="animate-fadeIn w-full max-w-[900px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex items-center justify-between gap-3 mb-4">

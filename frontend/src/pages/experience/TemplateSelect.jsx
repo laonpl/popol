@@ -1081,10 +1081,22 @@ export default function TemplateSelect() {
 
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
       navigate(`/app/experience/result/${experienceId}`, {
-        state: { analysis: draftAnalysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
+        state: {
+          analysis: draftAnalysis,
+          title: title.trim(),
+          framework: 'STRUCTURED',
+          content: { rawInput: finalText },
+          showFeedback: true,
+          feedbackContext: 'experience_material_draft_complete',
+        },
       });
     } catch (error) {
       console.error('경험 생성 실패:', error);
+      if (error?.isCreditError) {
+        toast.error(error.message || '크레딧이 부족합니다.');
+        setStep(4);
+        return;
+      }
       const isAiError = error?.response?.status >= 500 || error?.response?.status === 429;
       toast.error(isAiError
         ? 'AI 서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해주세요.'

@@ -1426,7 +1426,7 @@ export default function Landing() {
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li><a href="#feature-experience" className="hover:text-primary-600 transition-colors">이용 가이드</a></li>
                 <li><a href="#faq" className="hover:text-primary-600 transition-colors">자주 묻는 질문</a></li>
-                <li><a href="mailto:gudrbs14@naver.com" className="hover:text-primary-600 transition-colors">문의하기</a></li>
+                <li><a href="mailto:fitpoly.kr@gmail.com" className="hover:text-primary-600 transition-colors">문의하기</a></li>
               </ul>
             </div>
             <div>
@@ -1439,7 +1439,7 @@ export default function Landing() {
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-500 uppercase tracking-wider mb-3 sm:mb-4">연락처</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li>이메일: gudrbs14@naver.com</li>
+                <li>이메일: fitpoly.kr@gmail.com</li>
                 <li>운영시간: 평일 09:00 – 18:00</li>
               </ul>
             </div>

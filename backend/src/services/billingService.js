@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { adminDb } from '../config/firebase.js';
 
 const billingStorage = new AsyncLocalStorage();
-const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 1000);
+const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 1500);
 const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 10000);
 
 export const CREDIT_PACKAGES = [

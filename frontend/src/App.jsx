@@ -26,6 +26,7 @@ const NotionPortfolioPreview = lazy(() => import('./pages/portfolio/NotionPortfo
 const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfolioView'));
 const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
 const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
+const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
 
 function PageLoader() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/p/:id" element={<PublicPortfolioView />} />
+        <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
         <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
         <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
           <Route index element={<Navigate to="/app/experience" replace />} />

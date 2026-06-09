@@ -202,7 +202,14 @@ export default function ExperienceInterview() {
       });
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
       navigate(`/app/experience/result/${experienceId}`, {
-        state: { analysis, title: title.trim(), framework: 'STRUCTURED', content: { rawInput: finalText } },
+        state: {
+          analysis,
+          title: title.trim(),
+          framework: 'STRUCTURED',
+          content: { rawInput: finalText },
+          showFeedback: true,
+          feedbackContext: 'experience_interview_draft_complete',
+        },
       });
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI 정리에 실패했어요. 다시 시도해주세요.');
