@@ -71,6 +71,13 @@ body {
 textarea {
   resize: vertical;
   min-height: 100px;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.experience-edit-surface textarea,
+.experience-edit-surface input {
+  min-width: 0;
 }
 
 /* ── Tooltip float animation ── */

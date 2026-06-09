@@ -1256,6 +1256,10 @@ export default function StructuredResult() {
   const [enhancingDraft, setEnhancingDraft] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const feedbackPromptKey = `fitpoly-feedback:${id}:experience_enhance_complete`;
+  const feedbackTimerRef = useRef(null);
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+  }, []);
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -1620,7 +1624,10 @@ export default function StructuredResult() {
       } else {
         toast.success('AI 보강이 완료되었습니다');
         if (window.localStorage.getItem(feedbackPromptKey) !== '1') {
-          setFeedbackOpen(true);
+          if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+          feedbackTimerRef.current = window.setTimeout(() => {
+            if (!document.hidden) setFeedbackOpen(true);
+          }, 30000);
         }
       }
     } catch (err) {
@@ -2571,7 +2578,7 @@ export default function StructuredResult() {
   const completionPct = Math.round((filledCount / SECTION_COUNT) * 100);
 
   // ── 스토리: 7개 섹션을 슬라이드가 아닌 "한 편의 문서"로 흐르게 표시 ──
-  const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
+  const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 8}px`; } };
   const INTRO_META = [
     { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
     { key: 'role', label: '역할', placeholder: '기획/개발/운영 담당' },
@@ -2631,7 +2638,7 @@ export default function StructuredResult() {
                             onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
                             placeholder={item.placeholder}
                             className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
-                            style={{ overflowWrap: 'anywhere' }}
+                            style={{ overflow: 'hidden', overflowWrap: 'anywhere', boxSizing: 'border-box' }}
                           />
                         )}
                       </div>
@@ -2649,7 +2656,7 @@ export default function StructuredResult() {
                   onChange={e => { handleFieldChange(key, e.target.value); autoGrow(e.target); }}
                   placeholder={field?.placeholder || '내용을 입력하세요'}
                   className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[16.5px] leading-[1.9] text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
-                  style={{ overflowWrap: 'anywhere', minHeight: '3.2rem' }}
+                  style={{ overflow: 'hidden', overflowWrap: 'anywhere', minHeight: '3.2rem', boxSizing: 'border-box' }}
                 />
               ) : display ? (
                 <div className="whitespace-pre-wrap break-words text-[16.5px] leading-[1.9] text-bluewood-700" style={{ overflowWrap: 'anywhere' }}>
@@ -2724,10 +2731,10 @@ export default function StructuredResult() {
       experienceId={id}
       title={editedTitle || experience?.title || ''}
     />
-    <div className="animate-fadeIn w-full max-w-[900px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
+    <div className="experience-edit-surface animate-fadeIn w-full max-w-[900px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
       {/* 상단 네비 + 저장/수정 */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
         {navState?.isTutorialDemo ? (
           <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
             <ArrowLeft size={15} /> 튜토리얼로 돌아가기
@@ -2767,7 +2774,7 @@ export default function StructuredResult() {
             수정하기
           </button>
         ) : (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* 되돌리기/다시실행 그룹 */}
             <div className="inline-flex items-center rounded-xl border border-surface-200 bg-white p-0.5">
               <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)" aria-label="되돌리기"
@@ -2794,7 +2801,7 @@ export default function StructuredResult() {
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-xl text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
               >
                 {enhancingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강'}
+                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강하기'}
               </button>
             )}
 

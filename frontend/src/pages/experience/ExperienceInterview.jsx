@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload } from '../../services/importAI';
-import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
+import { buildDraftStructuredResult, buildInterviewMoment, cleanRawText } from '../../utils/experienceDraft';
 
 /* 작은 CSS 스피너 (아이콘 미사용) */
 function Spinner({ light = false, size = 16 }) {
@@ -157,16 +157,11 @@ export default function ExperienceInterview() {
       const cleanedSource = cleanRawText(sourceText);
       const hasUsableSource = cleanedSource.length >= 40;
 
-      const reviewedMoments = [{
-        id: `interview-${Date.now()}`,
+      const reviewedMoments = [buildInterviewMoment({
         title: title.trim(),
-        description: readableTranscript || answersOnly || cleanedSource,
-        context: hasUsableSource ? cleanedSource : answersOnly,
-        action: hasUsableSource ? answersOnly : '',
-        result: '',
-        learning: '',
-        keywords: [],
-      }];
+        sourceText: hasUsableSource ? cleanedSource : '',
+        qa: answeredQa,
+      })];
 
       // 1차: 빠른 AI 초안 (flash 1회). 답변/자료의 노이즈를 줄인 텍스트만 전달.
       // 2차(폴백): AI 실패 시 로컬에서 즉시 초안 구성 → 속도 보장.
@@ -175,6 +170,7 @@ export default function ExperienceInterview() {
         const draftContent = {
           ...(hasUsableSource ? { 자료: cleanedSource } : {}),
           인터뷰답변: readableTranscript || answersOnly,
+          인터뷰구조화: JSON.stringify(reviewedMoments[0], null, 2),
         };
         analysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
       } catch (draftErr) {

@@ -233,6 +233,9 @@ ${WRITING_QUALITY_RULES}
 - 같은 문장을 여러 섹션에 그대로 복사하지 마세요. 각 섹션의 역할에 맞게 다르게 정리하세요.
 - 인터뷰 답변의 구어체("~했어요")는 포트폴리오 문체("~함/~했다")로 자연스럽게 다듬으세요.
 - keyExperiences는 자료에서 뚜렷하게 드러나는 경험 1~3개만. 없으면 빈 배열.
+- keyExperiences는 수치만 남기지 마세요. 수치는 metric에 넣고, context/action/result/learning에는 답변 속 문제 전후상황, 실행 과정, 결과 해석, 배운 점을 각각 1~3문장으로 보존하세요.
+- "인터뷰구조화" 입력이 있으면 그 안의 context/action/result/learning을 우선 사용하되 자연스럽게 다듬으세요.
+- 시장/성과 지표는 외부 출처를 지어내지 말고, 사용자가 추가 검증할 decisionMetrics와 portfolioAngles 수준으로만 제안하세요.
 
 [섹션 역할]
 - intro: 가장 큰 성과/핵심을 앞세운 2~3문장 요약
@@ -249,6 +252,15 @@ ${contentText}
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
   "projectOverview": { "summary": "", "background": "", "goal": "", "role": "", "team": "", "duration": "", "techStack": [] },
+  "marketResearch": {
+    "marketOverview": "",
+    "decisionMetrics": [
+      { "metric": "", "whyItMatters": "", "recommendedProxy": "", "researchBasis": "인터뷰 답변 기반 또는 [검증 필요]", "confidence": "high|medium|low" }
+    ],
+    "sourceNotes": [],
+    "portfolioAngles": [],
+    "limitations": ""
+  },
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
   "keyExperiences": [
     { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar" }
