@@ -98,10 +98,15 @@ function hasContextSelection(snapshot) {
   );
 }
 
+function hasContextBlockSelection(snapshot) {
+  return Array.isArray(snapshot?.selectedPaths) && snapshot.selectedPaths.length > 0;
+}
+
 function restoreContextSelection(editor, snapshot) {
   if (!snapshot) return;
-  if (Array.isArray(snapshot.selectedPaths) && snapshot.selectedPaths.length > 0) {
+  if (hasContextBlockSelection(snapshot)) {
     Selection.setSelected(editor, { at: snapshot.selectedPaths, source: 'context-menu' });
+    return;
   } else if (typeof snapshot.current === 'number') {
     Selection.setCurrent(editor, { at: snapshot.current, source: 'context-menu' });
   }
@@ -214,12 +219,76 @@ function clearYooptaWholeTextMarks(value) {
   });
 }
 
+function hasYooptaSelectedTextMark(value, selectedOrders, mark) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return false;
+  const selected = new Set(selectedOrders);
+  return Object.values(value || {}).some(block => (
+    selected.has(block?.meta?.order) && hasYooptaTextMark(block.value, mark)
+  ));
+}
+
+function updateYooptaSelectedTextMark(value, selectedOrders, mark) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  const isActive = hasYooptaSelectedTextMark(value, selectedOrders, mark);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!selected.has(block?.meta?.order)) return [blockId, block];
+      return [blockId, {
+        ...block,
+        value: mapYooptaTextLeaves(block.value, leaf => {
+          const next = { ...leaf };
+          if (isActive) {
+            delete next[mark];
+            return next;
+          }
+          next[mark] = mark === 'highlight' ? { backgroundColor: '#fef08a' } : true;
+          return next;
+        }),
+      }];
+    }),
+  );
+}
+
+function clearYooptaSelectedTextMarks(value, selectedOrders) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!selected.has(block?.meta?.order)) return [blockId, block];
+      return [blockId, {
+        ...block,
+        value: mapYooptaTextLeaves(block.value, leaf => {
+          const next = { ...leaf };
+          YOOPTA_TEXT_MARKS.forEach(mark => delete next[mark]);
+          return next;
+        }),
+      }];
+    }),
+  );
+}
+
 function updateYooptaWholeBlockType(value, type) {
   const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
   if (!elementType) return value;
   return Object.fromEntries(
     Object.entries(value || {}).map(([blockId, block]) => {
       if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type)) return [blockId, block];
+      const nextValue = Array.isArray(block.value)
+        ? block.value.map(element => ({ ...element, type: elementType }))
+        : block.value;
+      return [blockId, { ...block, type, value: nextValue }];
+    }),
+  );
+}
+
+function updateYooptaSelectedBlockType(value, selectedOrders, type) {
+  const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
+  if (!elementType || !Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type) || !selected.has(block?.meta?.order)) return [blockId, block];
       const nextValue = Array.isArray(block.value)
         ? block.value.map(element => ({ ...element, type: elementType }))
         : block.value;
@@ -996,6 +1065,7 @@ export default function YooptaMiniEditor({
     marks: MARKS,
     value: initialValue,
   }), []);
+  const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -1116,9 +1186,15 @@ export default function YooptaMiniEditor({
   };
   const commitWholeEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
     handleEditorChange(nextValue, { immediate: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedTextMark(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.toggle(editor, { type }));
       return;
@@ -1126,6 +1202,11 @@ export default function YooptaMiniEditor({
     commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
   };
   const clearContextTextMarks = (selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(clearYooptaSelectedTextMarks(editor.getEditorValue(), selectedOrders));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.clear(editor));
       return;
@@ -1133,6 +1214,11 @@ export default function YooptaMiniEditor({
     commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
   };
   const setWholeContextBlockType = (type) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedBlockType(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
   };
   const keepSelectionOnContextMouseDown = (event) => {
@@ -1151,7 +1237,9 @@ export default function YooptaMiniEditor({
     restoreContextSelection(editor, contextSelectionRef.current);
     const current = Selection.getCurrent(editor);
     const block = current != null ? editor.getBlock({ at: current }) : null;
-    const selectedText = contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
+    const selectedText = hasContextBlockSelection(contextSelectionRef.current)
+      ? ''
+      : contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
     openYooptaContextMenu(event, [
       { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
       { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
@@ -1307,6 +1395,7 @@ export default function YooptaMiniEditor({
     >
       <YooptaMiniEditorIdContext.Provider value={editorInstanceIdRef.current}>
         <YooptaEditor
+          key={editorRenderKey}
           editor={editor}
           onChange={handleEditorChange}
           autoFocus={false}
@@ -1401,6 +1490,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   const editorInstanceIdRef = useRef(generateId());
   const initialValue = useMemo(() => textToYooptaValue(value), []);
   const editor = useMemo(() => createYooptaEditor({ plugins: PLUGINS, marks: MARKS, value: initialValue }), []);
+  const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -1524,9 +1614,15 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   };
   const commitWholeEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
     handleEditorChange(nextValue, { immediate: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedTextMark(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.toggle(editor, { type }));
       return;
@@ -1534,6 +1630,11 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
   };
   const clearContextTextMarks = (selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(clearYooptaSelectedTextMarks(editor.getEditorValue(), selectedOrders));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.clear(editor));
       return;
@@ -1541,6 +1642,11 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
   };
   const setWholeContextBlockType = (type) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedBlockType(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
   };
   const keepSelectionOnContextMouseDown = (event) => {
@@ -1559,7 +1665,9 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     restoreContextSelection(editor, contextSelectionRef.current);
     const current = Selection.getCurrent(editor);
     const block = current != null ? editor.getBlock({ at: current }) : null;
-    const selectedText = contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
+    const selectedText = hasContextBlockSelection(contextSelectionRef.current)
+      ? ''
+      : contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
     openYooptaContextMenu(event, [
       { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
       { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
@@ -1735,6 +1843,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     >
       <YooptaMiniEditorIdContext.Provider value={editorInstanceIdRef.current}>
         <YooptaEditor
+          key={editorRenderKey}
           editor={editor}
           onChange={handleEditorChange}
           autoFocus={false}
