@@ -376,6 +376,10 @@ textarea {
   background: rgba(100, 116, 139, 0.18) !important;
   border-radius: 6px;
 }
+.yoopta-mini-editor .yoopta-editor [data-yoopta-block][data-block-selected="true"] ::selection {
+  background: transparent;
+  color: inherit;
+}
 .yoopta-mini-editor .yoopta-editor [data-yoopta-block-type='Image'],
 .yoopta-mini-editor .yoopta-corner-image,
 .yoopta-mini-editor .yoopta-corner-image figure {

@@ -66,6 +66,63 @@ function openYooptaContextMenu(event, items) {
   }));
 }
 
+function cloneSlateSelection(selection) {
+  if (!selection) return null;
+  return {
+    anchor: { path: [...selection.anchor.path], offset: selection.anchor.offset },
+    focus: { path: [...selection.focus.path], offset: selection.focus.offset },
+  };
+}
+
+function createContextSelectionSnapshot(editor, root) {
+  const domSelection = window.getSelection?.();
+  const domRange = domSelection && domSelection.rangeCount > 0 ? domSelection.getRangeAt(0) : null;
+  const rootContainsRange = !!domRange && root?.contains(domRange.commonAncestorContainer);
+  const selectedPaths = Selection.getSelected(editor);
+  const current = Selection.getCurrent(editor);
+  return {
+    current,
+    selectedPaths: Array.isArray(selectedPaths) ? [...selectedPaths] : null,
+    slateSelection: cloneSlateSelection(Selection.getSlateSelection(editor)),
+    domRange: rootContainsRange ? domRange.cloneRange() : null,
+    selectedText: domSelection?.toString?.().trim() || '',
+  };
+}
+
+function hasContextSelection(snapshot) {
+  return !!(
+    snapshot?.selectedText
+    || snapshot?.domRange
+    || snapshot?.slateSelection
+    || (Array.isArray(snapshot?.selectedPaths) && snapshot.selectedPaths.length > 0)
+  );
+}
+
+function hasContextBlockSelection(snapshot) {
+  return Array.isArray(snapshot?.selectedPaths) && snapshot.selectedPaths.length > 0;
+}
+
+function restoreContextSelection(editor, snapshot) {
+  if (!snapshot) return;
+  if (hasContextBlockSelection(snapshot)) {
+    Selection.setSelected(editor, { at: snapshot.selectedPaths, source: 'context-menu' });
+    return;
+  } else if (typeof snapshot.current === 'number') {
+    Selection.setCurrent(editor, { at: snapshot.current, source: 'context-menu' });
+  }
+  if (snapshot.slateSelection) {
+    Selection.setSlateSelection(editor, {
+      selection: snapshot.slateSelection,
+      at: typeof snapshot.current === 'number' ? snapshot.current : undefined,
+    });
+  }
+  if (snapshot.domRange) {
+    const domSelection = window.getSelection?.();
+    domSelection?.removeAllRanges?.();
+    domSelection?.addRange?.(snapshot.domRange);
+  }
+}
+
 // 가로로 넓은 표를 셀에서 드래그하면 슬라이드처럼 가로 스크롤(패닝)한다.
 // 단순 클릭(이동 4px 미만)은 그대로 통과해 셀 편집/커서 이동이 가능하고,
 // 가로로 끌면 텍스트 선택 대신 표가 좌우로 이동한다.
@@ -162,12 +219,76 @@ function clearYooptaWholeTextMarks(value) {
   });
 }
 
+function hasYooptaSelectedTextMark(value, selectedOrders, mark) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return false;
+  const selected = new Set(selectedOrders);
+  return Object.values(value || {}).some(block => (
+    selected.has(block?.meta?.order) && hasYooptaTextMark(block.value, mark)
+  ));
+}
+
+function updateYooptaSelectedTextMark(value, selectedOrders, mark) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  const isActive = hasYooptaSelectedTextMark(value, selectedOrders, mark);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!selected.has(block?.meta?.order)) return [blockId, block];
+      return [blockId, {
+        ...block,
+        value: mapYooptaTextLeaves(block.value, leaf => {
+          const next = { ...leaf };
+          if (isActive) {
+            delete next[mark];
+            return next;
+          }
+          next[mark] = mark === 'highlight' ? { backgroundColor: '#fef08a' } : true;
+          return next;
+        }),
+      }];
+    }),
+  );
+}
+
+function clearYooptaSelectedTextMarks(value, selectedOrders) {
+  if (!Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!selected.has(block?.meta?.order)) return [blockId, block];
+      return [blockId, {
+        ...block,
+        value: mapYooptaTextLeaves(block.value, leaf => {
+          const next = { ...leaf };
+          YOOPTA_TEXT_MARKS.forEach(mark => delete next[mark]);
+          return next;
+        }),
+      }];
+    }),
+  );
+}
+
 function updateYooptaWholeBlockType(value, type) {
   const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
   if (!elementType) return value;
   return Object.fromEntries(
     Object.entries(value || {}).map(([blockId, block]) => {
       if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type)) return [blockId, block];
+      const nextValue = Array.isArray(block.value)
+        ? block.value.map(element => ({ ...element, type: elementType }))
+        : block.value;
+      return [blockId, { ...block, type, value: nextValue }];
+    }),
+  );
+}
+
+function updateYooptaSelectedBlockType(value, selectedOrders, type) {
+  const elementType = YOOPTA_BLOCK_ELEMENT_TYPES[type];
+  if (!elementType || !Array.isArray(selectedOrders) || selectedOrders.length === 0) return value;
+  const selected = new Set(selectedOrders);
+  return Object.fromEntries(
+    Object.entries(value || {}).map(([blockId, block]) => {
+      if (!YOOPTA_TEXT_BLOCK_TYPES.has(block?.type) || !selected.has(block?.meta?.order)) return [blockId, block];
       const nextValue = Array.isArray(block.value)
         ? block.value.map(element => ({ ...element, type: elementType }))
         : block.value;
@@ -187,6 +308,54 @@ function deleteYooptaBlockById(editor, blockId) {
   const index = orderedBlocks.findIndex(item => item?.id === blockId);
   if (index < 0) return false;
   editor.deleteBlock({ at: index });
+  return true;
+}
+
+function getEditorTopLevelBlockIds(root, value) {
+  if (!root) return [];
+  const seen = new Set();
+  return Array.from(root.querySelectorAll('[data-yoopta-block-id]'))
+    .map(node => node.getAttribute('data-yoopta-block-id'))
+    .filter(id => {
+      if (!id || !value?.[id] || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+}
+
+function getDropIndexFromY(root, value, clientY) {
+  const ids = getEditorTopLevelBlockIds(root, value);
+  const nodes = ids
+    .map(id => root.querySelector(`[data-yoopta-block-id="${id}"]`))
+    .filter(Boolean);
+  for (let i = 0; i < nodes.length; i += 1) {
+    const rect = nodes[i].getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return { ids, index: i };
+  }
+  return { ids, index: ids.length };
+}
+
+function moveYooptaBlock(editor, blockId, insertIndex, idsInOrder) {
+  const value = editor.getEditorValue();
+  const ids = idsInOrder.filter(id => value[id]);
+  const from = ids.indexOf(blockId);
+  if (from < 0) return false;
+  ids.splice(from, 1);
+  let to = insertIndex;
+  if (from < insertIndex) to -= 1;
+  to = Math.max(0, Math.min(ids.length, to));
+  if (to === from) return false;
+  ids.splice(to, 0, blockId);
+  const next = {};
+  ids.forEach((id, order) => {
+    next[id] = { ...value[id], meta: { ...value[id].meta, order } };
+  });
+  Object.values(value).forEach(block => {
+    if (!next[block.id]) {
+      next[block.id] = { ...block, meta: { ...block.meta, order: ids.length } };
+    }
+  });
+  editor.setEditorValue(next);
   return true;
 }
 
@@ -344,11 +513,16 @@ function CornerResizableImageElement(props) {
       className="yoopta-corner-image group/corner-image relative"
       style={element.props.sizes?.width ? { '--fp-img-w': `${element.props.sizes.width}px` } : undefined}
       draggable
+      onMouseDownCapture={event => {
+        if (event.target.closest('button')) return;
+        event.stopPropagation();
+      }}
       onDragStart={event => {
         if (!element?.props?.src) {
           event.preventDefault();
           return;
         }
+        event.stopPropagation();
         const payload = {
           src: element.props.src,
           alt: element.props.alt || 'image',
@@ -363,7 +537,8 @@ function CornerResizableImageElement(props) {
         event.dataTransfer.setData(CUSTOM_IMAGE_DRAG_TYPE, JSON.stringify(payload));
         event.dataTransfer.setData('text/plain', element.props.src);
       }}
-      onDragEnd={() => {
+      onDragEnd={event => {
+        event.stopPropagation();
         activeYooptaImageDrag = null;
       }}
     >
@@ -909,6 +1084,7 @@ export default function YooptaMiniEditor({
 }) {
   const imageInputRef = useRef(null);
   const wrapperRef = useRef(null);
+  const contextSelectionRef = useRef(null);
   useTableDragScroll(wrapperRef);
   const editorInstanceIdRef = useRef(generateId());
   const editorMinHeight = Math.min(minHeight, 36);
@@ -918,6 +1094,7 @@ export default function YooptaMiniEditor({
     marks: MARKS,
     value: initialValue,
   }), []);
+  const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -944,7 +1121,6 @@ export default function YooptaMiniEditor({
   }, [publishEditorChange]);
 
   const blockDnd = useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange);
-
   // 브라우저 맞춤법 검사(빨간 밑줄) 비활성화 — Slate가 spellCheck=true를 강제하므로 DOM에서 끈다.
   useEffect(() => {
     const root = blockDnd.wrapperRef.current;
@@ -1033,14 +1209,21 @@ export default function YooptaMiniEditor({
     return insertImageSources(images);
   };
   const commitContextAction = (action) => {
+    restoreContextSelection(editor, contextSelectionRef.current);
     action();
     queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
   };
   const commitWholeEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
     handleEditorChange(nextValue, { immediate: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedTextMark(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.toggle(editor, { type }));
       return;
@@ -1048,6 +1231,11 @@ export default function YooptaMiniEditor({
     commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
   };
   const clearContextTextMarks = (selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(clearYooptaSelectedTextMarks(editor.getEditorValue(), selectedOrders));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.clear(editor));
       return;
@@ -1055,13 +1243,32 @@ export default function YooptaMiniEditor({
     commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
   };
   const setWholeContextBlockType = (type) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedBlockType(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const keepSelectionOnContextMouseDown = (event) => {
+    if (event.button !== 2) return;
+    const snapshot = createContextSelectionSnapshot(editor, blockDnd.wrapperRef.current);
+    contextSelectionRef.current = snapshot;
+    if (!hasContextSelection(snapshot)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestAnimationFrame(() => restoreContextSelection(editor, snapshot));
   };
   const openEditorContextMenu = (event) => {
     if (event.target.closest('button, select, input, textarea, label')) return;
+    const snapshot = createContextSelectionSnapshot(editor, blockDnd.wrapperRef.current);
+    contextSelectionRef.current = hasContextSelection(snapshot) ? snapshot : contextSelectionRef.current;
+    restoreContextSelection(editor, contextSelectionRef.current);
     const current = Selection.getCurrent(editor);
     const block = current != null ? editor.getBlock({ at: current }) : null;
-    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    const selectedText = hasContextBlockSelection(contextSelectionRef.current)
+      ? ''
+      : contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
     openYooptaContextMenu(event, [
       { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
       { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
@@ -1098,9 +1305,13 @@ export default function YooptaMiniEditor({
 
   return (
     <div
-      ref={wrapperRef}
+      ref={(node) => {
+        wrapperRef.current = node;
+        blockDnd.wrapperRef.current = node;
+      }}
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
       style={{ minHeight: editorMinHeight }}
+      onMouseDownCapture={keepSelectionOnContextMouseDown}
       onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
@@ -1108,7 +1319,6 @@ export default function YooptaMiniEditor({
         event.preventDefault();
         insertImageFiles(files);
       }}
-      ref={blockDnd.wrapperRef}
       onDragOverCapture={event => {
         if (blockDnd.onDragOver(event)) return;
         const hasExternalImage = Array.from(event.dataTransfer?.types || []).includes(CUSTOM_IMAGE_DRAG_TYPE);
@@ -1129,8 +1339,14 @@ export default function YooptaMiniEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
-            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            // 같은 에디터 안에서는 복제하지 않고 기존 이미지 블록의 위치만 옮긴다.
             if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              const sourceBlockId = payload.sourceBlockId;
+              const value = editor.getEditorValue();
+              const { ids, index } = getDropIndexFromY(blockDnd.wrapperRef.current, value, event.clientY);
+              if (sourceBlockId && moveYooptaBlock(editor, sourceBlockId, index, ids)) {
+                handleEditorChange(editor.getEditorValue(), { immediate: true });
+              }
               return;
             }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
@@ -1208,6 +1424,7 @@ export default function YooptaMiniEditor({
     >
       <YooptaMiniEditorIdContext.Provider value={editorInstanceIdRef.current}>
         <YooptaEditor
+          key={editorRenderKey}
           editor={editor}
           onChange={handleEditorChange}
           autoFocus={false}
@@ -1297,10 +1514,12 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
 }, ref) {
   const imageInputRef = useRef(null);
   const wrapperRef = useRef(null);
+  const contextSelectionRef = useRef(null);
   useTableDragScroll(wrapperRef);
   const editorInstanceIdRef = useRef(generateId());
   const initialValue = useMemo(() => textToYooptaValue(value), []);
   const editor = useMemo(() => createYooptaEditor({ plugins: PLUGINS, marks: MARKS, value: initialValue }), []);
+  const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -1418,14 +1637,21 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     return insertImageSources(images);
   };
   const commitContextAction = (action) => {
+    restoreContextSelection(editor, contextSelectionRef.current);
     action();
     queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
   };
   const commitWholeEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
     handleEditorChange(nextValue, { immediate: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedTextMark(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.toggle(editor, { type }));
       return;
@@ -1433,6 +1659,11 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     commitWholeEditorValue(updateYooptaWholeTextMark(editor.getEditorValue(), type));
   };
   const clearContextTextMarks = (selectedText) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(clearYooptaSelectedTextMarks(editor.getEditorValue(), selectedOrders));
+      return;
+    }
     if (selectedText) {
       commitContextAction(() => Marks.clear(editor));
       return;
@@ -1440,13 +1671,32 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     commitWholeEditorValue(clearYooptaWholeTextMarks(editor.getEditorValue()));
   };
   const setWholeContextBlockType = (type) => {
+    const selectedOrders = contextSelectionRef.current?.selectedPaths;
+    if (Array.isArray(selectedOrders) && selectedOrders.length > 0) {
+      commitWholeEditorValue(updateYooptaSelectedBlockType(editor.getEditorValue(), selectedOrders, type));
+      return;
+    }
     commitWholeEditorValue(updateYooptaWholeBlockType(editor.getEditorValue(), type));
+  };
+  const keepSelectionOnContextMouseDown = (event) => {
+    if (event.button !== 2) return;
+    const snapshot = createContextSelectionSnapshot(editor, blockDnd.wrapperRef.current);
+    contextSelectionRef.current = snapshot;
+    if (!hasContextSelection(snapshot)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestAnimationFrame(() => restoreContextSelection(editor, snapshot));
   };
   const openEditorContextMenu = (event) => {
     if (event.target.closest('button, select, input, textarea, label')) return;
+    const snapshot = createContextSelectionSnapshot(editor, blockDnd.wrapperRef.current);
+    contextSelectionRef.current = hasContextSelection(snapshot) ? snapshot : contextSelectionRef.current;
+    restoreContextSelection(editor, contextSelectionRef.current);
     const current = Selection.getCurrent(editor);
     const block = current != null ? editor.getBlock({ at: current }) : null;
-    const selectedText = window.getSelection?.()?.toString?.().trim() || '';
+    const selectedText = hasContextBlockSelection(contextSelectionRef.current)
+      ? ''
+      : contextSelectionRef.current?.selectedText || window.getSelection?.()?.toString?.().trim() || '';
     openYooptaContextMenu(event, [
       { label: '글자 굵게', icon: BoldIcon, onClick: () => toggleContextTextMark('bold', selectedText) },
       { label: '기울임', icon: ItalicIcon, onClick: () => toggleContextTextMark('italic', selectedText) },
@@ -1520,8 +1770,12 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
 
   return (
     <div
-      ref={wrapperRef}
+      ref={(node) => {
+        wrapperRef.current = node;
+        blockDnd.wrapperRef.current = node;
+      }}
       className={`yoopta-mini-editor yoopta-portfolio-wrapper group relative ${className}`}
+      onMouseDownCapture={keepSelectionOnContextMouseDown}
       onContextMenuCapture={openEditorContextMenu}
       onPaste={event => {
         const files = Array.from(event.clipboardData?.files || []);
@@ -1529,7 +1783,6 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         event.preventDefault();
         insertImageFiles(files);
       }}
-      ref={blockDnd.wrapperRef}
       onDragOverCapture={event => {
         if (blockDnd.onDragOver(event)) return;
         const types = Array.from(event.dataTransfer?.types || []);
@@ -1557,8 +1810,14 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
           event.stopPropagation();
           try {
             const payload = JSON.parse(externalImage);
-            // 같은 에디터(섹션) 내 드롭은 복제가 되므로 무시한다. (섹션 내 위치 이동은 블록 핸들 `::` 사용)
+            // 같은 에디터 안에서는 복제하지 않고 기존 이미지 블록의 위치만 옮긴다.
             if (payload?.source === 'yoopta' && payload?.sourceEditorId === editorInstanceIdRef.current) {
+              const sourceBlockId = payload.sourceBlockId;
+              const value = editor.getEditorValue();
+              const { ids, index } = getDropIndexFromY(blockDnd.wrapperRef.current, value, event.clientY);
+              if (sourceBlockId && moveYooptaBlock(editor, sourceBlockId, index, ids)) {
+                handleEditorChange(editor.getEditorValue(), { immediate: true });
+              }
               return;
             }
             if (payload?.src && await insertImageSources([{ src: payload.src, alt: payload.alt || 'image', sizes: payload.sizes }])) {
@@ -1620,6 +1879,7 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     >
       <YooptaMiniEditorIdContext.Provider value={editorInstanceIdRef.current}>
         <YooptaEditor
+          key={editorRenderKey}
           editor={editor}
           onChange={handleEditorChange}
           autoFocus={false}

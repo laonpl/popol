@@ -1,10 +1,11 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe } from 'lucide-react';
+import { Search, X, ChevronDown, ChevronUp, ExternalLink, Globe, FileText } from 'lucide-react';
 import api from '../services/api';
 
 const JOB_SITES = [
   { name: '잡코리아', domain: 'jobkorea.co.kr', color: 'bg-blue-500', url: 'https://www.jobkorea.co.kr/starter/calendar' },
   { name: '사람인', domain: 'saramin.co.kr', color: 'bg-green-500', url: 'https://calendar.saramin.co.kr' },
+  { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
 ];
 
 function toCleanList(value) {
@@ -31,36 +32,59 @@ function normalizeAnalysisForDisplay(analysis) {
   const rawCompany = analysis?.companyAnalysis || {};
   const rawPosition = analysis?.positionAnalysis || {};
   const rawStrategy = analysis?.applicationStrategy || {};
+  const isManualGuide = analysis?._sourceType === 'manual-entry' || analysis?._sourceType === 'manual-entry-guide';
+  const sourceLooksThin =
+    isManualGuide ||
+    !firstFilled(rawCompany.overview, rawPosition.roleDescription, rawStrategy.portfolioTips?.[0]) ||
+    /확인하지 못했습니다|공고 원문 확인 필요/.test(firstFilled(rawCompany.overview, ''));
+  const guideSkills = skills.length ? skills : ['문제 해결', '협업', '데이터 기반 판단', '실행력'];
+  const guideTasks = tasks.length ? tasks : [
+    `${position} 직무와 관련된 핵심 업무 수행`,
+    '유관 부서와 협업하며 실행 계획 수립',
+    '성과를 점검하고 개선 방향 도출',
+  ];
+  const guidePortfolioTips = [
+    `${position}와 가장 가까운 프로젝트를 첫 번째 사례로 배치`,
+    '문제 상황, 본인 역할, 실행 과정, 결과를 한 흐름으로 정리',
+    guideSkills.length ? `관련 역량(${guideSkills.slice(0, 4).join(', ')})을 실제 경험 근거와 연결` : '',
+    '공고 원문을 확보하면 담당업무와 제출 조건에 맞춰 문구를 다시 조정',
+  ].filter(Boolean);
 
   const companyAnalysis = {
     ...rawCompany,
     overview: firstFilled(
       rawCompany.overview,
-      `${company}의 채용 공고를 기준으로 ${position} 직무에서 요구하는 역량과 포트폴리오 방향을 정리했습니다.`
+      sourceLooksThin
+        ? `${company} ${position} 지원을 위한 준비 가이드입니다. 실제 담당업무와 제출 조건은 공고 원문으로 확인해 주세요.`
+        : '공고 원문에서 기업 소개/사업 설명을 확인하지 못했습니다.'
     ),
-    industry: firstFilled(rawCompany.industry, skills.length ? `${skills.slice(0, 3).join(', ')} 관련 직무 영역` : ''),
+    industry: firstFilled(rawCompany.industry, sourceLooksThin ? `${position} 관련 직무/사업 영역` : ''),
     businessAreas: toCleanList(rawCompany.businessAreas),
     strengths: toCleanList(rawCompany.strengths).length
       ? toCleanList(rawCompany.strengths)
-      : [
-          `${position}와 직접 연결되는 프로젝트 성과를 앞쪽에 배치하면 적합도를 빠르게 보여줄 수 있습니다.`,
-          skills.length ? `${skills.slice(0, 3).join(', ')} 역량을 근거와 함께 제시하는 것이 유리합니다.` : '',
-        ].filter(Boolean),
+      : sourceLooksThin
+        ? [
+            `${company} 맞춤 포트폴리오에서는 기업명보다 ${position} 직무 수행 근거가 먼저 보여야 합니다.`,
+            `${guideSkills.slice(0, 3).join(', ')} 역량을 프로젝트 사례로 증명하면 적합도를 빠르게 전달할 수 있습니다.`,
+          ]
+        : [],
     weaknesses: toCleanList(rawCompany.weaknesses).length
       ? toCleanList(rawCompany.weaknesses)
-      : ['공고에서 확인되지 않은 기업 세부 정보는 단정하지 말고, 실제 경험과 직무 요구사항의 연결로 보완하세요.'],
+      : sourceLooksThin
+        ? ['공고 원문이 없어 실제 담당업무, 필수요건, 제출 형식은 아직 확정할 수 없습니다.']
+        : [],
     competitors: Array.isArray(rawCompany.competitors) ? rawCompany.competitors : [],
-    culture: firstFilled(rawCompany.culture, coreValues.length ? `${coreValues.slice(0, 3).join(', ')} 키워드를 자기소개와 프로젝트 설명에 자연스럽게 반영하세요.` : ''),
-    recentTrends: firstFilled(rawCompany.recentTrends, tasks.length ? `${tasks.slice(0, 3).join(', ')} 업무 흐름과 관련된 경험을 최신 사례처럼 보여주는 구성이 좋습니다.` : ''),
+    culture: firstFilled(rawCompany.culture, coreValues.length ? coreValues.slice(0, 3).join(', ') : sourceLooksThin ? '협업, 실행력, 학습 속도처럼 대부분의 직무에서 검증 가능한 태도를 경험 근거와 함께 보여주세요.' : ''),
+    recentTrends: firstFilled(rawCompany.recentTrends, sourceLooksThin ? `${company}의 최신 사업/채용 페이지를 확인해 포트폴리오의 문제 정의와 성과 표현을 보정하는 것이 좋습니다.` : ''),
   };
 
   const positionAnalysis = {
     ...rawPosition,
-    roleDescription: firstFilled(rawPosition.roleDescription, `${position} 직무는 ${tasks.slice(0, 3).join(', ') || '공고의 주요 업무'} 수행 역량을 중심으로 평가될 가능성이 높습니다.`),
-    dailyTasks: firstFilled(rawPosition.dailyTasks, tasks.join(', ')),
+    roleDescription: firstFilled(rawPosition.roleDescription, `${position} 직무는 ${guideTasks.slice(0, 3).join(', ')} 역량을 중심으로 평가될 가능성이 높습니다.`),
+    dailyTasks: firstFilled(rawPosition.dailyTasks, guideTasks.join(', ')),
     keyCompetencies: Array.isArray(rawPosition.keyCompetencies) && rawPosition.keyCompetencies.length
       ? rawPosition.keyCompetencies
-      : skills.slice(0, 5).map((skill, index) => ({
+      : guideSkills.slice(0, 5).map((skill, index) => ({
           name: skill,
           weight: Math.max(6, 9 - index),
           description: `${position} 포트폴리오에서 근거 사례로 보여주면 좋은 역량입니다.`,
@@ -76,14 +100,10 @@ function normalizeAnalysisForDisplay(analysis) {
       : [{ point: `${company}의 ${position} 요구사항과 본인의 경험을 직접 연결`, how: '첫 화면과 주요 프로젝트 설명에서 공고 키워드를 반복적으로 드러내세요.' }],
     appealPoints: toCleanList(rawStrategy.appealPoints).length
       ? toCleanList(rawStrategy.appealPoints)
-      : [...skills.slice(0, 4), ...essential.slice(0, 2)].slice(0, 5),
+      : [...guideSkills.slice(0, 4), ...essential.slice(0, 2)].slice(0, 5),
     portfolioTips: toCleanList(rawStrategy.portfolioTips).length
       ? toCleanList(rawStrategy.portfolioTips)
-      : [
-          '주요 프로젝트마다 문제 상황, 본인 역할, 결과 지표를 함께 작성',
-          skills.length ? `요구 기술(${skills.slice(0, 4).join(', ')})을 사용한 근거 사례 강조` : '',
-          '기업명만 바꾼 일반 포트폴리오처럼 보이지 않도록 직무 요구사항 문구를 자연스럽게 반영',
-        ].filter(Boolean),
+      : guidePortfolioTips,
     cautionPoints: toCleanList(rawStrategy.cautionPoints).length
       ? toCleanList(rawStrategy.cautionPoints)
       : ['공고에 없는 기업 정보나 성과를 단정적으로 쓰지 말고 검증 가능한 경험 위주로 작성하세요.'],
@@ -91,15 +111,17 @@ function normalizeAnalysisForDisplay(analysis) {
 
   const industryTrends = Array.isArray(analysis?.industryTrends) && analysis.industryTrends.length
     ? analysis.industryTrends
-    : [
-        {
-          trend: `${position} 직무의 실무 역량 검증 강화`,
-          description: '채용 과정에서 단순 기술 나열보다 실제 문제를 어떻게 해결했는지 확인하는 비중이 커지고 있습니다.',
-          impact: '포트폴리오에는 결과물 이미지나 링크뿐 아니라 의사결정 과정과 개선 결과를 함께 담는 것이 좋습니다.',
-          keywords: skills.slice(0, 4),
-          level: 'growing',
-        },
-      ];
+    : sourceLooksThin
+      ? [
+          {
+            trend: `${position} 직무의 실무 역량 검증 강화`,
+            description: '채용 과정에서 단순 이력 나열보다 실제 문제를 어떻게 해결했는지 확인하는 비중이 큽니다.',
+            impact: '포트폴리오에는 결과물뿐 아니라 문제 정의, 본인 역할, 의사결정, 결과를 함께 담는 것이 좋습니다.',
+            keywords: guideSkills.slice(0, 4),
+            level: 'stable',
+          },
+        ]
+      : [];
 
   return { companyAnalysis, positionAnalysis, applicationStrategy, industryTrends };
 }
@@ -111,67 +133,43 @@ export function buildDisplayPortfolioRequirements(analysis) {
   const content = toCleanList(raw.content);
   let submission = typeof raw.submission === 'string' ? raw.submission.trim() : '';
 
+  // 공고 원문을 못 읽은 폴백 분석이면 일반론 기본값을 지어내지 않고(실제 공고와 모순될 수 있음)
+  // 백엔드가 넣은 값/안내를 그대로 보여준다.
+  if (analysis?._scrapeWarning || analysis?._analysisWarning) {
+    return {
+      required,
+      format,
+      content,
+      submission: submission || '공고 원문 확인 필요',
+    };
+  }
+
   const docs = toCleanList(analysis?.applicationFormat?.documents);
   const fileConstraints = analysis?.applicationFormat?.fileConstraints || {};
-  const portfolioTips = toCleanList(analysis?.applicationStrategy?.portfolioTips);
 
-  // AI가 샘플 텍스트 그대로 넣거나 너무 부실하게 채운 경우 보강
+  // AI가 샘플 텍스트 그대로 넣은 경우만 공고 원문 기반 필드로 정리한다.
+  // 공고에 없는 PDF/파일 크기/프로젝트 개수 같은 기본값은 만들지 않는다.
   const isBarelyFilled =
     required.length + format.length + content.length < 2 ||
     required.some(r => r.includes('예:') || r.includes('서류1') || r.includes('서류2'));
 
   if (isBarelyFilled) {
-    // required 보강
     if (required.length === 0) {
       const portfolioDocs = docs.filter(d => /포트폴리오|portfolio|github|링크|url/i.test(d));
       if (portfolioDocs.length > 0) {
         portfolioDocs.forEach(d => { if (!required.includes(d)) required.push(d); });
-      } else if (docs.length > 0) {
-        required.push(`제출 서류: ${docs.join(', ')}`);
-      } else {
-        const isDevRole = /개발|엔지니어|프로그래|백엔드|프론트|풀스택|devops/i.test(
-          (analysis?.position || '') + (analysis?.skills || []).join('')
-        );
-        const isDesignRole = /디자인|designer|ux|ui|브랜드/i.test(analysis?.position || '');
-        if (isDevRole) {
-          required.push('PDF 포트폴리오 또는 GitHub 프로필 링크');
-        } else if (isDesignRole) {
-          required.push('PDF 포트폴리오 필수');
-          required.push('Behance / 개인 사이트 링크 (선택)');
-        } else {
-          required.push('포트폴리오 또는 업무 결과물 파일');
-        }
       }
     }
 
-    // format 보강
     if (format.length === 0) {
       if (fileConstraints.format) format.push(`허용 형식: ${fileConstraints.format}`);
       if (fileConstraints.maxSize) format.push(`최대 파일 크기: ${fileConstraints.maxSize}`);
-      if (format.length === 0) {
-        format.push('PDF 형식 권장 (링크 제출 가능한 경우 URL 기재)');
-        format.push('파일 크기 10MB 이하 권장');
-      }
     }
 
-    // content 보강
-    if (content.length === 0 && portfolioTips.length > 0) {
-      content.push(...portfolioTips.slice(0, 5));
-    }
-    if (content.length === 0) {
-      content.push('본인이 참여한 주요 프로젝트 2~3개 이상');
-      content.push('각 프로젝트의 본인 기여 범위 및 역할 명시');
-      content.push('사용 기술 스택 목록 기재');
-      content.push('정량적 성과 또는 결과 포함 (가능한 경우 수치 제시)');
-    }
   }
 
   if (!submission) {
-    if (docs.length > 0) {
-      submission = '지원서 파일 첨부란 또는 링크 입력란에 기재';
-    } else {
-      submission = '채용 플랫폼의 지원 절차에 따라 제출';
-    }
+    submission = '';
   }
 
   return {
@@ -185,6 +183,7 @@ export function buildDisplayPortfolioRequirements(analysis) {
 export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = false }) {
   const [mode, setMode] = useState(compact ? 'details' : 'url');
   const [url, setUrl] = useState('');
+  const [pastedText, setPastedText] = useState('');
   const [company, setCompany] = useState('');
   const [position, setPosition] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -225,6 +224,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
     const trimmedDeadline = deadline.trim();
 
     if (mode === 'url' && !trimmedUrl) return;
+    if (mode === 'text' && !pastedText.trim()) return;
     if (mode === 'details' && (!trimmedCompany || !trimmedPosition || !trimmedDeadline)) return;
 
     setLoading(true);
@@ -236,6 +236,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
         deadline: trimmedDeadline || undefined,
       };
       if (mode === 'url') payload.url = trimmedUrl;
+      if (mode === 'text') payload.text = pastedText.trim();
 
       const { data } = await api.post('/job/analyze', payload, { timeout: 300000 });
       onAnalysisComplete(data.analysis);
@@ -249,7 +250,9 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
   const canSubmit =
     mode === 'url'
       ? !!url.trim()
-      : !!(company.trim() && position.trim() && deadline.trim());
+      : mode === 'text'
+        ? !!pastedText.trim()
+        : !!(company.trim() && position.trim() && deadline.trim());
   const fieldClassName = 'w-full px-4 py-3 border border-surface-200 rounded-lg text-[14px] text-bluewood-800 placeholder:text-bluewood-300 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors bg-white';
   const tabClass = (active) => `flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold transition-colors ${active ? 'bg-white text-primary-700 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-700'}`;
 
@@ -269,8 +272,11 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
           <button type="button" onClick={() => setMode('url')} className={tabClass(mode === 'url')}>
             <Globe size={14} /> 공고 링크
           </button>
+          <button type="button" onClick={() => setMode('text')} className={tabClass(mode === 'text')}>
+            <FileText size={14} /> 내용 붙여넣기
+          </button>
           <button type="button" onClick={() => setMode('details')} className={tabClass(mode === 'details')}>
-            <Search size={14} /> 공고 정보로 기업 분석하기
+            <Search size={14} /> 정보로 분석
           </button>
         </div>
       )}
@@ -321,6 +327,19 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
               {detectedSite.name}
             </span>
           )}
+        </div>
+      )}
+
+      {mode === 'text' && (
+        <div className="space-y-1.5">
+          <textarea
+            value={pastedText}
+            onChange={e => setPastedText(e.target.value)}
+            placeholder={'채용공고 페이지의 내용을 그대로 복사해서 붙여넣으세요.\n(자소설닷컴·로그인 필요 사이트 등 링크 분석이 안 될 때 가장 정확합니다)'}
+            rows={8}
+            className={`${fieldClassName} resize-y min-h-[160px] leading-relaxed`}
+          />
+          <p className="text-[11px] text-bluewood-300">공고 원문을 그대로 붙여넣으면 자유 양식·제출 조건 등 실제 내용을 정확히 분석합니다.</p>
         </div>
       )}
 
@@ -383,7 +402,7 @@ export default function JobLinkInput({ onAnalysisComplete, onSkip, compact = fal
             disabled={!canSubmit}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary-100"
           >
-            {mode === 'url' ? '공고 링크로 기업 분석하기' : '기업 분석하기'}
+            {mode === 'url' ? '공고 링크로 기업 분석하기' : mode === 'text' ? '붙여넣은 공고로 기업 분석하기' : '기업 분석하기'}
           </button>
           {onSkip && (
             <button
@@ -464,6 +483,15 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
             {analysis.coreValues?.slice(0, 2).map((v, i) => (
               <span key={`v${i}`} style={{ fontSize: 11, padding: '3px 8px', background: '#fff', color: '#64748b', border: '1px dotted #94a3b8', fontWeight: 500 }}>{v}</span>
             ))}
+          </div>
+        )}
+        {(analysis._scrapeWarning || analysis._analysisWarning) && (
+          <div style={{ marginTop: 10, padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 11.5, color: '#92400e', lineHeight: 1.5 }}>
+            {analysis._sourceType === 'manual-entry' || analysis._sourceType === 'manual-entry-guide'
+              ? '공고 원문 없이 기업명/모집분야 기반 준비 가이드로 작성했습니다. 담당업무·제출 조건은 실제 공고 원문으로 확인해 주세요.'
+              : analysis._sourceType === 'url-search-guide' || analysis._sourceType === 'posting-metadata-fallback'
+                ? '공고 원문 자동 수집이 제한된 항목은 공고 메타/공개 기업 정보로 보강했습니다. 제출 조건은 실제 공고 원문으로 확인해 주세요.'
+                : '공고 원문을 기준으로 분석했고, 기업 정보는 공개 자료로 보강했습니다.'}
           </div>
         )}
       </div>
@@ -589,6 +617,13 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 )}
                 {ca.culture && <AnalysisCard title="기업 문화"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(ca.culture)}</p></AnalysisCard>}
                 {ca.recentTrends && <AnalysisCard title="최근 동향"><p style={{ color: '#374151', lineHeight: 1.7, fontSize: 13 }}>{stripMd(ca.recentTrends)}</p></AnalysisCard>}
+                {ca.sourceNotes?.length > 0 && (
+                  <AnalysisCard title="참고 출처">
+                    {ca.sourceNotes.slice(0, 5).map((note, i) => (
+                      <p key={i} style={{ color: '#64748b', paddingLeft: 8, borderLeft: '1px dotted #94a3b8', marginBottom: 5, fontSize: 12, lineHeight: 1.55 }}>{stripMd(String(note))}</p>
+                    ))}
+                  </AnalysisCard>
+                )}
               </div>
             )}
 
