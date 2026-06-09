@@ -1068,6 +1068,8 @@ export default function YooptaMiniEditor({
   const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
+  const directUndoStackRef = useRef([]);
+  const directRedoStackRef = useRef([]);
   const changeTimerRef = useRef(null);
   const onChangeRef = useRef(onChange);
   useEffect(() => {
@@ -1083,6 +1085,10 @@ export default function YooptaMiniEditor({
   const handleEditorChange = useCallback((nextValue, options = {}) => {
     latestValueRef.current = nextValue;
     pendingValueRef.current = nextValue;
+    if (!options.preserveDirectHistory) {
+      directUndoStackRef.current = [];
+      directRedoStackRef.current = [];
+    }
     if (options.immediate) {
       publishEditorChange(nextValue);
       return;
@@ -1090,6 +1096,15 @@ export default function YooptaMiniEditor({
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => publishEditorChange(pendingValueRef.current), 120);
   }, [publishEditorChange]);
+
+  useEffect(() => {
+    const onFlush = () => {
+      const nextValue = pendingValueRef.current || editor.getEditorValue();
+      publishEditorChange(nextValue);
+    };
+    window.addEventListener('fitpoly:flush-yoopta-editors', onFlush);
+    return () => window.removeEventListener('fitpoly:flush-yoopta-editors', onFlush);
+  }, [editor, publishEditorChange]);
 
   const blockDnd = useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange);
   // 브라우저 맞춤법 검사(빨간 밑줄) 비활성화 — Slate가 spellCheck=true를 강제하므로 DOM에서 끈다.
@@ -1184,10 +1199,20 @@ export default function YooptaMiniEditor({
     action();
     queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
   };
-  const commitWholeEditorValue = (nextValue) => {
+  const restoreDirectEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
     setEditorRenderKey(key => key + 1);
-    handleEditorChange(nextValue, { immediate: true });
+    handleEditorChange(nextValue, { immediate: true, preserveDirectHistory: true });
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    const currentValue = editor.getEditorValue();
+    if (JSON.stringify(currentValue) !== JSON.stringify(nextValue)) {
+      directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), currentValue];
+      directRedoStackRef.current = [];
+    }
+    editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
+    handleEditorChange(nextValue, { immediate: true, preserveDirectHistory: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
     const selectedOrders = contextSelectionRef.current?.selectedPaths;
@@ -1345,6 +1370,12 @@ export default function YooptaMiniEditor({
         if (isModifier && event.key.toLowerCase() === 'y') {
           event.preventDefault();
           event.stopPropagation();
+          const nextDirect = directRedoStackRef.current.pop();
+          if (nextDirect) {
+            directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), editor.getEditorValue()];
+            restoreDirectEditorValue(nextDirect);
+            return;
+          }
           editor.redo();
           queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
           return;
@@ -1352,8 +1383,24 @@ export default function YooptaMiniEditor({
         if (isModifier && event.key.toLowerCase() === 'z') {
           event.preventDefault();
           event.stopPropagation();
-          if (event.shiftKey) editor.redo();
-          else editor.undo();
+          if (event.shiftKey) {
+            const nextDirect = directRedoStackRef.current.pop();
+            if (nextDirect) {
+              directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), editor.getEditorValue()];
+              restoreDirectEditorValue(nextDirect);
+              return;
+            }
+            editor.redo();
+          }
+          else {
+            const prevDirect = directUndoStackRef.current.pop();
+            if (prevDirect) {
+              directRedoStackRef.current = [...directRedoStackRef.current.slice(-49), editor.getEditorValue()];
+              restoreDirectEditorValue(prevDirect);
+              return;
+            }
+            editor.undo();
+          }
           queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
           return;
         }
@@ -1493,6 +1540,8 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   const [editorRenderKey, setEditorRenderKey] = useState(0);
   const latestValueRef = useRef(initialValue);
   const pendingValueRef = useRef(null);
+  const directUndoStackRef = useRef([]);
+  const directRedoStackRef = useRef([]);
   const changeTimerRef = useRef(null);
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -1507,10 +1556,23 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   const handleEditorChange = useCallback((nextValue, options = {}) => {
     latestValueRef.current = nextValue;
     pendingValueRef.current = nextValue;
+    if (!options.preserveDirectHistory) {
+      directUndoStackRef.current = [];
+      directRedoStackRef.current = [];
+    }
     if (options.immediate) { publishEditorChange(nextValue); return; }
     if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
     changeTimerRef.current = setTimeout(() => publishEditorChange(pendingValueRef.current), 150);
   }, [publishEditorChange]);
+
+  useEffect(() => {
+    const onFlush = () => {
+      const nextValue = pendingValueRef.current || editor.getEditorValue();
+      publishEditorChange(nextValue);
+    };
+    window.addEventListener('fitpoly:flush-yoopta-editors', onFlush);
+    return () => window.removeEventListener('fitpoly:flush-yoopta-editors', onFlush);
+  }, [editor, publishEditorChange]);
 
   const blockDnd = useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange);
 
@@ -1612,10 +1674,20 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
     action();
     queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
   };
-  const commitWholeEditorValue = (nextValue) => {
+  const restoreDirectEditorValue = (nextValue) => {
     editor.setEditorValue(nextValue);
     setEditorRenderKey(key => key + 1);
-    handleEditorChange(nextValue, { immediate: true });
+    handleEditorChange(nextValue, { immediate: true, preserveDirectHistory: true });
+  };
+  const commitWholeEditorValue = (nextValue) => {
+    const currentValue = editor.getEditorValue();
+    if (JSON.stringify(currentValue) !== JSON.stringify(nextValue)) {
+      directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), currentValue];
+      directRedoStackRef.current = [];
+    }
+    editor.setEditorValue(nextValue);
+    setEditorRenderKey(key => key + 1);
+    handleEditorChange(nextValue, { immediate: true, preserveDirectHistory: true });
   };
   const toggleContextTextMark = (type, selectedText) => {
     const selectedOrders = contextSelectionRef.current?.selectedPaths;
@@ -1805,6 +1877,12 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         if (isModifier && event.key.toLowerCase() === 'y') {
           event.preventDefault();
           event.stopPropagation();
+          const nextDirect = directRedoStackRef.current.pop();
+          if (nextDirect) {
+            directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), editor.getEditorValue()];
+            restoreDirectEditorValue(nextDirect);
+            return;
+          }
           editor.redo();
           queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
           return;
@@ -1812,7 +1890,23 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         if (isModifier && event.key.toLowerCase() === 'z') {
           event.preventDefault();
           event.stopPropagation();
-          if (event.shiftKey) editor.redo(); else editor.undo();
+          if (event.shiftKey) {
+            const nextDirect = directRedoStackRef.current.pop();
+            if (nextDirect) {
+              directUndoStackRef.current = [...directUndoStackRef.current.slice(-49), editor.getEditorValue()];
+              restoreDirectEditorValue(nextDirect);
+              return;
+            }
+            editor.redo();
+          } else {
+            const prevDirect = directUndoStackRef.current.pop();
+            if (prevDirect) {
+              directRedoStackRef.current = [...directRedoStackRef.current.slice(-49), editor.getEditorValue()];
+              restoreDirectEditorValue(prevDirect);
+              return;
+            }
+            editor.undo();
+          }
           queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
           return;
         }

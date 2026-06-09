@@ -29,6 +29,36 @@ function stripPortfolioInlineHtml(portfolio) {
   return portfolio;
 }
 
+function aiPptErrorResponse(error) {
+  const message = String(error?.message || error || '');
+  if (/GEMINI_API_KEY|GOOGLE_API_KEY|VERTEX_AI_PROJECT_ID|VERTEX_AI_LOCATION|API key|api key|authentication|credentials/i.test(message)) {
+    return {
+      status: 502,
+      error: 'AI PPT 생성에 필요한 Gemini/Vertex AI 환경변수 설정을 확인해주세요.',
+      detail: message,
+    };
+  }
+  if (/timeout|GEMINI_TIMEOUT|시간 초과/i.test(message)) {
+    return {
+      status: 504,
+      error: 'AI PPT 생성 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.',
+      detail: message,
+    };
+  }
+  if (/429|quota|rate|Resource has been exhausted|요청 한도|사용량/i.test(message)) {
+    return {
+      status: 429,
+      error: 'AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.',
+      detail: message,
+    };
+  }
+  return {
+    status: error?.status || error?.statusCode || 500,
+    error: 'AI PPT 생성 중 서버 오류가 발생했습니다.',
+    detail: message,
+  };
+}
+
 // POST /api/portfolio/validate - 체크리스트 6개 항목 검증
 router.post('/validate', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
@@ -279,7 +309,8 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
     res.json({ deck });
   } catch (error) {
     console.error('[POST /portfolio/ai-ppt-analyze]', error);
-    next(error);
+    const response = aiPptErrorResponse(error);
+    res.status(response.status).json({ error: response.error, detail: response.detail });
   }
 });
 
@@ -298,7 +329,8 @@ router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, ne
     res.json({ slide: updated });
   } catch (error) {
     console.error('[POST /portfolio/ai-ppt-revise]', error);
-    next(error);
+    const response = aiPptErrorResponse(error);
+    res.status(response.status).json({ error: response.error, detail: response.detail });
   }
 });
 

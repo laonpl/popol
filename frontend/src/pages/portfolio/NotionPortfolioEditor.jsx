@@ -10,6 +10,7 @@ import {
   Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy, Camera, Eraser
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
+import { generateId } from '@yoopta/editor';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
@@ -96,9 +97,50 @@ function recommendationToText(rec) {
 const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
 const DEFAULT_PROJECT_LOGO = '/logo.png';
 
+function isYooptaValue(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).some(block => block?.type && Array.isArray(block?.value) && block?.meta);
+}
+
+function createYooptaTextBlock(text, order) {
+  const blockId = generateId();
+  return {
+    id: blockId,
+    type: 'Paragraph',
+    value: [{
+      id: generateId(),
+      type: 'paragraph',
+      children: [{ text }],
+      props: { nodeType: 'block' },
+    }],
+    meta: { order, depth: 0 },
+  };
+}
+
+function appendTextToYooptaValue(existing, text) {
+  const cleanText = stripMd(text);
+  if (!cleanText) return existing || {};
+  const next = { ...(existing || {}) };
+  const orders = Object.values(next)
+    .map(block => Number(block?.meta?.order))
+    .filter(Number.isFinite);
+  let order = orders.length ? Math.max(...orders) + 1 : 0;
+  cleanText
+    .split(/\n{2,}/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .forEach(line => {
+      const block = createYooptaTextBlock(line, order);
+      next[block.id] = block;
+      order += 1;
+    });
+  return next;
+}
+
 function toRichTextBlocks(existing, text) {
   const cleanText = stripMd(text);
-  if (!cleanText) return Array.isArray(existing) ? existing : [];
+  if (!cleanText) return isYooptaValue(existing) ? existing : (Array.isArray(existing) ? existing : []);
+  if (isYooptaValue(existing)) return appendTextToYooptaValue(existing, cleanText);
   const textBlock = { type: 'text', content: cleanText };
   if (Array.isArray(existing)) {
     const filled = existing.filter(block => block?.type !== 'text' || String(block.content || '').trim());
@@ -925,6 +967,7 @@ export default function NotionPortfolioEditor() {
   const initialLoaded = useRef(false);
   const pendingRef = useRef(false);
   const queuedPortfolioRef = useRef(null);
+  const portfolioRef = useRef(null);
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
   const isHistoryActionRef = useRef(false);
@@ -954,6 +997,10 @@ export default function NotionPortfolioEditor() {
     autoSaveTimer.current = setTimeout(() => persistPortfolio(portfolio), 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [portfolio, persistPortfolio]);
+
+  useEffect(() => {
+    portfolioRef.current = portfolio;
+  }, [portfolio]);
 
   const labels = useMemo(() => ({
     ...(SECTION_LABELS[portfolio?.templateId] || SECTION_LABELS.notion),
@@ -1170,12 +1217,12 @@ export default function NotionPortfolioEditor() {
     const applyRecommendation = (event) => {
       const { sectionType, recommendation } = event.detail || {};
       if (!sectionType || !recommendation) return;
-      setPortfolio(prev => applySectionRecommendationToPortfolio(prev, sectionType, recommendation));
+      commitPortfolio(prev => applySectionRecommendationToPortfolio(prev, sectionType, recommendation));
       toast.success('추천 내용을 적용했습니다');
     };
     window.addEventListener(SECTION_RECOMMEND_APPLY_EVENT, applyRecommendation);
     return () => window.removeEventListener(SECTION_RECOMMEND_APPLY_EVENT, applyRecommendation);
-  }, []);
+  }, [commitPortfolio]);
 
   // 포트폴리오 요건 체크리스트
   const [reqChecklist, setReqChecklist] = useState(null);
@@ -1286,12 +1333,34 @@ export default function NotionPortfolioEditor() {
     checkPortfolioRequirements(portfolio);
   };
 
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const flushEmbeddedEditors = async () => {
+    window.dispatchEvent(new CustomEvent('fitpoly:flush-yoopta-editors'));
+    await sleep(40);
+  };
+
+  const waitForPersistIdle = async () => {
+    for (let i = 0; i < 25; i += 1) {
+      if (!pendingRef.current) return;
+      await sleep(80);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { id: _id, ...data } = portfolio;
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = null;
+      }
+      await flushEmbeddedEditors();
+      await waitForPersistIdle();
+      queuedPortfolioRef.current = null;
+      const snapshot = portfolioRef.current || portfolio;
+      const { id: _id, ...data } = snapshot;
       await updatePortfolio(id, data);
-      setCurrentPortfolio(portfolio);
+      setCurrentPortfolio(snapshot);
       toast.success('저장되었습니다');
       navigate(`/app/portfolio/preview/${id}`);
     } catch (error) {
