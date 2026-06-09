@@ -3,6 +3,7 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
+import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -143,10 +144,17 @@ function normalizeCaseStudy(cs) {
 }
 
 /* ── 자동 높이 조절 + 자동 줄바꿈 인라인 텍스트 (글자 잘림 방지) ── */
-function AutoText({ value, onChange, placeholder, className = '', dark = false }) {
+function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false }) {
   const ref = useRef(null);
   const resize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
   useEffect(() => { resize(ref.current); }, [value]);
+  const tone = dark
+    ? 'border border-white/10 bg-white/[0.06] placeholder:text-white/45 hover:bg-white/[0.1] focus:bg-white/[0.14] focus:border-white/30'
+    : prose
+      // 큰 본문·제목: 점선 밑줄 + hover (문서 느낌 유지)
+      ? 'border border-transparent border-dashed border-b-bluewood-200 placeholder:text-bluewood-300 hover:bg-surface-50 focus:bg-surface-50/70 focus:border-b-primary-400'
+      // 짧은 입력 필드: 은은한 회색 필드
+      : 'border border-transparent bg-surface-50/70 placeholder:text-bluewood-300 hover:bg-surface-100 hover:border-surface-200 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
   return (
     <textarea
       ref={ref}
@@ -154,7 +162,7 @@ function AutoText({ value, onChange, placeholder, className = '', dark = false }
       value={value}
       placeholder={placeholder}
       onChange={(e) => { onChange(e.target.value); resize(e.target); }}
-      className={`w-full resize-none whitespace-pre-wrap break-words bg-transparent outline-none transition-colors rounded-md -mx-1 px-1 ${dark ? 'placeholder:text-white/55 focus:bg-white/10' : 'placeholder:text-bluewood-300 focus:bg-primary-50/40'} ${className}`}
+      className={`w-full resize-none whitespace-pre-wrap break-words rounded-md -ml-2 px-2 py-1 outline-none transition-all duration-150 cursor-text ${tone} ${className}`}
       style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
     />
   );
@@ -270,6 +278,7 @@ function CaseBody({ body, onChange }) {
             {seg.type === 'text' ? (
               <div className="relative">
                 <AutoText
+                  prose
                   value={seg.content}
                   onChange={(v) => update(i, { content: v })}
                   placeholder={seg.variant === 'heading' ? '제목' : '본문을 입력하세요'}
@@ -392,7 +401,16 @@ export default function ExperienceResult() {
       cs.keyExps.forEach((k, i) => {
         if (k.images?.length) keyExpImages[String(i)] = k.images.map(im => ({ url: im.url, width: im.width || '100%' }));
       });
-      await updateDoc(doc(db, 'experiences', id), { caseStudy: cs, keyExpImages, title: cs.title || exp?.title || '', updatedAt: new Date() });
+      // 간략 보기의 공통 필드(제목·요약·역할·핵심경험)를 자세히 보기(structuredResult)에도 반영
+      const updatedStructured = mergeCaseStudyIntoStructured(exp?.structuredResult, cs);
+      await updateDoc(doc(db, 'experiences', id), {
+        caseStudy: cs,
+        keyExpImages,
+        title: cs.title || exp?.title || '',
+        structuredResult: updatedStructured,
+        updatedAt: new Date(),
+      });
+      setExp(prev => ({ ...(prev || {}), structuredResult: updatedStructured, title: cs.title || prev?.title || '' }));
       setDirty(false);
       toast.success('저장됐어요.');
     } catch (err) {
@@ -447,10 +465,16 @@ export default function ExperienceResult() {
       {/* ── 상단 액션 바 ── */}
       <div className="sticky top-0 z-20 border-b border-surface-200 bg-white/90 backdrop-blur">
         <div className="max-w-7xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
-          <button onClick={() => guardedNav('/app/experience')} className="text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← 경험 목록</button>
-          <div className="flex items-center gap-2.5">
+          <button onClick={() => guardedNav('/app/experience')} className="shrink-0 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← <span className="hidden sm:inline">경험 목록</span></button>
+
+          {/* 보기 전환 — 케이스 스터디 ↔ 자세히 보기 */}
+          <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
+            <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">케이스 스터디</span>
+            <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">자세히 보기</button>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
             {dirty && <span className="hidden sm:inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-500"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />저장 안 됨</span>}
-            <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">자세히보기</button>
             <button
               onClick={handleSave}
               disabled={saving || !dirty}
@@ -466,14 +490,22 @@ export default function ExperienceResult() {
       <article className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-12">
         {/* ════ 히어로 (전체 폭) ════ */}
         <div className="max-w-3xl">
-          <p className="text-[12px] font-black uppercase tracking-[0.22em] mb-4" style={{ color: ACCENT }}>CASE STUDY</p>
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-[12px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>CASE STUDY</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400">
+              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              회색으로 표시된 영역을 눌러 바로 편집할 수 있어요
+            </span>
+          </div>
           <AutoText
+            prose
             value={cs.title}
             onChange={(v) => setField('title', v)}
             placeholder="경험 제목을 입력하세요"
             className="text-[30px] sm:text-[40px] font-black leading-[1.18] text-bluewood-900 tracking-tight"
           />
           <AutoText
+            prose
             value={cs.summary}
             onChange={(v) => setField('summary', v)}
             placeholder="한 줄 요약 — 이 경험이 무엇이고 왜 중요한지"
@@ -554,6 +586,7 @@ export default function ExperienceResult() {
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
                       <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
                       <AutoText
+                        prose
                         value={k.title}
                         onChange={(v) => setKeyExp(k.id, 'title', v)}
                         placeholder={`핵심 경험 ${i + 1}`}
@@ -620,8 +653,9 @@ export default function ExperienceResult() {
           >
             {saving ? '저장 중…' : '저장하기'}
           </button>
-          <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 transition-colors">
-            자세히보기
+          <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="inline-flex items-center gap-1.5 px-5 py-3 rounded-xl bg-white border border-surface-200 text-bluewood-700 text-[14px] font-bold hover:bg-surface-50 hover:border-surface-300 transition-colors">
+            자세히 보기로 전환
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
           </button>
         </div>
       </article>

@@ -373,7 +373,7 @@ textarea {
 /* 다중 블록 선택(드래그·Shift+클릭·Ctrl+A) 하이라이트 — 위 transparent 규칙을 덮어쓴다.
    이게 없으면 여러 블록이 선택돼도 표시가 안 보여 "한 섹션만 선택되는 것처럼" 느껴진다. */
 .yoopta-mini-editor .yoopta-editor [data-yoopta-block][data-block-selected="true"] {
-  background: rgba(0, 47, 108, 0.10) !important;
+  background: rgba(100, 116, 139, 0.18) !important;
   border-radius: 6px;
 }
 .yoopta-mini-editor .yoopta-editor [data-yoopta-block-type='Image'],

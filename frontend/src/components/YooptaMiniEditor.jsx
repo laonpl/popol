@@ -564,14 +564,10 @@ function useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange) {
     return nodes.length;
   }, []);
 
-  const onDragOver = useCallback((event) => {
-    if (!activeBlockDrag || activeBlockDrag.editorId !== editorInstanceIdRef.current) return false;
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = 'move';
-    const y = event.clientY;
+  // 드롭 위치 라인 + 가장자리 자동 스크롤 갱신 (블록 재정렬·팔레트 드롭 공용)
+  const applyDragIndicator = useCallback((clientY) => {
     const nodes = topLevelBlockNodes();
-    const idx = insertIndexAt(y, nodes);
+    const idx = insertIndexAt(clientY, nodes);
     if (nodes.length === 0) setDropLine(null);
     else if (idx < nodes.length) {
       const rect = nodes[idx].getBoundingClientRect();
@@ -583,16 +579,49 @@ function useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange) {
     const sp = scrollParentRef.current;
     if (sp) {
       const r = sp.getBoundingClientRect();
-      if (y < r.top + BLOCK_DRAG_SCROLL_BAND) {
-        dirRef.current = -1; speedRef.current = Math.max(4, Math.ceil((r.top + BLOCK_DRAG_SCROLL_BAND - y) / 5)); runAuto();
-      } else if (y > r.bottom - BLOCK_DRAG_SCROLL_BAND) {
-        dirRef.current = 1; speedRef.current = Math.max(4, Math.ceil((y - (r.bottom - BLOCK_DRAG_SCROLL_BAND)) / 5)); runAuto();
+      if (clientY < r.top + BLOCK_DRAG_SCROLL_BAND) {
+        dirRef.current = -1; speedRef.current = Math.max(4, Math.ceil((r.top + BLOCK_DRAG_SCROLL_BAND - clientY) / 5)); runAuto();
+      } else if (clientY > r.bottom - BLOCK_DRAG_SCROLL_BAND) {
+        dirRef.current = 1; speedRef.current = Math.max(4, Math.ceil((clientY - (r.bottom - BLOCK_DRAG_SCROLL_BAND)) / 5)); runAuto();
       } else {
         stopAuto();
       }
     }
+  }, [topLevelBlockNodes, insertIndexAt, runAuto, stopAuto]);
+
+  const onDragOver = useCallback((event) => {
+    if (!activeBlockDrag || activeBlockDrag.editorId !== editorInstanceIdRef.current) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    applyDragIndicator(event.clientY);
     return true;
-  }, [editorInstanceIdRef, topLevelBlockNodes, insertIndexAt, runAuto, stopAuto]);
+  }, [editorInstanceIdRef, applyDragIndicator]);
+
+  // 외부(왼쪽 팔레트) 드래그용 — 마우스 위치 기반 드롭 라인/스크롤 미리보기와 삽입 위치 계산
+  const previewExternalDrop = useCallback((clientY) => {
+    if (!scrollParentRef.current) {
+      const sp = findScrollParent(wrapperRef.current);
+      scrollParentRef.current = sp;
+      if (sp) {
+        const r = sp.getBoundingClientRect();
+        setZones({ top: r.top, bottom: r.bottom, left: r.left, width: r.width });
+      }
+    }
+    setDragging(true);
+    applyDragIndicator(clientY);
+  }, [applyDragIndicator]);
+
+  const endExternalDrop = useCallback(() => {
+    stopAuto();
+    setDragging(false);
+    setDropLine(null);
+    setZones(null);
+    scrollParentRef.current = null;
+  }, [stopAuto]);
+
+  // 마우스 Y → 삽입할 order 위치 (0=맨 위, nodes.length=맨 아래에 추가)
+  const getDropOrder = useCallback((clientY) => insertIndexAt(clientY, topLevelBlockNodes()), [insertIndexAt, topLevelBlockNodes]);
 
   const reorderById = useCallback((blockId, insertIndex, idsInOrder) => {
     const value = editor.getEditorValue();
@@ -653,7 +682,7 @@ function useBlockDndReorder(editor, editorInstanceIdRef, handleEditorChange) {
     </>
   ) : null;
 
-  return { wrapperRef, onDragOver, onDrop, overlay };
+  return { wrapperRef, onDragOver, onDrop, overlay, previewExternalDrop, endExternalDrop, getDropOrder };
 }
 
 function MiniBlockActions({ onEditorChange }) {
@@ -1463,13 +1492,14 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
         if (isEditorValueEmpty(editor.getEditorValue())) {
           editor.setEditorValue(blocksToYooptaValue(blocks));
         } else {
-          const current = Selection.getCurrent(editor);
-          const atOrder = typeof current === 'number' ? current + 1 : null;
+          // 커서 위치가 아니라 실제로 드롭한 마우스 위치에 삽입 (맨 아래 포함)
+          const atOrder = blockDnd.getDropOrder(event.clientY);
           insertYooptaBlocks(editor, blocks, atOrder);
         }
         queueMicrotask(() => handleEditorChange(editor.getEditorValue(), { immediate: true }));
       }
     } catch { /* 잘못된 드래그 페이로드는 무시 */ }
+    blockDnd.endExternalDrop();
     return true;
   };
 
@@ -1510,7 +1540,13 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
           event.preventDefault();
           event.stopPropagation();
           event.dataTransfer.dropEffect = hasPalette ? 'copy' : 'move';
+          // 팔레트 드래그 중 드롭될 위치를 파란 선으로 미리 보여준다 (맨 아래 포함)
+          if (hasPalette) blockDnd.previewExternalDrop(event.clientY);
         }
+      }}
+      onDragLeave={event => {
+        // 에디터 밖으로 완전히 벗어날 때만 미리보기 라인 제거 (내부 이동에서는 깜빡이지 않도록)
+        if (!event.currentTarget.contains(event.relatedTarget)) blockDnd.endExternalDrop();
       }}
       onDropCapture={async event => {
         if (blockDnd.onDrop(event)) return;
