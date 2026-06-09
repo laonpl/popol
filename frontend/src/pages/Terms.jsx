@@ -33,7 +33,7 @@ export default function Terms() {
           </div>
           <div>
             <h2 className="mb-2 text-lg font-bold text-gray-900">6. 문의</h2>
-            <p>약관 관련 문의는 <a className="text-primary-600 underline font-semibold" href="mailto:gudrbs14@naver.com">gudrbs14@naver.com</a>으로 연락해주세요.</p>
+            <p>약관 관련 문의는 <a className="text-primary-600 underline font-semibold" href="mailto:fitpoly.kr@gmail.com">fitpoly.kr@gmail.com</a>으로 연락해주세요.</p>
           </div>
         </section>
       </div>

@@ -432,6 +432,14 @@ function normalizeFallbackMoment(moment = {}, index = 0, title = '') {
     ? uniqueFallbackList(moment.keywords, 8)
     : deriveFallbackKeywords([moment.title, sourceText, title].filter(Boolean).join(' '), 8);
 
+  const hasSectionSlides = json.sectionSlides
+    && typeof json.sectionSlides === 'object'
+    && !Array.isArray(json.sectionSlides)
+    && Object.keys(json.sectionSlides).length > 0;
+  const jobSpecific = json.jobSpecific && typeof json.jobSpecific === 'object' && !Array.isArray(json.jobSpecific)
+    ? json.jobSpecific
+    : {};
+
   return {
     title: compactFallbackText(moment.title, 120) || (title ? `${title} ${index + 1}` : `Key experience ${index + 1}`),
     metric,
@@ -481,6 +489,172 @@ function fallbackSectionSlides(sections, keyExperiences) {
       metric: item.afterMetric || item.metric || '',
     })),
   }]));
+}
+
+function draftValueToText(value) {
+  if (value == null) return '';
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function meaningfulDraftText(value, minLength = 28) {
+  const text = compactFallbackText(value, 1200);
+  if (!text) return false;
+  const withoutMetrics = text.replace(/\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위|줄|라인)/g, '').trim();
+  return text.length >= minLength && withoutMetrics.length >= 12;
+}
+
+function mergeDraftText(primary, fallback, maxLength = 700) {
+  return meaningfulDraftText(primary, 24)
+    ? compactFallbackText(primary, maxLength)
+    : compactFallbackText(fallback, maxLength);
+}
+
+function mergeDraftKeyExperience(primary = {}, fallback = {}, index = 0, title = '') {
+  const source = { ...fallback, ...primary };
+  const combined = [
+    primary.context, primary.action, primary.result, primary.learning,
+    fallback.context, fallback.action, fallback.result, fallback.learning,
+  ].filter(Boolean).join('\n');
+  const metrics = extractMetricsFromText(combined);
+  const metric = compactFallbackText(primary.metric || primary.afterMetric || fallback.metric || fallback.afterMetric || metrics[0] || '', 80);
+  const result = mergeDraftText(primary.result, fallback.result || (metric ? `${metric} 지표가 확인되었습니다. 산출 기준과 전후 비교를 함께 보강하세요.` : ''), 600);
+
+  return {
+    title: compactFallbackText(source.title, 140) || (title ? `${title} 핵심 경험 ${index + 1}` : `핵심 경험 ${index + 1}`),
+    metric,
+    metricLabel: compactFallbackText(primary.metricLabel || fallback.metricLabel || (metric ? '핵심 수치' : ''), 80),
+    beforeMetric: compactFallbackText(primary.beforeMetric || fallback.beforeMetric || '', 80),
+    afterMetric: compactFallbackText(primary.afterMetric || fallback.afterMetric || metric, 80),
+    context: mergeDraftText(primary.context ?? primary.situation, fallback.context, 800),
+    action: mergeDraftText(primary.action, fallback.action, 800),
+    result,
+    learning: mergeDraftText(primary.learning, fallback.learning, 500),
+    keywords: uniqueFallbackList([
+      ...(Array.isArray(primary.keywords) ? primary.keywords : []),
+      ...(Array.isArray(fallback.keywords) ? fallback.keywords : []),
+      ...deriveFallbackKeywords(combined, 6),
+    ], 8),
+    chartType: primary.chartType || fallback.chartType || 'horizontalBar',
+  };
+}
+
+function buildDraftHighlights(sections = {}, keyExperiences = []) {
+  const highlights = [];
+  const push = (field, type, text, keywords = []) => {
+    const body = compactFallbackText(text, 260);
+    if (!field || !body) return;
+    highlights.push({ field, type, text: body, keywords: uniqueFallbackList(keywords, 4) });
+  };
+
+  keyExperiences.forEach(item => {
+    push('task', 'core', item.context, item.keywords);
+    push('process', 'derived', item.action, item.keywords);
+    push('output', 'core', item.result || item.metric || item.afterMetric, item.keywords);
+    push('growth', 'growth', item.learning, item.keywords);
+  });
+
+  if (highlights.length === 0) {
+    push('intro', 'core', sections.intro, []);
+    push('competency', 'growth', sections.competency, []);
+  }
+
+  return highlights.slice(0, 10);
+}
+
+function buildDraftMarketResearch(jsonResearch = {}, sections = {}, keyExperiences = [], keywords = []) {
+  const first = keyExperiences[0] || {};
+  const metric = first.metric || first.afterMetric || extractMetricsFromText(Object.values(sections).join('\n'))[0] || '';
+  const decisionMetrics = Array.isArray(jsonResearch.decisionMetrics) && jsonResearch.decisionMetrics.length > 0
+    ? jsonResearch.decisionMetrics
+    : [
+        {
+          metric: metric ? '핵심 성과 지표 검증' : '문제 전후 변화 지표',
+          whyItMatters: '인터뷰 답변의 성과가 실제 개선으로 이어졌는지 판단하는 기준입니다.',
+          recommendedProxy: metric ? `"${metric}"의 산출 기준, 비교 대상, 측정 기간 확인` : 'Before/After 값, 처리 시간, 완료율, 전환율, 비용 절감액 중 확인 가능한 지표',
+          researchBasis: '사용자 인터뷰 답변 기반. 외부 시장 벤치마크는 AI 보강에서 검증 필요.',
+          confidence: metric ? 'medium' : 'low',
+        },
+        {
+          metric: '본인 기여 범위',
+          whyItMatters: '팀 성과와 본인 역할을 분리해야 포트폴리오 신뢰도가 올라갑니다.',
+          recommendedProxy: '담당 업무, 의사결정 권한, 협업자 수, 기여도 기준을 함께 기록',
+          researchBasis: '채용 포트폴리오 검토 기준 기반.',
+          confidence: 'medium',
+        },
+      ];
+
+  return {
+    marketOverview: compactFallbackText(jsonResearch.marketOverview || (sections.overview ? '인터뷰 답변 기준으로 프로젝트 맥락을 정리했습니다. 외부 시장 수치는 AI 보강 단계에서 검증해 추가하세요.' : ''), 700),
+    deskResearchInfographic: jsonResearch.deskResearchInfographic || { title: '', subtitle: '', cards: [], conclusion: '', limitations: '빠른 초안에서는 실제 URL 검증이 필요한 인포그래픽 카드를 비워둡니다.' },
+    decisionMetrics: decisionMetrics.slice(0, 5),
+    sourceNotes: Array.isArray(jsonResearch.sourceNotes) ? jsonResearch.sourceNotes.slice(0, 5) : [],
+    portfolioAngles: uniqueFallbackList([
+      ...(Array.isArray(jsonResearch.portfolioAngles) ? jsonResearch.portfolioAngles : []),
+      first.context && '문제 전후 맥락을 먼저 보여주는 스토리',
+      first.action && '내가 선택한 방법과 trade-off',
+      metric && '수치의 산출 근거와 2차 효과',
+      ...keywords.slice(0, 3),
+    ], 6),
+    limitations: compactFallbackText(jsonResearch.limitations || '빠른 초안은 검색 검증을 수행하지 않았습니다. 실제 시장 수치와 출처는 AI 보강에서 확인하세요.', 500),
+  };
+}
+
+function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
+  const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
+  const fallbackKeyExperiences = fallback.keyExperiences || [];
+  const rawKeyExperiences = Array.isArray(json.keyExperiences) ? json.keyExperiences : [];
+  const maxCount = Math.max(rawKeyExperiences.length, fallbackKeyExperiences.length, 1);
+  const keyExperiences = Array.from({ length: Math.min(maxCount, 3) })
+    .map((_, index) => mergeDraftKeyExperience(rawKeyExperiences[index] || {}, fallbackKeyExperiences[index] || fallbackKeyExperiences[0] || {}, index, fallback.projectOverview?.summary || ''))
+    .filter(item => item.title || item.context || item.action || item.result);
+
+  const ov = json.projectOverview || {};
+  const fallbackOv = fallback.projectOverview || {};
+  const keywords = uniqueFallbackList([
+    ...(Array.isArray(json.keywords) ? json.keywords : []),
+    ...(fallback.keywords || []),
+    ...keyExperiences.flatMap(item => item.keywords || []),
+    ...deriveFallbackKeywords(contentText, 8),
+  ], 10);
+
+  const sections = {};
+  FALLBACK_SECTION_KEYS.forEach(key => {
+    sections[key] = mergeDraftText(json[key], fallback[key], key === 'intro' ? 900 : 800);
+  });
+
+  return {
+    _draft: true,
+    _draftMode: 'ai',
+    _draftVersion: 2,
+    projectOverview: {
+      summary: mergeDraftText(ov.summary, fallbackOv.summary, 400),
+      background: mergeDraftText(ov.background, fallbackOv.background || sections.overview, 600),
+      goal: compactFallbackText(ov.goal || fallbackOv.goal || '', 400),
+      role: compactFallbackText(ov.role || fallbackOv.role || '', 240),
+      team: compactFallbackText(ov.team || fallbackOv.team || '', 180),
+      duration: compactFallbackText(ov.duration || fallbackOv.duration || '', 120),
+      scopeOfImpact: compactFallbackText(ov.scopeOfImpact || fallbackOv.scopeOfImpact || '', 300),
+      techStack: Array.isArray(ov.techStack) && ov.techStack.length ? ov.techStack : keywords.slice(0, 5),
+    },
+    marketResearch: buildDraftMarketResearch(json.marketResearch || {}, sections, keyExperiences, keywords),
+    keyExperiences,
+    ...sections,
+    sectionSlides: hasSectionSlides ? json.sectionSlides : fallbackSectionSlides(sections, keyExperiences),
+    jobCategory: jobCategory || 'common',
+    jobSpecific,
+    keywords,
+    highlights: buildDraftHighlights(sections, keyExperiences),
+    followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
+      ? json.followUpQuestions
+      : fallback.followUpQuestions,
+  };
 }
 
 export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common', meta = {}) {
@@ -546,10 +720,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     jobCategory: jobCategory || 'common',
     jobSpecific: {},
     keywords,
-    highlights: keyExperiences
-      .map(item => item.result || item.metric || item.action || item.title)
-      .filter(Boolean)
-      .slice(0, 5),
+    highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: [
       'What measurable result can be attached to this experience?',
       'Which part was directly owned by you?',
@@ -570,7 +741,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
   }
 
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 3000)}`)
+    .map(([key, val]) => `[${key}]: ${draftValueToText(val).substring(0, 3000)}`)
     .join('\n');
   if (contentText.length > 12000) contentText = contentText.substring(0, 12000);
 
@@ -587,56 +758,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
     'DraftAnalysis'
   );
   const json = parseJSON(text);
-
-  const ov = json.projectOverview || {};
-  const keyExperiences = (Array.isArray(json.keyExperiences) ? json.keyExperiences : [])
-    .map(k => ({
-      title: k.title || '',
-      metric: k.metric || '',
-      metricLabel: k.metricLabel || '',
-      beforeMetric: k.beforeMetric || '',
-      afterMetric: k.afterMetric || '',
-      context: k.context ?? k.situation ?? '',
-      action: k.action || '',
-      result: k.result || '',
-      learning: k.learning || '',
-      keywords: Array.isArray(k.keywords) ? k.keywords : [],
-      chartType: k.chartType || 'horizontalBar',
-    }))
-    .filter(k => k.title || k.context || k.action || k.result);
-
-  return {
-    _draft: true,
-    _draftMode: 'ai',
-    projectOverview: {
-      summary: ov.summary || '',
-      background: ov.background || '',
-      goal: ov.goal || '',
-      role: ov.role || '',
-      team: ov.team || '',
-      duration: ov.duration || '',
-      scopeOfImpact: ov.scopeOfImpact || '',
-      techStack: Array.isArray(ov.techStack) ? ov.techStack : [],
-    },
-    marketResearch: {
-      marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [],
-      limitations: '빠른 초안 모드로 생성되어 시장/직무 근거는 AI 보강 후 채워집니다.',
-    },
-    keyExperiences,
-    intro: json.intro || '',
-    overview: json.overview || '',
-    task: json.task || '',
-    process: json.process || '',
-    output: json.output || '',
-    growth: json.growth || '',
-    competency: json.competency || '',
-    sectionSlides: {},
-    jobCategory: jobCategory || 'common',
-    jobSpecific: {},
-    keywords: Array.isArray(json.keywords) ? json.keywords : [],
-    highlights: keyExperiences.map(k => k.result || k.metric || k.title).filter(Boolean).slice(0, 5),
-    followUpQuestions: [],
-  };
+  return hydrateDraftAnalysis({ json, content, jobCategory, contentText });
 }
 
 /**

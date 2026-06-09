@@ -3,6 +3,7 @@ import useAuthStore from '../stores/authStore';
 import { useEffect, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
 import useCreditStore from '../stores/creditStore';
+import CreditDepletedModal from './CreditDepletedModal';
 
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
@@ -14,6 +15,7 @@ export default function Layout() {
   const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [creditModalOpen, setCreditModalOpen] = useState(false);
   const settingsMenuRef = useRef(null);
 
   const handleSignOut = async () => {
@@ -25,12 +27,33 @@ export default function Layout() {
   const displayName = profile?.nameKo || user?.displayName || '사용자';
   const creditBalance = Math.max(0, Number(wallet?.balance || 0));
   const formattedCredits = creditBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+  const creditModalKey = user?.uid ? `fitpoly-credit-zero-modal:${user.uid}` : '';
+
+  const showCreditModal = () => {
+    if (!creditModalKey) return;
+    if (window.sessionStorage.getItem(creditModalKey) === '1') return;
+    window.sessionStorage.setItem(creditModalKey, '1');
+    setCreditModalOpen(true);
+  };
 
   useEffect(() => {
     loadWallet({ silent: true }).catch(() => {});
     window.addEventListener('credits:refresh', refreshWallet);
-    return () => window.removeEventListener('credits:refresh', refreshWallet);
-  }, [loadWallet, refreshWallet]);
+    window.addEventListener('credits:depleted', showCreditModal);
+    return () => {
+      window.removeEventListener('credits:refresh', refreshWallet);
+      window.removeEventListener('credits:depleted', showCreditModal);
+    };
+  }, [loadWallet, refreshWallet, creditModalKey]);
+
+  useEffect(() => {
+    if (!wallet || !creditModalKey) return;
+    if (creditBalance > 0) {
+      window.sessionStorage.removeItem(creditModalKey);
+      return;
+    }
+    showCreditModal();
+  }, [wallet, creditBalance, creditModalKey]);
 
   useEffect(() => {
     if (!settingsOpen) return undefined;
@@ -56,6 +79,7 @@ export default function Layout() {
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
+      <CreditDepletedModal open={creditModalOpen} onClose={() => setCreditModalOpen(false)} />
       {/* 상단 네비게이션 */}
       <header className="bg-white border-b border-surface-200">
         <div className="relative px-6 flex items-center h-16">

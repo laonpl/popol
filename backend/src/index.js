@@ -12,6 +12,7 @@ import uploadRoutes from './routes/upload.js';
 import waitlistRoutes from './routes/waitlist.js';
 import authRoutes from './routes/auth.js';
 import billingRoutes from './routes/billing.js';
+import feedbackRoutes from './routes/feedback.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
 
@@ -122,6 +123,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {

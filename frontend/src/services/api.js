@@ -80,6 +80,11 @@ api.interceptors.response.use(
       return Promise.reject(rateLimitError);
     }
     if (error.response?.status === 402) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('credits:depleted', {
+          detail: error.response.data || {},
+        }));
+      }
       const creditError = new Error(error.response.data?.error || '크레딧이 부족합니다.');
       creditError.isCreditError = true;
       creditError.response = error.response;

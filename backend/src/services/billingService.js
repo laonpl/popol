@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import { adminDb } from '../config/firebase.js';
 
 const billingStorage = new AsyncLocalStorage();
-const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 1000);
+const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 2000);
+const LEGACY_STARTER_CREDITS = Number(process.env.LEGACY_STARTER_CREDITS || 1500);
 const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 10000);
 
 export const CREDIT_PACKAGES = [
@@ -63,6 +64,7 @@ function defaultWallet(uid) {
     balance: STARTER_CREDITS,
     totalCharged: STARTER_CREDITS,
     totalUsed: 0,
+    starterCreditsGranted: STARTER_CREDITS,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -97,24 +99,65 @@ export async function getOrCreateWallet(uid) {
         description: '가입 축하 크레딧',
         createdAt: new Date(),
       });
-    } else if (snap.data().creditUnit !== 'api-cost-v1') {
+    } else {
       const wallet = snap.data();
-      const wasTokenUnit = wallet.creditUnit === 'token';
-      const scale = wasTokenUnit ? 0.01 : 1;
-      tx.update(ref, {
-        creditUnit: 'api-cost-v1',
-        schemaVersion: 3,
-        balance: Math.max(0, Math.ceil(Number(wallet.balance || 0) * scale)),
-        totalCharged: Math.max(0, Math.ceil(Number(wallet.totalCharged || 0) * scale)),
-        totalUsed: Math.max(0, Math.ceil(Number(wallet.totalUsed || 0) * scale)),
+      const updates = {
         updatedAt: new Date(),
-      });
-      tx.set(ref.collection('transactions').doc(), {
-        type: 'migration',
-        amount: 0,
-        description: '크레딧 정책 변경',
-        createdAt: new Date(),
-      });
+      };
+      let balance = Math.max(0, Number(wallet.balance || 0));
+      let totalCharged = Math.max(0, Number(wallet.totalCharged || 0));
+      let totalUsed = Math.max(0, Number(wallet.totalUsed || 0));
+
+      if (wallet.creditUnit !== 'api-cost-v1') {
+        const wasTokenUnit = wallet.creditUnit === 'token';
+        const scale = wasTokenUnit ? 0.01 : 1;
+        balance = Math.max(0, Math.ceil(balance * scale));
+        totalCharged = Math.max(0, Math.ceil(totalCharged * scale));
+        totalUsed = Math.max(0, Math.ceil(totalUsed * scale));
+        Object.assign(updates, {
+          creditUnit: 'api-cost-v1',
+          schemaVersion: 3,
+          balance,
+          totalCharged,
+          totalUsed,
+        });
+        tx.set(ref.collection('transactions').doc(), {
+          type: 'migration',
+          amount: 0,
+          description: '크레딧 정책 변경',
+          createdAt: new Date(),
+        });
+      }
+
+      const granted = Number(wallet.starterCreditsGranted || 0);
+      const inferredGranted = granted > 0 ? granted : LEGACY_STARTER_CREDITS;
+      const starterBonus = Math.max(0, STARTER_CREDITS - inferredGranted);
+      if (starterBonus > 0) {
+        balance += starterBonus;
+        totalCharged += starterBonus;
+        Object.assign(updates, {
+          creditUnit: 'api-cost-v1',
+          schemaVersion: 3,
+          balance,
+          totalCharged,
+          totalUsed,
+          starterCreditsGranted: STARTER_CREDITS,
+        });
+        tx.set(ref.collection('transactions').doc(), {
+          type: 'starter_adjustment',
+          schemaVersion: 3,
+          amount: starterBonus,
+          balanceAfter: balance,
+          description: '가입 축하 크레딧 추가 지급',
+          createdAt: new Date(),
+        });
+      } else if (!wallet.starterCreditsGranted || wallet.starterCreditsGranted !== STARTER_CREDITS) {
+        updates.starterCreditsGranted = Math.max(granted, STARTER_CREDITS);
+      }
+
+      if (Object.keys(updates).length > 1) {
+        tx.update(ref, updates);
+      }
     }
   });
   const snap = await ref.get();

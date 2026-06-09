@@ -10,7 +10,9 @@ import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
+import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
 import { analyzeJobUrl } from '../../services/jobAI';
+import FeedbackModal from '../../components/FeedbackModal';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -1252,6 +1254,12 @@ export default function StructuredResult() {
   const { experiences, fetchExperiences, undoEdit, redoEdit, canUndo, canRedo, pushEditSnapshot, researchMarketMetrics, analyzeExperience, judgeEvidenceLabels } = useExperienceStore();
   const [researchingMetrics, setResearchingMetrics] = useState(false);
   const [enhancingDraft, setEnhancingDraft] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const feedbackPromptKey = `fitpoly-feedback:${id}:experience_enhance_complete`;
+  const feedbackTimerRef = useRef(null);
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+  }, []);
   useEffect(() => {
     if (user?.uid && experiences.length === 0) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -1316,6 +1324,8 @@ export default function StructuredResult() {
             setProjectNotionDoc(data.notionDoc || null);
             setJobAnalysis(data.jobAnalysis || null);
             setEditedLink(data.link || '');
+            // 간략 보기(caseStudy) 동기화를 위해 저장본을 experience에 보관
+            if (data.caseStudy) setExperience(prev => ({ ...(prev || {}), caseStudy: data.caseStudy }));
             if (data.jobCategory) setJobCategory(data.jobCategory);
           }
         } catch (err) {
@@ -1611,8 +1621,15 @@ export default function StructuredResult() {
       applyStructuredResult(structured);
       if (structured?._fallback) {
         toast('AI 보강이 일시적으로 불안정해 초안을 유지했습니다. 다시 시도할 수 있어요.');
-      } else
-      toast.success('AI 보강이 완료되었습니다');
+      } else {
+        toast.success('AI 보강이 완료되었습니다');
+        if (window.localStorage.getItem(feedbackPromptKey) !== '1') {
+          if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+          feedbackTimerRef.current = window.setTimeout(() => {
+            if (!document.hidden) setFeedbackOpen(true);
+          }, 30000);
+        }
+      }
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI 보강에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -1988,6 +2005,11 @@ export default function StructuredResult() {
         imageConfig,
         updatedAt: new Date(),
       };
+      // 자세히 보기의 공통 필드를 간략 보기(caseStudy)에도 반영 (저장된 간략 보기가 있을 때만)
+      const syncedCaseStudy = experience?.caseStudy
+        ? mergeStructuredIntoCaseStudy(experience.caseStudy, updatedStructured, editedTitle)
+        : null;
+      if (syncedCaseStudy) savePayload.caseStudy = syncedCaseStudy;
       // Firestore 문서 한도(1MB) 초과 시 updateDoc이 실패하므로 미리 안내한다.
       const approxBytes = new Blob([JSON.stringify(savePayload)]).size;
       if (approxBytes > 1_000_000) {
@@ -1996,7 +2018,7 @@ export default function StructuredResult() {
         return;
       }
       await updateDoc(ref, savePayload);
-      setExperience(prev => ({ ...prev, title: editedTitle, link: editedLink || '', notionDoc: projectNotionDoc || null, structuredResult: updatedStructured, keywords: editedKeywords }));
+      setExperience(prev => ({ ...prev, title: editedTitle, link: editedLink || '', notionDoc: projectNotionDoc || null, structuredResult: updatedStructured, keywords: editedKeywords, ...(syncedCaseStudy ? { caseStudy: syncedCaseStudy } : {}) }));
       const newEditing = {};
       SECTION_KEYS.forEach(k => {
         if (!editedContent[k]?.trim()) newEditing[k] = true;
@@ -2556,7 +2578,7 @@ export default function StructuredResult() {
   const completionPct = Math.round((filledCount / SECTION_COUNT) * 100);
 
   // ── 스토리: 7개 섹션을 슬라이드가 아닌 "한 편의 문서"로 흐르게 표시 ──
-  const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
+  const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 8}px`; } };
   const INTRO_META = [
     { key: 'duration', label: '기간', placeholder: '2024.01 - 2024.06' },
     { key: 'role', label: '역할', placeholder: '기획/개발/운영 담당' },
@@ -2566,7 +2588,7 @@ export default function StructuredResult() {
   ];
 
   const renderDetailSlides = () => (
-    <div ref={detailSlidesRef} className="mb-6 max-w-[820px] scroll-mt-6">
+    <div ref={detailSlidesRef} className="mb-6 w-full scroll-mt-6">
       {/* 진행률 + 하이라이트 범례 (카드 없이 한 줄) */}
       <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
         <span className="text-[13.5px] font-semibold text-bluewood-400 tabular-nums">{filledCount}/{SECTION_COUNT} 섹션 작성됨</span>
@@ -2588,9 +2610,12 @@ export default function StructuredResult() {
 
           return (
             <section key={key} className="py-7 first:pt-1 scroll-mt-20" id={`story-${key}`}>
+              <div className="flex gap-3 sm:gap-5">
+                {/* 좌측 번호 거터 — 본문은 오른쪽으로 들여써 왼쪽 여백 확보 */}
+                <span className="shrink-0 w-6 pt-0.5 text-right text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
+                <div className="min-w-0 flex-1">
               {/* 섹션 헤더 */}
               <div className="mb-3.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
                 <h3 className="text-[21px] sm:text-[24px] font-extrabold leading-snug text-bluewood-900">{meta.label}</h3>
                 <span className="text-[13.5px] text-bluewood-300">{meta.subtitle}</span>
               </div>
@@ -2613,7 +2638,7 @@ export default function StructuredResult() {
                             onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
                             placeholder={item.placeholder}
                             className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
-                            style={{ overflowWrap: 'anywhere' }}
+                            style={{ overflow: 'hidden', overflowWrap: 'anywhere', boxSizing: 'border-box' }}
                           />
                         )}
                       </div>
@@ -2631,7 +2656,7 @@ export default function StructuredResult() {
                   onChange={e => { handleFieldChange(key, e.target.value); autoGrow(e.target); }}
                   placeholder={field?.placeholder || '내용을 입력하세요'}
                   className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[16.5px] leading-[1.9] text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
-                  style={{ overflowWrap: 'anywhere', minHeight: '3.2rem' }}
+                  style={{ overflow: 'hidden', overflowWrap: 'anywhere', minHeight: '3.2rem', boxSizing: 'border-box' }}
                 />
               ) : display ? (
                 <div className="whitespace-pre-wrap break-words text-[16.5px] leading-[1.9] text-bluewood-700" style={{ overflowWrap: 'anywhere' }}>
@@ -2685,6 +2710,8 @@ export default function StructuredResult() {
                   사진 추가
                 </button>
               )}
+                </div>
+              </div>
             </section>
           );
         })}
@@ -2694,10 +2721,20 @@ export default function StructuredResult() {
 
   return (
     <>
-    <div className="animate-fadeIn w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
+    <FeedbackModal
+      open={feedbackOpen}
+      onClose={() => {
+        if (id) window.localStorage.setItem(feedbackPromptKey, '1');
+        setFeedbackOpen(false);
+      }}
+      context="experience_enhance_complete"
+      experienceId={id}
+      title={editedTitle || experience?.title || ''}
+    />
+    <div className="experience-edit-surface animate-fadeIn w-full max-w-[900px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
       {/* 상단 네비 + 저장/수정 */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
         {navState?.isTutorialDemo ? (
           <Link to={navState.backUrl || '/app/experience?tutorial=1&step=2'} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-colors">
             <ArrowLeft size={15} /> 튜토리얼로 돌아가기
@@ -2708,9 +2745,12 @@ export default function StructuredResult() {
           </Link>
         )}
         {!navState?.isTutorialDemo && (
-          <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-[13px] font-semibold text-bluewood-600 hover:bg-surface-50 hover:text-primary-600 transition-colors">
-            간략하게 보기
-          </Link>
+          <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
+            <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
+              케이스 스터디
+            </Link>
+            <span className="rounded-lg bg-white px-3 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
+          </div>
         )}
         {!viewOnly && !navState?.isTutorialDemo && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">
@@ -2734,7 +2774,7 @@ export default function StructuredResult() {
             수정하기
           </button>
         ) : (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* 되돌리기/다시실행 그룹 */}
             <div className="inline-flex items-center rounded-xl border border-surface-200 bg-white p-0.5">
               <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)" aria-label="되돌리기"
@@ -2761,7 +2801,7 @@ export default function StructuredResult() {
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-xl text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
               >
                 {enhancingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강'}
+                {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강하기'}
               </button>
             )}
 
@@ -2779,14 +2819,12 @@ export default function StructuredResult() {
         )}
       </div>
 
-      {/* 제목 — 모든 탭에서 표시 */}
-      <div className="mb-4 border-b border-surface-200 pb-3">
-        <h1 className="text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
-      </div>
+      {/* 제목 + 탭 — 한 덩어리의 헤더 (밑줄은 탭 아래 하나만) */}
+      <h1 className="mb-3 text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
 
-      {/* ── 고급수정 4탭 네비게이션 (굵은 밑줄 탭) ── */}
-      <div className="sticky top-0 z-20 -mx-4 mb-3 border-b border-surface-200 bg-white/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
-        <div className="flex gap-6 overflow-x-auto sm:gap-8">
+      {/* ── 고급수정 4탭 네비게이션 (제목·본문과 같은 폭으로 정렬) ── */}
+      <div className="sticky top-0 z-20 mb-6 border-b border-surface-200 bg-white">
+        <div className="flex gap-6 overflow-x-auto px-3 sm:gap-8 sm:px-4">
           {[
             { key: 'story', label: '스토리', count: SECTION_COUNT },
             { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },

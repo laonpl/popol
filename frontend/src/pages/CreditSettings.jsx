@@ -6,7 +6,7 @@ import api from '../services/api';
 import useCreditStore from '../stores/creditStore';
 
 const METHOD_ICON = { card: 'CARD', kakaopay: 'KAKAO', tosspay: 'TOSS' };
-const SUPPORT_MESSAGE = '인스타그램 fitpoly_으로 DM 혹은 gudrbs14@naver.com로 문의주세요.';
+const SUPPORT_MESSAGE = '인스타그램 fitpoly_으로 DM 혹은 fitpoly.kr@gmail.com로 문의주세요.';
 
 function formatCredits(value) {
   return Number(value || 0).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
@@ -73,7 +73,7 @@ export default function CreditSettings() {
   }, []);
 
   const checkout = () => {
-    toast(SUPPORT_MESSAGE, { duration: 8000 });
+    toast(SUPPORT_MESSAGE, { duration: 30000 });
   };
 
   return (

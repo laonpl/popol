@@ -6,7 +6,7 @@ import {
   Upload, FileUp, Link as LinkIcon,
   Check, Star, Users, Target,
   Building2, Search, ChevronDown, BarChart3, Award,
-  Code, GraduationCap, ArrowDownUp, Calendar, List, Plus, PenTool, LayoutTemplate,
+  Code, GraduationCap, Calendar, List, PenTool,
   MapPin, Phone, Mail
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
@@ -111,15 +111,8 @@ export default function Landing() {
   const statsRef = useRef(null);
   const [statsVisible, setStatsVisible] = useState(false);
   const [count1, setCount1] = useState(0);
+  const [count2, setCount2] = useState(0);
   const [count3, setCount3] = useState(0);
-
-  const [aiMockView, setAiMockView] = useState('experience');
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAiMockView(prev => prev === 'experience' ? 'portfolio' : 'experience');
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleWaitlistSubmit = async () => {
     if (!waitlistEmail) return;
@@ -183,19 +176,24 @@ export default function Landing() {
 
   useEffect(() => {
     if (!statsVisible) return;
-    let step1 = 0, step3 = 0;
+    let step1 = 0, step2 = 0, step3 = 0;
     const STEPS = 50;
     const t1 = setInterval(() => {
       step1++;
-      setCount1(parseFloat(((83.4 / STEPS) * step1).toFixed(1)));
+      setCount1(parseFloat(((13.4 / STEPS) * step1).toFixed(1)));
       if (step1 >= STEPS) clearInterval(t1);
-    }, 1500 / STEPS);
+    }, 1400 / STEPS);
+    const t2 = setInterval(() => {
+      step2++;
+      setCount2(parseFloat(((19.4 / STEPS) * step2).toFixed(1)));
+      if (step2 >= STEPS) clearInterval(t2);
+    }, 1600 / STEPS);
     const t3 = setInterval(() => {
       step3++;
-      setCount3(Math.round((72 / STEPS) * step3));
+      setCount3(parseFloat(((84.5 / STEPS) * step3).toFixed(1)));
       if (step3 >= STEPS) clearInterval(t3);
     }, 1800 / STEPS);
-    return () => { clearInterval(t1); clearInterval(t3); };
+    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); };
   }, [statsVisible]);
 
   return (
@@ -268,17 +266,10 @@ export default function Landing() {
 
         {/* Center Text */}
         <div className={`relative z-10 text-center flex flex-col items-center justify-center transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} px-4 sm:px-6 -mt-6 sm:-mt-8 md:-mt-16`}>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full mb-5 sm:mb-6 md:mb-8">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span className="text-[13px] sm:text-[14px] font-bold text-indigo-600">지금 베타 무료 이용 중</span>
-          </div>
-          <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1 mb-5 sm:mb-6">
+          <h1 className="text-[26px] sm:text-[38px] md:text-[60px] lg:text-[68px] font-extrabold leading-[1.25] text-gray-900 tracking-[-0.03em] flex flex-col items-center gap-1 mb-7 sm:mb-8">
             <span>여기저기 흩어진 경험들,</span>
             <span>어떻게 관리하고 계시나요?</span>
           </h1>
-          <p className="text-[15px] sm:text-[18px] text-gray-500 font-medium max-w-[480px] leading-relaxed mb-7 sm:mb-8 px-4">
-            카카오톡 대화, Notion, 파일까지 — 흩어진 자료를 AI가 하나의 경험 아카이브로 만들어줍니다
-          </p>
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
               onClick={go}
@@ -303,151 +294,128 @@ export default function Landing() {
         <div className="max-w-[1140px] mx-auto px-4 sm:px-6 md:px-8">
           <div className="mb-10 sm:mb-14 text-center">
             <h2 className="text-[26px] sm:text-[32px] md:text-[40px] font-extrabold text-gray-900 mb-4 tracking-tight leading-[1.3]">
-              합격하는 취준생은 다릅니다.<br className="sm:hidden" />
-              <span className="text-indigo-600"> 당신의 포트폴리오는 안전한가요?</span>
+              취업 준비, 스펙보다<br className="sm:hidden" />
+              <span className="text-indigo-600"> 경험정리</span>가 먼저입니다
             </h2>
-            <p className="text-[16px] sm:text-[18px] text-gray-500 font-medium">데이터가 증명하는 서류 광탈의 3가지 이유</p>
+            <p className="text-[16px] sm:text-[18px] text-gray-500 font-medium">2025년 데이터가 말해주는, 경험정리를 미루면 벌어지는 일</p>
           </div>
 
           <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
-            {/* Top Left Card: 평소 기록 안하는 비율 */}
+            {/* Top Left Card: 매번 처음부터 다시 쓰는 자소서 (지원 횟수) */}
             <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
-                  열심히 했는데,<br/>막상 쓰려면 기억이 안 나요
+                  정리를 미뤘더니,<br/>매번 백지에서 다시 써요
                 </h3>
                  <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium">
-                  분명 성과가 있었는데 자소서에 쓸 수치가 없어서 '성실히 임했습니다'로 끝나는 취준생 비율
+                  새 공고가 뜰 때마다 기억을 더듬어 자소서를 처음부터. 한 시즌에 다시 쓰는 양은 생각보다 많습니다.
                 </p>
               </div>
               <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100">
-                <p className="text-[13px] font-bold text-gray-500 mb-3">취준생 10명 중 수치 없이 제출</p>
-                <div className="flex gap-1.5 mb-5">
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <div key={i} className="flex flex-col items-center gap-1 flex-1">
-                      <div
-                        className="w-full rounded-full transition-all duration-500"
-                        style={{
-                          aspectRatio: '1',
-                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
-                          transitionDelay: `${i * 90}ms`,
-                          transform: statsVisible && i < 8 ? 'scale(1)' : 'scale(0.7)',
-                        }}
-                      />
-                      <div
-                        className="w-[65%] rounded-t-full transition-all duration-500"
-                        style={{
-                          height: '7px',
-                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
-                          transitionDelay: `${i * 90 + 45}ms`,
-                        }}
-                      />
-                    </div>
+                <p className="text-[13px] font-bold text-gray-500 mb-3">구직 대학생 1인당 연간 지원 횟수</p>
+                <div className="flex flex-wrap gap-1.5 mb-5">
+                  {Array.from({ length: 14 }, (_, i) => (
+                    <div
+                      key={i}
+                      className="rounded-md transition-all duration-500"
+                      style={{
+                        width: '20px',
+                        height: '24px',
+                        background: statsVisible && i < 14 ? '#1B264F' : '#E5E7EB',
+                        transitionDelay: `${i * 70}ms`,
+                        transform: statsVisible && i < 14 ? 'scale(1)' : 'scale(0.6)',
+                        opacity: statsVisible && i < 14 ? 1 : 0.5,
+                      }}
+                    />
                   ))}
                 </div>
-                <div className="flex items-end gap-2 mb-3">
+                <div className="flex items-end gap-2">
                   <span className="text-[32px] sm:text-[36px] font-extrabold text-gray-900 leading-none tabular-nums">
-                    {count1.toFixed(1)}<span className="text-[20px] text-gray-500">%</span>
+                    {count1.toFixed(1)}<span className="text-[20px] text-gray-500">회</span>
                   </span>
-                </div>
-                <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#1B264F] rounded-full"
-                    style={{ width: statsVisible ? '83.4%' : '0%', transition: 'width 1.5s ease-out' }}
-                  />
+                  <span className="text-[13px] font-bold text-gray-400 mb-1">의 자소서·포트폴리오</span>
                 </div>
               </div>
             </div>
 
-            {/* Top Right Card: 무작위 지원 탈락 비율 */}
+            {/* Top Right Card: 서류 합격률 하락 */}
             <div className="bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="mb-8">
                 <h3 className="text-[20px] sm:text-[24px] font-extrabold text-gray-900 mb-3 leading-snug">
-                  다 보내긴 했는데,<br/>왜 계속 서류에서 떨어질까요
+                  열심히 보내도,<br/>10곳 중 2곳만 통과해요
                 </h3>
                  <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium">
-                  기업별 맞춤화 없이 같은 포트폴리오를 복붙해 지원했다가 서류 단계에서 바로 탈락하는 비율
+                  정리되지 않은 경험으로는 기업이 원하는 한 줄을 뽑기 어렵습니다. 서류 합격률은 해마다 더 낮아지고 있어요.
                 </p>
               </div>
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-3 sm:gap-6 px-4 sm:px-8 justify-center">
+              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 h-[190px] flex items-end gap-8 sm:gap-12 px-6 sm:px-12 justify-center">
                 <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                   <span
-                    className="text-[14px] font-extrabold text-gray-500 transition-opacity duration-500"
-                    style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.3s' }}
-                  >맞춤 지원</span>
+                    className="text-[15px] font-extrabold text-gray-400 mb-1 transition-all duration-500"
+                    style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? 'translateY(0)' : 'translateY(8px)', transitionDelay: '0.5s' }}
+                  >22.2%</span>
                   <div
-                    className="w-8 sm:w-12 bg-gray-200 rounded-t-md"
-                    style={{ height: statsVisible ? '35%' : '0%', transition: 'height 0.8s ease-out 0.2s' }}
+                    className="w-10 sm:w-14 bg-gray-200 rounded-t-md"
+                    style={{ height: statsVisible ? '74%' : '0%', transition: 'height 0.8s ease-out 0.2s' }}
                   />
-                  <span className="text-[13px] font-bold text-gray-500">통과율</span>
+                  <span className="text-[13px] font-bold text-gray-500">2024년</span>
                 </div>
-                <div className="flex-[1.2] flex flex-col items-center justify-end h-full gap-2">
+                <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                   <span
-                    className="text-[17px] font-extrabold text-[#1B264F] mb-1 transition-all duration-500"
+                    className="text-[19px] font-extrabold text-[#1B264F] mb-1 transition-all duration-500"
                     style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? 'translateY(0)' : 'translateY(8px)', transitionDelay: '0.9s' }}
-                  >92%</span>
+                  >{count2.toFixed(1)}%</span>
                   <div
-                    className="w-8 sm:w-12 bg-[#1B264F] rounded-t-md"
-                    style={{ height: statsVisible ? '92%' : '0%', transition: 'height 0.9s cubic-bezier(0.34,1.56,0.64,1) 0.5s' }}
+                    className="w-10 sm:w-14 bg-[#1B264F] rounded-t-md"
+                    style={{ height: statsVisible ? '64.6%' : '0%', transition: 'height 0.9s cubic-bezier(0.34,1.56,0.64,1) 0.5s' }}
                   />
-                  <span className="text-[13px] font-bold text-[#1B264F]">무작위 탈락</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-end h-full gap-2">
-                  <span
-                    className="text-[14px] font-extrabold text-gray-500 transition-opacity duration-500"
-                    style={{ opacity: statsVisible ? 1 : 0, transitionDelay: '0.5s' }}
-                  >시간 지연</span>
-                  <div
-                    className="w-8 sm:w-12 bg-gray-300 rounded-t-md"
-                    style={{ height: statsVisible ? '50%' : '0%', transition: 'height 0.8s ease-out 0.35s' }}
-                  />
-                  <span className="text-[13px] font-bold text-gray-500">포기율</span>
+                  <span className="text-[13px] font-bold text-[#1B264F]">2025년</span>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Card: 시간 소모 - Full Width */}
+            {/* Bottom Card: 어디서부터 막막함 - Full Width */}
             <div className="md:col-span-2 bg-[#f8f9fc] rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
               <div className="flex-1">
                 <h3 className="text-[20px] sm:text-[26px] font-extrabold text-gray-900 mb-4 leading-snug">
-                  포트폴리오 하나에<br/>하루가 통째로 사라져요
+                  무엇부터 써야 할지<br/>몰라 막막해요
                 </h3>
-                 <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[460px]">
-                  템플릿 찾다 한 시간, 과거 기록 뒤지다 두 시간, 여백 맞추다 또 한 시간. 이 시간이면 <strong className="text-[#1B264F]">기업 20곳을 더 분석하고 지원</strong>할 수 있어요.
+                 <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed font-medium mb-6 lg:max-w-[480px]">
+                  취준생 10명 중 8명 이상이 '뭘 준비해야 할지 모르겠다'고 말합니다. 시작은 거창한 스펙이 아니라, <strong className="text-[#1B264F]">흩어진 내 경험을 한곳에 모으는 것</strong>부터예요.
                 </p>
               </div>
-              <div className="w-full md:w-[320px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
-                <p className="text-[15px] font-bold text-gray-500">포트폴리오 1개 제작 평균 소요 시간</p>
+              <div className="w-full md:w-[340px] bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col justify-center relative overflow-hidden">
+                <p className="text-[15px] font-bold text-gray-500">취업 준비가 막막하다고 답한 취준생</p>
                 <div className="flex items-baseline gap-1.5 mt-1 mb-5">
                   <span className="text-[46px] sm:text-[52px] font-extrabold text-gray-900 tracking-tighter leading-none tabular-nums">
-                    {count3 >= 72 ? '72' : count3}
+                    {count3.toFixed(1)}
                   </span>
-                  <span className="text-[20px] font-bold text-gray-500">시간</span>
+                  <span className="text-[20px] font-bold text-gray-500">%</span>
                 </div>
-                <p className="text-[13px] font-bold text-gray-500 mb-2">일주일 중 사라지는 날</p>
                 <div className="flex gap-1.5">
-                  {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => (
-                    <div key={day} className="flex-1 flex flex-col items-center gap-1">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
                       <div
                         className="w-full rounded-md transition-all duration-500"
                         style={{
-                          height: '28px',
-                          background: statsVisible && i < 3 ? '#1B264F' : '#E5E7EB',
-                          transitionDelay: `${i * 120 + 400}ms`,
-                          transform: statsVisible && i < 3 ? 'scaleY(1)' : 'scaleY(0.4)',
+                          height: '32px',
+                          background: statsVisible && i < 8 ? '#1B264F' : '#E5E7EB',
+                          transitionDelay: `${i * 110 + 400}ms`,
+                          transform: statsVisible && i < 8 ? 'scaleY(1)' : 'scaleY(0.4)',
                           transformOrigin: 'bottom',
                         }}
                       />
-                      <span
-                        className="text-[12px] font-bold transition-colors duration-500"
-                        style={{ color: statsVisible && i < 3 ? '#1B264F' : '#9CA3AF', transitionDelay: `${i * 120 + 400}ms` }}
-                      >{day}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
           </div>
+
+          {/* 출처 */}
+          <p className="text-center text-[12px] sm:text-[13px] text-gray-400 -mt-6 sm:-mt-10 mb-12 sm:mb-16 font-medium">
+            출처 · 한국경제인협회 「2025년 대학생 취업인식도 조사」 (전국 4년제 대학생·졸업생 2,492명), 잡코리아 취업준비 설문
+          </p>
 
           {/* Gray Box → 해결책 브릿지 */}
           <div className="bg-gray-900 rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 md:p-16 text-center">
@@ -889,178 +857,55 @@ export default function Landing() {
             </ResponsiveScaleWrapper>
           </div>
 
-          {/* AI 포트폴리오 에디터 */}
+          {/* 핵심 추출 */}
           <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row-reverse flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[13px] font-bold rounded mb-4 sm:mb-6">AI 포트폴리오 에디터</span>
-                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-6 sm:mb-8" style={{ wordBreak: 'keep-all' }}>
-                  흩어진 경험들이,<br />
-                  <span className="text-primary-500">하나의 서사로<br />재탄생합니다</span>
+                  <span className="inline-block px-2.5 py-1 bg-caribbean-100 text-caribbean-700 text-[13px] font-bold rounded mb-4 sm:mb-6">AI 핵심 추출</span>
+                <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
+                  중요한 건,<br />
+                  <span className="text-primary-500">경험에서 핵심을<br />뽑아내는 것</span>
                 </h3>
+                <p className="text-[14px] sm:text-[15px] text-bluewood-500 leading-relaxed mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
+                  그럴듯한 미사여구가 아니라, 무엇이 진짜 성과였는지가 중요합니다.
+                  AI가 흩어진 기록에서 <strong className="text-primary-600">문제·실행·결과·배운 점</strong>을 가려내고, 수치로 고정해줍니다.
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {['핵심 역량 자동 추출', '블록형 포트폴리오'].map((t, i) => (
+                  {['성과 수치화', '문제·실행·결과 구조화'].map((t, i) => (
                     <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
                   ))}
                 </div>
               </div>
 
-              <div className="flex-1 w-full min-w-0 grid">
-                {/* View 1: Experience Review */}
-                <div className={`col-start-1 row-start-1 w-full transition-opacity duration-1000 ${aiMockView === 'experience' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-                  <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 h-full flex flex-col text-left">
-                    <div className="border-b border-surface-100 px-4 sm:px-5 py-3 flex items-center justify-between bg-surface-50/50">
-                      <div className="flex items-center gap-2 sm:gap-4 text-[12px] sm:text-[13px] text-bluewood-500 font-medium overflow-hidden">
-                        <span className="shrink-0">✓ 기본 정보</span>
-                        <span className="shrink-0 hidden sm:inline">✓ 자료 수집</span>
-                        <span className="text-primary-600 font-bold shrink-0">경험 검토</span>
-                      </div>
-                      <span className="text-[12px] text-bluewood-500 font-bold tracking-widest shrink-0">1/4</span>
-                    </div>
-
-                    <div className="flex flex-1 overflow-hidden">
-                      <div className="hidden sm:block w-[160px] md:w-[180px] border-r border-surface-100 bg-surface-50/30 p-3 sm:p-4 shrink-0">
-                        <p className="text-[12px] font-bold text-bluewood-500 mb-3">경험 목록</p>
-                        <div className="space-y-3">
-                          <div className="bg-primary-600 text-white rounded-lg p-2.5 shadow-sm">
-                            <p className="text-[11px] text-white/70 mb-0.5 font-bold">1.</p>
-                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight">AI 챗봇 서비스 도입을 통한 CS 효율화</p>
-                          </div>
-                          <div className="p-2.5 opacity-40">
-                            <p className="text-[11px] mb-0.5 font-bold text-primary-600">2.</p>
-                            <p className="text-[12px] sm:text-[13px] font-bold leading-tight text-primary-600">고객 여정 지도 설계를 통한 전환율 향상</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex-1 p-4 sm:p-6 bg-white overflow-hidden">
-                        <div className="bg-primary-50 text-primary-600 text-[13px] px-3 py-2 rounded-lg mb-3 sm:mb-4 font-medium flex items-center gap-2">
-                          <Check size={12} /> "문제 정의", "데이터 분석" 역량이 확인됩니다.
-                        </div>
-
-                        <div className="border border-surface-200 rounded-xl p-4 sm:p-5 bg-white shadow-sm relative">
-                          <button className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 sm:px-3 py-1 bg-white border border-surface-200 rounded-md text-[12px] font-bold text-bluewood-500 shadow-sm">
-                            수정
-                          </button>
-                          <div className="inline-block px-2 py-0.5 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded mb-2">문제 상황 (Background)</div>
-                          <h4 className="text-[15px] sm:text-[17px] font-extrabold text-primary-600 mb-2 sm:mb-3 pr-12">기존 CS 프로세스 병목 현상 분석</h4>
-                          <p className="text-[13px] sm:text-[14px] text-bluewood-500 leading-relaxed mb-3 sm:mb-4">
-                            서비스 성장과 함께 일평균 고객 문의량이 급증하였으며, 기존 인력만으로는 대응 지연 현상이 발생하고 있었습니다. 특히 단순 반복 문의가 전체의 65%를 차지하여 심각한 병목 현상을 파악했습니다.
-                          </p>
-                          <ul className="text-[12px] sm:text-[13px] text-bluewood-500 space-y-1.5 list-disc pl-4 mb-4 sm:mb-5 leading-relaxed">
-                            <li>VOC 데이터를 주간 단위로 수집하여 문의 유형을 분석했습니다.</li>
-                            <li>챗봇으로 자동화 가능한 '단순 정보성 문의' 비율(65%)을 정량적으로 도출했습니다.</li>
-                          </ul>
-                          <div className="border-t border-surface-100 pt-3 sm:pt-4">
-                            <p className="text-[12px] font-bold text-bluewood-500 mb-2">역량 키워드</p>
-                            <div className="flex gap-2 flex-wrap">
-                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded-md">데이터 분석</span>
-                              <span className="px-2.5 py-1 bg-surface-100 text-bluewood-500 text-[12px] font-bold rounded-md">문제 정의</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-surface-100 bg-white px-4 sm:px-5 py-3 flex items-center justify-between shrink-0">
-                      <span className="text-[13px] font-bold text-red-400 cursor-pointer">이 경험 제외</span>
-                      <div className="flex gap-2">
-                        <button className="px-3 sm:px-4 py-1.5 text-[13px] font-bold text-bluewood-500 rounded-md">이전</button>
-                        <button className="px-3 sm:px-4 py-1.5 bg-primary-600 text-white text-[13px] font-bold rounded-md shadow-sm">다음 &gt;</button>
-                      </div>
-                    </div>
+              <div className="flex-1 w-full min-w-0">
+                <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 text-left p-5 sm:p-7">
+                  <div className="flex items-center justify-between border-b border-surface-100 pb-3 mb-4">
+                    <h4 className="text-[16px] sm:text-[18px] font-extrabold text-[#1B264F]">핵심 경험</h4>
+                    <span className="text-[12px] font-bold text-bluewood-400">3건</span>
                   </div>
-                </div>
 
-                {/* View 2: Portfolio Preview */}
-                <div className={`col-start-1 row-start-1 w-full transition-opacity duration-1000 ${aiMockView === 'portfolio' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-                  <div className="bg-surface-50 rounded-2xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-surface-200 h-full flex flex-col text-left">
-                    <div className="bg-white border-b border-surface-100 px-4 sm:px-5 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
-                      <div className="flex items-center gap-2 text-[13px] sm:text-[14px] font-bold text-bluewood-500">
-                        <ArrowRight size={14} className="rotate-180" /> 경험 목록으로
-                      </div>
-                      <div className="flex items-center gap-1.5 sm:gap-2">
-                        <div className="hidden sm:flex items-center gap-1 bg-surface-100 rounded-md px-2 py-1 mr-1 sm:mr-2">
-                          <div className="w-4 h-1 rounded-full bg-red-400" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-surface-300" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-surface-300" />
-                          <span className="text-[11px] font-bold text-bluewood-500 ml-1">1/4</span>
-                        </div>
-                        <button className="px-2 sm:px-3 py-1.5 border border-surface-200 bg-white text-[12px] font-bold text-bluewood-500 rounded-md shadow-sm flex items-center gap-1">
-                          <PenTool size={10} /> 수정
-                        </button>
-                        <button className="px-2 sm:px-3 py-1.5 bg-primary-600 text-white text-[12px] font-bold rounded-md shadow-sm flex items-center gap-1">
-                          <LayoutTemplate size={10} /> <span className="hidden sm:inline">템플릿 변경</span><span className="sm:hidden">템플릿</span>
-                        </button>
-                      </div>
+                  <div className="flex items-start justify-between gap-3 mb-5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 shrink-0 rounded-full bg-primary-600 text-white text-[12px] font-bold flex items-center justify-center">1</span>
+                      <p className="text-[15px] sm:text-[17px] font-extrabold text-[#1B264F] leading-snug" style={{ wordBreak: 'keep-all' }}>설문 84명·인터뷰 12명으로 진짜 문제를 정의</p>
                     </div>
+                    <span className="text-[12px] font-bold text-bluewood-400 shrink-0 mt-1">삭제</span>
+                  </div>
 
-                    <div className="flex flex-1 rounded-b-2xl overflow-hidden">
-                      <div className="hidden md:block w-[160px] lg:w-[180px] bg-white border-r border-surface-100 p-4 sm:p-5 shrink-0">
-                        <h4 className="text-[15px] font-extrabold text-primary-600 mb-4">Overview</h4>
-                        <div className="space-y-4">
-                          <div>
-                            <p className="text-[12px] text-bluewood-500 font-bold mb-1">1. 목표</p>
-                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">단순 반복 문의 처리율 향상을 통한 업무 부하 감소</p>
-                          </div>
-                          <div>
-                            <p className="text-[12px] text-bluewood-500 font-bold mb-1">2. 역할</p>
-                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">서비스 기획 (100%) - 문제 정의, 시나리오 설계</p>
-                          </div>
-                          <div>
-                            <p className="text-[12px] text-bluewood-500 font-bold mb-1">3. 기간</p>
-                            <p className="text-[12px] text-bluewood-500 leading-relaxed font-medium">2025.03 - 2025.05 (2개월)</p>
-                          </div>
-                        </div>
+                  <div className="space-y-4">
+                    {[
+                      { label: '성과', value: <span className="text-[15px] font-extrabold text-primary-600">78% 검증</span> },
+                      { label: '문제', value: '"공지가 불편하다"는 막연한 체감만 있고, 무엇이 진짜 문제인지 합의가 없었습니다.' },
+                      { label: '실행', value: '설문 84명과 심층 인터뷰 12명을 직접 설계·진행하고, 불편을 "찾기 어려움/놓침/반복 확인" 3가지 흐름으로 구조화했습니다.' },
+                      { label: '결과', value: <><strong className="text-[#1B264F] font-bold">응답자의 78%가 "채널이 너무 많다"</strong>를 1순위 불편으로 꼽아, 채널 분산이 핵심 문제임을 데이터로 확정했습니다.</> },
+                      { label: '배운 점', value: '문제를 수치로 고정하니 이후 모든 의사결정의 기준이 명확해졌습니다.' },
+                    ].map((row, i) => (
+                      <div key={i} className="grid grid-cols-[60px_1fr] sm:grid-cols-[72px_1fr] gap-3 sm:gap-4">
+                        <span className="text-[13px] font-bold text-bluewood-400 pt-0.5">{row.label}</span>
+                        <p className="text-[13px] sm:text-[14px] text-bluewood-600 leading-relaxed" style={{ wordBreak: 'keep-all' }}>{row.value}</p>
                       </div>
-
-                      <div className="flex-1 p-4 sm:p-5 bg-surface-50 overflow-auto">
-                        <div className="bg-white rounded-xl shadow-sm border border-surface-100 p-4 sm:p-6 mb-4">
-                          <p className="text-[12px] font-extrabold text-primary-500 tracking-wider mb-2">BACKGROUND & PROBLEM</p>
-                          <h3 className="text-[17px] sm:text-[20px] font-extrabold text-primary-600 mb-4 sm:mb-5">기존 CS 프로세스 병목 현상 분석</h3>
-
-                          <div className="flex flex-col gap-4">
-                            <div className="flex-1 bg-surface-50 rounded-xl p-4 sm:p-5 border border-surface-100">
-                              <p className="text-[13px] font-bold text-bluewood-500 mb-1">단순 반복 문의가 차지하는 비중</p>
-                              <p className="text-[28px] sm:text-[32px] font-extrabold text-primary-600 mb-3 leading-none">65.0%</p>
-                              <p className="text-[12px] text-bluewood-500 leading-relaxed mb-4">
-                                전체 문의의 65%가 배송 조회 등 단순 정보성 문의로 파악되었습니다.
-                              </p>
-                              <div className="space-y-3">
-                                <div>
-                                  <div className="flex justify-between text-[11px] font-bold text-bluewood-500 mb-1">
-                                    <span>수동 처리 비중 (개선 전)</span><span>100%</span>
-                                  </div>
-                                  <div className="h-4 w-full bg-surface-200 rounded-md overflow-hidden">
-                                    <div className="h-full bg-surface-400 w-full rounded-md" />
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="flex justify-between text-[11px] font-bold text-bluewood-500 mb-1">
-                                    <span>수동 처리 비중 (개선 후)</span><span className="text-primary-600">35.0%</span>
-                                  </div>
-                                  <div className="h-4 w-full bg-surface-200 rounded-md overflow-hidden relative">
-                                    <div className="absolute top-0 left-0 h-full bg-primary-600 transition-all duration-1000 ease-in-out" style={{ width: aiMockView === 'portfolio' ? '35%' : '0%' }} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 overflow-x-auto pb-2">
-                          <div className="bg-white border-2 border-primary-200 rounded-lg p-3 min-w-[130px] shadow-sm">
-                            <p className="text-[8px] font-bold text-primary-500 uppercase mb-1">Background & Problem</p>
-                            <p className="text-[12px] font-bold text-primary-900 truncate">CS 병목 현상 분석</p>
-                          </div>
-                          <div className="bg-white border border-surface-100 rounded-lg p-3 min-w-[130px] opacity-60">
-                            <p className="text-[8px] font-bold text-bluewood-500 uppercase mb-1">Analysis & Action</p>
-                            <p className="text-[12px] font-bold text-bluewood-500 truncate">AI 시나리오 설계</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1068,22 +913,22 @@ export default function Landing() {
             </ResponsiveScaleWrapper>
           </div>
 
-          {/* 타임라인 관리 */}
+          {/* 완성된 결과물 — 이력서 */}
           <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12">
             <ResponsiveScaleWrapper minWidth={900}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[13px] font-bold rounded mb-3 sm:mb-4">타임라인 관리</span>
-                <h3 className="text-[20px] sm:text-[22px] font-extrabold text-primary-600 leading-[1.4] mb-2 sm:mb-3" style={{ wordBreak: 'keep-all' }}>
-                  모든 경험을 한눈에,<br />
-                  <span className="text-primary-500">타임라인으로 관리</span>해요
+                  <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[13px] font-bold rounded mb-3 sm:mb-4">완성된 결과물</span>
+                <h3 className="text-[22px] sm:text-[26px] font-extrabold text-primary-600 leading-[1.35] mb-3 sm:mb-4" style={{ wordBreak: 'keep-all' }}>
+                  흩어진 경험이,<br />
+                  <span className="text-primary-500">한 장의 이력서로</span> 완성됩니다
                 </h3>
-                <p className="text-[14px] sm:text-[15px] text-bluewood-500 leading-relaxed mb-4 sm:mb-6">
-                  정리된 경험들을 12개월 타임라인에서 한눈에 확인하고,<br />
-                  드래그로 순서를 바꾸거나 기간을 수정할 수 있어요.
+                <p className="text-[14px] sm:text-[15px] text-bluewood-500 leading-relaxed mb-4 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
+                  정리된 경험에서 강점과 프로젝트가 자동으로 채워집니다.
+                  기업에 맞춰 다듬어 바로 내보낼 수 있어요.
                 </p>
                 <div className="space-y-2">
-                  {['12개월 Gantt 차트 뷰', '3가지 컬러 테마 선택', '드래그 앤 드롭 정렬'].map((t, i) => (
+                  {['강점·역량 자동 추출', '프로젝트 자동 정리', '기업 맞춤 내보내기'].map((t, i) => (
                     <div key={i} className="flex items-center gap-2 text-[14px] sm:text-[12.5px] text-bluewood-500">
                       <div className="w-4 h-4 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                         <Check size={10} className="text-indigo-600" />
@@ -1095,80 +940,89 @@ export default function Landing() {
               </div>
 
               <div className="flex-1 w-full mt-0 lg:mt-4 min-w-0">
-                <div className="bg-[#f8f9fa] rounded-2xl border border-gray-200 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden p-4 sm:p-5 md:p-7 relative">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden p-5 sm:p-7 md:p-9 text-left">
+                  {/* Resume Header */}
+                  <div className="flex items-start justify-between gap-4 mb-7 sm:mb-9">
                     <div>
-                      <h4 className="text-[20px] sm:text-[20px] font-extrabold text-[#1B264F] mb-1 tracking-tight">경험 정리</h4>
-                      <p className="text-[13px] sm:text-[14px] text-gray-500 font-semibold">6개의 경험이 타임라인에 정리되어 있습니다</p>
+                      <p className="text-[11px] font-bold tracking-[0.2em] text-gray-400 mb-1.5">RESUME</p>
+                      <h4 className="text-[26px] sm:text-[32px] font-extrabold text-[#1B264F] leading-none mb-2.5">김서연</h4>
+                      <p className="text-[13px] sm:text-[14px] text-gray-500 font-medium" style={{ wordBreak: 'keep-all' }}>데이터 기반 서비스 기획으로 6개의 프로젝트를 이끌어온 주니어 PM</p>
                     </div>
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
-                        <ArrowDownUp size={11} /> 정렬 <ChevronDown size={11} />
-                      </button>
-                      <button className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 sm:gap-1.5 shadow-sm">
-                        <Calendar size={11} /> 타임라인
-                      </button>
-                      <button className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B264F] text-white rounded-lg text-[12px] sm:text-[13px] font-bold flex items-center gap-1 sm:gap-1.5 shadow-sm">
-                        <Plus size={13} /> 새 경험
-                      </button>
-                    </div>
+                    <button className="shrink-0 px-3 py-1.5 border border-gray-200 rounded-lg text-[12px] font-bold text-gray-500 flex items-center gap-1.5 shadow-sm">
+                      <PenTool size={11} /> 편집
+                    </button>
                   </div>
 
-                  <div className="flex justify-between items-center mb-4 sm:mb-6">
-                    <div className="flex items-center gap-3">
-                      <button className="px-2.5 sm:px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[12px] sm:text-[13px] font-bold text-gray-600 flex items-center gap-1 shadow-sm">
-                        2026년 <ChevronDown size={11} />
-                      </button>
-                      <span className="text-[14px] sm:text-[15px] font-extrabold text-[#1B264F]">경험 타임라인</span>
-                    </div>
-                    <div className="hidden sm:flex items-center gap-3">
-                      <div className="bg-white border border-gray-100 rounded-lg px-2 py-1.5 flex gap-1 shadow-sm">
-                        <div className="w-4 h-4 bg-[#1B264F] rounded-[3px]"></div>
-                        <div className="w-4 h-4 bg-blue-500 rounded-[3px]"></div>
-                        <div className="w-4 h-4 bg-blue-300 rounded-[3px]"></div>
+                  {/* 3-column body */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[150px_150px_1fr] gap-7 sm:gap-8">
+                    {/* Left: CONTACT + STRENGTHS */}
+                    <div className="space-y-6">
+                      <div>
+                        <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-2">CONTACT</p>
+                        <a className="text-[13px] text-primary-600 font-semibold break-all">seoyeon.kim@gmail.com</a>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Timeline Area — horizontal scroll on mobile */}
-                  <div className="relative border-t border-gray-200 pt-4 pb-6 overflow-x-auto">
-                    <div className="min-w-[480px]">
-                      <div className="flex mb-5 pl-[2%]">
-                        {['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'].map(m => (
-                          <div key={m} className="flex-1 text-[12px] sm:text-[13px] text-gray-500 font-bold">{m}</div>
-                        ))}
-                      </div>
-                      <div className="absolute top-[48px] bottom-0 left-0 right-0 flex pointer-events-none">
-                        {[...Array(12)].map((_, i) => (
-                          <div key={i} className="flex-1 border-l border-gray-200/60" />
-                        ))}
-                        <div className="border-l border-gray-200/60" />
-                      </div>
-                      <div className="relative z-10 space-y-3 sm:space-y-4 pr-4 sm:pr-8">
-                        {[
-                          { title: '졸업프로젝트', start: 3.2, span: 3.5, theme: 'dark' },
-                          { title: '교내 해커톤 대상', start: 3.6, span: 4.5, theme: 'light' },
-                          { title: 'IT 동아리 3기', start: 2.2, span: 3.3, theme: 'gray' },
-                          { title: '스타트업 인턴쉽', start: 3.4, span: 3.8, theme: 'dark' },
-                          { title: '개인 프로젝트: 포트폴리오 웹', start: 3.6, span: 3.8, theme: 'light' },
-                          { title: '알고리즘 스터디', start: 3.6, span: 3.5, theme: 'gray' },
-                        ].map((bar, i) => {
-                          const themeClasses = {
-                            dark: 'bg-[#1B264F] text-white',
-                            light: 'bg-white text-gray-800 border border-blue-200',
-                            gray: 'bg-[#e2e8f0] text-gray-700'
-                          }[bar.theme];
-                          return (
-                            <div key={i} className="relative h-[34px] sm:h-[38px] w-full">
-                              <div
-                                className={`absolute top-0 h-full rounded-[7px] sm:rounded-[8px] flex items-center px-3 sm:px-4 shadow-sm ${themeClasses} cursor-default`}
-                                style={{ left: `${(bar.start / 12) * 100}%`, width: `${(bar.span / 12) * 100}%` }}
-                              >
-                                <span className="text-[13px] sm:text-[15px] font-bold tracking-tight truncate">{bar.title}</span>
-                              </div>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">STRENGTHS</p>
+                        <div className="space-y-3">
+                          {[
+                            { t: '데이터 기반 문제 정의', s: '설문·VOC 분석에서 발휘한 역량' },
+                            { t: 'AI 서비스 기획', s: '챗봇·자동화 프로젝트에서 발휘한 역량' },
+                            { t: '협업 리딩', s: '5인 팀 프로젝트에서 발휘한 역량' },
+                          ].map((it, i) => (
+                            <div key={i}>
+                              <p className="text-[13px] font-extrabold text-[#1B264F] leading-tight">{it.t}</p>
+                              <p className="text-[11px] text-gray-400 leading-snug mt-0.5">{it.s}</p>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Middle: TOOLS */}
+                    <div>
+                      <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">TOOLS</p>
+                      <div className="space-y-3">
+                        {[
+                          { t: 'Figma', c: 3 },
+                          { t: 'Notion', c: 3 },
+                          { t: 'GA4', c: 2 },
+                          { t: 'SQL', c: 2 },
+                          { t: 'Python', c: 1 },
+                          { t: 'Amplitude', c: 1 },
+                        ].map((it, i) => (
+                          <div key={i}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[13px] font-bold text-[#1B264F]">{it.t}</span>
+                              <span className="text-[10px] font-bold text-gray-400">프로젝트 {it.c}</span>
+                            </div>
+                            <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-[#1B264F] rounded-full" style={{ width: `${(it.c / 3) * 100}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Right: PROJECTS */}
+                    <div>
+                      <p className="text-[11px] font-bold tracking-[0.15em] text-gray-400 mb-3">PROJECTS</p>
+                      <div className="space-y-4">
+                        {[
+                          { t: 'AI 챗봇 도입으로 CS 응대 시간 40% 단축', d: '단순 반복 문의 65%를 자동화해 상담 인력 부하를 크게 줄였습니다.', y: '2025' },
+                          { t: '고객 여정 분석으로 결제 전환율 18% 향상', d: '이탈 구간을 데이터로 짚어 결제 플로우를 재설계했습니다.', y: '2025' },
+                          { t: '교내 공지 통합 서비스, 공지 누락률 32% 감소', d: '5개 채널에 흩어진 공지를 한 화면으로 모았습니다.', y: '2024' },
+                          { t: '온보딩 A/B 테스트로 초기 이탈률 개선', d: '가입 직후 첫 액션까지의 단계를 줄여 잔존율을 높였습니다.', y: '2024' },
+                          { t: '주간 VOC 리포트 자동화', d: '수기로 모으던 고객 피드백을 대시보드로 정리했습니다.', y: '2023' },
+                          { t: '설문 84명 기반 문제 정의 졸업 프로젝트', d: '체감에 머물던 불편을 수치로 고정해 문제를 확정했습니다.', y: '2023' },
+                        ].map((it, i) => (
+                          <div key={i} className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[13px] sm:text-[14px] font-extrabold text-[#1B264F] leading-snug" style={{ wordBreak: 'keep-all' }}>{it.t}</p>
+                              <p className="text-[12px] text-gray-400 leading-snug mt-0.5" style={{ wordBreak: 'keep-all' }}>{it.d}</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-300 shrink-0 mt-0.5">{it.y}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1572,7 +1426,7 @@ export default function Landing() {
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
                 <li><a href="#feature-experience" className="hover:text-primary-600 transition-colors">이용 가이드</a></li>
                 <li><a href="#faq" className="hover:text-primary-600 transition-colors">자주 묻는 질문</a></li>
-                <li><a href="mailto:gudrbs14@naver.com" className="hover:text-primary-600 transition-colors">문의하기</a></li>
+                <li><a href="mailto:fitpoly.kr@gmail.com" className="hover:text-primary-600 transition-colors">문의하기</a></li>
               </ul>
             </div>
             <div>
@@ -1585,7 +1439,7 @@ export default function Landing() {
             <div>
               <h4 className="text-[13px] font-bold text-bluewood-500 uppercase tracking-wider mb-3 sm:mb-4">연락처</h4>
               <ul className="space-y-2 sm:space-y-2.5 text-[14px] sm:text-[15px] text-bluewood-500">
-                <li>이메일: gudrbs14@naver.com</li>
+                <li>이메일: fitpoly.kr@gmail.com</li>
                 <li>운영시간: 평일 09:00 – 18:00</li>
               </ul>
             </div>
