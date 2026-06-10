@@ -85,6 +85,51 @@ router.post('/feedback', async (req, res, next) => {
   }
 });
 
+// 이메일로 사용자의 지갑 잔액과 최근 거래내역 조회 (사용내역 파악용)
+router.post('/user-lookup', async (req, res, next) => {
+  try {
+    if (!isAuthorized(req.body)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    const email = String(req.body.email || '').trim();
+    if (!email) {
+      return res.status(400).json({ error: '이메일을 입력해주세요.' });
+    }
+
+    let user;
+    try {
+      user = await adminAuth.getUserByEmail(email);
+    } catch {
+      return res.status(404).json({ error: '해당 이메일의 계정을 찾을 수 없습니다.' });
+    }
+
+    const walletRef = adminDb.collection('creditWallets').doc(user.uid);
+    const walletSnap = await walletRef.get();
+    const wallet = walletSnap.exists ? walletSnap.data() : null;
+
+    const limit = Math.min(Math.max(Number(req.body.limit) || 50, 1), 200);
+    const txSnap = await walletRef.collection('transactions')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+    const transactions = txSnap.docs.map(doc => {
+      const data = doc.data();
+      return { id: doc.id, ...data, createdAt: toIso(data.createdAt) };
+    });
+
+    res.json({
+      email: user.email,
+      uid: user.uid,
+      balance: Number(wallet?.balance || 0),
+      totalCharged: Number(wallet?.totalCharged || 0),
+      totalUsed: Number(wallet?.totalUsed || 0),
+      transactions,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // 이메일로 계정을 찾아 크레딧 충전
 router.post('/grant-credits', async (req, res, next) => {
   try {
