@@ -1035,7 +1035,7 @@ export default function NotionPortfolioEditor() {
       }
       await useExperienceStore.getState().fetchExperiences(user.uid);
       setUserExperiences(useExperienceStore.getState().experiences);
-      // 초기 로드 완료 표시 — 자동 저장 활성화
+      // 초기 로드 완료 표시 — 이후 변경분부터 저장 안 됨 상태로 표시
       setTimeout(() => { initialLoaded.current = true; }, 500);
 
       // 경험 내보내기 config가 있으면 자동 import
