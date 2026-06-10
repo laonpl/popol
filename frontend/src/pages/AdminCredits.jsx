@@ -40,6 +40,7 @@ export default function AdminCredits() {
   // 충전 폼
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
   const [granting, setGranting] = useState(false);
   const [result, setResult] = useState(null);
 
@@ -167,6 +168,7 @@ export default function AdminCredits() {
     sessionStorage.removeItem('adminCred');
     setCred(null);
     setResult(null);
+    setReason('');
     setFeedback([]);
     setRequests([]);
     setLookupData(null);
@@ -187,10 +189,12 @@ export default function AdminCredits() {
         ...cred,
         email: email.trim(),
         amount: value,
+        reason: reason.trim(),
       });
       setResult(data);
       toast.success(`${data.email} 에 ${data.amount} 크레딧 충전 완료`);
       setAmount('');
+      setReason('');
     } catch (error) {
       if (error.response?.status === 401) logout();
       toast.error(error.response?.data?.error || error.message || '충전에 실패했습니다.');
@@ -286,7 +290,7 @@ export default function AdminCredits() {
             placeholder="예: 12000"
             className="mt-1 w-full rounded-lg border border-surface-200 px-3 py-2.5 text-sm outline-none focus:border-primary-400"
           />
-          <div className="mt-2 mb-5 flex flex-wrap gap-2">
+          <div className="mt-2 mb-4 flex flex-wrap gap-2">
             {QUICK_AMOUNTS.map(value => (
               <button
                 key={value}
@@ -295,6 +299,29 @@ export default function AdminCredits() {
                 className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-bold text-bluewood-600 hover:border-primary-300 hover:text-primary-600"
               >
                 +{value.toLocaleString()}
+              </button>
+            ))}
+          </div>
+          <label className="block text-sm font-bold text-bluewood-700">
+            충전 메시지 <span className="font-medium text-bluewood-300">(선택 · 사용자 내역에 표시됨)</span>
+          </label>
+          <input
+            type="text"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            maxLength={100}
+            placeholder="예: 오류로 차감된 크레딧 환불, 이벤트 보상"
+            className="mt-1 mb-2 w-full rounded-lg border border-surface-200 px-3 py-2.5 text-sm outline-none focus:border-primary-400"
+          />
+          <div className="mb-5 flex flex-wrap gap-2">
+            {['오류로 차감된 크레딧 환불', '이벤트 보상', '서비스 사과 크레딧'].map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setReason(preset)}
+                className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-bold text-bluewood-600 hover:border-primary-300 hover:text-primary-600"
+              >
+                {preset}
               </button>
             ))}
           </div>
