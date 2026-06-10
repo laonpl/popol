@@ -2303,17 +2303,19 @@ function renderStarTimeline(slide, t, v) {
 function renderStarSituation(slide, t, v) {
   const metrics = (slide.metrics || []).slice(0, 2);
   const hasMetrics = metrics.length > 0;
+  const phase = slide.starPhase || 'S';
+  const bannerLabel = slide.bannerLabel || 'SITUATION';
   const imageUrl = slide.imageUrl || (slide.items || []).find(item => item.imageUrl)?.imageUrl;
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'S', slide.sectionLabel || 'SITUATION')}</div>
+      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, phase, slide.sectionLabel || bannerLabel)}</div>
       <div style={{ position: 'absolute', left: 44, top: 80, right: imageUrl ? 238 : 44 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
         {slide.subtitle && <div style={{ marginTop: 5, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
       </div>
       {imageUrl ? <div style={{ position: 'absolute', right: 44, top: 30, width: 176, height: 118, overflow: 'hidden', borderRadius: 12, background: v.dark }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
       <div style={{ position: 'absolute', left: 44, top: 185, right: hasMetrics ? 222 : 44, bottom: 38, background: v.dark, borderRadius: 22, padding: '22px 26px', color: '#FFFFFF' }}>
-        <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>SITUATION</div>
+        <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>{bannerLabel}</div>
         <FitClampText lines={7} style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9 }}>{slide.body || slide.subtitle || ''}</FitClampText>
       </div>
       {hasMetrics && (
@@ -6675,14 +6677,16 @@ function drawStarPhaseBadgePptx(s, t, v, x, y, phase, label) {
 
 function drawStarSituationPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'S', slide.sectionLabel || 'SITUATION');
+  const phase = slide.starPhase || 'S';
+  const bannerLabel = slide.bannerLabel || 'SITUATION';
+  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, phase, slide.sectionLabel || bannerLabel);
   const hasImage = addContainedPptImage(s, [slide, ...(slide.items || [])], 10.25, 0.42, 2.45, 1.66, v.dark);
   addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: hasImage ? 9.15 : 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
   if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.5, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
   const metrics = (slide.metrics || []).slice(0, 2);
   const bodyW = metrics.length ? W - 3.15 : W - 1.24;
   s.addShape('roundRect', { x: 0.62, y: 2.55, w: bodyW, h: H - 3.0, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.2 });
-  addPptText(s, 'SITUATION', { x: 0.9, y: 2.85, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, bannerLabel, { x: 0.9, y: 2.85, w: 3.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
   addPptText(s, slide.body || slide.subtitle || '', { x: 0.9, y: 3.2, w: bodyW - 0.56, h: H - 3.66, fontFace: t.fonts.body, fontSize: 11, color: 'FFFFFF' });
   if (metrics.length) {
     metrics.forEach((m, idx) => {
@@ -9670,6 +9674,9 @@ function addPptText(s, value, options = {}) {
   let text = preserveLines ? safePptTextKeepLines(value) : safePptText(value);
   if (!text) return;
   const opts = { ...boundedTextOptions, fontFace: boundedTextOptions.fontFace || 'Pretendard' };
+  // PowerPoint 텍스트박스 기본 내부 여백(좌우 0.1in)은 fitFontSizePt 계산에 없어
+  // 계산상 들어가는 줄이 실제로는 넘쳐 마지막 줄이 잘린다 — 여백을 0으로 박아 계산과 일치시킨다.
+  if (opts.margin === undefined) opts.margin = 0;
   const requestedFontSize = Number(boundedTextOptions.fontSize);
   const readableMinimum = text.length > 28 ? 10 : text.length > 16 ? 9 : 8;
   const readableBody = Number.isFinite(requestedFontSize) && requestedFontSize < readableMinimum;
