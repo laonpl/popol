@@ -72,12 +72,71 @@ function defaultWallet(uid) {
 
 export function billingContextMiddleware(req, res, next) {
   const operationPath = `${req.method} ${req.originalUrl?.split('?')[0] || req.path || ''}`;
-  billingStorage.run({
+  const store = {
     userId: null,
     operationId: crypto.randomUUID(),
     operation: operationPath,
     operationLabel: getOperationLabel(operationPath),
-  }, next);
+    pending: null, // AI 사용량 누적 — 요청 성공 시에만 확정 차감
+  };
+
+  // 요청이 성공(2xx)으로 끝나야만 과금 확정. 에러/중단 시 누적분 폐기 → 차감 안 함.
+  let settled = false;
+  const finalize = (success) => {
+    if (settled) return;
+    settled = true;
+    if (success) {
+      commitPendingCharges(store).catch(err => console.error('[Billing] 과금 확정 실패:', err.message));
+    }
+  };
+  res.on('finish', () => finalize(res.statusCode < 400));
+  res.on('close', () => { if (!res.writableFinished) finalize(false); });
+
+  billingStorage.run(store, next);
+}
+
+// 누적된 AI 사용량을 한 번에 지갑에서 차감한다. (요청 성공 시점에만 호출)
+async function commitPendingCharges(store) {
+  const pending = store?.pending;
+  if (!store?.userId || !pending || pending.requestedCredits <= 0) return;
+
+  const ref = walletRef(store.userId);
+  const transactionRef = ref.collection('transactions').doc(store.operationId);
+
+  await adminDb.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const wallet = snap.exists ? snap.data() : defaultWallet(store.userId);
+    const balance = Math.max(0, Number(wallet.balance || 0));
+    const credits = Math.min(balance, pending.requestedCredits);
+    const balanceAfter = Math.max(0, balance - credits);
+    tx.set(ref, {
+      ...wallet,
+      creditUnit: 'api-cost-v1',
+      schemaVersion: 3,
+      balance: balanceAfter,
+      totalUsed: Number(wallet.totalUsed || 0) + credits,
+      updatedAt: new Date(),
+    });
+    tx.set(transactionRef, {
+      type: 'usage',
+      schemaVersion: 3,
+      amount: -credits,
+      balanceAfter,
+      provider: pending.provider,
+      models: Array.from(pending.models),
+      operation: store.operation,
+      inputTokens: pending.inputTokens,
+      outputTokens: pending.outputTokens,
+      thinkingTokens: pending.thinkingTokens,
+      totalTokens: pending.totalTokens,
+      usdCost: pending.usdCost,
+      requestedCredits: pending.requestedCredits,
+      exhausted: credits < pending.requestedCredits,
+      description: store.operationLabel,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
 }
 
 export function setBillingUser(uid) {
@@ -206,48 +265,30 @@ export async function recordAiUsage({ provider, model, usage }) {
     console.warn(`[Billing] ${provider}/${model} did not return token usage metadata. Skipping charge.`);
     return null;
   }
-  const ref = walletRef(store.userId);
-  const transactionRef = ref.collection('transactions').doc(store.operationId);
-  let credits = 0;
-  let balanceAfter = 0;
 
-  await adminDb.runTransaction(async tx => {
-    const [snap, transactionSnap] = await Promise.all([tx.get(ref), tx.get(transactionRef)]);
-    const wallet = snap.exists ? snap.data() : defaultWallet(store.userId);
-    const previous = transactionSnap.exists ? transactionSnap.data() : {};
-    const balance = Math.max(0, Number(wallet.balance || 0));
-    credits = Math.min(balance, requestedCredits);
-    balanceAfter = Math.max(0, balance - credits);
-    tx.set(ref, {
-      ...wallet,
-      creditUnit: 'api-cost-v1',
-      schemaVersion: 3,
-      balance: balanceAfter,
-      totalUsed: Number(wallet.totalUsed || 0) + credits,
-      updatedAt: new Date(),
-    });
-    tx.set(transactionRef, {
-      type: 'usage',
-      schemaVersion: 3,
-      amount: Number(previous.amount || 0) - credits,
-      balanceAfter,
-      provider,
-      models: Array.from(new Set([...(previous.models || []), model])),
-      operation: store.operation,
-      inputTokens: Number(previous.inputTokens || 0) + tokens.inputTokens,
-      outputTokens: Number(previous.outputTokens || 0) + tokens.outputTokens,
-      thinkingTokens: Number(previous.thinkingTokens || 0) + tokens.thinkingTokens,
-      totalTokens: Number(previous.totalTokens || 0) + tokens.totalTokens,
-      usdCost: Number(previous.usdCost || 0) + usdCost,
-      requestedCredits: Number(previous.requestedCredits || 0) + requestedCredits,
-      exhausted: previous.exhausted === true || credits < requestedCredits,
-      description: store.operationLabel,
-      createdAt: previous.createdAt || new Date(),
-      updatedAt: new Date(),
-    });
+  // 즉시 차감하지 않고 요청 컨텍스트에 누적한다.
+  // 요청이 성공적으로 끝나면 commitPendingCharges 에서 한 번에 확정 차감하고,
+  // 실패/중단되면 누적분은 폐기되어 차감되지 않는다.
+  const pending = store.pending || (store.pending = {
+    requestedCredits: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    thinkingTokens: 0,
+    totalTokens: 0,
+    usdCost: 0,
+    provider,
+    models: new Set(),
   });
+  pending.requestedCredits += requestedCredits;
+  pending.inputTokens += tokens.inputTokens;
+  pending.outputTokens += tokens.outputTokens;
+  pending.thinkingTokens += tokens.thinkingTokens;
+  pending.totalTokens += tokens.totalTokens;
+  pending.usdCost += usdCost;
+  pending.provider = provider;
+  pending.models.add(model);
 
-  return { credits, requestedCredits, balanceAfter, usdCost, ...tokens };
+  return { requestedCredits, ...tokens };
 }
 
 export async function listTransactions(uid, limit = 30) {
