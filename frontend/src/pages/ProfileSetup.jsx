@@ -452,10 +452,6 @@ export default function ProfileSetup() {
     );
   };
 
-  const Card = ({ children, className = '' }) => (
-    <div className={`rounded-2xl border border-surface-200 bg-white p-6 ${className}`}>{children}</div>
-  );
-
   const renderAdditionalSection = (key) => {
     switch (key) {
       case 'awards':
@@ -919,6 +915,10 @@ const ADDABLE_SECTIONS = [
   { key: 'values', label: '가치관' },
   { key: 'contact', label: '연락처' },
 ];
+
+function Card({ children, className = '' }) {
+  return <div className={`rounded-2xl border border-surface-200 bg-white p-6 ${className}`}>{children}</div>;
+}
 
 const GRID_CLS = { 1: '', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
 const SPAN_CLS = { 1: '', 2: 'sm:col-span-2', 3: 'sm:col-span-3' };
