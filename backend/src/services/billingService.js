@@ -261,6 +261,26 @@ export async function listTransactions(uid, limit = 30) {
     .slice(0, Math.min(Number(limit) || 30, 100));
 }
 
+export async function createCreditRequest(uid, email, packageId) {
+  const creditPackage = CREDIT_PACKAGES.find(item => item.id === packageId);
+  if (!creditPackage) {
+    const error = new Error('올바른 충전 상품을 선택해주세요.');
+    error.status = 400;
+    throw error;
+  }
+  const ref = await adminDb.collection('creditRequests').add({
+    userId: uid,
+    email: email || '',
+    packageId: creditPackage.id,
+    credits: creditPackage.credits,
+    price: creditPackage.price,
+    status: 'pending',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return { id: ref.id, credits: creditPackage.credits, price: creditPackage.price };
+}
+
 export async function createCheckout(uid, packageId, paymentMethod) {
   const creditPackage = CREDIT_PACKAGES.find(item => item.id === packageId);
   const method = PAYMENT_METHODS.find(item => item.id === paymentMethod);

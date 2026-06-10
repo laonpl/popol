@@ -43,3 +43,5 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      - key: ADMIN_PASSWORD
+        sync: false   # 관리자 페이지(/admin) 비밀번호 — Render 대시보드에서 값 입력

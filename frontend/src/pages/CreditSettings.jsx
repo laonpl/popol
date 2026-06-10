@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CreditCard, RefreshCw } from 'lucide-react';
+import { Check, RefreshCw, Loader2, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import useCreditStore from '../stores/creditStore';
 
-const METHOD_ICON = { card: 'CARD', kakaopay: 'KAKAO', tosspay: 'TOSS' };
 const SUPPORT_MESSAGE = '인스타그램 fitpoly_으로 DM 혹은 fitpoly.kr@gmail.com로 문의주세요.';
+const BANK = { name: '농협', number: '302-1254-5317-11', holder: '최형균' };
 
 function formatCredits(value) {
   return Number(value || 0).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
@@ -40,7 +40,9 @@ export default function CreditSettings() {
   const [options, setOptions] = useState({ packages: [], paymentMethods: [] });
   const [transactions, setTransactions] = useState([]);
   const [packageId, setPackageId] = useState('standard');
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [submitting, setSubmitting] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const selectedPackage = options.packages.find(item => item.id === packageId);
   const remainingCredits = Math.max(0, Number(wallet?.balance || 0));
   const isCreditDepleted = !loading && remainingCredits <= 0;
 
@@ -72,8 +74,23 @@ export default function CreditSettings() {
     }
   }, []);
 
-  const checkout = () => {
-    toast(SUPPORT_MESSAGE, { duration: 30000 });
+  const copyAccount = () => {
+    navigator.clipboard?.writeText(BANK.number.replace(/-/g, ''));
+    toast.success('계좌번호를 복사했어요.');
+  };
+
+  const submitRequest = async () => {
+    if (!selectedPackage) return;
+    setSubmitting(true);
+    try {
+      await api.post('/billing/credit-request', { packageId });
+      setRequested(true);
+      toast.success('입금 확인 후 크레딧을 충전해드릴게요. 잠시만 기다려주세요!');
+    } catch (error) {
+      toast.error(error.response?.data?.error || '요청 전송에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -107,7 +124,7 @@ export default function CreditSettings() {
         <h2 className="font-bold text-bluewood-800 mb-4">충전할 크레딧</h2>
         <div className="grid grid-cols-3 gap-3">
           {options.packages.map(item => (
-            <button key={item.id} onClick={() => setPackageId(item.id)}
+            <button key={item.id} onClick={() => { setPackageId(item.id); setRequested(false); }}
               className={`relative text-left p-4 rounded-xl border-2 transition-colors ${packageId === item.id ? 'border-primary-500 bg-primary-50' : 'border-surface-100 hover:border-primary-200'}`}>
               {packageId === item.id && <Check size={15} className="absolute right-3 top-3 text-primary-600" />}
               <p className="text-xs text-primary-600 font-semibold mb-2">{item.label}</p>
@@ -117,23 +134,26 @@ export default function CreditSettings() {
           ))}
         </div>
 
-        <h2 className="font-bold text-bluewood-800 mt-7 mb-4">결제 수단</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {options.paymentMethods.map(method => (
-            <button key={method.id} onClick={() => setPaymentMethod(method.id)}
-              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-colors ${paymentMethod === method.id ? 'border-primary-500 bg-primary-50' : 'border-surface-100 hover:border-primary-200'}`}>
-              <CreditCard size={18} className="text-bluewood-500" />
-              <div className="text-left">
-                <p className="text-[10px] font-bold tracking-wide text-bluewood-300">{METHOD_ICON[method.id]}</p>
-                <p className="text-sm font-semibold text-bluewood-700">{method.label}</p>
-              </div>
-            </button>
-          ))}
+        <h2 className="font-bold text-bluewood-800 mt-7 mb-3">입금 안내</h2>
+        <p className="text-sm text-bluewood-500 mb-4">
+          아래 계좌로 <b className="text-bluewood-800">{selectedPackage ? selectedPackage.price.toLocaleString() : '-'}원</b>을 입금하신 뒤
+          <b className="text-bluewood-800"> 입금을 완료했어요</b> 버튼을 눌러주세요. 입금이 확인되면 크레딧을 충전해드립니다.
+        </p>
+        <div className="flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 px-4 py-3">
+          <div>
+            <p className="text-xs text-bluewood-300">{BANK.name} · 예금주 {BANK.holder}</p>
+            <p className="text-lg font-bold text-bluewood-800 tabular-nums">{BANK.number}</p>
+          </div>
+          <button onClick={copyAccount}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-bluewood-600 bg-white border border-surface-200 rounded-lg hover:border-primary-300">
+            <Copy size={15} /> 복사
+          </button>
         </div>
 
-        <button onClick={checkout}
-          className="w-full mt-6 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold">
-          선택한 수단으로 결제하기
+        <button onClick={submitRequest} disabled={submitting || requested}
+          className="w-full mt-6 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold disabled:opacity-60 flex items-center justify-center gap-2">
+          {submitting && <Loader2 size={18} className="animate-spin" />}
+          {requested ? '요청 완료 — 입금 확인 후 충전됩니다' : '입금을 완료했어요'}
         </button>
       </section>
 

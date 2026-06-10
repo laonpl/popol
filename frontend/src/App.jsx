@@ -27,6 +27,7 @@ const PublicPortfolioView   = lazy(() => import('./pages/portfolio/PublicPortfol
 const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport'));
 const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
+const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
 
 function PageLoader() {
   return (
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/p/:id" element={<PublicPortfolioView />} />
         <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
+        <Route path="/admin" element={<AdminCredits />} />
         <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
         <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
           <Route index element={<Navigate to="/app/experience" replace />} />

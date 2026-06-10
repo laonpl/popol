@@ -5,6 +5,7 @@ import {
   PAYMENT_METHODS,
   completeCheckout,
   createCheckout,
+  createCreditRequest,
   getOrCreateWallet,
   listTransactions,
   verifyAndCompleteCheckout,
@@ -32,6 +33,16 @@ router.get('/options', authMiddleware, (req, res) => {
 router.get('/transactions', authMiddleware, async (req, res, next) => {
   try {
     res.json({ transactions: await listTransactions(req.user.uid, req.query.limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 계좌이체 입금 후 사용자가 충전 요청 — 관리자 페이지에서 확인/승인
+router.post('/credit-request', authMiddleware, async (req, res, next) => {
+  try {
+    const result = await createCreditRequest(req.user.uid, req.user.email, req.body.packageId);
+    res.status(201).json({ ok: true, ...result });
   } catch (error) {
     next(error);
   }
