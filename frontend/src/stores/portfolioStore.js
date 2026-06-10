@@ -1,10 +1,15 @@
 import { create } from 'zustand';
-import {
-  collection, addDoc, updateDoc, deleteDoc, doc, getDocs,
-  query, where, serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
 import api from '../services/api';
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.getTime === 'function') return value.getTime();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  if (typeof value._seconds === 'number') return value._seconds * 1000;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 const usePortfolioStore = create((set, get) => ({
   portfolios: [],
@@ -23,14 +28,9 @@ const usePortfolioStore = create((set, get) => ({
   fetchPortfolios: async (userId) => {
     set({ loading: true });
     try {
-      const q = query(
-        collection(db, 'portfolios'),
-        where('userId', '==', userId)
-      );
-      const snapshot = await getDocs(q);
-      const portfolios = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      const { data } = await api.get('/portfolio/list');
+      const portfolios = (Array.isArray(data) ? data : [])
+        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
       set({ portfolios, loading: false });
     } catch (error) {
       console.error('포트폴리오 로딩 실패:', error);
@@ -57,8 +57,6 @@ const usePortfolioStore = create((set, get) => ({
         contribution: false,
         proofread: false,
       },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     };
     // Notion 템플릿 추가 필드
     const extraFields = [
@@ -70,8 +68,8 @@ const usePortfolioStore = create((set, get) => ({
       'tableColumns', 'customSectionIcons', 'customSectionStyles', 'customSectionTitleSegments',
     ];
     extraFields.forEach(key => { if (data[key] !== undefined) docData[key] = data[key]; });
-    const docRef = await addDoc(collection(db, 'portfolios'), docData);
-    return docRef.id;
+    const { data: created } = await api.post('/portfolio', docData);
+    return created.id;
   },
 
   updatePortfolio: async (id, data, prevSnapshot) => {
@@ -84,10 +82,7 @@ const usePortfolioStore = create((set, get) => ({
         )
       : data;
     if (Object.keys(updatedFields).length === 0) return; // 변경 없음
-    await updateDoc(doc(db, 'portfolios', id), {
-      ...updatedFields,
-      updatedAt: serverTimestamp(),
-    });
+    await api.patch(`/portfolio/${id}`, updatedFields);
     const portfolios = get().portfolios.map(p =>
       p.id === id ? { ...p, ...updatedFields } : p
     );
@@ -95,7 +90,7 @@ const usePortfolioStore = create((set, get) => ({
   },
 
   deletePortfolio: async (id) => {
-    await deleteDoc(doc(db, 'portfolios', id));
+    await api.delete(`/portfolio/${id}`);
     set({ portfolios: get().portfolios.filter(p => p.id !== id) });
   },
 

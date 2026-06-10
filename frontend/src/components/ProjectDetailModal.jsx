@@ -13,7 +13,7 @@
  *  - onClose, jobAnalysis, resizeToBase64, genericMode
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../services/firestoreProxy';
 import { db } from '../config/firebase';
 import { X, ExternalLink, ImagePlus, Check, Loader2, FileText, GripVertical, Sparkles, Wand2, List, ChevronDown, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';

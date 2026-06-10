@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Sparkles, Loader2, ImagePlus, X, Image } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';

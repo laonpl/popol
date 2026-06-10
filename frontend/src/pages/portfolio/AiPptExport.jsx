@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';

@@ -1,6 +1,6 @@
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../services/firestoreProxy';
 import { db } from '../config/firebase';
 
 const CARL_LABELS = {

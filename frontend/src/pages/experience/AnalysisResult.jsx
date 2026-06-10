@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Pencil, Target, ChevronDown, ChevronUp, TrendingUp, Lightbulb, Zap, Users, CheckCircle2, Star, AlertCircle, Loader2 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import useExperienceStore from '../../stores/experienceStore';

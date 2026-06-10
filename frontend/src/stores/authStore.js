@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import api from '../services/api';
 
 const googleProvider = new GoogleAuthProvider();
 const kakaoProvider = new OAuthProvider('oidc.kakao');
@@ -43,6 +44,7 @@ const useAuthStore = create((set, get) => ({
           emailVerified: true,
         };
         set({ user, loading: false });
+        await get().recoverAccountData();
         get().loadProfile(refreshedUser.uid);
       } else {
         set({ user: null, profile: null, loading: false });
@@ -112,6 +114,16 @@ const useAuthStore = create((set, get) => ({
     } catch (e) {
       console.error('프로필 로드 실패:', e);
       set({ profileLoading: false });
+    }
+  },
+
+  recoverAccountData: async () => {
+    try {
+      const { data } = await api.post('/auth/recover-data');
+      return data;
+    } catch (e) {
+      console.warn('[Auth] account data recovery skipped:', e.message);
+      return null;
     }
   },
 

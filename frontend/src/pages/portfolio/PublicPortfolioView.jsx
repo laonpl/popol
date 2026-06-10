@@ -4,7 +4,7 @@ import {
   MapPin, Calendar, Mail, Phone, Globe, ChevronUp, ExternalLink,
   Loader2
 } from 'lucide-react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));

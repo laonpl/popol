@@ -5,7 +5,7 @@ import {
   ExternalLink, Mail, Phone, Globe, ChevronUp, X, FileText,
   ChevronRight, Tag, Share2, Copy, Check, Link2
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';

@@ -9,7 +9,7 @@ import {
   PanelLeft, Columns, GripVertical, Type, Bold, Image as ImageIcon,
   Mic, Users, Zap, Check, ExternalLink, PenLine, Database, Copy, Camera, Eraser
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import { generateId } from '@yoopta/editor';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';

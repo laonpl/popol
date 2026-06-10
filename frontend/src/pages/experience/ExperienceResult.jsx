@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';

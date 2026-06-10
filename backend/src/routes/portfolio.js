@@ -7,6 +7,57 @@ import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFuncti
 
 const router = Router();
 
+const now = () => new Date();
+
+function requirePortfolioOwner(data, uid, res) {
+  if (!data) {
+    res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다.' });
+    return false;
+  }
+  if (data.userId !== uid) {
+    res.status(403).json({ error: '접근 권한이 없습니다.' });
+    return false;
+  }
+  return true;
+}
+
+function buildPortfolioPayload(data, uid) {
+  const docData = {
+    userId: uid,
+    title: data.title || '포트폴리오',
+    targetCompany: data.targetCompany || '',
+    targetPosition: data.targetPosition || '',
+    sections: data.sections || [],
+    experienceIds: data.experienceIds || [],
+    status: data.status || 'draft',
+    exportFormat: data.exportFormat || 'PDF',
+    userName: data.userName || '',
+    checklist: data.checklist || {
+      fileSize: false,
+      format: false,
+      naming: false,
+      customization: false,
+      contribution: false,
+      proofread: false,
+    },
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  const extraFields = [
+    'templateType', 'templateId', 'headline', 'education', 'awards', 'experiences',
+    'contact', 'skills', 'goals', 'values', 'interests', 'curricular',
+    'extracurricular', 'valuesEssay', 'jobAnalysis', 'isPublic',
+    'nameEn', 'location', 'birthDate', 'activityRecords', 'customSectionLabels', 'valuesEssayBlocks',
+    'yooptaContent', 'customBlocks', 'hiddenSections', 'sectionOrder', 'contentBlockOrder',
+    'tableColumns', 'customSectionIcons', 'customSectionStyles', 'customSectionTitleSegments',
+    'customSlug', 'coverImageUrl', 'visual_sections', 'visual_sections_theme',
+  ];
+  extraFields.forEach(key => {
+    if (data[key] !== undefined) docData[key] = data[key];
+  });
+  return docData;
+}
+
 // 프런트의 인라인 리치 서식(이름/학교명/수상명 등에 굵게·크기 등 적용 시 HTML 태그 저장)을
 // 내보내기·AI 입력에서는 평문으로 환원한다. (서식 태그가 슬라이드/텍스트에 그대로 노출되지 않게)
 const stripTags = (s) => (typeof s === 'string' ? s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() : s);
@@ -58,6 +109,54 @@ function aiPptErrorResponse(error) {
     detail: message,
   };
 }
+
+router.get('/list', authMiddleware, async (req, res, next) => {
+  try {
+    const snapshot = await adminDb.collection('portfolios')
+      .where('userId', '==', req.user.uid)
+      .get();
+    const portfolios = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds ?? 0;
+        const bTime = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds ?? 0;
+        return bTime - aTime;
+      });
+    res.json(portfolios);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/', authMiddleware, async (req, res, next) => {
+  try {
+    const payload = buildPortfolioPayload(req.body || {}, req.user.uid);
+    const docRef = await adminDb.collection('portfolios').add(payload);
+    res.status(201).json({ id: docRef.id, ...payload });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/public/:idOrSlug', async (req, res, next) => {
+  try {
+    const { idOrSlug } = req.params;
+    let snap = await adminDb.collection('portfolios').doc(idOrSlug).get();
+    if (!snap.exists) {
+      const slugSnap = await adminDb.collection('portfolios')
+        .where('customSlug', '==', idOrSlug)
+        .limit(1)
+        .get();
+      snap = slugSnap.docs[0] || null;
+    }
+    if (!snap || !snap.exists) return res.status(404).json({ error: '포트폴리오를 찾을 수 없습니다.' });
+    const data = snap.data();
+    if (data.isPublic !== true) return res.status(403).json({ error: '공개되지 않은 포트폴리오입니다.' });
+    res.json({ id: snap.id, ...data });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /api/portfolio/validate - 체크리스트 6개 항목 검증
 router.post('/validate', authMiddleware, aiRateLimiter, async (req, res, next) => {
@@ -376,6 +475,46 @@ router.post('/generate-themed', authMiddleware, aiRateLimiter, async (req, res, 
     res.json({ success: true, visual_sections });
   } catch (error) {
     console.error('[POST /portfolio/generate-themed]', error);
+    next(error);
+  }
+});
+
+router.get('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const docSnap = await adminDb.collection('portfolios').doc(req.params.id).get();
+    const data = docSnap.exists ? docSnap.data() : null;
+    if (!requirePortfolioOwner(data, req.user.uid, res)) return;
+    res.json({ id: docSnap.id, ...data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const ref = adminDb.collection('portfolios').doc(req.params.id);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    if (!requirePortfolioOwner(data, req.user.uid, res)) return;
+    const update = { ...req.body, userId: req.user.uid, updatedAt: now() };
+    delete update.id;
+    delete update.createdAt;
+    await ref.update(update);
+    res.json({ id: req.params.id, ...data, ...update });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const ref = adminDb.collection('portfolios').doc(req.params.id);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    if (!requirePortfolioOwner(data, req.user.uid, res)) return;
+    await ref.delete();
+    res.json({ deleted: true });
+  } catch (error) {
     next(error);
   }
 });

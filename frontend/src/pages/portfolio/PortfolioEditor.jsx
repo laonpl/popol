@@ -5,7 +5,7 @@ import {
   Loader2, FolderOpen, ChevronDown, Upload, X, Tag, CheckCircle2, XCircle,
   Sparkles, RotateCcw
 } from 'lucide-react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';

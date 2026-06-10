@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';

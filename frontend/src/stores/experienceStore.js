@@ -1,10 +1,18 @@
 import { create } from 'zustand';
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
 import api from '../services/api';
 
 function omitUndefined(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+}
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.getTime === 'function') return value.getTime();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  if (typeof value._seconds === 'number') return value._seconds * 1000;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export const FRAMEWORKS = {
@@ -111,21 +119,14 @@ const useExperienceStore = create((set, get) => ({
   fetchExperiences: async (userId) => {
     set({ loading: true });
     try {
-      const q = query(
-        collection(db, 'experiences'),
-        where('userId', '==', userId)
-      );
-      const snapshot = await getDocs(q);
-      const experiences = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+      const { data } = await api.get('/experience/list');
+      const experiences = (Array.isArray(data) ? data : [])
         .sort((a, b) => {
           // sortOrder가 있으면 우선, 없으면 createdAt 역순
           if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
           if (a.sortOrder != null) return -1;
           if (b.sortOrder != null) return 1;
-          const aTime = a.createdAt?.toMillis?.() ?? a.createdAt?.getTime?.() ?? 0;
-          const bTime = b.createdAt?.toMillis?.() ?? b.createdAt?.getTime?.() ?? 0;
-          return bTime - aTime;
+          return toMillis(b.createdAt) - toMillis(a.createdAt);
         });
       set({ experiences });
     } catch (error) {
@@ -144,25 +145,21 @@ const useExperienceStore = create((set, get) => ({
       content: data.content || {},
       images: data.images || [],
       keywords: data.keywords || [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     });
-    const docRef = await addDoc(collection(db, 'experiences'), payload);
-    const newExp = { ...payload, id: docRef.id, createdAt: new Date(), updatedAt: new Date() };
+    const { data: newExp } = await api.post('/experience', payload);
     set(state => ({ experiences: [newExp, ...state.experiences] }));
-    return docRef.id;
+    return newExp.id;
   },
 
   updateExperience: async (id, data) => {
-    const ref = doc(db, 'experiences', id);
-    await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+    await api.patch(`/experience/${id}`, data);
     set(state => ({
       experiences: state.experiences.map(e => e.id === id ? { ...e, ...data } : e),
     }));
   },
 
   deleteExperience: async (id) => {
-    await deleteDoc(doc(db, 'experiences', id));
+    await api.delete(`/experience/${id}`);
     set(state => ({
       experiences: state.experiences.filter(e => e.id !== id),
     }));
@@ -179,10 +176,7 @@ const useExperienceStore = create((set, get) => ({
     });
     // Persist order to Firestore
     try {
-      await Promise.all(orderedIds.map((id, idx) => {
-        const ref = doc(db, 'experiences', id);
-        return updateDoc(ref, { sortOrder: idx });
-      }));
+      await api.post('/experience/reorder', { orderedIds });
     } catch (err) {
       console.error('순서 저장 실패:', err);
     }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, ImagePlus, Target, Globe, X, RotateCcw, RotateCw, ChevronLeft, ChevronRight, Trash2, Plus, LayoutGrid, ExternalLink, GripVertical as Grip, MoveUp, MoveDown, Eye, EyeOff } from 'lucide-react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import useExperienceStore from '../../stores/experienceStore';

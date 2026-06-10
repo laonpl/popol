@@ -16,6 +16,20 @@ import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
 
+const now = () => new Date();
+
+function requireExperienceOwner(data, uid, res) {
+  if (!data) {
+    res.status(404).json({ error: '경험을 찾을 수 없습니다.' });
+    return false;
+  }
+  if (data.userId !== uid) {
+    res.status(403).json({ error: '접근 권한이 없습니다.' });
+    return false;
+  }
+  return true;
+}
+
 // POST /api/experience/analyze - AI 경험 구조화
 router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
   try {
@@ -303,15 +317,36 @@ router.get('/list', authMiddleware, async (req, res, next) => {
   try {
     const snapshot = await adminDb.collection('experiences')
       .where('userId', '==', req.user.uid)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    const experiences = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const experiences = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => {
+        if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder != null) return -1;
+        if (b.sortOrder != null) return 1;
+        const aTime = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds ?? 0;
+        const bTime = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds ?? 0;
+        return bTime - aTime;
+      });
 
     res.json(experiences);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/reorder', authMiddleware, async (req, res, next) => {
+  try {
+    const orderedIds = Array.isArray(req.body.orderedIds) ? req.body.orderedIds : [];
+    const snaps = await Promise.all(orderedIds.map(id => adminDb.collection('experiences').doc(id).get()));
+    if (snaps.some(snap => !snap.exists || snap.data().userId !== req.user.uid)) {
+      return res.status(403).json({ error: '접근 권한이 없습니다.' });
+    }
+    const batch = adminDb.batch();
+    snaps.forEach((snap, idx) => batch.update(snap.ref, { sortOrder: idx, updatedAt: now() }));
+    await batch.commit();
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }
@@ -332,6 +367,67 @@ router.post('/analyze-git', authMiddleware, aiRateLimiter, async (req, res, next
       return res.status(400).json({ error: msg });
     }
     if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
+    next(error);
+  }
+});
+
+router.post('/', authMiddleware, async (req, res, next) => {
+  try {
+    const payload = {
+      ...req.body,
+      userId: req.user.uid,
+      title: req.body.title || '',
+      framework: req.body.framework || 'STRUCTURED',
+      jobCategory: req.body.jobCategory || 'common',
+      content: req.body.content || {},
+      images: req.body.images || [],
+      keywords: req.body.keywords || [],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+    const docRef = await adminDb.collection('experiences').add(payload);
+    res.status(201).json({ id: docRef.id, ...payload });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const docSnap = await adminDb.collection('experiences').doc(req.params.id).get();
+    const data = docSnap.exists ? docSnap.data() : null;
+    if (!requireExperienceOwner(data, req.user.uid, res)) return;
+    res.json({ id: docSnap.id, ...data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const ref = adminDb.collection('experiences').doc(req.params.id);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    if (!requireExperienceOwner(data, req.user.uid, res)) return;
+    const update = { ...req.body, userId: req.user.uid, updatedAt: now() };
+    delete update.id;
+    await ref.update(update);
+    res.json({ id: req.params.id, ...data, ...update });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const ref = adminDb.collection('experiences').doc(req.params.id);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    if (!requireExperienceOwner(data, req.user.uid, res)) return;
+    await ref.delete();
+    res.json({ deleted: true });
+  } catch (error) {
     next(error);
   }
 });
