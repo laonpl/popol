@@ -9,6 +9,8 @@
  *   layout: cover | profile | education | experience | skills | awards | values | contact | closing | section
  */
 
+import { useRef, useLayoutEffect } from 'react';
+
 export const TEMPLATES = [
   // ── 1번 템플릿: 제안서형 아웃소싱 솔루션 스타일 ──
   {
@@ -424,14 +426,43 @@ function textClamp(lines = 2) {
   };
 }
 
+// ── 혼합폭 텍스트 측정 ───────────────────────────────────────────────
+// 한글/CJK는 전각(1.0em), 영문·숫자·약물은 반각으로 계산한다.
+// "모든 글자 = 전각" 가정은 영문·숫자 섞인 텍스트의 폰트를 필요 이상으로 줄이고,
+// 평균폭 가정은 한글 본문의 줄 수를 과소평가해 겹침·짤림을 만든다.
+// 미리보기(fitFontPx)와 PPTX(fitFontSizePt)가 같은 측정을 써야 두 화면이 일치한다.
+function charWidthEm(code) {
+  if (
+    (code >= 0x1100 && code <= 0x115F) || // 한글 자모
+    (code >= 0x2E80 && code <= 0xA4CF) || // CJK 부수~Yi
+    (code >= 0xAC00 && code <= 0xD7A3) || // 한글 음절
+    (code >= 0xF900 && code <= 0xFAFF) ||
+    (code >= 0xFE30 && code <= 0xFE4F) ||
+    (code >= 0xFF00 && code <= 0xFF60) ||
+    (code >= 0xFFE0 && code <= 0xFFE6)
+  ) return 1.0;
+  if (code === 0x20) return 0.32;
+  if (code >= 0x30 && code <= 0x39) return 0.6;  // 숫자
+  if (code >= 0x41 && code <= 0x5A) return 0.72; // 영대문자
+  if (code >= 0x61 && code <= 0x7A) return 0.54; // 영소문자
+  return 0.5; // 그 외 약물·기호
+}
+
+function textWidthEm(str) {
+  let width = 0;
+  for (const ch of String(str || '')) width += charWidthEm(ch.codePointAt(0));
+  return width;
+}
+
 // HTML 미리보기용 fit-font: 박스(wPx×hPx)에 text 가 들어가는 px 폰트를 계산.
-// PPTX의 fitFontSizePt와 동일 원리 — 한글 전각폭(≈fontPx)으로 보수적 계산해 미리보기와 PPT를 일치시킨다.
+// PPTX의 fitFontSizePt와 동일한 혼합폭 측정으로 미리보기와 PPT를 일치시킨다.
 function fitFontPx(text, wPx, hPx, basePx, minPx = 8, lineHeight = 1.4) {
   const str = String(text || '').replace(/\s+/g, ' ').trim();
   if (!str) return basePx;
+  const widthEm = textWidthEm(str);
   for (let size = basePx; size >= minPx; size -= 0.5) {
-    const charsPerLine = Math.max(1, Math.floor(wPx / size));
-    const lines = Math.ceil(str.length / charsPerLine);
+    const capacityEm = Math.max(0.5, (wPx * 0.97) / size); // 줄바꿈 손실 3% 여유
+    const lines = Math.max(1, Math.ceil(widthEm / capacityEm));
     if (lines * size * lineHeight <= hPx) return size;
   }
   return minPx;
@@ -439,6 +470,25 @@ function fitFontPx(text, wPx, hPx, basePx, minPx = 8, lineHeight = 1.4) {
 
 function fitText(lines = 2) {
   return { ...textClamp(lines), lineHeight: 1.35 };
+}
+
+// 미리보기 말줄임(…) 방지: line-clamp 박스에서 글이 넘치면 폰트를 단계적으로 줄여 다 보여준다.
+// PPTX 출력의 fitFontSizePt(폰트 축소)와 동작을 맞춰 미리보기↔PPT의 내용 표시량 차이를 줄인다.
+function FitClampText({ lines = 2, minScale = 0.72, style, children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.fontSize = '';
+    const base = parseFloat(window.getComputedStyle(el).fontSize) || 13;
+    let size = base;
+    const min = base * minScale;
+    while (el.scrollHeight > el.clientHeight + 1 && size - 0.5 >= min) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+  }, [children, lines, minScale]);
+  return <div ref={ref} style={{ ...textClamp(lines), ...style }}>{children}</div>;
 }
 
 export function getComposedTemplate(layoutId = 'standard', paletteId = 'proposal') {
@@ -904,9 +954,9 @@ function cleanAcceptedLine(line = {}) {
 function compactAcceptedLine(line = {}) {
   return {
     ...line,
-    heading: compactPortfolioText(line.heading, 32),
-    body: compactPortfolioText(line.body, 88),
-    period: compactPortfolioText(line.period, 18),
+    heading: compactPortfolioText(line.heading, 40),
+    body: compactPortfolioText(line.body, 120),
+    period: compactPortfolioText(line.period, 22),
   };
 }
 
@@ -1225,7 +1275,7 @@ function renderNarrativeHybrid(slide, t, v, index, label) {
       <div style={{ position: 'absolute', left: 116, top: 44, width: 300, minHeight: 360, background: paper, borderRadius: d.shell % 3 ? 20 : 4, padding: 26, boxShadow: '0 28px 70px rgba(25,18,12,0.16)', transform: `rotate(${d.shell % 2 ? -1.2 : 0.8}deg)` }}>
         <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>{slide.sectionLabel || label}</div>
         <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, letterSpacing: '-0.045em', fontWeight: 950, ...textClamp(4) }}>{d.title}</div>
-        <div style={{ marginTop: 16, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(4) }}>{d.subtitle}</div>
+        <FitClampText lines={4} style={{ marginTop: 16, color: v.muted, fontSize: 12, lineHeight: 1.5 }}>{d.subtitle}</FitClampText>
       </div>
       <div style={{ position: 'absolute', left: 450, right: 44, top: 58, bottom: 56, overflow: 'hidden' }}>{body}</div>
     </div>
@@ -1264,7 +1314,7 @@ function renderKpiHybrid(slide, t, v, index, label) {
       </div>
       <div style={{ position: 'absolute', left: 48, top: 92, width: 300 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: titleSize, lineHeight: 1.09, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(4) }}>{d.title}</div>
-        <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.5)', fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{d.subtitle}</div>
+        <FitClampText lines={3} style={{ marginTop: 12, color: 'rgba(255,255,255,0.5)', fontSize: 11.5, lineHeight: 1.45 }}>{d.subtitle}</FitClampText>
       </div>
       <div style={{ position: 'absolute', left: 48, bottom: 48, width: 290, height: 74, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)' }} />
@@ -1279,7 +1329,7 @@ function renderKpiHybrid(slide, t, v, index, label) {
         <div style={{ display: 'grid', gridTemplateColumns: lines.length > 2 ? '1fr 1fr' : '1fr', gap: 10 }}>
           {lines.slice(0, 4).map((line, i) => <div key={i} style={{ minHeight: 76, borderRadius: 16, background: i === 0 && !metrics.length ? v.accent : '#F3F6FB', color: i === 0 && !metrics.length ? v.dark : '#111827', padding: 14 }}>
             <div style={{ fontSize: 12.5, fontWeight: 950, lineHeight: 1.25, ...textClamp(2) }}>{line.heading || `Point ${i + 1}`}</div>
-            <div style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.42, color: i === 0 && !metrics.length ? v.dark : '#4B5563', ...textClamp(3) }}>{line.body}</div>
+            <FitClampText lines={3} style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.42, color: i === 0 && !metrics.length ? v.dark : '#4B5563' }}>{line.body}</FitClampText>
           </div>)}
         </div>
       </div>
@@ -1300,7 +1350,7 @@ function renderTimelineHybrid(slide, t, v, index, label) {
       </div>
       <div style={{ position: 'absolute', left: 545, top: 54, bottom: 54, width: 280, borderRadius: d.shell % 2 ? 999 : 34, background: v.dark, color: '#FFFFFF', padding: 28 }}>
         <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>GROWTH NOTE</div>
-        <div style={{ marginTop: 22, color: 'rgba(255,255,255,0.7)', fontSize: 12, lineHeight: 1.5, ...textClamp(5) }}>{d.subtitle}</div>
+        <FitClampText lines={5} style={{ marginTop: 22, color: 'rgba(255,255,255,0.7)', fontSize: 12, lineHeight: 1.5 }}>{d.subtitle}</FitClampText>
       </div>
       <div style={{ position: 'absolute', left: 126, right: 84, bottom: 54, height: 230, overflow: 'hidden' }}>{body}</div>
     </div>
@@ -1317,7 +1367,7 @@ function renderCaseHybrid(slide, t, v, index, label) {
         <div style={{ padding: 24 }}>
           <div style={{ color: v.accent, fontSize: 44, fontWeight: 950, lineHeight: 1 }}>{String(index + 1).padStart(2, '0')}</div>
           <div style={{ marginTop: 24, fontSize: 18, fontWeight: 950, ...textClamp(4) }}>{slide.sectionLabel || label}</div>
-          <div style={{ marginTop: 18, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(5) }}>{d.subtitle}</div>
+          <FitClampText lines={5} style={{ marginTop: 18, color: v.muted, fontSize: 12, lineHeight: 1.5 }}>{d.subtitle}</FitClampText>
         </div>
       </div>
       <div style={{ position: 'absolute', left: 340, top: 58, right: 58 }}>
@@ -1362,7 +1412,7 @@ function renderAcceptedProposalHybrid(slide, t, v, index, label) {
         <div style={{ position: 'absolute', left: 54, top: 82, right: 54, display: 'grid', gridTemplateColumns: '340px 1fr', gap: 38, alignItems: 'start' }}>
           <div>
             <div style={{ fontSize: 38, ...titleStyle, ...textClamp(3) }}>{title}</div>
-            <div style={{ marginTop: 14, color: isDark ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{subtitle}</div>
+            <FitClampText lines={3} style={{ marginTop: 14, color: isDark ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 13, lineHeight: 1.5 }}>{subtitle}</FitClampText>
           </div>
           <div style={{ minHeight: 355 }}>{body}</div>
         </div>
@@ -1410,7 +1460,7 @@ function renderAcceptedProposalHybrid(slide, t, v, index, label) {
         </div>
         <div style={{ position: 'absolute', left: 300, top: 54, right: 58 }}>
           <div style={{ fontSize: 38, ...titleStyle, ...textClamp(2) }}>{title}</div>
-          <div style={{ marginTop: 8, fontSize: 13, color: v.muted, ...textClamp(2) }}>{subtitle}</div>
+          <FitClampText lines={2} style={{ marginTop: 8, fontSize: 13, color: v.muted }}>{subtitle}</FitClampText>
         </div>
         <div style={{ position: 'absolute', left: 300, right: 58, bottom: 52, top: 178 }}>{body}</div>
       </div>
@@ -1500,7 +1550,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
           <div style={{ marginTop: 12, fontSize: 13, fontWeight: 900, ...textClamp(3) }}>{metric?.label || lines[0]?.heading || '핵심 증거'}</div>
         </div>
         <div style={{ position: 'absolute', left: 56, right: 56, bottom: 52, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `3px solid ${i === 0 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingTop: 16 }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.66)', ...textClamp(3) }}>{line.body}</div></div>)}
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `3px solid ${i === 0 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingTop: 16 }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.66)' }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1513,7 +1563,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
         <div style={{ position: 'absolute', left: 54, top: 52, color: v.dark, fontSize: 13, fontWeight: 950 }}>{String(index + 1).padStart(2, '0')} / {label}</div>
         <div style={{ position: 'absolute', left: 54, bottom: 58, width: 210, color: v.dark, fontSize: 42, ...titleStyle, ...textClamp(4) }}>{title}</div>
         <div style={{ position: 'absolute', left: 360, right: 58, top: 58, bottom: 58, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: i === 0 ? 28 : 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: 24, boxShadow: '0 16px 40px rgba(18,24,31,0.08)' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 950 }}>POINT {i + 1}</div><div style={{ marginTop: 24, fontSize: 19, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 9, fontSize: 12.5, ...muted, color: i === 0 ? 'rgba(255,255,255,0.66)' : v.muted, ...textClamp(3) }}>{line.body}</div></div>)}
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: i === 0 ? 28 : 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: 24, boxShadow: '0 16px 40px rgba(18,24,31,0.08)' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 950 }}>POINT {i + 1}</div><div style={{ marginTop: 24, fontSize: 19, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 9, fontSize: 12.5, ...muted, color: i === 0 ? 'rgba(255,255,255,0.66)' : v.muted }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1526,7 +1576,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
         <div style={{ position: 'absolute', left: 58, top: 90, width: 610, fontSize: 40, ...titleStyle, ...textClamp(2) }}>{title}</div>
         <div style={{ position: 'absolute', left: 58, right: 58, bottom: 56, height: 250 }}>
           <div style={{ position: 'absolute', left: 0, right: 0, top: 122, height: 2, background: v.soft }} />
-          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ position: 'absolute', left: `${i * 20}%`, top: i % 2 ? 126 : 18, width: 170 }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 0 ? v.dark : v.accent, color: i === 0 ? '#FFFFFF' : v.dark, display: 'grid', placeItems: 'center', fontWeight: 950 }}>{i + 1}</div><div style={{ marginTop: 12, fontSize: 16, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 6, fontSize: 11.5, ...muted, ...textClamp(2) }}>{line.body}</div></div>)}
+          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ position: 'absolute', left: `${i * 20}%`, top: i % 2 ? 126 : 18, width: 170 }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 0 ? v.dark : v.accent, color: i === 0 ? '#FFFFFF' : v.dark, display: 'grid', placeItems: 'center', fontWeight: 950 }}>{i + 1}</div><div style={{ marginTop: 12, fontSize: 16, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={2} style={{ marginTop: 6, fontSize: 11.5, ...muted }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1540,7 +1590,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
         <div style={{ position: 'absolute', right: 54, top: 54, bottom: 54, width: 520, display: 'grid', gridTemplateRows: '1.2fr 1fr', gap: 14 }}>
           <div style={{ borderRadius: 34, background: v.accent, color: v.dark, padding: 28 }}><div style={{ fontSize: 62, fontWeight: 950, lineHeight: 1, ...textClamp(1) }}>{stat}</div><div style={{ marginTop: 14, fontSize: 15, fontWeight: 950, ...textClamp(2) }}>{metric?.label || lines[0]?.heading || '대표 성과'}</div></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {lines.slice(0, 2).map((line, i) => <div key={i} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.08)', padding: 22 }}><div style={{ fontSize: 14, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.64)', ...textClamp(4) }}>{line.body}</div></div>)}
+            {lines.slice(0, 2).map((line, i) => <div key={i} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.08)', padding: 22 }}><div style={{ fontSize: 14, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div><FitClampText lines={4} style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.64)' }}>{line.body}</FitClampText></div>)}
           </div>
         </div>
       </div>
@@ -1554,7 +1604,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
         <div style={{ position: 'absolute', left: 84, top: 76, width: 500, fontSize: 39, ...titleStyle, ...textClamp(3) }}>{title}</div>
         <div style={{ position: 'absolute', right: 84, top: 80, width: 210, textAlign: 'right', ...eyebrow }}>{label}<br />{String(index + 1).padStart(2, '0')}</div>
         <div style={{ position: 'absolute', left: 84, right: 84, bottom: 82, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, background: i === 1 ? v.accent : v.card, padding: 22, borderRadius: 4 }}><div style={{ fontSize: 13, color: i === 1 ? v.dark : v.muted, fontWeight: 950 }}>{line.period || `EVIDENCE ${i + 1}`}</div><div style={{ marginTop: 24, fontSize: 18, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 8, fontSize: 12, ...muted, color: i === 1 ? v.dark : v.muted, ...textClamp(3) }}>{line.body}</div></div>)}
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, background: i === 1 ? v.accent : v.card, padding: 22, borderRadius: 4 }}><div style={{ fontSize: 13, color: i === 1 ? v.dark : v.muted, fontWeight: 950 }}>{line.period || `EVIDENCE ${i + 1}`}</div><div style={{ marginTop: 24, fontSize: 18, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 8, fontSize: 12, ...muted, color: i === 1 ? v.dark : v.muted }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1598,7 +1648,7 @@ function renderVariedAcceptedSlide(slide, t, v, index, label) {
       <div style={{ position: 'absolute', left: posterX, top: posterY, width: posterW, height: posterH, borderRadius: Math.max(0, posterRadius), background: darkPoster ? v.dark : v.accent, color: darkPoster ? '#FFFFFF' : v.dark, padding: 30, transform: `rotate(${(slot % 2 ? 2 : -2) + family * 0.7}deg)`, clipPath: family === 5 ? 'polygon(0 0, 100% 8%, 92% 100%, 6% 88%)' : undefined }}>
         <div style={{ color: darkPoster ? v.accent : v.dark, fontSize: 12, fontWeight: 950 }}>HIGHLIGHT {String(index + 1).padStart(2, '0')}</div>
         <div style={{ marginTop: family === 1 ? 24 : 42, fontSize: family === 2 ? 34 : 42, fontWeight: 950, lineHeight: 1.02, ...textClamp(family === 1 ? 3 : 2) }}>{lines[0]?.heading || stat}</div>
-        <div style={{ marginTop: 18, color: darkPoster ? 'rgba(255,255,255,0.68)' : v.dark, fontSize: 13, lineHeight: 1.5, ...textClamp(4) }}>{lines[0]?.body || metric?.label}</div>
+        <FitClampText lines={4} style={{ marginTop: 18, color: darkPoster ? 'rgba(255,255,255,0.68)' : v.dark, fontSize: 13, lineHeight: 1.5 }}>{lines[0]?.body || metric?.label}</FitClampText>
       </div>
       <div style={{ position: 'absolute', left: slot === 2 ? 420 : 58, right: family === 4 ? 250 : 58, bottom: family === 2 ? 78 : 56, display: 'flex', flexDirection: bottomDirection, gap: 10, alignItems: family % 2 ? 'stretch' : 'flex-start' }}>
         {lines.slice(1, 4).map((line, i) => <div key={i} style={{ width: bottomDirection === 'column' ? 260 : 180, minHeight: family === 4 ? 108 : 0, borderRadius: [18, 4, 999, 12, 0, 28][family], background: i === 1 ? v.accent : '#FFFFFF', padding: 18, border: family === 2 ? `1px solid ${v.dark}` : 'none' }}><div style={{ fontSize: 12, fontWeight: 950, color: i === 1 ? v.dark : v.muted }}>0{i + 2}</div><div style={{ marginTop: 14, fontSize: 15, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div></div>)}
@@ -1619,13 +1669,13 @@ function renderAcceptedSectionScene(slide, t, v, index) {
         <div style={{ position: 'absolute', right: -90, top: -110, width: 360, height: 360, borderRadius: '50%', background: v.accent, opacity: 0.22 }} />
         <div style={{ position: 'absolute', left: 58, top: 48, fontSize: 12, color: v.accent, letterSpacing: '0.22em', fontWeight: 900 }}>{slide.sectionLabel || 'OVERVIEW'}</div>
         <div style={{ position: 'absolute', left: 58, top: 96, width: 560, fontFamily: t.fonts.heading, fontSize: 48, lineHeight: 1.04, fontWeight: 950, letterSpacing: '-0.045em', ...textClamp(3) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ position: 'absolute', left: 62, top: 276, width: 460, fontSize: 15, color: v.muted, lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={3} style={{ position: 'absolute', left: 62, top: 276, width: 460, fontSize: 15, color: v.muted, lineHeight: 1.55 }}>{slide.subtitle}</FitClampText> : null}
         <div style={{ position: 'absolute', right: 66, bottom: 62, width: 350, display: 'grid', gap: 12 }}>
           {lines.slice(0, 3).map((line, i) => (
             <div key={i} style={{ transform: `translateX(${i * -24}px)`, borderRadius: 24, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: '18px 22px', boxShadow: '0 16px 38px rgba(0,0,0,0.09)' }}>
               <div style={{ fontSize: 11, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
               <div style={{ marginTop: 6, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72, ...textClamp(2) }}>{line.body}</div>
+              <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72 }}>{line.body}</FitClampText>
             </div>
           ))}
         </div>
@@ -1644,7 +1694,7 @@ function renderAcceptedSectionScene(slide, t, v, index) {
           <div style={{ position: 'absolute', left: 142, top: 120, width: 96, height: 58, borderRadius: 999, background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 950 }}>MATCH</div>
         </div>
         <div style={{ position: 'absolute', left: 54, right: 60, bottom: 52, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 12 }}>
-          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `4px solid ${i === 1 ? v.accent : kind === 'fit' ? 'rgba(255,255,255,0.18)' : v.soft}`, paddingTop: 14 }}><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 7, color: kind === 'fit' ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{line.body}</div></div>)}
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ borderTop: `4px solid ${i === 1 ? v.accent : kind === 'fit' ? 'rgba(255,255,255,0.18)' : v.soft}`, paddingTop: 14 }}><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 7, color: kind === 'fit' ? 'rgba(255,255,255,0.62)' : v.muted, fontSize: 11.5, lineHeight: 1.45 }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1656,10 +1706,10 @@ function renderAcceptedSectionScene(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 58, top: 48, width: 360 }}>
           <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 900 }}>NEXT ROADMAP</div>
           <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: 38, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
-          {slide.subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+          {slide.subtitle ? <FitClampText lines={3} style={{ marginTop: 14, color: v.muted, fontSize: 13, lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
         </div>
         <div style={{ position: 'absolute', left: 460, right: 58, top: 66, bottom: 56, display: 'grid', gridTemplateRows: `repeat(${Math.min(4, Math.max(1, lines.length))}, 1fr)`, gap: 12 }}>
-          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: 22, background: i === lines.slice(0, 4).length - 1 ? v.accent : v.card, color: i === lines.slice(0, 4).length - 1 ? v.dark : v.ink, padding: '18px 22px', display: 'grid', gridTemplateColumns: '86px 1fr', gap: 18, alignItems: 'center', boxShadow: '0 12px 30px rgba(0,0,0,0.06)' }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.period || `STEP ${i + 1}`}</div><div><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72, ...textClamp(2) }}>{line.body}</div></div></div>)}
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ borderRadius: 22, background: i === lines.slice(0, 4).length - 1 ? v.accent : v.card, color: i === lines.slice(0, 4).length - 1 ? v.dark : v.ink, padding: '18px 22px', display: 'grid', gridTemplateColumns: '86px 1fr', gap: 18, alignItems: 'center', boxShadow: '0 12px 30px rgba(0,0,0,0.06)' }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.period || `STEP ${i + 1}`}</div><div><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div><FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4, opacity: 0.72 }}>{line.body}</FitClampText></div></div>)}
         </div>
       </div>
     );
@@ -1671,7 +1721,7 @@ function renderAcceptedSectionScene(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 54, top: 46, color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 900 }}>TRADE-OFF / RISK</div>
         <div style={{ position: 'absolute', left: 54, top: 92, width: 620, fontSize: 42, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
         <div style={{ position: 'absolute', left: 54, right: 54, bottom: 54, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-          {(lines.length ? lines : [{ heading: 'Risk', body: '약해질 수 있는 지점' }, { heading: 'Response', body: '보완하는 방식' }]).slice(0, 4).map((line, i) => <div key={i} style={{ minHeight: 126, borderRadius: 20, background: i % 2 ? v.accent : 'rgba(255,255,255,0.08)', color: i % 2 ? v.dark : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 12, fontWeight: 950, opacity: 0.72 }}>{i % 2 ? 'RESPONSE' : 'RISK'}</div><div style={{ marginTop: 16, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{line.body}</div></div>)}
+          {(lines.length ? lines : [{ heading: 'Risk', body: '약해질 수 있는 지점' }, { heading: 'Response', body: '보완하는 방식' }]).slice(0, 4).map((line, i) => <div key={i} style={{ minHeight: 126, borderRadius: 20, background: i % 2 ? v.accent : 'rgba(255,255,255,0.08)', color: i % 2 ? v.dark : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 12, fontWeight: 950, opacity: 0.72 }}>{i % 2 ? 'RESPONSE' : 'RISK'}</div><div style={{ marginTop: 16, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72 }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -1739,7 +1789,7 @@ function renderNarrativeProfile(slide, t, v) {
     <div style={{ position: 'absolute', left: 468, top: 188, right: 60, bottom: 60 }}>
       {narrLabel('AWARDS & ACHIEVEMENTS', v)}
       {awardList.map((m, i) => <div key={i} style={{ marginTop: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}><div style={{ fontSize: 18, marginTop: 2 }}>{'🏆🥈📖'[i] || '🏅'}</div><div><div style={{ fontSize: 14, fontWeight: 900 }}>{m.label}</div><div style={{ marginTop: 3, fontSize: 11.5, color: '#64748B' }}>{m.body}</div></div></div>)}
-      {slide.subtitle ? <><div style={{ marginTop: 20, height: 1, background: '#E2E8F0' }} /><div style={{ marginTop: 16, fontSize: 13.5, fontStyle: 'italic', color: '#0F172A', lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div></> : null}
+      {slide.subtitle ? <><div style={{ marginTop: 20, height: 1, background: '#E2E8F0' }} /><FitClampText lines={3} style={{ marginTop: 16, fontSize: 13.5, fontStyle: 'italic', color: '#0F172A', lineHeight: 1.55 }}>{slide.subtitle}</FitClampText></> : null}
     </div>
   </>);
 }
@@ -1757,12 +1807,12 @@ function renderNarrativePhilosophy(slide, t, v) {
       {items.map((item, i) => <div key={i} style={{ background: '#F8FAFC', borderRadius: 8, padding: '24px 20px', borderTop: `3px solid ${acc}` }}>
         <div style={{ color: acc, fontSize: 28, fontWeight: 950, lineHeight: 1 }}>{icons[i]}</div>
         <div style={{ marginTop: 14, fontSize: 13, fontWeight: 950, letterSpacing: '0.04em' }}>{item.heading?.toUpperCase()}</div>
-        <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.6, color: '#334155', ...textClamp(4) }}>{item.body}</div>
+        <FitClampText lines={4} style={{ marginTop: 12, fontSize: 13, lineHeight: 1.6, color: '#334155' }}>{item.body}</FitClampText>
       </div>)}
     </div>
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '14px 60px', display: 'flex', alignItems: 'center', gap: 14 }}>
       <div style={{ color: acc, fontSize: 20, fontWeight: 950 }}>"</div>
-      <div style={{ color: '#E2E8F0', fontSize: 13, lineHeight: 1.55, ...textClamp(2) }}>{slide.subtitle}</div>
+      <FitClampText lines={2} style={{ color: '#E2E8F0', fontSize: 13, lineHeight: 1.55 }}>{slide.subtitle}</FitClampText>
     </div>
   </>);
 }
@@ -1802,7 +1852,7 @@ function renderNarrativeProblem(slide, t, v) {
       {narrLabel('THE PROBLEM', v)}
       {problems.map((p, i) => <div key={i} style={{ marginTop: 16, display: 'flex', gap: 10 }}>
         <div style={{ color: acc, fontSize: 16, marginTop: 2 }}>{'⚠️📄🔍'[i] || '•'}</div>
-        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: '#334155', ...textClamp(3) }}>{p.body}</div>
+        <FitClampText lines={3} style={{ fontSize: 13.5, lineHeight: 1.55, color: '#334155' }}>{p.body}</FitClampText>
       </div>)}
     </div>
     <div style={{ position: 'absolute', right: 60, top: 190, width: 260, background: '#F8FAFC', borderRadius: 8, padding: '28px 24px', textAlign: 'center' }}>
@@ -1832,14 +1882,14 @@ function renderNarrativeProject(slide, t, v) {
       <div style={{ position: 'absolute', left: 40, top: 60, width: '28%' }}>
         <div style={{ color: acc, fontSize: 11, letterSpacing: '0.22em', fontWeight: 850 }}>{slide.sectionLabel?.toUpperCase()}</div>
         <div style={{ marginTop: 14, fontSize: dynamicFontPx(slide.title || '', 42, { min: 20, max: 42 }), fontWeight: 950, color: '#FFFFFF', lineHeight: 1.12, ...textClamp(5) }}>{slide.title}</div>
-        <div style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55, ...textClamp(6) }}>{slide.subtitle}</div>
+        <FitClampText lines={6} style={{ marginTop: 14, fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55 }}>{slide.subtitle}</FitClampText>
       </div>
       {imageUrl ? <div style={{ position: 'absolute', left: 40, bottom: 30, width: '30%', height: 76, overflow: 'hidden', background: '#0F172A', borderRadius: 8 }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
       <div style={{ position: 'absolute', left: '40%', top: 52, right: 52, bottom: 52 }}>
         {details.map((d, i) => <div key={i} style={{ marginBottom: 18 }}>
           {narrLabel(d.heading, v)}
           <div style={{ marginTop: 4, height: 1, background: '#E2E8F0' }} />
-          {i === 0 ? <div style={{ marginTop: 8, fontSize: 13.5, color: '#334155', lineHeight: 1.55, ...textClamp(3) }}>{d.body}</div>
+          {i === 0 ? <FitClampText lines={3} style={{ marginTop: 8, fontSize: 13.5, color: '#334155', lineHeight: 1.55 }}>{d.body}</FitClampText>
             : <div style={{ marginTop: 8, fontSize: 13, color: '#0F172A' }}><span style={{ fontWeight: 950, marginRight: 8 }}>{d.heading}</span>{d.body}</div>}
         </div>)}
         {chips.length > 0 && <>
@@ -1868,14 +1918,14 @@ function renderNarrativeChallenge(slide, t, v) {
       {narrLabel('THE PROBLEM', v)}
       {problems.map((p, i) => <div key={i} style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ fontSize: 15, marginTop: 1, flexShrink: 0 }}>{'🕐📄🤖'[i] || '•'}</div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155', ...textClamp(4) }}>{p.body}</div>
+        <FitClampText lines={4} style={{ fontSize: 12.5, lineHeight: 1.5, color: '#334155' }}>{p.body}</FitClampText>
       </div>)}
     </div>
     <div style={{ position: 'absolute', right: 60, top: 188, bottom: 24, width: 300, borderLeft: `2px solid ${acc}`, paddingLeft: 20, overflow: 'hidden' }}>
       {narrLabel('CORE TASKS', v)}
       {actions.map((a, i) => <div key={i} style={{ marginTop: 10, background: '#F8FAFC', borderRadius: 4, padding: '10px 12px' }}>
         <div style={{ color: acc, fontSize: 11, fontWeight: 950 }}>{String(i+1).padStart(2,'0')}</div>
-        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45, ...textClamp(4) }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</div>
+        <FitClampText lines={4} style={{ marginTop: 4, fontSize: 12, fontWeight: 800, lineHeight: 1.45 }}>{a.body?.split(' → ')[0] || a.body?.split('→')[0] || a.body}</FitClampText>
         {a.body?.includes('→') ? <div style={{ marginTop: 2, fontSize: 11, color: '#64748B', ...textClamp(1) }}>→ {a.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
@@ -1897,11 +1947,11 @@ function renderNarrativeArchitecture(slide, t, v) {
           <div style={{ background: '#0F172A', color: acc, fontSize: 11, fontWeight: 950, padding: '3px 8px', borderRadius: 3, flexShrink: 0 }}>{String(i+1).padStart(2,'0')}</div>
           <div style={{ color: acc, fontSize: 13, fontWeight: 900 }}>{item.heading}</div>
         </div>
-        <div style={{ marginTop: 8, fontSize: 12.5, color: '#64748B', lineHeight: 1.5, ...textClamp(2) }}>{item.body?.split(' → ')[0] || item.body}</div>
+        <FitClampText lines={2} style={{ marginTop: 8, fontSize: 12.5, color: '#64748B', lineHeight: 1.5 }}>{item.body?.split(' → ')[0] || item.body}</FitClampText>
         {item.body?.includes('→') ? <div style={{ marginTop: 6, fontSize: 12, fontWeight: 850, color: '#0F172A' }}>→ {item.body.split('→').slice(1).join('→').trim()}</div> : null}
       </div>)}
     </div>
-    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 16, borderLeft: `3px solid ${acc}`, paddingLeft: 14, background: '#F8FAFC', padding: '10px 14px' }}><div style={{ color: '#64748B', fontSize: 10, letterSpacing: '0.18em', fontWeight: 850 }}>CORE INSIGHT</div><div style={{ marginTop: 4, fontSize: 13, color: acc, fontWeight: 850, ...textClamp(2) }}>{slide.subtitle}</div></div> : null}
+    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 16, borderLeft: `3px solid ${acc}`, paddingLeft: 14, background: '#F8FAFC', padding: '10px 14px' }}><div style={{ color: '#64748B', fontSize: 10, letterSpacing: '0.18em', fontWeight: 850 }}>CORE INSIGHT</div><FitClampText lines={2} style={{ marginTop: 4, fontSize: 13, color: acc, fontWeight: 850 }}>{slide.subtitle}</FitClampText></div> : null}
   </>);
 }
 
@@ -1962,7 +2012,7 @@ function renderNarrativeTimeline(slide, t, v) {
       {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
         <div style={{ width: 70, flexShrink: 0, color: acc, fontSize: 15, fontWeight: 950, paddingTop: 2 }}>{item.period || `202${1+i}`}</div>
         <div style={{ width: 4, flexShrink: 0, background: acc, borderRadius: 2, alignSelf: 'stretch', minHeight: 36 }} />
-        <div><div style={{ fontSize: 13.5, fontWeight: 900, color: '#0F172A' }}>{item.heading}</div><div style={{ marginTop: 3, fontSize: 12, color: '#64748B', ...textClamp(2) }}>{item.body}</div></div>
+        <div><div style={{ fontSize: 13.5, fontWeight: 900, color: '#0F172A' }}>{item.heading}</div><FitClampText lines={2} style={{ marginTop: 3, fontSize: 12, color: '#64748B' }}>{item.body}</FitClampText></div>
       </div>)}
     </div>
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#0F172A', padding: '12px 60px', display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ fontSize: 15 }}>🚀</div><div style={{ color: '#E2E8F0', fontSize: 13, ...textClamp(1) }}>{slide.subtitle}</div></div>
@@ -1981,7 +2031,7 @@ function renderNarrativeSummary(slide, t, v) {
       {items.map((item, i) => <div key={i} style={{ background: '#F8FAFC', borderRadius: 8, padding: '20px 18px', borderTop: `3px solid ${acc}`, display: 'flex', flexDirection: 'column' }}>
         <div style={{ color: acc, fontSize: 26, fontWeight: 950, lineHeight: 1 }}>{String(i+1).padStart(2,'0')}</div>
         <div style={{ marginTop: 12, fontSize: 14, fontWeight: 950, lineHeight: 1.4, ...textClamp(3) }}>{item.heading}</div>
-        <div style={{ marginTop: 10, fontSize: 12, color: '#64748B', lineHeight: 1.6, flex: 1, ...textClamp(5) }}>{item.body}</div>
+        <FitClampText lines={5} style={{ marginTop: 10, fontSize: 12, color: '#64748B', lineHeight: 1.6, flex: 1 }}>{item.body}</FitClampText>
         <div style={{ marginTop: 14, background: '#0F172A', color: '#E2E8F0', fontSize: 10, fontWeight: 950, padding: '5px 8px', letterSpacing: '0.1em', borderRadius: 3, alignSelf: 'flex-start' }}>PROVEN IN: {(item.period || item.role || '').toUpperCase()}</div>
       </div>)}
     </div>
@@ -2024,10 +2074,10 @@ function renderNarrativeRoadmap(slide, t, v) {
     <div style={{ position: 'absolute', left: 60, right: 60, top: 190, bottom: 80 }}>
       {items.map((item, i) => <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 14, borderLeft: `3px solid ${acc}`, paddingLeft: 16, paddingTop: 6, paddingBottom: 6 }}>
         <div style={{ width: 90, flexShrink: 0, color: acc, fontSize: 11, fontWeight: 950, letterSpacing: '0.1em', paddingTop: 2 }}>{(item.period || item.role || labels[i]).toUpperCase()}</div>
-        <div style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.55, ...textClamp(2) }}>{item.body}</div>
+        <FitClampText lines={2} style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.55 }}>{item.body}</FitClampText>
       </div>)}
     </div>
-    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 14, background: '#0F172A', borderRadius: 6, padding: '16px 20px' }}><div style={{ color: acc, fontSize: 16, fontWeight: 950, lineHeight: 1 }}>"</div><div style={{ marginTop: 6, color: '#E2E8F0', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line', ...textClamp(3) }}>{slide.subtitle}</div></div> : null}
+    {slide.subtitle ? <div style={{ position: 'absolute', left: 60, right: 60, bottom: 14, background: '#0F172A', borderRadius: 6, padding: '16px 20px' }}><div style={{ color: acc, fontSize: 16, fontWeight: 950, lineHeight: 1 }}>"</div><FitClampText lines={3} style={{ marginTop: 6, color: '#E2E8F0', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{slide.subtitle}</FitClampText></div> : null}
   </>);
 }
 
@@ -2103,7 +2153,7 @@ function renderNarrativeSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', inset: 0, background: v.dark, color: '#FFFFFF', fontFamily: t.fonts.body, overflow: 'hidden' }}>
         <div style={{ position: 'absolute', left: 62, top: 54, fontSize: 12, color: v.accent, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'IMPACT'}</div>
         <div style={{ position: 'absolute', left: 62, top: 104, width: 520, fontFamily: v.font, fontSize: 48, lineHeight: 1.06, fontWeight: 900, ...textClamp(3) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ position: 'absolute', left: 62, top: 280, width: 420, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.62)', ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={3} style={{ position: 'absolute', left: 62, top: 280, width: 420, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.62)' }}>{slide.subtitle}</FitClampText> : null}
         <div style={{ position: 'absolute', right: 62, top: 80, bottom: 62, width: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           {(metrics.length ? metrics : [{ label: lines[0]?.heading, value: lines[0]?.body }]).slice(0, 3).map((m, i) => (
             <div key={i} style={{ borderLeft: `5px solid ${i === 0 ? v.accent : 'rgba(255,255,255,0.18)'}`, paddingLeft: 20 }}>
@@ -2130,7 +2180,7 @@ function renderNarrativeSlide(slide, t, v, index) {
             <div key={i} style={{ position: 'absolute', left: `${i * 24}%`, top: i % 2 ? '52%' : '8%', width: 150 }}>
               <div style={{ width: 54, height: 54, borderRadius: '50%', background: i === 0 ? v.accent : v.dark, color: i === 0 ? v.dark : '#FFFFFF', display: 'grid', placeItems: 'center', fontWeight: 900 }}>{i + 1}</div>
               <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
-              <div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.4, color: v.muted, ...textClamp(3) }}>{line.body}</div>
+              <FitClampText lines={3} style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.4, color: v.muted }}>{line.body}</FitClampText>
             </div>
           ))}
         </div>
@@ -2147,7 +2197,7 @@ function renderNarrativeSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', left: 178, right: 64, top: isCover ? 96 : 54 }}>
         <div style={{ fontSize: 12, letterSpacing: '0.2em', color: v.accent, fontWeight: 900, textTransform: 'uppercase' }}>{slide.sectionLabel || 'Narrative'}</div>
         <div style={{ marginTop: 14, fontFamily: v.font, fontSize: isCover ? 58 : 38, lineHeight: 1.08, fontWeight: 900, color: v.ink, ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ marginTop: 14, width: 620, fontSize: 16, color: v.muted, lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={2} style={{ marginTop: 14, width: 620, fontSize: 16, color: v.muted, lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
       </div>
       {!isCover && (
         <div style={{ position: 'absolute', left: 178, right: 64, bottom: 50, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 18 }}>
@@ -2155,7 +2205,7 @@ function renderNarrativeSlide(slide, t, v, index) {
             <div key={i} style={{ minHeight: 150, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, borderRadius: 22, padding: 22, boxShadow: '0 18px 44px rgba(45,34,24,0.08)' }}>
               <div style={{ fontSize: 12, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{line.period || `CHAPTER ${i + 1}`}</div>
               <div style={{ marginTop: 18, fontSize: 20, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{line.heading}</div>
-              <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.55, opacity: 0.82, ...textClamp(4) }}>{line.body}</div>
+              <FitClampText lines={4} style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.55, opacity: 0.82 }}>{line.body}</FitClampText>
             </div>
           ))}
         </div>
@@ -2175,7 +2225,7 @@ function renderStarPhaseBadge(v, phase, label) {
 }
 
 function renderStarCover(slide, t, v) {
-  const items = (slide.items || []).slice(0, 4);
+  // 우측 S/T/A/R 카드는 디자인 요소 — 내용 텍스트 없이 레터·라벨만 크게 보여준다.
   const fills = [v.dark, v.card, v.card, v.accent];
   const borders = ['none', `1px solid ${v.soft}`, `1px solid ${v.soft}`, 'none'];
   const fgs = ['#FFFFFF', v.ink, v.ink, v.dark];
@@ -2184,7 +2234,7 @@ function renderStarCover(slide, t, v) {
       <div style={{ position: 'absolute', left: 44, top: 34, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>STAT / STAR</div>
       <div style={{ position: 'absolute', left: 44, top: 72, width: 356 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: 52, fontWeight: 950, lineHeight: 1.02, letterSpacing: '-0.04em', color: v.dark, ...textClamp(2) }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ marginTop: 14, fontSize: 13, color: v.muted, lineHeight: 1.55, ...textClamp(3) }}>{slide.subtitle}</div>}
+        {slide.subtitle && <FitClampText lines={3} style={{ marginTop: 14, fontSize: 13, color: v.muted, lineHeight: 1.55 }}>{slide.subtitle}</FitClampText>}
         <div style={{ marginTop: 26, display: 'flex', gap: 8 }}>
           {['S', 'T', 'A', 'R'].map(l => (
             <div key={l} style={{ width: 36, height: 36, borderRadius: '50%', background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950 }}>{l}</div>
@@ -2192,16 +2242,10 @@ function renderStarCover(slide, t, v) {
         </div>
       </div>
       <div style={{ position: 'absolute', right: 40, top: 54, bottom: 38, width: 484, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ borderRadius: 22, background: fills[i], color: fgs[i], padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: borders[i], overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950, color: i === 3 ? v.accent : v.dark, flexShrink: 0 }}>{['S', 'T', 'A', 'R'][i]}</div>
-              <div style={{ fontSize: 10, fontWeight: 800, opacity: 0.55 }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-              <div style={{ marginTop: 7, fontSize: 11, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{item.body}</div>
-            </div>
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} style={{ borderRadius: 22, background: fills[i], color: fgs[i], border: borders[i], display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, overflow: 'hidden' }}>
+            <div style={{ width: 68, height: 68, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, display: 'grid', placeItems: 'center', fontSize: 30, fontWeight: 950, color: i === 3 ? v.accent : v.dark }}>{['S', 'T', 'A', 'R'][i]}</div>
+            <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.18em', opacity: 0.55, textTransform: 'uppercase' }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
           </div>
         ))}
       </div>
@@ -2224,7 +2268,7 @@ function renderStarIdentity(slide, t, v) {
           <div key={i} style={{ background: v.card, borderRadius: 22, padding: 24, border: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ width: 48, height: 48, borderRadius: 14, background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>{icons[i]}</div>
             <div style={{ fontSize: 17, fontWeight: 900, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <div style={{ fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+            <FitClampText lines={5} style={{ fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -2247,7 +2291,7 @@ function renderStarTimeline(slide, t, v) {
             <div style={{ background: v.card, borderRadius: 18, padding: 16, border: `1px solid ${v.soft}`, flex: 1, width: '100%', marginTop: 10 }}>
               <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period}</div>
               <div style={{ marginTop: 5, fontSize: 14, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-              <div style={{ marginTop: 6, fontSize: 11, color: v.muted, lineHeight: 1.45, ...textClamp(3) }}>{item.body}</div>
+              <FitClampText lines={3} style={{ marginTop: 6, fontSize: 11, color: v.muted, lineHeight: 1.45 }}>{item.body}</FitClampText>
             </div>
           </div>
         ))}
@@ -2270,16 +2314,20 @@ function renderStarSituation(slide, t, v) {
       {imageUrl ? <div style={{ position: 'absolute', right: 44, top: 30, width: 176, height: 118, overflow: 'hidden', borderRadius: 12, background: v.dark }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
       <div style={{ position: 'absolute', left: 44, top: 185, right: hasMetrics ? 222 : 44, bottom: 38, background: v.dark, borderRadius: 22, padding: '22px 26px', color: '#FFFFFF' }}>
         <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>SITUATION</div>
-        <div style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9, ...textClamp(7) }}>{slide.body || slide.subtitle || ''}</div>
+        <FitClampText lines={7} style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9 }}>{slide.body || slide.subtitle || ''}</FitClampText>
       </div>
       {hasMetrics && (
         <div style={{ position: 'absolute', right: 44, top: 185, width: 162, bottom: 38, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {metrics.map((m, i) => (
-            <div key={i} style={{ flex: 1, background: i === 0 ? v.accent : v.card, borderRadius: 18, padding: '16px 16px', border: i === 1 ? `1px solid ${v.soft}` : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em' }}>{m.value || m.label}</div>
-              <div style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: v.dark, opacity: i === 0 ? 0.8 : 0.6 }}>{m.label || m.body}</div>
-            </div>
-          ))}
+          {metrics.map((m, i) => {
+            const big = metricDisplayValue(m, m.label || '성과');
+            const small = big === (m.label || '성과') ? (m.body || m.value || '') : (m.label || m.body || '');
+            return (
+              <div key={i} style={{ flex: 1, background: i === 0 ? v.accent : v.card, borderRadius: 18, padding: '16px 16px', border: i === 1 ? `1px solid ${v.soft}` : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{big}</div>
+                {small && <FitClampText lines={2} style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: v.dark, opacity: i === 0 ? 0.8 : 0.6 }}>{small}</FitClampText>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -2297,7 +2345,7 @@ function renderStarTask(slide, t, v) {
           <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `2px solid ${v.accent}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period || `TASK ${String(i + 1).padStart(2, '0')}`}</div>
             <div style={{ fontSize: 16, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-            <div style={{ fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+            <FitClampText lines={5} style={{ fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -2319,7 +2367,7 @@ function renderStarAction(slide, t, v) {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 900, color: v.dark, ...textClamp(1) }}>{item.heading}</div>
-              <div style={{ marginTop: 4, fontSize: 11.5, color: v.muted, lineHeight: 1.45, ...textClamp(2) }}>{item.body}</div>
+              <FitClampText lines={2} style={{ marginTop: 4, fontSize: 11.5, color: v.muted, lineHeight: 1.45 }}>{item.body}</FitClampText>
             </div>
           </div>
         ))}
@@ -2331,23 +2379,40 @@ function renderStarAction(slide, t, v) {
 function renderStarResult(slide, t, v) {
   const metrics = (slide.metrics || []).slice(0, 3);
   const hasBody = !!slide.body;
+  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 히어로 카드로 보여준다.
+  if (!metrics.length) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
+        <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'R', slide.sectionLabel || 'RESULT')}</div>
+        <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
+        <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: 38, background: v.accent, borderRadius: 22, padding: '28px 34px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 10, fontWeight: 900, color: v.dark, opacity: 0.6, letterSpacing: '0.15em' }}>RESULT</div>
+          <FitClampText lines={6} style={{ marginTop: 12, fontSize: 21, fontWeight: 800, color: v.dark, lineHeight: 1.5 }}>{slide.body || slide.subtitle || ''}</FitClampText>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
       <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'R', slide.sectionLabel || 'RESULT')}</div>
       <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
       <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: hasBody ? 112 : 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        {(metrics.length ? metrics : [{ label: '성과', value: '달성' }]).slice(0, 3).map((m, i) => (
-          <div key={i} style={{ background: v.accent, borderRadius: 20, padding: '20px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.04em' }}>{m.value}</div>
-            <div style={{ marginTop: 5, fontSize: 13, fontWeight: 900, color: v.dark }}>{m.label}</div>
-            {m.body && <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(0,0,0,0.55)', lineHeight: 1.4, ...textClamp(2) }}>{m.body}</div>}
-          </div>
-        ))}
+        {metrics.slice(0, 3).map((m, i) => {
+          const big = metricDisplayValue(m, m.label || '성과');
+          const small = big === (m.label || '성과') ? '' : m.label;
+          return (
+            <div key={i} style={{ background: v.accent, borderRadius: 20, padding: '20px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.04em', ...textClamp(2) }}>{big}</div>
+              {small && <div style={{ marginTop: 5, fontSize: 13, fontWeight: 900, color: v.dark, ...textClamp(2) }}>{small}</div>}
+              {m.body && <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11, color: 'rgba(0,0,0,0.55)', lineHeight: 1.4 }}>{m.body}</FitClampText>}
+            </div>
+          );
+        })}
       </div>
       {hasBody && (
         <div style={{ position: 'absolute', left: 44, right: 44, bottom: 36, height: 66, background: v.dark, borderRadius: 18, padding: '12px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: 9, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>KEY TAKEAWAY</div>
-          <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', opacity: 0.9, ...textClamp(2) }}>{slide.body}</div>
+          <FitClampText lines={2} style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', opacity: 0.9 }}>{slide.body}</FitClampText>
         </div>
       )}
     </div>
@@ -2370,7 +2435,7 @@ function renderStarQA(slide, t, v) {
             <div style={{ height: 1, background: v.soft }} />
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 950, flexShrink: 0 }}>A</div>
-              <div style={{ fontSize: 11.5, color: v.muted, lineHeight: 1.55, ...textClamp(6) }}>{item.body}</div>
+              <FitClampText lines={6} style={{ fontSize: 11.5, color: v.muted, lineHeight: 1.55 }}>{item.body}</FitClampText>
             </div>
           </div>
         ))}
@@ -2395,7 +2460,7 @@ function renderStarAwards(slide, t, v) {
           <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `1px solid ${v.soft}` }}>
             <div style={{ fontSize: 11, fontWeight: 900, color: v.muted }}>{item.period || item.role}</div>
             <div style={{ marginTop: 8, fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <div style={{ marginTop: 9, fontSize: 12, color: v.muted, lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+            <FitClampText lines={5} style={{ marginTop: 9, fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -2419,7 +2484,7 @@ function renderStarRoadmap(slide, t, v) {
           <div key={i} style={{ background: v.accent, borderRadius: 20, padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 900, color: v.dark, opacity: 0.65 }}>{item.period || `Phase ${String(i + 1).padStart(2, '0')}`}</div>
             <div style={{ fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5, ...textClamp(5) }}>{item.body}</div>
+            <FitClampText lines={5} style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -2478,7 +2543,7 @@ function renderStarSlide(slide, t, v, index) {
               <div key={i} style={{ borderRadius: 24, background: i === 3 ? v.accent : v.card, color: i === 3 ? v.dark : v.ink, padding: 24, border: i === 3 ? 'none' : `1px solid ${v.soft}` }}>
                 <div style={{ fontSize: 34, fontWeight: 950 }}>{String(i + 1).padStart(2, '0')}</div>
                 <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
-                <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(3) }}>{line.body}</div>
+                <FitClampText lines={3} style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.72 }}>{line.body}</FitClampText>
               </div>
             ))}
           </div>
@@ -2492,12 +2557,12 @@ function renderStarSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 50, top: 48, width: 450 }}>
           <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 900 }}>{slide.sectionLabel || 'STAR DETAIL'}</div>
           <div style={{ marginTop: 18, fontSize: 40, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(3) }}>{slide.title}</div>
-          {slide.subtitle ? <div style={{ marginTop: 16, fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+          {slide.subtitle ? <FitClampText lines={2} style={{ marginTop: 16, fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
         </div>
         <div style={{ position: 'absolute', left: 530, right: 50, top: 64, bottom: 50, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {labels.map((label, i) => {
             const line = lines[i] || {};
-            return <div key={label} style={{ flex: 1, display: 'grid', gridTemplateColumns: '64px 1fr', gap: 16, alignItems: 'center', borderRadius: 18, background: i === 3 ? v.accent : 'rgba(255,255,255,0.08)', color: i === 3 ? v.dark : '#FFFFFF', padding: '12px 18px' }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, color: i === 3 ? v.accent : v.dark, display: 'grid', placeItems: 'center', fontSize: 24, fontWeight: 950 }}>{label}</div><div><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading || ['상황', '과제', '행동', '결과'][i]}</div><div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, opacity: 0.74, ...textClamp(2) }}>{line.body}</div></div></div>;
+            return <div key={label} style={{ flex: 1, display: 'grid', gridTemplateColumns: '64px 1fr', gap: 16, alignItems: 'center', borderRadius: 18, background: i === 3 ? v.accent : 'rgba(255,255,255,0.08)', color: i === 3 ? v.dark : '#FFFFFF', padding: '12px 18px' }}><div style={{ width: 48, height: 48, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, color: i === 3 ? v.accent : v.dark, display: 'grid', placeItems: 'center', fontSize: 24, fontWeight: 950 }}>{label}</div><div><div style={{ fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{line.heading || ['상황', '과제', '행동', '결과'][i]}</div><FitClampText lines={2} style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, opacity: 0.74 }}>{line.body}</FitClampText></div></div>;
           })}
         </div>
       </div>
@@ -2510,7 +2575,7 @@ function renderStarSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', right: 42, top: 34, fontSize: 13, color: v.muted, fontWeight: 800 }}>{String(index + 1).padStart(2, '0')}</div>
       <div style={{ position: 'absolute', left: 42, top: 84, width: 330 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: isCover ? 50 : 34, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(isCover ? 4 : 3) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ marginTop: 18, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={3} style={{ marginTop: 18, color: v.muted, fontSize: 14, lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
       </div>
       <div style={{ position: 'absolute', left: 420, right: 42, top: 82, bottom: 42, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         {labels.map((label, i) => {
@@ -2524,7 +2589,7 @@ function renderStarSlide(slide, t, v, index) {
                 <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.55 }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
               </div>
               <div style={{ marginTop: 22, fontSize: 18, fontWeight: 900, lineHeight: 1.22, ...textClamp(2) }}>{line.heading || ['상황', '과제', '행동', '결과'][i]}</div>
-              <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.5, opacity: 0.78, ...textClamp(4) }}>{line.body}</div>
+              <FitClampText lines={4} style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.5, opacity: 0.78 }}>{line.body}</FitClampText>
             </div>
           );
         })}
@@ -2598,7 +2663,7 @@ function renderKpiExecutive(slide, t) {
           <div key={i} style={{ background: panel, border: `1px solid ${line}`, padding: '20px 18px', minHeight: 120 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 9, letterSpacing: '0.1em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
             <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 36), lineHeight: 1.2, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 11, lineHeight: 1.35, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <FitClampText lines={2} style={{ marginTop: 8, color: muted, fontSize: 11, lineHeight: 1.35 }}>{cleanPortfolioText(m.body || '')}</FitClampText>
           </div>
         ))}
       </div>
@@ -2679,7 +2744,7 @@ function renderKpiTimeline(slide, t) {
             <div style={{ position: 'absolute', left: 80, top: abv ? 58 : -44, width: 18, height: 18, borderRadius: '50%', background: blue, border: '4px solid #081326', boxShadow: `0 0 20px ${blue}` }} />
             <div style={{ color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{item.period || `0${i + 1}`}</div>
             <div style={{ marginTop: 22, color: '#FFFFFF', fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{item.heading}</div>
-            <div style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{item.body}</div>
+            <FitClampText lines={2} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{item.body}</FitClampText>
           </div>
         );
       })}
@@ -2735,7 +2800,7 @@ function renderKpiProject(slide, t) {
             <div key={i} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: i ? '1px solid rgba(126,147,179,0.2)' : 'none', paddingTop: i ? 14 : 0 }}>
               <div style={{ color: i ? mint : blue, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', flexShrink: 0 }}>{cleanPortfolioText(item.heading || '').toUpperCase()}</div>
               <div style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <div style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 1.55, whiteSpace: 'pre-line', ...textClamp(8) }}>{cleanPortfolioText(item.body || item.heading || '')}</div>
+                <FitClampText lines={8} style={{ color: '#FFFFFF', fontSize: 12.5, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{cleanPortfolioText(item.body || item.heading || '')}</FitClampText>
               </div>
             </div>
           ))}
@@ -2773,7 +2838,7 @@ function renderKpiMetrics(slide, t) {
           <div key={i} style={{ borderTop: `2px solid ${i % 2 ? mint : blue}`, paddingTop: 16, minHeight: 130 }}>
             <div style={{ color: i % 2 ? mint : blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
             <div style={{ marginTop: 12, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.1, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 10, color: '#A9C7E8', fontSize: 12.5, lineHeight: 1.45, ...textClamp(3) }}>{cleanPortfolioText(m.body || '')}</div>
+            <FitClampText lines={3} style={{ marginTop: 10, color: '#A9C7E8', fontSize: 12.5, lineHeight: 1.45 }}>{cleanPortfolioText(m.body || '')}</FitClampText>
           </div>
         ))}
       </div>
@@ -2812,7 +2877,7 @@ function renderKpiComparison(slide, t) {
         {lhs.map((item, i) => (
           <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${line}`, display: 'grid', placeItems: 'center', color: muted }}>□</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><FitClampText lines={3} style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{item.body}</FitClampText></div>
           </div>
         ))}
         <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
@@ -2826,7 +2891,7 @@ function renderKpiComparison(slide, t) {
         {(rhs.length ? rhs : lhs).map((item, i) => (
           <div key={i} style={{ marginTop: 28, minHeight: 88, display: 'grid', gridTemplateColumns: '44px 1fr', gap: 16 }}>
             <div style={{ width: 34, height: 34, border: `1px solid ${blue}`, display: 'grid', placeItems: 'center', color: blue }}>✓</div>
-            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line', ...textClamp(3) }}>{item.body}</div></div>
+            <div><div style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 900 }}>{item.heading}</div><FitClampText lines={3} style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{item.body}</FitClampText></div>
           </div>
         ))}
         <div style={{ marginTop: 18, borderTop: `1px solid ${line}`, paddingTop: 16 }}>
@@ -2861,7 +2926,7 @@ function renderKpiTechnical(slide, t) {
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
             <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <FitClampText lines={2} style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3 }}>{cleanPortfolioText(m.body || '')}</FitClampText>
           </div>
         ))}
       </div>
@@ -2898,7 +2963,7 @@ function renderKpiRisk(slide, t) {
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
             <div style={{ color: i ? mint : amber, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 900 }}>{i ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT'}</div>
             <div style={{ marginTop: 28, color: '#FFFFFF', fontSize: 20, fontWeight: 950 }}>{item.heading}</div>
-            <div style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55, ...textClamp(3) }}>{item.body}</div>
+            <FitClampText lines={3} style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55 }}>{item.body}</FitClampText>
             <div style={{ marginTop: 22, border: `1px solid ${line}`, padding: '14px 16px', color: blue, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>
               MITIGATION: {item.period || 'Verified control'}<br />RESULT: {i ? '80% Risk Reduction' : '100% Prevention'}
             </div>
@@ -2936,7 +3001,7 @@ function renderKpiCumulative(slide, t) {
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `KPI ${i + 1}`).toUpperCase()}</div>
             <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <FitClampText lines={2} style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3 }}>{cleanPortfolioText(m.body || '')}</FitClampText>
           </div>
         ))}
       </div>
@@ -2984,7 +3049,7 @@ function renderKpiRoadmap(slide, t) {
           <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
             <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || `GOAL ${i + 1}`).toUpperCase()}</div>
             <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricDisplayValue(m), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricDisplayValue(m)}</div>
-            <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{cleanPortfolioText(m.body || '')}</div>
+            <FitClampText lines={2} style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3 }}>{cleanPortfolioText(m.body || '')}</FitClampText>
           </div>
         ))}
       </div>
@@ -2995,7 +3060,7 @@ function renderKpiRoadmap(slide, t) {
             <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}>
               <div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{phase.period || `PHASE ${i + 1}`}</div>
               <div style={{ marginTop: 8, color: '#FFFFFF', fontSize: 15, fontWeight: 900 }}>{phase.heading}</div>
-              <div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{phase.body}</div>
+              <FitClampText lines={2} style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{phase.body}</FitClampText>
             </div>
           ))}
         </div>
@@ -3121,7 +3186,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
         <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 18, minHeight: 108 }}>
           <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.12em', fontWeight: 800 }}>{cleanPortfolioText(m.label || data[i]?.heading || `KPI ${i + 1}`).toUpperCase()}</div>
           <div style={{ marginTop: 14, color: mint, fontFamily: t.fonts.heading, fontSize: kpiMetricValueFontPx(metricText(m, ['85%', '99.9%', '94%'][i]), 42), lineHeight: 1.12, fontWeight: 950, ...textClamp(2) }}>{metricText(m, ['85%', '99.9%', '94%'][i])}</div>
-          <div style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3, ...textClamp(2) }}>{data[i]?.body || subtitle || 'Measured portfolio performance signal'}</div>
+          <FitClampText lines={2} style={{ marginTop: 8, color: muted, fontSize: 12, lineHeight: 1.3 }}>{data[i]?.body || subtitle || 'Measured portfolio performance signal'}</FitClampText>
         </div>
       ))}
     </div>
@@ -3176,7 +3241,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
           <div style={{ position: 'absolute', left: 80, top: top ? 58 : -44, width: 18, height: 18, borderRadius: '50%', background: blue, border: '4px solid #081326', boxShadow: `0 0 20px ${blue}` }} />
           <div style={{ color: mint, fontFamily: mono, fontSize: 16, fontWeight: 900 }}>{lineItem.period || ['2021', '2023', '2025', '2026'][i]}</div>
           <div style={{ marginTop: 22, color: '#FFFFFF', fontSize: 16, fontWeight: 900, ...textClamp(1) }}>{lineItem.heading}</div>
-          <div style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{lineItem.body}</div>
+          <FitClampText lines={2} style={{ marginTop: 12, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{lineItem.body}</FitClampText>
         </div>;
       })}
     </>);
@@ -3209,7 +3274,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
       {divider(58, 248, 520)}
       <div style={{ position: 'absolute', left: 58, top: 270, width: 520 }}>
         <div style={{ color: blue, fontFamily: mono, fontSize: 10, letterSpacing: '0.08em' }}>CORE MISSION</div>
-        <div style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700, ...textClamp(4) }}>{data[0]?.body || data[0]?.heading || subtitle}</div>
+        <FitClampText lines={4} style={{ marginTop: 24, color: '#FFFFFF', fontSize: 19, lineHeight: 1.55, fontWeight: 700 }}>{data[0]?.body || data[0]?.heading || subtitle}</FitClampText>
       </div>
       <div style={{ position: 'absolute', right: 58, top: 250, width: 330, border: `1px solid rgba(49,130,255,0.28)`, background: 'rgba(23,35,56,0.38)', padding: 20 }}>
         <div style={{ color: blue, fontSize: 21, fontWeight: 950 }}>{side[0]?.heading || 'Lead Developer'}</div>
@@ -3249,7 +3314,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
         {data.slice(0, 2).map((lineItem, i) => <div key={i} style={{ borderTop: `1px solid ${line}`, paddingTop: 24 }}>
           <div style={{ color: i ? mint : amber, fontFamily: mono, fontSize: 11, letterSpacing: '0.08em', fontWeight: 900 }}>{i ? 'TECHNICAL CONSTRAINT' : 'SECURITY THREAT'}</div>
           <div style={{ marginTop: 28, color: '#FFFFFF', fontSize: 20, fontWeight: 950 }}>{lineItem.heading}</div>
-          <div style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55, ...textClamp(3) }}>{lineItem.body}</div>
+          <FitClampText lines={3} style={{ marginTop: 18, color: '#A9C7E8', fontSize: 14, lineHeight: 1.55 }}>{lineItem.body}</FitClampText>
           <div style={{ marginTop: 22, border: `1px solid ${line}`, padding: '14px 16px', color: blue, fontFamily: mono, fontSize: 11, fontWeight: 900 }}>MITIGATION: {lineItem.period || 'Verified control'}<br />RESULT: {i ? '80% Risk Reduction' : '100% Prevention'}</div>
         </div>)}
       </div>
@@ -3267,7 +3332,7 @@ function renderKpiReferenceSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', left: 58, right: 58, bottom: 50, height: 140, border: `1px solid ${line}`, background: panel, padding: '22px 26px' }}>
         <div style={{ color: '#A9C7E8', fontFamily: mono, fontSize: 11, letterSpacing: '0.08em' }}>TECHNICAL GROWTH ROADMAP</div>
         <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
-          {data.slice(0, 3).map((lineItem, i) => <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}><div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{lineItem.period || `PHASE ${i + 1}`}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontSize: 15, fontWeight: 900 }}>{lineItem.heading}</div><div style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35, ...textClamp(2) }}>{lineItem.body}</div></div>)}
+          {data.slice(0, 3).map((lineItem, i) => <div key={i} style={{ borderLeft: `2px solid ${blue}`, paddingLeft: 18 }}><div style={{ color: blue, fontFamily: mono, fontSize: 11 }}>{lineItem.period || `PHASE ${i + 1}`}</div><div style={{ marginTop: 8, color: '#FFFFFF', fontSize: 15, fontWeight: 900 }}>{lineItem.heading}</div><FitClampText lines={2} style={{ marginTop: 8, color: '#A9C7E8', fontSize: 12, lineHeight: 1.35 }}>{lineItem.body}</FitClampText></div>)}
         </div>
       </div>
     </>);
@@ -3343,7 +3408,7 @@ function renderKpiSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 54, top: 46, fontSize: 12, color: v.accent, letterSpacing: '0.22em', fontWeight: 900 }}>{slide.sectionLabel || 'INSIGHT'}</div>
         <div style={{ position: 'absolute', left: 54, top: 92, width: 560, fontSize: 42, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
         <div style={{ position: 'absolute', left: 54, bottom: 54, right: 54, display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, lines.length))}, 1fr)`, gap: 14 }}>
-          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, borderRadius: 24, background: i === 1 ? v.accent : v.card, color: i === 1 ? '#06121F' : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.heading}</div><div style={{ marginTop: 34, fontSize: 12.5, lineHeight: 1.48, opacity: 0.74, ...textClamp(4) }}>{line.body}</div></div>)}
+          {lines.slice(0, 3).map((line, i) => <div key={i} style={{ minHeight: 150, borderRadius: 24, background: i === 1 ? v.accent : v.card, color: i === 1 ? '#06121F' : '#FFFFFF', padding: 22 }}><div style={{ fontSize: 13, fontWeight: 950 }}>{line.heading}</div><FitClampText lines={4} style={{ marginTop: 34, fontSize: 12.5, lineHeight: 1.48, opacity: 0.74 }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -3357,7 +3422,7 @@ function renderKpiSlide(slide, t, v, index) {
       </div>
       <div style={{ position: 'absolute', left: 46, top: 78, width: isCover ? 650 : 520 }}>
         <div style={{ fontFamily: t.fonts.heading, fontSize: isCover ? 54 : 34, lineHeight: 1.08, fontWeight: 950, letterSpacing: '-0.04em', ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.45, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={2} style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.45 }}>{slide.subtitle}</FitClampText> : null}
       </div>
       <div style={{ position: 'absolute', left: 46, right: 46, bottom: 42, display: 'grid', gridTemplateColumns: '1.35fr 1fr 1fr', gridTemplateRows: '130px 130px', gap: 14 }}>
         <div style={{ gridRow: 'span 2', borderRadius: 28, background: `linear-gradient(150deg, ${v.card}, ${v.dark})`, padding: 26, overflow: 'hidden' }}>
@@ -3369,7 +3434,7 @@ function renderKpiSlide(slide, t, v, index) {
           </div>
         </div>
         {[1, 2, 3].map((n, i) => <div key={n} style={{ borderRadius: 24, background: v.card, padding: 22, overflow: 'hidden' }}><div style={{ fontSize: 32, color: v.accent, fontWeight: 950, ...textClamp(1) }}>{acceptedMetricText(metrics[n])}</div><div style={{ marginTop: 8, color: v.ink, fontSize: 14, fontWeight: 900, ...textClamp(2) }}>{metrics[n]?.label || lines[i]?.heading || '보조 지표'}</div><div style={{ marginTop: 12, height: 7, borderRadius: 999, background: '#22324A' }}><div style={{ width: `${55 + i * 14}%`, height: '100%', borderRadius: 999, background: v.accent }} /></div></div>)}
-        <div style={{ borderRadius: 24, background: v.accent, color: '#03101C', padding: 22, overflow: 'hidden' }}><div style={{ fontSize: 15, fontWeight: 950 }}>Insight</div><div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.45, fontWeight: 700, ...textClamp(4) }}>{lines[0]?.body || '성과를 만든 실행 근거를 함께 제시합니다.'}</div></div>
+        <div style={{ borderRadius: 24, background: v.accent, color: '#03101C', padding: 22, overflow: 'hidden' }}><div style={{ fontSize: 15, fontWeight: 950 }}>Insight</div><FitClampText lines={4} style={{ marginTop: 14, fontSize: 13, lineHeight: 1.45, fontWeight: 700 }}>{lines[0]?.body || '성과를 만든 실행 근거를 함께 제시합니다.'}</FitClampText></div>
       </div>
     </div>
   );
@@ -3415,7 +3480,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
     <div style={{ position: 'absolute', left: x, top: y, width: w }}>
       <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.32em', fontWeight: 850 }}>{label}</div>
       <div style={{ marginTop: 26, fontFamily: t.fonts.heading, fontSize: dynamicFontPx(title, 38, { min: 30, max: 42 }), lineHeight: 1.08, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{title}</div>
-      {subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 15, lineHeight: 1.45, fontWeight: 600, ...textClamp(2) }}>{subtitle}</div> : null}
+      {subtitle ? <FitClampText lines={2} style={{ marginTop: 14, color: v.muted, fontSize: 15, lineHeight: 1.45, fontWeight: 600 }}>{subtitle}</FitClampText> : null}
     </div>
   );
   const data = entries.length ? entries : [{ heading: 'Experience', body: subtitle || title }];
@@ -3427,7 +3492,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 452, top: 102, width: 60, height: 4, background: v.accent }} />
         <div style={{ position: 'absolute', left: 170, right: 170, top: 176, textAlign: 'center' }}>
           <div style={{ fontFamily: t.fonts.heading, fontSize: 45, lineHeight: 1.08, fontWeight: 950, ...textClamp(2) }}>{title || 'Thank You for Your Time'}</div>
-          <div style={{ marginTop: 28, color: '#B8CCE8', fontSize: 18, lineHeight: 1.55, ...textClamp(2) }}>{subtitle || '함께 성장하며 미래를 설계할 기회를 기다리겠습니다.'}</div>
+          <FitClampText lines={2} style={{ marginTop: 28, color: '#B8CCE8', fontSize: 18, lineHeight: 1.55 }}>{subtitle || '함께 성장하며 미래를 설계할 기회를 기다리겠습니다.'}</FitClampText>
         </div>
         <div style={{ position: 'absolute', left: 138, right: 138, top: 346, height: 1, background: 'rgba(184,204,232,0.22)' }} />
         <div style={{ position: 'absolute', left: 150, right: 150, top: 390, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32, textAlign: 'center' }}>
@@ -3450,7 +3515,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', right: -20, bottom: -10, width: 300, height: 300, background: '#F5F8FC', transform: 'skewX(-12deg)' }} />
         <div style={{ position: 'absolute', left: 78, top: 62, color: v.accent, fontSize: 14, letterSpacing: '0.32em', fontWeight: 850 }}>2021 - 2026 GROWTH ARCHIVE</div>
         <div style={{ position: 'absolute', left: 78, top: 136, width: 620, fontFamily: t.fonts.heading, fontSize: 54, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{title}</div>
-        <div style={{ position: 'absolute', left: 78, top: 294, width: 620, color: v.muted, fontSize: 19, lineHeight: 1.42, ...textClamp(2) }}>{subtitle || '미래를 설계하는 개발자의 성장 타임라인'}</div>
+        <FitClampText lines={2} style={{ position: 'absolute', left: 78, top: 294, width: 620, color: v.muted, fontSize: 19, lineHeight: 1.42 }}>{subtitle || '미래를 설계하는 개발자의 성장 타임라인'}</FitClampText>
         <div style={{ position: 'absolute', left: 78, bottom: 62, display: 'grid', gridTemplateColumns: 'repeat(3, 170px)', gap: 34 }}>
           {facts.map(f => <div key={f.h} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 22 }}><div style={{ color: v.muted, fontSize: 9, letterSpacing: '0.18em', fontWeight: 850 }}>{f.h}</div><div style={{ marginTop: 14, fontSize: 14, fontWeight: 900, ...textClamp(1) }}>{f.b}</div></div>)}
         </div>
@@ -3474,7 +3539,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
           <div key={idx} style={{ marginTop: idx === 0 ? 18 : 16 }}>
             <div style={{ color: v.muted, fontSize: 9, letterSpacing: '0.16em', fontWeight: 850 }}>{(item.period || item.role || ['EDUCATION', 'LANGUAGE', 'FOCUS'][idx]).toUpperCase()}</div>
             <div style={{ marginTop: 10, color: v.ink, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{item.heading}</div>
-            <div style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{item.body}</div>
+            <FitClampText lines={2} style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -3484,7 +3549,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
           <div key={idx} style={{ marginTop: idx === 0 ? 46 : 42 }}>
             <div style={{ color: v.accent, fontSize: 38, lineHeight: 1, fontWeight: 950 }}>{acceptedMetricText(metric)}</div>
             <div style={{ marginTop: 18, color: v.ink, fontSize: 14.5, fontWeight: 900 }}>{metric.label}</div>
-            <div style={{ marginTop: 12, color: v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(2) }}>{metric.body || data[idx]?.body || subtitle}</div>
+            <FitClampText lines={2} style={{ marginTop: 12, color: v.muted, fontSize: 11.5, lineHeight: 1.45 }}>{metric.body || data[idx]?.body || subtitle}</FitClampText>
           </div>
         ))}
       </div>
@@ -3495,7 +3560,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
     return shell(<>
       {header(78, 94, 680)}
       <div style={{ position: 'absolute', left: 78, right: 78, top: 264, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
-        {data.slice(0, 3).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 16 }}><div style={{ color: v.accent, fontSize: 16, fontWeight: 950 }}>{['EXPERIENCE', 'MEMORY', 'VALUE'][idx] || line.heading}</div><div style={{ marginTop: 18, fontSize: 14, lineHeight: 1.6, color: v.ink, ...textClamp(4) }}>{line.body || line.heading}</div></div>)}
+        {data.slice(0, 3).map((line, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 16 }}><div style={{ color: v.accent, fontSize: 16, fontWeight: 950 }}>{['EXPERIENCE', 'MEMORY', 'VALUE'][idx] || line.heading}</div><FitClampText lines={4} style={{ marginTop: 18, fontSize: 14, lineHeight: 1.6, color: v.ink }}>{line.body || line.heading}</FitClampText></div>)}
       </div>
     </>);
   }
@@ -3517,7 +3582,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
           <div style={{ position: 'absolute', left: 80, top: lineY - cardTop - 4, width: 10, height: 10, borderRadius: '50%', background: v.accent }} />
           <div style={{ minHeight: 20, color: v.accent, fontSize: 15, lineHeight: 1.15, fontWeight: 950, ...textClamp(1) }}>{line.period || `Phase ${idx + 1}`}</div>
           <div style={{ marginTop: 12, minHeight: 34, fontSize: 13.5, lineHeight: 1.22, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div>
-          <div style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.38, ...textClamp(3) }}>{line.body}</div>
+          <FitClampText lines={3} style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.38 }}>{line.body}</FitClampText>
         </div>;
       })}
     </>);
@@ -3528,7 +3593,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
     return shell(<>
       {header(62, 80, 780)}
       <div style={{ position: 'absolute', left: 62, right: 62, top: 190, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
-        {metricCards.map((m, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 46 }}><div style={{ color: v.accent, fontSize: 44, lineHeight: 1, fontWeight: 950 }}>{acceptedMetricText(m)}</div><div style={{ marginTop: 18, fontSize: 16, fontWeight: 900 }}>{m.label || data[idx]?.heading}</div><div style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{data[idx]?.body || subtitle}</div></div>)}
+        {metricCards.map((m, idx) => <div key={idx} style={{ borderTop: `1px solid ${v.soft}`, paddingTop: 46 }}><div style={{ color: v.accent, fontSize: 44, lineHeight: 1, fontWeight: 950 }}>{acceptedMetricText(m)}</div><div style={{ marginTop: 18, fontSize: 16, fontWeight: 900 }}>{m.label || data[idx]?.heading}</div><FitClampText lines={2} style={{ marginTop: 10, color: v.muted, fontSize: 12.5, lineHeight: 1.45 }}>{data[idx]?.body || subtitle}</FitClampText></div>)}
       </div>
       <div style={{ position: 'absolute', left: 62, right: 62, top: 334, height: 1, background: v.soft }} />
     </>);
@@ -3550,7 +3615,7 @@ function renderTimelineReferenceSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', left: 62, right: 62, top: 214, height: 172, background: '#F6F8FC', borderLeft: `5px solid ${v.accent}`, padding: '28px 34px' }}>
         <div style={{ color: v.accent, fontSize: 14, fontWeight: 950 }}>{first.period || '2026.05'}</div>
         <div style={{ marginTop: 26, fontSize: 24, fontWeight: 950 }}>{first.heading || title}</div>
-        <div style={{ marginTop: 16, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{first.body || subtitle}</div>
+        <FitClampText lines={3} style={{ marginTop: 16, color: v.muted, fontSize: 14, lineHeight: 1.5 }}>{first.body || subtitle}</FitClampText>
       </div>
       <div style={{ position: 'absolute', left: 62, right: 62, top: 396, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 42 }}>
         {data.slice(1, 5).map((line, idx) => <div key={idx} style={{ borderBottom: `1px solid ${v.soft}`, paddingBottom: 8 }}><div style={{ fontSize: 15, fontWeight: 900 }}>{line.heading}</div><div style={{ color: v.muted, fontSize: 12 }}>{line.period || line.body}</div></div>)}
@@ -3589,7 +3654,7 @@ function renderTimelineSlide(slide, t, v, index) {
           <div key={i} style={{ position: 'absolute', left: i % 2 ? 520 : 600, top: 72 + i * 78, width: 280 }}>
             <div style={{ color: v.accent, fontSize: 18, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
             <div style={{ marginTop: 2, fontSize: 18, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-            <div style={{ marginTop: 5, fontSize: 11.5, color: 'rgba(255,255,255,0.58)', ...textClamp(2) }}>{line.body}</div>
+            <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, color: 'rgba(255,255,255,0.58)' }}>{line.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -3613,7 +3678,7 @@ function renderTimelineSlide(slide, t, v, index) {
       <div style={{ position: 'absolute', left: 62, top: 48, width: 270 }}>
         <div style={{ fontSize: 12, letterSpacing: '0.18em', color: v.accent, fontWeight: 900 }}>CAREER TIMELINE</div>
         <div style={{ marginTop: 14, fontFamily: v.font, fontSize: isCover ? 48 : 34, lineHeight: 1.12, fontWeight: 900, ...textClamp(isCover ? 4 : 3) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ marginTop: 14, fontSize: 13.5, color: v.muted, lineHeight: 1.55, ...textClamp(4) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={4} style={{ marginTop: 14, fontSize: 13.5, color: v.muted, lineHeight: 1.55 }}>{slide.subtitle}</FitClampText> : null}
       </div>
       <div style={{ position: 'absolute', left: 390, top: 74, bottom: 58, width: 2, background: v.soft }} />
       <div style={{ position: 'absolute', left: 356, right: 56, top: 64, bottom: 42, display: 'grid', gridTemplateRows: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 8 }}>
@@ -3623,7 +3688,7 @@ function renderTimelineSlide(slide, t, v, index) {
             <div style={{ width: '100%', borderRadius: 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, padding: '16px 20px', boxShadow: '0 12px 32px rgba(54,42,27,0.08)' }}>
               <div style={{ fontSize: 11, color: i === 0 ? v.accent : v.muted, fontWeight: 900 }}>{line.period || `MILESTONE ${i + 1}`}</div>
               <div style={{ marginTop: 5, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, opacity: 0.78, ...textClamp(2) }}>{line.body}</div>
+              <FitClampText lines={2} style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, opacity: 0.78 }}>{line.body}</FitClampText>
             </div>
           </div>
         ))}
@@ -3646,7 +3711,7 @@ function renderCaseStudySlide(slide, t, v, index) {
           <div style={{ marginTop: 14, fontSize: 40, lineHeight: 1.05, fontWeight: 950, ...textClamp(2) }}>{slide.title}</div>
         </div>
         <div style={{ position: 'absolute', left: 50, right: 50, bottom: 48, display: 'grid', gridTemplateColumns: `repeat(${Math.min(5, Math.max(1, lines.length))}, 1fr)`, gap: 10 }}>
-          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ height: 260, borderRadius: 8, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>FILE {String(i + 1).padStart(2, '0')}</div><div><div style={{ fontSize: 16, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72, ...textClamp(5) }}>{line.body}</div></div></div>)}
+          {lines.slice(0, 5).map((line, i) => <div key={i} style={{ height: 260, borderRadius: 8, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>FILE {String(i + 1).padStart(2, '0')}</div><div><div style={{ fontSize: 16, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={5} style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.45, opacity: 0.72 }}>{line.body}</FitClampText></div></div>)}
         </div>
       </div>
     );
@@ -3671,7 +3736,7 @@ function renderCaseStudySlide(slide, t, v, index) {
           <div style={{ marginTop: 18, fontSize: 36, lineHeight: 1.08, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
         </div>
         <div style={{ position: 'absolute', left: 450, right: 58, top: 70, bottom: 56 }}>
-          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ position: 'absolute', left: i % 2 ? 230 : 0, top: Math.floor(i / 2) * 190, width: 220, height: 160, borderRadius: 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 20 }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>{['01 DISCOVER', '02 DECIDE', '03 BUILD', '04 VERIFY'][i]}</div><div style={{ marginTop: 18, fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><div style={{ marginTop: 8, color: i === 0 ? 'rgba(255,255,255,0.65)' : v.muted, fontSize: 11.5, lineHeight: 1.45, ...textClamp(3) }}>{line.body}</div></div>)}
+          {lines.slice(0, 4).map((line, i) => <div key={i} style={{ position: 'absolute', left: i % 2 ? 230 : 0, top: Math.floor(i / 2) * 190, width: 220, height: 160, borderRadius: 18, background: i === 0 ? v.dark : v.card, color: i === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${i === 0 ? v.dark : v.soft}`, padding: 20 }}><div style={{ color: i === 0 ? v.accent : v.muted, fontSize: 12, fontWeight: 900 }}>{['01 DISCOVER', '02 DECIDE', '03 BUILD', '04 VERIFY'][i]}</div><div style={{ marginTop: 18, fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{line.heading}</div><FitClampText lines={3} style={{ marginTop: 8, color: i === 0 ? 'rgba(255,255,255,0.65)' : v.muted, fontSize: 11.5, lineHeight: 1.45 }}>{line.body}</FitClampText></div>)}
         </div>
       </div>
     );
@@ -3689,7 +3754,7 @@ function renderCaseStudySlide(slide, t, v, index) {
       <div style={{ position: 'absolute', left: 302, right: 58, top: 52 }}>
         <div style={{ display: 'inline-flex', padding: '7px 12px', border: `1px solid ${v.soft}`, borderRadius: 999, fontSize: 11, color: v.accent, fontWeight: 900 }}>{slide.sectionLabel || 'Project Evidence'}</div>
         <div style={{ marginTop: 18, fontFamily: t.fonts.heading, fontSize: isCover ? 48 : 34, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.03em', ...textClamp(isCover ? 3 : 2) }}>{slide.title}</div>
-        {slide.subtitle ? <div style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={2} style={{ marginTop: 12, color: v.muted, fontSize: 14, lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
       </div>
       {!isCover && (
         <div style={{ position: 'absolute', left: 302, right: 58, bottom: 46, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -3698,7 +3763,7 @@ function renderCaseStudySlide(slide, t, v, index) {
               <div style={{ position: 'absolute', right: 16, top: 14, width: 28, height: 28, borderRadius: '50%', background: i === 2 ? v.accent : v.soft }} />
               <div style={{ fontSize: 12, color: v.accent, fontWeight: 950 }}>{['Problem', 'Decision', 'Build', 'Impact'][i] || `Step ${i + 1}`}</div>
               <div style={{ marginTop: 13, fontSize: 17, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 7, color: v.muted, fontSize: 12, lineHeight: 1.5, ...textClamp(3) }}>{line.body}</div>
+              <FitClampText lines={3} style={{ marginTop: 7, color: v.muted, fontSize: 12, lineHeight: 1.5 }}>{line.body}</FitClampText>
             </div>
           ))}
         </div>
@@ -3777,7 +3842,7 @@ function renderCaseStudyDeckSlide(slide, t, v, index) {
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                   <div style={{ width: 18, height: 18, marginTop: 6, borderRadius: 4, border: `3px solid ${idx === 0 ? v.muted : v.soft}` }} />
                   <div>
-                    <div style={{ fontSize: 15, lineHeight: 1.58, fontWeight: 700, ...textClamp(3) }}>{line.body || line.heading}</div>
+                    <FitClampText lines={3} style={{ fontSize: 15, lineHeight: 1.58, fontWeight: 700 }}>{line.body || line.heading}</FitClampText>
                     {line.heading && line.body && line.heading !== line.body ? <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.5, color: v.ink, fontWeight: 800, ...textClamp(1) }}>{line.heading}</div> : null}
                   </div>
                 </div>
@@ -3794,8 +3859,8 @@ function renderCaseStudyDeckSlide(slide, t, v, index) {
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                   <div style={{ fontSize: 22, lineHeight: 1, color: v.ink, fontWeight: 900 }}>›</div>
                   <div>
-                    <div style={{ fontSize: 15, lineHeight: 1.55, fontWeight: 700, color: v.ink, ...textClamp(3) }}>{line.heading || line.body}</div>
-                    {line.body && line.body !== line.heading ? <div style={{ marginTop: 12, paddingLeft: 14, borderLeft: `4px solid ${v.soft}`, fontSize: 13.2, lineHeight: 1.55, color: v.muted, ...textClamp(4) }}>{line.body}</div> : null}
+                    <FitClampText lines={3} style={{ fontSize: 15, lineHeight: 1.55, fontWeight: 700, color: v.ink }}>{line.heading || line.body}</FitClampText>
+                    {line.body && line.body !== line.heading ? <FitClampText lines={4} style={{ marginTop: 12, paddingLeft: 14, borderLeft: `4px solid ${v.soft}`, fontSize: 13.2, lineHeight: 1.55, color: v.muted }}>{line.body}</FitClampText> : null}
                   </div>
                 </div>
               </div>
@@ -3977,7 +4042,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             <div key={idx} style={{ display: 'grid', gridTemplateColumns: '16px 1fr', gap: 12 }}>
               <div style={{ width: 14, height: 14, borderRadius: 4, border: `3px solid ${idx === 0 ? v.muted : v.soft}`, marginTop: 4 }} />
               <div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.55, fontWeight: 700, color: idx === 0 ? v.ink : v.muted, ...textClamp(3) }}>{line.body || line.heading}</div>
+                <FitClampText lines={3} style={{ fontSize: 13.5, lineHeight: 1.55, fontWeight: 700, color: idx === 0 ? v.ink : v.muted }}>{line.body || line.heading}</FitClampText>
                 {line.heading && line.body && line.heading !== line.body ? <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: v.ink, ...textClamp(1) }}>{line.heading}</div> : null}
               </div>
             </div>
@@ -3992,8 +4057,8 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             <div key={idx} style={{ display: 'grid', gridTemplateColumns: '12px 1fr', gap: 12 }}>
               <div style={{ fontSize: 18, lineHeight: 1, fontWeight: 900, color: v.ink }}>›</div>
               <div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 800, color: v.ink, ...textClamp(2) }}>{line.heading || line.body}</div>
-                {line.body && line.body !== line.heading ? <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: `3px solid ${v.soft}`, fontSize: 11.5, lineHeight: 1.5, color: v.muted, ...textClamp(3) }}>{line.body}</div> : null}
+                <FitClampText lines={2} style={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 800, color: v.ink }}>{line.heading || line.body}</FitClampText>
+                {line.body && line.body !== line.heading ? <FitClampText lines={3} style={{ marginTop: 8, paddingLeft: 10, borderLeft: `3px solid ${v.soft}`, fontSize: 11.5, lineHeight: 1.5, color: v.muted }}>{line.body}</FitClampText> : null}
               </div>
             </div>
           ))}
@@ -4030,7 +4095,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
         </div>
         <div style={{ position: 'absolute', left: 64, right: 64, top: 188 }}>
           <div style={{ fontFamily: t.fonts.heading, fontSize: 48, lineHeight: 1.1, fontWeight: 950, letterSpacing: '-0.01em', whiteSpace: 'pre-line', ...textClamp(4) }}>{titleLines.join('\n')}</div>
-          {slide.subtitle ? <div style={{ marginTop: 18, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.7)', fontWeight: 700, maxWidth: 720, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+          {slide.subtitle ? <FitClampText lines={3} style={{ marginTop: 18, fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.7)', fontWeight: 700, maxWidth: 720 }}>{slide.subtitle}</FitClampText> : null}
         </div>
         {tagBullets.length ? (
           <div style={{ position: 'absolute', left: 64, right: 64, bottom: 56, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -4102,7 +4167,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
                 <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 950 }}>{icon || (idx + 1)}</div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 950, color: v.ink, ...textClamp(1) }}>{item.heading}</div>
-                  <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(3) }}>{item.body}</div>
+                  <FitClampText lines={3} style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: v.muted, fontWeight: 700 }}>{item.body}</FitClampText>
                 </div>
               </div>
             );
@@ -4154,7 +4219,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 54, top: 44, right: 54 }}>
           <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.24em', fontWeight: 950 }}>{slide.sectionLabel || 'GROWTH NARRATIVE'}</div>
           <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.1, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{slide.title}</div>
-          {slide.subtitle ? <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: v.muted, fontWeight: 700, ...textClamp(2) }}>{slide.subtitle}</div> : null}
+          {slide.subtitle ? <FitClampText lines={2} style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: v.muted, fontWeight: 700 }}>{slide.subtitle}</FitClampText> : null}
         </div>
         <div style={{ position: 'absolute', left: 54, right: 54, top: 220, bottom: 50, display: 'grid', gap: 12 }}>
           {phases.map((phase, idx) => {
@@ -4166,7 +4231,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
                 <div style={{ fontSize: 11, letterSpacing: '0.22em', fontWeight: 950, color: isDarkRow ? v.accent : isAccent ? '#FFFFFF' : v.accent, ...textClamp(1) }}>{tag}</div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 17, fontWeight: 950, ...textClamp(1) }}>{phase.heading}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isDarkRow ? 'rgba(255,255,255,0.74)' : isAccent ? 'rgba(255,255,255,0.88)' : v.muted, ...textClamp(2) }}>{phase.body}</div>
+                  <FitClampText lines={2} style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isDarkRow ? 'rgba(255,255,255,0.74)' : isAccent ? 'rgba(255,255,255,0.88)' : v.muted }}>{phase.body}</FitClampText>
                 </div>
               </div>
             );
@@ -4192,7 +4257,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
               <div key={idx} style={{ borderRadius: 20, background: isPrimary ? v.dark : v.card, color: isPrimary ? '#FFFFFF' : v.ink, border: `1px solid ${isPrimary ? v.dark : v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'inline-flex', alignSelf: 'flex-start', padding: '4px 10px', borderRadius: 999, background: isPrimary ? `${v.accent}33` : `${v.accent}1f`, color: v.accent, fontSize: 10.5, letterSpacing: '0.16em', fontWeight: 950, ...textClamp(1) }}>{tag}</div>
                 <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 19, lineHeight: 1.18, fontWeight: 950, ...textClamp(3) }}>{item.heading}</div>
-                <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.74)' : v.muted, flex: 1, ...textClamp(7) }}>{item.body}</div>
+                <FitClampText lines={7} style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: isPrimary ? 'rgba(255,255,255,0.74)' : v.muted, flex: 1 }}>{item.body}</FitClampText>
               </div>
             );
           })}
@@ -4216,7 +4281,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
               <div key={idx} style={{ borderRadius: 18, background: v.card, border: `1px solid ${v.soft}`, padding: '22px 22px 24px', boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `${v.accent}1f`, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 950 }}>{icon || '•'}</div>
                 <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 17, lineHeight: 1.2, fontWeight: 950, color: v.ink, ...textClamp(3) }}>{item.heading}</div>
-                <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: v.muted, flex: 1, ...textClamp(8) }}>{item.body}</div>
+                <FitClampText lines={8} style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, fontWeight: 700, color: v.muted, flex: 1 }}>{item.body}</FitClampText>
               </div>
             );
           })}
@@ -4239,7 +4304,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '54px 1fr 160px', alignItems: 'center', minHeight: 56, borderBottom: '1px solid rgba(255,255,255,0.14)' }}>
                 <div style={{ fontSize: 18, color: idx === 0 ? v.accent : 'rgba(255,255,255,0.42)', fontWeight: 950 }}>{String(idx + 1).padStart(2, '0')}</div>
                 <div style={{ fontSize: 19, fontWeight: 900, ...textClamp(1) }}>{line.heading}</div>
-                <div style={{ fontSize: 12, lineHeight: 1.35, color: 'rgba(255,255,255,0.58)', textAlign: 'right', ...textClamp(2) }}>{line.body || line.period}</div>
+                <FitClampText lines={2} style={{ fontSize: 12, lineHeight: 1.35, color: 'rgba(255,255,255,0.58)', textAlign: 'right' }}>{line.body || line.period}</FitClampText>
               </div>
             ))}
           </div>
@@ -4256,14 +4321,14 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 54, top: 84, width: 500 }}>
           <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>{slide.sectionLabel || 'CASE SNAPSHOT'}</div>
           <div style={{ marginTop: 16, fontFamily: t.fonts.heading, fontSize: 42, lineHeight: 1.06, fontWeight: 950, ...textClamp(3) }}>{slide.title}</div>
-          {slide.subtitle ? <div style={{ marginTop: 14, color: v.muted, fontSize: 14, lineHeight: 1.5, ...textClamp(3) }}>{slide.subtitle}</div> : null}
+          {slide.subtitle ? <FitClampText lines={3} style={{ marginTop: 14, color: v.muted, fontSize: 14, lineHeight: 1.5 }}>{slide.subtitle}</FitClampText> : null}
         </div>
         <div style={{ position: 'absolute', left: 612, top: 64, right: 56, bottom: 58, display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gap: 14 }}>
           {caseLines.slice(0, 3).map((line, idx) => (
             <div key={idx} style={{ borderRadius: idx === 1 ? 8 : 24, background: idx === 0 ? v.dark : v.card, color: idx === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${idx === 0 ? v.dark : v.soft}`, padding: 22, boxShadow: cardShadow }}>
               <div style={{ color: idx === 0 ? v.accent : v.muted, fontSize: 11, letterSpacing: '0.16em', fontWeight: 950 }}>SIGNAL {idx + 1}</div>
               <div style={{ marginTop: 10, fontSize: 20, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(2) }}>{line.body || line.period}</div>
+              <FitClampText lines={2} style={{ marginTop: 7, fontSize: 12, lineHeight: 1.45, opacity: 0.72 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4282,7 +4347,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 338, background: v.dark, color: '#FFFFFF', padding: '48px 42px' }}>
           <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.22em', fontWeight: 950 }}>PROBLEM</div>
           <div style={{ marginTop: 28, fontFamily: t.fonts.heading, fontSize: 34, lineHeight: 1.08, fontWeight: 950, ...textClamp(4) }}>{slide.title}</div>
-          <div style={{ position: 'absolute', left: 42, right: 42, bottom: 44, color: 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.55, ...textClamp(5) }}>{slide.subtitle || caseLines[0]?.body}</div>
+          <FitClampText lines={5} style={{ position: 'absolute', left: 42, right: 42, bottom: 44, color: 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.55 }}>{slide.subtitle || caseLines[0]?.body}</FitClampText>
         </div>
         <div style={{ position: 'absolute', left: 398, top: 62, right: 64, bottom: 58 }}>
           {caseLines.slice(0, 4).map((line, idx) => (
@@ -4290,7 +4355,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
               <div style={{ width: 42, height: 42, borderRadius: idx === 0 ? '50%' : 10, background: idx === 0 ? v.accent : v.soft, display: 'grid', placeItems: 'center', color: idx === 0 ? '#FFFFFF' : v.ink, fontWeight: 950 }}>{idx + 1}</div>
               <div>
                 <div style={{ fontSize: 21, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
-                <div style={{ marginTop: 8, color: v.muted, fontSize: 13, lineHeight: 1.5, ...textClamp(3) }}>{line.body || line.period}</div>
+                <FitClampText lines={3} style={{ marginTop: 8, color: v.muted, fontSize: 13, lineHeight: 1.5 }}>{line.body || line.period}</FitClampText>
               </div>
             </div>
           ))}
@@ -4311,7 +4376,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             <div key={idx} style={{ borderRadius: idx === 0 ? 26 : 6, background: idx === 0 ? v.card : v.dark, color: idx === 0 ? v.ink : '#FFFFFF', padding: 28, border: `1px solid ${idx === 0 ? v.soft : v.dark}`, boxShadow: cardShadow }}>
               <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.18em', fontWeight: 950 }}>{idx === 0 ? 'CHOSEN' : 'TRADE-OFF'}</div>
               <div style={{ marginTop: 56, fontSize: 28, lineHeight: 1.1, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div>
-              <div style={{ marginTop: 16, color: idx === 0 ? v.muted : 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.5, ...textClamp(5) }}>{line.body || line.period}</div>
+              <FitClampText lines={5} style={{ marginTop: 16, color: idx === 0 ? v.muted : 'rgba(255,255,255,0.64)', fontSize: 13, lineHeight: 1.5 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4335,7 +4400,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             <div key={idx} style={{ borderRadius: 18, background: idx === 0 ? v.dark : v.card, color: idx === 0 ? '#FFFFFF' : v.ink, border: `1px solid ${idx === 0 ? v.dark : v.soft}`, padding: 20, boxShadow: cardShadow }}>
               <div style={{ color: idx === 0 ? v.accent : v.muted, fontSize: 11, letterSpacing: '0.16em', fontWeight: 950 }}>{['DEFINE', 'BUILD', 'VERIFY', 'SHIP'][idx] || `STEP ${idx + 1}`}</div>
               <div style={{ marginTop: 16, fontSize: 20, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 8, color: idx === 0 ? 'rgba(255,255,255,0.68)' : v.muted, fontSize: 12, lineHeight: 1.45, ...textClamp(3) }}>{line.body || line.period}</div>
+              <FitClampText lines={3} style={{ marginTop: 8, color: idx === 0 ? 'rgba(255,255,255,0.68)' : v.muted, fontSize: 12, lineHeight: 1.45 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4371,7 +4436,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
           {caseLines.slice(0, 3).map((line, idx) => (
             <div key={idx} style={{ marginLeft: idx * 54, marginRight: idx * 54, minHeight: 82, borderRadius: 18, background: idx === 0 ? v.dark : idx === 1 ? v.accent : v.card, color: idx === 0 ? '#FFFFFF' : idx === 1 ? '#FFFFFF' : v.ink, padding: '18px 24px', boxShadow: cardShadow }}>
               <div style={{ fontSize: 18, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, opacity: 0.72, ...textClamp(2) }}>{line.body || line.period}</div>
+              <FitClampText lines={2} style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, opacity: 0.72 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4392,7 +4457,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
             <div key={idx} style={{ position: 'absolute', left: idx * 126, top: idx % 2 ? 188 : 44, width: 118 }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', background: idx === 0 ? v.accent : v.dark, marginBottom: 12 }} />
               <div style={{ fontSize: 16, fontWeight: 950, ...textClamp(2) }}>{line.heading}</div>
-              <div style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.42, ...textClamp(3) }}>{line.body || line.period}</div>
+              <FitClampText lines={3} style={{ marginTop: 8, color: v.muted, fontSize: 11.5, lineHeight: 1.42 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4417,7 +4482,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
           {caseLines.slice(1, 4).map((line, idx) => (
             <div key={idx} style={{ borderRadius: 16, background: v.card, border: `1px solid ${v.soft}`, padding: '18px 22px', boxShadow: cardShadow }}>
               <div style={{ fontSize: 18, fontWeight: 950, ...textClamp(1) }}>{line.heading}</div>
-              <div style={{ marginTop: 6, color: v.muted, fontSize: 12.5, lineHeight: 1.45, ...textClamp(2) }}>{line.body || line.period}</div>
+              <FitClampText lines={2} style={{ marginTop: 6, color: v.muted, fontSize: 12.5, lineHeight: 1.45 }}>{line.body || line.period}</FitClampText>
             </div>
           ))}
         </div>
@@ -4436,7 +4501,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
         <div style={{ position: 'absolute', left: 54, bottom: 56, width: 212, fontSize: 14, lineHeight: 1.35, color: 'rgba(255,255,255,0.62)', fontWeight: 700 }}>#사용자중심 #입체적사고 #문제정의 #목적지향 #회복탄력성 #팀워크</div>
         <div style={{ position: 'absolute', left: 152, top: 236, width: 258, borderRadius: 18, background: '#FFFFFF', padding: '14px 16px', boxShadow: '0 12px 22px rgba(35,44,86,0.14)' }}>
           <div style={{ fontSize: 12, fontWeight: 900, color: v.accent, textAlign: 'center' }}>나의 경력과 강점 요약</div>
-          <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.55, fontWeight: 700, color: '#404762', textAlign: 'center', ...textClamp(3) }}>{slide.subtitle || '경력, 역할, 툴, 프로젝트 요약을 한 장에서 안정적으로 보여주는 소개형 슬라이드'}</div>
+          <FitClampText lines={3} style={{ marginTop: 10, fontSize: 13, lineHeight: 1.55, fontWeight: 700, color: '#404762', textAlign: 'center' }}>{slide.subtitle || '경력, 역할, 툴, 프로젝트 요약을 한 장에서 안정적으로 보여주는 소개형 슬라이드'}</FitClampText>
         </div>
         <div style={{ position: 'absolute', left: 372, top: 76, width: 516, display: 'grid', gap: 22 }}>
           <div>
@@ -4447,7 +4512,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: v.accent }} />
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 900, color: '#21264F', ...textClamp(1) }}>{line.heading}</div>
-                    <div style={{ marginTop: 4, fontSize: 12, color: '#6B7395', fontWeight: 800, ...textClamp(2) }}>{line.body || line.period}</div>
+                    <FitClampText lines={2} style={{ marginTop: 4, fontSize: 12, color: '#6B7395', fontWeight: 800 }}>{line.body || line.period}</FitClampText>
                   </div>
                 </div>
               ))}
@@ -4483,7 +4548,7 @@ function renderCaseStudyReferenceSlide(slide, t, v, index) {
                 <div style={{ width: 118, height: 118, borderRadius: '50%', background: '#080A10' }} />
               </div>
               <div style={{ marginTop: 28, fontFamily: t.fonts.heading, fontSize: 22, fontWeight: 900, color: v.ink, ...textClamp(2) }}>{entry.heading || entry.role}</div>
-              <div style={{ marginTop: 18, fontSize: 13, lineHeight: 1.55, color: v.muted, fontWeight: 700, whiteSpace: 'pre-line', ...textClamp(4) }}>{entry.body || (entry.bullets || []).join('\n')}</div>
+              <FitClampText lines={4} style={{ marginTop: 18, fontSize: 13, lineHeight: 1.55, color: v.muted, fontWeight: 700, whiteSpace: 'pre-line' }}>{entry.body || (entry.bullets || []).join('\n')}</FitClampText>
             </div>
           ))}
         </div>
@@ -4594,11 +4659,11 @@ function renderProposalCover(slide, t) {
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3);
   return (
     <div style={{ position: 'absolute', inset: 0, background: c.dark, color: onDark, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 66, top: 64, color: accentOnDark, fontFamily: t.fonts.heading, fontSize: 40, fontWeight: 900 }}>FITPOLY</div>
+      <div style={{ position: 'absolute', left: 66, top: 66, color: accentOnDark, fontFamily: t.fonts.heading, fontSize: 15, fontWeight: 900, letterSpacing: '0.34em' }}>PORTFOLIO</div>
       <div style={{ position: 'absolute', right: 66, top: 62, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{new Date().toISOString().slice(0, 10).replace(/-/g, '.')}</div>
       <div style={{ position: 'absolute', left: 66, top: 142, width: 560 }}>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 48, fontWeight: 300, lineHeight: 1.2, color: onDark, ...textClamp(2) }}>{slide.subtitle || '경험을 기준으로'}</div>
-        <div style={{ marginTop: 8, fontFamily: t.fonts.heading, fontSize: 42, fontWeight: 900, lineHeight: 1.2, color: onDark, ...textClamp(3) }}>{proposalTextParts(slide.title || '포트폴리오 솔루션', accentOnDark)}</div>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 46, fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.02em', color: onDark, ...textClamp(3) }}>{proposalTextParts(slide.title || '포트폴리오', accentOnDark)}</div>
+        <FitClampText lines={3} style={{ marginTop: 16, fontFamily: t.fonts.body, fontSize: 15, fontWeight: 500, lineHeight: 1.55, color: 'rgba(255,255,255,0.74)' }}>{slide.subtitle || '경험과 성과를 기반으로 정리한 포트폴리오입니다'}</FitClampText>
       </div>
       <ProposalDots color={accentOnDark} />
       <div style={{ position: 'absolute', left: 66, bottom: 58, display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 800, color: onDark }}>
@@ -4627,7 +4692,7 @@ function renderProposal(slide, t, index) {
         <div style={{ width: 'min(820px, 100%)', margin: slide.layout === 'profile' ? 0 : '0 auto', fontFamily: t.fonts.heading, fontSize: titleSize, fontWeight: 900, color: titleColor, lineHeight: 1.22, textAlign: slide.layout === 'profile' ? 'left' : 'center', ...textClamp(2) }}>
           {proposalTextParts(slide.title || section, accentColor)}
         </div>
-        {slide.subtitle ? <div style={{ width: 'min(720px, 100%)', margin: slide.layout === 'profile' ? '10px 0 0' : '10px auto 0', fontSize: 13, fontWeight: 600, color: bodyColor, lineHeight: 1.45, textAlign: slide.layout === 'profile' ? 'left' : 'center', ...textClamp(2) }}>{slide.subtitle}</div> : null}
+        {slide.subtitle ? <FitClampText lines={2} style={{ width: 'min(720px, 100%)', margin: slide.layout === 'profile' ? '10px 0 0' : '10px auto 0', fontSize: 13, fontWeight: 600, color: bodyColor, lineHeight: 1.45, textAlign: slide.layout === 'profile' ? 'left' : 'center' }}>{slide.subtitle}</FitClampText> : null}
       </div>
       <div style={{ position: 'absolute', left: 52, right: 52, top: bodyTop, bottom: 44 }}>
         {renderProposalBody(slide, t, isDark)}
@@ -4664,7 +4729,7 @@ function renderProposalBody(slide, t, isDark) {
             <div style={{ fontSize: 22, fontWeight: 900, color: pageText, lineHeight: 1.18, ...textClamp(2) }}>{item.heading}</div>
             <div style={{ marginTop: 6, fontSize: 12, color: pageMuted, ...textClamp(1) }}>{item.role}</div>
             <div style={{ position: 'absolute', left: 0, bottom: 64, width: 9, height: 9, borderRadius: '50%', background: accentOnPage }} />
-            <div style={{ position: 'absolute', left: 0, bottom: 12, fontSize: 11, color: pageMuted, lineHeight: 1.45, ...textClamp(3) }}>{item.body}</div>
+            <FitClampText lines={3} style={{ position: 'absolute', left: 0, bottom: 12, fontSize: 11, color: pageMuted, lineHeight: 1.45 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -4692,7 +4757,7 @@ function renderProposalBody(slide, t, isDark) {
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: i === items.length - 1 ? c.accent : c.dark, color: i === items.length - 1 ? accentText : darkText, display: 'grid', placeItems: 'center', fontWeight: 900 }}>{i + 1}</div>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: pageText, ...textClamp(1) }}>{item.heading}</div>
-                <div style={{ marginTop: 5, fontSize: 12, lineHeight: 1.45, color: pageMuted, ...textClamp(2) }}>{item.body}</div>
+                <FitClampText lines={2} style={{ marginTop: 5, fontSize: 12, lineHeight: 1.45, color: pageMuted }}>{item.body}</FitClampText>
               </div>
             </div>
           ))}
@@ -4710,7 +4775,7 @@ function renderProposalBody(slide, t, isDark) {
             <div style={{ width: 90, height: 90, borderRadius: '50%', margin: '0 auto 14px', background: i % 2 ? c.dark : c.neutral, border: `5px solid ${i === 1 ? c.accent : '#FFFFFF'}` }} />
             <div style={{ color: accentOnPage, fontSize: 15, fontWeight: 900, ...textClamp(1) }}>{item.period || `STEP ${i + 1}`}</div>
             <div style={{ fontSize: 15, fontWeight: 900, color: pageText, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-            <div style={{ marginTop: 5, fontSize: 11, color: pageMuted, lineHeight: 1.35, ...textClamp(3) }}>{item.body}</div>
+            <FitClampText lines={3} style={{ marginTop: 5, fontSize: 11, color: pageMuted, lineHeight: 1.35 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -4825,7 +4890,7 @@ function renderProposalBody(slide, t, isDark) {
           <div key={i} style={{ background: i === 2 ? c.accent : (isDark ? c.dark2 : c.card), color: i === 2 ? accentText : (isDark ? dark2Text : cardText), borderRadius: 10, padding: 22, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxShadow: isDark ? 'none' : '0 6px 24px rgba(20,20,20,0.06)', overflow: 'hidden' }}>
             <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
             {item.role ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>{item.role}</div> : null}
-            {item.body ? <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, opacity: 0.86, ...textClamp(5) }}>{item.body}</div> : null}
+            {item.body ? <FitClampText lines={5} style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, opacity: 0.86 }}>{item.body}</FitClampText> : null}
           </div>
         ))}
       </div>
@@ -4873,7 +4938,7 @@ function ProposalThreeCards({ items, c, isDark }) {
             </div>
             <div style={{ alignSelf: 'end' }}>
               <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
-              <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, whiteSpace: 'pre-line', ...textClamp(5) }}>{item.body}</div>
+              <FitClampText lines={5} style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: muted, opacity: 0.94, whiteSpace: 'pre-line' }}>{item.body}</FitClampText>
             </div>
             <div style={{ height: 4, width: '42%', borderRadius: 999, background: featured ? 'rgba(255,255,255,0.42)' : visibleColorOn(fill, c.accent, c.dark) }} />
           </div>
@@ -4901,7 +4966,7 @@ function ProposalResultMetric({ items, metrics, c, isDark }) {
           <span style={{ width: 30, height: 30, borderRadius: '50%', background: c.accent, color: accentText, display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>✓</span>
           <div style={{ fontSize: 17, fontWeight: 900, color: accentOnCard, ...textClamp(1) }}>{result.heading || '결과와 성과'}</div>
         </div>
-        <div style={{ flex: 1, fontSize: 15, lineHeight: 1.7, color: cardText, whiteSpace: 'pre-line', ...textClamp(8) }}>{result.body}</div>
+        <FitClampText lines={8} style={{ flex: 1, fontSize: 15, lineHeight: 1.7, color: cardText, whiteSpace: 'pre-line' }}>{result.body}</FitClampText>
       </div>
       {/* 우측: 핵심 지표 메트릭 스택 */}
       {hasMetrics && (
@@ -4910,10 +4975,12 @@ function ProposalResultMetric({ items, metrics, c, isDark }) {
             const fill = i === 0 ? c.accent : cardFill;
             const fg = i === 0 ? accentText : cardText;
             const labelColor = i === 0 ? readableTextOn(c.accent, SAFE_TEXT_LIGHT) : accentOnCard;
+            const big = metricDisplayValue(m, m.label || '핵심 지표');
+            const small = big === (m.label || '핵심 지표') ? '' : (m.label || '핵심 지표');
             return (
               <div key={i} style={{ borderRadius: 14, background: fill, color: fg, padding: '18px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
-                <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', color: labelColor, opacity: 0.92, marginBottom: 6, ...textClamp(1) }}>{m.label || '핵심 지표'}</div>
-                <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.05, ...textClamp(2) }}>{m.value}</div>
+                {small && <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', color: labelColor, opacity: 0.92, marginBottom: 6, ...textClamp(1) }}>{small}</div>}
+                <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.05, ...textClamp(2) }}>{big}</div>
               </div>
             );
           })}
@@ -4931,7 +4998,7 @@ function ProposalComparison({ items, c }) {
       {items.slice(0, 2).map((item, i) => (
         <div key={i} style={{ display: 'grid', gridTemplateColumns: '48% 1fr', background: '#FFFFFF', borderRadius: 16, overflow: 'hidden', minHeight: 210 }}>
           <div style={{ background: i ? c.dark : c.neutral, filter: 'grayscale(1)' }} />
-          <div style={{ padding: 28, textAlign: 'center', color: cardText }}><div style={{ display: 'inline-block', padding: '8px 28px', borderRadius: 999, background: i ? c.dark : c.accent, color: readableTextOn(i ? c.dark : c.accent, SAFE_TEXT_LIGHT), fontWeight: 900, maxWidth: '100%', ...textClamp(1) }}>{item.heading}</div><div style={{ marginTop: 24, fontSize: 13, color: cardMuted, lineHeight: 1.75, ...textClamp(5) }}>{item.body}</div></div>
+          <div style={{ padding: 28, textAlign: 'center', color: cardText }}><div style={{ display: 'inline-block', padding: '8px 28px', borderRadius: 999, background: i ? c.dark : c.accent, color: readableTextOn(i ? c.dark : c.accent, SAFE_TEXT_LIGHT), fontWeight: 900, maxWidth: '100%', ...textClamp(1) }}>{item.heading}</div><FitClampText lines={5} style={{ marginTop: 24, fontSize: 13, color: cardMuted, lineHeight: 1.75 }}>{item.body}</FitClampText></div>
         </div>
       ))}
     </div>
@@ -4944,7 +5011,7 @@ function ProposalMetricBars({ bullets, values, c }) {
   const accentOnCard = visibleColorOn('#FFFFFF', c.accent, c.dark);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '42% 1fr', gap: 28, height: '100%' }}>
-      <div style={{ display: 'grid', gap: 10 }}>{bullets.slice(0, 2).map((bullet, i) => { const fill = i ? c.dark : c.accent; return <div key={i} style={{ borderRadius: 12, padding: 22, background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), overflow: 'hidden' }}><div style={{ fontSize: 18, fontWeight: 900, ...textClamp(1) }}>{i ? '비즈니스 측면' : '외부환경 측면'}</div><div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, opacity: 0.9, ...textClamp(4) }}>{bullet}</div></div>; })}</div>
+      <div style={{ display: 'grid', gap: 10 }}>{bullets.slice(0, 2).map((bullet, i) => { const fill = i ? c.dark : c.accent; return <div key={i} style={{ borderRadius: 12, padding: 22, background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), overflow: 'hidden' }}><div style={{ fontSize: 18, fontWeight: 900, ...textClamp(1) }}>{i ? '비즈니스 측면' : '외부환경 측면'}</div><FitClampText lines={4} style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, opacity: 0.9 }}>{bullet}</FitClampText></div>; })}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, background: '#FFFFFF', borderRadius: 14, padding: 28, color: cardText }}>{values.map((value, i) => <div key={i}><div style={{ fontSize: 36, color: i < 2 ? accentOnCard : readableTextOn('#FFFFFF', c.dark, 3), fontWeight: 300, ...textClamp(1) }}>{value}</div><div style={{ height: 10, background: c.line, borderRadius: 999, margin: '8px 0' }}><div style={{ width: value, height: '100%', borderRadius: 999, background: i < 2 ? accentOnCard : c.dark }} /></div><div style={{ fontSize: 12, color: cardMuted, ...textClamp(2) }}>{bullets[i] || '성과 지표'}</div></div>)}</div>
     </div>
   );
@@ -4957,7 +5024,7 @@ function ProposalGraph({ bullets, c }) {
   const lineAccent = visibleColorOn('#FFFFFF', c.accent, c.dark);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '36% 1fr', gap: 34, height: '100%', alignItems: 'center' }}>
-      <div style={{ background: c.accent, color: accentText, borderRadius: 12, padding: 28, overflow: 'hidden' }}><div style={{ fontSize: 18, fontWeight: 900, marginBottom: 16, ...textClamp(1) }}>경험 기반 전략</div><div style={{ fontSize: 13, lineHeight: 1.65, ...textClamp(6) }}>{bullets[0] || '경험정리를 바탕으로 직무 적합성을 선명하게 제시합니다.'}</div></div>
+      <div style={{ background: c.accent, color: accentText, borderRadius: 12, padding: 28, overflow: 'hidden' }}><div style={{ fontSize: 18, fontWeight: 900, marginBottom: 16, ...textClamp(1) }}>경험 기반 전략</div><FitClampText lines={6} style={{ fontSize: 13, lineHeight: 1.65 }}>{bullets[0] || '경험정리를 바탕으로 직무 적합성을 선명하게 제시합니다.'}</FitClampText></div>
       <div style={{ position: 'relative', height: 250, borderBottom: `2px solid ${graphInk}` }}>{[0, 1, 2, 3, 4].map((_, i) => <div key={i} style={{ position: 'absolute', left: 40 + i * 92, bottom: 0, width: 42, height: 50 + i * 35, background: i > 1 ? graphInk : barMuted }} />)}<svg viewBox="0 0 520 250" style={{ position: 'absolute', inset: 0, overflow: 'visible' }}><polyline points="60,200 155,175 250,110 345,72 440,45" fill="none" stroke={lineAccent} strokeWidth="4" />{[[60,200],[155,175],[250,110],[345,72],[440,45]].map(([pointX, pointY], i)=><circle key={i} cx={pointX} cy={pointY} r="7" fill="#fff" stroke={lineAccent} strokeWidth="4" />)}</svg></div>
     </div>
   );
@@ -4977,7 +5044,7 @@ function ProposalVenn({ items, c }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.28fr 1fr', gap: 18, alignItems: 'center', minHeight: 0 }}>
         <div style={{ minHeight: 150, borderRadius: 12, background: '#FFFFFF', color: cardText, padding: 18, boxShadow: '0 16px 34px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
           <div style={{ display: 'inline-flex', maxWidth: '100%', padding: '7px 14px', borderRadius: 999, background: c.dark, color: darkText, fontSize: 12, fontWeight: 900, ...textClamp(1) }}>{items[0]?.heading}</div>
-          <div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted, ...textClamp(5) }}>{items[0]?.body}</div>
+          <FitClampText lines={5} style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted }}>{items[0]?.body}</FitClampText>
         </div>
         <div style={{ position: 'relative', height: 206, alignSelf: 'center' }}>
           <div style={{ position: 'absolute', left: 24, top: 18, width: 150, height: 150, borderRadius: '50%', background: '#FFFFFF', color: cardText, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 14, fontWeight: 900, padding: 22, boxShadow: '0 18px 48px rgba(255,255,255,0.12)', ...textClamp(3) }}>{items[0]?.heading || '후보자 강점'}</div>
@@ -4986,17 +5053,17 @@ function ProposalVenn({ items, c }) {
         </div>
         <div style={{ minHeight: 150, borderRadius: 12, background: '#FFFFFF', color: cardText, padding: 18, boxShadow: '0 16px 34px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
           <div style={{ display: 'inline-flex', maxWidth: '100%', padding: '7px 14px', borderRadius: 999, background: c.dark, color: darkText, fontSize: 12, fontWeight: 900, ...textClamp(1) }}>{items[1]?.heading}</div>
-          <div style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted, ...textClamp(5) }}>{items[1]?.body}</div>
+          <FitClampText lines={5} style={{ marginTop: 14, fontSize: 12, lineHeight: 1.58, color: cardMuted }}>{items[1]?.body}</FitClampText>
         </div>
       </div>
-      <div style={{ borderRadius: 8, background: c.accent, color: accentText, display: 'grid', placeItems: 'center', textAlign: 'center', padding: '0 28px', fontSize: 14, fontWeight: 900, ...textClamp(2) }}>{items[2]?.body || '강점과 요구사항이 만나는 지점에서 실행 가능한 해답을 제시합니다'}</div>
+      <FitClampText lines={2} style={{ borderRadius: 8, background: c.accent, color: accentText, display: 'grid', placeItems: 'center', textAlign: 'center', padding: '0 28px', fontSize: 14, fontWeight: 900 }}>{items[2]?.body || '강점과 요구사항이 만나는 지점에서 실행 가능한 해답을 제시합니다'}</FitClampText>
     </div>
   );
 }
 
 function ProposalStairs({ items, c }) {
   const visible = items.slice(0, 5);
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, 1fr)`, gap: 10, height: '100%', alignItems: 'end' }}>{visible.map((item, i) => { const fill = i === visible.length - 1 ? c.accent : i < 2 ? c.neutral : c.dark; const fg = readableTextOn(fill, SAFE_TEXT_LIGHT); return <div key={i} style={{ height: 116 + i * 22, minHeight: 0, background: fill, color: fg, borderRadius: '12px 12px 0 0', padding: '16px 14px', display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 10, overflow: 'hidden', boxShadow: '0 14px 28px rgba(0,0,0,0.16)' }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div><div style={{ fontWeight: 900, fontSize: 14, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div><div style={{ fontSize: 10.5, lineHeight: 1.42, opacity: 0.9, ...textClamp(5) }}>{item.body}</div></div>; })}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, 1fr)`, gap: 10, height: '100%', alignItems: 'end' }}>{visible.map((item, i) => { const fill = i === visible.length - 1 ? c.accent : i < 2 ? c.neutral : c.dark; const fg = readableTextOn(fill, SAFE_TEXT_LIGHT); return <div key={i} style={{ height: 116 + i * 22, minHeight: 0, background: fill, color: fg, borderRadius: '12px 12px 0 0', padding: '16px 14px', display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 10, overflow: 'hidden', boxShadow: '0 14px 28px rgba(0,0,0,0.16)' }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div><div style={{ fontWeight: 900, fontSize: 14, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div><FitClampText lines={5} style={{ fontSize: 10.5, lineHeight: 1.42, opacity: 0.9 }}>{item.body}</FitClampText></div>; })}</div>;
 }
 
 function ProposalTable({ rows, c }) {
@@ -5006,12 +5073,12 @@ function ProposalTable({ rows, c }) {
 function ProposalOrbit({ items, c }) {
   const cardText = readableTextOn('#FFFFFF', c.sub);
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
-  return <div style={{ position: 'relative', height: '100%' }}><div style={{ position: 'absolute', left: '50%', top: '48%', transform: 'translate(-50%,-50%)', width: 230, height: 230, borderRadius: '50%', background: c.dark, display: 'grid', placeItems: 'center', color: readableTextOn(c.dark, SAFE_TEXT_LIGHT), fontWeight: 900 }}><div style={{ width: 118, height: 118, borderRadius: '50%', background: c.accent, color: readableTextOn(c.accent, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', padding: 12, ...textClamp(3) }}>{items[1]?.heading || '공동 목표'}</div></div>{items.slice(0, 4).map((item, i) => <div key={i} style={{ position: 'absolute', left: [60, 610, 115, 690][i] || 100, top: [70, 70, 250, 250][i] || 80, width: 180, padding: 16, borderRadius: 12, background: '#FFFFFF', color: cardText, textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', overflow: 'hidden' }}><div style={{ fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 8, fontSize: 11, color: cardMuted, lineHeight: 1.5, ...textClamp(3) }}>{item.body}</div></div>)}</div>;
+  return <div style={{ position: 'relative', height: '100%' }}><div style={{ position: 'absolute', left: '50%', top: '48%', transform: 'translate(-50%,-50%)', width: 230, height: 230, borderRadius: '50%', background: c.dark, display: 'grid', placeItems: 'center', color: readableTextOn(c.dark, SAFE_TEXT_LIGHT), fontWeight: 900 }}><div style={{ width: 118, height: 118, borderRadius: '50%', background: c.accent, color: readableTextOn(c.accent, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', padding: 12, ...textClamp(3) }}>{items[1]?.heading || '공동 목표'}</div></div>{items.slice(0, 4).map((item, i) => <div key={i} style={{ position: 'absolute', left: [60, 610, 115, 690][i] || 100, top: [70, 70, 250, 250][i] || 80, width: 180, padding: 16, borderRadius: 12, background: '#FFFFFF', color: cardText, textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', overflow: 'hidden' }}><div style={{ fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><FitClampText lines={3} style={{ marginTop: 8, fontSize: 11, color: cardMuted, lineHeight: 1.5 }}>{item.body}</FitClampText></div>)}</div>;
 }
 
 function ProposalCaseGrid({ items, c }) {
   const pageText = readableTextOn(c.dark, SAFE_TEXT_LIGHT);
-  return <div style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: 24, height: '100%' }}><div style={{ color: pageText, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}><div style={{ fontSize: 17, lineHeight: 1.6, ...textClamp(8) }}>{items[0]?.body}</div></div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{items.slice(0, 4).map((item, i) => { const fill = i === 2 ? c.accent : i === 0 ? '#FFFFFF' : c.dark2; return <div key={i} style={{ borderRadius: 10, background: fill, color: readableTextOn(fill, i === 0 ? c.sub : SAFE_TEXT_LIGHT), padding: 20, overflow: 'hidden' }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, opacity: 0.88, ...textClamp(4) }}>{item.body}</div></div>; })}</div></div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: 24, height: '100%' }}><div style={{ color: pageText, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}><FitClampText lines={8} style={{ fontSize: 17, lineHeight: 1.6 }}>{items[0]?.body}</FitClampText></div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{items.slice(0, 4).map((item, i) => { const fill = i === 2 ? c.accent : i === 0 ? '#FFFFFF' : c.dark2; return <div key={i} style={{ borderRadius: 10, background: fill, color: readableTextOn(fill, i === 0 ? c.sub : SAFE_TEXT_LIGHT), padding: 20, overflow: 'hidden' }}><div style={{ fontSize: 17, fontWeight: 900, ...textClamp(2) }}>{item.heading}</div><FitClampText lines={4} style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, opacity: 0.88 }}>{item.body}</FitClampText></div>; })}</div></div>;
 }
 
 function ProposalTestimonials({ bullets, c }) {
@@ -5022,13 +5089,13 @@ function ProposalTestimonials({ bullets, c }) {
 
 function ProposalConditionGrid({ items, c }) {
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, items.length)}, 1fr)`, gap: 10, height: '100%' }}>{items.slice(0, 4).map((item, i) => { const fill = i === 0 || i === 3 ? c.accent : i === 1 ? c.dark : c.neutral; return <div key={i} style={{ display: 'grid', gridTemplateRows: '48% 1fr', borderRadius: 10, overflow: 'hidden', background: '#FFFFFF' }}><div style={{ background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 16, fontWeight: 900, padding: 14, ...textClamp(3) }}>{item.heading}</div><div style={{ padding: 18, fontSize: 12, color: cardMuted, lineHeight: 1.7, textAlign: 'center', ...textClamp(6) }}>{item.body}</div></div>; })}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, items.length)}, 1fr)`, gap: 10, height: '100%' }}>{items.slice(0, 4).map((item, i) => { const fill = i === 0 || i === 3 ? c.accent : i === 1 ? c.dark : c.neutral; return <div key={i} style={{ display: 'grid', gridTemplateRows: '48% 1fr', borderRadius: 10, overflow: 'hidden', background: '#FFFFFF' }}><div style={{ background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 16, fontWeight: 900, padding: 14, ...textClamp(3) }}>{item.heading}</div><FitClampText lines={6} style={{ padding: 18, fontSize: 12, color: cardMuted, lineHeight: 1.7, textAlign: 'center' }}>{item.body}</FitClampText></div>; })}</div>;
 }
 
 function ProposalCriteria({ items, c }) {
   const pageText = readableTextOn(c.bg, c.sub);
   const pageMuted = mutedTextOn(c.bg, c.muted);
-  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px 50px', height: '100%', alignItems: 'center' }}>{items.slice(0, 4).map((item, i) => <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 18, alignItems: 'center' }}><div style={{ width: 72, height: 72, borderRadius: '50%', border: `8px solid ${visibleColorOn(c.bg, i % 2 ? c.dark : c.accent, c.dark)}`, background: '#FFFFFF' }} /><div><div style={{ fontSize: 18, fontWeight: 900, color: pageText, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.55, color: pageMuted, ...textClamp(3) }}>{item.body}</div></div></div>)}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px 50px', height: '100%', alignItems: 'center' }}>{items.slice(0, 4).map((item, i) => <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 18, alignItems: 'center' }}><div style={{ width: 72, height: 72, borderRadius: '50%', border: `8px solid ${visibleColorOn(c.bg, i % 2 ? c.dark : c.accent, c.dark)}`, background: '#FFFFFF' }} /><div><div style={{ fontSize: 18, fontWeight: 900, color: pageText, ...textClamp(2) }}>{item.heading}</div><FitClampText lines={3} style={{ marginTop: 8, fontSize: 12, lineHeight: 1.55, color: pageMuted }}>{item.body}</FitClampText></div></div>)}</div>;
 }
 
 function ProposalGantt({ items, c }) {
@@ -5052,7 +5119,7 @@ function ProposalStageCards({ items, c }) {
               <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
               <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
             </div>
-            <div style={{ flex: 1, fontSize: 12.5, lineHeight: 1.55, opacity: 0.95, ...textClamp(7) }}>{item.body}</div>
+            <FitClampText lines={7} style={{ flex: 1, fontSize: 12.5, lineHeight: 1.55, opacity: 0.95 }}>{item.body}</FitClampText>
           </div>
         );
       })}
@@ -5063,7 +5130,7 @@ function ProposalStageCards({ items, c }) {
 function ProposalPyramid({ items, c }) {
   const cardText = readableTextOn('#FFFFFF', c.sub);
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
-  return <div style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: 36, height: '100%', alignItems: 'center' }}><div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 4 }}>{items.slice(0, 3).map((item, i) => { const fill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ margin: '0 auto', width: `${90 - i * 22}%`, height: 82, clipPath: 'polygon(12% 0, 88% 0, 100% 100%, 0 100%)', background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', fontWeight: 900, padding: 14, ...textClamp(2) }}>{item.heading}</div>; })}</div><div style={{ display: 'grid', gap: 14 }}>{items.slice(0, 3).map((item, i) => <div key={i} style={{ background: '#FFFFFF', borderRadius: 12, padding: 20, overflow: 'hidden' }}><div style={{ fontSize: 17, fontWeight: 900, color: cardText, ...textClamp(2) }}>{item.body}</div><div style={{ marginTop: 6, fontSize: 12, color: cardMuted, ...textClamp(1) }}>경험정리 기반으로 도출된 지향점</div></div>)}</div></div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: 36, height: '100%', alignItems: 'center' }}><div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 4 }}>{items.slice(0, 3).map((item, i) => { const fill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ margin: '0 auto', width: `${90 - i * 22}%`, height: 82, clipPath: 'polygon(12% 0, 88% 0, 100% 100%, 0 100%)', background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), display: 'grid', placeItems: 'center', textAlign: 'center', fontWeight: 900, padding: 14, ...textClamp(2) }}>{item.heading}</div>; })}</div><div style={{ display: 'grid', gap: 14 }}>{items.slice(0, 3).map((item, i) => <div key={i} style={{ background: '#FFFFFF', borderRadius: 12, padding: 20, overflow: 'hidden' }}><FitClampText lines={2} style={{ fontSize: 17, fontWeight: 900, color: cardText }}>{item.body}</FitClampText><div style={{ marginTop: 6, fontSize: 12, color: cardMuted, ...textClamp(1) }}>경험정리 기반으로 도출된 지향점</div></div>)}</div></div>;
 }
 
 function ProposalPromise({ bullets, c }) {
@@ -5075,13 +5142,13 @@ function ProposalPromise({ bullets, c }) {
 function ProposalBudget({ items, c }) {
   const cardText = readableTextOn('#FFFFFF', c.sub);
   const accentOnCard = visibleColorOn('#FFFFFF', c.accent, c.dark);
-  return <div style={{ display: 'grid', gridTemplateColumns: '58% 1fr', gap: 22, height: '100%', alignItems: 'center' }}><div style={{ background: '#FFFFFF', borderRadius: 14, padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>{items.slice(0, 4).map((item, i) => <div key={i} style={{ overflow: 'hidden' }}><div style={{ fontSize: 34, color: i === 0 ? accentOnCard : i === 1 ? visibleColorOn('#FFFFFF', c.dark, SAFE_DARK) : visibleColorOn('#FFFFFF', c.neutral, c.dark), fontWeight: 300, ...textClamp(1) }}>{item.heading}</div><div style={{ fontSize: 15, fontWeight: 900, color: cardText, ...textClamp(2) }}>{item.body}</div></div>)}</div><div style={{ width: 260, height: 260, borderRadius: '50%', background: `conic-gradient(${accentOnCard} 0 45%, ${c.dark} 45% 80%, ${visibleColorOn('#FFFFFF', c.neutral, c.dark)} 80% 100%)`, display: 'grid', placeItems: 'center' }}><div style={{ width: 105, height: 105, borderRadius: '50%', background: '#FFFFFF', display: 'grid', placeItems: 'center', color: accentOnCard, fontWeight: 900 }}>Budget</div></div></div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: '58% 1fr', gap: 22, height: '100%', alignItems: 'center' }}><div style={{ background: '#FFFFFF', borderRadius: 14, padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>{items.slice(0, 4).map((item, i) => <div key={i} style={{ overflow: 'hidden' }}><div style={{ fontSize: 34, color: i === 0 ? accentOnCard : i === 1 ? visibleColorOn('#FFFFFF', c.dark, SAFE_DARK) : visibleColorOn('#FFFFFF', c.neutral, c.dark), fontWeight: 300, ...textClamp(1) }}>{item.heading}</div><FitClampText lines={2} style={{ fontSize: 15, fontWeight: 900, color: cardText }}>{item.body}</FitClampText></div>)}</div><div style={{ width: 260, height: 260, borderRadius: '50%', background: `conic-gradient(${accentOnCard} 0 45%, ${c.dark} 45% 80%, ${visibleColorOn('#FFFFFF', c.neutral, c.dark)} 80% 100%)`, display: 'grid', placeItems: 'center' }}><div style={{ width: 105, height: 105, borderRadius: '50%', background: '#FFFFFF', display: 'grid', placeItems: 'center', color: accentOnCard, fontWeight: 900 }}>Budget</div></div></div>;
 }
 
 function ProposalRisk({ items, c }) {
   const cardText = readableTextOn('#FFFFFF', c.sub);
   const cardMuted = mutedTextOn('#FFFFFF', c.muted);
-  return <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 22, height: '100%' }}><div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 12 }}>{items.map((item, i) => { const badgeFill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ background: '#FFFFFF', borderRadius: 10, padding: 20, textAlign: 'center', overflow: 'hidden' }}><div style={{ display: 'inline-block', padding: '5px 10px', borderRadius: 999, background: badgeFill, color: readableTextOn(badgeFill, SAFE_TEXT_LIGHT), fontSize: 10, fontWeight: 900 }}>RISK {i + 1}</div><div style={{ marginTop: 14, fontSize: 17, fontWeight: 900, color: cardText, ...textClamp(2) }}>{item.heading}</div><div style={{ marginTop: 10, fontSize: 12, color: cardMuted, ...textClamp(2) }}>{item.body}</div></div>; })}</div><div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 12 }}>{items.map((item, i) => { const fill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), borderRadius: 10, padding: 24, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 13, lineHeight: 1.5, ...textClamp(4) }}>해당 리스크에 대한 구체적인 대응 전략과 실행 방안을 작성</div>; })}</div></div>;
+  return <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 22, height: '100%' }}><div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 12 }}>{items.map((item, i) => { const badgeFill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ background: '#FFFFFF', borderRadius: 10, padding: 20, textAlign: 'center', overflow: 'hidden' }}><div style={{ display: 'inline-block', padding: '5px 10px', borderRadius: 999, background: badgeFill, color: readableTextOn(badgeFill, SAFE_TEXT_LIGHT), fontSize: 10, fontWeight: 900 }}>RISK {i + 1}</div><div style={{ marginTop: 14, fontSize: 17, fontWeight: 900, color: cardText, ...textClamp(2) }}>{item.heading}</div><FitClampText lines={2} style={{ marginTop: 10, fontSize: 12, color: cardMuted }}>{item.body}</FitClampText></div>; })}</div><div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 12 }}>{items.map((item, i) => { const fill = i === 2 ? c.accent : c.dark; return <div key={i} style={{ background: fill, color: readableTextOn(fill, SAFE_TEXT_LIGHT), borderRadius: 10, padding: 24, display: 'grid', placeItems: 'center', textAlign: 'center', fontSize: 13, lineHeight: 1.5, ...textClamp(4) }}>해당 리스크에 대한 구체적인 대응 전략과 실행 방안을 작성</div>; })}</div></div>;
 }
 
 function renderProposalExperience(slide, t, isDark) {
@@ -5109,7 +5176,7 @@ function renderProposalExperience(slide, t, isDark) {
         <div>
           <div style={{ color: pageText, fontSize: 54, fontWeight: 300, lineHeight: 1, ...textClamp(1) }}>{metricText || 'Impact'}</div>
           <div style={{ color: pageText, fontSize: 17, fontWeight: 900, marginTop: 8, ...textClamp(2) }}>{metric?.label || item.heading}</div>
-          <div style={{ color: pageMuted, fontSize: 12, lineHeight: 1.5, marginTop: 10, ...textClamp(4) }}>{item.body}</div>
+          <FitClampText lines={4} style={{ color: pageMuted, fontSize: 12, lineHeight: 1.5, marginTop: 10 }}>{item.body}</FitClampText>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
           {[0, 1, 2, 3].map(i => <div key={i} style={{ height: 106, borderRadius: 8, background: i === 2 ? c.accent : '#FFFFFF', opacity: i === 2 ? 1 : 0.86 }} />)}
@@ -5581,14 +5648,12 @@ function dynamicFontPx(text, baseSize, { min = 11, max = 28 } = {}) {
   return Math.round(baseSize * (1.15 - t * 0.37));
 }
 
-// 텍스트 배열의 예상 높이(px). 글자수/박스폭 기반으로 줄 수 계산.
+// 텍스트 배열의 예상 높이(px). 혼합폭(charWidthEm) 기반으로 줄 수 계산 — PPTX의 estimateBlockHeightIn과 동일 원리.
 function estimateBlockHeightPx(lines, fontSize, boxW, lineHeight = 1.5) {
-  const charW = fontSize * 0.58; // 한글/영문 평균 글자폭
-  const charsPerLine = Math.max(1, Math.floor(boxW / charW));
+  const capacityEm = Math.max(0.5, boxW / fontSize);
   let total = 0;
   for (const ln of (lines || [])) {
-    const len = String(ln || '').length;
-    const rows = Math.max(1, Math.ceil(len / charsPerLine));
+    const rows = Math.max(1, Math.ceil(textWidthEm(ln) / capacityEm));
     total += rows * fontSize * lineHeight;
   }
   return total;
@@ -5806,7 +5871,7 @@ function drawProposalCoverLegacy(s, slide, t, W, H) {
   const title = slide.title || '포트폴리오 솔루션';
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
   const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
-  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
+  s.addText('PORTFOLIO', { x: 0.9, y: 0.84, w: 2.8, h: 0.3, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: accentOnDark, charSpacing: 5 });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
   addPptText(s, subtitle, { x: 0.9, y: 1.85, w: 8.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
   s.addText(pptProposalTextParts(title, 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: fitFontSizePt(title, 7.0, 1.25, 34, 20, 1.12), bold: true });
@@ -5829,14 +5894,14 @@ function drawAcceptedPortfolioPptx(s, slide, t, i, W, H) {
 function drawProposalCover(s, slide, t, W, H) {
   const c = t.colors;
   const tags = (slide.bullets && slide.bullets.length ? slide.bullets : ['EXPERIENCE', 'IMPACT', 'SCALABILITY']).slice(0, 3).join(' · ');
-  const subtitle = slide.subtitle || '경험과 성과를 기반으로';
+  const subtitle = slide.subtitle || '경험과 성과를 기반으로 정리한 포트폴리오입니다';
   const title = slide.title || '포트폴리오';
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(c.dark) }, line: { color: hex(c.dark) } });
   const accentOnDark = pptVisibleOn(c.dark, c.accent, SAFE_TEXT_LIGHT);
-  s.addText('FITPOLY', { x: 0.9, y: 0.78, w: 2.0, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: accentOnDark });
+  s.addText('PORTFOLIO', { x: 0.9, y: 0.84, w: 2.8, h: 0.3, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: accentOnDark, charSpacing: 5 });
   s.addText(new Date().toISOString().slice(0, 10).replace(/-/g, '.'), { x: W - 2.2, y: 0.78, w: 1.4, h: 0.25, fontFace: t.fonts.body, fontSize: 8, color: 'CFCFD2', align: 'right' });
-  addPptText(s, subtitle, { x: 0.9, y: 1.85, w: 8.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 28, color: 'FFFFFF', fit: 'shrink' });
-  s.addText(pptProposalTextParts(title, 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 2.45, w: 7.0, h: 1.25, fontSize: fitFontSizePt(title, 7.0, 1.25, 34, 20, 1.12), bold: true });
+  s.addText(pptProposalTextParts(title, 'FFFFFF', accentOnDark, { fontFace: t.fonts.heading }), { x: 0.9, y: 1.9, w: 8.0, h: 1.55, fontSize: fitFontSizePt(title, 8.0, 1.55, 36, 22, 1.15), bold: true, valign: 'top' });
+  addPptText(s, subtitle, { x: 0.9, y: 3.62, w: 7.6, h: 0.85, fontFace: t.fonts.body, fontSize: 13, color: 'E6E6EA', fitLineHeight: 1.45 });
   drawProposalDots(s, accentOnDark, W);
   s.addText(tags, { x: 0.9, y: H - 0.92, w: 6.5, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: 'FFFFFF' });
 }
@@ -6545,20 +6610,21 @@ function drawStarCoverPptx(s, slide, t, v, W, H) {
     s.addShape('ellipse', { x: 0.62 + idx * 0.66, y: 4.0, w: 0.46, h: 0.46, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
     addPptText(s, lbl, { x: 0.62 + idx * 0.66, y: 4.08, w: 0.46, h: 0.2, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark), align: 'center' });
   });
-  const items = slide.items || [];
+  // 우측 S/T/A/R 카드는 디자인 요소 — 내용 텍스트 없이 레터·라벨만 크게 보여준다(미리보기와 동일).
   const fills = [v.dark, v.card, v.card, v.accent];
   const fgColors = ['FFFFFF', hex(v.ink), hex(v.ink), hex(v.dark)];
-  items.slice(0, 4).forEach((item, idx) => {
+  [0, 1, 2, 3].forEach(idx => {
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 6.35 + col * 3.55;
     const y = 0.62 + row * 3.25;
     s.addShape('roundRect', { x, y, w: 3.25, h: 2.9, fill: { color: hex(fills[idx]) }, line: { color: idx === 1 || idx === 2 ? hex(v.soft) : hex(fills[idx]) }, rectRadius: 0.2 });
-    s.addShape('ellipse', { x: x + 0.28, y: y + 0.28, w: 0.48, h: 0.48, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
-    addPptText(s, ['S', 'T', 'A', 'R'][idx], { x: x + 0.28, y: y + 0.33, w: 0.48, h: 0.2, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
-    addPptText(s, ['Situation', 'Task', 'Action', 'Result'][idx], { x: x + 0.95, y: y + 0.35, w: 1.8, h: 0.18, fontFace: t.fonts.body, fontSize: 7, bold: true, color: fgColors[idx], transparency: 40 });
-    addPptText(s, item.heading || '', { x: x + 0.28, y: y + 1.1, w: 2.65, h: 0.45, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: fgColors[idx] });
-    addPptText(s, item.body || '', { x: x + 0.28, y: y + 1.6, w: 2.65, h: 0.88, fontFace: t.fonts.body, fontSize: 8.5, color: fgColors[idx], transparency: 18 });
+    const circleD = 0.95;
+    const cx = x + (3.25 - circleD) / 2;
+    const cy = y + 0.72;
+    s.addShape('ellipse', { x: cx, y: cy, w: circleD, h: circleD, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
+    addPptText(s, ['S', 'T', 'A', 'R'][idx], { x: cx, y: cy + 0.24, w: circleD, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
+    addPptText(s, ['Situation', 'Task', 'Action', 'Result'][idx], { x, y: y + 1.95, w: 3.25, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: fgColors[idx], transparency: 40, align: 'center', charSpacing: 2 });
   });
 }
 
@@ -6623,9 +6689,11 @@ function drawStarSituationPptx(s, slide, t, v, W, H) {
       const mH = (H - 3.1) / 2 - 0.08;
       const my = 2.55 + idx * (mH + 0.08);
       const mx = W - 2.55;
+      const big = metricDisplayValue(m, m.label || '성과');
+      const small = big === (m.label || '성과') ? (m.body || m.value || '') : (m.label || m.body || '');
       s.addShape('roundRect', { x: mx, y: my, w: 2.16, h: mH, fill: { color: idx === 0 ? hex(v.accent) : hex(v.card) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, rectRadius: 0.16 });
-      addPptText(s, m.value || '', { x: mx + 0.18, y: my + 0.22, w: 1.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.dark) });
-      addPptText(s, m.label || '', { x: mx + 0.18, y: my + 0.82, w: 1.8, h: 0.28, fontFace: t.fonts.body, fontSize: 9, bold: true, color: idx === 0 ? hex(v.dark) : hex(v.muted) });
+      addPptText(s, big, { x: mx + 0.18, y: my + 0.22, w: 1.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.dark) });
+      if (small) addPptText(s, small, { x: mx + 0.18, y: my + 0.82, w: 1.8, h: 0.28, fontFace: t.fonts.body, fontSize: 9, bold: true, color: idx === 0 ? hex(v.dark) : hex(v.muted) });
     });
   }
 }
@@ -6667,14 +6735,22 @@ function drawStarResultPptx(s, slide, t, v, W, H) {
   addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
   const metrics = (slide.metrics || []).slice(0, 3);
   const hasBody = !!slide.body;
+  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 히어로 카드로 (미리보기와 동일).
+  if (!metrics.length) {
+    s.addShape('roundRect', { x: 0.62, y: 2.35, w: W - 1.24, h: H - 2.88, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.2 });
+    addPptText(s, 'RESULT', { x: 0.95, y: 2.72, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.dark), transparency: 35, charSpacing: 2 });
+    addPptText(s, slide.body || slide.subtitle || '', { x: 0.95, y: 3.1, w: W - 1.9, h: H - 3.75, fontFace: t.fonts.body, fontSize: 16, bold: true, color: hex(v.dark), fitLineHeight: 1.45 });
+    return;
+  }
   const metricH = hasBody ? H - 4.28 : H - 2.78;
-  const mCards = metrics.length ? metrics : [{ label: '성과', value: '달성' }];
-  const cW = (W - 1.54) / Math.min(3, mCards.length);
-  mCards.slice(0, 3).forEach((m, idx) => {
+  const cW = (W - 1.54) / Math.min(3, metrics.length);
+  metrics.slice(0, 3).forEach((m, idx) => {
     const x = 0.62 + idx * (cW + 0.05);
+    const big = metricDisplayValue(m, m.label || '성과');
+    const small = big === (m.label || '성과') ? '' : (m.label || '');
     s.addShape('roundRect', { x, y: 2.35, w: cW - 0.05, h: metricH, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.18 });
-    addPptText(s, m.value || '', { x: x + 0.26, y: 2.7, w: cW - 0.57, h: 0.72, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
-    addPptText(s, m.label || '', { x: x + 0.26, y: 3.5, w: cW - 0.57, h: 0.28, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.dark) });
+    addPptText(s, big, { x: x + 0.26, y: 2.7, w: cW - 0.57, h: 0.72, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
+    if (small) addPptText(s, small, { x: x + 0.26, y: 3.5, w: cW - 0.57, h: 0.28, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.dark) });
     if (m.body) addPptText(s, m.body, { x: x + 0.26, y: 3.85, w: cW - 0.57, h: metricH - 1.62, fontFace: t.fonts.body, fontSize: 9, color: hex(v.dark), transparency: 40 });
   });
   if (hasBody) {
@@ -9016,9 +9092,11 @@ function drawProposalMetricsPptx(s, metrics, t, x, y, w, h, isDark) {
     const cx = x + (i % 2) * (cardW + 0.25);
     const cy = y + Math.floor(i / 2) * (cardH + 0.25);
     const fill = i === 0 ? c.accent : isDark ? c.dark2 : '#FFFFFF';
+    const big = metricDisplayValue(metric, metric.label || '성과');
+    const small = big === (metric.label || '성과') ? (metric.body || metric.value || '') : (metric.label || '');
     s.addShape('roundRect', { x: cx, y: cy, w: cardW, h: cardH, fill: { color: hex(fill) }, line: { color: hex(fill) }, rectRadius: 0.1 });
-    addPptText(s, metric.value || '', { x: cx + 0.25, y: cy + 0.35, w: cardW - 0.5, h: 0.6, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: i === 0 || isDark ? pptTextOn(fill, SAFE_TEXT_LIGHT) : pptVisibleOn(fill, c.accent, c.dark), fit: 'shrink' });
-    addPptText(s, metric.label || '', { x: cx + 0.25, y: cy + 1.0, w: cardW - 0.5, h: 0.4, fontFace: t.fonts.body, fontSize: 11, bold: true, color: i === 0 || isDark ? pptTextOn(fill, SAFE_TEXT_LIGHT) : pptTextOn(fill, c.sub), fit: 'shrink' });
+    addPptText(s, big, { x: cx + 0.25, y: cy + 0.35, w: cardW - 0.5, h: 0.6, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: i === 0 || isDark ? pptTextOn(fill, SAFE_TEXT_LIGHT) : pptVisibleOn(fill, c.accent, c.dark), fit: 'shrink' });
+    if (small) addPptText(s, small, { x: cx + 0.25, y: cy + 1.0, w: cardW - 0.5, h: 0.4, fontFace: t.fonts.body, fontSize: 11, bold: true, color: i === 0 || isDark ? pptTextOn(fill, SAFE_TEXT_LIGHT) : pptTextOn(fill, c.sub), fit: 'shrink' });
   });
 }
 
@@ -9327,12 +9405,14 @@ function safePptText(value) {
 }
 
 export function prepareDeckForExport(deck = {}) {
+  // 내용 보존 우선: 강하게 자르지 않고 완결 문장 위주로 다듬는다.
+  // 박스 맞춤은 addPptText의 fitFontSizePt(폰트 축소)가 담당하므로 여기서 과도하게 줄이면 내용만 유실된다.
   const compact = (value, max) => compactPortfolioText(value, max);
-  const compactBody = (value, max = 64, addBullet = false) => cleanPortfolioTextKeepLines(value)
+  const compactBody = (value, max = 104, addBullet = false) => cleanPortfolioTextKeepLines(value)
     .split('\n')
     .map(line => line.replace(/^[•\-]\s*/, '').trim())
     .filter(Boolean)
-    .slice(0, 2)
+    .slice(0, 3)
     .map(line => `${addBullet ? '• ' : ''}${compact(line, max)}`)
     .join('\n');
   const slides = (deck.slides || []).map((slide, index) => {
@@ -9343,16 +9423,16 @@ export function prepareDeckForExport(deck = {}) {
       ...slide,
       id: slide.id || `s${index + 1}`,
       sectionLabel: clean(slide.sectionLabel, 28),
-      title: clean(slide.title, 68),
-      subtitle: clean(slide.subtitle, 84),
-      bullets: (slide.bullets || []).map(bullet => clean(bullet, 58)).filter(Boolean).slice(0, 5),
+      title: clean(slide.title, 80),
+      subtitle: clean(slide.subtitle, 110),
+      bullets: (slide.bullets || []).map(bullet => clean(bullet, 80)).filter(Boolean).slice(0, 5),
       items: (slide.items || []).map(item => ({
         ...item,
-        heading: clean(item.heading, 38),
-        role: clean(item.role, 34),
+        heading: clean(item.heading, 46),
+        role: clean(item.role, 42),
         period: clean(item.period, 24),
-        body: cleanBody(item.body, 64),
-        bullets: (item.bullets || []).map(bullet => clean(bullet, 56)).filter(Boolean).slice(0, 3),
+        body: cleanBody(item.body, 104),
+        bullets: (item.bullets || []).map(bullet => clean(bullet, 80)).filter(Boolean).slice(0, 4),
       })).filter(item => item.heading || item.body || item.role || item.period),
     };
   });
@@ -9366,11 +9446,11 @@ export function analyzeDeckQuality(deck = {}) {
     const items = slide.items || [];
     items.forEach((item, itemIndex) => {
       const body = cleanPortfolioTextKeepLines(item.body);
-      if (body.length > 132 || body.split('\n').length > 3) {
+      if (body.length > 210 || body.split('\n').length > 4) {
         warnings.push({ slide: number, type: 'density', message: `${itemIndex + 1}번 카드 본문이 길어 자동 압축이 필요합니다.` });
       }
     });
-    if (String(slide.subtitle || '').length > 100) {
+    if (String(slide.subtitle || '').length > 130) {
       warnings.push({ slide: number, type: 'density', message: '부제목이 길어 자동 압축이 필요합니다.' });
     }
     const imageUrls = [slide.imageUrl, ...items.map(item => item.imageUrl)].filter(Boolean);
@@ -9556,10 +9636,13 @@ function clampPptTextBox(options = {}) {
 function compactPptBodyToBox(value, wIn, hIn, fontSize, lineHeight = 1.22) {
   const text = safePptText(value);
   if (!text || !Number.isFinite(wIn) || !Number.isFinite(hIn) || !Number.isFinite(fontSize)) return text;
-  const charsPerLine = Math.max(1, Math.floor(wIn / (fontSize / 72)));
+  const capacityEmPerLine = Math.max(0.5, wIn / (fontSize / 72));
   const maxLines = Math.max(1, Math.floor(hIn / ((fontSize * lineHeight) / 72)));
-  const capacity = Math.max(12, charsPerLine * maxLines);
-  return text.length > capacity ? compactPortfolioText(text, capacity) : text;
+  const totalCapacityEm = capacityEmPerLine * maxLines;
+  const widthEm = textWidthEm(text);
+  if (widthEm <= totalCapacityEm) return text;
+  const allowedChars = Math.max(12, Math.floor(text.length * (totalCapacityEm / widthEm)));
+  return compactPortfolioText(text, allowedChars);
 }
 
 function addPptText(s, value, options = {}) {
@@ -9602,10 +9685,14 @@ function addPptText(s, value, options = {}) {
     && Number.isFinite(Number(boundedTextOptions.w))
     && Number.isFinite(Number(boundedTextOptions.h));
   if (canPreFit) {
+    // minFontSize 미지정 시 floor를 base와 같게 두면 fitFontSizePt가 한 번도 줄이지 못해
+    // 넘치는 텍스트가 박스 밖으로 잘려 나간다("글 짤림"). 기본 floor를 base의 60%까지 허용.
     const floor = Number.isFinite(Number(minFontSize))
       ? Number(minFontSize)
-      : baseFontSize;
+      : Math.max(7, Math.floor(baseFontSize * 0.6 * 2) / 2);
     opts.fontSize = fitFontSizePt(text, Number(boundedTextOptions.w), Number(boundedTextOptions.h), baseFontSize, floor, fitLineHeight);
+    // floor까지 내려도 안 들어가면 뷰어 autofit을 보조로 켜 PowerPoint에서라도 더 줄여준다.
+    if (opts.fontSize <= floor) opts.fit = 'shrink';
   } else if (requestedFit !== null && requestedFit !== undefined) {
     opts.fit = requestedFit;
   }
@@ -9636,7 +9723,8 @@ function hex(s) {
 // Why: pptxgenjs의 fit:'shrink'(<a:normAutofit/>)는 폰트 배율을 "뷰어가" 계산한다.
 // LibreOffice 등 PDF 변환기는 이를 무시하고 원본 크기로 그려 박스를 넘는 줄을 잘라버린다
 // ("글이 나오다가 마는" 현상). autofit에 의존하지 말고 실제 크기를 XML에 박아 어떤 변환기에서도 안 잘리게 한다.
-// 한글은 글자폭 ≈ fontSize(전각)로 보수적으로 계산(영문은 더 좁아 실제론 더 잘 들어감).
+// 글자폭은 charWidthEm 혼합폭(한글 전각 / 영문·숫자 반각)으로 계산해
+// 영문 섞인 텍스트가 과도하게 축소되는 것을 막고 미리보기(fitFontPx)와 일치시킨다.
 function fitFontSizePt(text, wIn, hIn, base = 10, min = 6, lineHeight = 1.22) {
   const rows = String(text || '')
     .replace(/\r\n?/g, '\n')
@@ -9644,10 +9732,10 @@ function fitFontSizePt(text, wIn, hIn, base = 10, min = 6, lineHeight = 1.22) {
     .map(line => line.replace(/[ \t]+/g, ' ').trim());
   const str = rows.join('\n').trim();
   if (!str) return base;
+  const rowEms = rows.map(textWidthEm);
   for (let size = base; size >= min; size -= 0.5) {
-    const charWIn = size / 72;                                   // 전각 1글자 폭
-    const charsPerLine = Math.max(1, Math.floor(wIn / charWIn));
-    const lines = rows.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+    const capacityEm = Math.max(0.5, (wIn * 0.97) / (size / 72)); // 한 줄에 들어가는 전각 환산 폭 (줄바꿈 손실 3% 여유)
+    const lines = rowEms.reduce((total, em) => total + Math.max(1, Math.ceil(em / capacityEm)), 0);
     const neededH = (lines * size * lineHeight) / 72;
     if (neededH <= hIn) return size;
   }
@@ -9666,12 +9754,12 @@ function dynamicFontPt(text, baseSize, { min = 10, max = 24 } = {}) {
 
 // 텍스트 라인 묶음의 예상 높이(inch) — Auto-Y 스택용
 function estimateBlockHeightIn(lines, fontSizePt, boxWIn, lineHeight = 1.4) {
-  // 1pt ≈ 1/72 in. 글자폭 ≈ fontSize * 0.0058 in (한글/영문 평균)
-  const charWIn = fontSizePt * 0.0058;
-  const charsPerLine = Math.max(1, Math.floor(boxWIn / charWIn));
+  // 평균폭 가정(0.42em)은 한글 본문의 줄 수를 과소평가해 아래 블록과 겹치게 만든다.
+  // charWidthEm 혼합폭으로 실제 줄 수에 가깝게 추정한다.
+  const capacityEm = Math.max(0.5, boxWIn / (fontSizePt / 72));
   let totalRows = 0;
   for (const ln of (lines || [])) {
-    totalRows += Math.max(1, Math.ceil(String(ln || '').length / charsPerLine));
+    totalRows += Math.max(1, Math.ceil(textWidthEm(ln) / capacityEm));
   }
   return (totalRows * fontSizePt * lineHeight) / 72;
 }
