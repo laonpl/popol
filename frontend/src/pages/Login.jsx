@@ -84,7 +84,8 @@ export default function Login() {
     try {
       await signInWithKakao();
     } catch (err) {
-      toast.error('카카오 로그인에 실패했습니다');
+      console.error('카카오 로그인 실패:', err.code, err.message, err);
+      toast.error(`카카오 로그인 실패: ${err.code || err.message || '알 수 없는 오류'}`);
       setLoading(false);
     }
   };
