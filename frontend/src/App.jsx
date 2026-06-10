@@ -1,5 +1,12 @@
 import { useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  RouterProvider,
+  Route,
+  Navigate,
+  Outlet,
+} from 'react-router-dom';
 import useAuthStore from './stores/authStore';
 import Layout from './components/Layout';
 import { Loader2 } from 'lucide-react';
@@ -51,7 +58,8 @@ function ProfileGuard({ children }) {
   return children;
 }
 
-export default function App() {
+// 루트 레이아웃: 인증 구독 초기화 + Suspense. 데이터 라우터의 최상위 element.
+function RootLayout() {
   const init = useAuthStore(s => s.init);
 
   // onAuthStateChanged 구독 해제 — 언마운트 시 메모리 누수 방지
@@ -62,36 +70,47 @@ export default function App() {
 
   return (
     <Suspense fallback={<PageLoader />}>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/p/:id" element={<PublicPortfolioView />} />
-        <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
-        <Route path="/admin" element={<AdminCredits />} />
-        <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
-        <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
-          <Route index element={<Navigate to="/app/experience" replace />} />
-          {/* 경험정리 */}
-          <Route path="experience" element={<ExperienceHub />} />
-          <Route path="experience/new" element={<TemplateSelect />} />
-          <Route path="experience/interview" element={<ExperienceInterview />} />
-          <Route path="experience/result/:id" element={<ExperienceResult />} />
-          <Route path="experience/edit/:id" element={<ExperienceEditor />} />
-          <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
-          <Route path="experience/analysis/:id" element={<AnalysisResult />} />
-          <Route path="experience/structured/:id" element={<StructuredResult />} />
-          {/* 포트폴리오 */}
-          <Route path="portfolio" element={<PortfolioHub />} />
-          <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
-          <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
-          <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
-          <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-          <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
-          <Route path="settings/credits" element={<CreditSettings />} />
-        </Route>
-      </Routes>
+      <Outlet />
     </Suspense>
   );
+}
+
+// 데이터 라우터 — useBlocker(이탈 방지)가 동작하려면 createBrowserRouter가 필요하다.
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<RootLayout />}>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/p/:id" element={<PublicPortfolioView />} />
+      <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
+      <Route path="/admin" element={<AdminCredits />} />
+      <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
+      <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
+        <Route index element={<Navigate to="/app/experience" replace />} />
+        {/* 경험정리 */}
+        <Route path="experience" element={<ExperienceHub />} />
+        <Route path="experience/new" element={<TemplateSelect />} />
+        <Route path="experience/interview" element={<ExperienceInterview />} />
+        <Route path="experience/result/:id" element={<ExperienceResult />} />
+        <Route path="experience/edit/:id" element={<ExperienceEditor />} />
+        <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
+        <Route path="experience/analysis/:id" element={<AnalysisResult />} />
+        <Route path="experience/structured/:id" element={<StructuredResult />} />
+        {/* 포트폴리오 */}
+        <Route path="portfolio" element={<PortfolioHub />} />
+        <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
+        <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
+        <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
+        <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
+        <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
+        <Route path="settings/credits" element={<CreditSettings />} />
+      </Route>
+    </Route>
+  )
+);
+
+export default function App() {
+  return <RouterProvider router={router} />;
 }

@@ -13,6 +13,7 @@ import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
 import { analyzeJobUrl } from '../../services/jobAI';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
+import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -1232,15 +1233,16 @@ export default function StructuredResult() {
   const [exportOverKey, setExportOverKey] = useState(null);
   const hasUnsavedChanges = dirty;
 
+  // 편집 중 이탈 방지 (앱 내부 이동 + 브라우저 탭 닫기/새로고침)
+  useUnsavedChanges(hasUnsavedChanges);
+
   const markDirty = () => {
     if (!viewOnly && !navState?.isTutorialDemo) setDirty(true);
   };
-  const confirmDiscardChanges = () => (
-    !hasUnsavedChanges || window.confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 이동할까요?')
-  );
-  const handleGuardedLinkClick = (event) => {
-    if (!confirmDiscardChanges()) event.preventDefault();
-  };
+  // 이탈 방지는 useUnsavedChanges(useBlocker)가 앱 전역에서 일괄 처리한다.
+  // 아래 개별 가드는 이중 확인창을 막기 위해 no-op으로 둔다(기존 호출부 호환).
+  const confirmDiscardChanges = () => true;
+  const handleGuardedLinkClick = () => {};
   const handleKeyExperiencesChange = (next) => {
     markDirty();
     setEditedKeyExperiences(next);
@@ -2048,16 +2050,6 @@ export default function StructuredResult() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleSave, hasUnsavedChanges, navState?.isTutorialDemo, saving, viewOnly]);
-
-  useEffect(() => {
-    if (!hasUnsavedChanges) return undefined;
-    const warn = (e) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [hasUnsavedChanges]);
 
   const filledCount = SECTION_KEYS.filter(k => { const v = editedContent[k]?.trim(); return v && !v.startsWith('[작성 필요]'); }).length;
   const emptyCount = SECTION_KEYS.length - filledCount;

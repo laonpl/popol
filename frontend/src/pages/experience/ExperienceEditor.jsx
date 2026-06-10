@@ -6,6 +6,7 @@ import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import toast from 'react-hot-toast';
+import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 
 export default function ExperienceEditor() {
   const { id, framework: paramFramework } = useParams();
@@ -34,6 +35,14 @@ export default function ExperienceEditor() {
 
   const fw = FRAMEWORKS[framework];
 
+  // 저장 시점의 상태 스냅샷 — 변경 여부(dirty) 판단 기준선
+  const editableSnapshot = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+  const savedSnapshotRef = useRef(isNew ? editableSnapshot : null);
+  const isDirty = savedSnapshotRef.current !== null && editableSnapshot !== savedSnapshotRef.current;
+
+  // 편집 중 이탈 방지 (저장/분석 중에는 화면 전환을 허용해야 하므로 제외)
+  useUnsavedChanges(isDirty && !saving && !analyzing);
+
   // Load existing experience
   useEffect(() => {
     if (!isNew && id) {
@@ -52,6 +61,15 @@ export default function ExperienceEditor() {
         setContent(data.content || {});
         setImages(data.images || []);
         setImageSizes(data.imageSizes || {});
+        // 불러온 상태를 기준선으로 — 이후 변경분만 dirty로 감지
+        savedSnapshotRef.current = JSON.stringify({
+          title: data.title || '',
+          framework: data.framework || 'STAR',
+          jobCategory: data.jobCategory || 'common',
+          content: data.content || {},
+          images: data.images || [],
+          imageSizes: data.imageSizes || {},
+        });
       }
     } catch (error) {
       toast.error('경험 데이터를 불러오지 못했습니다');
@@ -70,6 +88,8 @@ export default function ExperienceEditor() {
     }
     setSaving(true);
     try {
+      // 저장 성공 시 현재 상태를 기준선으로 갱신 → dirty 해제
+      savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
       if (isNew && !currentId) {
         const newId = await createExperience(user.uid, { title, framework, jobCategory, content, images, imageSizes });
         setCurrentId(newId);
