@@ -255,13 +255,6 @@ export const SLIDE_LAYOUTS = [
     available: true,
   },
   {
-    id: 'star',
-    name: 'STAT/STAR형',
-    description: 'Situation · Task · Action · Takeaway/Result를 경험별로 쪼개 면접 질문까지 연결하는 검증형',
-    tag: '면접 증거',
-    available: true,
-  },
-  {
     id: 'kpi-dashboard',
     name: 'KPI 대시보드',
     description: '핵심 지표 · Before/After · 프로젝트별 KPI · 성과 리스크까지 숫자로 읽히는 성과형',
@@ -287,6 +280,13 @@ export const SLIDE_LAYOUTS = [
     name: '제안서형',
     description: '표지 · 목차 · 제안 배경 · 소개 · 서비스 방안 · 계획 및 조건을 제안서 흐름으로 구성',
     tag: '실무 제안',
+    available: true,
+  },
+  {
+    id: 'star',
+    name: 'STAT/STAR형',
+    description: '케이스 파일 구조로 Situation → Task → Action → Result 진행 단계를 따라가며 경험을 증거로 검증하는 도시에형',
+    tag: '면접 증거',
     available: true,
   },
 ];
@@ -694,7 +694,7 @@ function acceptedVisual(t) {
   const c = t.colors || {};
   const map = {
     narrative: { bg: '#FFFFFF', ink: '#0F172A', muted: '#64748B', accent: '#2563EB', soft: '#E2E8F0', dark: '#0F172A', card: '#F8FAFC', font: 'Pretendard' },
-    star: { bg: '#EEEEE6', ink: '#1A1A1A', muted: '#4A7878', accent: '#B4F03B', soft: '#DEDDD5', dark: '#1A1A1A', card: '#FFFFFF', font: 'Pretendard' },
+    star: { bg: '#F6F4EE', ink: '#16140E', muted: '#6E6A5E', accent: '#E8501D', soft: '#E4E0D4', dark: '#16140E', card: '#FFFFFF', font: 'Pretendard' },
     'kpi-dashboard': { bg: '#07111F', ink: '#F8FAFC', muted: '#94A3B8', accent: '#38BDF8', soft: '#0F1E33', dark: '#020617', card: '#102037', font: 'Pretendard' },
     timeline: { bg: '#FFFFFF', ink: '#071225', muted: '#60708A', accent: '#2563EB', soft: '#E3E9F4', dark: '#111827', card: '#F7FAFF', font: 'Pretendard' },
     'case-study': { bg: '#F2EDE4', ink: '#2C2420', muted: '#8B7355', accent: '#C4964A', soft: '#E8E2D5', dark: '#6B7B6E', card: '#EDE7DC', font: 'Noto Serif KR' },
@@ -1285,18 +1285,15 @@ function renderNarrativeHybrid(slide, t, v, index, label) {
 function renderStarHybrid(slide, t, v, index, label) {
   const d = acceptedHybridData(slide, t, v, index, label);
   const body = renderProposalBody({ ...d.hybridSlide, dark: false }, t, false);
-  const letters = ['S', 'T', 'A', 'R'];
+  const activeLetter = ['S', 'T', 'A', 'R'][d.shell % 4];
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: v.bg, color: v.ink, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', inset: 32, border: `3px solid ${v.dark}`, borderRadius: d.shell % 2 ? 0 : 28 }} />
-      <div style={{ position: 'absolute', left: 56, top: 48, display: 'flex', gap: 8 }}>
-        {letters.map((letter, i) => <div key={letter} style={{ width: 40, height: 40, borderRadius: i === d.shell % 4 ? '50%' : 8, background: i === d.shell % 4 ? v.accent : v.dark, color: i === d.shell % 4 ? v.dark : '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 21, fontWeight: 950 }}>{letter}</div>)}
+      {renderStarRail(t, v, activeLetter, slide.sectionLabel || label)}
+      <div style={{ position: 'absolute', left: 132, top: 40, right: 44 }}>
+        <div style={{ color: v.accent, fontSize: 10, letterSpacing: '0.22em', fontWeight: 950, textTransform: 'uppercase' }}>{slide.sectionLabel || label} / {String(index + 1).padStart(2, '0')}</div>
+        <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 30, lineHeight: 1.08, letterSpacing: '-0.035em', fontWeight: 950, ...textClamp(2) }}>{d.title}</div>
       </div>
-      <div style={{ position: 'absolute', left: 56, top: 106, right: 56 }}>
-        <div style={{ color: v.accent, fontSize: 12, letterSpacing: '0.2em', fontWeight: 950 }}>EVIDENCE SCORECARD / {String(index + 1).padStart(2, '0')}</div>
-        <div style={{ marginTop: 12, fontFamily: t.fonts.heading, fontSize: 31, lineHeight: 1.08, letterSpacing: '-0.04em', fontWeight: 950, ...textClamp(2) }}>{d.title}</div>
-      </div>
-      <div style={{ position: 'absolute', left: 56, right: 56, top: 210, bottom: 54, borderRadius: 22, background: v.card, padding: 18, boxShadow: '0 18px 48px rgba(0,0,0,0.10)', overflow: 'hidden' }}>{body}</div>
+      <div style={{ position: 'absolute', left: 132, right: 44, top: 158, bottom: 44, background: v.card, border: `1px solid ${v.soft}`, padding: 18, overflow: 'hidden' }}>{body}</div>
     </div>
   );
 }
@@ -2215,39 +2212,111 @@ function renderNarrativeSlide(slide, t, v, index) {
   );
 }
 
-function renderStarPhaseBadge(v, phase, label) {
+// ── STAR "Evidence Dossier" 디자인 시스템 ──────────────────────────────
+// 모든 케이스 슬라이드 왼쪽에 S→T→A→R 진행 레일을 깔아 덱 전체에 파일철 정체성을 만든다.
+const STAR_PHASES = [
+  { letter: 'S', en: 'SITUATION', ko: '상황' },
+  { letter: 'T', en: 'TASK', ko: '과제' },
+  { letter: 'A', en: 'ACTION', ko: '행동' },
+  { letter: 'R', en: 'RESULT', ko: '결과' },
+];
+
+// starPhase 'I'(Idea)는 Situation 블록의 연장, 'QA'는 Result 뒤 검증 단계로 매핑.
+function starActiveLetter(phase) {
+  if (phase === 'I') return 'S';
+  if (phase === 'QA') return 'R';
+  return ['S', 'T', 'A', 'R'].includes(phase) ? phase : null;
+}
+
+function renderStarRail(t, v, phase, label) {
+  const accentInk = readableTextOn(v.accent);
+  const active = starActiveLetter(phase);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ background: v.accent, color: v.dark, fontSize: 10, fontWeight: 950, padding: '4px 14px', borderRadius: 999 }}>{label}</div>
-      <div style={{ width: 30, height: 30, borderRadius: '50%', background: v.dark, display: 'grid', placeItems: 'center', color: v.accent, fontSize: 13, fontWeight: 950 }}>{phase}</div>
+    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 88, background: v.dark, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '26px 0' }}>
+      <div style={{ writingMode: 'vertical-rl', fontSize: 9, fontWeight: 900, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.5)', maxHeight: 170, overflow: 'hidden', whiteSpace: 'nowrap' }}>{cleanPortfolioText(label || 'STAR FILE').toUpperCase()}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {STAR_PHASES.map(p => (
+          <div key={p.letter} style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', borderRadius: 8, background: p.letter === active ? v.accent : 'transparent', border: p.letter === active ? 'none' : '1px solid rgba(255,255,255,0.2)', color: p.letter === active ? accentInk : 'rgba(255,255,255,0.45)', fontSize: 19, fontWeight: 950, fontFamily: t.fonts.heading }}>{p.letter}</div>
+        ))}
+      </div>
+      <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', color: 'rgba(255,255,255,0.4)' }}>{phase || '—'}</div>
+    </div>
+  );
+}
+
+// 레일 우측 컨텐츠 공통 헤더: 케이스 라벨(액센트) + 타이틀 + 보조설명
+function renderStarHeader(slide, t, v, fallbackKicker) {
+  return (
+    <div style={{ position: 'absolute', left: 132, top: 38, right: 44 }}>
+      <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent, textTransform: 'uppercase' }}>{slide.sectionLabel || fallbackKicker}</div>
+      <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', lineHeight: 1.08, ...textClamp(2) }}>{slide.title}</div>
+      {slide.subtitle && <div style={{ marginTop: 7, fontSize: 12.5, color: v.muted, ...textClamp(1) }}>{slide.subtitle}</div>}
     </div>
   );
 }
 
 function renderStarCover(slide, t, v) {
-  // 우측 S/T/A/R 카드는 디자인 요소 — 내용 텍스트 없이 레터·라벨만 크게 보여준다.
-  const fills = [v.dark, v.card, v.card, v.accent];
-  const borders = ['none', `1px solid ${v.soft}`, `1px solid ${v.soft}`, 'none'];
-  const fgs = ['#FFFFFF', v.ink, v.ink, v.dark];
+  const accentInk = readableTextOn(v.accent);
+  const items = (slide.items || []).slice(0, 4);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: v.dark, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 10, background: v.accent }} />
+      <div style={{ position: 'absolute', left: 56, top: 58 }}>
+        <div style={{ display: 'inline-block', border: `1px solid ${v.accent}`, color: v.accent, fontSize: 10, fontWeight: 950, letterSpacing: '0.26em', padding: '7px 16px' }}>EVIDENCE FILE · STAR METHOD</div>
+      </div>
+      <div style={{ position: 'absolute', left: 56, top: 130, width: 430 }}>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 56, fontWeight: 950, lineHeight: 1.04, letterSpacing: '-0.045em', color: '#FFFFFF', ...textClamp(3) }}>{slide.title}</div>
+        {slide.subtitle && <FitClampText lines={3} style={{ marginTop: 18, fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.6 }}>{slide.subtitle}</FitClampText>}
+      </div>
+      <div style={{ position: 'absolute', left: 56, bottom: 44, right: 560 }}>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.2)' }} />
+        <div style={{ marginTop: 14, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.5)' }}>SITUATION → TASK → ACTION → RESULT</div>
+      </div>
+      <div style={{ position: 'absolute', right: 56, top: 58, bottom: 44, width: 400, display: 'flex', flexDirection: 'column' }}>
+        {STAR_PHASES.map((p, i) => {
+          const line = items[i] || {};
+          return (
+            <div key={p.letter} style={{ flex: 1, borderTop: '1px solid rgba(255,255,255,0.16)', display: 'grid', gridTemplateColumns: '76px 1fr', gap: 16, alignItems: 'center', minHeight: 0 }}>
+              <div style={{ width: 58, height: 58, display: 'grid', placeItems: 'center', background: i === 3 ? v.accent : 'transparent', border: i === 3 ? 'none' : '1px solid rgba(255,255,255,0.28)', color: i === 3 ? accentInk : '#FFFFFF', fontFamily: t.fonts.heading, fontSize: 27, fontWeight: 950 }}>{p.letter}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 950, letterSpacing: '0.18em', color: i === 3 ? v.accent : 'rgba(255,255,255,0.85)' }}>{p.en}</div>
+                <FitClampText lines={2} style={{ marginTop: 4, fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>{line.body || ''}</FitClampText>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 새 슬라이드 — STAR 읽는 법 안내 (덱 도입부)
+function renderStarMethod(slide, t, v) {
+  const accentInk = readableTextOn(v.accent);
+  const items = (slide.items || []).slice(0, 4);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 34, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>STAT / STAR</div>
-      <div style={{ position: 'absolute', left: 44, top: 72, width: 356 }}>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 52, fontWeight: 950, lineHeight: 1.02, letterSpacing: '-0.04em', color: v.dark, ...textClamp(2) }}>{slide.title}</div>
-        {slide.subtitle && <FitClampText lines={3} style={{ marginTop: 14, fontSize: 13, color: v.muted, lineHeight: 1.55 }}>{slide.subtitle}</FitClampText>}
-        <div style={{ marginTop: 26, display: 'flex', gap: 8 }}>
-          {['S', 'T', 'A', 'R'].map(l => (
-            <div key={l} style={{ width: 36, height: 36, borderRadius: '50%', background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 950 }}>{l}</div>
-          ))}
-        </div>
+      <div style={{ position: 'absolute', left: 56, top: 40, right: 56 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent }}>{(slide.sectionLabel || 'HOW TO READ').toUpperCase()}</div>
+        <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', ...textClamp(1) }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 7, fontSize: 12.5, color: v.muted, ...textClamp(1) }}>{slide.subtitle}</div>}
       </div>
-      <div style={{ position: 'absolute', right: 40, top: 54, bottom: 38, width: 484, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} style={{ borderRadius: 22, background: fills[i], color: fgs[i], border: borders[i], display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, overflow: 'hidden' }}>
-            <div style={{ width: 68, height: 68, borderRadius: '50%', background: i === 3 ? v.dark : v.accent, display: 'grid', placeItems: 'center', fontSize: 30, fontWeight: 950, color: i === 3 ? v.accent : v.dark }}>{['S', 'T', 'A', 'R'][i]}</div>
-            <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.18em', opacity: 0.55, textTransform: 'uppercase' }}>{['Situation', 'Task', 'Action', 'Result'][i]}</div>
-          </div>
-        ))}
+      <div style={{ position: 'absolute', left: 56, right: 56, top: 175, bottom: 44, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {STAR_PHASES.map((p, i) => {
+          const line = items[i] || {};
+          const last = i === 3;
+          return (
+            <div key={p.letter} style={{ position: 'relative', background: last ? v.dark : v.card, border: last ? 'none' : `1px solid ${v.soft}`, padding: '22px 20px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 4, background: v.accent }} />
+              <div style={{ fontFamily: t.fonts.heading, fontSize: 46, fontWeight: 950, lineHeight: 1, color: last ? v.accent : v.ink }}>{p.letter}</div>
+              <div style={{ marginTop: 12, fontSize: 14, fontWeight: 950, color: last ? '#FFFFFF' : v.ink }}>{line.heading || p.ko}</div>
+              <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.16em', color: last ? 'rgba(255,255,255,0.5)' : v.muted }}>{p.en}</div>
+              <FitClampText lines={6} style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.6, color: last ? 'rgba(255,255,255,0.72)' : v.muted }}>{line.body || ''}</FitClampText>
+              {!last && <div style={{ position: 'absolute', right: -13, top: '46%', color: v.accent, fontSize: 16, fontWeight: 950, zIndex: 2 }}>→</div>}
+              {last && <div style={{ marginTop: 'auto', alignSelf: 'flex-start', background: v.accent, color: accentInk, fontSize: 9, fontWeight: 950, letterSpacing: '0.14em', padding: '5px 12px' }}>PROOF</div>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2255,20 +2324,23 @@ function renderStarCover(slide, t, v) {
 
 function renderStarIdentity(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
-  const icons = ['🎓', '🎯', '⚡'];
+  const roleTag = { edu: 'EDUCATION', target: 'DIRECTION', strength: 'STRENGTH' };
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'PROFESSIONAL IDENTITY').toUpperCase()}</div>
-      <div style={{ position: 'absolute', left: 44, top: 62, right: 44 }}>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 34, fontWeight: 950, letterSpacing: '-0.03em', color: v.dark, lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ marginTop: 7, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
+      <div style={{ position: 'absolute', left: 56, top: 40, width: 290 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent }}>{(slide.sectionLabel || 'PROFILE').toUpperCase()}</div>
+        <div style={{ marginTop: 14, fontFamily: t.fonts.heading, fontSize: 38, fontWeight: 950, letterSpacing: '-0.04em', color: v.ink, lineHeight: 1.08, ...textClamp(3) }}>{slide.title}</div>
+        {slide.subtitle && <FitClampText lines={3} style={{ marginTop: 14, fontSize: 12.5, color: v.muted, lineHeight: 1.6 }}>{slide.subtitle}</FitClampText>}
+        <div style={{ marginTop: 24, width: 64, height: 5, background: v.accent }} />
       </div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 182, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      <div style={{ position: 'absolute', left: 400, right: 56, top: 48, bottom: 44, display: 'flex', flexDirection: 'column' }}>
         {items.map((item, i) => (
-          <div key={i} style={{ background: v.card, borderRadius: 22, padding: 24, border: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>{icons[i]}</div>
-            <div style={{ fontSize: 17, fontWeight: 900, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <FitClampText lines={5} style={{ fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
+          <div key={i} style={{ flex: 1, borderTop: `1px solid ${i === 0 ? v.ink : v.soft}`, padding: '18px 0', display: 'grid', gridTemplateColumns: '128px 1fr', gap: 18, minHeight: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 950, letterSpacing: '0.16em', color: v.accent, paddingTop: 4 }}>{roleTag[item.role] || `FILE 0${i + 1}`}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 950, color: v.ink, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
+              <FitClampText lines={3} style={{ marginTop: 7, fontSize: 12, color: v.muted, lineHeight: 1.55 }}>{item.body}</FitClampText>
+            </div>
           </div>
         ))}
       </div>
@@ -2276,23 +2348,27 @@ function renderStarIdentity(slide, t, v) {
   );
 }
 
+// 케이스 인덱스 — 경험을 CASE 01/02 파일 목록으로 나열
 function renderStarTimeline(slide, t, v) {
   const items = (slide.items || []).slice(0, 4);
-  const n = Math.max(1, items.length);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'EXPERIENCE TIMELINE').toUpperCase()}</div>
-      <div style={{ position: 'absolute', left: 44, top: 62, right: 44, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
-      <div style={{ position: 'absolute', left: 52, right: 52, top: 148, height: 3, background: v.soft, borderRadius: 999 }} />
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 140, bottom: 36, display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 10 }}>
+      <div style={{ position: 'absolute', left: 56, top: 40, right: 56, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent }}>{(slide.sectionLabel || 'CASE INDEX').toUpperCase()}</div>
+          <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', ...textClamp(1) }}>{slide.title}</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', color: v.muted }}>{items.length} CASES</div>
+      </div>
+      <div style={{ position: 'absolute', left: 56, right: 56, top: 150, bottom: 40, display: 'flex', flexDirection: 'column' }}>
         {items.map((item, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: i === 0 ? v.accent : v.soft, border: `3px solid ${v.accent}`, flexShrink: 0, marginTop: 3 }} />
-            <div style={{ background: v.card, borderRadius: 18, padding: 16, border: `1px solid ${v.soft}`, flex: 1, width: '100%', marginTop: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period}</div>
-              <div style={{ marginTop: 5, fontSize: 14, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-              <FitClampText lines={3} style={{ marginTop: 6, fontSize: 11, color: v.muted, lineHeight: 1.45 }}>{item.body}</FitClampText>
+          <div key={i} style={{ flex: 1, borderTop: `1px solid ${i === 0 ? v.ink : v.soft}`, display: 'grid', gridTemplateColumns: '110px 1fr 150px', gap: 20, alignItems: 'center', minHeight: 0 }}>
+            <div style={{ fontFamily: t.fonts.heading, fontSize: 38, fontWeight: 950, color: v.accent, letterSpacing: '-0.03em' }}>{String(i + 1).padStart(2, '0')}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 950, color: v.ink, lineHeight: 1.2, ...textClamp(1) }}>{item.heading}</div>
+              <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, color: v.muted, lineHeight: 1.45 }}>{item.body}</FitClampText>
             </div>
+            <div style={{ textAlign: 'right', fontSize: 10.5, fontWeight: 900, letterSpacing: '0.1em', color: v.muted, ...textClamp(2) }}>{item.period}</div>
           </div>
         ))}
       </div>
@@ -2302,31 +2378,46 @@ function renderStarTimeline(slide, t, v) {
 
 function renderStarSituation(slide, t, v) {
   const metrics = (slide.metrics || []).slice(0, 2);
-  const hasMetrics = metrics.length > 0;
   const phase = slide.starPhase || 'S';
   const bannerLabel = slide.bannerLabel || 'SITUATION';
   const imageUrl = slide.imageUrl || (slide.items || []).find(item => item.imageUrl)?.imageUrl;
+  const ideaBody = slide.ideaBody || '';
+  const bodyLines = metrics.length ? 7 : 9;
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, phase, slide.sectionLabel || bannerLabel)}</div>
-      <div style={{ position: 'absolute', left: 44, top: 80, right: imageUrl ? 238 : 44 }}>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ marginTop: 5, fontSize: 13, color: v.muted }}>{slide.subtitle}</div>}
+      {renderStarRail(t, v, phase, slide.sectionLabel)}
+      <div style={{ position: 'absolute', left: 132, top: 38, right: imageUrl ? 330 : 44 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent, textTransform: 'uppercase' }}>{bannerLabel}</div>
+        <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 31, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', lineHeight: 1.1, ...textClamp(2) }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 6, fontSize: 12.5, color: v.muted, ...textClamp(1) }}>{slide.subtitle}</div>}
       </div>
-      {imageUrl ? <div style={{ position: 'absolute', right: 44, top: 30, width: 176, height: 118, overflow: 'hidden', borderRadius: 12, background: v.dark }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
-      <div style={{ position: 'absolute', left: 44, top: 185, right: hasMetrics ? 222 : 44, bottom: 38, background: v.dark, borderRadius: 22, padding: '22px 26px', color: '#FFFFFF' }}>
-        <div style={{ fontSize: 10, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>{bannerLabel}</div>
-        <FitClampText lines={7} style={{ marginTop: 11, fontSize: 13.5, lineHeight: 1.7, opacity: 0.9 }}>{slide.body || slide.subtitle || ''}</FitClampText>
-      </div>
-      {hasMetrics && (
-        <div style={{ position: 'absolute', right: 44, top: 185, width: 162, bottom: 38, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {imageUrl ? <div style={{ position: 'absolute', right: 44, top: 38, width: 256, height: 130, overflow: 'hidden', background: v.dark, border: `1px solid ${v.soft}` }}><img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div> : null}
+      {ideaBody ? (
+        // 문제 정의(좌) + 해결 접근(우) 반반 분할 — 빈 공간 없이 한 페이지에 담는다
+        <div style={{ position: 'absolute', left: 132, right: 44, top: 192, bottom: metrics.length ? 150 : 44, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ background: v.card, border: `1px solid ${v.soft}`, borderLeft: `6px solid ${v.accent}`, padding: '20px 24px', overflow: 'hidden' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 950, letterSpacing: '0.18em', color: v.accent }}>SITUATION · 문제 정의</div>
+            <FitClampText lines={bodyLines} style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.75, color: v.ink }}>{slide.body || ''}</FitClampText>
+          </div>
+          <div style={{ background: v.dark, padding: '20px 24px', overflow: 'hidden' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 950, letterSpacing: '0.18em', color: v.accent }}>IDEA · 해결 접근</div>
+            <FitClampText lines={bodyLines} style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.75, color: 'rgba(255,255,255,0.92)' }}>{ideaBody}</FitClampText>
+          </div>
+        </div>
+      ) : (
+        <div style={{ position: 'absolute', left: 132, right: 44, top: 192, bottom: metrics.length ? 150 : 44, background: v.card, border: `1px solid ${v.soft}`, borderLeft: `6px solid ${v.accent}`, padding: '24px 30px', overflow: 'hidden' }}>
+          <FitClampText lines={metrics.length ? 5 : 8} style={{ fontSize: 15, lineHeight: 1.85, color: v.ink }}>{slide.body || slide.subtitle || ''}</FitClampText>
+        </div>
+      )}
+      {metrics.length > 0 && (
+        <div style={{ position: 'absolute', left: 132, right: 44, bottom: 44, height: 88, display: 'grid', gridTemplateColumns: `repeat(${metrics.length}, 1fr)`, gap: 14 }}>
           {metrics.map((m, i) => {
             const big = metricDisplayValue(m, m.label || '성과');
             const small = big === (m.label || '성과') ? (m.body || m.value || '') : (m.label || m.body || '');
             return (
-              <div key={i} style={{ flex: 1, background: i === 0 ? v.accent : v.card, borderRadius: 18, padding: '16px 16px', border: i === 1 ? `1px solid ${v.soft}` : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ fontSize: 24, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{big}</div>
-                {small && <FitClampText lines={2} style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: v.dark, opacity: i === 0 ? 0.8 : 0.6 }}>{small}</FitClampText>}
+              <div key={i} style={{ borderTop: `2px solid ${v.ink}`, paddingTop: 12, display: 'flex', alignItems: 'baseline', gap: 14, overflow: 'hidden' }}>
+                <div style={{ fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.accent, letterSpacing: '-0.03em', whiteSpace: 'nowrap' }}>{big}</div>
+                {small && <FitClampText lines={2} style={{ fontSize: 11, fontWeight: 800, color: v.muted, lineHeight: 1.4 }}>{small}</FitClampText>}
               </div>
             );
           })}
@@ -2340,14 +2431,15 @@ function renderStarTask(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'T', slide.sectionLabel || 'TASK')}</div>
-      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 172, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      {renderStarRail(t, v, slide.starPhase || 'T', slide.sectionLabel)}
+      {renderStarHeader(slide, t, v, 'TASK')}
+      <div style={{ position: 'absolute', left: 132, right: 44, top: 178, bottom: 44, display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, items.length)}, 1fr)`, gap: 14 }}>
         {items.map((item, i) => (
-          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `2px solid ${v.accent}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.1em' }}>{item.period || `TASK ${String(i + 1).padStart(2, '0')}`}</div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: v.dark, lineHeight: 1.2, ...textClamp(2) }}>{item.heading}</div>
-            <FitClampText lines={5} style={{ fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
+          <div key={i} style={{ position: 'relative', background: v.card, border: `1px solid ${v.soft}`, padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 4, background: v.accent }} />
+            <div style={{ fontSize: 10, fontWeight: 950, color: v.accent, letterSpacing: '0.16em' }}>{item.period || `TASK ${String(i + 1).padStart(2, '0')}`}</div>
+            <div style={{ fontSize: 16, fontWeight: 950, color: v.ink, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
+            <FitClampText lines={6} style={{ fontSize: 11.5, color: v.muted, lineHeight: 1.6 }}>{item.body}</FitClampText>
           </div>
         ))}
       </div>
@@ -2357,19 +2449,21 @@ function renderStarTask(slide, t, v) {
 
 function renderStarAction(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
+  const accentInk = readableTextOn(v.accent);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'A', slide.sectionLabel || 'ACTION')}</div>
-      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: 38, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {renderStarRail(t, v, slide.starPhase || 'A', slide.sectionLabel)}
+      {renderStarHeader(slide, t, v, 'ACTION')}
+      <div style={{ position: 'absolute', left: 156, top: 196, bottom: 60, width: 1, background: v.soft }} />
+      <div style={{ position: 'absolute', left: 132, right: 44, top: 178, bottom: 44, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {items.map((item, i) => (
-          <div key={i} style={{ flex: 1, background: v.card, borderRadius: 16, padding: '0 20px', border: `1px solid ${v.soft}`, display: 'grid', gridTemplateColumns: '52px 1fr', gap: 16, alignItems: 'center' }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: v.dark, display: 'grid', placeItems: 'center', color: v.accent, fontSize: 13, fontWeight: 950 }}>
+          <div key={i} style={{ flex: 1, display: 'grid', gridTemplateColumns: '50px 1fr', gap: 18, alignItems: 'center', minHeight: 0 }}>
+            <div style={{ width: 48, height: 48, background: v.accent, display: 'grid', placeItems: 'center', color: accentInk, fontFamily: t.fonts.heading, fontSize: 16, fontWeight: 950, zIndex: 1 }}>
               {item.period || String(i + 1).padStart(2, '0')}
             </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: v.dark, ...textClamp(1) }}>{item.heading}</div>
-              <FitClampText lines={2} style={{ marginTop: 4, fontSize: 11.5, color: v.muted, lineHeight: 1.45 }}>{item.body}</FitClampText>
+            <div style={{ background: v.card, border: `1px solid ${v.soft}`, padding: '14px 22px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: 14.5, fontWeight: 950, color: v.ink, ...textClamp(1) }}>{item.heading}</div>
+              <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
             </div>
           </div>
         ))}
@@ -2381,67 +2475,69 @@ function renderStarAction(slide, t, v) {
 function renderStarResult(slide, t, v) {
   const metrics = (slide.metrics || []).slice(0, 3);
   const hasBody = !!slide.body;
-  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 히어로 카드로 보여준다.
+  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 큰 선언문으로 보여준다.
   if (!metrics.length) {
     return (
       <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-        <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'R', slide.sectionLabel || 'RESULT')}</div>
-        <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
-        <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: 38, background: v.accent, borderRadius: 22, padding: '28px 34px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 10, fontWeight: 900, color: v.dark, opacity: 0.6, letterSpacing: '0.15em' }}>RESULT</div>
-          <FitClampText lines={6} style={{ marginTop: 12, fontSize: 21, fontWeight: 800, color: v.dark, lineHeight: 1.5 }}>{slide.body || slide.subtitle || ''}</FitClampText>
+        {renderStarRail(t, v, 'R', slide.sectionLabel)}
+        {renderStarHeader(slide, t, v, 'RESULT')}
+        <div style={{ position: 'absolute', left: 132, right: 44, top: 192, bottom: 44, background: v.dark, padding: '30px 36px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
+          <div style={{ fontFamily: t.fonts.heading, fontSize: 44, fontWeight: 950, lineHeight: 1, color: v.accent }}>”</div>
+          <FitClampText lines={6} style={{ marginTop: 6, fontSize: 20, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.6 }}>{slide.body || slide.subtitle || ''}</FitClampText>
+          <div style={{ marginTop: 16, width: 64, height: 4, background: v.accent }} />
         </div>
       </div>
     );
   }
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 30 }}>{renderStarPhaseBadge(v, 'R', slide.sectionLabel || 'RESULT')}</div>
-      <div style={{ position: 'absolute', left: 44, top: 80, right: 44, fontFamily: t.fonts.heading, fontSize: 30, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(2) }}>{slide.title}</div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 170, bottom: hasBody ? 112 : 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        {metrics.slice(0, 3).map((m, i) => {
+      {renderStarRail(t, v, 'R', slide.sectionLabel)}
+      {renderStarHeader(slide, t, v, 'RESULT')}
+      <div style={{ position: 'absolute', left: 132, right: 44, top: 186, bottom: hasBody ? 142 : 44, display: 'grid', gridTemplateColumns: `repeat(${metrics.length}, 1fr)`, gap: 26 }}>
+        {metrics.map((m, i) => {
           const big = metricDisplayValue(m, m.label || '성과');
           const small = big === (m.label || '성과') ? '' : m.label;
           return (
-            <div key={i} style={{ background: v.accent, borderRadius: 20, padding: '20px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: 32, fontWeight: 950, color: v.dark, letterSpacing: '-0.04em', ...textClamp(2) }}>{big}</div>
-              {small && <div style={{ marginTop: 5, fontSize: 13, fontWeight: 900, color: v.dark, ...textClamp(2) }}>{small}</div>}
-              {m.body && <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11, color: 'rgba(0,0,0,0.55)', lineHeight: 1.4 }}>{m.body}</FitClampText>}
+            <div key={i} style={{ borderTop: `3px solid ${i === 0 ? v.accent : v.ink}`, paddingTop: 18, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ fontFamily: t.fonts.heading, fontSize: 44, fontWeight: 950, color: i === 0 ? v.accent : v.ink, letterSpacing: '-0.04em', lineHeight: 1.05, ...textClamp(2) }}>{big}</div>
+              {small && <div style={{ marginTop: 9, fontSize: 13, fontWeight: 950, color: v.ink, ...textClamp(2) }}>{small}</div>}
+              {m.body && <FitClampText lines={3} style={{ marginTop: 7, fontSize: 11, color: v.muted, lineHeight: 1.5 }}>{m.body}</FitClampText>}
             </div>
           );
         })}
       </div>
       {hasBody && (
-        <div style={{ position: 'absolute', left: 44, right: 44, bottom: 36, height: 66, background: v.dark, borderRadius: 18, padding: '12px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 9, fontWeight: 900, color: v.accent, letterSpacing: '0.15em' }}>KEY TAKEAWAY</div>
-          <FitClampText lines={2} style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', opacity: 0.9 }}>{slide.body}</FitClampText>
+        <div style={{ position: 'absolute', left: 132, right: 44, bottom: 44, height: 78, background: v.dark, padding: '14px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 9, fontWeight: 950, color: v.accent, letterSpacing: '0.2em' }}>KEY TAKEAWAY</div>
+          <FitClampText lines={2} style={{ marginTop: 5, fontSize: 12.5, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)' }}>{slide.body}</FitClampText>
         </div>
       )}
     </div>
   );
 }
 
+// 면접 트랜스크립트 스타일 Q&A — Q 행 아래 들여쓴 A 답변
 function renderStarQA(slide, t, v) {
   const items = (slide.items || []).slice(0, 2);
+  const accentInk = readableTextOn(v.accent);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 32, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', color: v.muted }}>{(slide.sectionLabel || 'PREDICTED Q&A').toUpperCase()}</div>
-      <div style={{ position: 'absolute', left: 44, top: 62, right: 44, fontFamily: t.fonts.heading, fontSize: 28, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{slide.title}</div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 150, bottom: 38, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      {renderStarRail(t, v, 'QA', slide.sectionLabel)}
+      {renderStarHeader(slide, t, v, 'INTERVIEW Q&A')}
+      <div style={{ position: 'absolute', left: 132, right: 44, top: 168, bottom: 44, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {items.map((item, i) => (
-          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 24, border: `1px solid ${v.soft}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: v.dark, color: v.accent, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 950, flexShrink: 0 }}>Q</div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: v.dark, lineHeight: 1.35, ...textClamp(3) }}>{item.heading}</div>
+          <div key={i} style={{ flex: 1, background: v.card, border: `1px solid ${v.soft}`, padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ width: 34, height: 26, background: v.dark, color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 950, flexShrink: 0 }}>Q{i + 1}</div>
+              <div style={{ fontSize: 14, fontWeight: 950, color: v.ink, lineHeight: 1.4, ...textClamp(2) }}>{item.heading}</div>
             </div>
-            <div style={{ height: 1, background: v.soft }} />
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: v.accent, color: v.dark, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 950, flexShrink: 0 }}>A</div>
-              <FitClampText lines={6} style={{ fontSize: 11.5, color: v.muted, lineHeight: 1.55 }}>{item.body}</FitClampText>
+            <div style={{ marginLeft: 46, paddingLeft: 14, borderLeft: `3px solid ${v.accent}`, minHeight: 0, overflow: 'hidden' }}>
+              <FitClampText lines={4} style={{ fontSize: 12, color: v.muted, lineHeight: 1.6 }}>{item.body}</FitClampText>
             </div>
           </div>
         ))}
       </div>
+      <div style={{ position: 'absolute', right: 44, top: 44, background: v.accent, color: accentInk, fontSize: 9, fontWeight: 950, letterSpacing: '0.18em', padding: '6px 14px' }}>VERIFY</div>
     </div>
   );
 }
@@ -2450,19 +2546,19 @@ function renderStarAwards(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 26, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>🏆</div>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.2em' }}>{(slide.sectionLabel || 'HONORS & RECOGNITION').toUpperCase()}</div>
-          <div style={{ fontFamily: t.fonts.heading, fontSize: 26, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(1) }}>{slide.title}</div>
-        </div>
+      <div style={{ position: 'absolute', left: 56, top: 40, right: 56 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent }}>{(slide.sectionLabel || 'RECOGNITION').toUpperCase()}</div>
+        <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', ...textClamp(1) }}>{slide.title}</div>
       </div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 120, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      <div style={{ position: 'absolute', left: 56, right: 56, top: 150, bottom: 44, display: 'flex', flexDirection: 'column' }}>
         {items.map((item, i) => (
-          <div key={i} style={{ background: v.card, borderRadius: 20, padding: 22, border: `1px solid ${v.soft}` }}>
-            <div style={{ fontSize: 11, fontWeight: 900, color: v.muted }}>{item.period || item.role}</div>
-            <div style={{ marginTop: 8, fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <FitClampText lines={5} style={{ marginTop: 9, fontSize: 12, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
+          <div key={i} style={{ flex: 1, borderTop: `1px solid ${i === 0 ? v.ink : v.soft}`, display: 'grid', gridTemplateColumns: '150px 1fr 110px', gap: 20, alignItems: 'center', minHeight: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 950, letterSpacing: '0.1em', color: v.accent, ...textClamp(2) }}>{item.period || item.role || `NO.${String(i + 1).padStart(2, '0')}`}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 950, color: v.ink, lineHeight: 1.25, ...textClamp(1) }}>{item.heading}</div>
+              <FitClampText lines={2} style={{ marginTop: 5, fontSize: 11.5, color: v.muted, lineHeight: 1.5 }}>{item.body}</FitClampText>
+            </div>
+            <div style={{ textAlign: 'right', fontFamily: t.fonts.heading, fontSize: 26, fontWeight: 950, color: v.soft }}>{String(i + 1).padStart(2, '0')}</div>
           </div>
         ))}
       </div>
@@ -2472,23 +2568,26 @@ function renderStarAwards(slide, t, v) {
 
 function renderStarRoadmap(slide, t, v) {
   const items = (slide.items || []).slice(0, 3);
+  const accentInk = readableTextOn(v.accent);
   return (
     <div style={{ position: 'absolute', inset: 0, background: v.bg, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: 44, top: 26, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', background: v.accent, display: 'grid', placeItems: 'center', fontSize: 20 }}>🚀</div>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 900, color: v.muted, letterSpacing: '0.2em' }}>{(slide.sectionLabel || 'FUTURE ROADMAP').toUpperCase()}</div>
-          <div style={{ fontFamily: t.fonts.heading, fontSize: 26, fontWeight: 950, color: v.dark, letterSpacing: '-0.03em', ...textClamp(1) }}>{slide.title}</div>
-        </div>
+      <div style={{ position: 'absolute', left: 56, top: 40, right: 56 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', color: v.accent }}>{(slide.sectionLabel || 'NEXT STEP').toUpperCase()}</div>
+        <div style={{ marginTop: 10, fontFamily: t.fonts.heading, fontSize: 32, fontWeight: 950, color: v.ink, letterSpacing: '-0.035em', ...textClamp(1) }}>{slide.title}</div>
       </div>
-      <div style={{ position: 'absolute', left: 44, right: 44, top: 120, bottom: 38, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ background: v.accent, borderRadius: 20, padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 900, color: v.dark, opacity: 0.65 }}>{item.period || `Phase ${String(i + 1).padStart(2, '0')}`}</div>
-            <div style={{ fontSize: 17, fontWeight: 950, color: v.dark, ...textClamp(2) }}>{item.heading}</div>
-            <FitClampText lines={5} style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', lineHeight: 1.5 }}>{item.body}</FitClampText>
-          </div>
-        ))}
+      <div style={{ position: 'absolute', left: 56, right: 56, top: 168, bottom: 44, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {items.map((item, i) => {
+          const last = i === items.length - 1;
+          return (
+            <div key={i} style={{ marginTop: (items.length - 1 - i) * 34, position: 'relative', background: last ? v.dark : v.card, border: last ? 'none' : `1px solid ${v.soft}`, padding: '22px 22px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 4, background: v.accent }} />
+              <div style={{ fontSize: 10, fontWeight: 950, letterSpacing: '0.16em', color: last ? v.accent : v.muted }}>{item.period || `PHASE ${String(i + 1).padStart(2, '0')}`}</div>
+              <div style={{ fontSize: 16, fontWeight: 950, color: last ? '#FFFFFF' : v.ink, lineHeight: 1.25, ...textClamp(2) }}>{item.heading}</div>
+              <FitClampText lines={4} style={{ fontSize: 11.5, color: last ? 'rgba(255,255,255,0.7)' : v.muted, lineHeight: 1.55 }}>{item.body}</FitClampText>
+              {last && <div style={{ marginTop: 'auto', alignSelf: 'flex-start', background: v.accent, color: accentInk, fontSize: 9, fontWeight: 950, letterSpacing: '0.14em', padding: '5px 12px' }}>GOAL</div>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2496,16 +2595,23 @@ function renderStarRoadmap(slide, t, v) {
 
 function renderStarClosing(slide, t, v) {
   const bullets = slide.bullets || [];
+  const accentInk = readableTextOn(v.accent);
   return (
-    <div style={{ position: 'absolute', inset: 0, background: v.dark, fontFamily: t.fonts.body }}>
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', width: '82%' }}>
-        <div style={{ display: 'inline-block', background: v.accent, color: v.dark, fontSize: 10, fontWeight: 950, padding: '5px 18px', borderRadius: 999, letterSpacing: '0.2em', marginBottom: 20 }}>THANK YOU</div>
-        <div style={{ fontFamily: t.fonts.heading, fontSize: 58, fontWeight: 950, color: v.accent, letterSpacing: '-0.04em', lineHeight: 1.0 }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ marginTop: 15, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55 }}>{slide.subtitle}</div>}
+    <div style={{ position: 'absolute', inset: 0, background: v.dark, fontFamily: t.fonts.body, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', gap: 48, pointerEvents: 'none' }}>
+        {['S', 'T', 'A', 'R'].map(l => (
+          <div key={l} style={{ fontFamily: t.fonts.heading, fontSize: 240, fontWeight: 950, color: 'rgba(255,255,255,0.05)', lineHeight: 1 }}>{l}</div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: 10, background: v.accent }} />
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', width: '80%' }}>
+        <div style={{ display: 'inline-block', background: v.accent, color: accentInk, fontSize: 10, fontWeight: 950, padding: '6px 20px', letterSpacing: '0.26em', marginBottom: 22 }}>THANK YOU</div>
+        <div style={{ fontFamily: t.fonts.heading, fontSize: 60, fontWeight: 950, color: '#FFFFFF', letterSpacing: '-0.04em', lineHeight: 1.0 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ marginTop: 16, fontSize: 14, color: 'rgba(255,255,255,0.62)', lineHeight: 1.55 }}>{slide.subtitle}</div>}
         {bullets.length > 0 && (
-          <div style={{ marginTop: 26, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+          <div style={{ marginTop: 28, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
             {bullets.map((b, i) => (
-              <div key={i} style={{ background: 'rgba(255,255,255,0.1)', color: '#FFFFFF', fontSize: 11, padding: '7px 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.2)' }}>{b}</div>
+              <div key={i} style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, padding: '7px 16px', border: '1px solid rgba(255,255,255,0.25)' }}>{b}</div>
             ))}
           </div>
         )}
@@ -2517,6 +2623,7 @@ function renderStarClosing(slide, t, v) {
 function renderStarSlide(slide, t, v, index) {
   const l = slide.layout;
   if (l === 'star-cover') return renderStarCover(slide, t, v);
+  if (l === 'star-method') return renderStarMethod(slide, t, v);
   if (l === 'star-identity') return renderStarIdentity(slide, t, v);
   if (l === 'star-timeline') return renderStarTimeline(slide, t, v);
   if (l === 'star-situation') return renderStarSituation(slide, t, v);
@@ -6603,235 +6710,308 @@ function drawStarBg(s, v, W, H) {
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.bg) }, line: { color: hex(v.bg) } });
 }
 
-function drawStarCoverPptx(s, slide, t, v, W, H) {
-  drawStarBg(s, v, W, H);
-  addPptText(s, 'STAT / STAR', { x: 0.62, y: 0.44, w: 2.2, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.95, w: 4.9, h: 1.95, fontFace: t.fonts.heading, fontSize: 44, bold: true, color: hex(v.dark), fit: 'shrink' });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 3.1, w: 4.8, h: 0.65, fontFace: t.fonts.body, fontSize: 10.5, color: hex(v.muted) });
-  ['S', 'T', 'A', 'R'].forEach((lbl, idx) => {
-    s.addShape('ellipse', { x: 0.62 + idx * 0.66, y: 4.0, w: 0.46, h: 0.46, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
-    addPptText(s, lbl, { x: 0.62 + idx * 0.66, y: 4.08, w: 0.46, h: 0.2, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark), align: 'center' });
+// ── STAR "Evidence Dossier" PPTX 드로어 — 미리보기와 동일한 디자인 시스템 ──
+function drawStarRailPptx(s, t, v, phase, label, H = 7.5) {
+  const accentInk = hex(readableTextOn(v.accent));
+  const active = starActiveLetter(phase);
+  s.addShape('rect', { x: 0, y: 0, w: 1.1, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  s.addText(cleanPortfolioText(label || 'STAR FILE').toUpperCase().slice(0, 26), { x: 0.34, y: 0.3, w: 0.4, h: 2.0, rotate: 270, fontFace: t.fonts.body, fontSize: 7, bold: true, color: 'FFFFFF', transparency: 45, charSpacing: 2 });
+  ['S', 'T', 'A', 'R'].forEach((letter, idx) => {
+    const y = 2.4 + idx * 0.74;
+    const isActive = letter === active;
+    s.addShape('roundRect', { x: 0.25, y, w: 0.6, h: 0.6, rectRadius: 0.05, fill: { color: isActive ? hex(v.accent) : hex(v.dark) }, line: { color: isActive ? hex(v.accent) : 'FFFFFF', transparency: isActive ? 0 : 70 } });
+    addPptText(s, letter, { x: 0.25, y: y + 0.12, w: 0.6, h: 0.36, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: isActive ? accentInk : 'FFFFFF', transparency: isActive ? 0 : 45, align: 'center' });
   });
-  // 우측 S/T/A/R 카드는 디자인 요소 — 내용 텍스트 없이 레터·라벨만 크게 보여준다(미리보기와 동일).
-  const fills = [v.dark, v.card, v.card, v.accent];
-  const fgColors = ['FFFFFF', hex(v.ink), hex(v.ink), hex(v.dark)];
-  [0, 1, 2, 3].forEach(idx => {
-    const col = idx % 2;
-    const row = Math.floor(idx / 2);
-    const x = 6.35 + col * 3.55;
-    const y = 0.62 + row * 3.25;
-    s.addShape('roundRect', { x, y, w: 3.25, h: 2.9, fill: { color: hex(fills[idx]) }, line: { color: idx === 1 || idx === 2 ? hex(v.soft) : hex(fills[idx]) }, rectRadius: 0.2 });
-    const circleD = 0.95;
-    const cx = x + (3.25 - circleD) / 2;
-    const cy = y + 0.72;
-    s.addShape('ellipse', { x: cx, y: cy, w: circleD, h: circleD, fill: { color: idx === 3 ? hex(v.dark) : hex(v.accent) }, line: { color: idx === 3 ? hex(v.dark) : hex(v.accent) } });
-    addPptText(s, ['S', 'T', 'A', 'R'][idx], { x: cx, y: cy + 0.24, w: circleD, h: 0.45, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: idx === 3 ? hex(v.accent) : hex(v.dark), align: 'center' });
-    addPptText(s, ['Situation', 'Task', 'Action', 'Result'][idx], { x, y: y + 1.95, w: 3.25, h: 0.25, fontFace: t.fonts.body, fontSize: 9, bold: true, color: fgColors[idx], transparency: 40, align: 'center', charSpacing: 2 });
+  addPptText(s, phase || '—', { x: 0, y: H - 0.46, w: 1.1, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: 'FFFFFF', transparency: 55, align: 'center', charSpacing: 2 });
+}
+
+function drawStarHeaderPptx(s, slide, t, v, kicker) {
+  addPptText(s, (slide.sectionLabel || kicker || '').toUpperCase(), { x: 1.45, y: 0.5, w: 9.4, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 1.45, y: 0.84, w: 11.3, h: 0.92, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.45, y: 1.82, w: 10.6, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+}
+
+function drawStarCoverPptx(s, slide, t, v, W, H) {
+  const accentInk = hex(readableTextOn(v.accent));
+  s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  s.addShape('rect', { x: 0, y: 0, w: W, h: 0.14, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  s.addShape('rect', { x: 0.78, y: 0.62, w: 3.45, h: 0.44, fill: { color: hex(v.dark), transparency: 100 }, line: { color: hex(v.accent), width: 1 } });
+  addPptText(s, 'EVIDENCE FILE · STAR METHOD', { x: 0.78, y: 0.7, w: 3.45, h: 0.26, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.accent), align: 'center', charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 1.5, w: 5.9, h: 2.3, fontFace: t.fonts.heading, fontSize: 42, bold: true, color: 'FFFFFF', fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.78, y: 3.95, w: 5.7, h: 0.85, fontFace: t.fonts.body, fontSize: 11.5, color: 'FFFFFF', transparency: 35 });
+  s.addShape('rect', { x: 0.78, y: H - 1.05, w: 5.0, h: 0.015, fill: { color: 'FFFFFF', transparency: 75 }, line: { color: 'FFFFFF', transparency: 75 } });
+  addPptText(s, 'SITUATION → TASK → ACTION → RESULT', { x: 0.78, y: H - 0.85, w: 5.4, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: 'FFFFFF', transparency: 45, charSpacing: 2 });
+  const items = (slide.items || []).slice(0, 4);
+  const phases = [['S', 'SITUATION'], ['T', 'TASK'], ['A', 'ACTION'], ['R', 'RESULT']];
+  const rowH = (H - 1.1) / 4;
+  phases.forEach(([letter, en], idx) => {
+    const y = 0.62 + idx * rowH;
+    const line = items[idx] || {};
+    s.addShape('rect', { x: 7.6, y, w: 5.0, h: 0.015, fill: { color: 'FFFFFF', transparency: 80 }, line: { color: 'FFFFFF', transparency: 80 } });
+    const last = idx === 3;
+    s.addShape('rect', { x: 7.6, y: y + 0.28, w: 0.78, h: 0.78, fill: { color: last ? hex(v.accent) : hex(v.dark), transparency: last ? 0 : 100 }, line: { color: last ? hex(v.accent) : 'FFFFFF', transparency: last ? 0 : 60 } });
+    addPptText(s, letter, { x: 7.6, y: y + 0.44, w: 0.78, h: 0.46, fontFace: t.fonts.heading, fontSize: 21, bold: true, color: last ? accentInk : 'FFFFFF', align: 'center' });
+    addPptText(s, en, { x: 8.62, y: y + 0.3, w: 3.9, h: 0.24, fontFace: t.fonts.body, fontSize: 9.5, bold: true, color: last ? hex(v.accent) : 'FFFFFF', charSpacing: 2 });
+    if (line.body) addPptText(s, line.body, { x: 8.62, y: y + 0.6, w: 3.95, h: 0.62, fontFace: t.fonts.body, fontSize: 8.5, color: 'FFFFFF', transparency: 50 });
+  });
+}
+
+// 새 슬라이드 — STAR 읽는 법 안내
+function drawStarMethodPptx(s, slide, t, v, W, H) {
+  drawStarBg(s, v, W, H);
+  const accentInk = hex(readableTextOn(v.accent));
+  addPptText(s, (slide.sectionLabel || 'HOW TO READ').toUpperCase(), { x: 0.78, y: 0.5, w: 8.0, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 0.84, w: 11.7, h: 0.85, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.78, y: 1.78, w: 11.0, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const items = (slide.items || []).slice(0, 4);
+  const phases = [['S', '상황', 'SITUATION'], ['T', '과제', 'TASK'], ['A', '행동', 'ACTION'], ['R', '결과', 'RESULT']];
+  const colW = 2.81;
+  phases.forEach(([letter, ko, en], idx) => {
+    const x = 0.78 + idx * (colW + 0.18);
+    const line = items[idx] || {};
+    const last = idx === 3;
+    s.addShape('rect', { x, y: 2.3, w: colW, h: H - 2.9, fill: { color: last ? hex(v.dark) : hex(v.card) }, line: { color: last ? hex(v.dark) : hex(v.soft) } });
+    s.addShape('rect', { x, y: 2.3, w: colW, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, letter, { x: x + 0.26, y: 2.6, w: 1.2, h: 0.78, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: last ? hex(v.accent) : hex(v.ink) });
+    addPptText(s, line.heading || ko, { x: x + 0.26, y: 3.5, w: colW - 0.52, h: 0.3, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: last ? 'FFFFFF' : hex(v.ink) });
+    addPptText(s, en, { x: x + 0.26, y: 3.84, w: colW - 0.52, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: last ? 'FFFFFF' : hex(v.muted), transparency: last ? 50 : 0, charSpacing: 2 });
+    addPptText(s, line.body || '', { x: x + 0.26, y: 4.16, w: colW - 0.52, h: H - 4.85, fontFace: t.fonts.body, fontSize: 9.5, color: last ? 'FFFFFF' : hex(v.muted), transparency: last ? 28 : 0 });
+    if (!last) addPptText(s, '→', { x: x + colW - 0.02, y: 4.2, w: 0.24, h: 0.3, fontFace: t.fonts.body, fontSize: 13, bold: true, color: hex(v.accent), align: 'center' });
+    if (last) {
+      s.addShape('rect', { x: x + 0.26, y: H - 1.05, w: 0.95, h: 0.32, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+      addPptText(s, 'PROOF', { x: x + 0.26, y: H - 0.99, w: 0.95, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: accentInk, align: 'center', charSpacing: 1 });
+    }
   });
 }
 
 function drawStarIdentityPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  addPptText(s, (slide.sectionLabel || 'PROFESSIONAL IDENTITY').toUpperCase(), { x: 0.62, y: 0.42, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.82, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 30, bold: true, color: hex(v.dark) });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.0, h: 0.25, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
-  const items = slide.items || [];
-  const cW = (W - 1.54) / 3;
-  const icons = ['🎓', '🎯', '⚡'];
-  items.slice(0, 3).forEach((item, idx) => {
-    const x = 0.62 + idx * (cW + 0.15);
-    s.addShape('roundRect', { x, y: 2.55, w: cW, h: H - 3.0, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
-    s.addShape('roundRect', { x: x + 0.28, y: 2.82, w: 0.62, h: 0.62, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.1 });
-    addPptText(s, icons[idx] || '■', { x: x + 0.28, y: 2.9, w: 0.62, h: 0.3, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
-    addPptText(s, item.heading || '', { x: x + 0.28, y: 3.65, w: cW - 0.56, h: 0.52, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: x + 0.28, y: 4.25, w: cW - 0.56, h: H - 4.72, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const roleTag = { edu: 'EDUCATION', target: 'DIRECTION', strength: 'STRENGTH' };
+  addPptText(s, (slide.sectionLabel || 'PROFILE').toUpperCase(), { x: 0.78, y: 0.55, w: 4.0, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 0.95, w: 4.0, h: 2.1, fontFace: t.fonts.heading, fontSize: 29, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.78, y: 3.2, w: 3.9, h: 0.85, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  s.addShape('rect', { x: 0.78, y: 4.35, w: 0.9, h: 0.07, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  const items = (slide.items || []).slice(0, 3);
+  const rowH = (H - 1.3) / Math.max(1, items.length);
+  items.forEach((item, idx) => {
+    const y = 0.65 + idx * rowH;
+    s.addShape('rect', { x: 5.55, y, w: 7.0, h: 0.02, fill: { color: idx === 0 ? hex(v.ink) : hex(v.soft) }, line: { color: idx === 0 ? hex(v.ink) : hex(v.soft) } });
+    addPptText(s, roleTag[item.role] || `FILE 0${idx + 1}`, { x: 5.55, y: y + 0.26, w: 1.7, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 1.5 });
+    addPptText(s, item.heading || '', { x: 7.4, y: y + 0.22, w: 5.15, h: 0.62, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.ink) });
+    addPptText(s, item.body || '', { x: 7.4, y: y + 0.9, w: 5.15, h: rowH - 1.05, fontFace: t.fonts.body, fontSize: 9.5, color: hex(v.muted) });
   });
 }
 
+// 케이스 인덱스 — 경험을 CASE 01/02 파일 목록으로 나열
 function drawStarTimelinePptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  addPptText(s, (slide.sectionLabel || 'EXPERIENCE TIMELINE').toUpperCase(), { x: 0.62, y: 0.42, w: 5.0, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.82, w: 11.8, h: 1.0, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
-  s.addShape('rect', { x: 0.82, y: 2.45, w: W - 1.64, h: 0.04, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
-  const items = slide.items || [];
-  const n = Math.max(1, Math.min(4, items.length));
-  const cW = (W - 1.44) / n;
-  items.slice(0, 4).forEach((item, idx) => {
-    const x = 0.62 + idx * (cW + 0.05);
-    const cx = x + cW / 2;
-    s.addShape('ellipse', { x: cx - 0.1, y: 2.36, w: 0.2, h: 0.2, fill: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, line: { color: hex(v.accent) } });
-    s.addShape('roundRect', { x, y: 2.75, w: cW - 0.05, h: H - 3.22, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.15 });
-    addPptText(s, item.period || `Phase ${idx + 1}`, { x: x + 0.22, y: 3.0, w: cW - 0.44, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.muted), charSpacing: 1 });
-    addPptText(s, item.heading || '', { x: x + 0.22, y: 3.28, w: cW - 0.44, h: 0.52, fontFace: t.fonts.heading, fontSize: 13, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: x + 0.22, y: 3.86, w: cW - 0.44, h: H - 4.32, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
+  addPptText(s, (slide.sectionLabel || 'CASE INDEX').toUpperCase(), { x: 0.78, y: 0.55, w: 6.0, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 0.9, w: 10.0, h: 0.85, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  const items = (slide.items || []).slice(0, 4);
+  addPptText(s, `${items.length} CASES`, { x: 10.3, y: 1.35, w: 2.25, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.muted), align: 'right', charSpacing: 2 });
+  const rowH = (H - 2.6) / Math.max(1, items.length);
+  items.forEach((item, idx) => {
+    const y = 2.05 + idx * rowH;
+    s.addShape('rect', { x: 0.78, y, w: W - 1.56, h: 0.02, fill: { color: idx === 0 ? hex(v.ink) : hex(v.soft) }, line: { color: idx === 0 ? hex(v.ink) : hex(v.soft) } });
+    addPptText(s, String(idx + 1).padStart(2, '0'), { x: 0.78, y: y + 0.18, w: 1.3, h: 0.65, fontFace: t.fonts.heading, fontSize: 27, bold: true, color: hex(v.accent) });
+    addPptText(s, item.heading || '', { x: 2.3, y: y + 0.18, w: 7.7, h: 0.36, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.ink) });
+    addPptText(s, item.body || '', { x: 2.3, y: y + 0.58, w: 7.7, h: rowH - 0.72, fontFace: t.fonts.body, fontSize: 9.5, color: hex(v.muted) });
+    addPptText(s, item.period || '', { x: 10.2, y: y + 0.22, w: 2.35, h: 0.5, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.muted), align: 'right', charSpacing: 1 });
   });
-}
-
-function drawStarPhaseBadgePptx(s, t, v, x, y, phase, label) {
-  const badgeW = Math.min(4.2, (label || '').length * 0.115 + 0.9);
-  s.addShape('roundRect', { x, y, w: badgeW, h: 0.32, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.16 });
-  addPptText(s, label || phase, { x: x + 0.1, y: y + 0.05, w: badgeW - 0.2, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.dark), charSpacing: 0.5 });
-  s.addShape('ellipse', { x: x + badgeW + 0.1, y: y - 0.02, w: 0.34, h: 0.34, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
-  addPptText(s, phase, { x: x + badgeW + 0.1, y: y + 0.05, w: 0.34, h: 0.18, fontFace: t.fonts.heading, fontSize: 10, bold: true, color: hex(v.accent), align: 'center' });
 }
 
 function drawStarSituationPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
   const phase = slide.starPhase || 'S';
   const bannerLabel = slide.bannerLabel || 'SITUATION';
-  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, phase, slide.sectionLabel || bannerLabel);
-  const hasImage = addContainedPptImage(s, [slide, ...(slide.items || [])], 10.25, 0.42, 2.45, 1.66, v.dark);
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: hasImage ? 9.15 : 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 0.62, y: 2.1, w: 7.5, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  drawStarRailPptx(s, t, v, phase, slide.sectionLabel, H);
+  const hasImage = addContainedPptImage(s, [slide, ...(slide.items || [])], 10.35, 0.5, 2.4, 1.5, v.dark);
+  addPptText(s, bannerLabel.toUpperCase(), { x: 1.45, y: 0.5, w: 6.0, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 1.45, y: 0.84, w: hasImage ? 8.6 : 11.3, h: 0.92, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.45, y: 1.82, w: hasImage ? 8.6 : 10.6, h: 0.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
   const metrics = (slide.metrics || []).slice(0, 2);
-  const bodyW = metrics.length ? W - 3.15 : W - 1.24;
-  s.addShape('roundRect', { x: 0.62, y: 2.55, w: bodyW, h: H - 3.0, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.2 });
-  addPptText(s, bannerLabel, { x: 0.9, y: 2.85, w: 3.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
-  addPptText(s, slide.body || slide.subtitle || '', { x: 0.9, y: 3.2, w: bodyW - 0.56, h: H - 3.66, fontFace: t.fonts.body, fontSize: 11, color: 'FFFFFF' });
+  const ideaBody = slide.ideaBody || '';
+  const bodyH = metrics.length ? H - 4.0 : H - 3.1;
+  if (ideaBody) {
+    // 문제 정의(좌) + 해결 접근(우) 반반 분할 (미리보기와 동일)
+    const half = (W - 2.05 - 0.25) / 2;
+    s.addShape('rect', { x: 1.45, y: 2.5, w: half, h: bodyH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+    s.addShape('rect', { x: 1.45, y: 2.5, w: 0.09, h: bodyH, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, 'SITUATION · 문제 정의', { x: 1.8, y: 2.76, w: half - 0.55, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 1.5 });
+    addPptText(s, slide.body || '', { x: 1.8, y: 3.08, w: half - 0.62, h: bodyH - 0.86, fontFace: t.fonts.body, fontSize: 10.5, color: hex(v.ink), fitLineHeight: 1.5 });
+    const rx = 1.45 + half + 0.25;
+    s.addShape('rect', { x: rx, y: 2.5, w: half, h: bodyH, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'IDEA · 해결 접근', { x: rx + 0.28, y: 2.76, w: half - 0.55, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 1.5 });
+    addPptText(s, ideaBody, { x: rx + 0.28, y: 3.08, w: half - 0.56, h: bodyH - 0.86, fontFace: t.fonts.body, fontSize: 10.5, color: 'FFFFFF', fitLineHeight: 1.5 });
+  } else {
+    s.addShape('rect', { x: 1.45, y: 2.5, w: W - 2.05, h: bodyH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+    s.addShape('rect', { x: 1.45, y: 2.5, w: 0.09, h: bodyH, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, slide.body || slide.subtitle || '', { x: 1.85, y: 2.78, w: W - 2.75, h: bodyH - 0.56, fontFace: t.fonts.body, fontSize: 12, color: hex(v.ink), fitLineHeight: 1.55 });
+  }
   if (metrics.length) {
+    const mW = (W - 2.05 - 0.3 * (metrics.length - 1)) / metrics.length;
     metrics.forEach((m, idx) => {
-      const mH = (H - 3.1) / 2 - 0.08;
-      const my = 2.55 + idx * (mH + 0.08);
-      const mx = W - 2.55;
+      const mx = 1.45 + idx * (mW + 0.3);
+      const my = H - 1.32;
       const big = metricDisplayValue(m, m.label || '성과');
       const small = big === (m.label || '성과') ? (m.body || m.value || '') : (m.label || m.body || '');
-      s.addShape('roundRect', { x: mx, y: my, w: 2.16, h: mH, fill: { color: idx === 0 ? hex(v.accent) : hex(v.card) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.soft) }, rectRadius: 0.16 });
-      addPptText(s, big, { x: mx + 0.18, y: my + 0.22, w: 1.8, h: 0.55, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.dark) });
-      if (small) addPptText(s, small, { x: mx + 0.18, y: my + 0.82, w: 1.8, h: 0.28, fontFace: t.fonts.body, fontSize: 9, bold: true, color: idx === 0 ? hex(v.dark) : hex(v.muted) });
+      s.addShape('rect', { x: mx, y: my, w: mW, h: 0.03, fill: { color: hex(v.ink) }, line: { color: hex(v.ink) } });
+      addPptText(s, big, { x: mx, y: my + 0.14, w: 2.6, h: 0.55, fontFace: t.fonts.heading, fontSize: 22, bold: true, color: hex(v.accent) });
+      if (small) addPptText(s, small, { x: mx + 2.75, y: my + 0.24, w: mW - 2.8, h: 0.45, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.muted) });
     });
   }
 }
 
 function drawStarTaskPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'T', slide.sectionLabel || 'TASK');
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
-  const items = slide.items || [];
-  const cW = (W - 1.54) / 3;
-  items.slice(0, 3).forEach((item, idx) => {
-    const x = 0.62 + idx * (cW + 0.15);
-    s.addShape('roundRect', { x, y: 2.3, w: cW, h: H - 2.75, fill: { color: hex(v.card) }, line: { color: hex(v.accent), size: 1.2 }, rectRadius: 0.18 });
-    addPptText(s, item.period || `TASK ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.24, y: 2.58, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.muted), charSpacing: 1 });
-    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.88, w: cW - 0.48, h: 0.55, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: x + 0.24, y: 3.5, w: cW - 0.48, h: H - 3.98, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  drawStarRailPptx(s, t, v, slide.starPhase || 'T', slide.sectionLabel, H);
+  drawStarHeaderPptx(s, slide, t, v, 'TASK');
+  const items = (slide.items || []).slice(0, 3);
+  const n = Math.max(1, items.length);
+  const cW = (W - 2.05 - 0.2 * (n - 1)) / n;
+  items.forEach((item, idx) => {
+    const x = 1.45 + idx * (cW + 0.2);
+    s.addShape('rect', { x, y: 2.4, w: cW, h: H - 3.0, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+    s.addShape('rect', { x, y: 2.4, w: cW, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, item.period || `TASK ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.26, y: 2.72, w: cW - 0.52, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 1.5 });
+    addPptText(s, item.heading || '', { x: x + 0.26, y: 3.02, w: cW - 0.52, h: 0.6, fontFace: t.fonts.heading, fontSize: 13.5, bold: true, color: hex(v.ink) });
+    addPptText(s, item.body || '', { x: x + 0.26, y: 3.68, w: cW - 0.52, h: H - 4.3, fontFace: t.fonts.body, fontSize: 9.5, color: hex(v.muted) });
   });
 }
 
 function drawStarActionPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'A', slide.sectionLabel || 'ACTION');
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
-  const items = slide.items || [];
-  const rH = (H - 3.0) / 3 - 0.1;
-  items.slice(0, 3).forEach((item, idx) => {
-    const y = 2.35 + idx * (rH + 0.1);
-    s.addShape('roundRect', { x: 0.62, y, w: W - 1.24, h: rH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.14 });
-    s.addShape('roundRect', { x: 0.86, y: y + (rH - 0.52) / 2, w: 0.65, h: 0.52, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.1 });
-    addPptText(s, item.period || String(idx + 1).padStart(2, '0'), { x: 0.86, y: y + (rH - 0.52) / 2 + 0.12, w: 0.65, h: 0.22, fontFace: t.fonts.heading, fontSize: 11, bold: true, color: hex(v.accent), align: 'center' });
-    addPptText(s, item.heading || '', { x: 1.72, y: y + 0.1, w: W - 2.56, h: 0.3, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: 1.72, y: y + 0.44, w: W - 2.56, h: rH - 0.56, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const accentInk = hex(readableTextOn(v.accent));
+  drawStarRailPptx(s, t, v, slide.starPhase || 'A', slide.sectionLabel, H);
+  drawStarHeaderPptx(s, slide, t, v, 'ACTION');
+  const items = (slide.items || []).slice(0, 3);
+  s.addShape('rect', { x: 1.77, y: 2.6, w: 0.015, h: H - 3.4, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
+  const rH = (H - 3.0 - 0.16 * 2) / 3;
+  items.forEach((item, idx) => {
+    const y = 2.4 + idx * (rH + 0.16);
+    s.addShape('rect', { x: 2.25, y, w: W - 2.85, h: rH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+    s.addShape('rect', { x: 1.45, y: y + (rH - 0.64) / 2, w: 0.64, h: 0.64, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, item.period || String(idx + 1).padStart(2, '0'), { x: 1.45, y: y + (rH - 0.64) / 2 + 0.18, w: 0.64, h: 0.28, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: accentInk, align: 'center' });
+    addPptText(s, item.heading || '', { x: 2.55, y: y + 0.14, w: W - 3.35, h: 0.32, fontFace: t.fonts.heading, fontSize: 12.5, bold: true, color: hex(v.ink) });
+    addPptText(s, item.body || '', { x: 2.55, y: y + 0.5, w: W - 3.35, h: rH - 0.64, fontFace: t.fonts.body, fontSize: 9.5, color: hex(v.muted) });
   });
 }
 
 function drawStarResultPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  drawStarPhaseBadgePptx(s, t, v, 0.62, 0.38, 'R', slide.sectionLabel || 'RESULT');
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.9, w: 11.8, h: 1.1, fontFace: t.fonts.heading, fontSize: 26, bold: true, color: hex(v.dark) });
+  drawStarRailPptx(s, t, v, 'R', slide.sectionLabel, H);
+  drawStarHeaderPptx(s, slide, t, v, 'RESULT');
   const metrics = (slide.metrics || []).slice(0, 3);
   const hasBody = !!slide.body;
-  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 히어로 카드로 (미리보기와 동일).
+  // 지표가 없으면 가짜 '성과=달성' 카드 대신 성과 본문을 큰 선언문으로 (미리보기와 동일).
   if (!metrics.length) {
-    s.addShape('roundRect', { x: 0.62, y: 2.35, w: W - 1.24, h: H - 2.88, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.2 });
-    addPptText(s, 'RESULT', { x: 0.95, y: 2.72, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.dark), transparency: 35, charSpacing: 2 });
-    addPptText(s, slide.body || slide.subtitle || '', { x: 0.95, y: 3.1, w: W - 1.9, h: H - 3.75, fontFace: t.fonts.body, fontSize: 16, bold: true, color: hex(v.dark), fitLineHeight: 1.45 });
+    s.addShape('rect', { x: 1.45, y: 2.5, w: W - 2.05, h: H - 3.1, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, '”', { x: 1.85, y: 2.75, w: 1.0, h: 0.6, fontFace: t.fonts.heading, fontSize: 34, bold: true, color: hex(v.accent) });
+    addPptText(s, slide.body || slide.subtitle || '', { x: 1.85, y: 3.4, w: W - 2.85, h: H - 4.65, fontFace: t.fonts.body, fontSize: 15, bold: true, color: 'FFFFFF', fitLineHeight: 1.5 });
+    s.addShape('rect', { x: 1.85, y: H - 1.1, w: 0.9, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
     return;
   }
-  const metricH = hasBody ? H - 4.28 : H - 2.78;
-  const cW = (W - 1.54) / Math.min(3, metrics.length);
-  metrics.slice(0, 3).forEach((m, idx) => {
-    const x = 0.62 + idx * (cW + 0.05);
+  const metricBottom = hasBody ? H - 1.75 : H - 0.6;
+  const n = metrics.length;
+  const cW = (W - 2.05 - 0.35 * (n - 1)) / n;
+  metrics.forEach((m, idx) => {
+    const x = 1.45 + idx * (cW + 0.35);
     const big = metricDisplayValue(m, m.label || '성과');
     const small = big === (m.label || '성과') ? '' : (m.label || '');
-    s.addShape('roundRect', { x, y: 2.35, w: cW - 0.05, h: metricH, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.18 });
-    addPptText(s, big, { x: x + 0.26, y: 2.7, w: cW - 0.57, h: 0.72, fontFace: t.fonts.heading, fontSize: 28, bold: true, color: hex(v.dark) });
-    if (small) addPptText(s, small, { x: x + 0.26, y: 3.5, w: cW - 0.57, h: 0.28, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.dark) });
-    if (m.body) addPptText(s, m.body, { x: x + 0.26, y: 3.85, w: cW - 0.57, h: metricH - 1.62, fontFace: t.fonts.body, fontSize: 9, color: hex(v.dark), transparency: 40 });
+    s.addShape('rect', { x, y: 2.45, w: cW, h: 0.045, fill: { color: idx === 0 ? hex(v.accent) : hex(v.ink) }, line: { color: idx === 0 ? hex(v.accent) : hex(v.ink) } });
+    addPptText(s, big, { x, y: 2.7, w: cW, h: 0.95, fontFace: t.fonts.heading, fontSize: 32, bold: true, color: idx === 0 ? hex(v.accent) : hex(v.ink), fit: 'shrink' });
+    if (small) addPptText(s, small, { x, y: 3.72, w: cW, h: 0.32, fontFace: t.fonts.body, fontSize: 10.5, bold: true, color: hex(v.ink) });
+    if (m.body) addPptText(s, m.body, { x, y: 4.08, w: cW, h: metricBottom - 4.18, fontFace: t.fonts.body, fontSize: 9, color: hex(v.muted) });
   });
   if (hasBody) {
-    s.addShape('roundRect', { x: 0.62, y: H - 1.6, w: W - 1.24, h: 1.22, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.16 });
-    addPptText(s, 'KEY TAKEAWAY', { x: 0.9, y: H - 1.46, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
-    addPptText(s, slide.body, { x: 0.9, y: H - 1.22, w: W - 1.8, h: 0.72, fontFace: t.fonts.body, fontSize: 11, color: 'FFFFFF' });
+    s.addShape('rect', { x: 1.45, y: H - 1.55, w: W - 2.05, h: 1.05, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, 'KEY TAKEAWAY', { x: 1.75, y: H - 1.4, w: 2.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.accent), charSpacing: 2 });
+    addPptText(s, slide.body, { x: 1.75, y: H - 1.14, w: W - 2.65, h: 0.56, fontFace: t.fonts.body, fontSize: 10.5, color: 'FFFFFF' });
   }
 }
 
+// 면접 트랜스크립트 스타일 Q&A — Q 행 아래 들여쓴 A 답변
 function drawStarQAPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  addPptText(s, (slide.sectionLabel || 'PREDICTED Q&A').toUpperCase(), { x: 0.62, y: 0.44, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 0.62, y: 0.84, w: 11.8, h: 0.95, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
-  const items = slide.items || [];
-  const hW = (W - 1.74) / 2;
-  items.slice(0, 2).forEach((item, idx) => {
-    const x = 0.62 + idx * (hW + 0.1);
-    s.addShape('roundRect', { x, y: 2.0, w: hW, h: H - 2.45, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
-    s.addShape('roundRect', { x: x + 0.24, y: 2.26, w: 0.42, h: 0.38, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) }, rectRadius: 0.08 });
-    addPptText(s, 'Q', { x: x + 0.24, y: 2.31, w: 0.42, h: 0.22, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.accent), align: 'center' });
-    addPptText(s, item.heading || '', { x: x + 0.82, y: 2.26, w: hW - 1.06, h: 0.72, fontFace: t.fonts.heading, fontSize: 11.5, bold: true, color: hex(v.dark) });
-    s.addShape('rect', { x: x + 0.24, y: 3.1, w: hW - 0.48, h: 0.02, fill: { color: hex(v.soft) }, line: { color: hex(v.soft) } });
-    s.addShape('roundRect', { x: x + 0.24, y: 3.26, w: 0.42, h: 0.38, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.08 });
-    addPptText(s, 'A', { x: x + 0.24, y: 3.31, w: 0.42, h: 0.22, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.dark), align: 'center' });
-    addPptText(s, item.body || '', { x: x + 0.82, y: 3.26, w: hW - 1.06, h: H - 3.8, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  const accentInk = hex(readableTextOn(v.accent));
+  drawStarRailPptx(s, t, v, 'QA', slide.sectionLabel, H);
+  drawStarHeaderPptx(s, slide, t, v, 'INTERVIEW Q&A');
+  s.addShape('rect', { x: W - 1.6, y: 0.48, w: 1.0, h: 0.32, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  addPptText(s, 'VERIFY', { x: W - 1.6, y: 0.54, w: 1.0, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: accentInk, align: 'center', charSpacing: 1.5 });
+  const items = (slide.items || []).slice(0, 2);
+  const rH = (H - 2.75 - 0.25) / 2;
+  items.forEach((item, idx) => {
+    const y = 2.25 + idx * (rH + 0.25);
+    s.addShape('rect', { x: 1.45, y, w: W - 2.05, h: rH, fill: { color: hex(v.card) }, line: { color: hex(v.soft) } });
+    s.addShape('rect', { x: 1.75, y: y + 0.28, w: 0.5, h: 0.36, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+    addPptText(s, `Q${idx + 1}`, { x: 1.75, y: y + 0.34, w: 0.5, h: 0.22, fontFace: t.fonts.heading, fontSize: 10.5, bold: true, color: 'FFFFFF', align: 'center' });
+    addPptText(s, item.heading || '', { x: 2.42, y: y + 0.26, w: W - 3.25, h: 0.62, fontFace: t.fonts.heading, fontSize: 12, bold: true, color: hex(v.ink) });
+    s.addShape('rect', { x: 2.42, y: y + 1.0, w: 0.04, h: rH - 1.3, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, item.body || '', { x: 2.66, y: y + 1.0, w: W - 3.5, h: rH - 1.28, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
   });
 }
 
 function drawStarAwardsPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  s.addShape('ellipse', { x: 0.62, y: 0.28, w: 0.56, h: 0.56, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
-  addPptText(s, '🏆', { x: 0.62, y: 0.36, w: 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
-  addPptText(s, (slide.sectionLabel || 'HONORS & RECOGNITION').toUpperCase(), { x: 1.35, y: 0.38, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 1.35, y: 0.6, w: 10.5, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
-  const items = slide.items || [];
-  const cW = (W - 1.54) / 3;
-  items.slice(0, 3).forEach((item, idx) => {
-    const x = 0.62 + idx * (cW + 0.15);
-    s.addShape('roundRect', { x, y: 1.52, w: cW, h: H - 1.97, fill: { color: hex(v.card) }, line: { color: hex(v.soft) }, rectRadius: 0.18 });
-    addPptText(s, item.period || item.role || '', { x: x + 0.24, y: 1.78, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.muted), charSpacing: 1 });
-    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.06, w: cW - 0.48, h: 0.55, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: x + 0.24, y: 2.68, w: cW - 0.48, h: H - 3.15, fontFace: t.fonts.body, fontSize: 10, color: hex(v.muted) });
+  addPptText(s, (slide.sectionLabel || 'RECOGNITION').toUpperCase(), { x: 0.78, y: 0.55, w: 6.5, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 0.9, w: 11.7, h: 0.85, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  const items = (slide.items || []).slice(0, 3);
+  const rowH = (H - 2.6) / Math.max(1, items.length);
+  items.forEach((item, idx) => {
+    const y = 2.05 + idx * rowH;
+    s.addShape('rect', { x: 0.78, y, w: W - 1.56, h: 0.02, fill: { color: idx === 0 ? hex(v.ink) : hex(v.soft) }, line: { color: idx === 0 ? hex(v.ink) : hex(v.soft) } });
+    addPptText(s, item.period || item.role || `NO.${String(idx + 1).padStart(2, '0')}`, { x: 0.78, y: y + 0.24, w: 2.0, h: 0.5, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.accent), charSpacing: 1 });
+    addPptText(s, item.heading || '', { x: 3.0, y: y + 0.18, w: 7.6, h: 0.36, fontFace: t.fonts.heading, fontSize: 14, bold: true, color: hex(v.ink) });
+    addPptText(s, item.body || '', { x: 3.0, y: y + 0.58, w: 7.6, h: rowH - 0.72, fontFace: t.fonts.body, fontSize: 9.5, color: hex(v.muted) });
+    addPptText(s, String(idx + 1).padStart(2, '0'), { x: 11.0, y: y + 0.18, w: 1.55, h: 0.55, fontFace: t.fonts.heading, fontSize: 21, bold: true, color: hex(v.soft), align: 'right' });
   });
 }
 
 function drawStarRoadmapPptx(s, slide, t, v, W, H) {
   drawStarBg(s, v, W, H);
-  s.addShape('ellipse', { x: 0.62, y: 0.28, w: 0.56, h: 0.56, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
-  addPptText(s, '🚀', { x: 0.62, y: 0.36, w: 0.56, h: 0.28, fontFace: t.fonts.body, fontSize: 13, align: 'center' });
-  addPptText(s, (slide.sectionLabel || 'FUTURE ROADMAP').toUpperCase(), { x: 1.35, y: 0.38, w: 5.5, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: hex(v.muted), charSpacing: 2 });
-  addPptText(s, slide.title || '', { x: 1.35, y: 0.6, w: 10.5, h: 0.62, fontFace: t.fonts.heading, fontSize: 24, bold: true, color: hex(v.dark) });
-  const items = slide.items || [];
-  const cW = (W - 1.54) / 3;
-  items.slice(0, 3).forEach((item, idx) => {
-    const x = 0.62 + idx * (cW + 0.15);
-    s.addShape('roundRect', { x, y: 1.52, w: cW, h: H - 1.97, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.18 });
-    addPptText(s, item.period || `Phase ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.24, y: 1.78, w: cW - 0.48, h: 0.22, fontFace: t.fonts.body, fontSize: 9, bold: true, color: hex(v.dark), transparency: 30, charSpacing: 1 });
-    addPptText(s, item.heading || '', { x: x + 0.24, y: 2.06, w: cW - 0.48, h: 0.58, fontFace: t.fonts.heading, fontSize: 15, bold: true, color: hex(v.dark) });
-    addPptText(s, item.body || '', { x: x + 0.24, y: 2.72, w: cW - 0.48, h: H - 3.18, fontFace: t.fonts.body, fontSize: 10, color: hex(v.dark), transparency: 38 });
+  const accentInk = hex(readableTextOn(v.accent));
+  addPptText(s, (slide.sectionLabel || 'NEXT STEP').toUpperCase(), { x: 0.78, y: 0.55, w: 6.5, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: hex(v.accent), charSpacing: 2 });
+  addPptText(s, slide.title || '', { x: 0.78, y: 0.9, w: 11.7, h: 0.85, fontFace: t.fonts.heading, fontSize: 25, bold: true, color: hex(v.ink), fit: 'shrink' });
+  const items = (slide.items || []).slice(0, 3);
+  const n = Math.max(1, items.length);
+  const cW = (W - 1.56 - 0.25 * (n - 1)) / n;
+  items.forEach((item, idx) => {
+    const last = idx === n - 1;
+    const x = 0.78 + idx * (cW + 0.25);
+    const y = 2.3 + (n - 1 - idx) * 0.5;
+    const cH = H - y - 0.6;
+    s.addShape('rect', { x, y, w: cW, h: cH, fill: { color: last ? hex(v.dark) : hex(v.card) }, line: { color: last ? hex(v.dark) : hex(v.soft) } });
+    s.addShape('rect', { x, y, w: cW, h: 0.06, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+    addPptText(s, item.period || `PHASE ${String(idx + 1).padStart(2, '0')}`, { x: x + 0.26, y: y + 0.26, w: cW - 0.52, h: 0.22, fontFace: t.fonts.body, fontSize: 8, bold: true, color: last ? hex(v.accent) : hex(v.muted), charSpacing: 1.5 });
+    addPptText(s, item.heading || '', { x: x + 0.26, y: y + 0.56, w: cW - 0.52, h: 0.6, fontFace: t.fonts.heading, fontSize: 13.5, bold: true, color: last ? 'FFFFFF' : hex(v.ink) });
+    addPptText(s, item.body || '', { x: x + 0.26, y: y + 1.22, w: cW - 0.52, h: cH - (last ? 1.95 : 1.5), fontFace: t.fonts.body, fontSize: 9.5, color: last ? 'FFFFFF' : hex(v.muted), transparency: last ? 28 : 0 });
+    if (last) {
+      s.addShape('rect', { x: x + 0.26, y: y + cH - 0.6, w: 0.85, h: 0.32, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+      addPptText(s, 'GOAL', { x: x + 0.26, y: y + cH - 0.54, w: 0.85, h: 0.2, fontFace: t.fonts.body, fontSize: 7.5, bold: true, color: accentInk, align: 'center', charSpacing: 1 });
+    }
   });
 }
 
 function drawStarClosingPptx(s, slide, t, v, W, H) {
+  const accentInk = hex(readableTextOn(v.accent));
   s.addShape('rect', { x: 0, y: 0, w: W, h: H, fill: { color: hex(v.dark) }, line: { color: hex(v.dark) } });
+  ['S', 'T', 'A', 'R'].forEach((l, idx) => {
+    addPptText(s, l, { x: 0.9 + idx * 3.0, y: 1.9, w: 2.6, h: 3.6, fontFace: t.fonts.heading, fontSize: 170, bold: true, color: 'FFFFFF', transparency: 94, align: 'center' });
+  });
+  s.addShape('rect', { x: 0, y: 0, w: W, h: 0.14, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
   const bW = 2.1;
-  s.addShape('roundRect', { x: (W - bW) / 2, y: 1.35, w: bW, h: 0.4, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) }, rectRadius: 0.2 });
-  addPptText(s, 'THANK YOU', { x: (W - bW) / 2, y: 1.42, w: bW, h: 0.24, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: hex(v.dark), align: 'center', charSpacing: 3 });
-  addPptText(s, slide.title || '감사합니다', { x: 0.9, y: 2.05, w: W - 1.8, h: 1.65, fontFace: t.fonts.heading, fontSize: 52, bold: true, color: hex(v.accent), align: 'center' });
-  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.0, y: 3.95, w: W - 2.0, h: 0.42, fontFace: t.fonts.body, fontSize: 11.5, color: 'CFCFCF', align: 'center' });
+  s.addShape('rect', { x: (W - bW) / 2, y: 1.45, w: bW, h: 0.4, fill: { color: hex(v.accent) }, line: { color: hex(v.accent) } });
+  addPptText(s, 'THANK YOU', { x: (W - bW) / 2, y: 1.52, w: bW, h: 0.24, fontFace: t.fonts.body, fontSize: 8.5, bold: true, color: accentInk, align: 'center', charSpacing: 3 });
+  addPptText(s, slide.title || '감사합니다', { x: 0.9, y: 2.15, w: W - 1.8, h: 1.65, fontFace: t.fonts.heading, fontSize: 50, bold: true, color: 'FFFFFF', align: 'center' });
+  if (slide.subtitle) addPptText(s, slide.subtitle, { x: 1.0, y: 4.05, w: W - 2.0, h: 0.42, fontFace: t.fonts.body, fontSize: 11.5, color: 'FFFFFF', transparency: 35, align: 'center' });
   const bullets = slide.bullets || [];
   if (bullets.length) {
     const bItemW = Math.min(2.6, (W - 1.4) / bullets.length);
-    const startX = (W - bItemW * bullets.length - 0.1 * (bullets.length - 1)) / 2;
+    const startX = (W - bItemW * bullets.length - 0.12 * (bullets.length - 1)) / 2;
     bullets.slice(0, 5).forEach((b, idx) => {
-      const bx = startX + idx * (bItemW + 0.1);
-      s.addShape('roundRect', { x: bx, y: 4.72, w: bItemW, h: 0.4, fill: { color: 'FFFFFF', transparency: 88 }, line: { color: 'FFFFFF', transparency: 78 }, rectRadius: 0.2 });
-      addPptText(s, b, { x: bx, y: 4.78, w: bItemW, h: 0.26, fontFace: t.fonts.body, fontSize: 8.5, color: 'FFFFFF', align: 'center', transparency: 20 });
+      const bx = startX + idx * (bItemW + 0.12);
+      s.addShape('rect', { x: bx, y: 4.82, w: bItemW, h: 0.4, fill: { color: hex(v.dark), transparency: 100 }, line: { color: 'FFFFFF', transparency: 70 } });
+      addPptText(s, b, { x: bx, y: 4.88, w: bItemW, h: 0.26, fontFace: t.fonts.body, fontSize: 8.5, color: 'FFFFFF', align: 'center', transparency: 15 });
     });
   }
 }
@@ -6839,6 +7019,7 @@ function drawStarClosingPptx(s, slide, t, v, W, H) {
 function drawStarPptx(s, slide, t, v, i, W, H) {
   const l = slide.layout;
   if (l === 'star-cover') return drawStarCoverPptx(s, slide, t, v, W, H);
+  if (l === 'star-method') return drawStarMethodPptx(s, slide, t, v, W, H);
   if (l === 'star-identity') return drawStarIdentityPptx(s, slide, t, v, W, H);
   if (l === 'star-timeline') return drawStarTimelinePptx(s, slide, t, v, W, H);
   if (l === 'star-situation') return drawStarSituationPptx(s, slide, t, v, W, H);

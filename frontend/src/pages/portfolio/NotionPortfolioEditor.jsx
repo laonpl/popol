@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, EditText, VHtml } from './VisualPortfolioTemplates';
 import ProjectDetailModal from '../../components/ProjectDetailModal';
+import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 
 function stripMd(s) {
   return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
@@ -961,42 +962,20 @@ export default function NotionPortfolioEditor() {
     new URLSearchParams(location.search).get('mode') === 'form' ? 'form' : 'visual'
   );
   const [analysisMode, setAnalysisMode] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // 자동 저장 관련
-  const autoSaveTimer = useRef(null);
+  useUnsavedChanges(hasUnsavedChanges && !saving);
+
   const initialLoaded = useRef(false);
-  const pendingRef = useRef(false);
-  const queuedPortfolioRef = useRef(null);
   const portfolioRef = useRef(null);
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
   const isHistoryActionRef = useRef(false);
 
-  const persistPortfolio = useCallback(async (snapshot) => {
-    if (!snapshot) return;
-    if (pendingRef.current) {
-      queuedPortfolioRef.current = snapshot;
-      return;
-    }
-    pendingRef.current = true;
-    try {
-      const { id: _id, ...data } = snapshot;
-      await updatePortfolio(id, data);
-    } catch { /* Keep editing available when an automatic save fails. */ }
-    finally {
-      pendingRef.current = false;
-      const queued = queuedPortfolioRef.current;
-      queuedPortfolioRef.current = null;
-      if (queued && queued !== snapshot) persistPortfolio(queued);
-    }
-  }, [id, updatePortfolio]);
-
   useEffect(() => {
     if (!portfolio || !initialLoaded.current) return;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => persistPortfolio(portfolio), 2000);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [portfolio, persistPortfolio]);
+    setHasUnsavedChanges(true);
+  }, [portfolio]);
 
   useEffect(() => {
     portfolioRef.current = portfolio;
@@ -1340,27 +1319,15 @@ export default function NotionPortfolioEditor() {
     await sleep(40);
   };
 
-  const waitForPersistIdle = async () => {
-    for (let i = 0; i < 25; i += 1) {
-      if (!pendingRef.current) return;
-      await sleep(80);
-    }
-  };
-
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-        autoSaveTimer.current = null;
-      }
       await flushEmbeddedEditors();
-      await waitForPersistIdle();
-      queuedPortfolioRef.current = null;
       const snapshot = portfolioRef.current || portfolio;
       const { id: _id, ...data } = snapshot;
       await updatePortfolio(id, data);
       setCurrentPortfolio(snapshot);
+      setHasUnsavedChanges(false);
       toast.success('저장되었습니다');
       navigate(`/app/portfolio/preview/${id}`);
     } catch (error) {
@@ -1458,6 +1425,12 @@ export default function NotionPortfolioEditor() {
           <ArrowLeft size={14} /> 목록으로
         </Link>
         <div className="flex items-center gap-2">
+          {hasUnsavedChanges && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              저장 안 됨
+            </span>
+          )}
           <button
             onClick={() => setAnalysisMode(prev => !prev)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all border ${

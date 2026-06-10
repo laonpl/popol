@@ -45,7 +45,7 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
   if (acceptedLayoutDeck) {
     const withImages = attachExperienceImages(acceptedLayoutDeck, portfolio);
     const safeDeck = sanitizeDeckToPortfolioSource(withImages, portfolio);
-    return optimizeDeckDensity(safeDeck);
+    return applyConciseToneToDeck(optimizeDeckDensity(safeDeck));
   }
 
   const orchestrated = orchestrateNotionPortfolioForPpt(portfolio);
@@ -65,10 +65,10 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
     });
     const parsed = parseJSON(text);
     const deck = normalizeNarrativeGeminiDeck(parsed, baseDeck, orchestrated);
-    return optimizeDeckDensity(deck);
+    return applyConciseToneToDeck(optimizeDeckDensity(deck));
   } catch (error) {
     console.warn('[AI PPT] Gemini narrative deck generation failed. Falling back to deterministic deck:', error?.message || error);
-    return optimizeDeckDensity(baseDeck);
+    return applyConciseToneToDeck(optimizeDeckDensity(baseDeck));
   }
 }
 
@@ -821,6 +821,52 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
   };
 }
 
+// ── 단답형(개조식) 어미 변환 ──────────────────────────────────────────
+// "~했습니다" 류 경어체 종결을 "~했음/~함"으로 끊어 PPT 글이 단답형으로 읽히게 한다.
+// 질문형 라벨("~인가요?")은 변환 대상 아님(니다 종결만 처리). 제목(title)은 이름·프로젝트명·"감사합니다" 등이라 제외.
+function toConcisePptTone(value) {
+  if (typeof value !== 'string' || !value) return value;
+  // 1) 받침 어간 + 습니다 → 음 (있습니다→있음, 만들었습니다→만들었음)
+  let out = value.replace(/습니다(?=[.!?,)\s"'」』\]]|$)/g, '음');
+  // 2) ㅂ받침 융합형 + 니다 → ㅁ받침 (합니다→함, 입니다→임, 됩니다→됨)
+  out = out.replace(/([가-힣])니다(?=[.!?,)\s"'」』\]]|$)/g, (m, ch) => {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    return code % 28 === 17 ? String.fromCharCode(ch.charCodeAt(0) - 1) : m;
+  });
+  // 3) 끝 마침표 제거(개조식) — 문장 사이 구분 마침표는 유지
+  return out.replace(/\.\s*$/, '');
+}
+
+function applyConciseToneToDeck(deck) {
+  if (!deck || !Array.isArray(deck.slides)) return deck;
+  const conv = toConcisePptTone;
+  const convMetric = (m = {}) => ({ ...m, label: conv(m.label), body: conv(m.body) });
+  const convItem = (item = {}) => ({
+    ...item,
+    heading: conv(item.heading),
+    role: conv(item.role),
+    body: conv(item.body),
+    bullets: Array.isArray(item.bullets) ? item.bullets.map(conv) : item.bullets,
+    metrics: Array.isArray(item.metrics) ? item.metrics.map(convMetric) : item.metrics,
+  });
+  return {
+    ...deck,
+    slides: deck.slides.map(slide => ({
+      ...slide,
+      subtitle: conv(slide.subtitle),
+      body: conv(slide.body),
+      ideaBody: conv(slide.ideaBody),
+      bullets: Array.isArray(slide.bullets) ? slide.bullets.map(conv) : slide.bullets,
+      items: Array.isArray(slide.items) ? slide.items.map(convItem) : slide.items,
+      metrics: Array.isArray(slide.metrics) ? slide.metrics.map(convMetric) : slide.metrics,
+      table: Array.isArray(slide.table) ? slide.table.map(row => (Array.isArray(row) ? row.map(conv) : row)) : slide.table,
+      details: slide.details && typeof slide.details === 'object'
+        ? Object.fromEntries(Object.entries(slide.details).map(([key, arr]) => [key, Array.isArray(arr) ? arr.map(conv) : arr]))
+        : slide.details,
+    })),
+  };
+}
+
 function buildPortfolioSourceIndex(portfolio) {
   const chunks = [];
   const visit = (value) => {
@@ -907,7 +953,7 @@ export async function reviseAiPptSlide({ slide, instruction, portfolio }) {
     })) : (slide.items || []),
     notes: parsed.notes ? String(parsed.notes).slice(0, 200) : (slide.notes || ''),
   };
-  return optimizeAcceptedReferenceSlide(revised);
+  return applyConciseToneToDeck({ slides: [optimizeAcceptedReferenceSlide(revised)] }).slides[0];
 }
 
 function buildProposalDeckFromPortfolio(p) {
@@ -1682,7 +1728,7 @@ function finalizeAcceptedDeck(meta, slides, ctx, mode) {
   }
   if (mode === 'star') {
     return {
-      meta: { ...meta, templateMode: 'accepted-star', referenceSlideCount: 21 },
+      meta: { ...meta, templateMode: 'accepted-star', referenceSlideCount: 22 },
       slides: buildStarReferenceDeck(ctx),
     };
   }
@@ -2333,33 +2379,22 @@ function buildStarReferenceDeck(ctx) {
     const eps = (exp.episodes || []).slice(0, 3);
     const slides = [];
 
-    // 프로젝트 서사: 문제 정의(S) → 해결 아이디어(I) → 과정(T/A) → 결과(R) → 세부(CASE).
-    // Situation 에는 문제 정의만 — 해결 아이디어(개요)와 심층 수치(metrics)를 섞지 않는다.
+    // 프로젝트 서사: 문제 정의(S)+해결 아이디어(I) 반반 → 과정(T/A) → 결과(R) → 세부(CASE).
+    // 문제와 아이디어는 한 문단으로 섞지 않되, 별도 페이지로 나누면 공백이 많아
+    // 한 슬라이드 좌(문제)/우(접근) 패널로 분할해 담는다(ideaBody 필드).
     const problemSource = exp.background || eps[0]?.context || exp.problem?.[0];
     const situationBody = clipSentence(problemSource || exp.body, 300);
+    const ideaBody = problemSource ? clipSentence(exp.body, 300) : '';
     slides.push({
       layout: 'star-situation',
-      sectionLabel: `${pad2(num)} ${label}`,
+      sectionLabel: `CASE ${pad2(num)} ${label}`,
       starPhase: 'S',
       title: `Situation · ${label}`,
       subtitle: fs(exp.role) || exp.period || '',
       body: situationBody,
+      ideaBody,
       imageUrl: exp.imageUrl || '',
     });
-
-    // 해결 아이디어 — 문제를 풀기 위한 접근(개요). 문제 소스가 따로 있을 때만(중복 방지).
-    const ideaBody = problemSource ? clipSentence(exp.body, 300) : '';
-    if (ideaBody) {
-      slides.push({
-        layout: 'star-situation',
-        sectionLabel: `${pad2(num)} ${label}`,
-        starPhase: 'I',
-        bannerLabel: 'OUR APPROACH',
-        title: `Idea · ${label}`,
-        subtitle: fs(exp.role) || '',
-        body: ideaBody,
-      });
-    }
 
     // Task — 에피소드별 과제 카드 (이야기 단위 정합)
     const taskItems = eps.length
@@ -2372,7 +2407,7 @@ function buildStarReferenceDeck(ctx) {
     if (taskItems.length) {
       slides.push({
         layout: 'star-task',
-        sectionLabel: `${pad2(num)} ${label}`,
+        sectionLabel: `CASE ${pad2(num)} ${label}`,
         starPhase: 'T',
         title: `Task · ${label}`,
         items: taskItems,
@@ -2391,7 +2426,7 @@ function buildStarReferenceDeck(ctx) {
     if (actionItems.length) {
       slides.push({
         layout: 'star-action',
-        sectionLabel: `${pad2(num)} ${label}`,
+        sectionLabel: `CASE ${pad2(num)} ${label}`,
         starPhase: 'A',
         title: `Action · ${label}`,
         items: actionItems,
@@ -2403,7 +2438,7 @@ function buildStarReferenceDeck(ctx) {
     if (metrics.length || resultBody) {
       slides.push({
         layout: 'star-result',
-        sectionLabel: `${pad2(num)} ${label}`,
+        sectionLabel: `CASE ${pad2(num)} ${label}`,
         starPhase: 'R',
         title: `Result · ${label}`,
         metrics: metrics.slice(0, 3),
@@ -2421,7 +2456,7 @@ function buildStarReferenceDeck(ctx) {
       if (caseCards.length >= 2) {
         slides.push({
           layout: 'star-task',
-          sectionLabel: `${pad2(num)} ${label} · CASE ${pad2(k + 1)}`,
+          sectionLabel: `CASE ${pad2(num)} SCENE ${pad2(k + 1)}`,
           starPhase: 'T',
           title: ep.title || `${label} 핵심 장면 ${k + 1}`,
           items: caseCards,
@@ -2442,7 +2477,7 @@ function buildStarReferenceDeck(ctx) {
     if (qaItems.length) {
       slides.push({
         layout: 'star-qa',
-        sectionLabel: `${pad2(num)} ${label} · Q&A`,
+        sectionLabel: `CASE ${pad2(num)} Q&A`,
         starPhase: 'QA',
         title: `${label} 면접 예상 Q&A`,
         items: qaItems,
@@ -2466,8 +2501,21 @@ function buildStarReferenceDeck(ctx) {
       ],
     },
     {
+      // STAR 읽기 안내 — 본문은 12자 이하 고정 라벨(소스 검증 가드 통과 조건)
+      layout: 'star-method',
+      sectionLabel: 'HOW TO READ',
+      title: '경험을 검증하는 4단계',
+      subtitle: '모든 케이스는 상황 → 과제 → 행동 → 결과 순서로 읽습니다',
+      items: [
+        refItem('상황', '문제와 맥락 정의'),
+        refItem('과제', '맡은 역할과 과제'),
+        refItem('행동', '실행한 핵심 행동'),
+        refItem('결과', '검증 가능한 성과'),
+      ],
+    },
+    {
       layout: 'star-identity',
-      sectionLabel: 'PROFESSIONAL IDENTITY',
+      sectionLabel: 'PROFILE',
       title: `${userName}을 소개합니다`,
       subtitle: target || skillGroups[0]?.heading || '',
       items: [
@@ -2478,8 +2526,8 @@ function buildStarReferenceDeck(ctx) {
     },
     {
       layout: 'star-timeline',
-      sectionLabel: 'EXPERIENCE TIMELINE',
-      title: '경험 타임라인',
+      sectionLabel: 'CASE INDEX',
+      title: '케이스 인덱스',
       items: ctx.expItems.map((e, i) => ({
         heading: projectName(e.heading) || `경험 ${i + 1}`,
         body: fs(e.role || e.bullets?.[0] || e.body),
@@ -2490,7 +2538,7 @@ function buildStarReferenceDeck(ctx) {
     ...ctx.expItems.flatMap((e, i) => makeProjectSlides(e, i + 1)),
     {
       layout: 'star-awards',
-      sectionLabel: 'HONORS & RECOGNITION',
+      sectionLabel: 'RECOGNITION',
       title: '수상 및 인증 이력',
       items: awards.length > 0 ? awards.slice(0, 3) : [
         refItem('성과 인증', ctx.expPoint(0, '경험에서 확인된 성과와 역량'), '인증 내역', 'Award'),
@@ -2500,7 +2548,7 @@ function buildStarReferenceDeck(ctx) {
     },
     {
       layout: 'star-roadmap',
-      sectionLabel: 'FUTURE ROADMAP',
+      sectionLabel: 'NEXT STEP',
       title: '성장 로드맵',
       items: goals.length > 0 ? goals.slice(0, 3) : [
         refItem('단기 목표', ctx.expPoint(0, '현재 경험 기반 단기 성장 목표'), 'Phase 01'),

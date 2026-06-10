@@ -231,6 +231,7 @@ export default function FreeformPortfolioEditor() {
     } catch (err) {
       console.error('저장 실패:', err);
       toast.error('저장에 실패했습니다');
+      throw err;
     } finally {
       setSaving(false);
     }
