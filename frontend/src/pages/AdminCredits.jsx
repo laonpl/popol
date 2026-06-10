@@ -40,6 +40,7 @@ export default function AdminCredits() {
   // 충전 폼
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
   const [granting, setGranting] = useState(false);
   const [result, setResult] = useState(null);
 
@@ -50,6 +51,11 @@ export default function AdminCredits() {
   // 충전 요청
   const [requests, setRequests] = useState([]);
   const [actingId, setActingId] = useState(null);
+
+  // 사용자 조회
+  const [lookupEmail, setLookupEmail] = useState('');
+  const [lookupData, setLookupData] = useState(null);
+  const [lookingUp, setLookingUp] = useState(false);
 
   const loadFeedback = async () => {
     if (!cred) return;
@@ -115,6 +121,33 @@ export default function AdminCredits() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cred, tab]);
 
+  const lookupUser = async (e) => {
+    e.preventDefault();
+    if (!lookupEmail.trim()) {
+      toast.error('조회할 이메일을 입력해주세요.');
+      return;
+    }
+    setLookingUp(true);
+    setLookupData(null);
+    try {
+      const { data } = await api.post('/admin/user-lookup', { ...cred, email: lookupEmail.trim() });
+      setLookupData(data);
+    } catch (error) {
+      if (error.response?.status === 401) logout();
+      toast.error(error.response?.data?.error || error.message || '조회에 실패했습니다.');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  // 조회한 사용자를 충전 폼에 채워 환불로 이어준다.
+  const refundLookupUser = () => {
+    if (!lookupData) return;
+    setEmail(lookupData.email);
+    setTab('credits');
+    toast('환불할 크레딧 금액을 입력한 뒤 충전하세요.');
+  };
+
   const login = async (e) => {
     e.preventDefault();
     setLoggingIn(true);
@@ -135,8 +168,10 @@ export default function AdminCredits() {
     sessionStorage.removeItem('adminCred');
     setCred(null);
     setResult(null);
+    setReason('');
     setFeedback([]);
     setRequests([]);
+    setLookupData(null);
     setTab('credits');
   };
 
@@ -154,10 +189,12 @@ export default function AdminCredits() {
         ...cred,
         email: email.trim(),
         amount: value,
+        reason: reason.trim(),
       });
       setResult(data);
       toast.success(`${data.email} 에 ${data.amount} 크레딧 충전 완료`);
       setAmount('');
+      setReason('');
     } catch (error) {
       if (error.response?.status === 401) logout();
       toast.error(error.response?.data?.error || error.message || '충전에 실패했습니다.');
@@ -226,6 +263,7 @@ export default function AdminCredits() {
 
         <div className="mb-6 inline-flex gap-1 rounded-xl border border-surface-200 bg-white p-1 shadow-sm">
           <button type="button" onClick={() => setTab('credits')} className={tabClass('credits')}>크레딧 충전</button>
+          <button type="button" onClick={() => setTab('lookup')} className={tabClass('lookup')}>사용자 조회</button>
           <button type="button" onClick={() => setTab('requests')} className={tabClass('requests')}>
             충전 요청{requests.filter(r => r.status === 'pending').length > 0 && ` (${requests.filter(r => r.status === 'pending').length})`}
           </button>
@@ -252,7 +290,7 @@ export default function AdminCredits() {
             placeholder="예: 12000"
             className="mt-1 w-full rounded-lg border border-surface-200 px-3 py-2.5 text-sm outline-none focus:border-primary-400"
           />
-          <div className="mt-2 mb-5 flex flex-wrap gap-2">
+          <div className="mt-2 mb-4 flex flex-wrap gap-2">
             {QUICK_AMOUNTS.map(value => (
               <button
                 key={value}
@@ -261,6 +299,29 @@ export default function AdminCredits() {
                 className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-bold text-bluewood-600 hover:border-primary-300 hover:text-primary-600"
               >
                 +{value.toLocaleString()}
+              </button>
+            ))}
+          </div>
+          <label className="block text-sm font-bold text-bluewood-700">
+            충전 메시지 <span className="font-medium text-bluewood-300">(선택 · 사용자 내역에 표시됨)</span>
+          </label>
+          <input
+            type="text"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            maxLength={100}
+            placeholder="예: 오류로 차감된 크레딧 환불, 이벤트 보상"
+            className="mt-1 mb-2 w-full rounded-lg border border-surface-200 px-3 py-2.5 text-sm outline-none focus:border-primary-400"
+          />
+          <div className="mb-5 flex flex-wrap gap-2">
+            {['오류로 차감된 크레딧 환불', '이벤트 보상', '서비스 사과 크레딧'].map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setReason(preset)}
+                className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-bold text-bluewood-600 hover:border-primary-300 hover:text-primary-600"
+              >
+                {preset}
               </button>
             ))}
           </div>
@@ -283,6 +344,69 @@ export default function AdminCredits() {
             </p>
           </div>
         )}
+        </div>
+        )}
+
+        {tab === 'lookup' && (
+        <div>
+          <form onSubmit={lookupUser} className="mb-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="email"
+              value={lookupEmail}
+              onChange={e => setLookupEmail(e.target.value)}
+              placeholder="조회할 사용자 이메일"
+              className="flex-1 rounded-lg border border-surface-200 px-3 py-2.5 text-sm outline-none focus:border-primary-400"
+            />
+            <button
+              type="submit"
+              disabled={lookingUp}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+            >
+              {lookingUp ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              조회
+            </button>
+          </form>
+
+          {lookupData && (
+            <div className="rounded-lg border border-surface-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface-100 pb-4">
+                <div>
+                  <p className="text-sm font-bold text-bluewood-800">{lookupData.email}</p>
+                  <p className="mt-0.5 text-xs text-bluewood-300">{lookupData.uid}</p>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                    <span className="font-bold text-primary-600">잔액 {Number(lookupData.balance).toLocaleString()} C</span>
+                    <span className="text-bluewood-400">누적 충전 {Number(lookupData.totalCharged).toLocaleString()}</span>
+                    <span className="text-bluewood-400">누적 사용 {Number(lookupData.totalUsed).toLocaleString()}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={refundLookupUser}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-bold text-white hover:bg-primary-700"
+                >
+                  <Wallet size={15} /> 이 사용자 환불
+                </button>
+              </div>
+
+              <p className="mt-4 mb-2 text-sm font-bold text-bluewood-700">최근 거래내역 ({lookupData.transactions.length})</p>
+              {lookupData.transactions.length === 0 ? (
+                <p className="py-8 text-center text-sm font-semibold text-bluewood-300">거래내역이 없습니다.</p>
+              ) : (
+                <div className="divide-y divide-surface-100">
+                  {lookupData.transactions.map(item => (
+                    <div key={item.id} className="grid items-center gap-3 py-2.5 md:grid-cols-[minmax(0,1fr)_170px_110px_120px]">
+                      <p className="truncate text-sm font-semibold text-bluewood-700">{item.description || item.type}</p>
+                      <p className="text-xs font-semibold text-bluewood-300">{formatDate(item.createdAt)}</p>
+                      <p className={`text-sm font-bold tabular-nums ${Number(item.amount) >= 0 ? 'text-primary-600' : 'text-bluewood-600'}`}>
+                        {Number(item.amount) >= 0 ? '+' : ''}{Number(item.amount || 0).toLocaleString()} C
+                      </p>
+                      <p className="text-xs text-bluewood-300 tabular-nums">잔액 {Number(item.balanceAfter || 0).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         )}
 
