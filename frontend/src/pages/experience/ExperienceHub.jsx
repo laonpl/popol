@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, CalendarDays, Star, ArrowUpDown,
@@ -596,7 +596,7 @@ export default function ExperienceHub() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
       ) : displayExperiences.length === 0 ? (
-        <EmptyState />
+        <EmptyState onAdd={() => setChooserOpen(true)} />
       ) : (
         <>
           {/* ═══ 간트 타임라인 ═══ */}
@@ -1382,7 +1382,7 @@ function ProfileView({ experiences, user, profile }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onAdd }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
       {/* 일러스트 영역 */}
@@ -1412,13 +1412,14 @@ function EmptyState() {
         ))}
       </div>
 
-      <Link
-        to="/app/experience/new"
+      <button
+        type="button"
+        onClick={onAdd}
         className="inline-flex items-center gap-2 px-7 py-3.5 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-all shadow-sm hover:shadow-md"
       >
         <Plus size={17} />
         첫 경험 추가하기
-      </Link>
+      </button>
     </div>
   );
 }
