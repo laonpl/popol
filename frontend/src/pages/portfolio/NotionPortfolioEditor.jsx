@@ -1112,6 +1112,7 @@ export default function NotionPortfolioEditor() {
       if (!prev) return prev;
       const next = typeof producer === 'function' ? producer(prev) : producer;
       if (!next || next === prev || JSON.stringify(next) === JSON.stringify(prev)) return prev;
+      if (initialLoaded.current) setHasUnsavedChanges(true);
       if (!isHistoryActionRef.current) {
         undoStackRef.current = [...undoStackRef.current.slice(-79), prev];
         redoStackRef.current = [];

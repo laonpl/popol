@@ -32,13 +32,14 @@ export default function ExperienceEditor() {
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [currentId, setCurrentId] = useState(id); // 신규 저장 후 ID 추적
+  const [hasImageChanges, setHasImageChanges] = useState(false);
 
   const fw = FRAMEWORKS[framework];
 
   // 저장 시점의 상태 스냅샷 — 변경 여부(dirty) 판단 기준선
   const editableSnapshot = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
   const savedSnapshotRef = useRef(isNew ? editableSnapshot : null);
-  const isDirty = savedSnapshotRef.current !== null && editableSnapshot !== savedSnapshotRef.current;
+  const isDirty = hasImageChanges || (savedSnapshotRef.current !== null && editableSnapshot !== savedSnapshotRef.current);
 
   // 편집 중 이탈 방지 (저장/분석 중에는 화면 전환을 허용해야 하므로 제외)
   useUnsavedChanges(isDirty && !saving && !analyzing);
@@ -92,11 +93,13 @@ export default function ExperienceEditor() {
         const newId = await createExperience(user.uid, { title, framework, jobCategory, content, images, imageSizes });
         setCurrentId(newId);
         savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+        setHasImageChanges(false);
         toast.success('경험이 저장되었습니다!');
         navigate(`/app/experience/edit/${newId}`, { replace: true });
       } else {
         await updateExperience(currentId || id, { title, framework, jobCategory, content, images, imageSizes });
         savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+        setHasImageChanges(false);
         toast.success('수정사항이 저장되었습니다');
       }
     } catch (error) {
@@ -120,6 +123,7 @@ export default function ExperienceEditor() {
         await updateExperience(experienceId, { title, framework, jobCategory, content, images, imageSizes });
       }
       savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+      setHasImageChanges(false);
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
@@ -196,6 +200,7 @@ export default function ExperienceEditor() {
         const base64 = await resizeToBase64(file);
         const newImage = { url: base64, name: file.name };
         setImages(prev => [...prev, newImage]);
+        setHasImageChanges(true);
         toast.success(`${file.name} 추가 완료`);
       } catch (err) {
         console.error('이미지 업로드 실패:', err);
@@ -218,6 +223,7 @@ export default function ExperienceEditor() {
     });
     setImages(updatedImages);
     setImageSizes(updatedSizes);
+    setHasImageChanges(true);
   };
 
   // 이미지 리사이즉 핸들러 (포트폴리오와 동일한 UX)
@@ -237,6 +243,7 @@ export default function ExperienceEditor() {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      setHasImageChanges(true);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
