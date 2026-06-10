@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards, Info } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
+import useUnsavedChanges from '../hooks/useUnsavedChanges';
 
 const DEGREE_OPTIONS = ['학사 재학', '학사 졸업', '학사 수료', '석사 재학', '석사 졸업', '석사 수료', '박사 재학', '박사 졸업', '박사 수료', '전문학사', '고등학교 졸업'];
 const LANGUAGE_TEST_OPTIONS = ['TOEIC', 'TOEFL', 'IELTS', 'TOEIC Speaking', 'OPIc', 'JLPT', 'JPT', 'HSK', 'DELF/DALF', 'DELE', 'TestDaF'];
@@ -28,6 +29,10 @@ export default function ProfileSetup() {
   const { user, profile, saveProfile, changePassword, skipProfileSetup } = useAuthStore();
   const [saving, setSaving] = useState(false);
   const [skipSaving, setSkipSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  // 편집 중 이탈 방지 (저장/건너뛰기 진행 중에는 화면 전환 허용)
+  useUnsavedChanges(dirty && !saving && !skipSaving);
 
   // 비밀번호 변경
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
@@ -156,7 +161,10 @@ export default function ProfileSetup() {
     }
   }, [profile, user]);
 
-  const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const update = (field, value) => {
+    setDirty(true);
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
 
   // 컴포넌트 마운트 시 스크립트 미리 로드 (클릭과 무관하게 준비)
   useEffect(() => {
