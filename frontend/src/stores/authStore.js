@@ -43,7 +43,7 @@ const useAuthStore = create((set, get) => ({
           photoURL: refreshedUser.photoURL || '',
           emailVerified: true,
         };
-        set({ user, loading: false });
+        set({ user, loading: false, profileLoading: true });
         await get().recoverAccountData();
         get().loadProfile(refreshedUser.uid);
       } else {
