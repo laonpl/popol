@@ -3,7 +3,7 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Download, Edit, Loader2, MapPin, Calendar,
   ExternalLink, Mail, Phone, Globe, ChevronUp, X, FileText,
-  ChevronRight, Tag, Share2, Copy, Check, Link2, Save
+  ChevronRight, Tag, Share2, Copy, Check, Link2
 } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
@@ -97,7 +97,6 @@ export default function NotionPortfolioPreview() {
   const previewTutorialRef = useRef(null);
   const [previewTutorialCurrentStep, setPreviewTutorialCurrentStep] = useState(0);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [savingChanges, setSavingChanges] = useState(false);
   const inactiveSaveTimer = useRef(null);
   const pendingSaveRef = useRef(false);
   const queuedPortfolioRef = useRef(null);
@@ -144,21 +143,6 @@ export default function NotionPortfolioPreview() {
       lastScheduledSnapshotRef.current = null;
     }
   }, [persistPortfolio]);
-
-  const savePortfolioChanges = useCallback(async () => {
-    if (!portfolio || savingChanges) return;
-    setSavingChanges(true);
-    try {
-      const { id: _id, ...data } = { ...portfolio, isPublic };
-      await updatePortfolio(id, data);
-      setHasUnsavedChanges(false);
-      toast.success('저장되었습니다');
-    } catch {
-      toast.error('포트폴리오 수정사항 저장에 실패했습니다');
-    } finally {
-      setSavingChanges(false);
-    }
-  }, [id, isPublic, portfolio, savingChanges, updatePortfolio]);
 
   const loadData = async () => {
     try {
@@ -301,14 +285,6 @@ export default function NotionPortfolioPreview() {
                 저장 안 됨
               </span>
             )}
-            <button
-              onClick={savePortfolioChanges}
-              disabled={savingChanges || !hasUnsavedChanges}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 disabled:opacity-40 transition-all"
-            >
-              {savingChanges ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {savingChanges ? '저장 중...' : '저장'}
-            </button>
             <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
               className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
               튜토리얼 보기
@@ -405,8 +381,7 @@ export default function NotionPortfolioPreview() {
         {selectedExpDetail && (
           <ExperienceDetailModal
             exp={selectedExpDetail.exp}
-            readOnly={selectedExpDetail.idx < 0}
-            onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+            readOnly
             onClose={() => setSelectedExpDetail(null)}
             resizeToBase64={resizeToBase64Global}
             jobAnalysis={portfolio?.jobAnalysis}
@@ -445,14 +420,6 @@ export default function NotionPortfolioPreview() {
               저장 안 됨
             </span>
           )}
-          <button
-            onClick={savePortfolioChanges}
-            disabled={savingChanges || !hasUnsavedChanges}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 disabled:opacity-40 transition-all"
-          >
-            {savingChanges ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {savingChanges ? '저장 중...' : '저장'}
-          </button>
           <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
             className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
             튜토리얼 보기
@@ -1030,8 +997,7 @@ export default function NotionPortfolioPreview() {
       {selectedExpDetail && (
         <ExperienceDetailModal
           exp={selectedExpDetail.exp}
-          readOnly={selectedExpDetail.idx < 0}
-          onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+          readOnly
           onClose={() => setSelectedExpDetail(null)}
           resizeToBase64={resizeToBase64Global}
           jobAnalysis={portfolio?.jobAnalysis}
