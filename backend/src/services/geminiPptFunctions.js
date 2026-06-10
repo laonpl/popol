@@ -494,10 +494,12 @@ function buildNarrativeFallbackDeck(orchestrated, templateHint) {
   };
 }
 
-const SLIDE_TEXT_LIMIT = 300;
-const SHORT_TEXT_LIMIT = 50;
-const BODY_TEXT_LIMIT = 95;
-const DETAIL_TEXT_LIMIT = 70;
+// 내용 보존 우선: 박스 맞춤은 프론트의 fitFontSizePt(폰트 축소)가 담당하므로
+// 여기서 과하게 자르면 노션 포트폴리오 내용이 PPT에 담기지 못하고 유실된다.
+const SLIDE_TEXT_LIMIT = 380;
+const SHORT_TEXT_LIMIT = 64;
+const BODY_TEXT_LIMIT = 128;
+const DETAIL_TEXT_LIMIT = 92;
 
 function stripPptEllipsis(value) {
   return String(value || '')
@@ -585,8 +587,8 @@ function optimizeSlideContent(slide = {}) {
   const optimized = {
     ...slide,
     sectionLabel: compactSlideText(slide.sectionLabel || slide.layout || '', 20),
-    title: compactSlideText(slide.title, 64),
-    subtitle: compactSlideText(slide.subtitle, 82),
+    title: compactSlideText(slide.title, 76),
+    subtitle: compactSlideText(slide.subtitle, 100),
   };
   if (Array.isArray(slide.metrics)) {
     optimized.metrics = slide.metrics
@@ -679,8 +681,8 @@ function optimizeDeckDensity(deck) {
         ...(deck.meta || {}),
         densityPolicy: {
           mode: 'accepted-reference',
-          maxBodyChars: 56,
-          maxDetailChars: 52,
+          maxBodyChars: 100,
+          maxDetailChars: 76,
           preserveAllExperiences: true,
         },
       },
@@ -707,18 +709,19 @@ function optimizeDeckDensity(deck) {
 
 function optimizeAcceptedReferenceSlide(slide = {}) {
   const compact = (value, max) => compactSlideText(value, max);
+  // 내용 보존 우선 — 박스 맞춤은 프론트 fitFontSizePt(폰트 축소)가 담당.
   const bodyBudget = slide.layout === 'cs-execution'
-    ? 88
+    ? 132
     : slide.layout === 'cs-problem'
-      ? 90
+      ? 132
       : slide.layout === 'cs-retrospective'
-        ? 120
-        : 56;
-  const compactBlock = (value, max = 56) => String(value || '')
+        ? 160
+        : 100;
+  const compactBlock = (value, max = 100) => String(value || '')
     .split(/\r?\n/)
     .map(line => compact(line.replace(/^[•\-]\s*/, ''), max))
     .filter(Boolean)
-    .slice(0, 2)
+    .slice(0, 3)
     .join('\n');
   const cleanMetric = (metric = {}) => ({
     ...metric,
@@ -729,12 +732,12 @@ function optimizeAcceptedReferenceSlide(slide = {}) {
   });
   const cleanItem = (item = {}) => ({
     ...item,
-    heading: compact(item.heading, 34),
+    heading: compact(item.heading, 44),
     period: compact(item.period, 22),
-    role: compact(item.role, 32),
+    role: compact(item.role, 40),
     body: compactBlock(item.body, bodyBudget),
     bullets: (Array.isArray(item.bullets) ? item.bullets : [])
-      .map(bullet => compact(bullet, 52))
+      .map(bullet => compact(bullet, 76))
       .filter(Boolean)
       .slice(0, 3),
     metrics: (Array.isArray(item.metrics) ? item.metrics : [])
@@ -744,10 +747,10 @@ function optimizeAcceptedReferenceSlide(slide = {}) {
   return {
     ...slide,
     sectionLabel: compact(slide.sectionLabel, 24),
-    title: compact(slide.title, 64),
-    subtitle: compact(slide.subtitle, 72),
+    title: compact(slide.title, 76),
+    subtitle: compact(slide.subtitle, 96),
     bullets: (Array.isArray(slide.bullets) ? slide.bullets : [])
-      .map(bullet => compact(bullet, 52))
+      .map(bullet => compact(bullet, 76))
       .filter(Boolean)
       .slice(0, 4),
     metrics: (Array.isArray(slide.metrics) ? slide.metrics : [])
@@ -782,7 +785,9 @@ function sanitizeDeckToPortfolioSource(deck, portfolio) {
     const rawHeading = String(item.heading || '').trim();
     // cap 140: narrative-results 의 KEY DELIVERABLES 는 완결 문장(firstSentence 최대 135자)을 heading 에 담는다.
     // 80자 컷은 "...잠재적 위"/"...정보 제공'을"처럼 문장을 중간에서 잘랐다. 프로젝트명·수상명 등은 상류에서 이미 짧게 캡됨.
-    const presentationLabel = /^(?:Core Competencies|Profile|CONTEXT|ROLE|PERIOD|STACK|Problem \d+|STEP \d+|Learning \d+|Goal \d+)$/i.test(rawHeading);
+    // 면접 예상 질문("~인가요?")은 표현용 라벨 — 원문 검증 대상이 아니다(지우면 답변만 남는 Q&A 카드가 됨).
+    const presentationLabel = /^(?:Core Competencies|Profile|CONTEXT|ROLE|PERIOD|STACK|Problem \d+|STEP \d+|Learning \d+|Goal \d+)$/i.test(rawHeading)
+      || /[?？]\s*$/.test(rawHeading);
     const heading = cleanText(rawHeading, 140) || (presentationLabel || rawHeading.length <= 12 ? clipSentence(rawHeading, 140) : '');
     const period = cleanText(item.period, 50);
     const role = cleanText(item.role, 60);
@@ -2083,7 +2088,7 @@ function buildKpiDashboardReferenceDeck(ctx) {
       layout: 'kpi-executive',
       sectionLabel: 'Executive Summary',
       title: 'Performance Overview',
-      subtitle: '포트폴리오의 핵심 지표를 한눈에 정리했습니다.',
+      subtitle: target ? `${target} 지원 — 핵심 지표 요약` : '포트폴리오의 핵심 지표를 한눈에 정리했습니다.',
       metrics: [
         refMetric('Projects', String(projectCount).padStart(2, '0'), '주요 프로젝트/경험'),
         refMetric('Metrics', String(metricCount).padStart(2, '0'), '정량 성과 지표'),
@@ -2301,71 +2306,91 @@ function buildStarReferenceDeck(ctx) {
     const raw = (exp.metrics || []).slice(0, 3).filter(m => m.label || m.value || m.after);
     return raw.length ? raw.map(m => refMetric(m.label || '성과', m.value || m.after || '달성', m.before && m.after ? `${m.before} → ${m.after}` : m.body || '')) : null;
   };
+  // 제너릭 필러 금지 — 원문에 없는 문구는 sanitize 가드에 지워져 빈 카드로 노출된다.
+  // 실데이터가 있는 카드만 만들고, 카드가 하나도 없으면 그 슬라이드 자체를 생략한다.
   const makeProjectSlides = (exp, num) => {
     const label = pName(exp, `Project ${String(num).padStart(2, '0')}`);
-    const metrics = pMetrics(exp) || [refMetric('성과', `${num}+`, exp.result?.[0] || '달성')];
-    return [
-      {
-        layout: 'star-situation',
-        sectionLabel: `${String(num).padStart(2, '0')} ${label}`,
-        starPhase: 'S',
-        title: `Situation · ${label}`,
-        subtitle: fs(exp.role) || exp.period || '담당 역할과 배경',
-        body: fs(exp.problem?.[0]) || pBody(exp, '해결해야 했던 상황과 배경 맥락'),
-        imageUrl: exp.imageUrl || '',
-        metrics: metrics.slice(0, 2),
-      },
-      {
+    const metrics = pMetrics(exp) || [];
+    const slides = [];
+
+    slides.push({
+      layout: 'star-situation',
+      sectionLabel: `${String(num).padStart(2, '0')} ${label}`,
+      starPhase: 'S',
+      title: `Situation · ${label}`,
+      subtitle: fs(exp.role) || exp.period || '',
+      body: fs(exp.problem?.[0]) || pBody(exp, ''),
+      imageUrl: exp.imageUrl || '',
+      metrics: metrics.slice(0, 2),
+    });
+
+    const taskItems = [
+      refItem(fs(exp.role) || '담당 역할', fs(exp.body), 'ROLE'),
+      refItem('핵심 과제', fs(exp.problem?.[1] || exp.problem?.[0] || exp.action?.[0]), 'CHALLENGE'),
+      refItem('목표 설정', fs(exp.result?.[0]), 'GOAL'),
+    ].filter(item => item.body);
+    if (taskItems.length) {
+      slides.push({
         layout: 'star-task',
         sectionLabel: `${String(num).padStart(2, '0')} ${label}`,
         starPhase: 'T',
         title: `Task · ${label}`,
-        items: [
-          refItem(fs(exp.role) || '담당 역할', fs(exp.problem?.[0]) || pBody(exp, '맡은 책임 범위'), 'ROLE'),
-          refItem('핵심 과제', fs(exp.problem?.[1] || exp.action?.[0]) || '해결해야 할 핵심 문제', 'CHALLENGE'),
-          refItem('목표 설정', fs(exp.result?.[0]) || '달성해야 할 목표와 성공 기준', 'GOAL'),
-        ],
-      },
-      {
+        items: taskItems,
+      });
+    }
+
+    const actionSources = [
+      exp.action?.[0],
+      exp.action?.[1] || exp.bullets?.[0],
+      exp.action?.[2] || exp.bullets?.[1],
+    ];
+    const actionItems = actionSources
+      .map((source, k) => {
+        const body = fs(source);
+        return body ? refItem(['문제 분석', '핵심 실행', '검증 반영'][k], body, String(k + 1).padStart(2, '0')) : null;
+      })
+      .filter(Boolean);
+    if (actionItems.length) {
+      slides.push({
         layout: 'star-action',
         sectionLabel: `${String(num).padStart(2, '0')} ${label}`,
         starPhase: 'A',
         title: `Action · ${label}`,
-        items: [
-          refItem('문제 분석', fs(exp.action?.[0]) || pBody(exp, '상황을 분석하고 접근 방식 결정'), '01'),
-          refItem('핵심 실행', fs(exp.action?.[1] || exp.bullets?.[0]) || '핵심 기능 구현 및 문제 해결', '02'),
-          refItem('검증 반영', fs(exp.action?.[2] || exp.bullets?.[1]) || '결과 검증과 개선 적용', '03'),
-        ],
-      },
-      {
+        items: actionItems,
+      });
+    }
+
+    const resultBody = fs(exp.result?.[0] || exp.learning?.[0] || (exp.bullets || []).slice(-1)[0]);
+    if (metrics.length || resultBody) {
+      slides.push({
         layout: 'star-result',
         sectionLabel: `${String(num).padStart(2, '0')} ${label}`,
         starPhase: 'R',
         title: `Result · ${label}`,
         metrics: metrics.slice(0, 3),
-        body: fs(exp.result?.[0] || exp.learning?.[0] || (exp.bullets || []).slice(-1)[0]) || '경험에서 얻은 핵심 인사이트와 성장',
-      },
-      {
+        body: resultBody,
+      });
+    }
+
+    const qaAnswer1 = concisePptBullets(exp.problem, fs(exp.body), { limit: 2, max: 96 });
+    const qaAnswer2 = metrics[0]
+      ? concisePptFact(`${metrics[0].label}: ${metrics[0].value}${metrics[0].body ? ' (' + metrics[0].body + ')' : ''}`, 120)
+      : fs(exp.result?.[0]);
+    const qaItems = [
+      qaAnswer1 && refItem('이 경험에서 가장 어려웠던 점은 무엇인가요?', qaAnswer1, 'Q1'),
+      qaAnswer2 && refItem('결과를 어떻게 측정하고 검증했나요?', qaAnswer2, 'Q2'),
+    ].filter(Boolean);
+    if (qaItems.length) {
+      slides.push({
         layout: 'star-qa',
         sectionLabel: `${String(num).padStart(2, '0')} ${label} · Q&A`,
         starPhase: 'QA',
         title: `${label} 면접 예상 Q&A`,
-        items: [
-          refItem(
-            '이 경험에서 가장 어려웠던 점은 무엇인가요?',
-            concisePptBullets(exp.problem, '불명확한 요구사항 속에서 문제를 정의하고 우선순위를 설정하는 과정이 가장 도전적이었습니다.', { limit: 2, max: 96 }),
-            'Q1'
-          ),
-          refItem(
-            '결과를 어떻게 측정하고 검증했나요?',
-            metrics[0]
-              ? concisePptFact(`${metrics[0].label}: ${metrics[0].value}${metrics[0].body ? ' (' + metrics[0].body + ')' : ''}`, 120)
-              : exp.result?.[0] || '정량적 지표와 팀 피드백을 통해 성과를 검증했습니다.',
-            'Q2'
-          ),
-        ],
-      },
-    ];
+        items: qaItems,
+      });
+    }
+
+    return slides;
   };
   const projectA = ctx.expAt(0);
   const slides = [
@@ -2398,7 +2423,7 @@ function buildStarReferenceDeck(ctx) {
       title: '경험 타임라인',
       items: ctx.expItems.map((e, i) => ({
         heading: projectName(e.heading) || `경험 ${i + 1}`,
-        body: fs(e.role || e.bullets?.[0] || e.body) || '주요 역할과 성과',
+        body: fs(e.role || e.bullets?.[0] || e.body),
         period: e.period || `Phase ${i + 1}`,
         role: 'SITUATION',
       })),
@@ -2785,6 +2810,12 @@ function buildProposalReferenceDeck(ctx) {
   const strengths = ctx.strengths;
   const primary = projects[0] || {};
 
+  // 부제목은 템플릿 코칭 문구 대신 포트폴리오 실제 내용으로 채운다.
+  // sanitizeDeckToPortfolioSource 가 원문과 무관한 긴 문장을 비워버리므로,
+  // 제너릭 문구는 sanitize 를 통과 못 해 부제목이 빈칸으로 노출된다. 내용 파생 + 짧은 폴백으로 해결.
+  const aboutLine = fs(ctx.portfolio?.about) || fs(ctx.portfolio?.headline) || fs(ctx.portfolio?.valuesEssay);
+  const projectNames = projects.map(e => projectName(e.heading) || e.heading).filter(Boolean);
+
   const slides = [];
 
   // Cover
@@ -2792,7 +2823,7 @@ function buildProposalReferenceDeck(ctx) {
     layout: 'cover',
     sectionLabel: 'INTRO',
     title: target ? `${target} 지원 포트폴리오` : `${userName} 포트폴리오`,
-    subtitle: `${userName}이(가) 직접 정리한 경험 기반 자료입니다`,
+    subtitle: aboutLine || `${userName}이(가) 직접 정리한 경험 기반 자료입니다`,
     bullets: ['EXPERIENCE', 'PERFORMANCE', 'FIT'],
   });
 
@@ -2803,10 +2834,10 @@ function buildProposalReferenceDeck(ctx) {
     proposalVariant: 'contents',
     title: '목차',
     items: [
-      { heading: '01  지원자 소개', role: 'Introduction', body: `${userName}의 역량과 성장 흐름` },
-      { heading: '02  핵심 경험', role: 'Key Experience', body: `${projects.length || 1}건의 대표 경험과 성과 증거` },
-      { heading: '03  직무 적합성', role: 'Job Fit', body: targetPosition ? `${targetPosition} 요구와 연결되는 강점` : '지원 직무와 연결되는 강점' },
-      { heading: '04  성장 계획', role: 'Growth Plan', body: '입사 후 기여 방향과 단계별 실행 계획' },
+      { heading: '01  지원자 소개', role: 'Introduction', body: aboutLine || `${userName} 소개` },
+      { heading: '02  핵심 경험', role: 'Experience', body: projectNames.slice(0, 2).join(' · ') || '대표 경험과 성과' },
+      { heading: '03  직무 적합성', role: 'Job Fit', body: targetPosition ? `${targetPosition} 요구와 연결되는 강점` : '직무 연결 강점' },
+      { heading: '04  성장 계획', role: 'Growth Plan', body: goals[0]?.heading || (target ? `${target} 기여 계획` : '입사 후 기여 계획') },
     ],
   });
 
@@ -2816,23 +2847,26 @@ function buildProposalReferenceDeck(ctx) {
     sectionLabel: '지원자 소개',
     proposalVariant: 'threeCards',
     title: `${userName}을(를) 한 문장으로 설명하면 이렇습니다`,
-    subtitle: '지원 직무에서 가장 필요한 역량을 실제 경험으로 보여드립니다',
+    subtitle: aboutLine || strengths[0] || '경험으로 검증한 핵심 역량',
+    // 카드 본문은 실데이터에서만 — 제너릭 필러는 sanitize 가드에 지워져 빈 카드가 된다.
+    // 경험이 1개뿐이면 수상/학력/기술로 대체하고, 본문이 비거나 제목과 같은 카드는 제외.
     items: [
       {
         heading: primary.role || (strengths[0] ? strengths[0].split('·')[0].trim() : '실행력'),
-        body: fs(primary.body || primary.bullets?.[0]) || '문제 구조화 및 해결 실행',
+        body: fs(primary.body || primary.bullets?.[0]) || aboutLine,
       },
+      projects[1]
+        ? { heading: projectName(projects[1].heading) || projects[1].heading, body: fs(projects[1].body || projects[1].bullets?.[0]) }
+        : awards[0]
+          ? { heading: awards[0].heading, body: awards[0].body || awards[0].period }
+          : { heading: education[0]?.heading || '학력', body: education[0]?.body || '' },
       {
-        heading: projectName(projects[1]?.heading) || projects[1]?.heading || (strengths[1] ? strengths[1].split('·')[0].trim() : '협업과 소통'),
-        body: fs(projects[1]?.body || projects[1]?.bullets?.[0]) || '명확한 역할 기반 협업 성과',
-      },
-      {
-        heading: firstMetric?.label || skillGroups[0]?.heading || '성장 지향',
+        heading: firstMetric?.label || '핵심 역량',
         body: firstMetric
           ? `${metricDisplay(firstMetric)} 성과 검증`
-          : (skillGroups[0]?.heading || '경험을 통해 지속적으로 배우고 성장합니다'),
+          : skillGroups.slice(0, 3).map(g => g.heading).filter(Boolean).join(' · '),
       },
-    ],
+    ].filter(card => card.heading && card.body && card.body !== card.heading),
   });
 
   if (projects.length) {
@@ -2841,7 +2875,7 @@ function buildProposalReferenceDeck(ctx) {
       sectionLabel: '지원자 소개',
       proposalVariant: 'timeline',
       title: `${userName} · 경험 타임라인`,
-      subtitle: '주요 경험과 역할 변화',
+      subtitle: projectNames.slice(0, 3).join(' · ') || '주요 경험과 역할 변화',
       items: projects.map(e => ({
         heading: projectName(e.heading) || e.heading,
         period: e.period || e.role,
@@ -2856,7 +2890,7 @@ function buildProposalReferenceDeck(ctx) {
     proposalVariant: 'darkStats',
     dark: true,
     title: `${userName} · 핵심 성과`,
-    subtitle: '수행한 경험에서 직접 확인된 수치와 역할을 핵심 지표로 제시합니다',
+    subtitle: firstMetric ? `${firstMetric.label} ${metricDisplay(firstMetric)}` : '직접 확인된 성과 지표',
     metrics: [
       { label: '수행 경험 수', value: `${projects.length || 1}건` },
       ...(allMetrics.slice(0, 2).map(m => ({ label: m.label || '성과 지표', value: metricDisplay(m) }))),
@@ -2870,7 +2904,7 @@ function buildProposalReferenceDeck(ctx) {
       sectionLabel: '지원자 소개',
       proposalVariant: 'conditionGrid',
       title: `${userName} · 학력 및 주요 성과`,
-      subtitle: '기반 지식과 인증된 성과를 함께 확인합니다',
+      subtitle: [education[0]?.heading, awards[0]?.heading].filter(Boolean).join(' · ') || '학력과 인증 성과',
       items: [...education.slice(0, 2), ...awards.slice(0, 2)].slice(0, 4),
     });
   }
@@ -2881,7 +2915,7 @@ function buildProposalReferenceDeck(ctx) {
       sectionLabel: '지원자 소개',
       proposalVariant: 'conditionGrid',
       title: '보유 기술 역량',
-      subtitle: '직무 활용 가능 기술 및 도구',
+      subtitle: skillGroups.slice(0, 4).map(g => g.heading).filter(Boolean).join(' · ') || '직무 활용 가능 기술 및 도구',
       items: skillGroups.slice(0, 4),
     });
   }
@@ -2893,7 +2927,7 @@ function buildProposalReferenceDeck(ctx) {
     proposalVariant: projects.length ? 'splitPhotoList' : 'threeCards',
     title: projects.length ? `${userName} · 대표 경험` : '지원 직무 연결 경험',
     subtitle: projects.length
-      ? '직무 연결 경험 · 역할 및 성과 중심'
+      ? (projectNames.slice(0, 3).join(' · ') || '직무 연결 경험 · 역할 및 성과 중심')
       : '경험 등록 후 자동 구성',
     items: projects.length
       ? projects.slice(0, 3).map(e => ({
@@ -2952,7 +2986,7 @@ function buildProposalReferenceDeck(ctx) {
     sectionLabel: '직무 적합성',
     proposalVariant: 'venn',
     title: '제 강점과 직무 요구가 만나는 지점입니다',
-    subtitle: '보유 역량과 지원 직무의 요구사항이 겹치는 핵심 포인트를 설명합니다',
+    subtitle: strengths[0] || (targetPosition ? `${targetPosition} 요구 역량 연결` : '강점과 직무 요구의 연결'),
     items: [
       {
         heading: `${userName}의 강점`,
@@ -2976,7 +3010,7 @@ function buildProposalReferenceDeck(ctx) {
     sectionLabel: '직무 적합성',
     proposalVariant: 'metricBars',
     title: '반복 검증된 직무 연결 역량',
-    subtitle: '수행 경험과 직무 요구사항의 연결점',
+    subtitle: ctx.keywords.slice(0, 4).join(' · ') || '수행 경험과 직무 요구사항의 연결점',
     bullets: allBullets.length >= 4
       ? allBullets.slice(0, 5)
       : [...allBullets, ...strengths.filter(s => !allBullets.includes(s))].slice(0, 5),
@@ -2987,7 +3021,7 @@ function buildProposalReferenceDeck(ctx) {
     sectionLabel: '직무 적합성',
     proposalVariant: 'conditionGrid',
     title: `${targetPosition || target || '지원 직무'} 기여 가치`,
-    subtitle: '검증 역량과 직무 기여 방식 연결',
+    subtitle: target ? `${target}에서 바로 활용하는 경험 자산` : '검증 역량과 직무 기여 방식 연결',
     items: [
       {
         heading: projectName(primary.heading) || primary.heading || '대표 경험 적용',
@@ -3017,21 +3051,22 @@ function buildProposalReferenceDeck(ctx) {
     proposalVariant: 'gantt',
     title: '입사 후 단계별 기여 계획',
     subtitle: '빠른 적응과 실질적 기여',
+    // 단계 본문도 실데이터(기술·경험·지표·목표)에서 파생 — 제너릭 문구는 sanitize 에 지워져 빈 행이 된다.
     items: [
-      { heading: '업무 이해 및 적응', role: '1~2주', body: '팀 문화와 업무 방식 파악 · 활용 가능 역량 연결' },
+      { heading: '업무 이해 및 적응', role: '1~2주', body: skillGroups.slice(0, 3).map(g => g.heading).filter(Boolean).join(' · ') || `${userName} 역량 온보딩` },
       {
         heading: '초기 기여 시작', role: '3~4주',
         body: primary.heading
           ? `${projectName(primary.heading) || primary.heading} 경험 기반 초기 실무 기여`
-          : '강점 영역 중심 초기 기여',
+          : '강점 영역 초기 기여',
       },
       {
         heading: '핵심 역할 수행', role: '2~3개월',
         body: firstMetric
-          ? `${firstMetric.label} 수준 성과 목표 · 핵심 과제 수행`
-          : '핵심 과제 기여 및 성과 창출',
+          ? `${firstMetric.label} 수준 성과 목표`
+          : (projectNames[0] ? `${projectNames[0]} 수준의 핵심 과제 수행` : '핵심 과제 수행'),
       },
-      { heading: '성과 검토 및 확장', role: '3개월 이후', body: '초기 성과 점검 · 다음 기여 영역 확장' },
+      { heading: '성과 검토 및 확장', role: '3개월 이후', body: goals[0]?.heading || (target ? `${target} 기여 확장` : '기여 영역 확장') },
     ],
   });
 
@@ -3041,7 +3076,7 @@ function buildProposalReferenceDeck(ctx) {
       sectionLabel: '성장 계획',
       proposalVariant: 'stageCards',
       title: '경험에서 이어지는 성장 목표',
-      subtitle: '입사 후 단계별 성장 방향',
+      subtitle: goals.slice(0, 3).map(g => g.heading).filter(Boolean).join(' → ') || '입사 후 단계별 성장 방향',
       items: goals.slice(0, 4),
     });
   }
@@ -3318,6 +3353,12 @@ function normalizeExperiences(p) {
       stripArtifacts(sanitizePortfolioText(String(value || ''))).replace(/\s+/g, ' ').trim(),
       max
     );
+    // keyExperiences 우선, 비면 structuredResult 산문(fallbackProse)을 문장 단위로 쪼개 사용.
+    const sectionLines = (primaryList, fallbackProse) => {
+      const primary = (primaryList || []).map(v => compact(v, 300)).filter(Boolean);
+      if (primary.length) return primary.slice(0, 3);
+      return splitSentences(fallbackProse || '', 3).map(v => compact(v, 300)).filter(Boolean).slice(0, 3);
+    };
     const bullets = [
       ...(Array.isArray(e.bullets) ? e.bullets : []),
       ...sections.map(s => s.content || s.title).filter(Boolean),
@@ -3343,10 +3384,15 @@ function normalizeExperiences(p) {
       // 추출 스키마의 실제 필드는 context (situation 은 구버전 호환). problem 이 비던 핵심 버그.
       // 캡 300 — 원문을 충분히 보존해 표시단계 clipSentence 가 "문장 종결"에서 깔끔히 자르게 한다.
       // (캡을 작게 두면 hard-slice 된 미완성 텍스트가 그대로 노출되어 글자가 중간에 끊긴다.)
-      problem: keyExperiences.map(k => compact(k.context || k.situation || k.problem, 300)).filter(Boolean).slice(0, 3),
-      action: keyExperiences.map(k => compact(k.action, 300)).filter(Boolean).slice(0, 3),
-      result: keyExperiences.map(k => compact(k.result, 300)).filter(Boolean).slice(0, 3),
-      learning: keyExperiences.map(k => compact(k.learning, 300)).filter(Boolean).slice(0, 3),
+      // keyExperiences 가 비어도 structuredResult 산문 섹션(task/process/output/growth)에 같은 내용이 있다.
+      // 이를 무시하면 문제/실행/성과 슬롯이 비고, 빌더의 제너릭 폴백은 sanitize 가드에 지워져 섹션이 빈칸이 된다.
+      problem: sectionLines(
+        keyExperiences.map(k => k.context || k.situation || k.problem),
+        sr.task || ov.background || ov.goal
+      ),
+      action: sectionLines(keyExperiences.map(k => k.action), sr.process),
+      result: sectionLines(keyExperiences.map(k => k.result), sr.output),
+      learning: sectionLines(keyExperiences.map(k => k.learning), sr.growth || sr.competency),
     };
   }).filter(e => e.heading || e.bullets.length || e.metrics.length);
 }
