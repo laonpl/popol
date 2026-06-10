@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { adminDb } from '../config/firebase.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { grantFeedbackReward } from '../services/billingService.js';
 
 const router = Router();
 const DEFAULT_ADMIN_EMAIL = 'fitpoly.kr@gmail.com';
@@ -65,7 +66,15 @@ router.post('/', authMiddleware, async (req, res, next) => {
       updatedAt: now,
     });
 
-    res.status(201).json({ success: true, id: docRef.id });
+    // 피드백 작성 보상 지급 (사용자당 1회). 실패해도 피드백 저장은 유지한다.
+    let reward = { granted: false, amount: 0 };
+    try {
+      reward = await grantFeedbackReward(req.user.uid);
+    } catch (rewardError) {
+      console.error('[Feedback] 보상 지급 실패:', rewardError.message);
+    }
+
+    res.status(201).json({ success: true, id: docRef.id, reward });
   } catch (error) {
     next(error);
   }

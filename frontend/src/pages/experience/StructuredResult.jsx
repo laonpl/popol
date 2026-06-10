@@ -12,7 +12,7 @@ import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
 import { analyzeJobUrl } from '../../services/jobAI';
-import FeedbackModal from '../../components/FeedbackModal';
+import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 import toast from 'react-hot-toast';
 
 /* ── 마크다운 **bold** → <strong> 변환 + 불필요 마크다운 제거 ── */
@@ -1623,7 +1623,7 @@ export default function StructuredResult() {
         toast('AI 보강이 일시적으로 불안정해 초안을 유지했습니다. 다시 시도할 수 있어요.');
       } else {
         toast.success('AI 보강이 완료되었습니다');
-        if (window.localStorage.getItem(feedbackPromptKey) !== '1') {
+        if (!isFeedbackSnoozed() && window.localStorage.getItem(feedbackPromptKey) !== '1') {
           if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
           feedbackTimerRef.current = window.setTimeout(() => {
             if (!document.hidden) setFeedbackOpen(true);

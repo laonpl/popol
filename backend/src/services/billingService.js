@@ -6,6 +6,7 @@ const billingStorage = new AsyncLocalStorage();
 const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 2000);
 const LEGACY_STARTER_CREDITS = Number(process.env.LEGACY_STARTER_CREDITS || 1500);
 const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 10000);
+const FEEDBACK_REWARD_CREDITS = Number(process.env.FEEDBACK_REWARD_CREDITS || 300);
 
 export const CREDIT_PACKAGES = [
   { id: 'starter', credits: 1000, price: 3000, label: '가볍게 시작' },
@@ -221,6 +222,40 @@ export async function getOrCreateWallet(uid) {
   });
   const snap = await ref.get();
   return { id: snap.id, ...snap.data() };
+}
+
+// 피드백 작성 보상 — 사용자당 1회만 지급 (반복 작성으로 인한 크레딧 파밍 방지)
+export async function grantFeedbackReward(uid) {
+  await getOrCreateWallet(uid);
+  const ref = walletRef(uid);
+  let result = { granted: false, amount: 0, balance: 0 };
+
+  await adminDb.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const wallet = snap.data();
+    if (wallet.feedbackRewardGranted) {
+      result = { granted: false, amount: 0, balance: Number(wallet.balance || 0) };
+      return;
+    }
+    const balance = Number(wallet.balance || 0) + FEEDBACK_REWARD_CREDITS;
+    tx.update(ref, {
+      balance,
+      totalCharged: Number(wallet.totalCharged || 0) + FEEDBACK_REWARD_CREDITS,
+      feedbackRewardGranted: true,
+      updatedAt: new Date(),
+    });
+    tx.set(ref.collection('transactions').doc(), {
+      type: 'feedback_reward',
+      schemaVersion: 3,
+      amount: FEEDBACK_REWARD_CREDITS,
+      balanceAfter: balance,
+      description: '피드백 작성 보상',
+      createdAt: new Date(),
+    });
+    result = { granted: true, amount: FEEDBACK_REWARD_CREDITS, balance };
+  });
+
+  return result;
 }
 
 export async function assertHasCredits() {

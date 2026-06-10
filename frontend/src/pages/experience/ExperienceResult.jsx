@@ -4,7 +4,7 @@ import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
-import FeedbackModal from '../../components/FeedbackModal';
+import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -402,6 +402,7 @@ export default function ExperienceResult() {
   useEffect(() => {
     if (!state?.showFeedback || !id) return undefined;
     if (isDraftResult) return undefined;
+    if (isFeedbackSnoozed()) return undefined;
     if (window.localStorage.getItem(feedbackPromptKey) === '1') return undefined;
     const timer = window.setTimeout(() => {
       if (!document.hidden) setFeedbackOpen(true);

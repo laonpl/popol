@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Star, X } from 'lucide-react';
+import { Loader2, Star, X, Gift } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -10,6 +10,26 @@ const RATING_LABELS = {
   4: '좋았어요',
   5: '정말 좋았어요',
 };
+
+// 피드백 창 전역 스누즈 — "하루 동안 안 보기" 선택 시 24시간 동안 안 띄운다.
+const FEEDBACK_SNOOZE_KEY = 'fitpoly-feedback-snooze-until';
+const FEEDBACK_SNOOZE_MS = 24 * 60 * 60 * 1000;
+
+export function isFeedbackSnoozed() {
+  try {
+    return Date.now() < Number(window.localStorage.getItem(FEEDBACK_SNOOZE_KEY) || 0);
+  } catch {
+    return false;
+  }
+}
+
+function snoozeFeedbackForADay() {
+  try {
+    window.localStorage.setItem(FEEDBACK_SNOOZE_KEY, String(Date.now() + FEEDBACK_SNOOZE_MS));
+  } catch {
+    /* localStorage 사용 불가 시 무시 */
+  }
+}
 
 export default function FeedbackModal({
   open,
@@ -43,14 +63,19 @@ export default function FeedbackModal({
 
     setSubmitting(true);
     try {
-      await api.post('/feedback', {
+      const response = await api.post('/feedback', {
         rating,
         feedback: feedback.trim(),
         context,
         experienceId,
         sourcePath: window.location.pathname,
       });
-      toast.success('피드백을 보내주셔서 감사합니다.');
+      const reward = response.data?.reward;
+      if (reward?.granted) {
+        toast.success(`피드백 감사합니다! ${reward.amount} 크레딧이 지급됐어요.`);
+      } else {
+        toast.success('피드백을 보내주셔서 감사합니다.');
+      }
       onClose?.({ submitted: true });
     } catch (error) {
       toast.error(error.response?.data?.error || '피드백 전송에 실패했어요.');
@@ -76,6 +101,15 @@ export default function FeedbackModal({
           >
             <X size={18} />
           </button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3">
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-500">
+            <Gift size={17} />
+          </span>
+          <p className="text-[13px] font-semibold text-amber-700">
+            피드백을 남겨주시면 <span className="font-extrabold">300 크레딧</span>을 드려요! <span className="font-normal text-amber-500">(최초 1회)</span>
+          </p>
         </div>
 
         <div className="mt-5">
@@ -113,22 +147,31 @@ export default function FeedbackModal({
           />
         </label>
 
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
-            onClick={() => onClose?.({ submitted: false })}
-            className="rounded-lg border border-surface-200 px-4 py-2.5 text-sm font-bold text-bluewood-500 transition-colors hover:bg-surface-50"
+            onClick={() => { snoozeFeedbackForADay(); onClose?.({ submitted: false, snoozed: true }); }}
+            className="text-sm font-medium text-bluewood-300 transition-colors hover:text-bluewood-500"
           >
-            나중에 하기
+            하루 동안 안 보기
           </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-          >
-            {submitting && <Loader2 size={16} className="animate-spin" />}
-            피드백 보내기
-          </button>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onClose?.({ submitted: false })}
+              className="rounded-lg border border-surface-200 px-4 py-2.5 text-sm font-bold text-bluewood-500 transition-colors hover:bg-surface-50"
+            >
+              나중에 하기
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+            >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
+              피드백 보내기
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards } from 'lucide-react';
+import { Check, X, Plus, Loader2, Search, Eye, EyeOff, WalletCards, Info } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
 
@@ -581,6 +581,23 @@ export default function ProfileSetup() {
             </button>
           )}
         </div>
+
+        {/* 첫 가입자 안내: 건너뛰기 가능 */}
+        {!profile && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-primary-100 bg-primary-50/60 px-5 py-4">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-600">
+              <Info size={18} />
+            </span>
+            <div className="flex-1">
+              <p className="text-[14px] font-bold text-bluewood-800">프로필은 나중에 작성해도 괜찮아요</p>
+              <p className="mt-0.5 text-[13px] text-bluewood-500">지금 입력하면 포트폴리오에 자동으로 채워져 편리하지만, 필수는 아니에요. 바로 시작하고 싶다면 건너뛰세요.</p>
+            </div>
+            <button onClick={handleSkipProfileSetup} disabled={skipSaving}
+              className="flex-shrink-0 self-center rounded-lg border border-primary-200 bg-white px-4 py-2 text-[13px] font-semibold text-primary-600 transition-colors hover:bg-primary-50 disabled:opacity-50">
+              {skipSaving ? '저장 중...' : '건너뛰기'}
+            </button>
+          </div>
+        )}
 
         {/* ── 1행: 기본 정보 | 학력 ── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
