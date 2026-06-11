@@ -20,6 +20,7 @@ router.get('/wallet', authMiddleware, async (req, res, next) => {
       balance: Number(wallet.balance || 0),
       totalCharged: Number(wallet.totalCharged || 0),
       totalUsed: Number(wallet.totalUsed || 0),
+      feedbackRewardGranted: Boolean(wallet.feedbackRewardGranted),
     });
   } catch (error) {
     next(error);

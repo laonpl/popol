@@ -79,6 +79,7 @@ export function billingContextMiddleware(req, res, next) {
     operation: operationPath,
     operationLabel: getOperationLabel(operationPath),
     pending: null, // AI 사용량 누적 — 요청 성공 시에만 확정 차감
+    creditChecked: false, // 요청당 크레딧 검사 1회 — 시작한 작업은 끝까지 완료
   };
 
   // 요청이 성공(2xx)으로 끝나야만 과금 확정. 에러/중단 시 누적분 폐기 → 차감 안 함.
@@ -260,8 +261,12 @@ export async function grantFeedbackReward(uid) {
 }
 
 export async function assertHasCredits() {
-  const { userId } = billingStorage.getStore() || {};
+  const store = billingStorage.getStore();
+  const userId = store?.userId;
   if (!userId) return;
+  // 이 요청에서 이미 한 번 통과했다면 재검사하지 않는다.
+  // → 작업 시작 시 잔액이 있었다면, 도중에 (동시 요청 등으로) 0이 되어도 끝까지 완료된다.
+  if (store.creditChecked) return;
   const wallet = await getOrCreateWallet(userId);
   if (Number(wallet.balance || 0) <= 0) {
     const error = new Error('크레딧이 부족합니다. 설정의 크레딧 관리 메뉴에서 충전해주세요.');
@@ -269,6 +274,7 @@ export async function assertHasCredits() {
     error.code = 'INSUFFICIENT_CREDITS';
     throw error;
   }
+  store.creditChecked = true;
 }
 
 export async function requireCredits(_req, _res, next) {
