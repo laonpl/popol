@@ -8,13 +8,29 @@ const JOB_SITES = [
   { name: '자소설닷컴', domain: 'jasoseol.com', color: 'bg-purple-500', url: 'https://jasoseol.com/recruit' },
 ];
 
+/* AI 응답 항목이 객체({description, weight})이거나 JSON 문자열로 직렬화된 경우에도 표시용 텍스트만 추출 */
+function textFromItem(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    return String(v.description || v.requirement || v.text || v.content || v.name || '');
+  }
+  const s = String(v).trim();
+  if (/^\{[\s\S]*\}$/.test(s)) {
+    try {
+      const parsed = JSON.parse(s);
+      return String(parsed.description || parsed.requirement || parsed.text || parsed.content || parsed.name || '');
+    } catch { /* JSON이 아니면 원문 유지 */ }
+  }
+  return s;
+}
+
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
-  return value.map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+  return value.map(v => stripMd(textFromItem(v))).filter(Boolean);
 }
 
 function stripMd(s) {
-  return s ? String(s).replace(/\*\*/g, '').replace(/\*/g, '').replace(/<\/?u>/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
+  return s ? String(s).replace(/<[^>]+>/g, '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s/gm, '').replace(/^[-•]\s/gm, '').trim() : '';
 }
 
 function firstFilled(...values) {
@@ -131,7 +147,7 @@ export function buildDisplayPortfolioRequirements(analysis) {
   const required = toCleanList(raw.required);
   const format = toCleanList(raw.format);
   const content = toCleanList(raw.content);
-  let submission = typeof raw.submission === 'string' ? raw.submission.trim() : '';
+  let submission = stripMd(textFromItem(raw.submission));
 
   // 공고 원문을 못 읽은 폴백 분석이면 일반론 기본값을 지어내지 않고(실제 공고와 모순될 수 있음)
   // 백엔드가 넣은 값/안내를 그대로 보여준다.
@@ -666,12 +682,13 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {analysis.requirements?.essential?.length > 0 && (
                   <AnalysisCard title="필수 요건">
                     {analysis.requirements.essential.map((r, i) => {
-                      const text = typeof r === 'string' ? r : (r.requirement || r.text || r.content || JSON.stringify(r));
-                      const reason = typeof r === 'string' ? '' : r.reason;
+                      const text = stripMd(textFromItem(r));
+                      const reason = typeof r === 'object' && r ? stripMd(r.reason || '') : '';
+                      if (!text) return null;
                       return (
                         <div key={i} style={{ paddingLeft: 10, borderLeft: `2px solid ${NAV}`, marginBottom: 5 }}>
-                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{stripMd(text)}</p>
-                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{stripMd(reason)}</p>}
+                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{text}</p>
+                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{reason}</p>}
                         </div>
                       );
                     })}
@@ -680,12 +697,13 @@ export function JobAnalysisBadge({ analysis, onRemove, experiences }) {
                 {analysis.requirements?.preferred?.length > 0 && (
                   <AnalysisCard title="우대 요건">
                     {analysis.requirements.preferred.map((r, i) => {
-                      const text = typeof r === 'string' ? r : (r.requirement || r.text || r.content || JSON.stringify(r));
-                      const reason = typeof r === 'string' ? '' : r.reason;
+                      const text = stripMd(textFromItem(r));
+                      const reason = typeof r === 'object' && r ? stripMd(r.reason || '') : '';
+                      if (!text) return null;
                       return (
                         <div key={i} style={{ paddingLeft: 10, borderLeft: '1px dotted #94a3b8', marginBottom: 5 }}>
-                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{stripMd(text)}</p>
-                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{stripMd(reason)}</p>}
+                          <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.55 }}>{text}</p>
+                          {reason && <p style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>{reason}</p>}
                         </div>
                       );
                     })}

@@ -5,7 +5,10 @@ import { adminDb } from '../config/firebase.js';
 const billingStorage = new AsyncLocalStorage();
 const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 2000);
 const LEGACY_STARTER_CREDITS = Number(process.env.LEGACY_STARTER_CREDITS || 1500);
-const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 10000);
+// 크레딧 차감률: AI 원가 $1 = 2,500크레딧 (1크레딧 = $0.0004 ≈ 0.56원 원가)
+// 2026-06-11 10,000 → 2,500 조정: 기능당 체감가를 시장 수준(전체 경험 분석 ≈ 1,500원)으로 맞추되
+// 패키지 가격 기준 마진 60% 이상 유지. 근거: docs/credit-margin-2026.md §9
+const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 2500);
 const FEEDBACK_REWARD_CREDITS = Number(process.env.FEEDBACK_REWARD_CREDITS || 300);
 
 export const CREDIT_PACKAGES = [

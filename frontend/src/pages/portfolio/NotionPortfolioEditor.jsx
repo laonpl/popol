@@ -1420,39 +1420,44 @@ export default function NotionPortfolioEditor() {
 
   return (
     <div className="animate-fadeIn w-full max-w-[1280px] mx-auto">
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-4">
-        <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
-          <ArrowLeft size={14} /> 목록으로
-        </Link>
-        <div className="flex items-center gap-2">
+      {/* Top bar — 경험 정리(자세히 보기) 헤더와 같은 톤 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
+            <ArrowLeft size={15} /> 포트폴리오 목록으로
+          </Link>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">
+            편집 중
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {hasUnsavedChanges && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              저장 안 됨
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[12px] font-bold text-bluewood-500 ring-1 ring-surface-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+              저장되지 않음
             </span>
           )}
           <button
             onClick={() => setAnalysisMode(prev => !prev)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all border ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all border ${
               analysisMode
                 ? 'bg-primary-50 text-primary-700 border-primary-200'
-                : 'bg-white text-bluewood-500 border-surface-200 hover:border-bluewood-300 hover:text-bluewood-700'
+                : 'bg-white text-bluewood-600 border-surface-200 hover:border-bluewood-300 hover:bg-surface-50'
             }`}
           >
             기업 분석
           </button>
           <button
             onClick={handleReview}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all"
+            title="채용공고 요건 기준으로 포트폴리오를 점검합니다"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-600 rounded-lg text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all"
           >
             검토하기
           </button>
-          <div className="w-px h-5 bg-surface-200 mx-0.5" />
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-100"
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-50 transition-all"
           >
             {saving ? '저장 중...' : '저장하기'}
           </button>
@@ -1461,9 +1466,9 @@ export default function NotionPortfolioEditor() {
 
       {/* 포트폴리오 요건 체크리스트 — floating toast */}
       {reqChecklist && (
-        <div className="fixed bottom-6 right-6 z-[9999] w-80 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] border border-gray-200 overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-[9999] w-80 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] border border-surface-200 overflow-hidden">
           {/* 상단 컬러 헤더 */}
-          <div className="bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-3 flex items-center justify-between">
+          <div className="bg-primary-600 px-4 py-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Target size={15} className="text-white/90" />
               기업 포트폴리오 요건 체크
@@ -1507,7 +1512,7 @@ export default function NotionPortfolioEditor() {
           </div>
           {reqChecklist.some(c => !c.passed) && (
             <div className="px-4 pb-3">
-              <p className="text-[13px] text-orange-600 bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
+              <p className="text-[13px] text-bluewood-500 bg-surface-50 rounded-lg px-3 py-2 border border-surface-200">
                 미충족 항목을 보완하면 지원 경쟁력이 높아집니다
               </p>
             </div>
