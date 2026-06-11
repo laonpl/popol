@@ -10,7 +10,6 @@ import {
   MapPin, Phone, Mail
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
-import { getApiBaseUrl } from '../services/apiBase';
 
 const BRAND_ICONS = {
   KakaoTalk: '/brand-icons/kakaotalk.svg',
@@ -105,43 +104,11 @@ export default function Landing() {
   const [panelAnimKey, setPanelAnimKey] = useState(0);
   const panelTimers = useRef([]);
 
-  const [waitlistEmail, setWaitlistEmail] = useState('');
-  const [waitlistStatus, setWaitlistStatus] = useState({ type: 'idle', message: '' });
-
   const statsRef = useRef(null);
   const [statsVisible, setStatsVisible] = useState(false);
   const [count1, setCount1] = useState(0);
   const [count2, setCount2] = useState(0);
   const [count3, setCount3] = useState(0);
-
-  const handleWaitlistSubmit = async () => {
-    if (!waitlistEmail) return;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(waitlistEmail)) {
-      setWaitlistStatus({ type: 'error', message: '올바른 이메일 주소를 입력해주세요.' });
-      return;
-    }
-    setWaitlistStatus({ type: 'loading', message: '' });
-
-    try {
-      const baseURL = getApiBaseUrl();
-      const res = await fetch(`${baseURL}/waitlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: waitlistEmail.toLowerCase().trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setWaitlistStatus({ type: 'error', message: data.error || '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
-      } else {
-        setWaitlistStatus({ type: 'success', message: data.message || '출시 예약 완료! 정식 출시 시 무료 쿠폰 3장을 보내드릴게요 🎁' });
-        setWaitlistEmail('');
-      }
-    } catch (error) {
-      console.error(error);
-      setWaitlistStatus({ type: 'error', message: '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
-    }
-  };
 
   const go = () => navigate(user ? '/app' : '/login');
 
@@ -1348,11 +1315,11 @@ export default function Landing() {
           <span className="text-[13px] font-bold text-indigo-600">베타 기간 한정 혜택</span>
         </div>
         <h2 className="text-[28px] sm:text-[40px] md:text-[52px] font-extrabold text-gray-900 leading-[1.2] mb-5 sm:mb-6 tracking-[-0.03em]" style={{ wordBreak: 'keep-all' }}>
-          지금 예약하면<br />
-          포트폴리오 <span className="text-indigo-600">3건을 무료</span>로 드려요
+          지금 가입하면<br />
+          가입 크레딧 <span className="text-indigo-600">2,000개</span>를 드려요
         </h2>
         <p className="text-[15px] sm:text-[17px] text-gray-500 mb-2 sm:mb-3 leading-relaxed font-medium">
-          이메일만 등록하면 정식 출시 시 알림과 함께 무료 쿠폰을 드립니다
+          베타 기간 동안만 드리는 혜택이에요. 지금 가입하고 AI 기능을 마음껏 써보세요.
         </p>
         <div className="flex items-center gap-4 mb-8 sm:mb-10 flex-wrap justify-center">
           <div className="flex items-center gap-1.5 text-[14px] text-gray-500 font-medium">
@@ -1362,48 +1329,16 @@ export default function Landing() {
             <Check size={14} className="text-green-500" /> 신용카드 불필요
           </div>
           <div className="flex items-center gap-1.5 text-[14px] text-gray-500 font-medium">
-            <Check size={14} className="text-green-500" /> 선착순 한정
+            <Check size={14} className="text-green-500" /> 베타 기간 한정
           </div>
         </div>
 
         <div className="w-full max-w-[480px] flex flex-col items-center px-0">
-          <div className="w-full flex flex-col sm:flex-row gap-3">
-            <input
-              type="email"
-              value={waitlistEmail}
-              onChange={(e) => { setWaitlistEmail(e.target.value); if (waitlistStatus.type !== 'idle') setWaitlistStatus({ type: 'idle', message: '' }); }}
-              onKeyDown={(e) => e.key === 'Enter' && handleWaitlistSubmit()}
-              placeholder="이메일 주소를 입력해주세요"
-              className="flex-1 px-4 sm:px-5 py-3.5 sm:py-4 bg-[#f8f9fa] border border-gray-200 rounded-xl text-[15px] sm:text-[16px] font-medium focus:outline-none focus:border-indigo-300 transition-all placeholder:text-gray-500 disabled:opacity-50"
-              disabled={waitlistStatus.type === 'loading' || waitlistStatus.type === 'success'}
-            />
-            <button
-              onClick={handleWaitlistSubmit}
-              disabled={waitlistStatus.type === 'loading' || !waitlistEmail || waitlistStatus.type === 'success'}
-              className="bg-indigo-600 text-white px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
-            >
-              {waitlistStatus.type === 'loading' ? '등록 중...' : waitlistStatus.type === 'success' ? (
-                <><Check size={14} /> 예약 완료</>
-              ) : '출시 예약하기'}
-            </button>
-          </div>
-          {waitlistStatus.message && (
-            <p className={`mt-3 text-[15px] font-bold ${waitlistStatus.type === 'success' ? 'text-indigo-600' : 'text-red-500'}`}>
-              {waitlistStatus.message}
-            </p>
-          )}
-
-          <div className="mt-6 flex items-center gap-3 w-full">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[13px] sm:text-[14px] text-gray-500 font-medium">또는</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
           <button
-            onClick={() => navigate('/login')}
-            className="mt-4 w-full border-2 border-indigo-600 text-indigo-600 px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+            onClick={go}
+            className="w-full bg-indigo-600 text-white px-6 py-3.5 sm:py-4 rounded-xl text-[15px] sm:text-[16px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
           >
-            바로 체험해보기
+            지금 가입하고 2,000 크레딧 받기
           </button>
           <p className="mt-2 text-[13px] sm:text-[14px] text-gray-500 font-medium">베타 테스터로 지금 바로 이용할 수 있어요</p>
         </div>

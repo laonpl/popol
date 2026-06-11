@@ -1,9 +1,10 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { useEffect, useRef, useState } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, X, Gift } from 'lucide-react';
 import useCreditStore from '../stores/creditStore';
 import CreditDepletedModal from './CreditDepletedModal';
+import FeedbackModal from './FeedbackModal';
 
 const navItems = [
   { to: '/app/experience', label: '경험 정리' },
@@ -16,6 +17,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [rewardPromptDismissed, setRewardPromptDismissed] = useState(false);
   const settingsMenuRef = useRef(null);
 
   const handleSignOut = async () => {
@@ -27,6 +30,8 @@ export default function Layout() {
   const displayName = profile?.nameKo || user?.displayName || '사용자';
   const creditBalance = Math.max(0, Number(wallet?.balance || 0));
   const formattedCredits = creditBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+  // 크레딧을 다 쓰고 아직 피드백 보상을 못 받은 사용자에게만 유도 안내를 보여준다.
+  const rewardEligible = creditBalance === 0 && !!wallet && !wallet.feedbackRewardGranted && !rewardPromptDismissed;
   const creditModalKey = user?.uid ? `fitpoly-credit-zero-modal:${user.uid}` : '';
 
   const showCreditModal = () => {
@@ -80,6 +85,17 @@ export default function Layout() {
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
       <CreditDepletedModal open={creditModalOpen} onClose={() => setCreditModalOpen(false)} />
+      <FeedbackModal
+        open={feedbackOpen}
+        context="credit_depleted"
+        onClose={(res) => {
+          setFeedbackOpen(false);
+          if (res?.submitted) {
+            setRewardPromptDismissed(true);
+            refreshWallet();
+          }
+        }}
+      />
       {/* 상단 네비게이션 */}
       <header className="bg-white border-b border-surface-200">
         <div className="relative px-6 flex items-center h-16">
@@ -109,15 +125,45 @@ export default function Layout() {
 
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/app/settings/credits')}
-              className="flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:border-primary-200 hover:bg-primary-100"
-              title="크레딧 관리"
-            >
-              <span className="text-primary-400">C</span>
-              <span className="tabular-nums">{formattedCredits}</span>
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate('/app/settings/credits')}
+                className="flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:border-primary-200 hover:bg-primary-100"
+                title="크레딧 관리"
+              >
+                <span className="text-primary-400">C</span>
+                <span className="tabular-nums">{formattedCredits}</span>
+              </button>
+
+              {/* 크레딧 소진 시: 피드백 남기면 300 크레딧 유도 (보상 미수령자만) */}
+              {rewardEligible && (
+                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-amber-200 bg-white p-3 shadow-xl z-[60]">
+                  <button
+                    type="button"
+                    onClick={() => setRewardPromptDismissed(true)}
+                    className="absolute right-2 top-2 text-bluewood-300 transition-colors hover:text-bluewood-600"
+                    aria-label="닫기"
+                  >
+                    <X size={14} />
+                  </button>
+                  <div className="flex items-center gap-1.5 text-amber-600">
+                    <Gift size={15} />
+                    <span className="text-[12px] font-extrabold">크레딧을 다 쓰셨나요?</span>
+                  </div>
+                  <p className="mt-1.5 text-[12px] leading-5 text-bluewood-500">
+                    리뷰·피드백을 남겨주시면 <b className="text-amber-600">300 크레딧</b>을 바로 드려요!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackOpen(true)}
+                    className="mt-2.5 w-full rounded-lg bg-amber-500 px-3 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-amber-600"
+                  >
+                    피드백 남기고 300C 받기
+                  </button>
+                </div>
+              )}
+            </div>
             <span className="text-sm font-medium text-bluewood-700">
               {displayName}
             </span>
