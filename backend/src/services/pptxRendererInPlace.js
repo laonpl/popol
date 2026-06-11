@@ -166,18 +166,33 @@ function sanitizeAllText(spTree, doc) {
 // 배경·장식 이미지(디자인 요소)는 보존한다.
 // 구별 기준: <p:nvPicPr> 아래 <p:nvPr><p:ph> 있으면 placeholder → 제거.
 //            ph 없는 pic은 디자인 요소 → 보존.
-function removeAllPicsFromSpTree(spTree) {
+// 콘텐츠 샘플 이미지 판정 (사진·그래프·스크린샷 등 사용자 데이터로 대체 불가능한 템플릿 잔재).
+// 디자인 띠/바(가로로 매우 긴 배경 이미지)와 아이콘(작음), 풀블리드 배경은 보존.
+//  · 면적 3% 이상 55% 미만 + 종횡비(긴변/짧은변) 5 미만 → 샘플 콘텐츠로 보고 제거
+export function isContentSamplePic(w, h, slideW, slideH) {
+  if (!(w > 0) || !(h > 0) || !(slideW > 0) || !(slideH > 0)) return false;
+  const areaRatio = (w * h) / (slideW * slideH);
+  if (areaRatio < 0.03 || areaRatio >= 0.55) return false;
+  const aspect = Math.max(w, h) / Math.max(1, Math.min(w, h));
+  return aspect < 5;
+}
+
+function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0) {
   const toRemove = [];
   const isPlaceholderPic = (pic) => {
     const nvPicPr = firstChild(pic, P_NS, 'nvPicPr');
     const nvPr    = nvPicPr ? firstChild(nvPicPr, P_NS, 'nvPr') : null;
     return nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
   };
+  const isSamplePic = (pic) => {
+    const geom = topLevelXfrm(pic);
+    return geom ? isContentSamplePic(geom.w, geom.h, slideW, slideH) : false;
+  };
   const collectFromGroup = (group) => {
     for (let i = 0; i < group.childNodes.length; i++) {
       const c = group.childNodes.item(i);
       if (!c || c.nodeType !== 1) continue;
-      if (c.localName === 'pic' && isPlaceholderPic(c)) toRemove.push(c);
+      if (c.localName === 'pic' && (isPlaceholderPic(c) || isSamplePic(c))) toRemove.push(c);
       else if (c.localName === 'grpSp') collectFromGroup(c);
     }
   };
@@ -185,6 +200,7 @@ function removeAllPicsFromSpTree(spTree) {
   for (const pic of toRemove) {
     if (pic.parentNode) pic.parentNode.removeChild(pic);
   }
+  if (toRemove.length) console.log(`[Renderer] 샘플/placeholder 이미지 ${toRemove.length}개 제거`);
   return toRemove.length;
 }
 
