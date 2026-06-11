@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
-import { requireCredits, ensureMinimumCharge, flushPendingCharges, chargeFeatureUsageNow } from '../services/billingService.js';
+import { requireCredits, flushPendingCharges, getBillingStore, createDetachedBillingStore } from '../services/billingService.js';
 import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio } from '../services/exportService.js';
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout } from '../services/templateParser.js';
@@ -52,6 +52,12 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
     }
   });
   try {
+    const billingStore = getBillingStore() || createDetachedBillingStore({
+      userId: req.user.uid,
+      operation: 'POST /api/export/ppt',
+      operationLabel: 'PPT 템플릿 포트폴리오 제작',
+    });
+    if (billingStore && !billingStore.userId) billingStore.userId = req.user.uid;
     if (!req.file) return res.status(400).json({ success: false, message: 'PPTX 템플릿 파일이 필요합니다' });
     let portfolio;
     try {
@@ -64,14 +70,12 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
     }
 
     const layout = await parsePptxLayout(req.file.buffer);
-    const deck = await mapDeck({ portfolio, layout });
+    const deck = await mapDeck({ portfolio, layout, billingStore });
     const buf = await renderDeckInPlace(deck, req.file.buffer);
-    // LLM 폴백(결정론 채움)이면 AI 사용량이 0이라 과금이 안 됨 → 기능 최소 과금 보전.
-    // 응답이 2xx 로 끝날 때만 billingContextMiddleware 가 확정 차감한다.
-    ensureMinimumCharge(Number(process.env.PPT_TEMPLATE_MIN_CREDITS || 50));
-    const minCredits = Number(process.env.PPT_TEMPLATE_MIN_CREDITS || 50);
-    const billing = await flushPendingCharges()
-      || await chargeFeatureUsageNow(req.user.uid, minCredits, 'PPT 템플릿 포트폴리오 제작');
+    // Charge only usage recorded by the model client. Uploaded PPT template
+    // generation can be token-heavy, so no minimum/feature fallback charge is
+    // applied here; credits must follow actual API token usage.
+    const billing = await flushPendingCharges(billingStore);
 
     // 미리보기와 실제 PPTX 출력이 일치하도록:
     // - placeholder pics(<p:ph>)는 renderer가 이미 제거 → 미리보기도 제외

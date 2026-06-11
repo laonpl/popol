@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
-import { assertHasCredits, recordAiUsage } from '../services/billingService.js';
+import { assertHasCredits, getBillingStore, recordAiUsage } from '../services/billingService.js';
 
 let genAIClient = null;
 let _cachedGeminiConfig = null;
@@ -83,7 +83,7 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
-export async function callGitHubModelsFallback(prompt) {
+export async function callGitHubModelsFallback(prompt, billingStore = getBillingStore()) {
   await assertHasCredits();
   const client = getOpenAIClient();
   if (!client) throw new Error("GitHub Models Token not configured");
@@ -106,7 +106,7 @@ export async function callGitHubModelsFallback(prompt) {
   });
 
   const text = response.choices[0].message.content;
-  await recordAiUsage({ provider: 'github-models', model: 'gpt-4o-mini', usage: response.usage, prompt: safePrompt, output: text });
+  await recordAiUsage({ provider: 'github-models', model: 'gpt-4o-mini', usage: response.usage, prompt: safePrompt, output: text, billingStore });
   return text;
 }
 
@@ -261,7 +261,15 @@ function extractGeminiText(response) {
   throw new Error('Gemini 응답에 텍스트가 없습니다.');
 }
 
-export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null) {
+function extractUsageMetadata(response) {
+  return response?.usageMetadata
+    || response?.usage_metadata
+    || response?.response?.usageMetadata
+    || response?.response?.usage_metadata
+    || null;
+}
+
+export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null, billingStore = getBillingStore()) {
   await assertHasCredits();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
@@ -270,11 +278,18 @@ export async function callGeminiModel(modelName, contents, timeoutMs = 90000, co
     getGenAI().models.generateContent(request).then(
       async r => {
         clearTimeout(timer);
+        const usageMetadata = extractUsageMetadata(r);
+        let text = '';
         try {
-          const text = extractGeminiText(r);
-          await recordAiUsage({ provider: 'gemini', model: modelName, usage: r.usageMetadata, prompt: contents, output: text });
+          text = extractGeminiText(r);
+          await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
           resolve(text);
         } catch (error) {
+          try {
+            await recordAiUsage({ provider: 'gemini', model: modelName, usage: usageMetadata, prompt: contents, output: text, billingStore });
+          } catch (billingError) {
+            console.warn('[Billing] Gemini usage recording failed after response parse error:', billingError?.message || billingError);
+          }
           reject(error);
         }
       },
@@ -305,8 +320,10 @@ export async function generateWithRetry(prompt, options = {}) {
     callTimeoutMs = 90000,
     config = null,
     githubFallback = true,
+    billingStore: explicitBillingStore = null,
   } = options;
 
+  const billingStore = explicitBillingStore || getBillingStore();
   await assertHasCredits();
 
   // 세마포어 획득 — 동시 호출 수 제한
@@ -338,7 +355,7 @@ export async function generateWithRetry(prompt, options = {}) {
 
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config);
+          const result = await callGeminiModel(modelName, prompt, callTimeoutMs, config, billingStore);
           recordModelSuccess(modelName);
           return result;
         } catch (err) {
@@ -436,7 +453,7 @@ export async function generateWithRetry(prompt, options = {}) {
       }
       console.error('[Gemini] 모든 Gemini 모델 실패. GitHub Models Fallback을 시도합니다...', lastError.message);
       try {
-        return await callGitHubModelsFallback(prompt);
+        return await callGitHubModelsFallback(prompt, billingStore);
       } catch (fallbackErr) {
         console.error('[Fallback] GitHub Models Fallback도 실패했습니다:', fallbackErr.message);
         throw lastError;

@@ -156,8 +156,8 @@ async function commitPendingCharges(store) {
   return result;
 }
 
-export async function flushPendingCharges() {
-  return commitPendingCharges(billingStorage.getStore());
+export async function flushPendingCharges(billingStore = billingStorage.getStore()) {
+  return commitPendingCharges(billingStore);
 }
 
 export async function chargeFeatureUsageNow(uid, credits, description = 'AI 기능 사용') {
@@ -204,6 +204,27 @@ export async function chargeFeatureUsageNow(uid, credits, description = 'AI 기�
 export function setBillingUser(uid) {
   const store = billingStorage.getStore();
   if (store) store.userId = uid;
+}
+
+export function getBillingStore() {
+  return billingStorage.getStore() || null;
+}
+
+export function createDetachedBillingStore({
+  userId,
+  operation = 'detached-ai-operation',
+  operationLabel = 'AI 기능 사용',
+} = {}) {
+  return {
+    userId: userId || null,
+    operationId: crypto.randomUUID(),
+    operation,
+    operationLabel,
+    billingCommitted: false,
+    pending: null,
+    creditChecked: true,
+    detached: true,
+  };
 }
 
 export async function getOrCreateWallet(uid) {
@@ -366,15 +387,16 @@ function estimateTokensFromValue(value) {
 }
 
 function normalizeUsage(usage = {}, prompt = '', output = '') {
+  usage = usage?.usageMetadata || usage?.usage_metadata || usage || {};
   let inputTokens = Number(
-    usage.promptTokenCount ?? usage.prompt_tokens ?? usage.input_tokens ?? 0
+    usage.promptTokenCount ?? usage.prompt_token_count ?? usage.prompt_tokens ?? usage.inputTokens ?? usage.input_tokens ?? 0
   ) || 0;
   let outputTokens = Number(
-    usage.candidatesTokenCount ?? usage.completion_tokens ?? usage.output_tokens ?? 0
+    usage.candidatesTokenCount ?? usage.candidates_token_count ?? usage.completion_tokens ?? usage.outputTokens ?? usage.output_tokens ?? 0
   ) || 0;
-  const thinkingTokens = Number(usage.thoughtsTokenCount || 0);
+  const thinkingTokens = Number(usage.thoughtsTokenCount ?? usage.thoughts_token_count ?? 0);
   let totalTokens = Number(
-    usage.totalTokenCount ?? usage.total_tokens ?? inputTokens + outputTokens + thinkingTokens
+    usage.totalTokenCount ?? usage.total_token_count ?? usage.totalTokens ?? usage.total_tokens ?? inputTokens + outputTokens + thinkingTokens
   ) || 0;
   let estimatedUsage = false;
 
@@ -394,8 +416,8 @@ function normalizeUsage(usage = {}, prompt = '', output = '') {
   return { inputTokens, outputTokens, thinkingTokens, totalTokens, estimatedUsage };
 }
 
-export async function recordAiUsage({ provider, model, usage, prompt = '', output = '' }) {
-  const store = billingStorage.getStore();
+export async function recordAiUsage({ provider, model, usage, prompt = '', output = '', billingStore = null }) {
+  const store = billingStore || billingStorage.getStore();
   if (!store?.userId) return null;
 
   const tokens = normalizeUsage(usage, prompt, output);

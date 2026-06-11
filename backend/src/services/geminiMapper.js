@@ -1301,7 +1301,7 @@ ${JSON.stringify(list, null, 2)}
 { "results": [ { "key": "<입력 key 그대로>", "summary": "<max_chars 이내 압축문>" } ] }`;
 }
 
-async function summarizeOverflow(deck) {
+async function summarizeOverflow(deck, billingStore = null) {
   const jobs = [];
   for (let si = 0; si < deck.length; si++) {
     const boxes = deck[si].boxes || [];
@@ -1326,6 +1326,7 @@ async function summarizeOverflow(deck) {
       retries: 1,
       callTimeoutMs: 60000,
       config: { temperature: 0.2, responseMimeType: 'application/json' },
+      billingStore,
     });
     parsed = parseJSON(raw);
   } catch (e) {
@@ -1396,7 +1397,7 @@ ${JSON.stringify(slides)}
 { "slides": [ { "slide_id": <입력 slide_id 그대로>, "boxes": [ { "box_id": <정수>, "text": "<문자열>", "emphasis": "<none|metric|title>" } ] } ] }`;
 }
 
-async function aiMapAllSlides(items) {
+async function aiMapAllSlides(items, billingStore = null) {
   const out = new Map(); // `${slideId}:${boxId}` -> { text, emphasis }
   if (!items.length) return out;
   let parsed = null;
@@ -1409,6 +1410,7 @@ async function aiMapAllSlides(items) {
       retries: 2,
       callTimeoutMs: 150000,
       config: { temperature: 0.25, responseMimeType: 'application/json' },
+      billingStore,
     });
     parsed = parseJSON(raw);
   } catch (e) {
@@ -1426,7 +1428,7 @@ async function aiMapAllSlides(items) {
 }
 
 // ── 9) 메인: 결정론 baseline + 배치 LLM 매핑 오버레이 + 스마트 콘텐츠 피팅 ───────
-export async function mapDeck({ portfolio, layout }) {
+export async function mapDeck({ portfolio, layout, billingStore = null }) {
   const { norm, plan } = planDeck(layout, portfolio);
 
   const normStr = (s) => s.toLowerCase().replace(/\s+/g, '').trim();
@@ -1443,7 +1445,7 @@ export async function mapDeck({ portfolio, layout }) {
   console.log(`[PPT-Mapper] ${plan.length}개 슬라이드 LLM 일괄 매핑 시도`);
   const aiMap = await aiMapAllSlides(prepared.map(p => ({
     slideId: p.si, sectionType: p.step.sectionType, ctx: p.ctx, slots: p.slots,
-  })));
+  })), billingStore);
   if (aiMap.size) console.log(`[PPT-Mapper] LLM 매핑 응답 ${aiMap.size}개 박스 수신 (검증 후 적용)`);
 
   // 3) deck 빌드: 결정론 baseline 위에 검증 통과한 AI 텍스트만 덮어쓰기
@@ -1552,7 +1554,7 @@ export async function mapDeck({ portfolio, layout }) {
     };
   });
 
-  await summarizeOverflow(deck);
+  await summarizeOverflow(deck, billingStore);
 
   // Cross-slide dedup: 같은 프로젝트의 연속 슬라이드 간 본문 내용 중복 제거.
   // project_intro 에서 표시된 내용이 project_par/project_overview 에 다시 나오는 경우 제거.
