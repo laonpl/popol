@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
+import { requireCredits } from '../services/billingService.js';
 import { validatePortfolioWithAI, matchSectionsToRequirements, generateThemedPortfolio } from '../services/geminiService.js';
 import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFunctions.js';
 
@@ -159,7 +160,7 @@ router.get('/public/:idOrSlug', async (req, res, next) => {
 });
 
 // POST /api/portfolio/validate - 체크리스트 6개 항목 검증
-router.post('/validate', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/validate', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { portfolioId } = req.body;
     if (!portfolioId) {
@@ -365,7 +366,7 @@ function escapeHtml(str) {
 }
 
 // POST /api/portfolio/match-sections - 섹션별 기업 요건 매칭 분석
-router.post('/match-sections', authMiddleware, async (req, res, next) => {
+router.post('/match-sections', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { sections, targetCompany, targetPosition } = req.body;
     if (!sections || !Array.isArray(sections) || sections.length === 0) {
@@ -382,7 +383,7 @@ router.post('/match-sections', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/portfolio/ai-ppt-analyze - 경험정리 → 선택한 합격 포트폴리오형 PPT deck 생성
-router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/ai-ppt-analyze', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { portfolioId, templateHint, customTemplate } = req.body;
     if (!portfolioId) return res.status(400).json({ error: 'portfolioId가 필요합니다' });
@@ -414,7 +415,7 @@ router.post('/ai-ppt-analyze', authMiddleware, aiRateLimiter, async (req, res, n
 });
 
 // POST /api/portfolio/ai-ppt-revise - 단일 슬라이드 AI 수정
-router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/ai-ppt-revise', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { portfolioId, slide, instruction } = req.body;
     if (!slide || !instruction) return res.status(400).json({ error: 'slide와 instruction이 필요합니다' });
@@ -422,6 +423,7 @@ router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, ne
     if (portfolioId) {
       const snap = await adminDb.collection('portfolios').doc(portfolioId).get();
       if (snap.exists) portfolio = { id: snap.id, ...snap.data() };
+      if (portfolio.userId && portfolio.userId !== req.user.uid) return res.status(403).json({ error: '접근 권한이 없습니다.' });
     }
     stripPortfolioInlineHtml(portfolio);
     const updated = await reviseAiPptSlide({ slide, instruction, portfolio });
@@ -434,7 +436,7 @@ router.post('/ai-ppt-revise', authMiddleware, aiRateLimiter, async (req, res, ne
 });
 
 // POST /api/portfolio/generate-themed — 테마 기반 전문가 포트폴리오 AI 생성
-router.post('/generate-themed', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/generate-themed', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { portfolioId, themeId } = req.body;
     if (!portfolioId || !themeId) {

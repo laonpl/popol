@@ -1,8 +1,40 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, ExternalLink } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
+
+function getBrowserContext() {
+  const ua = navigator.userAgent || '';
+  const isAndroid = /Android/i.test(ua);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const isKakao = /KAKAOTALK/i.test(ua);
+  const isNaver = /NAVER|NAVER\(inapp/i.test(ua);
+  const isInstagram = /Instagram/i.test(ua);
+  const isFacebook = /FBAN|FBAV|FB_IAB/i.test(ua);
+  const isLine = /Line\//i.test(ua);
+  const isAndroidWebView = isAndroid && /; wv\)|Version\/[\d.]+.*Chrome/i.test(ua);
+  const isEmbedded = isKakao || isNaver || isInstagram || isFacebook || isLine || isAndroidWebView;
+  return { isAndroid, isMobile, isKakao, isEmbedded };
+}
+
+function openExternalBrowser() {
+  const url = window.location.href;
+  const { isAndroid, isKakao } = getBrowserContext();
+
+  if (isKakao) {
+    window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
+    return true;
+  }
+
+  if (isAndroid) {
+    const target = url.replace(/^https?:\/\//, '');
+    window.location.href = `intent://${target}#Intent;scheme=${window.location.protocol.replace(':', '')};package=com.android.chrome;end`;
+    return true;
+  }
+
+  return false;
+}
 
 // ── 메인 로그인 페이지 ───────────────────────────────────
 export default function Login() {
@@ -24,6 +56,7 @@ export default function Login() {
 
   const isFormSubmit = useRef(false);
   const handledAutoLogin = useRef(false);
+  const browserContext = getBrowserContext();
 
   useEffect(() => {
     if (user && !handledAutoLogin.current && !isFormSubmit.current) {
@@ -71,9 +104,19 @@ export default function Login() {
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      await signInWithGoogle();
-      // 리다이렉트 방식: 구글 인증 페이지로 이동하므로 이후 코드는 실행되지 않음
+      if (browserContext.isEmbedded) {
+        const opened = openExternalBrowser();
+        toast(opened
+          ? '외부 브라우저에서 다시 Google 로그인을 진행해주세요.'
+          : '브라우저 메뉴에서 외부 브라우저로 열어 Google 로그인을 진행해주세요.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      await signInWithGoogle({ redirect: browserContext.isMobile });
     } catch (err) {
+      console.error('구글 로그인 실패:', err.code, err.message, err);
       toast.error('구글 로그인에 실패했습니다');
       setLoading(false);
     }
@@ -192,6 +235,21 @@ export default function Login() {
           <h2 className="text-xl font-bold text-center mb-6 text-primary-600">
             {step === 'login' ? '로그인' : '회원가입'}
           </h2>
+
+          {browserContext.isEmbedded && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[13px] leading-5 font-medium text-amber-900">
+                현재 앱 내부 브라우저에서는 Google 로그인이 차단될 수 있어요.
+              </p>
+              <button
+                type="button"
+                onClick={openExternalBrowser}
+                className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-900 underline underline-offset-2"
+              >
+                외부 브라우저로 열기 <ExternalLink size={13} />
+              </button>
+            </div>
+          )}
 
           {/* Google */}
           <button

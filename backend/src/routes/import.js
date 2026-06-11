@@ -9,6 +9,7 @@ import {
   importFromFile,
   structureImportedContent,
 } from '../services/importService.js';
+import { requireCredits } from '../services/billingService.js';
 
 // Firestore 이력 저장 (실패해도 응답에 영향 없음)
 async function saveImportHistory(data) {
@@ -21,6 +22,11 @@ async function saveImportHistory(data) {
 }
 
 const router = Router();
+
+function maybeRequireCredits(req, res, next) {
+  if (req.body?.targetType) return requireCredits(req, res, next);
+  next();
+}
 
 // multer 설정 (파일 업로드용, 메모리 저장)
 const upload = multer({
@@ -42,7 +48,7 @@ const upload = multer({
 });
 
 // POST /api/import/notion - Notion 페이지 임포트
-router.post('/notion', authMiddleware, async (req, res, next) => {
+router.post('/notion', authMiddleware, maybeRequireCredits, async (req, res, next) => {
   try {
     const { url, targetType } = req.body;
     if (!url) {
@@ -70,7 +76,7 @@ router.post('/notion', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/import/github - GitHub 리포지토리 임포트
-router.post('/github', authMiddleware, async (req, res, next) => {
+router.post('/github', authMiddleware, maybeRequireCredits, async (req, res, next) => {
   try {
     const { url, targetType } = req.body;
     if (!url) {
@@ -97,7 +103,7 @@ router.post('/github', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/import/blog - 블로그 URL 임포트 (Velog/Tistory/네이버블로그/Medium/Brunch 등)
-router.post('/blog', authMiddleware, async (req, res, next) => {
+router.post('/blog', authMiddleware, maybeRequireCredits, async (req, res, next) => {
   try {
     const { url, targetType } = req.body;
     if (!url) return res.status(400).json({ error: '블로그 URL이 필요합니다' });
@@ -132,7 +138,7 @@ router.post('/upload', authMiddleware, (req, res, next) => {
     }
     next();
   });
-}, async (req, res, next) => {
+}, maybeRequireCredits, async (req, res, next) => {
   try {
     const file = req.file;
     if (!file) {
@@ -174,7 +180,7 @@ router.post('/upload', authMiddleware, (req, res, next) => {
 });
 
 // POST /api/import/pdf - PDF 파일 임포트 (텍스트 추출은 프론트에서)
-router.post('/pdf', authMiddleware, async (req, res, next) => {
+router.post('/pdf', authMiddleware, maybeRequireCredits, async (req, res, next) => {
   try {
     const { text, fileName, targetType } = req.body;
     if (!text) {
@@ -201,7 +207,7 @@ router.post('/pdf', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/import/text - 직접 텍스트 입력 임포트
-router.post('/text', authMiddleware, async (req, res, next) => {
+router.post('/text', authMiddleware, maybeRequireCredits, async (req, res, next) => {
   try {
     const { text, title, targetType } = req.body;
     if (!text) {
@@ -234,7 +240,7 @@ router.post('/text', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/import/structure - 이미 임포트된 내용을 AI로 구조화
-router.post('/structure', authMiddleware, async (req, res, next) => {
+router.post('/structure', authMiddleware, requireCredits, async (req, res, next) => {
   try {
     const { importedData, targetType } = req.body;
     if (!importedData || !targetType) {

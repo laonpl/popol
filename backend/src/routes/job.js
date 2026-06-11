@@ -14,6 +14,7 @@ import {
 } from '../services/jobAnalysisService.js';
 import { callProFirst, parseJSON } from '../services/geminiService.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireCredits } from '../services/billingService.js';
 
 const router = Router();
 
@@ -108,7 +109,7 @@ function sanitizeJobAnalysis(ja) {
 }
 
 // ── 채용공고 분석 ──────────────────────────────────────
-router.post('/analyze', authMiddleware, async (req, res) => {
+router.post('/analyze', authMiddleware, requireCredits, async (req, res) => {
   try {
     const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
@@ -175,7 +176,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
 });
 
 // ── 경험 매칭 분석 ─────────────────────────────────────
-router.post('/match', authMiddleware, async (req, res) => {
+router.post('/match', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);
     const { jobAnalysis } = req.body;
@@ -207,7 +208,7 @@ router.post('/match', authMiddleware, async (req, res) => {
 });
 
 // ── 맞춤 자소서 생성 ──────────────────────────────────
-router.post('/generate-coverletter', authMiddleware, async (req, res) => {
+router.post('/generate-coverletter', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);
     const { jobAnalysis, matchResult } = req.body;
@@ -236,7 +237,7 @@ router.post('/generate-coverletter', authMiddleware, async (req, res) => {
 });
 
 // ── 맞춤 포트폴리오 제안 ──────────────────────────────
-router.post('/generate-portfolio', authMiddleware, async (req, res) => {
+router.post('/generate-portfolio', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);
     const { jobAnalysis, matchResult } = req.body;
@@ -265,7 +266,7 @@ router.post('/generate-portfolio', authMiddleware, async (req, res) => {
 });
 
 // ── 경험 내용을 기업에 맞게 재작성 ────────────────────
-router.post('/tailor-experience', authMiddleware, async (req, res) => {
+router.post('/tailor-experience', authMiddleware, requireCredits, async (req, res) => {
   try {
     const { jobAnalysis, experience } = req.body;
     if (!jobAnalysis || !experience) {
@@ -280,7 +281,7 @@ router.post('/tailor-experience', authMiddleware, async (req, res) => {
 });
 
 // ── 포트폴리오 전체 섹션을 기업 맞춤형으로 재작성 ──────
-router.post('/tailor-portfolio', authMiddleware, async (req, res) => {
+router.post('/tailor-portfolio', authMiddleware, requireCredits, async (req, res) => {
   try {
     const { jobAnalysis, sections } = req.body;
     if (!jobAnalysis || !Array.isArray(sections) || sections.length === 0) {
@@ -301,7 +302,7 @@ router.post('/tailor-portfolio', authMiddleware, async (req, res) => {
 });
 
 // ── 섹션별 내용 추천 ──────────────────────────────────
-router.post('/recommend-section', authMiddleware, async (req, res) => {
+router.post('/recommend-section', authMiddleware, requireCredits, async (req, res) => {
   try {
     const { jobAnalysis, sectionType, currentContent } = req.body;
     if (!jobAnalysis || !sectionType) {
@@ -425,7 +426,7 @@ router.get('/list', authMiddleware, async (req, res) => {
 });
 
 // ── 키워드 기반 경험 추천 ───────────────────────────
-router.post('/recommend-experiences', authMiddleware, async (req, res) => {
+router.post('/recommend-experiences', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);
     const { jobAnalysis } = req.body;

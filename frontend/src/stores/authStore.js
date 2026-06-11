@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
@@ -80,7 +81,11 @@ const useAuthStore = create((set, get) => ({
     return user;
   },
 
-  signInWithGoogle: async () => {
+  signInWithGoogle: async ({ redirect = false } = {}) => {
+    if (redirect) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
     await signInWithPopup(auth, googleProvider);
   },
 
