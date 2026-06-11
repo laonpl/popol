@@ -103,12 +103,12 @@ export default function FeedbackModal({
           </button>
         </div>
 
-        <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3">
-          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-500">
+        <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-primary-100 bg-primary-50/70 px-3.5 py-3">
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-600">
             <Gift size={17} />
           </span>
-          <p className="text-[13px] font-semibold text-amber-700">
-            피드백을 남겨주시면 <span className="font-extrabold">300 크레딧</span>을 드려요! <span className="font-normal text-amber-500">(최초 1회)</span>
+          <p className="text-[13px] font-semibold text-bluewood-700">
+            피드백을 남겨주시면 <span className="font-extrabold text-primary-600">300 크레딧</span>을 드려요! <span className="font-normal text-bluewood-400">(최초 1회)</span>
           </p>
         </div>
 

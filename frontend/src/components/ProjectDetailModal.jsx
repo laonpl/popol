@@ -471,11 +471,16 @@ export default function ProjectDetailModal({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <h3 className="text-lg font-bold text-gray-900 truncate max-w-[520px]">{exp.title || (genericMode ? '카드 상세' : '경험 상세')}</h3>
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold text-gray-900 truncate max-w-[520px]">{exp.title || (genericMode ? '카드 상세' : '경험 상세')}</h3>
+              {!readOnly && !genericMode && (
+                <p className="mt-0.5 truncate text-[12.5px] text-bluewood-400">노션 포트폴리오에 들어갈 프로젝트 화면을 구성하는 곳이에요. 여기서 배치한 그대로 내보내집니다.</p>
+              )}
+            </div>
             {!readOnly && (
               <button
                 onClick={() => (editingMeta ? setEditingMeta(false) : openMetaEdit())}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all border ${editingMeta ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-primary-700 border-primary-200 hover:bg-primary-50'}`}
+                className={`flex-shrink-0 px-3 py-1 rounded-md text-xs font-medium transition-all border ${editingMeta ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-primary-700 border-primary-200 hover:bg-primary-50'}`}
               >
                 {editingMeta ? '닫기' : '정보 수정'}
               </button>

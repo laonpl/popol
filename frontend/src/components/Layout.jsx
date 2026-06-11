@@ -138,7 +138,7 @@ export default function Layout() {
 
               {/* 크레딧 소진 시: 피드백 남기면 300 크레딧 유도 (보상 미수령자만) */}
               {rewardEligible && (
-                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-amber-200 bg-white p-3 shadow-xl z-[60]">
+                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-primary-100 bg-white p-3 shadow-xl z-[60]">
                   <button
                     type="button"
                     onClick={() => setRewardPromptDismissed(true)}
@@ -147,17 +147,17 @@ export default function Layout() {
                   >
                     <X size={14} />
                   </button>
-                  <div className="flex items-center gap-1.5 text-amber-600">
+                  <div className="flex items-center gap-1.5 text-primary-600">
                     <Gift size={15} />
                     <span className="text-[12px] font-extrabold">크레딧을 다 쓰셨나요?</span>
                   </div>
                   <p className="mt-1.5 text-[12px] leading-5 text-bluewood-500">
-                    리뷰·피드백을 남겨주시면 <b className="text-amber-600">300 크레딧</b>을 바로 드려요!
+                    리뷰·피드백을 남겨주시면 <b className="text-primary-600">300 크레딧</b>을 바로 드려요!
                   </p>
                   <button
                     type="button"
                     onClick={() => setFeedbackOpen(true)}
-                    className="mt-2.5 w-full rounded-lg bg-amber-500 px-3 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-amber-600"
+                    className="mt-2.5 w-full rounded-lg bg-primary-600 px-3 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-primary-700"
                   >
                     피드백 남기고 300C 받기
                   </button>
