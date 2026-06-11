@@ -20,6 +20,7 @@ import {
   FileText, Type, Heading1, List, Quote, Code2, ImageIcon,
   AlertCircle, Minus, Table2, ChevronDown, Link2, Layout
 } from 'lucide-react';
+import useUnsavedChanges from '../hooks/useUnsavedChanges';
 
 // ─── 플러그인 설정 ───────────────────────────────────────
 const RAW_PLUGINS = [
@@ -215,7 +216,7 @@ export default function YooptaPortfolioEditor({
 }) {
   const [currentValue, setCurrentValue] = useState(initialValue || DEFAULT_INITIAL_VALUE);
   const [hasChanges, setHasChanges] = useState(false);
-  const autoSaveTimerRef = useRef(null);
+  useUnsavedChanges(hasChanges);
 
   const editor = useMemo(
     () => createYooptaEditor({
@@ -237,17 +238,10 @@ export default function YooptaPortfolioEditor({
   const handleChange = useCallback((value) => {
     setCurrentValue(value);
     setHasChanges(true);
+  }, []);
 
-    // 자동저장 디바운스 (3초)
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      if (onSave) onSave(value, true); // true = 자동저장
-    }, 3000);
-  }, [onSave]);
-
-  const handleManualSave = useCallback(() => {
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    if (onSave) onSave(currentValue, false);
+  const handleManualSave = useCallback(async () => {
+    if (onSave) await onSave(currentValue, false);
     setHasChanges(false);
   }, [onSave, currentValue]);
 
@@ -285,7 +279,7 @@ export default function YooptaPortfolioEditor({
             </h1>
             {hasChanges && (
               <span className="text-[12px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full">
-                수정됨
+                저장 안 됨
               </span>
             )}
           </div>

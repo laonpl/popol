@@ -14,6 +14,7 @@ import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPor
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
+import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
 
@@ -95,10 +96,13 @@ export default function NotionPortfolioPreview() {
   const { visible: previewTutorialVisible, dismiss: dismissPreviewTutorial } = useOnboarding(previewTutorialKey, { force: forcePreviewTutorial });
   const previewTutorialRef = useRef(null);
   const [previewTutorialCurrentStep, setPreviewTutorialCurrentStep] = useState(0);
-  const autoSaveTimer = useRef(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const inactiveSaveTimer = useRef(null);
   const pendingSaveRef = useRef(false);
   const queuedPortfolioRef = useRef(null);
   const lastScheduledSnapshotRef = useRef(null);
+
+  useUnsavedChanges(hasUnsavedChanges);
 
   useEffect(() => { loadData(); }, [id, user?.uid]);
 
@@ -123,9 +127,9 @@ export default function NotionPortfolioPreview() {
   }, [id, updatePortfolio]);
 
   const schedulePortfolioSave = useCallback((snapshot) => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    if (inactiveSaveTimer.current) clearTimeout(inactiveSaveTimer.current);
     lastScheduledSnapshotRef.current = snapshot;
-    autoSaveTimer.current = setTimeout(() => {
+    inactiveSaveTimer.current = window.setTimeout(() => {
       const scheduledSnapshot = lastScheduledSnapshotRef.current;
       lastScheduledSnapshotRef.current = null;
       persistPortfolio(scheduledSnapshot);
@@ -133,7 +137,7 @@ export default function NotionPortfolioPreview() {
   }, [persistPortfolio]);
 
   useEffect(() => () => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    if (inactiveSaveTimer.current) clearTimeout(inactiveSaveTimer.current);
     if (lastScheduledSnapshotRef.current) {
       persistPortfolio(lastScheduledSnapshotRef.current);
       lastScheduledSnapshotRef.current = null;
@@ -199,10 +203,10 @@ export default function NotionPortfolioPreview() {
       experiences[idx] = { ...experiences[idx], ...changes };
       const next = withDefaultProjectLogos({ ...prev, experiences });
       setCurrentPortfolio(next);
-      schedulePortfolioSave(next);
+      setHasUnsavedChanges(true);
       return next;
     });
-  }, [schedulePortfolioSave, selectedExpDetail?.idx, setCurrentPortfolio]);
+  }, [selectedExpDetail?.idx, setCurrentPortfolio]);
 
   const previewTutorialSteps = [
     {
@@ -275,6 +279,12 @@ export default function NotionPortfolioPreview() {
             <ArrowLeft size={14} /> 목록으로
           </Link>
           <div className="flex items-center gap-2">
+            {hasUnsavedChanges && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                저장 안 됨
+              </span>
+            )}
             <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
               className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
               튜토리얼 보기
@@ -311,6 +321,7 @@ export default function NotionPortfolioPreview() {
                     try {
                       await updatePortfolio(id, { isPublic: newVal });
                       setIsPublic(newVal);
+                      setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
                       toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
                     } catch { toast.error('공개 설정 변경 실패'); }
                     setTogglingPublic(false);
@@ -359,6 +370,7 @@ export default function NotionPortfolioPreview() {
               try {
                 await updatePortfolio(id, { isPublic: newVal });
                 setIsPublic(newVal);
+                setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
                 toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
               } catch { toast.error('공개 설정 변경 실패'); }
               setTogglingPublic(false);
@@ -369,8 +381,7 @@ export default function NotionPortfolioPreview() {
         {selectedExpDetail && (
           <ExperienceDetailModal
             exp={selectedExpDetail.exp}
-            readOnly={selectedExpDetail.idx < 0}
-            onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+            readOnly
             onClose={() => setSelectedExpDetail(null)}
             resizeToBase64={resizeToBase64Global}
             jobAnalysis={portfolio?.jobAnalysis}
@@ -403,6 +414,12 @@ export default function NotionPortfolioPreview() {
           <ArrowLeft size={14} /> 목록으로
         </Link>
         <div className="flex items-center gap-2">
+          {hasUnsavedChanges && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              저장 안 됨
+            </span>
+          )}
           <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
             className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
             튜토리얼 보기
@@ -439,6 +456,7 @@ export default function NotionPortfolioPreview() {
                   try {
                     await updatePortfolio(id, { isPublic: newVal });
                     setIsPublic(newVal);
+                    setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
                     toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
                   } catch { toast.error('공개 설정 변경 실패'); }
                   setTogglingPublic(false);
@@ -966,6 +984,7 @@ export default function NotionPortfolioPreview() {
             try {
               await updatePortfolio(id, { isPublic: newVal });
               setIsPublic(newVal);
+              setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
               toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
             } catch { toast.error('공개 설정 변경 실패'); }
             setTogglingPublic(false);
@@ -978,8 +997,7 @@ export default function NotionPortfolioPreview() {
       {selectedExpDetail && (
         <ExperienceDetailModal
           exp={selectedExpDetail.exp}
-          readOnly={selectedExpDetail.idx < 0}
-          onUpdate={selectedExpDetail.idx >= 0 ? updateSelectedExperience : undefined}
+          readOnly
           onClose={() => setSelectedExpDetail(null)}
           resizeToBase64={resizeToBase64Global}
           jobAnalysis={portfolio?.jobAnalysis}

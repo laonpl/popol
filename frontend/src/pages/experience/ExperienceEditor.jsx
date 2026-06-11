@@ -32,13 +32,14 @@ export default function ExperienceEditor() {
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [currentId, setCurrentId] = useState(id); // 신규 저장 후 ID 추적
+  const [hasImageChanges, setHasImageChanges] = useState(false);
 
   const fw = FRAMEWORKS[framework];
 
   // 저장 시점의 상태 스냅샷 — 변경 여부(dirty) 판단 기준선
   const editableSnapshot = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
   const savedSnapshotRef = useRef(isNew ? editableSnapshot : null);
-  const isDirty = savedSnapshotRef.current !== null && editableSnapshot !== savedSnapshotRef.current;
+  const isDirty = hasImageChanges || (savedSnapshotRef.current !== null && editableSnapshot !== savedSnapshotRef.current);
 
   // 편집 중 이탈 방지 (저장/분석 중에는 화면 전환을 허용해야 하므로 제외)
   useUnsavedChanges(isDirty && !saving && !analyzing);
@@ -88,15 +89,17 @@ export default function ExperienceEditor() {
     }
     setSaving(true);
     try {
-      // 저장 성공 시 현재 상태를 기준선으로 갱신 → dirty 해제
-      savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
       if (isNew && !currentId) {
         const newId = await createExperience(user.uid, { title, framework, jobCategory, content, images, imageSizes });
         setCurrentId(newId);
+        savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+        setHasImageChanges(false);
         toast.success('경험이 저장되었습니다!');
         navigate(`/app/experience/edit/${newId}`, { replace: true });
       } else {
         await updateExperience(currentId || id, { title, framework, jobCategory, content, images, imageSizes });
+        savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+        setHasImageChanges(false);
         toast.success('수정사항이 저장되었습니다');
       }
     } catch (error) {
@@ -119,6 +122,8 @@ export default function ExperienceEditor() {
       } else {
         await updateExperience(experienceId, { title, framework, jobCategory, content, images, imageSizes });
       }
+      savedSnapshotRef.current = JSON.stringify({ title, framework, jobCategory, content, images, imageSizes });
+      setHasImageChanges(false);
       // 2단계: 저장 완료 후 AI 분석 호출
       const analysis = await analyzeExperience(experienceId);
       toast.success('AI 분석이 완료되었습니다!');
@@ -192,25 +197,11 @@ export default function ExperienceEditor() {
 
       setUploadingImage(true);
       try {
-        let docId = currentId || id;
-        if (!docId) {
-          if (!title.trim()) {
-            toast.error('사진 업로드 전에 제목을 먼저 입력해주세요');
-            setUploadingImage(false);
-            e.target.value = '';
-            return;
-          }
-          docId = await createExperience(user.uid, { title, framework, jobCategory, content, images: [], imageSizes: {} });
-          setCurrentId(docId);
-          navigate(`/app/experience/edit/${docId}`, { replace: true });
-        }
-
         const base64 = await resizeToBase64(file);
         const newImage = { url: base64, name: file.name };
-        const updatedImages = [...images, newImage];
-        setImages(updatedImages);
-        await updateExperience(docId, { images: updatedImages, imageSizes });
-        toast.success(`${file.name} 업로드 완료`);
+        setImages(prev => [...prev, newImage]);
+        setHasImageChanges(true);
+        toast.success(`${file.name} 추가 완료`);
       } catch (err) {
         console.error('이미지 업로드 실패:', err);
         toast.error(`${file.name} 업로드에 실패했습니다`);
@@ -232,14 +223,7 @@ export default function ExperienceEditor() {
     });
     setImages(updatedImages);
     setImageSizes(updatedSizes);
-    const docId = currentId || id;
-    if (docId) {
-      try {
-        await updateExperience(docId, { images: updatedImages, imageSizes: updatedSizes });
-      } catch (err) {
-        console.error('이미지 목록 저장 실패:', err);
-      }
-    }
+    setHasImageChanges(true);
   };
 
   // 이미지 리사이즉 핸들러 (포트폴리오와 동일한 UX)
@@ -259,9 +243,7 @@ export default function ExperienceEditor() {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      // 리사이즈 후 저장
-      const docId = currentId || id;
-      if (docId) updateExperience(docId, { imageSizes: imageSizesRef.current }).catch(() => {});
+      setHasImageChanges(true);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -289,6 +271,12 @@ export default function ExperienceEditor() {
           </span>
           {!isNew && (
             <span className="text-xs text-gray-400">ID: {id}</span>
+          )}
+          {isDirty && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              저장 안 됨
+            </span>
           )}
         </div>
         <input
