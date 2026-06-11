@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireCredits, ensureMinimumCharge } from '../services/billingService.js';
 import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio } from '../services/exportService.js';
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout } from '../services/templateParser.js';
@@ -41,7 +42,7 @@ router.post('/ppt-theme', authMiddleware, pptUpload.single('template'), async (r
 
 // POST /api/export/ppt - PPTX 템플릿 + 노션형 포트폴리오 → 완성된 PPTX
 // multipart/form-data: template(file, .pptx), portfolio(string, JSON)
-router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, res, next) => {
+router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template'), async (req, res, next) => {
   // Pro 2.5 는 응답이 느리고 429 재시도 시간이 필요 → 소켓 타임아웃을 10분으로 연장
   // 기본 소켓 타임아웃(5s 등)이 ERR_EMPTY_RESPONSE 를 유발하는 것을 방지
   req.socket.setTimeout(600000);
@@ -65,6 +66,9 @@ router.post('/ppt', authMiddleware, pptUpload.single('template'), async (req, re
     const layout = await parsePptxLayout(req.file.buffer);
     const deck = await mapDeck({ portfolio, layout });
     const buf = await renderDeckInPlace(deck, req.file.buffer);
+    // LLM 폴백(결정론 채움)이면 AI 사용량이 0이라 과금이 안 됨 → 기능 최소 과금 보전.
+    // 응답이 2xx 로 끝날 때만 billingContextMiddleware 가 확정 차감한다.
+    ensureMinimumCharge(Number(process.env.PPT_TEMPLATE_MIN_CREDITS || 50));
 
     // 미리보기와 실제 PPTX 출력이 일치하도록:
     // - placeholder pics(<p:ph>)는 renderer가 이미 제거 → 미리보기도 제외
@@ -118,7 +122,7 @@ router.post('/notion-page', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/export/notion-portfolio - Notion 포트폴리오 전용 내보내기
-router.post('/notion-portfolio', authMiddleware, async (req, res, next) => {
+router.post('/notion-portfolio', authMiddleware, requireCredits, async (req, res, next) => {
   try {
     const { data } = req.body;
     if (!data) {
@@ -132,7 +136,7 @@ router.post('/notion-portfolio', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/export/notion - Notion 최적화 Markdown 내보내기
-router.post('/notion', authMiddleware, async (req, res, next) => {
+router.post('/notion', authMiddleware, requireCredits, async (req, res, next) => {
   try {
     const { data } = req.body;
     if (!data) {
@@ -146,7 +150,7 @@ router.post('/notion', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/export/github - GitHub README 최적화 내보내기
-router.post('/github', authMiddleware, async (req, res, next) => {
+router.post('/github', authMiddleware, requireCredits, async (req, res, next) => {
   try {
     const { data } = req.body;
     if (!data) {
@@ -160,7 +164,7 @@ router.post('/github', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/export/pdf - PDF 최적화 텍스트 내보내기
-router.post('/pdf', authMiddleware, async (req, res, next) => {
+router.post('/pdf', authMiddleware, requireCredits, async (req, res, next) => {
   try {
     const { data } = req.body;
     if (!data) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { adminDb } from '../config/firebase.js';
+import { requireCredits } from '../services/billingService.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
@@ -31,7 +32,7 @@ function requireExperienceOwner(data, uid, res) {
 }
 
 // POST /api/experience/analyze - AI 경험 구조화
-router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { experienceId, momentsCount, reviewedMoments } = req.body;
     if (!experienceId) {
@@ -130,7 +131,7 @@ router.post('/analyze', authMiddleware, aiRateLimiter, async (req, res, next) =>
 // POST /api/experience/draft - 빠른 초안 생성 (flash 1회, 검색 없음)
 // 경험 생성 전 호출되므로 experienceId 없이 content를 직접 받는다.
 // 실패 시 502 → 프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
-router.post('/draft', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { content, jobCategory } = req.body;
     if (!content || typeof content !== 'object' || Object.keys(content).length === 0) {
@@ -154,7 +155,7 @@ router.post('/draft', authMiddleware, aiRateLimiter, async (req, res, next) => {
 });
 
 // POST /api/experience/interview-questions - 대화형 추출 인터뷰 질문 생성
-router.post('/interview-questions', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/interview-questions', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { braindump, jobCategory } = req.body;
     if (!braindump || !String(braindump).trim()) {
@@ -172,7 +173,7 @@ router.post('/interview-questions', authMiddleware, aiRateLimiter, async (req, r
 });
 
 // POST /api/experience/enrich-interview - 추출형 인터뷰 답변을 반영해 재분석·보강
-router.post('/enrich-interview', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { experienceId, qa } = req.body;
     if (!experienceId || !Array.isArray(qa)) {
@@ -251,7 +252,7 @@ router.post('/enrich-interview', authMiddleware, aiRateLimiter, async (req, res,
 });
 
 // POST /api/experience/extract-moments - 핵심 경험 순간 추출 (검토 단계용)
-router.post('/extract-moments', authMiddleware, async (req, res, next) => {
+router.post('/extract-moments', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { rawText, title } = req.body;
     if (!rawText || rawText.trim().length === 0) {
@@ -265,7 +266,7 @@ router.post('/extract-moments', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/experience/refine-key-experience - 자유 텍스트 기반 핵심 경험 보강
-router.post('/refine-key-experience', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/refine-key-experience', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { currentExp, freeFormText } = req.body;
     if (!freeFormText || !currentExp) {
@@ -281,7 +282,7 @@ router.post('/refine-key-experience', authMiddleware, aiRateLimiter, async (req,
 });
 
 // POST /api/experience/research-metrics - AI 시장/지표 리서치 (최신 뉴스·지표·논문)
-router.post('/research-metrics', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/research-metrics', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { title, sections, keywords, projectOverview, jobCategory } = req.body;
     if (!title && !(sections && Object.keys(sections).length)) {
@@ -297,7 +298,7 @@ router.post('/research-metrics', authMiddleware, aiRateLimiter, async (req, res,
 });
 
 // POST /api/experience/evidence-labels - 각 섹션 근거 라벨(사실/추정/가정/해석 + A~D) AI 자동 판단
-router.post('/evidence-labels', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/evidence-labels', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { sections } = req.body;
     if (!sections || typeof sections !== 'object' || Object.keys(sections).length === 0) {
@@ -353,7 +354,7 @@ router.post('/reorder', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/experience/analyze-git - GitHub 커밋 분석으로 경험 스토리 생성
-router.post('/analyze-git', authMiddleware, aiRateLimiter, async (req, res, next) => {
+router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
     const { repoUrl, authorParam, githubToken } = req.body;
     if (!repoUrl) return res.status(400).json({ error: 'GitHub 레포지토리 URL이 필요합니다.' });

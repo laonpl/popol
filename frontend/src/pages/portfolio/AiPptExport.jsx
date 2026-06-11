@@ -5,7 +5,7 @@ import { doc, getDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
-import { getComposedTemplate, buildTemplateFromPptxTheme, SlidePreview, exportDeckToPptx, prepareDeckForExport, analyzeDeckQuality, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
+import { getComposedTemplate, SlidePreview, exportDeckToPptx, prepareDeckForExport, analyzeDeckQuality, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 const DEFAULT_LAYOUT_ID = SLIDE_LAYOUTS[0]?.id || 'narrative';
@@ -73,23 +73,19 @@ export default function AiPptExport() {
     setStage(STAGE.ANALYZING);
     try {
       if (templateId === 'custom' && customFile) {
-        // 업로드 PPTX에서 색·폰트 추출 → 내장 파이프라인 그대로 사용
-        // (box-mapping 방식 제거 — 내장과 동일한 채움 품질 보장)
-        const themeForm = new FormData();
-        themeForm.append('template', customFile);
-        const { data: tokens } = await api.post('/export/ppt-theme', themeForm, {
+        // 인플레이스 방식: 업로드한 PPTX 원본의 디자인(배경·도형·이미지·폰트)을 그대로 두고
+        // 텍스트 박스에 포트폴리오 내용만 채워 넣는다. (테마 색상만 추출하던 구버전은
+        // "색만 적용되고 디자인은 적용 안 되는" 문제가 있어 폐기)
+        const form = new FormData();
+        form.append('template', customFile);
+        form.append('portfolio', JSON.stringify(portfolio));
+        const { data } = await api.post('/export/ppt', form, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 600000,
         });
-        const tpl = buildTemplateFromPptxTheme(tokens, layoutId);
-        setPptxThemeTemplate(tpl);
-        // 내장 파이프라인과 동일하게 deck 생성
-        const { data } = await api.post('/portfolio/ai-ppt-analyze', {
-          portfolioId: id,
-          templateHint: `${layoutId}:proposal`,
-          customTemplate: null,
-        });
-        if (!data?.deck?.slides?.length) throw new Error('슬라이드 생성 실패');
-        setDeck(data.deck);
+        if (!data?.deck?.length || !data?.pptxBase64) throw new Error('템플릿 매핑 실패');
+        setPptxThemeTemplate(null);
+        setCustomResult(data);
         setStage(STAGE.PREVIEW);
       } else {
         setPptxThemeTemplate(null);

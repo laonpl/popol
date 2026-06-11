@@ -209,7 +209,181 @@ function removeAllGraphicFramesFromSpTree(spTree) {
   return toRemove.length;
 }
 
-function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
+const EMU_PER_PT = 12700;
+
+// ── 적응형 재배치 ───────────────────────────────────────────────────────────
+// 템플릿 디자인을 1:1 로 고정하지 않고, 내용이 배정되지 않은 카드(공간 그룹)는
+// 도형째 제거한 뒤 남은 카드를 원래 영역에 균등 재배치한다.
+// "형태는 비슷하게, 배치·구성은 데이터 양에 맞게" — 3카드 템플릿에 항목이 2개면 2카드로.
+//
+// 안전 장치:
+//  · 같은 축(열/행)에서 크기가 비슷한 "동급(peer) 그룹"만 대상 (좌측 레일·제목띠 등 이형 그룹 불변)
+//  · 슬라이드 면적 50% 이상의 배경 도형, 그룹 폭을 1.5배 넘는 가로지르는 도형 불변
+//  · 채워진 텍스트를 포함한 노드는 절대 제거하지 않음
+function clusterBoxesByAxis(boxes, axis, gap) {
+  const pos = axis === 'column' ? (b) => b.x : (b) => b.y;
+  const len = axis === 'column' ? (b) => b.w : (b) => b.h;
+  const sorted = [...boxes].sort((a, b) => pos(a) - pos(b));
+  const buckets = [];
+  let cur = [sorted[0]];
+  let edge = pos(sorted[0]) + len(sorted[0]);
+  for (let i = 1; i < sorted.length; i++) {
+    const b = sorted[i];
+    if (pos(b) > edge + gap) { buckets.push(cur); cur = [b]; edge = pos(b) + len(b); }
+    else { cur.push(b); edge = Math.max(edge, pos(b) + len(b)); }
+  }
+  buckets.push(cur);
+  return buckets;
+}
+
+function topLevelXfrm(node) {
+  const spPr = firstChild(node, P_NS, 'spPr') || firstChild(node, P_NS, 'grpSpPr');
+  const xfrm = spPr ? firstChild(spPr, A_NS, 'xfrm') : null;
+  const off = xfrm ? firstChild(xfrm, A_NS, 'off') : null;
+  const ext = xfrm ? firstChild(xfrm, A_NS, 'ext') : null;
+  if (!off || !ext) return null;
+  return {
+    off,
+    x: parseInt(attr(off, 'x') || '0', 10) / EMU_PER_PT,
+    y: parseInt(attr(off, 'y') || '0', 10) / EMU_PER_PT,
+    w: parseInt(attr(ext, 'cx') || '0', 10) / EMU_PER_PT,
+    h: parseInt(attr(ext, 'cy') || '0', 10) / EMU_PER_PT,
+  };
+}
+
+function subtreeCNvPrIds(node) {
+  const ids = new Set();
+  const list = node.getElementsByTagNameNS(P_NS, 'cNvPr');
+  for (let i = 0; i < list.length; i++) {
+    const id = list.item(i).getAttribute('id');
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+function adaptiveRegroup(spTree, boxes, slideW, slideH) {
+  const geomBoxes = (boxes || []).filter(b => b.w > 0 && b.h > 0);
+  if (geomBoxes.length < 4) return;
+
+  // 열 우선, 불균형하면 행 — geminiMapper.detectSpatialGroups 와 동일 기준.
+  // 둘 다 실패하면(좌측 레일의 세로로 긴 박스가 행들을 붙여버리는 패턴) 가장 큰 열 안에서
+  // 행 재클러스터링 — "좌측 제목 레일 + 우측 카드 스택" 한국형 템플릿 대응.
+  // 열 간격 8%: 매퍼(12%)보다 좁게 — 좌측 레일과 본문 영역 분리가 목적이라 민감해야 한다.
+  const sizesOk = (bk) => bk.length >= 2 && Math.max(...bk.map(b => b.length)) <= Math.min(...bk.map(b => b.length)) * 3;
+  const colBuckets = clusterBoxesByAxis(geomBoxes, 'column', slideW * 0.08);
+  // 전략 체이닝: 한 전략이 빈 그룹을 못 찾으면 다음 전략 시도
+  if (colBuckets.length >= 2 && sizesOk(colBuckets)
+    && applySpatialAdaptation(spTree, geomBoxes, 'column', slideW, slideH, geomBoxes)) return;
+  if (clusterBoxesByAxis(geomBoxes, 'row', slideH * 0.10).length >= 2
+    && applySpatialAdaptation(spTree, geomBoxes, 'row', slideW, slideH, geomBoxes)) return;
+  if (colBuckets.length >= 2) {
+    const largest = colBuckets.reduce((a, b) => (b.length > a.length ? b : a));
+    if (largest.length >= 4 && clusterBoxesByAxis(largest, 'row', slideH * 0.10).length >= 2) {
+      applySpatialAdaptation(spTree, largest, 'row', slideW, slideH, geomBoxes);
+    }
+  }
+}
+
+// subsetBoxes 기준으로 그룹을 만들고, 빈 peer 그룹 제거 + 채워진 peer 그룹 균등 재배치.
+// 교차축 영역 가드: subset 영역 밖(좌측 레일 등)의 도형은 건드리지 않는다.
+function applySpatialAdaptation(spTree, subsetBoxes, axis, slideW, slideH, allBoxes = subsetBoxes) {
+  const buckets = clusterBoxesByAxis(subsetBoxes, axis, axis === 'column' ? slideW * 0.08 : slideH * 0.10);
+  if (buckets.length < 2) return false;
+
+  const start = axis === 'column' ? (g) => g.x1 : (g) => g.y1;
+  const end = axis === 'column' ? (g) => g.x2 : (g) => g.y2;
+  const groups = buckets.map(bucket => ({
+    filled: bucket.some(b => (b.text || '').trim()),
+    x1: Math.min(...bucket.map(b => b.x)),
+    y1: Math.min(...bucket.map(b => b.y)),
+    x2: Math.max(...bucket.map(b => b.x + b.w)),
+    y2: Math.max(...bucket.map(b => b.y + b.h)),
+  }));
+
+  // 동급(peer) 그룹 판정: 축 방향 크기가 중앙값의 0.6~1.67배
+  const lens = groups.map(g => end(g) - start(g)).sort((a, b) => a - b);
+  const median = lens[Math.floor(lens.length / 2)] || 1;
+  groups.forEach(g => { g.peer = (end(g) - start(g)) >= median * 0.6 && (end(g) - start(g)) <= median * 1.67; });
+  const peers = groups.filter(g => g.peer);
+  const emptyPeers = peers.filter(g => !g.filled);
+  const filledPeers = peers.filter(g => g.filled);
+  if (peers.length < 2 || !emptyPeers.length || !filledPeers.length) return false;
+
+  // 밴드: 각 그룹 구간을 이웃 중간점까지 확장 (정렬: clusterBoxesByAxis 가 보장)
+  const bands = groups.map((g, gi) => ({
+    s: gi > 0 ? (end(groups[gi - 1]) + start(g)) / 2 : start(g) - 12,
+    e: gi < groups.length - 1 ? (end(g) + start(groups[gi + 1])) / 2 : end(g) + 12,
+  }));
+
+  // 새 위치: 채워진 peer 그룹을 peer 전체 구간에 균등 배치
+  const peerSpanS = Math.min(...peers.map(start));
+  const peerSpanE = Math.max(...peers.map(end));
+  const filledSizes = filledPeers.map(g => end(g) - start(g));
+  const totalSize = filledSizes.reduce((a, b) => a + b, 0);
+  const gap = filledPeers.length > 1
+    ? Math.max(0, (peerSpanE - peerSpanS - totalSize) / (filledPeers.length - 1))
+    : 0;
+  let cursor = filledPeers.length > 1 ? peerSpanS : peerSpanS + (peerSpanE - peerSpanS - totalSize) / 2;
+  const deltaByGroup = new Map();
+  groups.forEach((g, gi) => {
+    if (!g.peer || !g.filled) return;
+    deltaByGroup.set(gi, cursor - start(g));
+    cursor += (end(g) - start(g)) + gap;
+  });
+
+  // 교차축 영역: peer 그룹들의 직교 방향 범위 (좌측 레일 등 영역 밖 도형 보호)
+  const crossS = Math.min(...peers.map(g => (axis === 'column' ? g.y1 : g.x1)));
+  const crossE = Math.max(...peers.map(g => (axis === 'column' ? g.y2 : g.x2)));
+
+  const filledTextIds = new Set(
+    allBoxes.filter(b => (b.text || '').trim())
+      .map(b => String(b.shapeId || '').match(/sp(\d+)$/)?.[1])
+      .filter(Boolean)
+  );
+
+  const topNodes = [];
+  for (let i = 0; i < spTree.childNodes.length; i++) {
+    const c = spTree.childNodes.item(i);
+    if (c && c.nodeType === 1 && (c.localName === 'sp' || c.localName === 'pic' || c.localName === 'grpSp')) topNodes.push(c);
+  }
+
+  const slideArea = slideW * slideH;
+  let removed = 0, shifted = 0;
+  for (const node of topNodes) {
+    const geom = topLevelXfrm(node);
+    if (!geom || geom.w <= 0 || geom.h <= 0) continue;
+    if (geom.w * geom.h > slideArea * 0.5) continue; // 배경급 도형 불변
+    const crossCenter = axis === 'column' ? geom.y + geom.h / 2 : geom.x + geom.w / 2;
+    if (crossCenter < crossS - 36 || crossCenter > crossE + 36) continue; // 영역 밖 도형 불변
+    const center = axis === 'column' ? geom.x + geom.w / 2 : geom.y + geom.h / 2;
+    const gi = bands.findIndex(band => center >= band.s && center <= band.e);
+    if (gi < 0 || !groups[gi].peer) continue;
+    const bandLen = end(groups[gi]) - start(groups[gi]);
+    const extent = axis === 'column' ? geom.w : geom.h;
+    if (extent > bandLen * 1.5) continue; // 그룹을 가로지르는 도형(제목띠 등) 불변
+
+    if (!groups[gi].filled) {
+      const ids = subtreeCNvPrIds(node);
+      let hasFilled = false;
+      for (const id of ids) if (filledTextIds.has(id)) { hasFilled = true; break; }
+      if (hasFilled) continue;
+      spTree.removeChild(node);
+      removed++;
+    } else {
+      const delta = deltaByGroup.get(gi) || 0;
+      if (Math.abs(delta) < 0.5) continue;
+      if (axis === 'column') geom.off.setAttribute('x', String(Math.round((geom.x + delta) * EMU_PER_PT)));
+      else geom.off.setAttribute('y', String(Math.round((geom.y + delta) * EMU_PER_PT)));
+      shifted++;
+    }
+  }
+  if (removed || shifted) {
+    console.log(`[Renderer] 적응 재배치(${axis}): 빈 그룹 ${emptyPeers.length}개 정리(도형 ${removed}개 제거, ${shifted}개 이동)`);
+  }
+  return true;
+}
+
+function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt = { w: 720, h: 540 }) {
   const map = new Map();
   for (const b of (boxes || [])) {
     if (b.text == null) continue;
@@ -253,6 +427,9 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex) {
 
   // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
   removeAllGraphicFramesFromSpTree(spTree);
+
+  // Pass 4: 적응형 재배치 — 빈 카드 그룹 제거 + 남은 카드 균등 재배치
+  adaptiveRegroup(spTree, boxes, slideSizePt.w, slideSizePt.h);
 
   return serializeXml(doc);
 }
@@ -406,6 +583,13 @@ export async function renderDeckInPlace(deck, originalBuffer) {
   if (!ctXml) throw new Error('[Content_Types].xml 가 없습니다');
   const ctDoc = parseXml(ctXml);
 
+  // 슬라이드 크기(pt) — 적응형 재배치의 클러스터 간격 기준
+  const sldSz = firstChild(presDoc.documentElement, P_NS, 'sldSz');
+  const slideSizePt = {
+    w: parseInt(attr(sldSz, 'cx') || '9144000', 10) / EMU_PER_PT,
+    h: parseInt(attr(sldSz, 'cy') || '6858000', 10) / EMU_PER_PT,
+  };
+
   // 2) sldIdLst 와 슬라이드 rId → 파일 경로 매핑
   const sldIdLst = firstChild(presDoc.documentElement, P_NS, 'sldIdLst');
   if (!sldIdLst) throw new Error('sldIdLst 가 없습니다');
@@ -524,7 +708,7 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     const newPath = `ppt/slides/slide${newNum}.xml`;
     const newRelsPath = `ppt/slides/_rels/slide${newNum}.xml.rels`;
 
-    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx);
+    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx, slideSizePt);
     zip.file(newPath, modifiedXml);
     if (src.sourceRelsXml) zip.file(newRelsPath, src.sourceRelsXml);
 

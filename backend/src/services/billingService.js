@@ -132,6 +132,7 @@ async function commitPendingCharges(store) {
       totalTokens: pending.totalTokens,
       usdCost: pending.usdCost,
       requestedCredits: pending.requestedCredits,
+      estimatedUsage: pending.estimatedUsage === true,
       exhausted: credits < pending.requestedCredits,
       description: store.operationLabel,
       createdAt: new Date(),
@@ -270,25 +271,68 @@ export async function assertHasCredits() {
   }
 }
 
-function normalizeUsage(usage = {}) {
-  const inputTokens = Number(
+export async function requireCredits(_req, _res, next) {
+  try {
+    await assertHasCredits();
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+function estimateTokensFromValue(value) {
+  if (!value) return 0;
+  if (typeof value === 'string') return Math.ceil(value.length / 4);
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + estimateTokensFromValue(item), 0);
+  if (typeof value === 'object') {
+    if (typeof value.text === 'string') return estimateTokensFromValue(value.text);
+    if (value.inlineData || value.inline_data) return 1000;
+    try {
+      return Math.ceil(JSON.stringify(value, (_key, val) => {
+        if (_key === 'data' && typeof val === 'string' && val.length > 500) return '[binary-data]';
+        return val;
+      }).length / 4);
+    } catch {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+function normalizeUsage(usage = {}, prompt = '', output = '') {
+  let inputTokens = Number(
     usage.promptTokenCount ?? usage.prompt_tokens ?? usage.input_tokens ?? 0
   ) || 0;
-  const outputTokens = Number(
+  let outputTokens = Number(
     usage.candidatesTokenCount ?? usage.completion_tokens ?? usage.output_tokens ?? 0
   ) || 0;
   const thinkingTokens = Number(usage.thoughtsTokenCount || 0);
-  const totalTokens = Number(
+  let totalTokens = Number(
     usage.totalTokenCount ?? usage.total_tokens ?? inputTokens + outputTokens + thinkingTokens
   ) || 0;
-  return { inputTokens, outputTokens, thinkingTokens, totalTokens };
+  let estimatedUsage = false;
+
+  if (totalTokens <= 0) {
+    inputTokens = estimateTokensFromValue(prompt);
+    outputTokens = estimateTokensFromValue(output);
+    totalTokens = inputTokens + outputTokens + thinkingTokens;
+    estimatedUsage = totalTokens > 0;
+  } else if (inputTokens + outputTokens + thinkingTokens <= 0) {
+    inputTokens = totalTokens;
+    estimatedUsage = true;
+  } else if (outputTokens <= 0 && totalTokens > inputTokens + thinkingTokens) {
+    outputTokens = Math.max(0, totalTokens - inputTokens - thinkingTokens);
+    estimatedUsage = true;
+  }
+
+  return { inputTokens, outputTokens, thinkingTokens, totalTokens, estimatedUsage };
 }
 
-export async function recordAiUsage({ provider, model, usage }) {
+export async function recordAiUsage({ provider, model, usage, prompt = '', output = '' }) {
   const store = billingStorage.getStore();
   if (!store?.userId) return null;
 
-  const tokens = normalizeUsage(usage);
+  const tokens = normalizeUsage(usage, prompt, output);
   const pricing = MODEL_PRICING_USD_PER_MILLION[model] || MODEL_PRICING_USD_PER_MILLION['gemini-2.5-flash'];
   const useLongContextPricing = model === 'gemini-2.5-pro' && tokens.inputTokens > 200000;
   const inputRate = useLongContextPricing ? pricing.longInput : pricing.input;
@@ -313,6 +357,7 @@ export async function recordAiUsage({ provider, model, usage }) {
     usdCost: 0,
     provider,
     models: new Set(),
+    estimatedUsage: false,
   });
   pending.requestedCredits += requestedCredits;
   pending.inputTokens += tokens.inputTokens;
@@ -322,8 +367,32 @@ export async function recordAiUsage({ provider, model, usage }) {
   pending.usdCost += usdCost;
   pending.provider = provider;
   pending.models.add(model);
+  pending.estimatedUsage = pending.estimatedUsage || tokens.estimatedUsage;
 
   return { requestedCredits, ...tokens };
+}
+
+// 기능 최소 과금: AI 사용량 기반 누적이 minCredits 에 못 미치면 차액을 보전한다.
+// PPT 템플릿 매핑처럼 LLM 폴백(결정론 채움) 시 사용량이 0이어도 기능 자체는 제공되므로
+// 최소 크레딧을 보장해 "크레딧이 소모되지 않는" 문제를 막는다. 성공(2xx) 시에만 확정 차감.
+export function ensureMinimumCharge(minCredits, provider = 'feature') {
+  const store = billingStorage.getStore();
+  if (!store?.userId || !(minCredits > 0)) return;
+  const pending = store.pending || (store.pending = {
+    requestedCredits: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    thinkingTokens: 0,
+    totalTokens: 0,
+    usdCost: 0,
+    provider,
+    models: new Set(),
+    estimatedUsage: true,
+  });
+  if (pending.requestedCredits < minCredits) {
+    pending.requestedCredits = minCredits;
+    pending.estimatedUsage = true;
+  }
 }
 
 export async function listTransactions(uid, limit = 30) {

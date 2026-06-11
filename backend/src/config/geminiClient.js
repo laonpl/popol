@@ -84,6 +84,7 @@ function getOpenAIClient() {
 }
 
 export async function callGitHubModelsFallback(prompt) {
+  await assertHasCredits();
   const client = getOpenAIClient();
   if (!client) throw new Error("GitHub Models Token not configured");
 
@@ -260,7 +261,8 @@ function extractGeminiText(response) {
   throw new Error('Gemini 응답에 텍스트가 없습니다.');
 }
 
-export function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null) {
+export async function callGeminiModel(modelName, contents, timeoutMs = 90000, config = null) {
+  await assertHasCredits();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), timeoutMs);
     const request = { model: modelName, contents };
