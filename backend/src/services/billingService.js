@@ -78,6 +78,7 @@ export function billingContextMiddleware(req, res, next) {
     operationId: crypto.randomUUID(),
     operation: operationPath,
     operationLabel: getOperationLabel(operationPath),
+    billingCommitted: false,
     pending: null, // AI 사용량 누적 — 요청 성공 시에만 확정 차감
     creditChecked: false, // 요청당 크레딧 검사 1회 — 시작한 작업은 끝까지 완료
   };
@@ -100,10 +101,12 @@ export function billingContextMiddleware(req, res, next) {
 // 누적된 AI 사용량을 한 번에 지갑에서 차감한다. (요청 성공 시점에만 호출)
 async function commitPendingCharges(store) {
   const pending = store?.pending;
+  if (store?.billingCommitted) return null;
   if (!store?.userId || !pending || pending.requestedCredits <= 0) return;
 
   const ref = walletRef(store.userId);
   const transactionRef = ref.collection('transactions').doc(store.operationId);
+  let result = null;
 
   await adminDb.runTransaction(async tx => {
     const snap = await tx.get(ref);
@@ -139,7 +142,60 @@ async function commitPendingCharges(store) {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+    result = {
+      amount: credits,
+      balanceAfter,
+      requestedCredits: pending.requestedCredits,
+      exhausted: credits < pending.requestedCredits,
+    };
   });
+  store.billingCommitted = true;
+  return result;
+}
+
+export async function flushPendingCharges() {
+  return commitPendingCharges(billingStorage.getStore());
+}
+
+export async function chargeFeatureUsageNow(uid, credits, description = 'AI 기능 사용') {
+  const amount = Math.max(0, Math.ceil(Number(credits) || 0));
+  if (!uid || amount <= 0) return null;
+
+  const ref = walletRef(uid);
+  let result = null;
+  await adminDb.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const wallet = snap.exists ? snap.data() : defaultWallet(uid);
+    const balance = Math.max(0, Number(wallet.balance || 0));
+    const charged = Math.min(balance, amount);
+    const balanceAfter = Math.max(0, balance - charged);
+
+    tx.set(ref, {
+      ...wallet,
+      creditUnit: 'api-cost-v1',
+      schemaVersion: 3,
+      balance: balanceAfter,
+      totalUsed: Number(wallet.totalUsed || 0) + charged,
+      updatedAt: new Date(),
+    });
+    tx.set(ref.collection('transactions').doc(), {
+      type: 'usage',
+      schemaVersion: 3,
+      amount: -charged,
+      balanceAfter,
+      provider: 'feature',
+      models: [],
+      operation: description,
+      requestedCredits: amount,
+      estimatedUsage: true,
+      exhausted: charged < amount,
+      description,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    result = { amount: charged, balanceAfter, requestedCredits: amount, exhausted: charged < amount };
+  });
+  return result;
 }
 
 export function setBillingUser(uid) {
@@ -260,13 +316,14 @@ export async function grantFeedbackReward(uid) {
   return result;
 }
 
-export async function assertHasCredits() {
+export async function assertHasCredits(uid = null) {
   const store = billingStorage.getStore();
-  const userId = store?.userId;
+  const userId = store?.userId || uid;
+  if (store && uid && !store.userId) store.userId = uid;
   if (!userId) return;
   // 이 요청에서 이미 한 번 통과했다면 재검사하지 않는다.
   // → 작업 시작 시 잔액이 있었다면, 도중에 (동시 요청 등으로) 0이 되어도 끝까지 완료된다.
-  if (store.creditChecked) return;
+  if (store?.creditChecked) return;
   const wallet = await getOrCreateWallet(userId);
   if (Number(wallet.balance || 0) <= 0) {
     const error = new Error('크레딧이 부족합니다. 설정의 크레딧 관리 메뉴에서 충전해주세요.');
@@ -274,12 +331,12 @@ export async function assertHasCredits() {
     error.code = 'INSUFFICIENT_CREDITS';
     throw error;
   }
-  store.creditChecked = true;
+  if (store) store.creditChecked = true;
 }
 
-export async function requireCredits(_req, _res, next) {
+export async function requireCredits(req, _res, next) {
   try {
-    await assertHasCredits();
+    await assertHasCredits(req.user?.uid);
     next();
   } catch (error) {
     next(error);
