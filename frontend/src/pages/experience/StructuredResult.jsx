@@ -629,10 +629,10 @@ const SECTION_META = {
 
 /* ── 탭별 안내: 무엇을 / 어떻게 / 어디에 쓰이는지 (사용자가 헤매지 않도록) ── */
 const TAB_GUIDE = {
-  story:    { title: '프로젝트를 한 편의 글로 정리', desc: '배경·문제·과정·결과 순서로 작성해요. 여기 내용이 포트폴리오와 미리보기의 본문이 됩니다.' },
-  keyexp:   { title: '면접에서 말할 대표 사례 2~3개', desc: '상황·행동·결과·성과 수치로 정리하면 미리보기에 카드로 들어갑니다.' },
-  analysis: { title: '내 역량 자동 정리', desc: '작성한 내용에서 핵심·파생·성장 역량을 모아 보여줘요. 자기소개와 강점 어필에 활용하세요.' },
-  research: { title: '시장 근거와 판단 지표', desc: '내 경험과 연결되는 시장 기준·지표를 정리해 성과의 맥락과 신뢰도를 보강합니다.' },
+  story:    { step: '1단계', title: '프로젝트를 한 편의 글로 정리', desc: '배경·문제·과정·결과 순서로 작성해요. 여기 내용이 포트폴리오로 내보낼 화면의 본문이 됩니다. 아래 번호를 누르면 해당 부분으로 바로 이동해요.' },
+  keyexp:   { step: '2단계', title: '면접에서 말할 대표 사례 2~3개', desc: '상황·행동·결과·성과 수치로 정리하면 내보낼 화면에 카드로 들어갑니다.' },
+  analysis: { step: '3단계', title: '내 역량 자동 정리', desc: '작성한 내용에서 핵심·파생·성장 역량을 모아 보여줘요. 자기소개와 강점 어필에 활용하세요.' },
+  research: { step: '4단계', title: '내 성과에 시장 근거 더하기', desc: '"시장조사 만들기"를 누르면 내 실제 성과 수치를 출처가 확인된 외부 연구와 연결해 의미를 키워줘요. 외부 수치는 비교 기준으로만 쓰입니다.' },
 };
 
 /* ── 역량 키워드 카테고리 스타일 ── */
@@ -680,13 +680,11 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
     .map(t => ({ type: t, label: highlightColors[t].label, desc: highlightColors[t].desc, color: highlightColors[t].underline, items: items.filter(i => i.type === t) }))
     .filter(g => g.items.length > 0);
 
-  // ── 그래프용 집계 (실제 데이터 기반, 수치 조작 없음) ──
+  // ── 요약용 집계 (실제 데이터 기반, 수치 조작 없음) ──
   const typeStats = groups.map(g => ({ type: g.type, label: g.label, color: g.color, count: g.items.length }));
-  const maxTypeCount = Math.max(1, ...typeStats.map(s => s.count));
   const kwFreq = {};
   items.forEach(it => it.keywords.forEach(k => { kwFreq[k] = (kwFreq[k] || 0) + 1; }));
-  const topKeywords = Object.entries(kwFreq).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const maxKwFreq = Math.max(1, ...topKeywords.map(([, c]) => c));
+  const topKeywords = Object.entries(kwFreq).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   if (groups.length === 0 && relatedKeywords.length === 0) return null;
 
@@ -697,35 +695,30 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
         <span className="text-[13.5px] text-bluewood-400">— 어떤 경험에서 어떤 역량을 얻었는지 근거와 함께 정리했습니다</span>
       </div>
 
-      {/* ── 나의 역량 한눈에 (그래프) ── */}
+      {/* ── 나의 역량 한눈에 (요약 칩) ── */}
       {(typeStats.length > 0 || topKeywords.length > 0) && (
         <div className="px-6 py-5 border-b border-surface-100 bg-surface-50/40">
-          <p className="mb-3.5 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">나의 역량 한눈에</p>
+          <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">나의 역량 한눈에</p>
           {typeStats.length > 0 && (
-            <div className="space-y-2.5">
+            <div className="flex flex-wrap gap-2">
               {typeStats.map(s => (
-                <div key={s.type} className="flex items-center gap-3">
-                  <span className="w-[60px] flex-shrink-0 text-[12.5px] font-bold text-bluewood-600">{s.label}</span>
-                  <div className="relative h-3.5 flex-1 overflow-hidden rounded-full bg-surface-100">
-                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(8, (s.count / maxTypeCount) * 100)}%`, backgroundColor: s.color }} />
-                  </div>
-                  <span className="w-6 flex-shrink-0 text-right text-[12.5px] font-extrabold tabular-nums" style={{ color: s.color }}>{s.count}</span>
-                </div>
+                <span key={s.type} className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-bluewood-600">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.label}
+                  <span className="font-extrabold tabular-nums" style={{ color: s.color }}>{s.count}</span>
+                </span>
               ))}
             </div>
           )}
           {topKeywords.length > 0 && (
-            <div className="mt-5">
-              <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">자주 발휘한 역량 키워드</p>
-              <div className="space-y-1.5">
+            <div className="mt-4">
+              <p className="mb-2 text-[11px] font-bold text-bluewood-400">발휘한 역량 키워드</p>
+              <div className="flex flex-wrap gap-1.5">
                 {topKeywords.map(([k, c]) => (
-                  <div key={k} className="flex items-center gap-3">
-                    <span className="w-[96px] flex-shrink-0 truncate text-[12.5px] font-semibold text-bluewood-600" title={k}>{k}</span>
-                    <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-surface-100">
-                      <div className="h-full rounded-full bg-primary-500 transition-all duration-700" style={{ width: `${Math.max(10, (c / maxKwFreq) * 100)}%` }} />
-                    </div>
-                    <span className="w-6 flex-shrink-0 text-right text-[12px] font-bold tabular-nums text-bluewood-400">{c}</span>
-                  </div>
+                  <span key={k} className="inline-flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-2.5 py-1 text-[12.5px] font-semibold text-bluewood-700">
+                    {k}
+                    {c >= 2 && <span className="rounded-full bg-primary-50 px-1.5 py-px text-[11px] font-bold tabular-nums text-primary-700">×{c}</span>}
+                  </span>
                 ))}
               </div>
             </div>
@@ -803,6 +796,16 @@ function normalizeMarketResearch(value) {
       researchBasis: item?.researchBasis || '',
       confidence: item?.confidence || 'medium',
     })) : [],
+    impactBridges: Array.isArray(src.impactBridges) ? src.impactBridges.map(item => ({
+      userMetric: item?.userMetric || '',
+      benchmark: item?.benchmark || '',
+      interpretation: item?.interpretation || '',
+      suggestedSentence: item?.suggestedSentence || '',
+      sourceTitle: item?.sourceTitle || '',
+      sourcePublisher: item?.sourcePublisher || '',
+      sourceUrl: item?.sourceUrl || '',
+      confidence: item?.confidence || 'medium',
+    })).filter(item => item.userMetric && item.benchmark) : [],
     sourceNotes: Array.isArray(src.sourceNotes) ? src.sourceNotes.map(item => ({
       title: item?.title || '',
       publisher: item?.publisher || '',
@@ -1504,6 +1507,14 @@ export default function StructuredResult() {
     }));
   };
 
+  const removeImpactBridge = (index) => {
+    markDirty();
+    setEditedResearch(prev => ({
+      ...prev,
+      impactBridges: (prev.impactBridges || []).filter((_, i) => i !== index),
+    }));
+  };
+
   const updateSourceNote = (index, field, value) => {
     markDirty();
     setEditedResearch(prev => ({
@@ -1534,6 +1545,8 @@ export default function StructuredResult() {
         });
         const angleKeys = new Set((prev.portfolioAngles || []).map(norm));
         const newAngles = (res.portfolioAngles || []).filter(a => a && !angleKeys.has(norm(a)));
+        const bridgeKeys = new Set((prev.impactBridges || []).map(b => norm(b.userMetric)));
+        const newBridges = (res.impactBridges || []).filter(b => b.userMetric && !bridgeKeys.has(norm(b.userMetric)));
         const prevInfographic = normalizeDeskResearchInfographic(prev.deskResearchInfographic);
         const nextInfographic = normalizeDeskResearchInfographic(res.deskResearchInfographic);
         const cardKeys = new Set(prevInfographic.cards.map(card => norm(card.sourceUrl) || norm(card.question)));
@@ -1555,6 +1568,7 @@ export default function StructuredResult() {
             limitations: prevInfographic.limitations || nextInfographic.limitations,
           },
           decisionMetrics: [...prev.decisionMetrics, ...newMetrics],
+          impactBridges: [...(prev.impactBridges || []), ...newBridges],
           sourceNotes: [...prev.sourceNotes, ...newSources],
           portfolioAngles: [...(prev.portfolioAngles || []), ...newAngles],
           limitations: prev.limitations?.trim() ? prev.limitations : (res.limitations || ''),
@@ -1563,9 +1577,12 @@ export default function StructuredResult() {
       markDirty();
       const added = (res.decisionMetrics || []).length;
       const cardCount = normalizeDeskResearchInfographic(res.deskResearchInfographic).cards.length;
-      toast.success(cardCount > 0
-        ? `AI가 시장조사 카드 ${cardCount}개와 지표 ${added}개를 반영했습니다`
-        : (added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다'));
+      const bridgeCount = (res.impactBridges || []).length;
+      toast.success(bridgeCount > 0
+        ? `AI가 내 성과를 외부 연구와 연결한 해석 ${bridgeCount}개를 추가했습니다`
+        : cardCount > 0
+          ? `AI가 시장조사 카드 ${cardCount}개와 지표 ${added}개를 반영했습니다`
+          : (added > 0 ? `AI가 의사결정 지표 ${added}개를 추천했습니다` : 'AI 리서치를 반영했습니다'));
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI 지표 추천에 실패했습니다');
     } finally {
@@ -2583,7 +2600,12 @@ export default function StructuredResult() {
     <div ref={detailSlidesRef} className="mb-6 w-full scroll-mt-6">
       {/* 진행률 + 하이라이트 범례 (카드 없이 한 줄) */}
       <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
-        <span className="text-[13.5px] font-semibold text-bluewood-400 tabular-nums">{filledCount}/{SECTION_COUNT} 섹션 작성됨</span>
+        <span className="flex items-center gap-2.5 text-[13.5px] font-semibold text-bluewood-400 tabular-nums">
+          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-100">
+            <span className="block h-full rounded-full bg-primary-500 transition-all" style={{ width: `${completionPct}%` }} />
+          </span>
+          {filledCount}/{SECTION_COUNT} 섹션 작성됨
+        </span>
         {(structured.highlights || []).length > 0 && Object.entries(highlightColors).map(([key, color]) => (
           <div key={key} className="flex items-center gap-1.5 text-[13px] text-bluewood-500">
             <span className="inline-block w-4" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
@@ -2723,7 +2745,7 @@ export default function StructuredResult() {
       experienceId={id}
       title={editedTitle || experience?.title || ''}
     />
-    <div className="experience-edit-surface animate-fadeIn w-full max-w-[900px] mx-auto px-4 sm:px-6 lg:px-10 pb-16">
+    <div className="experience-edit-surface animate-fadeIn w-full max-w-[1100px] mx-auto px-4 sm:px-6 pb-16">
       {/* 상단 네비 + 저장/수정 */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -2768,7 +2790,7 @@ export default function StructuredResult() {
         ) : (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* 되돌리기/다시실행 그룹 */}
-            <div className="inline-flex items-center rounded-xl border border-surface-200 bg-white p-0.5">
+            <div className="inline-flex items-center rounded-lg border border-surface-200 bg-white p-0.5">
               <button onClick={handleUndo} disabled={!canUndo(id)} title="이전으로 되돌리기 (Ctrl+Z)" aria-label="되돌리기"
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-bluewood-500 hover:bg-surface-50 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-all">
                 <RotateCcw size={14} />
@@ -2780,9 +2802,9 @@ export default function StructuredResult() {
             </div>
 
             {hasUnsavedChanges && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                저장 안 됨
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[12px] font-bold text-bluewood-500 ring-1 ring-surface-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+                저장되지 않음
               </span>
             )}
 
@@ -2790,7 +2812,7 @@ export default function StructuredResult() {
               <button
                 onClick={handleEnhanceDraft}
                 disabled={enhancingDraft}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-xl text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-primary-200 text-primary-700 rounded-lg text-[13px] font-semibold hover:bg-primary-50 active:scale-95 disabled:opacity-50 transition-all"
               >
                 {enhancingDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                 {enhancingDraft ? 'AI 보강 중...' : 'AI로 보강하기'}
@@ -2799,11 +2821,12 @@ export default function StructuredResult() {
 
             <button
               onClick={() => setShowProjectPreviewEditor(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-xl text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
-              <Eye size={14} /> 미리보기
+              title="포트폴리오에 내보낼 화면을 미리 구성합니다"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-700 rounded-lg text-[13px] font-medium hover:bg-surface-50 hover:border-bluewood-300 active:scale-95 transition-all">
+              <Eye size={14} /> 내보낼 화면 구성
             </button>
             <button onClick={handleSave} disabled={saving} title="저장 (Ctrl+S / ⌘S)"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all">
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? '저장 중...' : '저장하기'}
             </button>
@@ -2814,41 +2837,64 @@ export default function StructuredResult() {
       {/* 제목 + 탭 — 한 덩어리의 헤더 (밑줄은 탭 아래 하나만) */}
       <h1 className="mb-3 text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
 
-      {/* ── 고급수정 4탭 네비게이션 (제목·본문과 같은 폭으로 정렬) ── */}
+      {/* ── 고급수정 4탭 네비게이션 — GitHub UnderlineNav 스타일 (호버 필 + 활성 밑줄) ── */}
       <div className="sticky top-0 z-20 mb-6 border-b border-surface-200 bg-white">
-        <div className="flex gap-6 overflow-x-auto px-3 sm:gap-8 sm:px-4">
+        <nav className="-mb-px flex gap-1 overflow-x-auto">
           {[
             { key: 'story', label: '스토리', count: SECTION_COUNT },
             { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },
-            { key: 'analysis', label: '역량·분석', count: null },
-            { key: 'research', label: '시장·지표', count: editedResearch.decisionMetrics.length || null },
+            { key: 'analysis', label: '역량 분석', count: null },
+            { key: 'research', label: '시장 근거', count: (editedResearch.decisionMetrics.length + (editedResearch.impactBridges || []).length) || null },
           ].map(tab => {
             const active = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-2 whitespace-nowrap pb-3 pt-1 text-[16px] font-extrabold tracking-tight transition-colors ${active ? 'text-bluewood-900' : 'text-bluewood-300 hover:text-bluewood-500'}`}
+                className={`group relative whitespace-nowrap px-1 pb-2 pt-1.5 border-b-2 transition-colors ${active ? 'border-primary-600' : 'border-transparent hover:border-surface-300'}`}
               >
-                {tab.label}
-                {tab.count != null && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${active ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-300'}`}>{tab.count}</span>
-                )}
-                {active && <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-full bg-primary-600" />}
+                <span className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[14px] transition-colors ${active ? 'font-bold text-bluewood-900' : 'font-medium text-bluewood-400 group-hover:bg-surface-50 group-hover:text-bluewood-700'}`}>
+                  {tab.label}
+                  {tab.count != null && (
+                    <span className={`rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums ${active ? 'bg-primary-50 text-primary-700' : 'bg-surface-100 text-bluewood-400'}`}>{tab.count}</span>
+                  )}
+                </span>
               </button>
             );
           })}
-        </div>
+        </nav>
       </div>
 
-      {/* 현재 탭이 무엇을·어떻게·어디에 쓰이는지 안내 (사이트 난이도 완화) */}
+      {/* 현재 탭이 무엇을·어떻게·어디에 쓰이는지 안내 (박스 없이 한 줄로) */}
       {TAB_GUIDE[activeTab] && (
-        <div className="mb-6 rounded-xl border border-surface-200 bg-surface-50 px-4 py-3">
-          <p className="text-[13px] leading-relaxed text-bluewood-500">
-            <span className="font-bold text-bluewood-800">{TAB_GUIDE[activeTab].title}</span>
-            <span className="text-bluewood-300"> — </span>
-            {TAB_GUIDE[activeTab].desc}
-          </p>
+        <p className="mb-6 text-[13px] leading-relaxed text-bluewood-400">
+          <span className="font-bold text-primary-600">{TAB_GUIDE[activeTab].step}</span>
+          <span className="mx-1.5 text-bluewood-200">·</span>
+          <span className="font-bold text-bluewood-700">{TAB_GUIDE[activeTab].title}</span>
+          <span className="mx-1.5 text-bluewood-200">—</span>
+          {TAB_GUIDE[activeTab].desc}
+        </p>
+      )}
+
+      {/* 스토리 탭: 섹션 바로가기 — 어디까지 썼는지 + 클릭 시 해당 섹션으로 이동 */}
+      {activeTab === 'story' && (
+        <div className="mb-6 flex flex-wrap gap-1.5">
+          {SECTION_KEYS.map(key => {
+            const meta = SECTION_META[key];
+            const v = editedContent[key] || '';
+            const filled = !isInstructionLike(v) && !!sanitizeTextValue(v).trim();
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => document.getElementById(`story-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${filled ? 'border-surface-200 bg-white text-bluewood-700 hover:border-bluewood-300' : 'border-dashed border-surface-300 bg-surface-50/50 text-bluewood-300 hover:text-bluewood-500'}`}
+              >
+                <span className={`text-[11px] font-black tabular-nums ${filled ? 'text-primary-600' : 'text-bluewood-300'}`}>{meta.num}</span>
+                {meta.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -3030,7 +3076,7 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  리서치 탭: 시장/지표 리서치 보강            ║
          ╚══════════════════════════════════════════════╝ */}
-      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || editedResearch.deskResearchInfographic?.cards?.length > 0 || !viewOnly) && (() => {
+      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || (editedResearch.impactBridges || []).length > 0 || editedResearch.deskResearchInfographic?.cards?.length > 0 || !viewOnly) && (() => {
         const R = editedResearch;
         const confMeta = { high: { label: '신뢰 높음', dot: '#10b981' }, medium: { label: '신뢰 보통', dot: '#cbd5e1' }, low: { label: '참고', dot: '#cbd5e1' } };
         const validSources = (R.sourceNotes || []).filter(s => (s.title && s.title.trim()) || /^https?:\/\//.test(s.url || ''));
@@ -3046,12 +3092,12 @@ export default function StructuredResult() {
             {!viewOnly && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={handleResearchMetrics} disabled={researchingMetrics}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-[13.5px] font-bold text-white bg-bluewood-800 hover:bg-bluewood-900 disabled:opacity-50 transition-colors">
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13.5px] font-bold text-white bg-primary-600 shadow-sm shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-50 transition-colors">
                   {researchingMetrics && <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
                   {researchingMetrics ? '리서치 중...' : '시장조사 만들기'}
                 </button>
                 <button onClick={addDecisionMetric}
-                  className="px-3 py-2 rounded-md border border-surface-200 text-[13.5px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
+                  className="px-3 py-2 rounded-lg border border-surface-200 text-[13.5px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
               </div>
             )}
           </div>
@@ -3081,6 +3127,53 @@ export default function StructuredResult() {
                   <span className="text-[12px] font-semibold text-bluewood-300">출처 URL이 확인된 수치만 표시</span>
                 </div>
                 <DeskResearchInfographic infographic={infographic} />
+              </div>
+            )}
+
+            {/* 내 성과 × 외부 연구 — 실제 성과 수치를 시장 벤치마크와 연결한 해석 */}
+            {(R.impactBridges || []).length > 0 && (
+              <div>
+                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">내 성과 × 외부 연구</p>
+                  <span className="text-[12px] font-semibold text-bluewood-300">내 실제 수치는 그대로, 의미는 출처 있는 연구로 해석한 추정입니다</span>
+                </div>
+                <div className="border-t border-surface-200 divide-y divide-surface-200">
+                  {R.impactBridges.map((bridge, index) => {
+                    const cm = confMeta[bridge.confidence] || confMeta.medium;
+                    return (
+                      <div key={index} className="py-5">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                          <span className="rounded-md bg-primary-50 px-2.5 py-1 text-[13.5px] font-extrabold text-primary-700">{bridge.userMetric}</span>
+                          <span className="text-[13px] font-bold text-bluewood-300">×</span>
+                          <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[1.6] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{bridge.benchmark}</span>
+                          <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-bluewood-400">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cm.dot }} />
+                            {cm.label}
+                          </span>
+                        </div>
+                        {bridge.interpretation && (
+                          <p className="mt-2 text-[14px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{bridge.interpretation}</p>
+                        )}
+                        {bridge.suggestedSentence && (
+                          <div className="mt-2.5 rounded-lg border border-surface-200 bg-surface-50/60 px-3.5 py-2.5">
+                            <span className="mb-0.5 block text-[11.5px] font-bold text-bluewood-400">포트폴리오 제안 문장</span>
+                            <p className="text-[14px] leading-[1.7] text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{bridge.suggestedSentence}</p>
+                          </div>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          {/^https?:\/\//.test(bridge.sourceUrl || '') && (
+                            <a href={bridge.sourceUrl} target="_blank" rel="noopener noreferrer" className="max-w-full truncate text-[12.5px] font-medium text-primary-600 underline underline-offset-2">
+                              출처: {bridge.sourceTitle || bridge.sourcePublisher || bridge.sourceUrl}
+                            </a>
+                          )}
+                          {!viewOnly && (
+                            <button onClick={() => removeImpactBridge(index)} className="text-[12.5px] font-semibold text-bluewood-300 hover:text-red-500 transition-colors">삭제</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

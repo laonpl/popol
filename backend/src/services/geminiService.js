@@ -1043,6 +1043,22 @@ export async function researchMarketMetrics(context = {}) {
     };
   }).filter(Boolean).slice(0, 4);
 
+  // 사용자의 실제 성과 수치 × 외부 벤치마크 연결 — 출처 URL이 확인된 것만 통과
+  const impactBridges = arr(parsed.impactBridges).map(b => {
+    const source = isUrl(b?.sourceUrl) ? null : sourceByIndex(b?.sourceIndex);
+    const sourceUrl = isUrl(b?.sourceUrl) ? b.sourceUrl : (isUrl(source?.url) ? source.url : '');
+    return {
+      userMetric: compactFallbackText(b?.userMetric, 120),
+      benchmark: compactFallbackText(b?.benchmark, 240),
+      interpretation: compactFallbackText(b?.interpretation, 240),
+      suggestedSentence: compactFallbackText(b?.suggestedSentence, 280),
+      sourceTitle: compactFallbackText(b?.sourceTitle || source?.title, 120),
+      sourcePublisher: compactFallbackText(b?.sourcePublisher || source?.publisher, 80),
+      sourceUrl,
+      confidence: ['high', 'medium', 'low'].includes(b?.confidence) ? b.confidence : 'medium',
+    };
+  }).filter(b => b.userMetric && b.benchmark && b.sourceUrl).slice(0, 4);
+
   return {
     marketOverview: typeof parsed.marketOverview === 'string' ? parsed.marketOverview : '',
     deskResearchInfographic: {
@@ -1059,11 +1075,13 @@ export async function researchMarketMetrics(context = {}) {
       researchBasis: m?.researchBasis || '',
       confidence: m?.confidence || 'medium',
     })).filter(m => m.metric),
+    impactBridges,
     sourceNotes,
     portfolioAngles: arr(parsed.portfolioAngles).filter(Boolean),
     limitations: [
       typeof parsed.limitations === 'string' ? parsed.limitations : '',
       infographicCards.length === 0 && infographicRaw.cards?.length ? '출처 URL 또는 숫자가 확인되지 않은 인포그래픽 카드는 제외했습니다.' : '',
+      impactBridges.length === 0 && arr(parsed.impactBridges).length ? '출처 URL이 확인되지 않은 성과 해석(임팩트 브릿지)은 제외했습니다.' : '',
     ].filter(Boolean).join('\n'),
   };
 }
