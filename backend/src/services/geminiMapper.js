@@ -90,7 +90,10 @@ function normalizeProject(exp) {
   const output     = sr.output     || exp.output     || byKey('output')     || findSectionByLabel(subSections, '결과물', 'output') || sr.deliverable || sr.deliverables || carl.result || '';
   const growth     = sr.growth     || exp.growth     || byKey('growth')     || findSectionByLabel(subSections, '성장한 점', '성과', 'growth') || carl.learning || '';
   const competency = sr.competency || exp.competency || sr.myCompetency || byKey('competency') || findSectionByLabel(subSections, '나의 역량', '역량', 'competency') || '';
-  const problem    = carl.context  || carl.problem   || carl.background || exp.problem || findSectionByLabel(subSections, '문제', 'problem') || '';
+  // 문제 정의/배경 — "왜 이 프로젝트가 필요했는가". 합격자 서사의 출발점.
+  const background = overview.background || sr.background || exp.background
+    || byKey('background') || findSectionByLabel(subSections, '배경', 'background') || '';
+  const problem    = background || carl.context || carl.problem || carl.background || exp.problem || findSectionByLabel(subSections, '문제', 'problem') || '';
   const action     = carl.action   || exp.action     || process || findSectionByLabel(subSections, '핵심행동', 'action') || '';
 
   return {
@@ -106,6 +109,7 @@ function normalizeProject(exp) {
     output,
     growth,
     competency,
+    background,
     problem,
     action,
     result: output,
@@ -332,7 +336,9 @@ function buildProjectSections(proj, projIndex, packingCapacity, totalProjects) {
   const needsDivider = totalProjects > 1;
 
   // ─ 케이스 A: 매우 짧음 → divider + 통합 1장 ────────────────────────────────
-  if (estimatedSlides <= 1.5) {
+  // (1.5 → 1.0 하향: 합격자 서사(문제 정의 → 아이디어 → 성과)가 통합 1장에서는 뭉개지므로
+  //  내용이 조금이라도 있으면 intro + PAR 2장 분리를 우선한다)
+  if (estimatedSlides <= 1.0) {
     const sections = [];
     if (needsDivider) sections.push({ kind: 'project_divider', sectionType: 'project_divider', sectionParam: projIndex });
     sections.push({ kind: 'project_merged', sectionType: 'project_merged', sectionParam: projIndex });
@@ -472,7 +478,10 @@ export function planDeck(layout, portfolio) {
       const reuse = usedCount.get(t.index) || 0;
       // divider 는 텍스트가 적은 슬라이드를 선호 — 본문형 슬라이드에 배정되면 내용 중복 발생.
       const sparseBias = d.kind === 'project_divider' ? t.boxCount * 2 : 0;
-      const adjusted = base - reuse * REUSE_PENALTY - sparseBias;
+      // 표지/목차 슬라이드는 다른 섹션에 재사용 금지 — 수상이 96pt 표지에, 연락처가 목차에
+      // 배정되는 오용 방지. 본문 슬라이드 재사용(페널티 누적)이 항상 더 낫다.
+      const structuralBias = ((t.kind === 'cover' && d.kind !== 'cover') || (t.kind === 'toc' && d.kind !== 'toc')) ? 500 : 0;
+      const adjusted = base - reuse * REUSE_PENALTY - sparseBias - structuralBias;
       if (adjusted > bestScore) { bestScore = adjusted; bestIdx = t.index; }
     }
     usedCount.set(bestIdx, (usedCount.get(bestIdx) || 0) + 1);
@@ -655,6 +664,7 @@ function buildContext(norm, step) {
         title: proj?.title,
         role: proj?.role,
         period: proj?.period,
+        background: proj?.background,
         intro: proj?.intro,
         overview: proj?.overview,
         techStack: proj?.techStack,
@@ -670,6 +680,7 @@ function buildContext(norm, step) {
       return {
         title: proj?.title,
         task: proj?.task,
+        background: proj?.background,
         problem: proj?.problem,
         action: proj?.action,
         process: proj?.process,
@@ -712,6 +723,7 @@ function buildContext(norm, step) {
         title: proj?.title,
         role: proj?.role,
         period: proj?.period,
+        background: proj?.background,
         intro: proj?.intro,
         overview: proj?.overview,
         techStack: proj?.techStack,
@@ -729,6 +741,7 @@ function buildContext(norm, step) {
     case 'project_par':
       return {
         title: proj?.title,
+        background: proj?.background,
         problem: proj?.problem,
         action: proj?.action,
         process: proj?.process,
@@ -773,9 +786,10 @@ const SECTION_GUIDE = {
     `  · 메타 박스 → "period · role" 한 줄\n` +
     `최소한의 텍스트로 시각적 단절감을 줄 것. 본문/긴 설명 절대 X.`,
   project_intro:
-    `이 슬라이드는 프로젝트 소개. 박스 의도에 맞춰 분배:\n` +
+    `이 슬라이드는 프로젝트 소개 — 합격자 서사의 시작(왜 이 프로젝트가 필요했는가). 박스 의도에 맞춰 분배:\n` +
     `  · 큰 제목 박스 → title\n` +
-    `  · 부제/요약 박스 → intro (서비스/특징 한 줄)\n` +
+    `  · 본문/요약 박스 → background(문제 정의·배경 1~2문장) 우선, 없으면 intro\n` +
+    `  · 부제 박스 → intro (서비스/특징 한 줄)\n` +
     `  · 메타 박스 → "period · role" 한 줄\n` +
     `  · 작은 나열 박스 → techStack 3~6개 콤마 구분\n` +
     `데이터에 없는 회사/숫자 창작 금지.`,
@@ -834,25 +848,25 @@ const SECTION_GUIDE = {
     `데이터에 없는 정보 창작 금지.`,
   // Smart Packing 병합 섹션
   project_merged:
-    `이 슬라이드는 프로젝트 전체 내용을 한 장에 압축하는 통합 카드.\n` +
-    `템플릿의 모든 텍스트 박스를 최대한 활용해 다음 정보를 빠짐없이 배치:\n` +
+    `이 슬라이드는 프로젝트 전체를 한 장에 담는 통합 카드 — "문제 정의 → 해결 아이디어 → 성과" 순서로 읽히게 배치:\n` +
     `  · 가장 큰/상단 박스 → title (프로젝트명)\n` +
     `  · 메타 박스 → "period · role" 한 줄\n` +
     `  · 기술 박스 → techStack 3~6개\n` +
-    `  · "문제/배경" 박스 → problem 또는 intro (1~2문장 압축)\n` +
-    `  · "과정/행동" 박스 → action 또는 task (1~2문장 압축)\n` +
-    `  · "결과/성과" 박스 → output 또는 growth (1~2문장 압축)\n` +
+    `  · 첫 본문 박스 → "문제 정의": background 우선(없으면 problem/intro) 1~2문장\n` +
+    `  · 다음 본문 박스 → "해결 아이디어·실행": action 또는 task (1~2문장 압축)\n` +
+    `  · 마지막 본문 박스 → "성과": output 또는 growth (수치 포함 1~2문장)\n` +
     `  · hint=metric 박스 → keyExperiences[0].metric (없으면 "")\n` +
     `박스가 남으면 growth / competency 내용도 채워 넣어. 빈 박스로 남기지 말 것.`,
   project_par:
-    `이 슬라이드는 문제(Problem) → 핵심행동(Action) → 성과(Result) 통합 카드.\n` +
+    `이 슬라이드는 "문제 정의 → 해결 아이디어 → 성과" 합격자 서사 카드.\n` +
     `  ⚠ 바로 앞 슬라이드(project_intro)에서 소개·기술스택이 이미 표시됐으므로 intro/overview/techStack 절대 반복 금지.\n` +
-    `  · "문제/배경/상황" 라벨 박스 → problem (핵심만 1~2문장 — intro/overview 반복 금지)\n` +
-    `  · "과정/행동/해결" 라벨 박스 → action 또는 process 또는 task (동사 bullet)\n` +
-    `  · "결과/성과/결과물" 라벨 박스 → output + growth 압축 (1~2문장)\n` +
+    `  · 첫 번째 본문/카드 박스 → "문제 정의": background 우선(없으면 problem) 1~2문장\n` +
+    `  · 두 번째 본문/카드 박스 → "해결 아이디어·실행": action 또는 process (동사 bullet)\n` +
+    `  · 세 번째 본문/카드 박스 → "성과": output + growth 압축 (수치 포함, 1~2문장)\n` +
+    `  · 카드에 제목 라벨 박스가 따로 있으면 "문제 정의"/"해결 아이디어"/"성과" 라벨을 써라\n` +
     `  · hint=metric 박스 → keyExperiences[0].metric (강조, emphasis="metric")\n` +
     `  · 나머지 박스 → competency 배분 (techStack/role 반복 금지)\n` +
-    `PAR 흐름을 명확히 보여주는 것이 이 슬라이드의 목적. 단정형, 동사 시작 bullet.`,
+    `서사 순서(문제→아이디어→성과)가 읽히는 것이 이 슬라이드의 목적. 단정형, 동사 시작 bullet.`,
   toc:
     `이 슬라이드는 목차. outline 배열의 항목을 순서대로 각 행/카드의 제목 박스에 배치.\n` +
     `  · 큰 제목 박스 → "목차" 또는 "Contents"\n` +
@@ -1001,17 +1015,17 @@ function buildGroupDataItems(step, ctx, groupCount) {
 
     case 'project_par': {
       const items = [
-        { heading: '문제/배경', body: cleanFill(ctx.problem || ctx.task || '') },
-        { heading: '핵심행동',  body: cleanFill(ctx.action  || ctx.process || '') },
-        { heading: '성과',      body: cleanFill(ctx.output  || ctx.growth || '') },
+        { heading: '문제 정의', body: cleanFill(ctx.background || ctx.problem || ctx.task || '') },
+        { heading: '해결 아이디어', body: cleanFill(ctx.action || ctx.process || '') },
+        { heading: '성과', body: cleanFill(ctx.output || ctx.growth || '') },
       ].filter(i => i.body);
       return items.length >= 2 ? items.slice(0, groupCount) : null;
     }
 
     case 'project_problem': {
       const items = [
-        { heading: '문제/배경', body: cleanFill(ctx.problem || ctx.task || '') },
-        { heading: '핵심행동',  body: cleanFill(ctx.action  || ctx.process || '') },
+        { heading: '문제 정의', body: cleanFill(ctx.background || ctx.problem || ctx.task || '') },
+        { heading: '해결 아이디어', body: cleanFill(ctx.action || ctx.process || '') },
       ].filter(i => i.body);
       return items.length >= 2 ? items.slice(0, groupCount) : null;
     }
@@ -1136,7 +1150,7 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
         [ctx.period, ctx.role].filter(Boolean).join(' · '));
       break;
     case 'project_intro':
-      push(ctx.title, ctx.intro, [ctx.period, ctx.role].filter(Boolean).join(' · '),
+      push(ctx.title, ctx.background || ctx.intro, ctx.intro, [ctx.period, ctx.role].filter(Boolean).join(' · '),
         (ctx.techStack || []).join(', '));
       break;
     case 'project_overview':
@@ -1147,7 +1161,7 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
       push(ctx.title, ctx.task, ctx.role);
       break;
     case 'project_problem':
-      push(ctx.title, ctx.problem, ctx.action, ctx.process);
+      push(ctx.title, ctx.background || ctx.problem, ctx.action, ctx.process);
       break;
     case 'project_metric': {
       const kes = ctx.keyExperiences || [];
@@ -1206,7 +1220,8 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   //   intro/overview를 명시적으로 우선하면 올바른 본문이 들어감.
   // 구분 카드는 본문 슬롯을 비워 다음 intro 슬라이드와의 내용 중복(동일 슬라이드 반복)을 차단.
   const isDivider = step.sectionType === 'project_divider';
-  const bodyContent  = isDivider ? '' : cleanFill(ctx.intro || ctx.overview || ctx.task || ctx.problem || '');
+  // 서사 순서: 문제 정의/배경 → 해결 아이디어(개요) → 실행/성과
+  const bodyContent  = isDivider ? '' : cleanFill(ctx.background || ctx.intro || ctx.overview || ctx.task || ctx.problem || '');
   const bodyContent2 = isDivider ? '' : cleanFill(ctx.action || ctx.output || ctx.growth || '');
   let bodyIdx = 0;
   const nextBody = () => {
@@ -1366,6 +1381,9 @@ D. role 우선순위: title=핵심 제목(짧고 강하게) / metric=숫자·단
    ※ "속도","단축" 같은 단어 조각을 title 에 넣지 말 것 — title 은 완결된 핵심 문구만.
 E. 여러 heading/body 박스가 있으면 keyExperiences·problem·action·result 를 "카드별로 1건씩" 나누어
    배치하라(한 카드 = 한 경험). 한 사실을 쪼개 여러 칸을 메우지 말 것. 채울 게 없으면 비워라.
+F. 프로젝트 슬라이드는 합격자 포트폴리오 서사 "문제 정의/배경(왜) → 해결 아이디어(어떻게) → 성과(결과 수치)"
+   순서로 읽히게 배치하라. background 필드가 있으면 그것이 문제 정의의 1순위 소스다.
+   카드 제목 라벨이 필요한 박스에는 "문제 정의"/"해결 아이디어"/"성과" 를 사용하라.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [섹션별 의도]

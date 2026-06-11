@@ -6,7 +6,7 @@ import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio }
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout } from '../services/templateParser.js';
 import { mapDeck } from '../services/geminiMapper.js';
-import { renderDeckInPlace } from '../services/pptxRendererInPlace.js';
+import { renderDeckInPlace, isContentSamplePic } from '../services/pptxRendererInPlace.js';
 
 const router = Router();
 
@@ -81,7 +81,8 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
         index: s.index,
         bg: s.bg,
         decor: s.decor,
-        pics: (s.pics || []),   // 디자인 이미지 전달 (placeholder는 renderer에서 제거됨)
+        // 샘플 사진/그래프는 renderer가 제거하므로 미리보기에서도 동일 규칙으로 제외
+        pics: (s.pics || []).filter(p => !isContentSamplePic(p.w, p.h, layout.slideSize.widthPt, layout.slideSize.heightPt)),
       })),
     });
   } catch (error) {

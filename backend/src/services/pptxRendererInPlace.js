@@ -438,8 +438,8 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt 
     }
   }
 
-  // Pass 2.5: 텍스트 매핑 완료 후 sample 사진 <p:pic> 제거
-  removeAllPicsFromSpTree(spTree);
+  // Pass 2.5: 텍스트 매핑 완료 후 sample 사진/그래프 <p:pic> 제거
+  removeAllPicsFromSpTree(spTree, slideSizePt.w, slideSizePt.h);
 
   // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
   removeAllGraphicFramesFromSpTree(spTree);
