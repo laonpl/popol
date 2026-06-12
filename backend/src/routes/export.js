@@ -4,9 +4,9 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireCredits, flushPendingCharges, getBillingStore, createDetachedBillingStore } from '../services/billingService.js';
 import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio } from '../services/exportService.js';
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
-import { parsePptxLayout } from '../services/templateParser.js';
+import { parsePptxLayout, extractDesignDna } from '../services/templateParser.js';
 import { mapDeck } from '../services/geminiMapper.js';
-import { renderDeckInPlace, isContentSamplePic } from '../services/pptxRendererInPlace.js';
+import { renderDeckInPlace, isContentPhoto } from '../services/pptxRendererInPlace.js';
 
 const router = Router();
 
@@ -19,20 +19,22 @@ const pptUpload = multer({
   },
 });
 
-// POST /api/export/ppt-theme - PPTX 파일에서 색·폰트 테마만 추출
-// 업로드 템플릿의 accent/bg/text/font 를 뽑아 내장 파이프라인에 넘긴다.
+// POST /api/export/ppt-theme - PPTX 파일에서 디자인 DNA(팔레트·폰트) 추출
+// theme1.xml 스킴이 아니라 슬라이드/레이아웃/마스터에 실제 칠해진 색을 가중 집계해
+// 업로드 템플릿의 "보이는" 디자인을 내장 파이프라인 템플릿으로 옮긴다.
 router.post('/ppt-theme', authMiddleware, pptUpload.single('template'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'PPTX 파일이 필요합니다' });
-    const layout = await parsePptxLayout(req.file.buffer);
-    const { theme } = layout;
+    const dna = await extractDesignDna(req.file.buffer);
     res.json({
-      bg:          theme.bg          || '#FFFFFF',
-      accent:      theme.accent      || '#3B82F6',
-      text:        theme.text        || '#111827',
-      heading:     theme.heading     || '#111827',
-      fontHeading: theme.headingFont || 'Pretendard',
-      fontBody:    theme.bodyFont    || 'Pretendard',
+      bg:          dna.bg          || '#FFFFFF',
+      accent:      dna.accent      || '#3B82F6',
+      accent2:     dna.accent2     || null,
+      text:        dna.text        || '#111827',
+      heading:     dna.heading     || dna.text || '#111827',
+      dark:        dna.dark        || null,
+      fontHeading: dna.fontHeading || 'Pretendard',
+      fontBody:    dna.fontBody    || 'Pretendard',
     });
   } catch (error) {
     console.error('[POST /export/ppt-theme]', error);
@@ -70,7 +72,11 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
     }
 
     const layout = await parsePptxLayout(req.file.buffer);
-    const deck = await mapDeck({ portfolio, layout, billingStore });
+    // 디자인 DNA(실제 칠해진 팔레트) → 카피 리파인의 톤앤매너 동기화에 사용.
+    // 추출 실패는 톤 기본값으로 폴백할 뿐 변환 자체를 막지 않는다.
+    let designDna = null;
+    try { designDna = await extractDesignDna(req.file.buffer); } catch { /* 기본 톤 사용 */ }
+    const deck = await mapDeck({ portfolio, layout, billingStore, designDna });
     const buf = await renderDeckInPlace(deck, req.file.buffer);
     // Charge only usage recorded by the model client. Uploaded PPT template
     // generation can be token-heavy, so no minimum/feature fallback charge is
@@ -80,6 +86,14 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
     // 미리보기와 실제 PPTX 출력이 일치하도록:
     // - placeholder pics(<p:ph>)는 renderer가 이미 제거 → 미리보기도 제외
     // - 디자인 이미지(non-placeholder)는 PPTX에 보존되므로 미리보기에도 전달
+    // 콘텐츠 사진 판별(renderer 와 동일 규칙)용 미디어 재사용 횟수
+    const picUsage = new Map();
+    for (const s of layout.slides) {
+      for (const p of (s.pics || [])) {
+        if (p.mediaPath) picUsage.set(p.mediaPath, (picUsage.get(p.mediaPath) || 0) + 1);
+      }
+    }
+    const slideArea = layout.slideSize.widthPt * layout.slideSize.heightPt;
     res.json({
       pptxBase64: buf.toString('base64'),
       deck,
@@ -88,8 +102,12 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
         index: s.index,
         bg: s.bg,
         decor: s.decor,
-        // 샘플 사진/그래프는 renderer가 제거하므로 미리보기에서도 동일 규칙으로 제외
-        pics: (s.pics || []).filter(p => !isContentSamplePic(p.w, p.h, layout.slideSize.widthPt, layout.slideSize.heightPt)),
+        // 콘텐츠 사진은 renderer가 제거하므로 미리보기에서도 동일 규칙으로 제외
+        pics: (s.pics || []).filter(p => !isContentPhoto({
+          areaRatio: (p.w * p.h) / slideArea,
+          bytes: p.mediaBytes || 0,
+          usage: p.mediaPath ? (picUsage.get(p.mediaPath) || 1) : 1,
+        })),
       })),
       billing,
     });

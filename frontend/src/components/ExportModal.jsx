@@ -73,12 +73,17 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
         const fd = new FormData();
         fd.append('template', templateFile);
         fd.append('portfolio', JSON.stringify(buildExportData()));
-        const res = await api.post('/export/ppt', fd, {
-          responseType: 'blob',
-          timeout: 180000,
+        // 라우트는 JSON({ pptxBase64, ... })을 반환한다 — blob 으로 받으면
+        // JSON 텍스트가 .pptx 로 저장되어 열리지 않는 파일이 된다.
+        const { data: resData } = await api.post('/export/ppt', fd, {
+          timeout: 600000,
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        const blob = new Blob([res.data], {
+        if (!resData?.pptxBase64) throw new Error(resData?.message || 'PPT 생성에 실패했습니다');
+        const binary = atob(resData.pptxBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], {
           type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         });
         const url = URL.createObjectURL(blob);

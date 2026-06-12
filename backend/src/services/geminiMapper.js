@@ -30,8 +30,22 @@ function numbersSubsetOf(summary, source) {
 // 이 패턴이 탐지되면 빈 문자열로 교체해 슬라이드에 노출되지 않게 한다.
 const PLACEHOLDER_RE = /작성\s*필요|원본에\s*없음|^\(?\s*예\s*[:：]|^\[작성|^\[예:|작성예시|입력하세요|내용을 입력|TODO/i;
 function cleanFill(value) {
-  const s = String(value || '').replace(/\s+/g, ' ').trim();
+  const s = String(value || '')
+    .replace(/<[^>]*>/g, ' ')            // 인라인 HTML(<br> 등)이 리터럴로 노출되는 것 차단
+    .replace(/\s*[-–—]?\s*※[\s\S]*$/, '') // "※공고의 ... 기반 분석" 류 꼬리 주석 제거
+    .replace(/\s+/g, ' ')
+    .trim();
   return PLACEHOLDER_RE.test(s) ? '' : s;
+}
+
+// 제목·헤딩·메타처럼 "짧아야 하는" 박스에 본문급 텍스트가 들어가 9pt 로 구겨지는 것 방지.
+// 예산을 크게 넘으면 절/문장 경계에서 잘라낸다 (본문 박스는 폰트 축소로 전량 보존 — 여긴 라벨 자리).
+function clipShort(value, cap) {
+  const t = cleanFill(value);
+  if (!t || !cap || t.length <= cap * 1.6) return t;
+  const slice = t.slice(0, Math.max(8, Math.round(cap * 1.4)));
+  const cut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf(', '), slice.lastIndexOf(' '));
+  return (cut > 8 ? slice.slice(0, cut) : slice).replace(/[,.\s]+$/, '').trim();
 }
 
 // ── 1) 포트폴리오 정규화 ─────────────────────────────────────────────────────
@@ -126,6 +140,13 @@ function normalizePortfolio(p) {
     .map(normalizeProject)
     .filter(Boolean);
 
+  // 앱 내부 명칭("템플릿 1" 등)이 포트폴리오 제목으로 저장된 경우 — 슬라이드에 노출 금지
+  const rawTitle = String(p.title || '').trim();
+  const JUNK_TITLE_RE = /^(템플릿\s*\d+|template\s*\d+|무제|untitled|새\s*포트폴리오|포트폴리오)$/i;
+  const safeTitle = (!rawTitle || JUNK_TITLE_RE.test(rawTitle))
+    ? [p.userName, '포트폴리오'].filter(Boolean).join(' ') || '포트폴리오'
+    : rawTitle;
+
   return {
     about: {
       name: p.userName || '',
@@ -142,7 +163,7 @@ function normalizePortfolio(p) {
     contact: p.contact || {},
     targetCompany: p.targetCompany || '',
     targetPosition: p.targetPosition || '',
-    title: p.title || '포트폴리오',
+    title: safeTitle,
   };
 }
 
@@ -323,6 +344,366 @@ function detectSpatialGroups(boxes, slideW = 720, slideH = 540) {
   return { groupCount: 1, groupAxis: 'none', groupMap: new Map(boxes.map(b => [b.shapeId, 0])) };
 }
 
+// ── 3-d) 2차원 유닛(카드) 클러스터링 ────────────────────────────────────────
+// 1-D 그룹(열/행)으로는 "이 라벨이 어느 값 박스에 붙는가"를 모른다 — (9)/(10)에서
+// 라벨↔값이 뒤섞인 근본 원인. 근접성(상하 인접 + 가로 겹침 / 좌우 인접 + 세로 겹침)으로
+// 박스를 "카드 유닛"으로 묶고, 내용 1건을 유닛 1개에 통째로 배정한다.
+function buildUnits(slots, slideW = 720, slideH = 540) {
+  const rects = slots.filter(s => s.semanticRole !== 'title' && s.semanticRole !== 'index');
+  if (!rects.length) return [];
+  const parent = rects.map((_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[rb] = ra; };
+
+  const adjacent = (a, b) => {
+    const vGap = Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height);
+    const hGap = Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width);
+    const hOverlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const vOverlap = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    // 상하 인접(라벨이 값 위/아래) — 가로로 충분히 겹쳐야 같은 카드
+    if (vGap <= slideH * 0.035 && hOverlap >= 0.25 * Math.min(a.width, b.width)) return true;
+    // 좌우 인접(라벨: 값 행) — 세로로 충분히 겹쳐야 같은 행
+    if (hGap <= slideW * 0.025 && vOverlap >= 0.5 * Math.min(a.height, b.height)) return true;
+    return false;
+  };
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) {
+      if (adjacent(rects[i], rects[j])) union(i, j);
+    }
+  }
+  const byRoot = new Map();
+  rects.forEach((s, i) => {
+    const r = find(i);
+    if (!byRoot.has(r)) byRoot.set(r, []);
+    byRoot.get(r).push(s);
+  });
+
+  const makeUnit = (members) => {
+    const maxPt = Math.max(...members.map(m => m.basePt || 12));
+    const anatomy = members.map(m => {
+      const cap = m.maxChars || 0;
+      const fit = m.fitCap || cap;
+      let kind;
+      if (m.semanticRole === 'metric' || ((m.basePt || 0) >= maxPt * 0.95 && cap <= 20 && members.length > 1)) kind = 'value';
+      else if (fit <= 30 && (m.basePt || 0) <= maxPt * 0.8) kind = 'label';
+      else if (fit >= 50) kind = 'body';
+      else kind = 'heading';
+      return { slot: m, kind };
+    });
+    return {
+      members,
+      minY: Math.min(...members.map(m => m.y)),
+      minX: Math.min(...members.map(m => m.x)),
+      maxY: Math.max(...members.map(m => m.y + m.height)),
+      maxX: Math.max(...members.map(m => m.x + m.width)),
+      valueSlot: anatomy.filter(a => a.kind === 'value').sort((a, b) => (b.slot.basePt || 0) - (a.slot.basePt || 0))[0]?.slot || null,
+      labelSlots: anatomy.filter(a => a.kind === 'label').map(a => a.slot).sort((a, b) => (a.y - b.y) || (a.x - b.x)),
+      bodySlots: anatomy.filter(a => a.kind === 'body').map(a => a.slot).sort((a, b) => ((b.maxChars || 0) - (a.maxChars || 0))),
+      headingSlots: anatomy.filter(a => a.kind === 'heading').map(a => a.slot).sort((a, b) => (a.y - b.y) || (a.x - b.x)),
+    };
+  };
+  let units = [...byRoot.values()].map(makeUnit);
+
+  // 라벨 전용 유닛(본문 없는 작은 라벨/헤딩 묶음)을 본문 유닛에 결합.
+  // 두 패턴: ① "라벨(좌) ←넓은 간격→ 본문(우)" 같은 행 ② "라벨(위) / 본문(아래)" 스택.
+  // 라벨이 고아로 남으면 (9)/(10)처럼 라벨만 찍히고 내용이 사라진다.
+  const isLabelOnly = (u) => !u.bodySlots.length && !u.valueSlot
+    && u.members.every(m => (m.fitCap || m.maxChars || 0) <= 34);
+  const merged = [];
+  const labelOnly = units.filter(isLabelOnly);
+  const contentful = units.filter(u => !isLabelOnly(u));
+  for (const lu of labelOnly) {
+    const luCy = (lu.minY + lu.maxY) / 2;
+    const sameRow = contentful.filter(u => {
+      const cy = (u.minY + u.maxY) / 2;
+      const vClose = Math.abs(cy - luCy) <= Math.max(u.maxY - u.minY, lu.maxY - lu.minY) * 0.7;
+      const hGap = Math.max(lu.minX, u.minX) - Math.min(lu.maxX, u.maxX);
+      return vClose && hGap <= slideW * 0.14;
+    });
+    const xOverlapRatio = (a, b) => {
+      const ov = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+      return ov / Math.max(1, Math.min(a.maxX - a.minX, b.maxX - b.minX));
+    };
+    const below = contentful.filter(u =>
+      u.minY >= lu.maxY - 4
+      && u.minY - lu.maxY <= slideH * 0.09
+      && xOverlapRatio(lu, u) >= 0.3
+    );
+    const dist = (u) => {
+      const cy = (u.minY + u.maxY) / 2;
+      const cx = (u.minX + u.maxX) / 2;
+      const lcx = (lu.minX + lu.maxX) / 2;
+      return Math.abs(cy - luCy) + Math.abs(cx - lcx) * 0.5;
+    };
+    const host = [...sameRow, ...below].sort((a, b) => dist(a) - dist(b))[0];
+    if (host) merged.push([lu, host]);
+  }
+  if (merged.length) {
+    const absorbed = new Set(merged.map(([lu]) => lu));
+    units = units.filter(u => !absorbed.has(u));
+    for (const [lu, host] of merged) {
+      const idx = units.indexOf(host);
+      if (idx >= 0) units[idx] = makeUnit([...host.members, ...lu.members]);
+    }
+  }
+
+  units.sort((a, b) => (a.minY - b.minY) || (a.minX - b.minX));
+  return units;
+}
+
+// ── 3-e) 섹션별 구조화 아이템 (합격자 서사 모델) ─────────────────────────────
+// 각 아이템 = { label(짧은 카드 라벨), heading(짧은 강조문), body(본문), metric(수치) }.
+// "문제 정의 → 해결 아이디어 → 성과" 순서를 모든 프로젝트 섹션의 기본 서사로 강제한다.
+function buildSectionItems(step, ctx) {
+  const items = [];
+  const push = (label, body, metric = '', heading = '') => {
+    const b = cleanFill(body), m = cleanFill(metric), h = cleanFill(heading);
+    if (b || m || h) items.push({ label: cleanFill(label), body: b, metric: m, heading: h });
+  };
+  const meta = [ctx.period, ctx.role].filter(Boolean).join(' · ');
+  const techLine = Array.isArray(ctx.techStack) ? ctx.techStack.slice(0, 8).join(', ') : '';
+  const firstMetric = (ctx.keyExperiences || []).find(ke => ke.metric || ke.afterMetric) || null;
+
+  switch (step.sectionType) {
+    case 'cover':
+      // userName 은 제목 슬롯(sectionTitleFor)이 항상 표시하므로 아이템으로 중복 배치하지 않음
+      push('', ctx.headline, '', ctx.title || ctx.userName);
+      push('TARGET', [ctx.targetCompany, ctx.targetPosition].filter(Boolean).join(' · '));
+      break;
+    case 'about': {
+      const valuesLine = (ctx.values || []).slice(0, 5)
+        .map(v => typeof v === 'string' ? v : v?.keyword || v?.title || '').filter(Boolean).join(', ');
+      const goalsLine = (ctx.goals || []).slice(0, 3)
+        .map(g => typeof g === 'string' ? g : g?.title || g?.heading || '').filter(Boolean).join(', ');
+      push('가치관', ctx.essay || valuesLine);
+      push('목표', goalsLine || [ctx.targetCompany, ctx.targetPosition].filter(Boolean).join(' '));
+      push('강점', ctx.headline);
+      push('기술 요약', ctx.skillsSummary);
+      break;
+    }
+    case 'skills': {
+      const SKILL_LABELS = { languages: '언어', frameworks: '프레임워크', tools: '툴', others: '기타' };
+      for (const [key, arr] of Object.entries(ctx.skills || {})) {
+        const list = (Array.isArray(arr) ? arr : [])
+          .map(x => typeof x === 'string' ? x : x?.name || '').filter(Boolean);
+        if (list.length) push(SKILL_LABELS[key] || key, list.join(', '));
+      }
+      break;
+    }
+    case 'project_divider':
+      push(ctx.sectionLabel || `Project ${(ctx.projectIndex || 1)}`, meta, '', ctx.title);
+      break;
+    case 'project_intro':
+    case 'project_overview': {
+      const problem = ctx.background || ctx.problem || '';
+      push('문제 정의', problem || ctx.intro);
+      if (ctx.intro && ctx.intro !== problem) push('프로젝트 소개', ctx.intro);
+      else if (ctx.overview && ctx.overview !== problem) push('프로젝트 개요', ctx.overview);
+      push('기간 · 역할', meta);
+      push('기술 스택', techLine);
+      break;
+    }
+    case 'project_task':
+      push('진행한 일', ctx.task);
+      push('역할', ctx.role);
+      break;
+    case 'project_problem':
+    case 'project_par':
+      push('문제 정의', ctx.background || ctx.problem || ctx.task);
+      push('해결 아이디어', ctx.action || ctx.process);
+      push('성과', ctx.output || ctx.growth, firstMetric?.metric || '');
+      break;
+    case 'project_merged':
+      push('문제 정의', ctx.background || ctx.problem || ctx.intro);
+      push('해결 아이디어', ctx.action || ctx.process || ctx.task);
+      push('성과', ctx.output || ctx.growth, firstMetric?.metric || '');
+      push('기간 · 역할', meta);
+      push('기술 스택', techLine);
+      break;
+    case 'project_metric':
+      for (const ke of (ctx.keyExperiences || [])) {
+        push(ke.metricLabel || ke.title, ke.result || ke.description || ke.action, ke.metric || ke.afterMetric);
+      }
+      break;
+    case 'project_output':
+      push('결과물', ctx.output);
+      push('링크', ctx.link);
+      break;
+    case 'project_growth':
+      push('성장한 점', ctx.growth);
+      break;
+    case 'project_competency':
+      push('나의 역량', ctx.competency);
+      push('기술 스택', techLine);
+      break;
+    case 'project_result':
+      push('결과물', ctx.output);
+      push('성장한 점', ctx.growth);
+      push('역량', ctx.competency);
+      break;
+    case 'education':
+      for (const e of (ctx.education || [])) {
+        push('학력', [e.major || e.degree, e.period].filter(Boolean).join(' · '), '', e.school || e.name);
+      }
+      break;
+    case 'awards':
+      for (const a of (ctx.awards || [])) {
+        push('수상', [a.organization || a.org, a.year || a.date].filter(Boolean).join(' · '), '', a.title || a.name);
+      }
+      break;
+    case 'contact':
+      if (ctx.contact?.email) push('EMAIL', ctx.contact.email);
+      if (ctx.contact?.github) push('GITHUB', ctx.contact.github);
+      if (ctx.contact?.website || ctx.contact?.linkedin) push('LINK', ctx.contact.website || ctx.contact.linkedin);
+      break;
+    default:
+      break;
+  }
+  return items;
+}
+
+// 슬라이드 제목 박스(role=title)에 들어갈 텍스트 — 섹션 의미 기준
+function sectionTitleFor(step, ctx) {
+  switch (step.sectionType) {
+    case 'cover': return cleanFill(ctx.userName || ctx.title || '');
+    case 'toc': return '목차';
+    case 'about': return '소개';
+    case 'skills': return '기술 스택';
+    case 'education': return '학력';
+    case 'awards': return '수상 및 자격';
+    case 'contact': return '연락처';
+    case 'project_divider': return cleanFill(ctx.title || ctx.sectionLabel || '');
+    default: return cleanFill(ctx.title || '');
+  }
+}
+
+// ── 3-f) 유닛 채움 — 아이템 1건 = 카드 1개 ──────────────────────────────────
+// 유닛 내부 배치는 "본문 먼저, 가장 잘 맞는 슬롯에" 원칙:
+//   본문(최대 수용 슬롯) → 수치(값 슬롯) → 라벨(남은 작은 슬롯) → 헤딩.
+// 라벨은 본문이 자리잡은 뒤에만 들어가므로 "라벨만 찍히고 내용 실종" 이 구조적으로 불가능.
+function fillByUnits(step, ctx, slots, units, items) {
+  const textByShape = new Map(); // shapeId -> { text, emphasis }
+  const set = (slot, text, emphasis = 'none') => {
+    if (!slot) return false;
+    const cap = slot.maxChars || 120;
+    const t = cleanFill(text);
+    if (!t || (cap <= 6 && t.length > cap * 2)) return false;
+    textByShape.set(slot.shapeId, { text: t, emphasis });
+    return true;
+  };
+  const fitCapOf = (s) => s.fitCap || s.maxChars || 0;
+
+  // 제목/순번 박스
+  const title = sectionTitleFor(step, ctx);
+  for (const s of slots) {
+    if (s.semanticRole === 'title') set(s, clipShort(title, Math.max(s.fitCap || 0, s.maxChars || 40)));
+    else if (s.semanticRole === 'index') set(s, s.originalText || '');
+  }
+
+  const fillable = units.filter(u => u.members.length);
+  if (!fillable.length || !items.length) return textByShape;
+
+  // 유닛 하나에 아이템 하나를 통째로 배치
+  const fillUnit = (u, it) => {
+    const taken = new Set();
+    const free = () => u.members.filter(m => !taken.has(m.shapeId) && !textByShape.has(m.shapeId));
+    let labelEmbedded = false;
+    // 1) 본문 — 수용량 최대 슬롯 (metric 이 쓸 값 슬롯은 아껴둔다)
+    if (it.body) {
+      const cand = free()
+        .filter(s => !(it.metric && s === u.valueSlot))
+        .sort((a, b) => fitCapOf(b) - fitCapOf(a))[0];
+      if (cand && fitCapOf(cand) * 2 >= Math.min(it.body.length, 40)) {
+        // 라벨을 받아줄 작은 슬롯이 없는 단독 본문 슬롯 → 라벨을 본문 첫 줄로 결합
+        const others = u.members.filter(m => m !== cand);
+        const embed = it.label && fitCapOf(cand) >= 60
+          && !others.some(m => !textByShape.has(m.shapeId) && fitCapOf(m) * 1.6 >= it.label.length);
+        if (set(cand, embed ? `${it.label}\n${it.body}` : it.body)) {
+          taken.add(cand.shapeId);
+          labelEmbedded = embed;
+        }
+      }
+    }
+    // 2) 수치 — 값 슬롯 우선
+    if (it.metric) {
+      const cand = (u.valueSlot && !taken.has(u.valueSlot.shapeId) && !textByShape.has(u.valueSlot.shapeId))
+        ? u.valueSlot
+        : free().sort((a, b) => fitCapOf(a) - fitCapOf(b)).find(s => fitCapOf(s) >= Math.min(it.metric.length, 6));
+      if (cand && set(cand, it.metric, 'metric')) taken.add(cand.shapeId);
+    }
+    // 3) 라벨 — 남은 가장 작은 슬롯
+    if (it.label && !labelEmbedded) {
+      const cand = free().sort((a, b) => fitCapOf(a) - fitCapOf(b)).find(s => fitCapOf(s) * 1.6 >= it.label.length);
+      if (cand && set(cand, it.label)) taken.add(cand.shapeId);
+    }
+    // 4) 헤딩 — 남은 슬롯 1개 (라벨과 다를 때만)
+    if (it.heading && it.heading !== it.label) {
+      const cand = free().sort((a, b) => fitCapOf(b) - fitCapOf(a)).find(s => fitCapOf(s) * 1.6 >= Math.min(it.heading.length, 24));
+      if (cand) set(cand, clipShort(it.heading, Math.max(cand.fitCap || 0, cand.maxChars || 24)));
+    }
+  };
+
+  // 매칭: metric 아이템 → 값 슬롯 보유 유닛 우선, 나머지는 "본문이 들어가는" 유닛에 순서대로
+  const isMetricUnit = (u) => u.valueSlot && (u.valueSlot.maxChars || 99) <= 20;
+  const unitBestCap = (u) => Math.max(...u.members.map(fitCapOf));
+  const itemQueue = [...items];
+  const assigned = new Map(); // unit -> item
+  if (itemQueue.some(it => it.metric)) {
+    for (const u of fillable.filter(isMetricUnit)) {
+      const mi = itemQueue.findIndex(it => it.metric);
+      if (mi < 0) break;
+      assigned.set(u, itemQueue.splice(mi, 1)[0]);
+    }
+  }
+  for (const u of fillable) {
+    if (assigned.has(u) || !itemQueue.length) continue;
+    // 작은 박스에 장문을 욱여넣지 않도록, 이 유닛이 감당 가능한 아이템을 고른다
+    const cap = unitBestCap(u);
+    const idx = itemQueue.findIndex(it => !it.body || cap >= 60 || it.body.length <= cap * 2);
+    if (idx < 0) continue;
+    assigned.set(u, itemQueue.splice(idx, 1)[0]);
+  }
+  for (const [u, it] of assigned) fillUnit(u, it);
+
+  // 남은 아이템 1차: 아직 빈 본문급 슬롯(fitCap≥40)에 읽기 순서대로 분배
+  if (itemQueue.length) {
+    const freeBodySlots = fillable
+      .flatMap(u => u.members)
+      .filter(s => !textByShape.has(s.shapeId) && fitCapOf(s) >= 40)
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    for (const s of freeBodySlots) {
+      if (!itemQueue.length) break;
+      const it = itemQueue.shift();
+      const head = [it.label, it.metric].filter(Boolean).join(' · ');
+      const text = head && fitCapOf(s) >= 60 ? `${head}\n${it.body || it.heading}` : (it.body || it.heading || head);
+      set(s, text, it.metric ? 'metric' : 'none');
+    }
+  }
+
+  // 남은 아이템 2차: 가장 큰 본문 슬롯에 서사로 결합 — 거대 본문 장표가
+  // "수치 한 줄"로 끝나는 배치 붕괴 방지. (문제 정의 → 해결 → 성과가 한 패널에 이어짐)
+  if (itemQueue.length) {
+    const bigSlot = fillable
+      .flatMap(u => u.members)
+      .filter(s => fitCapOf(s) >= 120)
+      .sort((a, b) => fitCapOf(b) - fitCapOf(a))[0];
+    if (bigSlot) {
+      const joined = itemQueue
+        .map(it => {
+          const head = [it.label, it.metric].filter(Boolean).join(' · ');
+          return head ? `${head}\n${it.body || it.heading}` : (it.body || it.heading);
+        })
+        .filter(Boolean)
+        .join('\n\n');
+      const existing = textByShape.get(bigSlot.shapeId);
+      if (existing) textByShape.set(bigSlot.shapeId, { ...existing, text: `${existing.text}\n\n${joined}` });
+      else set(bigSlot, joined);
+      itemQueue.length = 0;
+    }
+  }
+  return textByShape;
+}
+
 // ── 3-b) 프로젝트 섹션 목록 → Smart Packing 적용 ────────────────────────────
 // "한 장에 모두 담기" 판정 기준:
 //   단일 템플릿 슬라이드의 평균 용량(avgSlideCapacity) 대비 프로젝트 전체 데이터가
@@ -333,7 +714,8 @@ function buildProjectSections(proj, projIndex, packingCapacity, totalProjects) {
   // 슬라이드 한 장 기준으로 몇 장 필요한지 추정
   const cap = packingCapacity > 0 ? packingCapacity : 500;
   const estimatedSlides = totalChars / cap;
-  const needsDivider = totalProjects > 1;
+  // 프로젝트가 4개 이상이면 divider 생략 — 8장짜리 템플릿이 30장+로 비대해지는 주범
+  const needsDivider = totalProjects > 1 && totalProjects <= 3;
 
   // ─ 케이스 A: 매우 짧음 → divider + 통합 1장 ────────────────────────────────
   // (1.5 → 1.0 하향: 합격자 서사(문제 정의 → 아이디어 → 성과)가 통합 1장에서는 뭉개지므로
@@ -424,12 +806,18 @@ const REUSE_PENALTY = 35;
 export function planDeck(layout, portfolio) {
   const norm = normalizePortfolio(portfolio);
 
+  const scale = Math.max(1, (layout.slideSize?.heightPt || 540) / 540);
   const tplKinds = (layout.slides || []).map((s, i) => {
     let kind = classifySlideKind(s);
     // 구조 prior: 첫 슬라이드는 사실상 항상 표지. 키워드 분류는 표지 샘플 문구(전공·학번 등)에
     // 끌려 education 등으로 오분류된다 — toc 가 아닌 한 cover 로 고정.
     if (i === 0 && kind !== 'toc') kind = 'cover';
-    return { index: i, kind, boxCount: (s.textBoxes || []).length };
+    // 큰 폰트 + 짧은 수용량 = KPI 값 자리 — metric 섹션 배치 적합도 판단용
+    const metricBoxes = (s.textBoxes || []).filter(b =>
+      (b.fontPt || 0) >= 24 * scale
+      && _estimateMaxChars({ boxWidthPt: b.w, boxHeightPt: b.h, basePt: b.fontPt || 14 }) <= 18
+    ).length;
+    return { index: i, kind, boxCount: (s.textBoxes || []).length, metricBoxes };
   });
   const hasToc = tplKinds.some(t => t.kind === 'toc');
   // 챕터 구분 카드로 쓸 만한 박스 적은 슬라이드(≤7개)가 없으면 divider 자체를 생략.
@@ -472,7 +860,11 @@ export function planDeck(layout, portfolio) {
   for (let i = 0; i < desired.length; i++) {
     const d = desired[i];
     let bestIdx = 0, bestScore = -Infinity;
-    for (const t of tplKinds) {
+    // 같은 템플릿 슬라이드 4회 이상 재사용 금지(하드캡) — (10)의 "시나리오 장표 4연속" 차단.
+    // 모든 슬라이드가 캡에 걸린 극단(섹션 수 ≫ 템플릿 수)에만 전체 풀로 폴백.
+    const underCap = tplKinds.filter(t => (usedCount.get(t.index) || 0) < 3);
+    const pool = underCap.length ? underCap : tplKinds;
+    for (const t of pool) {
       const aff = (KIND_MATCH[d.kind] || {})[t.kind];
       const base = (aff != null) ? aff : 30;
       const reuse = usedCount.get(t.index) || 0;
@@ -481,7 +873,11 @@ export function planDeck(layout, portfolio) {
       // 표지/목차 슬라이드는 다른 섹션에 재사용 금지 — 수상이 96pt 표지에, 연락처가 목차에
       // 배정되는 오용 방지. 본문 슬라이드 재사용(페널티 누적)이 항상 더 낫다.
       const structuralBias = ((t.kind === 'cover' && d.kind !== 'cover') || (t.kind === 'toc' && d.kind !== 'toc')) ? 500 : 0;
-      const adjusted = base - reuse * REUSE_PENALTY - sparseBias - structuralBias;
+      // KPI 섹션은 "큰 숫자 자리"가 있는 슬라이드에 — 거대 본문 장표에 수치 한 줄만 들어가는 배치 붕괴 방지
+      const metricBias = d.kind === 'project_metric'
+        ? Math.min(t.metricBoxes || 0, 3) * 12 - ((t.metricBoxes || 0) === 0 ? 25 : 0)
+        : 0;
+      const adjusted = base - reuse * REUSE_PENALTY - sparseBias - structuralBias + metricBias;
       if (adjusted > bestScore) { bestScore = adjusted; bestIdx = t.index; }
     }
     usedCount.set(bestIdx, (usedCount.get(bestIdx) || 0) + 1);
@@ -492,6 +888,21 @@ export function planDeck(layout, portfolio) {
       sectionParam: d.sectionParam,
       templateKind: tplKinds.find(t => t.index === bestIdx)?.kind || 'generic',
     });
+  }
+
+  // 덱 길이 상한: 8장 템플릿이 30장+로 늘어나면 "같은 디자인 반복" 인상 + 내용 희석.
+  // 우선순위 낮은 섹션부터 뒤에서부터 제거.
+  const MAX_DECK_SLIDES = 22;
+  if (plan.length > MAX_DECK_SLIDES) {
+    const before = plan.length;
+    for (const dropType of ['project_divider', 'project_metric', 'project_overview', 'project_result']) {
+      for (let i = plan.length - 1; i >= 0 && plan.length > MAX_DECK_SLIDES; i--) {
+        if (plan[i].sectionType === dropType) plan.splice(i, 1);
+      }
+      if (plan.length <= MAX_DECK_SLIDES) break;
+    }
+    plan.forEach((p, i) => { p.planIndex = i; });
+    console.log(`[PPT-Mapper] 덱 길이 상한 적용: ${before} → ${plan.length}장`);
   }
   return { norm, plan, tplKinds };
 }
@@ -520,11 +931,17 @@ function buildSlots(layout, step) {
   const { groupCount, groupAxis, groupMap } = detectSpatialGroups(boxes, slideW, slideH);
 
   const maxFont = boxes.reduce((m, b) => Math.max(m, b.fontPt || 0), 0);
+  const scale = Math.max(1, slideH / 540);
   const slots = boxes.map(box => {
     const fontPt = Math.round(box.fontPt || 14);
     // 템플릿 폰트가 9pt 미만인 박스는 9pt 기준으로 char_budget 계산 → 현실적인 수용량 보장
     const effectivePt = Math.max(box.fontPt || 14, 9);
     const maxChars = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt: effectivePt });
+    // 축소-후 수용량: 렌더러가 shrinkToFit 으로 폰트를 줄여 채우므로,
+    // "이 박스가 본문을 담을 수 있는가"는 원본 폰트가 아니라 가독 하한 크기 기준으로 판단.
+    // (72pt 표지 박스도 21pt 로 줄이면 400자 본문 슬롯이다 — 원본 기준 cap19 로는 항상 라벨 취급되는 버그)
+    const fitPt = Math.max(9, Math.min(box.fontPt || 14, 14 * scale));
+    const fitCap = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt: fitPt });
     const originalText = (box.originalText || '').slice(0, 120);
     let { hint, semanticRole } = inferSlotIntent(box, { maxFont, maxChars, originalText });
     // 목차: 행 라벨 박스(원문이 EMPATHIZE 같은 큰 라벨이라 metric 등으로 오분류)를
@@ -539,10 +956,13 @@ function buildSlots(layout, step) {
       phType: box.phType || null,
       hint,
       semanticRole,
+      x: Math.round(box.x),
+      y: Math.round(box.y),
       width: Math.round(box.w),
       height: Math.round(box.h),
       basePt: fontPt,
       maxChars,
+      fitCap,
       originalText,
       groupId: groupMap.get(box.shapeId) ?? 0,
     };
@@ -562,7 +982,7 @@ function buildSlots(layout, step) {
     }
   }
 
-  return { slots, groupCount, groupAxis };
+  return { slots, groupCount, groupAxis, slideW, slideH };
 }
 
 // 박스의 originalText / 폰트 크기 / 글자 한도를 보고 의도(metric/title/tag/...)를 추론.
@@ -1076,9 +1496,9 @@ function fillByGroups(slots, groupDataItems) {
   return { slots: out };
 }
 
-// ── 8) 결정적 폴백 (AI 실패 시) ──────────────────────────────────────────────
+// ── 8) 결정적 채움 (유닛 기반 — 카드 단위 의미 보존) ─────────────────────────
 function deterministicFallback(step, ctx, slots, groupMeta = {}) {
-  const { groupCount = 1, groupAxis = 'none' } = groupMeta;
+  const { groupCount = 1, groupAxis = 'none', slideW = 720, slideH = 540 } = groupMeta;
 
   // 목차 전용 결정론 채움: 제목="목차", 순번 박스는 원문 유지,
   // heading 박스(행 라벨)에 아웃라인 항목을 위→아래 순서대로 1건씩 배정.
@@ -1091,6 +1511,22 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
       return { shapeId: s.shapeId, text: '', emphasis: 'none' };
     });
     return { slots: out };
+  }
+
+  // 유닛 경로(기본): 카드 단위 클러스터에 구조화 아이템을 1:1 배정.
+  // 라벨↔값↔본문이 같은 카드에 묶여 나가므로 (9)/(10)의 뒤섞임이 구조적으로 불가능.
+  const sectionItems = buildSectionItems(step, ctx);
+  if (sectionItems.length) {
+    const units = buildUnits(slots, slideW, slideH);
+    if (units.length) {
+      const filled = fillByUnits(step, ctx, slots, units, sectionItems);
+      return {
+        slots: slots.map(s => {
+          const f = filled.get(s.shapeId);
+          return { shapeId: s.shapeId, text: f?.text || '', emphasis: f?.emphasis || 'none' };
+        }),
+      };
+    }
   }
 
   // 그룹 경로: 공간 클러스터가 2개 이상이고 섹션별 데이터 아이템이 준비된 경우만 사용.
@@ -1232,16 +1668,18 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   };
   const pickForSlot = (slot, index) => {
     const role = slot.semanticRole || slot.hint || 'body';
-    if (role === 'title')  return cleanFill(ctx.title  || ctx.userName || ctx.sectionLabel || merged[index] || '');
+    const cap = slot.maxChars || 120;
+    if (role === 'title')  return clipShort(ctx.title || ctx.userName || ctx.sectionLabel || merged[index] || '', cap);
     if (role === 'metric') return cleanFill(firstMetric?.metric || firstMetric?.afterMetric || '');
-    if (role === 'meta')   return cleanFill(projectMeta || '');
-    if (role === 'tech' || role === 'tag') return cleanFill(techLine || merged[index] || '');
+    if (role === 'meta')   return clipShort(projectMeta || '', cap);
+    // tag: 기술 키워드 전용 — merged 폴백을 주면 내비 라벨 자리에 무관한 짧은 텍스트가 박힌다
+    if (role === 'tech' || role === 'tag') return clipShort(techLine || '', cap);
     if (role === 'link')   return cleanFill(ctx.link || ctx.contact?.github || ctx.contact?.website || '');
     if (role === 'index')  return cleanFill(slot.originalText || '');
     // 구분 카드: 라벨(heading)/제목/메타만 채우고 본문은 비운다(중복 슬라이드 방지).
     if (isDivider && role === 'heading') return cleanFill(ctx.sectionLabel || `Project ${ctx.projectIndex || 1}`);
     if (isDivider && role === 'body')    return '';
-    if (role === 'heading') return cleanFill(bodyContent || merged[index] || ctx.title || '');
+    if (role === 'heading') return clipShort(bodyContent || merged[index] || ctx.title || '', cap);
     if (role === 'body')    return nextBody();
     return cleanFill(merged[index] || '');
   };
@@ -1259,26 +1697,122 @@ function deterministicFallback(step, ctx, slots, groupMeta = {}) {
   return { slots: out };
 }
 
-// AI 출력이 원본 template 더미 텍스트를 그대로 복사했는지 판정.
-// - 와전 동일
-// - b 가 8~30자: a 가 b 를 포함 (짧은 섹션 라벨 오탐 방지로 4→8로 상향)
-// - b 가 31자 이상: a 가 b 의 앞 40% 이상을 포함 (장문 부분 복사)
-function looksLikeOriginal(text, originalText) {
-  if (!text || !originalText) return false;
-  const norm = (s) => String(s).toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '').trim();
-  const a = norm(text);
-  const b = norm(originalText);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (b.length >= 8 && b.length <= 30 && a.includes(b)) return true;
-  if (b.length > 30 && b.length >= 8) {
-    const prefix = b.slice(0, Math.max(8, Math.floor(b.length * 0.4)));
-    if (a.includes(prefix)) return true;
+// ── 8-b) AI 카피 리파인 (합격자 문체 변환) ───────────────────────────────────
+// 결정론 매핑은 노션 원문을 거의 그대로 싣는다 — 정확하지만 "합격자 포트폴리오" 의
+// 문체(수치 선행, 동사 시작 불렛, 군더더기 제거)가 아니다. 덱 전체 본문 박스를
+// 1회 배치 호출로 재작성하고, 숫자 창작·길이 초과·placeholder 가드를 통과한
+// 결과만 적용한다. 실패 시 결정론 원문 유지 — 디자인·안정성 무손상.
+const REFINE_MIN_LEN = 40;
+// 본문 성격 역할만 재작성. 단, metric 슬롯이라도 40자 이상이면 사실상 본문이
+// 잘못 배정된 것이므로 포함 (진짜 KPI 값 "85%" 류는 길이 가드에 걸리지 않음).
+const REFINE_ROLES = new Set(['body', 'result', 'heading', 'metric']);
+
+// 템플릿 디자인 DNA → 문체 지시. 어두운 배경/고채도 강조색 = 임팩트 톤,
+// 밝은 배경 = 신뢰감 있는 차분한 톤 (블루프린트의 "톤앤매너 동기화").
+function toneGuideFromDna(designDna) {
+  const lum = (hex) => {
+    const c = String(hex || '').replace('#', '');
+    if (c.length !== 6) return 1;
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255)
+      .map(n => (n <= 0.03928 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4));
+    return r * 0.2126 + g * 0.7152 + b * 0.0722;
+  };
+  if (designDna && lum(designDna.bg) < 0.35) {
+    return '강렬하고 도전적인 톤 — 임팩트 있는 단문, 성과·수치를 문장 맨 앞에 배치';
   }
-  return false;
+  return '신뢰감 있는 차분한 전문가 톤 — 정제된 단문, 근거와 과정이 읽히게';
 }
 
-// ── 8-b) 스마트 콘텐츠 피팅 ──────────────────────────────────────────────────
+function buildRefinePrompt(jobs, toneGuide) {
+  const list = jobs.map(j => ({ key: j.key, section: j.section, max_chars: j.target, text: j.text }));
+  return `당신은 IT 기업 서류전형을 통과시키는 합격자 포트폴리오 카피라이터입니다.
+아래 각 텍스트를 채용 담당자가 5초 안에 강점을 파악할 수 있는 문장으로 다듬으십시오.
+
+[톤앤매너] ${toneGuide}
+
+[절대 규칙]
+1. 원문에 있는 사실·고유명사·숫자·수치만 사용. 없는 숫자·회사·성과·기술 절대 창작 금지.
+2. 원문에 수치(%·배·ms·명·원 등)가 있으면 그 수치가 문장 앞쪽에서 먼저 읽히게 재배치.
+3. 반드시 명사형 종결 (예: "8시간 → 10분, 작성 시간 단축" / "한글 전각 폭 모델로 축소 로직 통일" / "36시간 내 구현, 대상 수상").
+   "~했습니다", "~합니다", "~였다", "~함" 등 서술형·존댓말 종결 절대 금지. 이모지·미사여구·"저는" 금지.
+4. 내용이 2가지 이상이면 줄바꿈(\\n)으로 분리한 불렛. 각 줄 60자 이내. 불렛 기호(·,-)는 붙이지 말 것.
+5. max_chars 초과 금지. 이미 간결한 텍스트는 최소 수정만.
+6. section 은 이 텍스트가 놓이는 슬라이드 맥락이다. 의미를 벗어난 재해석 금지.
+
+[다듬을 텍스트]
+${JSON.stringify(list, null, 2)}
+
+[출력 스키마] JSON 만 반환 (코드펜스 금지):
+{ "results": [ { "key": "<입력 key 그대로>", "text": "<max_chars 이내 재작성문>" } ] }`;
+}
+
+async function refineDeckCopy(deck, { billingStore = null, designDna = null } = {}) {
+  const jobs = [];
+  for (let si = 0; si < deck.length; si++) {
+    const boxes = deck[si].boxes || [];
+    for (let bi = 0; bi < boxes.length; bi++) {
+      const box = boxes[bi];
+      const text = (box.text || '').trim();
+      if (text.length < REFINE_MIN_LEN) continue;
+      if (!REFINE_ROLES.has(box.semanticRole)) continue;
+      const basePt = Math.max(box.fontPt || 14, 9);
+      const budget = estimateMaxChars({ boxWidthPt: box.w, boxHeightPt: box.h, basePt });
+      jobs.push({
+        key: `${si}_${bi}`,
+        section: deck[si].sectionType,
+        target: Math.max(60, Math.min(Math.round(budget), Math.round(text.length * 1.1))),
+        text,
+      });
+    }
+  }
+  if (!jobs.length) return;
+
+  console.log(`[PPT-Mapper] 카피 리파인: ${jobs.length}개 본문 박스 합격자 문체 변환 요청`);
+  let parsed = null;
+  try {
+    const raw = await generateWithRetry(buildRefinePrompt(jobs, toneGuideFromDna(designDna)), {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 1,
+      callTimeoutMs: 90000,
+      config: { temperature: 0.3, responseMimeType: 'application/json' },
+      billingStore,
+    });
+    parsed = parseJSON(raw);
+  } catch (e) {
+    console.warn(`[PPT-Mapper] 카피 리파인 실패 → 결정론 원문 유지: ${e?.message || e}`);
+    return;
+  }
+
+  const results = Array.isArray(parsed?.results) ? parsed.results : [];
+  const byKey = new Map(results.filter(r => r && r.key != null).map(r => [String(r.key), String(r.text || '').trim()]));
+  let applied = 0;
+  // cleanFill 은 \s+ 를 공백으로 접어 불렛 줄바꿈이 사라진다 — 줄바꿈 보존 정리.
+  const sanitizeRefined = (v) => {
+    const s = String(v || '')
+      .replace(/<[^>]*>/g, ' ')
+      .split('\n')
+      .map(line => line.replace(/^\s*[·•\-]\s*/, '').replace(/[ \t]+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+    return PLACEHOLDER_RE.test(s) ? '' : s;
+  };
+  for (const job of jobs) {
+    const refined = sanitizeRefined(byKey.get(job.key));
+    if (!refined) continue;
+    // 가드: 숫자 창작 금지 + 길이 상한 — 하나라도 어기면 결정론 원문 유지
+    if (!numbersSubsetOf(refined, job.text)) continue;
+    if (refined.length > job.target * 1.25) continue;
+    const [si, bi] = job.key.split('_').map(Number);
+    const box = deck[si]?.boxes?.[bi];
+    if (!box) continue;
+    box.text = refined;
+    applied++;
+  }
+  if (applied) console.log(`[PPT-Mapper] 카피 리파인 적용: ${applied}/${jobs.length}개 박스`);
+}
+
+// ── 8-c) 스마트 콘텐츠 피팅 ──────────────────────────────────────────────────
 const SUMMARY_MIN_LEN = 70;
 const SUMMARY_OVERFLOW_RATIO = 1.15;
 
@@ -1351,84 +1885,11 @@ async function summarizeOverflow(deck, billingStore = null) {
   if (applied) console.log(`[PPT-Mapper] 콘텐츠 피팅 적용: ${applied}/${jobs.length}개 박스 압축 완료`);
 }
 
-// ── 8-c) 배치 LLM 매핑 (전체 슬라이드 1회 호출) ──────────────────────────────
-// 복잡한 업로드 템플릿(슬라이드당 박스 10+개)을 결정론 규칙만으로는 1~2개 박스만 채우게 된다.
-// 전체 슬라이드의 박스 구조 + 섹션 데이터를 한 번의 Gemini 호출로 보내 박스별 텍스트를 받아온다.
-// 결과는 "결정론 baseline 위에 검증 통과분만 덮어쓰기" 로 적용 → 호출 실패/누락 시 현행 동작 보장.
-function buildBatchMappingPrompt(items) {
-  const sections = [...new Set(items.map(it => it.sectionType))];
-  const guideLines = sections
-    .map(sec => `- ${sec}: ${(SECTION_GUIDE[sec] || '').split('\n')[0]}`)
-    .join('\n');
-  const slides = items.map(it => ({
-    slide_id: it.slideId,
-    section: it.sectionType,
-    data: it.ctx,
-    boxes: it.slots.map((s, i) => ({ box_id: i, hint: s.hint, role: s.semanticRole, char_budget: s.maxChars })),
-  }));
-  return `당신은 FitPoly의 수석 포트폴리오 디렉터이자 PPT 콘텐츠 매핑 모듈입니다.
-아래 여러 슬라이드의 텍스트 박스에 들어갈 한국어 텍스트를 한 번에 결정해 JSON 으로 반환하십시오.
+// 내부 점검용 (테스트 스크립트 전용 — 런타임 미사용)
+export const __mapperInternals = { buildSlots, buildUnits, buildSectionItems, fillByUnits, buildContext, normalizePortfolio };
 
-━━━ [절대 규칙] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-A. char_budget 은 권장 분량. 내용이 있으면 자르지 말고 자연스럽게 쓰되 char_budget 의 1.5배 초과 금지.
-   char_budget ≤ 6 박스는 "" 로 비워라.
-B. 각 슬라이드의 data 에 없는 회사·숫자·사실·수치 절대 창작 금지. data 에 맞는 값이 없으면 "".
-   '[작성 필요]','N/A','내용을 입력하세요' 같은 placeholder 절대 생성 금지.
-C. 같은 슬라이드 내 두 박스에 동일·유사·부분중복 text 금지. 한 사실/문장을 길이만 바꿔
-   여러 박스에 나눠 넣지 말 것. 적합한 내용이 없는 박스는 억지로 채우지 말고 "" 로 비워라.
-D. role 우선순위: title=핵심 제목(짧고 강하게) / metric=숫자·단위만(예 "309라인","98%") / tag=키워드 1~2개 /
-   heading=부제·카드 제목 / body=1~3문장 또는 동사 시작 bullet(줄바꿈 \\n) / meta="기간 · 역할" /
-   index=빈 문자열("")로 두라(템플릿 순번 라벨이므로 건드리지 않음).
-   ※ "속도","단축" 같은 단어 조각을 title 에 넣지 말 것 — title 은 완결된 핵심 문구만.
-E. 여러 heading/body 박스가 있으면 keyExperiences·problem·action·result 를 "카드별로 1건씩" 나누어
-   배치하라(한 카드 = 한 경험). 한 사실을 쪼개 여러 칸을 메우지 말 것. 채울 게 없으면 비워라.
-F. 프로젝트 슬라이드는 합격자 포트폴리오 서사 "문제 정의/배경(왜) → 해결 아이디어(어떻게) → 성과(결과 수치)"
-   순서로 읽히게 배치하라. background 필드가 있으면 그것이 문제 정의의 1순위 소스다.
-   카드 제목 라벨이 필요한 박스에는 "문제 정의"/"해결 아이디어"/"성과" 를 사용하라.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[섹션별 의도]
-${guideLines}
-
-[슬라이드들 (각 슬라이드의 boxes 를 채울 것)]
-${JSON.stringify(slides)}
-
-[출력 스키마] JSON 만 반환 (마크다운 코드펜스 금지):
-{ "slides": [ { "slide_id": <입력 slide_id 그대로>, "boxes": [ { "box_id": <정수>, "text": "<문자열>", "emphasis": "<none|metric|title>" } ] } ] }`;
-}
-
-async function aiMapAllSlides(items, billingStore = null) {
-  const out = new Map(); // `${slideId}:${boxId}` -> { text, emphasis }
-  if (!items.length) return out;
-  let parsed = null;
-  try {
-    // flash-lite 를 먼저(빠름 → 타임아웃 회피), flash 를 보강용으로. 큰 프롬프트라 타임아웃·재시도 넉넉히.
-    // 모두 실패하면 호출부에서 결정론 baseline 으로 자동 폴백되지만, 그 경우 채움이 희소해지므로
-    // 여기서 최대한 성공시키는 것이 "내용이 잘 담기는가"의 핵심.
-    const raw = await generateWithRetry(buildBatchMappingPrompt(items), {
-      models: ['gemini-2.5-flash-lite', 'gemini-2.5-flash'],
-      retries: 2,
-      callTimeoutMs: 150000,
-      config: { temperature: 0.25, responseMimeType: 'application/json' },
-      billingStore,
-    });
-    parsed = parseJSON(raw);
-  } catch (e) {
-    console.warn(`[PPT-Mapper] LLM 일괄 매핑 실패 → 결정론적 결과 유지: ${e?.message || e}`);
-    return out;
-  }
-  for (const sl of (parsed?.slides || [])) {
-    if (sl?.slide_id == null) continue;
-    for (const b of (sl.boxes || [])) {
-      if (b == null || b.box_id == null) continue;
-      out.set(`${sl.slide_id}:${b.box_id}`, { text: String(b.text || ''), emphasis: b.emphasis || 'none' });
-    }
-  }
-  return out;
-}
-
-// ── 9) 메인: 결정론 baseline + 배치 LLM 매핑 오버레이 + 스마트 콘텐츠 피팅 ───────
-export async function mapDeck({ portfolio, layout, billingStore = null }) {
+// ── 9) 메인: 결정론(유닛) 채움 + 카피 리파인 + 스마트 콘텐츠 피팅 ─────────────
+export async function mapDeck({ portfolio, layout, billingStore = null, designDna = null }) {
   const { norm, plan } = planDeck(layout, portfolio);
 
   const normStr = (s) => s.toLowerCase().replace(/\s+/g, '').trim();
@@ -1436,66 +1897,27 @@ export async function mapDeck({ portfolio, layout, billingStore = null }) {
   // 1) 각 슬라이드의 컨텍스트/슬롯/결정론 baseline 준비
   const prepared = plan.map((step, si) => {
     const ctx = buildContext(norm, step);
-    const { slots, groupCount, groupAxis } = buildSlots(layout, step);
-    const det = deterministicFallback(step, ctx, slots, { groupCount, groupAxis });
+    const { slots, groupCount, groupAxis, slideW, slideH } = buildSlots(layout, step);
+    const det = deterministicFallback(step, ctx, slots, { groupCount, groupAxis, slideW, slideH });
     return { si, step, ctx, slots, det };
   });
 
-  // 2) 전체 슬라이드 1회 LLM 매핑 (실패 시 빈 Map → 결정론적 결과 그대로 사용)
-  console.log(`[PPT-Mapper] ${plan.length}개 슬라이드 LLM 일괄 매핑 시도`);
-  const aiMap = await aiMapAllSlides(prepared.map(p => ({
-    slideId: p.si, sectionType: p.step.sectionType, ctx: p.ctx, slots: p.slots,
-  })), billingStore);
-  if (aiMap.size) console.log(`[PPT-Mapper] LLM 매핑 응답 ${aiMap.size}개 박스 수신 (검증 후 적용)`);
-
-  // 3) deck 빌드: 결정론 baseline 위에 검증 통과한 AI 텍스트만 덮어쓰기
-  const deck = prepared.map(({ si, step, ctx, slots, det }) => {
+  // 2) deck 빌드 — 결정론(유닛) 채움이 단일 소스.
+  // 이전의 "전 슬라이드 1회 LLM 박스 배정 + 가드 검증" 오버레이는 제거:
+  // 가드를 통과한 재작성조차 라벨 자리에 날짜를 쓰거나 기술 목록을 한 단어로
+  // 줄이는 등 슬롯 의미를 깨는 사례가 실파일 (9)/(10)에서 반복 확인됨.
+  // LLM 은 summarizeOverflow(초과 본문의 제자리 압축, 숫자·길이 검증)에만 사용한다.
+  const deck = prepared.map(({ step, slots, det }) => {
     const detMap = new Map((det.slots || []).map(s => [s.shapeId, s]));
     const roleMap = new Map(slots.map(s => [s.shapeId, s.semanticRole]));
-    const ctxStr = JSON.stringify(ctx);
-    const ctxLower = ctxStr.toLowerCase();
-    // 출처 토큰 가드: 숫자 가드(numbersSubsetOf)만으로는 "정보처리기사", "Python, Django" 같은
-    // 비수치 창작(없는 자격증·기술스택)을 못 막는다. 5자 이상 텍스트는 원문 포함이거나
-    // 토큰 2개 이상이 섹션 데이터(ctx)에 실제로 존재해야 채택.
-    // (4자 이하는 "목표","학사" 같은 표현용 라벨이라 통과 — 사실 주장으로 보기 어려움)
-    const isCtxBound = (cand) => {
-      const norm = String(cand).toLowerCase().trim();
-      if (norm.replace(/\s+/g, '').length <= 4) return true;
-      if (ctxLower.includes(norm)) return true;
-      const toks = norm.match(/[a-z0-9가-힣]{2,}/gi) || [];
-      if (!toks.length) return true;
-      const hits = toks.filter(t => ctxLower.includes(t)).length;
-      return hits >= Math.min(2, toks.length);
-    };
 
     // shapeId → 최종 {text, emphasis}
     const finalByShape = new Map();
-    slots.forEach((slot, i) => {
+    slots.forEach((slot) => {
       const base = detMap.get(slot.shapeId) || { text: '', emphasis: 'none' };
       let text = (base.text || '').trim();
-      let emphasis = base.emphasis || 'none';
-      const ai = aiMap.get(`${si}:${i}`);
-      if (ai) {
-        const cand = cleanFill(ai.text);
-        const cap = slot.maxChars || 120;
-        // 검증: 비어있지 않고 / 장식·번호 박스가 아니고 / 템플릿 원문 복사가 아니고 /
-        //       원본 데이터에 없는 숫자·사실을 지어내지 않은 경우에만 채택. 아니면 결정론 baseline 유지.
-        const role = slot.semanticRole;
-        const ok = cand
-          && cap > 6
-          && role !== 'index'
-          && !looksLikeOriginal(cand, slot.originalText)
-          && numbersSubsetOf(cand, ctxStr)
-          && isCtxBound(cand);
-        if (ok) {
-          text = cand;
-          if (ai.emphasis === 'metric') emphasis = 'metric';
-        }
-      }
-      // 목차의 제목 박스는 항상 "목차" — LLM 이 outline 항목으로 바꾸거나
-      // 원문 복사 가드("목차"="목차")에 막혀 엉뚱한 baseline 이 남는 것 방지.
       if (step.sectionType === 'toc' && slot.semanticRole === 'title') text = '목차';
-      finalByShape.set(slot.shapeId, { text, emphasis });
+      finalByShape.set(slot.shapeId, { text, emphasis: base.emphasis || 'none' });
     });
 
     const tpl = layout.slides[step.templateSlideIndex];
@@ -1554,6 +1976,9 @@ export async function mapDeck({ portfolio, layout, billingStore = null }) {
     };
   });
 
+  // 카피 리파인(합격자 문체) → 콘텐츠 피팅(초과분 압축) 순서.
+  // 리파인 결과가 박스를 넘치면 summarizeOverflow 가 제자리 압축으로 받아낸다.
+  await refineDeckCopy(deck, { billingStore, designDna });
   await summarizeOverflow(deck, billingStore);
 
   // Cross-slide dedup: 같은 프로젝트의 연속 슬라이드 간 본문 내용 중복 제거.

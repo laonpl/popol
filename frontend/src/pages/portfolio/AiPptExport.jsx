@@ -33,9 +33,9 @@ export default function AiPptExport() {
   const [reviseInput, setReviseInput] = useState('');
   const [revising, setRevising] = useState(false);
   const [exporting, setExporting] = useState(false);
-  // Custom template state (구버전 box-mapping 결과 — 하위호환용으로만 유지)
+  // Custom template state — 인플레이스(디자인 보존) 매핑 결과
   const [customResult, setCustomResult] = useState(null); // { pptxBase64, deck, slideSize, layoutSlides }
-  const [pptxThemeTemplate, setPptxThemeTemplate] = useState(null); // 업로드 PPTX 테마로 만든 내장 템플릿
+  const [pptxThemeTemplate, setPptxThemeTemplate] = useState(null); // (구버전 테마 추출 경로 잔존)
   const fileInputRef = useRef(null);
 
   const autoStartFiredRef = useRef(false);
@@ -73,9 +73,9 @@ export default function AiPptExport() {
     setStage(STAGE.ANALYZING);
     try {
       if (templateId === 'custom' && customFile) {
-        // 인플레이스 방식: 업로드한 PPTX 원본의 디자인(배경·도형·이미지·폰트)을 그대로 두고
-        // 텍스트 박스에 포트폴리오 내용만 채워 넣는다. (테마 색상만 추출하던 구버전은
-        // "색만 적용되고 디자인은 적용 안 되는" 문제가 있어 폐기)
+        // 인플레이스 방식: 업로드한 PPTX 원본의 디자인(배경·도형·이미지·폰트·배치)을
+        // 그대로 두고 텍스트 박스에 포트폴리오 내용만 채워 넣는다. (사용자 요구:
+        // "업로드한 템플릿의 디자인을 기반으로" — 색·폰트만 추출하는 방식은 부족)
         const form = new FormData();
         form.append('template', customFile);
         form.append('portfolio', JSON.stringify(portfolio));
@@ -462,6 +462,9 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
               >
                 <Upload size={12} /> 파일 선택
               </button>
+              <p className="mt-1.5 text-[10px] text-gray-400 leading-snug">
+                업로드한 PPT의 디자인(배경·도형·이미지·폰트)을 그대로 유지하고 내용만 채웁니다.
+              </p>
               {customFileName && (
                 <div className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-surface-200 rounded-lg text-xs">
                   <Check size={10} className="text-green-500" />
@@ -711,6 +714,7 @@ function SlideCard({ slide, template, index, selected, showClickGuide, onClick }
     </button>
   );
 }
+
 
 // ── 커스텀 템플릿 미리보기 (실제 PPT 화면과 동일) ────────────────────────
 function CustomPreviewStage({ result, customFileName, onDownload, onRegenerate }) {
