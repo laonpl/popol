@@ -14,8 +14,10 @@ import authRoutes from './routes/auth.js';
 import billingRoutes from './routes/billing.js';
 import feedbackRoutes from './routes/feedback.js';
 import adminRoutes from './routes/admin.js';
+import logsRoutes from './routes/logs.js';
 import { aiRateLimiter, generalRateLimiter, globalAiRateLimiter } from './middleware/rateLimiter.js';
 import { billingContextMiddleware } from './services/billingService.js';
+import { logError } from './services/errorLogger.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +32,12 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[UNHANDLED REJECTION] 처리되지 않은 Promise 거부:', reason);
+  logError({
+    source: 'server',
+    path: 'unhandledRejection',
+    message: reason?.message || String(reason),
+    stack: reason?.stack,
+  });
 });
 
 // Render 등 리버스 프록시 뒤에서 올바른 protocol/IP 감지
@@ -126,6 +134,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Health check — uptime/memory 포함 (Render 콜드 스타트 모니터링용)
 app.get('/api/health', (req, res) => {
@@ -141,6 +150,20 @@ app.get('/api/health', (req, res) => {
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   console.error(`[Server Error] ${status} ${req.method} ${req.path}:`, err.message || err);
+  // 서버 측 오류(5xx)만 적재 — 4xx(검증 실패·인증·요청 제한)는 정상 흐름이라 제외
+  if (status >= 500) {
+    logError({
+      source: 'server',
+      status,
+      method: req.method,
+      path: req.path,
+      message: err.message || String(err),
+      stack: err.stack,
+      userId: req.user?.uid,
+      userEmail: req.user?.email,
+      userAgent: req.get('user-agent'),
+    });
+  }
   const isProd = process.env.NODE_ENV === 'production';
   res.status(status).json({
     error: isProd && status >= 500 ? '서버 오류가 발생했습니다.' : (err.message || '서버 오류가 발생했습니다.'),

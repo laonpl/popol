@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { auth } from '../config/firebase';
 import { getApiBaseUrl } from './apiBase';
+import { reportClientError } from './errorReporter';
 
 // [주의] Vercel 배포 시 VITE_API_URL 환경변수를 빈 값으로 두어야 Vercel의 Rewrite(vercel.json)가 올바르게 작동하여 CORS 에러를 방지할 수 있습니다.
 const api = axios.create({
@@ -54,11 +55,18 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    const reqUrl = error.config?.url;
+    // 오류 보고 자체의 실패가 다시 보고되지 않도록 수집 엔드포인트는 제외
+    const isLogEndpoint = typeof reqUrl === 'string' && reqUrl.includes('/logs/client');
+
     // 네트워크 오류 (ERR_CONNECTION_REFUSED / Network Error)
     if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
       const serverError = new Error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
       serverError.isServerDown = true;
       console.error('API 에러: 서버 연결 실패');
+      if (!isLogEndpoint) {
+        reportClientError({ message: `Network Error: ${error.config?.method || ''} ${reqUrl || ''}`.trim(), source: 'api', status: 0 });
+      }
       return Promise.reject(serverError);
     }
     // 인증 토큰 만료/무효 (401) — 재로그인 유도
@@ -92,6 +100,14 @@ api.interceptors.response.use(
     }
     const msg = error.response?.data?.error || error.response?.data?.detail || error.message || '알 수 없는 오류';
     console.error('API 에러:', msg);
+    // 서버 측 오류(5xx)만 모니터링에 보고 — 4xx는 정상적인 검증/권한 실패
+    if (!isLogEndpoint && error.response?.status >= 500) {
+      reportClientError({
+        message: `API ${error.response.status}: ${error.config?.method || ''} ${reqUrl || ''} — ${msg}`.trim(),
+        source: 'api',
+        status: error.response.status,
+      });
+    }
     return Promise.reject(error);
   }
 );
