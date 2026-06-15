@@ -514,16 +514,19 @@ export function getComposedTemplate(layoutId = 'standard', paletteId = 'proposal
 }
 
 /**
- * 업로드 PPTX에서 추출한 테마 토큰(accent/bg/text/font)으로
- * 선택한 내장 layoutId 에 색·폰트를 입혀 내장 파이프라인이 그대로 쓸 수 있는 템플릿을 반환.
+ * 업로드 PPTX에서 추출한 디자인 DNA(/export/ppt-theme 응답:
+ * bg/accent/accent2/text/dark/font*)로 선택한 내장 layoutId 에 색·폰트를 입혀
+ * 내장 파이프라인이 그대로 쓸 수 있는 템플릿을 반환.
  * 내장 레이아웃의 그리기 코드를 100% 재사용하므로 채움 품질이 내장과 동일.
  */
 export function buildTemplateFromPptxTheme(tokens = {}, layoutId = 'narrative') {
   const bg      = normalizeHexColor(tokens.bg)      || '#FFFFFF';
   const accent  = normalizeHexColor(tokens.accent)  || '#3B82F6';
   const textRaw = normalizeHexColor(tokens.heading || tokens.text) || '#111827';
-  // 어두운 색이 있으면 dark/side 로, 없으면 accent 를 dark 대신 사용
-  const dark = relativeLuminance(textRaw) < 0.5 ? textRaw : (relativeLuminance(bg) > 0.5 ? '#1C1C1E' : bg);
+  // 백엔드가 실사용 색에서 도출한 다크 패널색 우선. 없으면 본문색/배경에서 유도.
+  const dark = tokens.dark
+    ? normalizeHexColor(tokens.dark)
+    : (relativeLuminance(textRaw) < 0.5 ? textRaw : (relativeLuminance(bg) > 0.5 ? '#1C1C1E' : bg));
   const layoutBase = getTemplate('proposal');
   return normalizeProposalTemplate({
     ...layoutBase,
@@ -540,7 +543,7 @@ export function buildTemplateFromPptxTheme(tokens = {}, layoutId = 'narrative') 
       side:   dark,
       headBg: dark,
       kpi:    accent,
-      line:   hexLighten(accent, 0.82),
+      line:   relativeLuminance(bg) > 0.5 ? hexLighten(accent, 0.82) : hexLighten(bg, 0.2),
       card:   relativeLuminance(bg) > 0.5 ? hexLighten(accent, 0.94) : hexLighten(bg, 0.12),
     },
     fonts: {

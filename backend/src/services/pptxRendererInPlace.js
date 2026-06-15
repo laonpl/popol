@@ -13,7 +13,9 @@ const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 const P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 const REL_TYPE_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide';
+const REL_TYPE_NOTES_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide';
 const CT_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml';
+const CT_NOTES_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml';
 
 function parseXml(s) {
   return new DOMParser({
@@ -50,6 +52,20 @@ function directChildrenByLocalName(parent, localName) {
     if (c && c.nodeType === 1 && c.localName === localName) out.push(c);
   }
   return out;
+}
+
+// 슬라이드 rels 에서 notesSlide 관계 제거.
+// notesSlide 는 슬라이드와 1:1 관계인데, 슬라이드 복제 시 rels 를 그대로 복사하면
+// 하나의 notesSlide 를 여러 슬라이드가 참조하게 되어 PowerPoint 가
+// "프레젠테이션 복구" 대화상자를 띄운다(파일 손상으로 인식).
+function stripNotesSlideRels(relsXml) {
+  const doc = parseXml(relsXml);
+  const root = doc.documentElement;
+  if (!root) return relsXml;
+  for (const rel of directChildrenByLocalName(root, 'Relationship')) {
+    if (rel.getAttribute('Type') === REL_TYPE_NOTES_SLIDE) root.removeChild(rel);
+  }
+  return serializeXml(doc);
 }
 
 const WATERMARK_RE = /템플릿\s*\d|template\s*\d|Project\s*\d|project\s*\d|샘플|sample|예시|lorem\s+ipsum|클릭하여|텍스트를?\s*입력|제목을?\s*입력|부제목을?\s*입력|click to (add|edit)/i;
@@ -161,38 +177,47 @@ function sanitizeAllText(spTree, doc) {
   return savedStyles;
 }
 
-// ── 사진 제거 (샘플/placeholder 사진만) ───────────────────────────────────────
-// 템플릿의 sample 이미지(프로필 사진 placeholder 등)는 제거하되,
-// 배경·장식 이미지(디자인 요소)는 보존한다.
-// 구별 기준: <p:nvPicPr> 아래 <p:nvPr><p:ph> 있으면 placeholder → 제거.
-//            ph 없는 pic은 디자인 요소 → 보존.
-// 콘텐츠 샘플 이미지 판정 (사진·그래프·스크린샷 등 사용자 데이터로 대체 불가능한 템플릿 잔재).
-// 디자인 띠/바(가로로 매우 긴 배경 이미지)와 아이콘(작음), 풀블리드 배경은 보존.
-//  · 면적 3% 이상 55% 미만 + 종횡비(긴변/짧은변) 5 미만 → 샘플 콘텐츠로 보고 제거
-export function isContentSamplePic(w, h, slideW, slideH) {
-  if (!(w > 0) || !(h > 0) || !(slideW > 0) || !(slideH > 0)) return false;
-  const areaRatio = (w * h) / (slideW * slideH);
-  if (areaRatio < 0.03 || areaRatio >= 0.55) return false;
-  const aspect = Math.max(w, h) / Math.max(1, Math.min(w, h));
-  return aspect < 5;
+// ── 사진 제거 (콘텐츠 사진 vs 디자인 부품) ───────────────────────────────────
+// 기하 정보(면적·종횡비)만으로는 "디자인 카드 배경 PNG"와 "콘텐츠 사진"을 구분할 수 없다
+// — 실측: 기말양식의 카드/레일/행 막대는 12~23% 면적이어도 0~3KB 플랫 PNG(전 슬라이드 재사용),
+//   과제 덱의 사진/스크린샷은 25KB~10MB(1회 사용). 판별 신호를 바이트·재사용 횟수로 교체:
+//  · 미디어 ≥ 20KB AND 면적 ≥ 2% → 콘텐츠 사진으로 제거
+//  · 단, 3회 이상 재사용(디자인 가구) 또는 면적 ≥ 88%(진짜 풀블리드 배경)는 보존
+export function isContentPhoto({ areaRatio, bytes, usage }) {
+  if (!(areaRatio > 0)) return false;
+  if ((usage || 1) >= 3) return false;
+  if (areaRatio >= 0.88) return false;
+  return (bytes || 0) >= 20 * 1024 && areaRatio >= 0.02;
 }
 
-function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0) {
+// picCtx: { ridInfo: Map<rId, { bytes, usage }> } — renderDeckInPlace 가 슬라이드별로 구성
+function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0, picCtx = null) {
   const toRemove = [];
   const isPlaceholderPic = (pic) => {
     const nvPicPr = firstChild(pic, P_NS, 'nvPicPr');
     const nvPr    = nvPicPr ? firstChild(nvPicPr, P_NS, 'nvPr') : null;
     return nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
   };
-  const isSamplePic = (pic) => {
+  const isPhotoPic = (pic) => {
+    if (!picCtx || !(slideW > 0) || !(slideH > 0)) return false;
+    const blipFill = firstChild(pic, P_NS, 'blipFill');
+    const blip = blipFill ? firstChild(blipFill, A_NS, 'blip') : null;
+    const rid = blip ? (blip.getAttributeNS(R_NS, 'embed') || blip.getAttribute('r:embed')) : null;
+    const info = rid ? picCtx.ridInfo.get(rid) : null;
+    if (!info) return false;
     const geom = topLevelXfrm(pic);
-    return geom ? isContentSamplePic(geom.w, geom.h, slideW, slideH) : false;
+    if (!geom) return false;
+    return isContentPhoto({
+      areaRatio: (geom.w * geom.h) / (slideW * slideH),
+      bytes: info.bytes,
+      usage: info.usage,
+    });
   };
   const collectFromGroup = (group) => {
     for (let i = 0; i < group.childNodes.length; i++) {
       const c = group.childNodes.item(i);
       if (!c || c.nodeType !== 1) continue;
-      if (c.localName === 'pic' && (isPlaceholderPic(c) || isSamplePic(c))) toRemove.push(c);
+      if (c.localName === 'pic' && (isPlaceholderPic(c) || isPhotoPic(c))) toRemove.push(c);
       else if (c.localName === 'grpSp') collectFromGroup(c);
     }
   };
@@ -200,7 +225,7 @@ function removeAllPicsFromSpTree(spTree, slideW = 0, slideH = 0) {
   for (const pic of toRemove) {
     if (pic.parentNode) pic.parentNode.removeChild(pic);
   }
-  if (toRemove.length) console.log(`[Renderer] 샘플/placeholder 이미지 ${toRemove.length}개 제거`);
+  if (toRemove.length) console.log(`[Renderer] 콘텐츠 사진/placeholder 이미지 ${toRemove.length}개 제거`);
   return toRemove.length;
 }
 
@@ -399,7 +424,7 @@ function applySpatialAdaptation(spTree, subsetBoxes, axis, slideW, slideH, allBo
   return true;
 }
 
-function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt = { w: 720, h: 540 }) {
+function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt = { w: 720, h: 540 }, picCtx = null) {
   const map = new Map();
   for (const b of (boxes || [])) {
     if (b.text == null) continue;
@@ -411,6 +436,9 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt 
   const cSld = firstChild(sld, P_NS, 'cSld');
   const spTree = cSld ? firstChild(cSld, P_NS, 'spTree') : null;
   if (!spTree) return slideXml;
+
+  // 글자 판독 하한은 슬라이드 크기에 비례 (1080pt 덱의 9pt 는 사실상 안 보임)
+  const fontScale = Math.max(1, (slideSizePt.h || 540) / 540);
 
   // Pass 1: Force-Clear (sz/color/rPr 보관 → r/fld/br 완전 삭제, 빈 r 삽입) + normAutofit 주입
   const savedStyles = sanitizeAllText(spTree, doc);
@@ -431,15 +459,22 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt 
       if (box) {
         injected.add(id);
         const savedStyle = cNvPrId ? (savedStyles.get(cNvPrId) || null) : null;
-        replaceTextInShape(node, String(box.text || ''), box, savedStyle);
+        replaceTextInShape(node, String(box.text || ''), box, savedStyle, fontScale);
       }
     } else if (ln === 'pic') {
       counter++;
     }
   }
 
-  // Pass 2.5: 텍스트 매핑 완료 후 sample 사진/그래프 <p:pic> 제거
-  removeAllPicsFromSpTree(spTree, slideSizePt.w, slideSizePt.h);
+  // Pass 2.2: 빈 텍스트 도형 제거.
+  // · 빈 placeholder 는 편집 화면에서 레이아웃 안내문구("프레젠테이션 부제목" 등)가
+  //   보여 깨진 출력처럼 인식된다 → 도형째 제거.
+  // · 채움/외곽선 없는 빈 일반 텍스트박스는 보이지 않는 잔재 → 함께 제거.
+  //   (색이 칠해진 빈 박스는 디자인 카드이므로 유지)
+  removeEmptyTextShapes(spTree);
+
+  // Pass 2.5: 텍스트 매핑 완료 후 콘텐츠 사진/placeholder <p:pic> 제거
+  removeAllPicsFromSpTree(spTree, slideSizePt.w, slideSizePt.h, picCtx);
 
   // Pass 3: graphicFrame(표/차트/SmartArt) 제거 — 템플릿 샘플 데이터 원천 차단
   removeAllGraphicFramesFromSpTree(spTree);
@@ -450,12 +485,63 @@ function applyTextReplacements(slideXml, boxes, templateSlideIndex, slideSizePt 
   return serializeXml(doc);
 }
 
-// replaceTextInShape(spNode, newText, boxMeta?, savedStyle?)
+// 텍스트가 비어있는 도형 정리 (텍스트 주입 직후 호출)
+function removeEmptyTextShapes(spTree) {
+  const toRemove = [];
+  const visit = (group) => {
+    for (let i = 0; i < group.childNodes.length; i++) {
+      const c = group.childNodes.item(i);
+      if (!c || c.nodeType !== 1) continue;
+      if (c.localName === 'grpSp') { visit(c); continue; }
+      if (c.localName !== 'sp') continue;
+      const txBody = firstChild(c, P_NS, 'txBody');
+      if (!txBody) continue;
+      if (readTxBodyText(txBody)) continue;
+      const nvSpPr = firstChild(c, P_NS, 'nvSpPr');
+      const nvPr = nvSpPr ? firstChild(nvSpPr, P_NS, 'nvPr') : null;
+      const isPh = nvPr ? !!firstChild(nvPr, P_NS, 'ph') : false;
+      if (isPh) { toRemove.push(c); continue; }
+      // 일반 도형: 자체 채움/외곽선/스타일 참조가 있으면 디자인 요소이므로 유지
+      const spPr = firstChild(c, P_NS, 'spPr');
+      const hasFill = spPr && (firstChild(spPr, A_NS, 'solidFill') || firstChild(spPr, A_NS, 'gradFill')
+        || firstChild(spPr, A_NS, 'blipFill') || firstChild(spPr, A_NS, 'pattFill'));
+      const ln = spPr ? firstChild(spPr, A_NS, 'ln') : null;
+      const hasLine = ln && !firstChild(ln, A_NS, 'noFill')
+        && (firstChild(ln, A_NS, 'solidFill') || firstChild(ln, A_NS, 'gradFill'));
+      const styleEl = firstChild(c, P_NS, 'style');
+      const fillRef = styleEl ? firstChild(styleEl, A_NS, 'fillRef') : null;
+      const hasStyleFill = fillRef && parseInt(attr(fillRef, 'idx') || '0', 10) > 0;
+      if (!hasFill && !hasLine && !hasStyleFill) toRemove.push(c);
+    }
+  };
+  visit(spTree);
+  for (const sp of toRemove) {
+    if (sp.parentNode) sp.parentNode.removeChild(sp);
+  }
+  if (toRemove.length) console.log(`[Renderer] 빈 텍스트 도형 ${toRemove.length}개 제거`);
+}
+
+// replaceTextInShape(spNode, newText, boxMeta?, savedStyle?, fontScale?)
 // boxMeta:    { w, h, fontPt, maxChars } — 있으면 shrinkToFit 으로 폰트 크기를 XML 에 직접 기록.
 // savedStyle: { sz, solidFillXml }      — Force-Clear 전 추출한 원본 폰트/색상 (복원용).
-function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
+// fontScale:  슬라이드 크기 비례 배율 — 판독 하한(pt)이 큰 캔버스에서 같이 커지게.
+function replaceTextInShape(spNode, newText, boxMeta, savedStyle, fontScale = 1) {
   const txBody = firstChild(spNode, P_NS, 'txBody');
   if (!txBody) return;
+
+  // 합성 지오메트리(0×0 autofit 박스): 파서가 추정한 실사용 영역을 XML 에 기록하고
+  // 줄바꿈을 강제한다(wrap=none 인 채로는 한 줄로 슬라이드를 뚫고 나감).
+  if (newText && boxMeta?.synthetic && boxMeta.w > 0 && boxMeta.h > 0) {
+    const spPr = firstChild(spNode, P_NS, 'spPr');
+    const xfrm = spPr ? firstChild(spPr, A_NS, 'xfrm') : null;
+    const ext = xfrm ? firstChild(xfrm, A_NS, 'ext') : null;
+    if (ext) {
+      ext.setAttribute('cx', String(Math.round(boxMeta.w * EMU_PER_PT)));
+      ext.setAttribute('cy', String(Math.round(boxMeta.h * EMU_PER_PT)));
+    }
+    const bodyPrEl = firstChild(txBody, A_NS, 'bodyPr');
+    if (bodyPrEl) bodyPrEl.setAttribute('wrap', 'square');
+  }
 
   const allP = findChildren(txBody, A_NS, 'p');
   if (allP.length === 0) return;
@@ -483,7 +569,7 @@ function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
   // shrinkToFit: 텍스트가 박스를 넘치면 sz 를 줄여서 XML 에 직접 기록한다.
   // 이 값이 실제 PowerPoint 렌더링에 반영되므로 preview 와 PPT 가 일치.
   let computedSz = null;
-  const MIN_READABLE_PT = 9; // 9pt 미만은 판독 불가 → 잘라냄
+  const MIN_READABLE_PT = Math.round(9 * fontScale); // 슬라이드 크기 비례 판독 하한
   if (newText && boxMeta && boxMeta.w > 0 && boxMeta.h > 0 && boxMeta.fontPt > 0) {
     // 박스 치수가 정확할 때 shrinkToFit 으로 최적 sz 계산
     const { fontSize } = shrinkToFit({
@@ -506,7 +592,7 @@ function replaceTextInShape(spNode, newText, boxMeta, savedStyle) {
     const baseSzStr = savedStyle?.sz || (boxMeta?.fontPt ? String(Math.round(boxMeta.fontPt * 100)) : null);
     if (baseSzStr) {
       const baseSz = parseInt(baseSzStr, 10);
-      if (baseSz > 0) computedSz = String(Math.round(Math.max(900, baseSz * 0.75)));
+      if (baseSz > 0) computedSz = String(Math.round(Math.max(MIN_READABLE_PT * 100, baseSz * 0.75)));
     }
   }
 
@@ -644,6 +730,42 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     return na - nb;
   });
 
+  // 3-b) 콘텐츠 사진 판별용 미디어 메타 수집:
+  // 슬라이드별 rId→미디어 경로, 미디어 바이트, 템플릿 전체에서의 사용 횟수.
+  const mediaBytes = new Map();
+  const usageByMedia = new Map();
+  for (const t of tplSlides) {
+    t.ridToMedia = {};
+    if (!t.sourceRelsXml) continue;
+    const relsDoc = parseXml(t.sourceRelsXml);
+    const relList = relsDoc.getElementsByTagName('Relationship');
+    for (let ri = 0; ri < relList.length; ri++) {
+      const rel = relList.item(ri);
+      const target = rel.getAttribute('Target') || '';
+      if (!/media\//.test(target)) continue;
+      const mediaPath = target.replace(/^\.\.\//, 'ppt/').replace(/^\//, '');
+      t.ridToMedia[rel.getAttribute('Id')] = mediaPath;
+      if (!mediaBytes.has(mediaPath)) {
+        const file = zip.file(mediaPath);
+        if (file) mediaBytes.set(mediaPath, (await file.async('uint8array')).length);
+      }
+    }
+    for (const m of t.sourceXml.matchAll(/r:embed="(rId\d+)"/g)) {
+      const mediaPath = t.ridToMedia[m[1]];
+      if (mediaPath) usageByMedia.set(mediaPath, (usageByMedia.get(mediaPath) || 0) + 1);
+    }
+  }
+  const buildPicCtx = (t) => {
+    const ridInfo = new Map();
+    for (const [rid, mediaPath] of Object.entries(t.ridToMedia || {})) {
+      ridInfo.set(rid, {
+        bytes: mediaBytes.get(mediaPath) || 0,
+        usage: usageByMedia.get(mediaPath) || 1,
+      });
+    }
+    return { ridInfo };
+  };
+
   // 4) 다음 사용 가능한 rId / sldId 번호 계산
   let maxRidNum = 0;
   for (const r of allRelNodes) {
@@ -662,6 +784,14 @@ export async function renderDeckInPlace(deck, originalBuffer) {
   for (const t of tplSlides) {
     zip.remove(t.sourceFile);
     if (t.sourceRelsFile && t.sourceRelsXml) zip.remove(t.sourceRelsFile);
+  }
+
+  // 5-a) 발표자 노트 파트 제거.
+  // 새 슬라이드 rels 는 notesSlide 관계를 제거하므로(stripNotesSlideRels)
+  // notesSlides/* 는 전부 고아가 된다. 고아 notesSlide 는 역참조(slide ←→ notesSlide)
+  // 불일치를 남겨 PowerPoint 복구 대화상자를 유발하므로 파트째 삭제한다.
+  for (const filePath of Object.keys(zip.files)) {
+    if (/^ppt\/notesSlides\//.test(filePath)) zip.remove(filePath);
   }
 
   // 5-b) 슬라이드 레이아웃/마스터 텍스트 초기화.
@@ -724,9 +854,9 @@ export async function renderDeckInPlace(deck, originalBuffer) {
     const newPath = `ppt/slides/slide${newNum}.xml`;
     const newRelsPath = `ppt/slides/_rels/slide${newNum}.xml.rels`;
 
-    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx, slideSizePt);
+    const modifiedXml = applyTextReplacements(src.sourceXml, slidePlan.boxes || [], tplIdx, slideSizePt, buildPicCtx(src));
     zip.file(newPath, modifiedXml);
-    if (src.sourceRelsXml) zip.file(newRelsPath, src.sourceRelsXml);
+    if (src.sourceRelsXml) zip.file(newRelsPath, stripNotesSlideRels(src.sourceRelsXml));
 
     newSlideMeta.push({
       rid: `rId${nextRid++}`,
@@ -794,6 +924,12 @@ export async function renderDeckInPlace(deck, originalBuffer) {
   }
   for (let i = newSlideMeta.length; i < slideOverrides.length; i++) {
     ctRoot.removeChild(slideOverrides[i]);
+  }
+  // 제거된 notesSlides 파트의 Override 도 함께 제거 (파트 없는 Override 는 손상으로 간주됨)
+  for (const ov of overrideNodes) {
+    if (ov.parentNode === ctRoot && ov.getAttribute('ContentType') === CT_NOTES_SLIDE) {
+      ctRoot.removeChild(ov);
+    }
   }
   zip.file(ctPath, serializeXml(ctDoc));
 
