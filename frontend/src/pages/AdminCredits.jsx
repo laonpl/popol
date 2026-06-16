@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Loader2, Wallet, LogOut, RefreshCw, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import AdminDashboard from './AdminDashboard';
+import AdminErrorLogs from './AdminErrorLogs';
 
 const QUICK_AMOUNTS = [1000, 5000, 12000, 17000];
 
@@ -35,7 +37,7 @@ export default function AdminCredits() {
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const [tab, setTab] = useState('credits');
+  const [tab, setTab] = useState('dashboard');
 
   // 충전 폼
   const [email, setEmail] = useState('');
@@ -172,7 +174,7 @@ export default function AdminCredits() {
     setFeedback([]);
     setRequests([]);
     setLookupData(null);
-    setTab('credits');
+    setTab('dashboard');
   };
 
   const grant = async (e) => {
@@ -246,7 +248,7 @@ export default function AdminCredits() {
 
   return (
     <main className="min-h-screen bg-surface-50 px-5 py-10">
-      <div className="mx-auto max-w-3xl">
+      <div className={`mx-auto ${tab === 'dashboard' ? 'max-w-6xl' : tab === 'errors' ? 'max-w-4xl' : 'max-w-3xl'}`}>
         <div className="mb-5 flex items-end justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-500">Admin</p>
@@ -262,13 +264,19 @@ export default function AdminCredits() {
         </div>
 
         <div className="mb-6 inline-flex gap-1 rounded-xl border border-surface-200 bg-white p-1 shadow-sm">
+          <button type="button" onClick={() => setTab('dashboard')} className={tabClass('dashboard')}>대시보드</button>
           <button type="button" onClick={() => setTab('credits')} className={tabClass('credits')}>크레딧 충전</button>
           <button type="button" onClick={() => setTab('lookup')} className={tabClass('lookup')}>사용자 조회</button>
           <button type="button" onClick={() => setTab('requests')} className={tabClass('requests')}>
             충전 요청{requests.filter(r => r.status === 'pending').length > 0 && ` (${requests.filter(r => r.status === 'pending').length})`}
           </button>
           <button type="button" onClick={() => setTab('feedback')} className={tabClass('feedback')}>피드백</button>
+          <button type="button" onClick={() => setTab('errors')} className={tabClass('errors')}>오류 로그</button>
         </div>
+
+        {tab === 'dashboard' && <AdminDashboard cred={cred} onAuthError={logout} />}
+
+        {tab === 'errors' && <AdminErrorLogs cred={cred} onAuthError={logout} />}
 
         {tab === 'credits' && (
         <div className="max-w-lg">

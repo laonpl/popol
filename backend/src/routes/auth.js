@@ -148,7 +148,16 @@ router.delete('/account', authMiddleware, async (req, res) => {
 
     await batch.commit();
 
-    // 4. Firebase Auth 계정 삭제
+    // 4. 탈퇴 기록 저장 (관리자 대시보드 이탈율 집계용 — 계정 삭제 후엔 복구 불가)
+    const authUser = await adminAuth.getUser(uid).catch(() => null);
+    await adminDb.collection('accountDeletions').add({
+      uid,
+      email: req.user.email || authUser?.email || null,
+      accountCreatedAt: authUser?.metadata?.creationTime ? new Date(authUser.metadata.creationTime) : null,
+      deletedAt: new Date(),
+    }).catch(err => console.error('[Auth] 탈퇴 기록 저장 실패:', err));
+
+    // 5. Firebase Auth 계정 삭제
     await adminAuth.deleteUser(uid);
 
     res.json({ deleted: true, message: '계정과 모든 데이터가 삭제되었습니다.' });
