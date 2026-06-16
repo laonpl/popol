@@ -84,6 +84,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
           const cards = Array.isArray(block.content) ? block.content : [];
           return (
             <div key={index} className={cardClass}>
+              {block.title && <VHtml as="h2" className={`${titleClass} mb-4`} value={block.title} />}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {cards.map((card, cardIndex) => {
                   const body = (

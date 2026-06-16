@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Loader2, Copy, Download, FileText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock, UploadCloud } from 'lucide-react';
+import { X, Loader2, Copy, Download, FileText, FileDown, ScrollText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock, UploadCloud } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -18,6 +18,20 @@ const FORMATS = [
     desc: '내 PPT 템플릿에 자동 매핑',
     info: '디자인을 가져올 PPTX 템플릿을 업로드하면, 노션형 포트폴리오의 모든 섹션을 AI가 분석해 그 디자인 위에 채워 다운로드합니다.',
   },
+  {
+    key: 'PDF',
+    label: 'PDF 파일',
+    icon: FileDown,
+    desc: '합격자 스타일 PDF 문서',
+    info: '포트폴리오 전체 내용(소개·기술·프로젝트 성과·학력·수상·목표)을 합격자 포트폴리오 스타일의 A4 PDF 문서로 만들어 다운로드합니다.',
+  },
+  {
+    key: 'Resume',
+    label: '이력서',
+    icon: ScrollText,
+    desc: '채용용 이력서 PDF·텍스트',
+    info: '포트폴리오 내용에서 인적사항·학력·경력·기술·어학·수상만 추려 격식 있는 채용용 이력서로 변환합니다. PDF 파일(A4 문서) 또는 텍스트(.txt)로 다운로드할 수 있습니다.',
+  },
 ];
 
 export default function ExportModal({ type, data, onClose, onTogglePublic }) {
@@ -28,6 +42,7 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
   const [isPublic, setIsPublic] = useState(!!data?.isPublic);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [templateFile, setTemplateFile] = useState(null);
+  const [resumeFileType, setResumeFileType] = useState('pdf');
   const fileRef = useRef(null);
 
   const step = result ? 2 : 1;
@@ -66,39 +81,86 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
       return;
     }
 
-    if (format === 'PPT') {
-      if (!templateFile) { toast.error('PPTX 템플릿 파일을 업로드해 주세요'); return; }
+    if (format === 'Resume') {
+      const isPdf = resumeFileType === 'pdf';
       setExporting(true);
       try {
-        const fd = new FormData();
-        fd.append('template', templateFile);
-        fd.append('portfolio', JSON.stringify(buildExportData()));
-        // 라우트는 JSON({ pptxBase64, ... })을 반환한다 — blob 으로 받으면
-        // JSON 텍스트가 .pptx 로 저장되어 열리지 않는 파일이 된다.
-        const { data: resData } = await api.post('/export/ppt', fd, {
-          timeout: 600000,
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (!resData?.pptxBase64) throw new Error(resData?.message || 'PPT 생성에 실패했습니다');
-        const binary = atob(resData.pptxBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], {
-          type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        });
+        const payload = { data: { ...buildExportData(), extracurricular: data.extracurricular || {} } };
+        let blob;
+        if (isPdf) {
+          const { data: resData } = await api.post('/export/resume-pdf', payload, { timeout: 120000 });
+          const base64 = resData?.pdfBase64;
+          if (!base64) throw new Error(resData?.message || '이력서 PDF 생성에 실패했습니다');
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          blob = new Blob([bytes], { type: 'application/pdf' });
+        } else {
+          const { data: resData } = await api.post('/export/resume', payload, { timeout: 120000 });
+          const content = resData?.content;
+          if (!content) throw new Error(resData?.message || '이력서 생성에 실패했습니다');
+          blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const safeName = (data.userName || data.title || 'portfolio').replace(/[^\w가-힣]+/g, '_').slice(0, 40);
+        const safeName = (data.userName || data.title || 'resume').replace(/[^\w가-힣]+/g, '_').slice(0, 40);
         a.href = url;
-        a.download = `${safeName}.pptx`;
+        a.download = `${safeName}_이력서.${isPdf ? 'pdf' : 'txt'}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
         setResult('downloaded');
-        toast.success('PPT 다운로드를 시작합니다');
+        toast.success('이력서 다운로드를 시작합니다');
       } catch (err) {
-        const msg = err?.response?.data?.message || err?.message || 'PPT 생성에 실패했습니다';
+        const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || '이력서 생성에 실패했습니다';
+        toast.error(msg);
+      }
+      setExporting(false);
+      return;
+    }
+
+    if (format === 'PPT' || format === 'PDF') {
+      const isPdf = format === 'PDF';
+      if (!isPdf && !templateFile) { toast.error('PPTX 템플릿 파일을 업로드해 주세요'); return; }
+      setExporting(true);
+      try {
+        let resData;
+        if (isPdf) {
+          // PDF: 업로드 불필요 — 포트폴리오 내용을 서버가 합격자 스타일 문서로 렌더
+          ({ data: resData } = await api.post('/export/portfolio-pdf', { portfolio: buildExportData() }, { timeout: 120000 }));
+        } else {
+          const fd = new FormData();
+          fd.append('template', templateFile);
+          fd.append('portfolio', JSON.stringify(buildExportData()));
+          // 라우트는 JSON({ pptxBase64, ... })을 반환한다 — blob 으로 받으면
+          // JSON 텍스트가 .pptx 로 저장되어 열리지 않는 파일이 된다.
+          ({ data: resData } = await api.post('/export/ppt', fd, {
+            timeout: 600000,
+            headers: { 'Content-Type': 'multipart/form-data' },
+          }));
+        }
+        const base64 = isPdf ? resData?.pdfBase64 : resData?.pptxBase64;
+        if (!base64) throw new Error(resData?.message || `${format} 생성에 실패했습니다`);
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], {
+          type: isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const safeName = (data.userName || data.title || 'portfolio').replace(/[^\w가-힣]+/g, '_').slice(0, 40);
+        a.href = url;
+        a.download = `${safeName}.${isPdf ? 'pdf' : 'pptx'}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setResult('downloaded');
+        toast.success(`${format} 다운로드를 시작합니다`);
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || `${format} 생성에 실패했습니다`;
         toast.error(msg);
       }
       setExporting(false);
@@ -143,7 +205,7 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
             <div className="space-y-5">
               <div>
                 <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">내보내기 형식 선택</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   {FORMATS.map(({ key, label, icon: Icon, desc }) => {
                     const selected = format === key;
                     return (
@@ -199,6 +261,29 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                 </>
               )}
 
+              {format === 'Resume' && (
+                <div>
+                  <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">파일 형식</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[['pdf', 'PDF 파일', 'A4 이력서 문서'], ['txt', '텍스트', '.txt 파일']].map(([val, label, sub]) => {
+                      const on = resumeFileType === val;
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => setResumeFileType(val)}
+                          className={`px-4 py-3 rounded-xl border text-left transition-all ${
+                            on ? 'border-blue-500 bg-blue-50/60' : 'border-gray-200 hover:bg-gray-50/60'
+                          }`}
+                        >
+                          <p className={`text-[14px] font-semibold ${on ? 'text-blue-700' : 'text-gray-800'}`}>{label}</p>
+                          <p className="text-[11.5px] text-gray-400 mt-0.5">{sub}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t border-dashed border-gray-200" />
 
               {selectedMeta ? (
@@ -220,7 +305,7 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
               <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-green-200 bg-green-50">
                 <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
                 <p className="text-[15px] font-medium text-green-700">
-                  {format === 'Link' ? '공개 링크가 생성되었습니다' : 'PPT 다운로드가 시작되었습니다'}
+                  {format === 'Link' ? '공개 링크가 생성되었습니다' : `${format === 'Resume' ? '이력서' : format} 다운로드가 시작되었습니다`}
                 </p>
               </div>
 
@@ -298,7 +383,7 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
                 </div>
               )}
 
-              {format === 'PPT' && (
+              {(format === 'PPT' || format === 'PDF' || format === 'Resume') && (
                 <div className="text-[13px] text-gray-500 leading-relaxed">
                   브라우저의 다운로드 폴더에서 파일을 확인하세요.
                 </div>

@@ -175,6 +175,34 @@ PORT 리슨 (기본 5000)
 | `POST` | `/notion` | Notion 마크다운 (경량) |
 | `POST` | `/github` | GitHub README.md 형식 |
 | `POST` | `/pdf` | PDF 최적화 압축 텍스트 |
+| `POST` | `/resume` | 이력서(Resume) 최적화 플레인 텍스트 |
+| `POST` | `/resume-pdf` | 이력서 PDF 파일 (HTML→Puppeteer, 무과금) |
+
+**`/resume` 요청/응답:**
+```js
+// 요청
+{ data: { /* 포트폴리오 데이터 (userName, contact, education, experiences, skills 등) */ } }
+
+// 응답
+{ success: true, content: "이력서 플레인 텍스트", format: "resume-text" }
+```
+
+> 인적사항 → 학력 → 경력/프로젝트 → 보유 기술 → 어학 → 자격/수상 순서로 압축한
+> 격식 있는 채용용 이력서 텍스트. AI 변환(`generateWithRetry`) 실패 시 `generateResumeFallback`
+> 구조적 템플릿으로 폴백. `requireCredits` 적용(크레딧 차감).
+
+**`/resume-pdf` 요청/응답:**
+```js
+// 요청
+{ data: { /* 포트폴리오 데이터 */ } }   // 또는 { portfolio: {...} }
+
+// 응답
+{ pdfBase64: "<base64 PDF>" }
+```
+
+> `/resume`와 동일한 필드를 읽어 단일 컬럼 A4 이력서 HTML을 만들고 `resumePdfService`가
+> `htmlToPdf`(Puppeteer, `portfolioPdfService`와 공유)로 렌더. **결정론·AI 미사용이라 무과금**
+> (`/portfolio-pdf`와 동일 정책). 프론트는 PDF/TXT 형식을 선택해 호출.
 
 ---
 

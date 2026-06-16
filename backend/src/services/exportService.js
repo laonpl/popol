@@ -1,4 +1,5 @@
 import { generateWithRetry } from './geminiService.js';
+import { sanitizeArtifactsDeep, stripFormulaArtifacts } from '../utils/sanitizeText.js';
 
 /**
  * Notion 최적화 Markdown 형태로 내보내기
@@ -142,6 +143,47 @@ ${jsonStr}
   } catch (error) {
     console.error('PDF export AI error:', error.message);
     return generatePDFFallback(data);
+  }
+}
+
+/**
+ * 이력서(Resume) 최적화 플레인 텍스트로 내보내기
+ * 포트폴리오 데이터에서 인적사항·학력·경력·기술·어학·수상만 추려
+ * 격식 있는 채용용 이력서 텍스트로 정리한다.
+ */
+export async function exportForResume(data) {
+  // 저장된 데이터에 남아 있을 수 있는 작성 지시 표기(【XYZ 공식】·(X)·[작성 필요] 등)를
+  // 먼저 제거해 AI가 그대로 따라 쓰지 않도록 한다.
+  const cleanData = sanitizeArtifactsDeep(data);
+  const jsonStr = JSON.stringify(cleanData, null, 2).substring(0, 8000);
+
+  const prompt = `당신은 채용용 이력서(Resume) 전문 편집자입니다.
+아래 JSON 데이터를 기업 제출용 이력서 플레인 텍스트로 변환하십시오.
+
+[이력서 변환 규칙]
+1. 격식 있는 1페이지 분량: 인적사항 → 학력 → 경력/프로젝트 → 보유 기술 → 어학 → 자격/수상 순서
+2. 포트폴리오성 서술(가치관·목표·에세이)은 제외하고 사실 위주로 정리
+3. 명사형 종결("~함", "~담당") — 군더더기 접속사/부사 제거
+4. 경력은 최신순. 각 항목은 "제목 | 기간 | 역할" 한 줄 + 핵심 성과 불릿(•)
+5. 수치/성과 데이터는 그대로 보존 (예: "전환율 15% 향상")
+6. Markdown 마크업 금지 — 순수 텍스트와 불릿(•), 구분선(─)만 사용
+7. 데이터가 없는 섹션은 출력하지 않음
+8. "XYZ 공식", "【...】", "(X)/(Y)/(Z)", "[작성 필요]" 같은 작성 지시·플레이스홀더 표기는 절대 출력하지 말 것
+
+[변환 목표]
+- 채용담당자가 빠르게 스캔 가능한 표준 이력서 포맷
+- 사실 기반의 간결하고 정돈된 텍스트
+
+[입력 데이터]
+${jsonStr}
+
+위 데이터를 이력서 플레인 텍스트로 변환하여 텍스트만 출력하십시오. 코드블록으로 감싸지 마십시오.`;
+
+  try {
+    return stripFormulaArtifacts(await generateWithRetry(prompt));
+  } catch (error) {
+    console.error('Resume export AI error:', error.message);
+    return generateResumeFallback(cleanData);
   }
 }
 
@@ -324,6 +366,75 @@ function generatePDFFallback(data) {
   }
 
   return text;
+}
+
+function generateResumeFallback(data) {
+  const getSkillName = (s) => typeof s === 'string' ? s : (s?.name || '');
+  const lines = [];
+
+  // ── 인적사항
+  lines.push((data.userName || data.title || '이름') + (data.nameEn ? ` (${data.nameEn})` : ''));
+  if (data.headline) lines.push(data.headline);
+  const contact = data.contact || {};
+  const contactItems = [
+    contact.email && `이메일: ${contact.email}`,
+    contact.phone && `연락처: ${contact.phone}`,
+    contact.github && `GitHub: ${contact.github}`,
+    contact.linkedin && `LinkedIn: ${contact.linkedin}`,
+    contact.website && `웹사이트: ${contact.website}`,
+  ].filter(Boolean);
+  if (contactItems.length > 0) lines.push(contactItems.join(' | '));
+  lines.push('─'.repeat(40));
+
+  // ── 학력
+  if ((data.education || []).length > 0) {
+    lines.push('', '[학력]');
+    data.education.forEach(e => {
+      lines.push(`- ${[e.name + (e.nameEn ? ` (${e.nameEn})` : ''), e.period, e.degree].filter(Boolean).join(' | ')}`);
+      const desc = e.description || e.detail;
+      if (desc) lines.push(`  ${desc}`);
+    });
+  }
+
+  // ── 경력 / 프로젝트
+  if ((data.experiences || []).length > 0) {
+    lines.push('', '[경력 / 프로젝트]');
+    data.experiences.forEach(e => {
+      lines.push(`- ${[e.title, e.period || e.date, e.role].filter(Boolean).join(' | ')}`);
+      if (e.description) lines.push(`  ${e.description}`);
+      (e.achievements || []).forEach(a => lines.push(`  • ${a}`));
+    });
+  }
+
+  // ── 보유 기술
+  const skills = data.skills || {};
+  const skillLines = [
+    ['언어', skills.languages],
+    ['프레임워크', skills.frameworks],
+    ['도구', skills.tools],
+    ['기타', skills.others],
+  ].filter(([, arr]) => (arr || []).length > 0)
+   .map(([label, arr]) => `- ${label}: ${arr.map(getSkillName).join(', ')}`);
+  if (skillLines.length > 0) {
+    lines.push('', '[보유 기술]', ...skillLines);
+  }
+
+  // ── 어학
+  const languages = data.extracurricular?.languages || [];
+  if (languages.length > 0) {
+    lines.push('', '[어학]');
+    languages.forEach(l => lines.push(`- ${[l.name, l.score, l.date].filter(Boolean).join(' | ')}`));
+  }
+
+  // ── 자격 / 수상
+  if ((data.awards || []).length > 0) {
+    lines.push('', '[자격 / 수상]');
+    data.awards.forEach(a => {
+      lines.push(`- ${[a.date, a.title].filter(Boolean).join(' ')}${a.organization ? ` (${a.organization})` : ''}`);
+    });
+  }
+
+  return lines.join('\n') + '\n';
 }
 
 /**

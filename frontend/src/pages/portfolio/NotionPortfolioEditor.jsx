@@ -1112,6 +1112,10 @@ export default function NotionPortfolioEditor() {
       if (!prev) return prev;
       const next = typeof producer === 'function' ? producer(prev) : producer;
       if (!next || next === prev || JSON.stringify(next) === JSON.stringify(prev)) return prev;
+      // 저장 시 portfolioRef.current 를 읽는데, ref 는 passive effect 로만 갱신돼
+      // 저장 직전 변경(예: 본문 이미지 삭제)이 effect 전에 저장되면 누락된다.
+      // 여기서 동기로 ref 를 맞춰 flush 직후 최신 스냅샷이 저장되도록 한다.
+      portfolioRef.current = next;
       if (initialLoaded.current) setHasUnsavedChanges(true);
       if (!isHistoryActionRef.current) {
         undoStackRef.current = [...undoStackRef.current.slice(-79), prev];
@@ -6658,11 +6662,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                         onClick={() => setExpDetailIdx({ blockIdx: i, cardIdx: ci })}
                         className="group/card relative bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-all cursor-pointer">
                         <div className="aspect-[4/3] bg-surface-50 overflow-hidden">
-                          {card.thumbnailUrl
-                            ? <img src={card.thumbnailUrl} alt={card.title} className="w-full h-full object-cover" />
-                            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-100 to-surface-50">
-                                <span className="text-4xl opacity-40"><Briefcase size={28} className="text-gray-300" /></span>
-                              </div>}
+                          <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={card.title || ''} className="w-full h-full object-cover" />
                         </div>
                         <div className="p-3">
                           <p className="text-sm font-bold text-gray-800 truncate">{card.title || '(제목 없음)'}</p>
@@ -6677,6 +6677,19 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                             </div>
                           )}
                         </div>
+                        <label onClick={ev => ev.stopPropagation()}
+                          className="absolute top-1.5 right-9 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-gray-700 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity cursor-pointer" title="배경 사진 변경">
+                          <Camera size={14} />
+                          <input type="file" accept="image/*" className="hidden" onChange={async ev => {
+                            const file = ev.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const base64 = await resizeToBase64(file, 800, 0.8);
+                              updateCard(ci, { thumbnailUrl: base64 });
+                            } catch { toast.error('이미지 처리 실패'); }
+                            ev.target.value = '';
+                          }} />
+                        </label>
                         <button onClick={ev => { ev.stopPropagation(); removeCard(ci); }}
                           className="absolute top-1.5 right-1.5 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity" title="삭제">
                           <Trash2 size={14} />

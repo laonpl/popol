@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"/>
+<style>
+  @page { size: A4; margin: 13mm 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --ink: #0F172A; --body: #334155; --sub: #64748B;
+    --line: #E2E8F0; --accent: #2563EB; --accent-deep: #1D4ED8;
+    --accent-soft: #EFF6FF; --bg: #F8FAFC;
+  }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    color: var(--body); font-size: 10pt; line-height: 1.7; word-break: keep-all;
+  }
+  strong.num { color: var(--accent-deep); font-weight: 800; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .chip {
+    display: inline-block; padding: 2.5px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-deep);
+    font-size: 8.5pt; font-weight: 600; border: 1px solid #DBEAFE;
+  }
+  .chip-lg { font-size: 9.5pt; padding: 4px 12px; }
+
+  /* ── 표지 ── */
+  .cover {
+    height: 269mm; padding: 14mm 18mm 12mm; display: flex; flex-direction: column;
+    break-after: page; position: relative;
+  }
+  .cover::before {
+    content: ''; position: absolute; left: 18mm; right: 18mm; top: 8mm;
+    height: 4px; background: linear-gradient(90deg, var(--accent), #60A5FA); border-radius: 2px;
+  }
+  .cover-top { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4mm; }
+  .brand { font-size: 10pt; font-weight: 800; letter-spacing: 0.35em; color: var(--ink); }
+  .stamp { font-size: 9pt; color: var(--sub); letter-spacing: 0.1em; }
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .target {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    font-size: 10.5pt; font-weight: 700; color: var(--ink);
+    background: var(--accent-soft); border: 1px solid #DBEAFE; border-radius: 999px;
+    padding: 6px 16px 6px 6px; margin-bottom: 14mm;
+  }
+  .target-tag {
+    background: var(--accent); color: #fff; font-size: 8pt; font-weight: 800;
+    letter-spacing: 0.12em; border-radius: 999px; padding: 3px 10px;
+  }
+  .cover-name { font-size: 34pt; font-weight: 800; color: var(--ink); line-height: 1.2; }
+  .name-en { font-size: 13pt; font-weight: 600; color: var(--sub); margin-left: 12px; letter-spacing: 0.04em; }
+  .cover-headline {
+    margin-top: 8mm; font-size: 15pt; font-weight: 600; color: var(--body);
+    line-height: 1.55; max-width: 150mm;
+    padding-left: 14px; border-left: 4px solid var(--accent);
+  }
+  .cover-skills { margin-top: 12mm; max-width: 150mm; }
+  .cover-bottom {
+    border-top: 1px solid var(--line); padding-top: 6mm;
+    display: flex; flex-wrap: wrap; gap: 4mm 10mm;
+  }
+  .cv-contact { display: flex; align-items: baseline; gap: 7px; font-size: 9pt; }
+  .cv-k { font-size: 7.5pt; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); }
+  .cv-v { color: var(--body); }
+
+  /* ── 섹션 공통 ── */
+  .sec { padding: 0 18mm; margin-top: 12mm; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 10px;
+    border-bottom: 2px solid var(--ink); padding-bottom: 7px; margin-bottom: 7mm;
+    break-after: avoid-page;
+  }
+  .sec-no { font-size: 11pt; font-weight: 800; color: var(--accent); }
+  .sec-head h2 { font-size: 15pt; font-weight: 800; color: var(--ink); }
+  .sec-en { margin-left: auto; font-size: 8.5pt; font-weight: 600; letter-spacing: 0.2em; color: var(--sub); text-transform: uppercase; }
+  .sub-title { font-size: 10.5pt; font-weight: 800; color: var(--ink); margin-bottom: 3mm; }
+  .sub-block { margin-top: 7mm; break-inside: avoid; }
+  .sub-block:first-child { margin-top: 0; }
+  .two-col + .sub-block { margin-top: 7mm; }
+  .plain { color: var(--body); }
+
+  /* ── 소개 ── */
+  .intro-headline { font-size: 13.5pt; font-weight: 700; color: var(--ink); margin-bottom: 4mm; line-height: 1.5; }
+  .intro-essay { margin-bottom: 2mm; max-width: 160mm; }
+
+  /* ── 기술 ── */
+  .skill-table { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .skill-row { display: flex; border-top: 1px solid var(--line); }
+  .skill-row:first-child { border-top: 0; }
+  .skill-cat {
+    flex: 0 0 38mm; background: var(--bg); padding: 9px 13px;
+    font-size: 9pt; font-weight: 700; color: var(--ink);
+  }
+  .skill-items { flex: 1; padding: 6px 12px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+
+  /* ── 프로젝트 ── */
+  .project {
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 7mm 7mm 5mm; margin-bottom: 6mm;
+  }
+  .p-head { break-inside: avoid; }
+  .p-no { font-size: 8pt; font-weight: 800; letter-spacing: 0.18em; color: var(--accent); margin-bottom: 2mm; }
+  .p-tags { display: inline-flex; gap: 5px; margin-bottom: 2mm; }
+  .tag {
+    font-size: 8pt; font-weight: 700; color: var(--sub);
+    border: 1px solid var(--line); border-radius: 999px; padding: 1.5px 9px;
+  }
+  .p-title { font-size: 14pt; font-weight: 800; color: var(--ink); line-height: 1.35; }
+  .p-meta { margin-top: 1.5mm; font-size: 9.5pt; font-weight: 600; color: var(--sub); }
+  .p-meta .dot { margin: 0 6px; color: var(--line); }
+  .p-summary { margin-top: 3mm; color: var(--body); }
+  .row {
+    display: flex; gap: 12px; padding: 3.2mm 0;
+    border-top: 1px dashed var(--line); margin-top: 3.2mm; break-inside: avoid;
+  }
+  .p-head + .row { margin-top: 4mm; }
+  .lab {
+    flex: 0 0 52pt; font-size: 8.5pt; font-weight: 800; color: var(--accent);
+    letter-spacing: 0.03em; padding-top: 2px;
+  }
+  .val { flex: 1; color: var(--body); }
+  .row-accent {
+    background: var(--accent-soft); border: 1px solid #DBEAFE; border-top: 1px solid #DBEAFE;
+    border-radius: 10px; padding: 3.2mm 4mm;
+  }
+  .row-accent .val { color: var(--ink); font-weight: 600; }
+
+  /* ── 지표 차트 ── */
+  .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm; margin-top: 4mm; }
+  .metric-card {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 14px; break-inside: avoid;
+  }
+  .m-label { font-size: 8.5pt; font-weight: 700; color: var(--sub); }
+  .m-val { font-size: 15pt; font-weight: 800; color: var(--accent-deep); line-height: 1.3; }
+  .m-val strong.num { color: inherit; }
+  .m-val-sm { font-size: 12.5pt; margin: 2px 0 6px; color: var(--ink); }
+  .m-arrow { color: var(--accent); }
+  .bar-row { display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+  .bar-k { flex: 0 0 12px; font-size: 7.5pt; font-weight: 800; color: var(--sub); }
+  .bar-track { flex: 1; height: 9px; background: #E2E8F0; border-radius: 5px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 5px; }
+  .bar-before { background: #94A3B8; }
+  .bar-after { background: linear-gradient(90deg, var(--accent), #60A5FA); }
+  .bar-v { flex: 0 0 auto; min-width: 36px; font-size: 8pt; font-weight: 800; color: var(--ink); text-align: right; }
+  .m-result { font-size: 8.8pt; color: var(--sub); margin-top: 7px; }
+
+  /* ── 학력·수상·활동 ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .col { min-width: 0; }
+  .list-item { padding: 3mm 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  .list-item:last-child { border-bottom: 0; }
+  .li-title { font-weight: 700; color: var(--ink); font-size: 10.5pt; }
+  .li-sub { font-weight: 500; color: var(--sub); font-size: 9pt; }
+  .li-meta { font-size: 9pt; color: var(--sub); margin-top: 1px; }
+  .act-line { margin-top: 2.5mm; font-size: 9.5pt; break-inside: avoid; }
+  .act-title { font-weight: 700; color: var(--ink); }
+  .act-desc { color: var(--sub); }
+
+  /* ── 목표 ── */
+  .goal-list { display: flex; flex-direction: column; gap: 3.5mm; }
+  .goal-item { display: flex; gap: 12px; align-items: flex-start; break-inside: avoid; }
+  .goal-type {
+    flex: 0 0 auto; background: var(--ink); color: #fff; font-size: 8pt; font-weight: 800;
+    border-radius: 6px; padding: 3px 9px; margin-top: 2px;
+  }
+  .goal-title { font-weight: 700; color: var(--ink); }
+  .goal-status {
+    font-size: 8pt; font-weight: 800; color: var(--accent);
+    border: 1px solid #DBEAFE; background: var(--accent-soft);
+    border-radius: 999px; padding: 1px 8px; margin-left: 6px;
+  }
+  .goal-desc { font-size: 9.5pt; color: var(--sub); margin-top: 1px; }
+
+  /* ── 마무리 ── */
+  .closing {
+    margin: 14mm 18mm 0; padding: 10mm;
+    background: var(--ink); border-radius: 14px; color: #CBD5E1;
+    break-inside: avoid;
+  }
+  .closing-thanks { font-size: 16pt; font-weight: 800; color: #fff; }
+  .closing-name { margin-top: 2mm; font-size: 10.5pt; font-weight: 600; color: #E2E8F0; }
+  .closing-name span { color: #94A3B8; font-size: 9pt; margin-left: 6px; }
+  .closing-contact { display: flex; flex-wrap: wrap; gap: 3mm 9mm; margin-top: 5mm; padding-top: 4mm; border-top: 1px solid #334155; }
+  .closing .cv-k { color: #60A5FA; }
+  .closing .cv-v { color: #CBD5E1; }
+</style>
+</head>
+<body>
+<div class="cover">
+    <div class="cover-top">
+      <span class="brand">PORTFOLIO</span>
+      <span class="stamp">2026.06</span>
+    </div>
+    <div class="cover-main">
+      <div class="target"><span class="target-tag">TARGET</span>코코네 · 프론트엔드 개발자</div>
+      <h1 class="cover-name">김유신<span class="name-en">Yushin Kim</span></h1>
+      <p class="cover-headline">문제를 정의하고 끝까지 검증하는 프론트엔드 개발자</p>
+      <div class="cover-skills"><span class="chip chip-lg">JavaScript</span><span class="chip chip-lg">TypeScript</span><span class="chip chip-lg">React</span><span class="chip chip-lg">Node.js</span><span class="chip chip-lg">Firebase</span><span class="chip chip-lg">Git</span></div>
+    </div>
+    <div class="cover-bottom">
+      <div class="cv-contact"><span class="cv-k">EMAIL</span><span class="cv-v">test@example.com</span></div><div class="cv-contact"><span class="cv-k">GITHUB</span><span class="cv-v">github.com/yushin55</span></div>
+    </div>
+  </div>
+
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-no">01</span>
+        <h2>소개</h2>
+        <span class="sec-en">About</span>
+      </div>
+      
+    <p class="intro-headline">“문제를 정의하고 끝까지 검증하는 프론트엔드 개발자”</p>
+    <p class="intro-essay">사용자가 겪는 불편을 수치로 검증하고, 작은 단위로 빠르게 개선하는 것을 중요하게 생각합니다.</p>
+    <div class="chips"><span class="chip chip-lg">수치로 검증</span><span class="chip chip-lg">작게, 빠르게</span><span class="chip chip-lg">끝까지 책임</span><span class="chip chip-lg">클라우드 인프라</span><span class="chip chip-lg">프론트엔드 성능 최적화</span><span class="chip chip-lg">LLM 응용</span></div>
+  
+    </section>
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-no">02</span>
+        <h2>기술 역량</h2>
+        <span class="sec-en">Skills</span>
+      </div>
+      <div class="skill-table">
+    <div class="skill-row">
+      <div class="skill-cat">언어</div>
+      <div class="skill-items"><span class="chip">JavaScript</span><span class="chip">TypeScript</span></div>
+    </div>
+    <div class="skill-row">
+      <div class="skill-cat">프레임워크 · 라이브러리</div>
+      <div class="skill-items"><span class="chip">React</span><span class="chip">Node.js</span></div>
+    </div>
+    <div class="skill-row">
+      <div class="skill-cat">도구 · 인프라</div>
+      <div class="skill-items"><span class="chip">Firebase</span><span class="chip">Git</span></div>
+    </div></div>
+    </section>
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-no">03</span>
+        <h2>프로젝트 · 경험</h2>
+        <span class="sec-en">Projects</span>
+      </div>
+      <div class="project">
+    <div class="p-head">
+      <div class="p-no">PROJECT 01</div>
+      
+      <h3 class="p-title">POPOL 포트폴리오 서비스</h3>
+      <div class="p-meta">프론트엔드 리드<span class="dot">·</span>2025.09 - 2026.02</div>
+      <p class="p-summary">노션형 포트폴리오를 PPT로 자동 변환하는 서비스</p>
+      <div class="chips"><span class="chip">React</span><span class="chip">Node.js</span></div>
+    </div>
+    <div class="row">
+    <div class="lab">문제 정의</div>
+    <div class="val">취업 준비생이 포트폴리오를 PPT로 다시 만드는 데 평균 8시간이 걸리는 문제를 발견했습니다.</div>
+  </div><div class="row">
+    <div class="lab">해결 과정</div>
+    <div class="val">변환 파이프라인 설계와 프론트엔드 미리보기 개발을 맡았습니다.<br/>한글 전각 폭 기반 측정 모델을 만들어 폰트 자동 축소 로직을 통일했습니다.</div>
+  </div><div class="row row-accent">
+    <div class="lab">성과</div>
+    <div class="val">텍스트 잘림 제보가 주 <strong class="num">12건</strong>에서 <strong class="num">0건</strong>으로 줄었습니다.</div>
+  </div>
+    <div class="metrics"><div class="metric-card">
+    <div class="m-label">주간 잘림 제보</div>
+    <div class="m-val m-val-sm">12건 <span class="m-arrow">→</span> 0건</div>
+    <div class="bar-row">
+      <span class="bar-k">전</span>
+      <div class="bar-track"><div class="bar bar-before" style="width:100%"></div></div>
+      <span class="bar-v">12건</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-k">후</span>
+      <div class="bar-track"><div class="bar bar-after" style="width:2.5%"></div></div>
+      <span class="bar-v">0건</span>
+    </div>
+    <div class="m-result">잘림 제보 <strong class="num">0건</strong></div>
+  </div><div class="metric-card">
+    <div class="m-label">변환 시간</div>
+    <div class="m-val m-val-sm">8시간 <span class="m-arrow">→</span> 10분</div>
+    <div class="bar-row">
+      <span class="bar-k">전</span>
+      <div class="bar-track"><div class="bar bar-before" style="width:100%"></div></div>
+      <span class="bar-v">8시간</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-k">후</span>
+      <div class="bar-track"><div class="bar bar-after" style="width:2.5%"></div></div>
+      <span class="bar-v">10분</span>
+    </div>
+    <div class="m-result"><strong class="num">98%</strong> 단축</div>
+  </div></div>
+  </div><div class="project">
+    <div class="p-head">
+      <div class="p-no">PROJECT 02</div>
+      
+      <h3 class="p-title">교내 해커톤 우승 프로젝트</h3>
+      <div class="p-meta">팀장<span class="dot">·</span>2025.11</div>
+      
+      
+    </div>
+    <div class="row">
+    <div class="lab">요약</div>
+    <div class="val">AI 기반 채용공고 분석 기능을 36시간 안에 구현해 대상을 수상했습니다.</div>
+  </div>
+    
+  </div>
+    </section>
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-no">04</span>
+        <h2>학력 · 수상 · 활동</h2>
+        <span class="sec-en">Background</span>
+      </div>
+      <div class="two-col">
+    <div class="col"><div class="sub-title">학력</div>
+    <div class="list-item">
+      <div class="li-title">가천대학교</div>
+      <div class="li-meta">컴퓨터공학과 · 2021-2026</div>
+    </div></div>
+    <div class="col"><div class="sub-title">수상 · 자격</div>
+    <div class="list-item">
+      <div class="li-title">교내 해커톤 대상</div>
+      <div class="li-meta">가천대학교 · 2025.11</div>
+    </div></div>
+  </div><div class="sub-block">
+    <div class="sub-title">활동</div>
+    <p class="plain">교내 개발 동아리 KKSC 창설 멤버로 활동하며 학내 서비스 2종을 출시했습니다.</p>
+    <div class="chips"><span class="chip chip-lg">이수 학점 102학점</span><span class="chip chip-lg">평점 4.1 / 4.5</span><span class="chip chip-lg">TOEIC 905</span><span class="chip chip-lg">SW 역량 인증 1급</span></div>
+    <div class="act-line">
+      <span class="act-title">KKSC 동아리 창설</span>
+      <span class="li-sub"> 2025.03 - </span>
+      <span class="act-desc"> — 가천길잡이 앱 기획 주도, 21,000명 학우 대상 프로덕트 팀 전환.</span>
+    </div>
+  </div>
+    </section>
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-no">05</span>
+        <h2>목표와 계획</h2>
+        <span class="sec-en">Future Plans</span>
+      </div>
+      <div class="goal-list">
+    <div class="goal-item">
+      <span class="goal-type">단기</span>
+      <div class="goal-body">
+        <div class="goal-title">정보처리기사 취득 <span class="goal-status">진행 중</span></div>
+        <div class="goal-desc">2026년 하반기 목표</div>
+      </div>
+    </div>
+    <div class="goal-item">
+      <span class="goal-type">중기</span>
+      <div class="goal-body">
+        <div class="goal-title">클라우드 자격증(AWS SAA)</div>
+        
+      </div>
+    </div>
+    <div class="goal-item">
+      <span class="goal-type">장기</span>
+      <div class="goal-body">
+        <div class="goal-title">서비스 전체를 설계하는 테크리드</div>
+        <div class="goal-desc">측정 가능한 운영 역량 축적</div>
+      </div>
+    </div></div>
+    </section>
+<div class="closing">
+    <div class="closing-thanks">감사합니다.</div>
+    <div class="closing-name">김유신 <span>Yushin Kim</span></div>
+    <div class="closing-contact"><div class="cv-contact"><span class="cv-k">EMAIL</span><span class="cv-v">test@example.com</span></div><div class="cv-contact"><span class="cv-k">GITHUB</span><span class="cv-v">github.com/yushin55</span></div></div>
+  </div>
+</body>
+</html>

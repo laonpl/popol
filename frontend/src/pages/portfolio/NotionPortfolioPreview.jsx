@@ -15,6 +15,7 @@ const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModa
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
+import ResumeExportModal from '../../components/ResumeExportModal';
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
 
@@ -85,6 +86,7 @@ export default function NotionPortfolioPreview() {
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
   const [selectedExpDetail, setSelectedExpDetail] = useState(null);
   const [isPublic, setIsPublic] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
@@ -297,6 +299,10 @@ export default function NotionPortfolioPreview() {
               className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
               PPT 내보내기
             </button>
+            <button onClick={() => setShowResumeModal(true)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[13px] font-semibold hover:bg-emerald-700 transition-all">
+              이력서 내보내기
+            </button>
             <button data-tour="portfolio-link" onClick={() => {
               setShowExportModal(true);
               if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
@@ -378,6 +384,9 @@ export default function NotionPortfolioPreview() {
             onClose={() => setShowExportModal(false)}
           />
         )}
+        {showResumeModal && (
+          <ResumeExportModal portfolio={portfolio} onClose={() => setShowResumeModal(false)} />
+        )}
         {selectedExpDetail && (
           <ExperienceDetailModal
             exp={selectedExpDetail.exp}
@@ -431,6 +440,10 @@ export default function NotionPortfolioPreview() {
           <button data-tour="portfolio-ppt" onClick={() => navigate(pptExportUrl)}
             className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
             PPT 내보내기
+          </button>
+          <button onClick={() => setShowResumeModal(true)}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[13px] font-semibold hover:bg-emerald-700 transition-all">
+            이력서 내보내기
           </button>
           <button data-tour="portfolio-link" onClick={() => {
             setShowExportModal(true);
@@ -992,6 +1005,9 @@ export default function NotionPortfolioPreview() {
           onClose={() => setShowExportModal(false)}
         />
       )}
+      {showResumeModal && (
+        <ResumeExportModal portfolio={portfolio} onClose={() => setShowResumeModal(false)} />
+      )}
 
       {/* Experience Detail Modal */}
       {selectedExpDetail && (
@@ -1261,6 +1277,7 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
           const cards = Array.isArray(block.content) ? block.content : [];
           return (
             <div key={index} className={cardClass}>
+              {block.title && <VHtml as="h2" className={`${titleClass} mb-4`} value={block.title} />}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {cards.map((card, cardIndex) => {
                   const body = (
