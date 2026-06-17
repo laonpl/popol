@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 import AdminDashboard from './AdminDashboard';
 import AdminErrorLogs from './AdminErrorLogs';
+import AdminAiUsage from './AdminAiUsage';
 
 const QUICK_AMOUNTS = [1000, 5000, 12000, 17000];
 
@@ -248,7 +249,7 @@ export default function AdminCredits() {
 
   return (
     <main className="min-h-screen bg-surface-50 px-5 py-10">
-      <div className={`mx-auto ${tab === 'dashboard' ? 'max-w-6xl' : tab === 'errors' ? 'max-w-4xl' : 'max-w-3xl'}`}>
+      <div className={`mx-auto ${tab === 'dashboard' || tab === 'ai-usage' ? 'max-w-6xl' : tab === 'errors' ? 'max-w-4xl' : 'max-w-3xl'}`}>
         <div className="mb-5 flex items-end justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-500">Admin</p>
@@ -270,11 +271,14 @@ export default function AdminCredits() {
           <button type="button" onClick={() => setTab('requests')} className={tabClass('requests')}>
             충전 요청{requests.filter(r => r.status === 'pending').length > 0 && ` (${requests.filter(r => r.status === 'pending').length})`}
           </button>
+          <button type="button" onClick={() => setTab('ai-usage')} className={tabClass('ai-usage')}>AI 사용량</button>
           <button type="button" onClick={() => setTab('feedback')} className={tabClass('feedback')}>피드백</button>
           <button type="button" onClick={() => setTab('errors')} className={tabClass('errors')}>오류 로그</button>
         </div>
 
         {tab === 'dashboard' && <AdminDashboard cred={cred} onAuthError={logout} />}
+
+        {tab === 'ai-usage' && <AdminAiUsage cred={cred} onAuthError={logout} />}
 
         {tab === 'errors' && <AdminErrorLogs cred={cred} onAuthError={logout} />}
 

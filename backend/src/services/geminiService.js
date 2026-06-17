@@ -432,24 +432,16 @@ function normalizeFallbackMoment(moment = {}, index = 0, title = '') {
     ? uniqueFallbackList(moment.keywords, 8)
     : deriveFallbackKeywords([moment.title, sourceText, title].filter(Boolean).join(' '), 8);
 
-  const hasSectionSlides = json.sectionSlides
-    && typeof json.sectionSlides === 'object'
-    && !Array.isArray(json.sectionSlides)
-    && Object.keys(json.sectionSlides).length > 0;
-  const jobSpecific = json.jobSpecific && typeof json.jobSpecific === 'object' && !Array.isArray(json.jobSpecific)
-    ? json.jobSpecific
-    : {};
-
   return {
-    title: compactFallbackText(moment.title, 120) || (title ? `${title} ${index + 1}` : `Key experience ${index + 1}`),
+    title: compactFallbackText(moment.title, 120) || (title ? `${title} ${index + 1}` : `핵심 경험 ${index + 1}`),
     metric,
-    metricLabel: compactFallbackText(moment.metricLabel, 80) || (metric ? 'Result' : ''),
+    metricLabel: compactFallbackText(moment.metricLabel, 80) || (metric ? '성과' : ''),
     beforeMetric: compactFallbackText(moment.beforeMetric, 80),
     afterMetric: compactFallbackText(moment.afterMetric, 80),
-    context: context || sourceText || 'Add the background and problem context.',
-    action: action || 'Add the concrete action and decision process.',
-    result: result || metric || 'Add the measurable result or output.',
-    learning: learning || 'Add the insight, trade-off, or next application.',
+    context: context || sourceText || '배경과 문제 상황을 보강해 주세요.',
+    action: action || '실행한 행동과 의사결정 과정을 보강해 주세요.',
+    result: result || metric || '측정 가능한 결과나 산출물을 보강해 주세요.',
+    learning: learning || '인사이트, trade-off, 다음 적용점을 보강해 주세요.',
     keywords,
     chartType: moment.chartType || 'horizontalBar',
   };
@@ -461,17 +453,17 @@ function buildFallbackMoments(rawText, title = '', count = 3) {
   const moments = chunks.map((chunk, index) => {
     const metrics = extractMetricsFromText(chunk);
     return normalizeFallbackMoment({
-      title: title ? `${title} ${index + 1}` : `Key experience ${index + 1}`,
+      title: title ? `${title} ${index + 1}` : `핵심 경험 ${index + 1}`,
       description: chunk,
       context: chunk,
       metric: metrics[0] || '',
-      metricLabel: metrics[0] ? 'Metric' : '',
+      metricLabel: metrics[0] ? '핵심 수치' : '',
       keywords: deriveFallbackKeywords(`${title} ${chunk}`, 6),
     }, index, title);
   });
 
   if (moments.length === 0) {
-    moments.push(normalizeFallbackMoment({ title: title || 'Key experience', context: rawText }, 0, title));
+    moments.push(normalizeFallbackMoment({ title: title || '핵심 경험', context: rawText }, 0, title));
   }
 
   return moments.slice(0, targetCount);
@@ -483,8 +475,8 @@ function fallbackSectionSlides(sections, keyExperiences) {
     headline: compactFallbackText(sections[key], 80) || key,
     subcopy: sections[key] || '',
     evidenceCards: keyExperiences.slice(0, 3).map((item, index) => ({
-      label: index === 0 ? 'Primary evidence' : `Evidence ${index + 1}`,
-      title: item.title || `Key experience ${index + 1}`,
+      label: index === 0 ? '핵심 근거' : `근거 ${index + 1}`,
+      title: item.title || `핵심 경험 ${index + 1}`,
       body: compactFallbackText(item.result || item.action || item.context, 240),
       metric: item.afterMetric || item.metric || '',
     })),
@@ -629,6 +621,14 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     sections[key] = mergeDraftText(json[key], fallback[key], key === 'intro' ? 900 : 800);
   });
 
+  const hasSectionSlides = json.sectionSlides
+    && typeof json.sectionSlides === 'object'
+    && !Array.isArray(json.sectionSlides)
+    && Object.keys(json.sectionSlides).length > 0;
+  const jobSpecific = json.jobSpecific && typeof json.jobSpecific === 'object' && !Array.isArray(json.jobSpecific)
+    ? json.jobSpecific
+    : {};
+
   return {
     _draft: true,
     _draftMode: 'ai',
@@ -677,18 +677,25 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
   ], 10);
 
   const join = (values, fallback) => {
-    const text = values.map(value => compactFallbackText(value, 700)).filter(Boolean).join('\n\n');
-    return text || fallback;
+    const seen = new Set();
+    const parts = [];
+    for (const value of values) {
+      const text = compactFallbackText(value, 700);
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      parts.push(text);
+    }
+    return parts.join('\n\n') || fallback;
   };
 
   const sections = {
-    intro: join([first.context, first.result], compactFallbackText(contentText, 800) || 'Draft generated from saved experience content.'),
-    overview: join(keyExperiences.map(item => item.context), 'Add background, goal, and scope.'),
-    task: join(keyExperiences.map(item => item.action), 'Add your role, ownership, and concrete task.'),
-    process: join(keyExperiences.map(item => item.action), 'Add decision process, alternatives, and trade-offs.'),
-    output: join(keyExperiences.map(item => item.result || item.metric || item.afterMetric), 'Add outputs and measurable results.'),
-    growth: join(keyExperiences.map(item => item.learning), 'Add learning, insight, and next application.'),
-    competency: join([keywords.join(', '), keyExperiences.map(item => item.title).join(', ')], 'Add competencies shown by this experience.'),
+    intro: join([first.context, first.result], compactFallbackText(contentText, 800) || '입력한 자료를 바탕으로 한 초안입니다. 핵심 성과를 한두 문장으로 보강해 주세요.'),
+    overview: join(keyExperiences.map(item => item.context), '프로젝트 배경, 목표, 범위를 보강해 주세요.'),
+    task: join(keyExperiences.map(item => item.action), '담당한 역할과 구체적인 과제를 보강해 주세요.'),
+    process: join(keyExperiences.map(item => item.action), '의사결정 과정과 대안, trade-off를 보강해 주세요.'),
+    output: join(keyExperiences.map(item => item.result || item.metric || item.afterMetric), '산출물과 측정 가능한 결과를 보강해 주세요.'),
+    growth: join(keyExperiences.map(item => item.learning), '배운 점과 인사이트, 다음 적용점을 보강해 주세요.'),
+    competency: join([keywords.join(', '), keyExperiences.map(item => item.title).join(', ')], '이 경험에서 드러난 역량을 보강해 주세요.'),
   };
 
   return {
@@ -697,7 +704,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     _fallbackVersion: 1,
     _fallbackReason: meta.reason || 'ai_unavailable',
     projectOverview: {
-      summary: compactFallbackText(first.context || contentText, 300) || 'Draft generated from saved content.',
+      summary: compactFallbackText(first.context || contentText, 300) || '입력한 자료를 바탕으로 한 초안입니다.',
       background: compactFallbackText(first.context, 500),
       goal: '',
       role: '',
@@ -712,7 +719,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
       decisionMetrics: [],
       sourceNotes: [],
       portfolioAngles: [],
-      limitations: 'AI enrichment was temporarily unavailable, so this draft keeps saved user content and reviewed key experiences.',
+      limitations: 'AI 보강이 일시적으로 어려워, 입력한 내용과 검토한 핵심 경험을 그대로 사용한 초안입니다.',
     },
     keyExperiences,
     ...sections,
@@ -722,9 +729,9 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: [
-      'What measurable result can be attached to this experience?',
-      'Which part was directly owned by you?',
-      'What trade-off or decision reason should be made explicit?',
+      '이 경험에 붙일 수 있는 측정 가능한 결과(수치)는 무엇인가요?',
+      '팀에서 본인이 직접 담당한 부분은 어디인가요?',
+      '어떤 대안이 있었고 왜 이 방법을 선택했나요?',
     ],
   };
 }

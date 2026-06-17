@@ -27,6 +27,7 @@ export default function ExperienceInterview() {
   const [jobCategory, setJobCategory] = useState('common');
   const [braindump, setBraindump] = useState('');
   const [files, setFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [sourceText, setSourceText] = useState('');
   const [questions, setQuestions] = useState([]);
@@ -65,15 +66,24 @@ export default function ExperienceInterview() {
   };
   const unansweredIdx = questions.map((_, i) => i).filter(i => !(answers[i] || '').trim());
 
-  const onFilesSelected = (e) => {
-    const picked = Array.from(e.target.files || []);
+  const addFiles = (picked) => {
     if (picked.length === 0) return;
     setFiles(prev => {
       const merged = [...prev, ...picked].slice(0, 10);
       if (prev.length + picked.length > 10) toast.error('파일은 최대 10개까지 첨부할 수 있어요');
       return merged;
     });
+  };
+  const onFilesSelected = (e) => {
+    addFiles(Array.from(e.target.files || []));
     e.target.value = '';
+  };
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer.files || []));
   };
   const removeFile = (idx) => setFiles(prev => prev.filter((_, i) => i !== idx));
 
@@ -265,24 +275,32 @@ export default function ExperienceInterview() {
             </select>
 
             <label className="block text-[13px] font-bold text-bluewood-700 mb-1.5">자료 파일 <span className="text-bluewood-300 font-medium">(선택 — 이력서·기획서·README 등)</span></label>
-            <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/50 px-4 py-4 mb-4">
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`rounded-xl border border-dashed px-4 py-4 mb-4 cursor-pointer transition-colors ${
+                isDragging ? 'border-primary-400 bg-primary-50' : 'border-surface-300 bg-surface-50/50 hover:bg-surface-50'
+              }`}
+            >
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,.md,.csv,image/*" onChange={onFilesSelected} className="hidden" />
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                   className="px-4 py-2 rounded-lg border border-surface-200 bg-white text-[13px] font-semibold text-bluewood-700 hover:bg-surface-50 transition-colors"
                 >
                   파일 선택
                 </button>
-                <span className="text-[12px] text-bluewood-400">PDF·문서·이미지 등 최대 10개</span>
+                <span className="text-[12px] text-bluewood-400">{isDragging ? '여기에 놓으세요' : '클릭하거나 끌어다 놓으세요 · PDF·문서·이미지 등 최대 10개'}</span>
               </div>
               {files.length > 0 && (
                 <ul className="mt-3 space-y-1.5">
                   {files.map((f, i) => (
                     <li key={i} className="flex items-center justify-between rounded-lg bg-white border border-surface-200 px-3 py-2 text-[13px] text-bluewood-700">
                       <span className="truncate pr-3">{f.name}</span>
-                      <button onClick={() => removeFile(i)} className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
+                      <button onClick={(e) => { e.stopPropagation(); removeFile(i); }} className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
                     </li>
                   ))}
                 </ul>
