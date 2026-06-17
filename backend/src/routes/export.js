@@ -2,11 +2,15 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireCredits, flushPendingCharges, getBillingStore, createDetachedBillingStore } from '../services/billingService.js';
-import { exportForNotion, exportForGitHub, exportForPDF, exportNotionPortfolio } from '../services/exportService.js';
+import { exportForNotion, exportForGitHub, exportForPDF, exportForResume, exportNotionPortfolio } from '../services/exportService.js';
 import { createNotionPortfolioPage, parseNotionPageId } from '../services/notionExportService.js';
 import { parsePptxLayout, extractDesignDna } from '../services/templateParser.js';
 import { mapDeck } from '../services/geminiMapper.js';
 import { renderDeckInPlace, isContentPhoto } from '../services/pptxRendererInPlace.js';
+import { renderPortfolioPdf } from '../services/portfolioPdfService.js';
+import { renderResumePdf } from '../services/resumePdfService.js';
+import { composePortfolioPptx } from '../services/pptComposeService.js';
+import { resolveComposition, refineProjectBullets } from '../services/pptComposeDirector.js';
 
 const router = Router();
 
@@ -117,6 +121,56 @@ router.post('/ppt', authMiddleware, requireCredits, pptUpload.single('template')
   }
 });
 
+// POST /api/export/ppt-compose - PPT 추출: 업로드 템플릿의 디자인(색·폰트·배경) +
+// 노션형 포트폴리오 핵심 내용 → 합격자 스타일로 새로 조립한 PPTX.
+// 인플레이스 슬롯 채움이 아니라 코드가 레이아웃을 소유 → 빈 박스·누락 없음. (AI 미사용·무과금)
+// multipart/form-data: template(file, .pptx), portfolio(string, JSON)
+router.post('/ppt-compose', authMiddleware, pptUpload.single('template'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'PPTX 템플릿 파일이 필요합니다' });
+    let portfolio;
+    try {
+      portfolio = JSON.parse(req.body.portfolio || '{}');
+    } catch {
+      return res.status(400).json({ success: false, message: 'portfolio 필드가 유효한 JSON이 아닙니다' });
+    }
+    if (!portfolio || typeof portfolio !== 'object') {
+      return res.status(400).json({ success: false, message: '포트폴리오 데이터가 필요합니다' });
+    }
+    // 구성 질문 답변 — choices(드롭다운) + requests(자유 입력 4칸)
+    let payload = {};
+    try { payload = JSON.parse(req.body.options || '{}'); } catch { /* 기본 구성 */ }
+    const choices = payload.choices || payload; // 구버전 호환(평면 옵션)
+    const requests = payload.requests || {};
+    const options = await resolveComposition({ portfolio, choices, requests });
+    // 본문을 단답형 핵심 불릿으로 재작성(AI, 실패/무키 시 문장 분리로 폴백)
+    const bullets = await refineProjectBullets({ portfolio });
+    const pptxBuf = await composePortfolioPptx(portfolio, req.file.buffer, { ...options, bullets });
+    res.json({ pptxBase64: pptxBuf.toString('base64') });
+  } catch (error) {
+    console.error('[POST /export/ppt-compose]', error);
+    next(error);
+  }
+});
+
+// POST /api/export/portfolio-pdf - 노션형 포트폴리오 → 합격자 스타일 PDF 문서
+// 템플릿 매핑 파이프라인과 완전히 독립된 경로: 자체 설계한 A4 문서 레이아웃에
+// 포트폴리오 전체 내용을 흐름대로 배치해 Puppeteer 로 렌더한다. (AI 미사용·무과금)
+// body: { portfolio: {...} }
+router.post('/portfolio-pdf', authMiddleware, async (req, res, next) => {
+  try {
+    const portfolio = req.body?.portfolio || req.body?.data;
+    if (!portfolio || typeof portfolio !== 'object') {
+      return res.status(400).json({ success: false, message: '포트폴리오 데이터가 필요합니다' });
+    }
+    const pdf = await renderPortfolioPdf(portfolio);
+    res.json({ pdfBase64: pdf.toString('base64') });
+  } catch (error) {
+    console.error('[POST /export/portfolio-pdf]', error);
+    next(error);
+  }
+});
+
 // POST /api/export/notion-page - Notion API로 실제 페이지 생성 (3컬럼 레이아웃)
 router.post('/notion-page', authMiddleware, async (req, res, next) => {
   try {
@@ -200,6 +254,35 @@ router.post('/pdf', authMiddleware, requireCredits, async (req, res, next) => {
     const result = await exportForPDF(data);
     res.json({ success: true, content: result, format: 'pdf-optimized' });
   } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/export/resume - 이력서 최적화 플레인 텍스트 내보내기
+router.post('/resume', authMiddleware, requireCredits, async (req, res, next) => {
+  try {
+    const { data } = req.body;
+    if (!data) {
+      return res.status(400).json({ success: false, message: '내보낼 데이터가 없습니다' });
+    }
+    const result = await exportForResume(data);
+    res.json({ success: true, content: result, format: 'resume-text' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/export/resume-pdf - 이력서 PDF 파일 내보내기 (HTML→Puppeteer, AI 미사용·무과금)
+router.post('/resume-pdf', authMiddleware, async (req, res, next) => {
+  try {
+    const data = req.body?.data || req.body?.portfolio;
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ success: false, message: '내보낼 데이터가 없습니다' });
+    }
+    const pdf = await renderResumePdf(data);
+    res.json({ pdfBase64: pdf.toString('base64') });
+  } catch (error) {
+    console.error('[POST /export/resume-pdf]', error);
     next(error);
   }
 });

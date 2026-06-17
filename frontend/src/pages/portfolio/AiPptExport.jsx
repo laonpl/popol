@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick } from 'lucide-react';
+import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick, FileDown, CheckCircle2 } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
 import { getComposedTemplate, SlidePreview, exportDeckToPptx, prepareDeckForExport, analyzeDeckQuality, COLOR_PALETTES, SLIDE_LAYOUTS } from './aiPptTemplates';
+import PptExtractModal from '../../components/PptExtractModal';
 
 const STAGE = { CHOOSE: 'choose', ANALYZING: 'analyzing', PREVIEW: 'preview' };
 const DEFAULT_LAYOUT_ID = SLIDE_LAYOUTS[0]?.id || 'narrative';
@@ -40,6 +41,41 @@ export default function AiPptExport() {
 
   const autoStartFiredRef = useRef(false);
   const [layoutId, setLayoutId] = useState(initLayout);
+  // 내보내기 형식: 가로형(PPT 슬라이드) | 세로형(PDF 문서)
+  const [exportFormat, setExportFormat] = useState('ppt');
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfDone, setPdfDone] = useState(false);
+  // 직접 템플릿 업로드하기 — 업로드 PPT 디자인 기반 자체 조립(PPT 추출) 모달
+  const [showPptExtractModal, setShowPptExtractModal] = useState(false);
+
+  // 세로형 PDF: 합격자 스타일 A4 문서로 즉시 생성·다운로드 (업로드·AI 불필요)
+  const handlePdfExport = async () => {
+    if (!portfolio || pdfExporting) return;
+    setPdfExporting(true);
+    setPdfDone(false);
+    try {
+      const { data } = await api.post('/export/portfolio-pdf', { portfolio }, { timeout: 120000 });
+      if (!data?.pdfBase64) throw new Error(data?.message || 'PDF 생성에 실패했습니다');
+      const binary = atob(data.pdfBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(portfolio?.userName || 'portfolio').replace(/\s+/g, '_')}_포트폴리오.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setPdfDone(true);
+      toast.success('PDF 다운로드를 시작합니다');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'PDF 생성에 실패했습니다';
+      toast.error(msg);
+    }
+    setPdfExporting(false);
+  };
 
   useEffect(() => {
     (async () => {
@@ -189,7 +225,17 @@ export default function AiPptExport() {
           onUpload={handleCustomUpload}
           onClearCustom={() => { setCustomFile(null); setCustomFileName(''); if (templateId === 'custom') setTemplateId('proposal'); }}
           onStart={startAnalyze}
+          exportFormat={exportFormat}
+          setExportFormat={setExportFormat}
+          onPdfExport={handlePdfExport}
+          pdfExporting={pdfExporting}
+          pdfDone={pdfDone}
+          onOpenPptExtract={() => setShowPptExtractModal(true)}
         />
+      )}
+
+      {showPptExtractModal && (
+        <PptExtractModal portfolio={portfolio} onClose={() => setShowPptExtractModal(false)} />
       )}
 
       {stage === STAGE.ANALYZING && (
@@ -360,8 +406,8 @@ function LayoutThumb({ layoutId, colors }) {
   return null;
 }
 
-// ── 템플릿 선택 화면 (2단계: 레이아웃 → 팔레트) ──────────────────────────
-function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart }) {
+// ── 템플릿 선택 화면 (형식 선택 → 레이아웃 → 팔레트) ─────────────────────
+function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart, exportFormat, setExportFormat, onPdfExport, pdfExporting, pdfDone, onOpenPptExtract }) {
   const [step, setStep] = useState('layout');
   const [hoveredPalette, setHoveredPalette] = useState(null);
   const selectedLayout = SLIDE_LAYOUTS.find(l => l.id === layoutId);
@@ -527,9 +573,82 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
     );
   }
 
-  // ── 레이아웃 선택 단계 ──────────────────────────────────────────────────
+  // ── 형식 선택(가로형 PPT / 세로형 PDF) + 레이아웃 선택 단계 ─────────────
   return (
     <div className="space-y-7">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-1">내보내기 형식을 선택하세요</h2>
+        <p className="text-sm text-gray-500">발표용 가로형 PPT 슬라이드, 또는 제출용 세로형 PDF 문서로 만들 수 있습니다.</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 max-w-[680px]">
+        <button
+          onClick={() => setExportFormat('ppt')}
+          className={`flex items-center gap-4 text-left rounded-2xl border-2 p-4 transition-all ${
+            exportFormat === 'ppt' ? 'border-primary-500 bg-primary-50/30' : 'border-surface-200 hover:border-surface-300 bg-white'
+          }`}
+        >
+          <div className={`w-14 h-9 rounded-md border-2 grid place-items-center flex-shrink-0 text-[9px] font-bold ${
+            exportFormat === 'ppt' ? 'border-primary-500 text-primary-600' : 'border-surface-300 text-gray-400'
+          }`}>16:9</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-800">가로형 · PPT 슬라이드</span>
+              {exportFormat === 'ppt' && <Check size={13} className="text-primary-600" />}
+            </div>
+            <p className="text-xs text-gray-500 leading-snug mt-0.5">발표용 슬라이드. 레이아웃·색상을 고르거나 내 PPT 템플릿을 업로드해 만듭니다.</p>
+          </div>
+        </button>
+        <button
+          onClick={() => setExportFormat('pdf')}
+          className={`flex items-center gap-4 text-left rounded-2xl border-2 p-4 transition-all ${
+            exportFormat === 'pdf' ? 'border-rose-500 bg-rose-50/30' : 'border-surface-200 hover:border-surface-300 bg-white'
+          }`}
+        >
+          <div className={`w-9 h-12 rounded-md border-2 grid place-items-center flex-shrink-0 text-[9px] font-bold ${
+            exportFormat === 'pdf' ? 'border-rose-500 text-rose-600' : 'border-surface-300 text-gray-400'
+          }`}>A4</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-800">세로형 · PDF 문서</span>
+              {exportFormat === 'pdf' && <Check size={13} className="text-rose-600" />}
+            </div>
+            <p className="text-xs text-gray-500 leading-snug mt-0.5">제출용 A4 문서. 포트폴리오 전체 내용을 합격자 스타일로 정리해 바로 다운로드합니다.</p>
+          </div>
+        </button>
+      </div>
+
+      {exportFormat === 'pdf' ? (
+        <div className="max-w-[680px] space-y-4">
+          <div className="rounded-2xl border border-surface-200 bg-surface-50 p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-2">세로형 PDF에 담기는 내용</p>
+            <ul className="text-[13px] text-gray-500 leading-relaxed list-disc pl-5 space-y-1">
+              <li>표지 — 이름 · 지원 목표 · 핵심 기술 · 연락처</li>
+              <li>소개 · 가치관 · 기술 역량</li>
+              <li>프로젝트별 문제 정의 → 역할 → 과정 → 성과(수치 강조) + 지표 카드</li>
+              <li>학력 · 수상 · 활동 · 목표와 계획</li>
+            </ul>
+            <p className="text-[11px] text-gray-400 mt-3">포트폴리오에 작성된 내용이 그대로 들어갑니다. 업로드나 추가 설정 없이 약 10초 안에 완성됩니다.</p>
+          </div>
+          {pdfDone && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-medium text-emerald-700">
+              <CheckCircle2 size={15} /> PDF 다운로드가 시작되었습니다. 다운로드 폴더를 확인하세요.
+            </div>
+          )}
+          <div className="flex justify-end">
+            <button
+              onClick={onPdfExport}
+              disabled={pdfExporting}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl font-semibold hover:bg-rose-700 disabled:opacity-50 transition-colors"
+            >
+              {pdfExporting
+                ? <><Loader2 size={16} className="animate-spin" /> PDF 생성 중…</>
+                : <><FileDown size={16} /> 세로형 PDF 만들기</>}
+            </button>
+          </div>
+        </div>
+      ) : (
+      <>
       <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-1">슬라이드 구성 방식을 선택하세요</h2>
         <p className="text-sm text-gray-500">6가지 레이아웃 중 하나를 고르면 AI가 그 구조에 맞게 내용을 생성합니다. 이후 색상 팔레트를 선택할 수 있습니다.</p>
@@ -577,7 +696,13 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
         ))}
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-3">
+        <button
+          onClick={onOpenPptExtract}
+          className="inline-flex items-center gap-2 px-5 py-3 bg-white border border-surface-300 text-gray-700 rounded-xl font-semibold hover:bg-surface-50 hover:border-surface-400 transition-colors"
+        >
+          <Upload size={16} /> 직접 템플릿 업로드하기
+        </button>
         <button
           onClick={() => setStep('palette')}
           disabled={!SLIDE_LAYOUTS.find(l => l.id === layoutId)?.available}
@@ -586,6 +711,8 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
           다음: 색상 팔레트 선택 <ChevronRight size={16} />
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }
