@@ -33,7 +33,7 @@ import { DividerUI } from '@yoopta/themes-shadcn/divider';
 import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
 import '@yoopta/themes-shadcn/variables.css';
-import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
+import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon, X } from 'lucide-react';
 import { insertYooptaBlocks, blocksToYooptaValue } from '../utils/projectSections';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
@@ -516,6 +516,15 @@ function CornerResizableImageElement(props) {
       onMouseDownCapture={event => {
         if (event.target.closest('button')) return;
         event.stopPropagation();
+        // 이미지 블록을 선택 상태로 만들어 Backspace/Delete 로도 삭제되게 한다
+        // (선택이 안 잡히면 키 삭제가 모델에 반영되지 않음).
+        const order = editor.getBlock({ id: blockId })?.meta?.order;
+        if (typeof order === 'number') {
+          try {
+            Selection.setSelected(editor, { at: [order], source: 'image-click' });
+            Selection.setCurrent(editor, { at: order, source: 'image-click' });
+          } catch { /* noop */ }
+        }
       }}
       onDragStart={event => {
         if (!element?.props?.src) {
@@ -560,6 +569,21 @@ function CornerResizableImageElement(props) {
       <ShadcnImageElement {...props} />
       {frame && (
         <div className="pointer-events-none absolute z-10" style={frame}>
+          {/* 이미지 삭제 — 모델에서 블록 제거 후 즉시 커밋(저장 반영 보장) */}
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              deleteYooptaBlockById(editor, blockId);
+              window.dispatchEvent(new CustomEvent('fitpoly:yoopta-editor-touched', { detail: { editorId: editorInstanceId } }));
+            }}
+            className="pointer-events-auto absolute right-1 top-1 rounded-full bg-black/55 p-1 text-white opacity-0 shadow transition-opacity group-hover/corner-image:opacity-100 hover:bg-black/80"
+            title="이미지 삭제"
+          >
+            <X size={12} />
+          </button>
           {[
             ['left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize', -1],
             ['right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize', 1],

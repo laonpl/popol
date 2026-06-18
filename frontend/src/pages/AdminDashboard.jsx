@@ -91,9 +91,19 @@ const tooltipStyle = {
   labelStyle: { fontWeight: 700, color: '#334155' },
 };
 
+const usageSortOptions = [
+  { key: 'cost', label: '총 비용' },
+  { key: 'calls', label: '호출 수' },
+  { key: 'avgTokens', label: '평균 토큰' },
+  { key: 'maxTokens', label: '최대 토큰' },
+  { key: 'avgCredits', label: '평균 크레딧' },
+  { key: 'users', label: '사용 유저' },
+];
+
 export default function AdminDashboard({ cred, onAuthError }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [usageSort, setUsageSort] = useState('users');
 
   const load = async () => {
     if (!cred) return;
@@ -124,6 +134,7 @@ export default function AdminDashboard({ cred, onAuthError }) {
   if (!data) return null;
 
   const g = data.goals;
+  const topUsers = data.credits?.topUsers || [];
 
   return (
     <div className="space-y-8">
@@ -363,6 +374,71 @@ export default function AdminDashboard({ cred, onAuthError }) {
         <p className="flex items-center gap-1.5 text-[11px] font-medium text-bluewood-300">
           <TrendingUp size={13} /> AI 원가·마진은 거래 usdCost 합계와 가정 환율·수수료로 산출한 러프 추정입니다.
         </p>
+        <div className="rounded-xl border border-surface-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-sm font-bold text-bluewood-500">정렬</span>
+            {usageSortOptions.map(option => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setUsageSort(option.key)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                  usageSort === option.key
+                    ? 'border-primary-600 bg-primary-600 text-white'
+                    : 'border-surface-200 bg-white text-bluewood-500 hover:border-primary-200 hover:text-primary-600'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {usageSort === 'users' ? (
+            <div className="mt-4 overflow-x-auto">
+              {topUsers.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-surface-300 bg-surface-50 px-4 py-8 text-center text-sm font-semibold text-bluewood-300">
+                  아직 AI 사용 유저 데이터가 없습니다.
+                </p>
+              ) : (
+                <table className="min-w-[980px] w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-surface-100 text-xs font-bold text-bluewood-400">
+                      <th className="py-2 pr-3">순위</th>
+                      <th className="px-3 py-2">사용자 이메일</th>
+                      <th className="px-3 py-2 text-right">사용 크레딧</th>
+                      <th className="px-3 py-2 text-right">남은 크레딧</th>
+                      <th className="px-3 py-2 text-right">누적 충전</th>
+                      <th className="px-3 py-2 text-right">호출 수</th>
+                      <th className="px-3 py-2 text-right">총 토큰</th>
+                      <th className="px-3 py-2 text-right">평균 토큰</th>
+                      <th className="px-3 py-2 text-right">AI 원가</th>
+                      <th className="py-2 pl-3">최근 사용</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-100">
+                    {topUsers.map(item => (
+                      <tr key={item.uid} className="text-bluewood-700">
+                        <td className="py-3 pr-3 text-xs font-extrabold text-primary-600 tabular-nums">#{item.rank}</td>
+                        <td className="max-w-[260px] truncate px-3 py-3 font-bold">{item.email}</td>
+                        <td className="px-3 py-3 text-right font-extrabold text-bluewood-900 tabular-nums">{fmt(item.creditsUsed)} C</td>
+                        <td className="px-3 py-3 text-right font-bold text-primary-600 tabular-nums">{fmt(item.balance)} C</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{fmt(item.totalCharged)} C</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{fmt(item.usageCount)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{fmt(item.totalTokens)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{fmt(item.avgTokens)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{won(item.aiCostKrw)}</td>
+                        <td className="py-3 pl-3 text-xs font-semibold text-bluewood-300">{formatDate(item.lastUsedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 rounded-lg border border-dashed border-surface-300 bg-surface-50 px-4 py-6 text-center text-sm font-semibold text-bluewood-300">
+              이 정렬 기준은 기존 AI 기능별 사용량 집계에 사용됩니다. 사용자별 랭킹은 "사용 유저"를 선택하세요.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

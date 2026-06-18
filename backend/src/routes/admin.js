@@ -144,6 +144,7 @@ router.post('/dashboard', async (req, res, next) => {
 
     // ── Firebase Auth 전수 조회 — 가입·접속 지표 + uid별 가입시각 맵 ──
     const createdAtByUid = new Map();
+    const emailByUid = new Map();
     const createdList = [];
     let totalUsers = 0, neverSignedIn = 0, returning = 0;
     let visitsToday = 0, active7 = 0, active30 = 0;
@@ -153,6 +154,7 @@ router.post('/dashboard', async (req, res, next) => {
       const page = await adminAuth.listUsers(1000, pageToken);
       for (const u of page.users) {
         totalUsers++;
+        emailByUid.set(u.uid, u.email || '');
         const createdMs = u.metadata?.creationTime ? new Date(u.metadata.creationTime).getTime() : null;
         const signInMs = u.metadata?.lastSignInTime ? new Date(u.metadata.lastSignInTime).getTime() : null;
         if (createdMs) {
@@ -258,19 +260,71 @@ router.post('/dashboard', async (req, res, next) => {
     const totalUsed = walletsSnap.docs.reduce((s, d) => s + Number(d.data().totalUsed || 0), 0);
     let todayUsed = 0, todayCharged = 0, totalUsdCost = 0, todayUsdCost = 0;
     const txSnaps = await Promise.all(walletsSnap.docs.map(d => d.ref.collection('transactions').get()));
-    for (const snap of txSnaps) {
+    const usageByUser = new Map();
+    for (const [index, snap] of txSnaps.entries()) {
+      const walletDoc = walletsSnap.docs[index];
+      const wallet = walletDoc.data();
+      const uid = wallet.userId || walletDoc.id;
+      const userUsage = usageByUser.get(uid) || {
+        uid,
+        email: emailByUid.get(uid) || '',
+        balance: Number(wallet.balance || 0),
+        totalCharged: Number(wallet.totalCharged || 0),
+        totalUsed: Number(wallet.totalUsed || 0),
+        usageCredits: 0,
+        usageCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        thinkingTokens: 0,
+        totalTokens: 0,
+        usdCost: 0,
+        lastUsedAt: null,
+      };
       for (const doc of snap.docs) {
         const t = doc.data();
         const amount = Number(t.amount || 0);
         const usd = Number(t.usdCost || 0);
         const ms = toMs(t.createdAt);
         totalUsdCost += usd;
+        if (t.type === 'usage' || amount < 0) {
+          userUsage.usageCredits += Math.abs(amount);
+          userUsage.usageCount++;
+          userUsage.inputTokens += Number(t.inputTokens || 0);
+          userUsage.outputTokens += Number(t.outputTokens || 0);
+          userUsage.thinkingTokens += Number(t.thinkingTokens || 0);
+          userUsage.totalTokens += Number(t.totalTokens || 0);
+          userUsage.usdCost += usd;
+          if (ms && (!userUsage.lastUsedAt || ms > userUsage.lastUsedAt)) userUsage.lastUsedAt = ms;
+        }
         if (ms && ms >= dayStartMs) {
           if (amount < 0) todayUsed += -amount; else todayCharged += amount;
           todayUsdCost += usd;
         }
       }
+      if (userUsage.usageCredits > 0 || userUsage.totalUsed > 0) {
+        usageByUser.set(uid, userUsage);
+      }
     }
+    const topUsageUsers = [...usageByUser.values()]
+      .sort((a, b) => (b.totalTokens - a.totalTokens) || (b.usageCredits - a.usageCredits))
+      .slice(0, 15)
+      .map((item, index) => ({
+        rank: index + 1,
+        uid: item.uid,
+        email: item.email || '(이메일 없음)',
+        creditsUsed: Math.round(item.usageCredits),
+        balance: Math.round(item.balance),
+        totalCharged: Math.round(item.totalCharged),
+        totalUsed: Math.round(item.totalUsed),
+        usageCount: item.usageCount,
+        totalTokens: Math.round(item.totalTokens),
+        inputTokens: Math.round(item.inputTokens),
+        outputTokens: Math.round(item.outputTokens + item.thinkingTokens),
+        avgTokens: item.usageCount ? Math.round(item.totalTokens / item.usageCount) : 0,
+        usdCost: round1(item.usdCost),
+        aiCostKrw: Math.round(item.usdCost * USD_TO_KRW),
+        lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : null,
+      }));
 
     // ── 결제 ──
     const orders = ordersSnap.docs.map(d => d.data());
@@ -407,6 +461,7 @@ router.post('/dashboard', async (req, res, next) => {
         balance, totalCharged, totalUsed,
         usageRate: pct(totalUsed, totalCharged),
         todayUsed, todayCharged,
+        topUsers: topUsageUsers,
       },
       portfolios: {
         total: portfolios.length,
