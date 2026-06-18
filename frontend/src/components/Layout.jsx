@@ -17,9 +17,11 @@ export default function Layout() {
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
+  const [creditPanelOpen, setCreditPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [rewardPromptDismissed, setRewardPromptDismissed] = useState(false);
   const settingsMenuRef = useRef(null);
+  const creditAreaRef = useRef(null);
 
   const handleSignOut = async () => {
     await signOut();
@@ -30,6 +32,8 @@ export default function Layout() {
   const displayName = profile?.nameKo || user?.displayName || '사용자';
   const creditBalance = Math.max(0, Number(wallet?.balance || 0));
   const formattedCredits = creditBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+  const totalCharged = Math.max(0, Number(wallet?.totalCharged || 0));
+  const totalUsed = Math.max(0, Number(wallet?.totalUsed || 0));
   // 크레딧을 다 쓰고 아직 피드백 보상을 못 받은 사용자에게만 유도 안내를 보여준다.
   const rewardEligible = creditBalance === 0 && !!wallet && !wallet.feedbackRewardGranted && !rewardPromptDismissed;
   const creditModalKey = user?.uid ? `fitpoly-credit-zero-modal:${user.uid}` : '';
@@ -76,6 +80,23 @@ export default function Layout() {
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [settingsOpen]);
+
+  useEffect(() => {
+    if (!creditPanelOpen) return undefined;
+    const closeOnOutside = (event) => {
+      if (creditAreaRef.current?.contains(event.target)) return;
+      setCreditPanelOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setCreditPanelOpen(false);
+    };
+    window.addEventListener('mousedown', closeOnOutside);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutside);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [creditPanelOpen]);
 
   const goSettings = (path) => {
     setSettingsOpen(false);
@@ -125,19 +146,48 @@ export default function Layout() {
 
           {/* 유저 */}
           <div className="ml-auto flex items-center gap-3">
-            <div className="relative">
+            <div className="relative" ref={creditAreaRef}>
               <button
                 type="button"
-                onClick={() => navigate('/app/settings/credits')}
+                onClick={() => setCreditPanelOpen(open => !open)}
                 className="flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:border-primary-200 hover:bg-primary-100"
-                title="크레딧 관리"
+                title="크레딧 현황"
+                aria-expanded={creditPanelOpen}
               >
                 <span className="text-primary-400">C</span>
                 <span className="tabular-nums">{formattedCredits}</span>
               </button>
 
+              {/* 크레딧 버튼 클릭 시: 잔여·사용 현황을 먼저 보여주고 관리 페이지로 유도 (불필요한 이탈 방지) */}
+              {creditPanelOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-surface-200 bg-white p-4 shadow-xl z-[60]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary-500">크레딧 현황</p>
+                  <p className="mt-1 flex items-end gap-1 text-bluewood-900">
+                    <span className="text-2xl font-extrabold tabular-nums">{formattedCredits}</span>
+                    <span className="mb-0.5 text-sm font-bold text-bluewood-300">C 남음</span>
+                  </p>
+                  <div className="mt-3 space-y-1.5 border-t border-surface-100 pt-3 text-[12.5px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-bluewood-400">누적 충전</span>
+                      <span className="font-bold tabular-nums text-bluewood-700">{totalCharged.toLocaleString('ko-KR')}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-bluewood-400">누적 사용</span>
+                      <span className="font-bold tabular-nums text-bluewood-700">{totalUsed.toLocaleString('ko-KR')}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setCreditPanelOpen(false); navigate('/app/settings/credits'); }}
+                    className="mt-3.5 w-full rounded-lg bg-primary-600 px-3 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-primary-700"
+                  >
+                    크레딧 관리로 이동
+                  </button>
+                </div>
+              )}
+
               {/* 크레딧 소진 시: 피드백 남기면 300 크레딧 유도 (보상 미수령자만) */}
-              {rewardEligible && (
+              {rewardEligible && !creditPanelOpen && (
                 <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-primary-100 bg-white p-3 shadow-xl z-[60]">
                   <button
                     type="button"

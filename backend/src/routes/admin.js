@@ -68,6 +68,10 @@ function kstDayStart() {
 
 const pct = (n, d) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
 const round1 = (n) => Math.round(Number(n || 0) * 10) / 10;
+const round4 = (n) => Math.round(Number(n || 0) * 10000) / 10000;
+
+// 크레딧 차감률 — 사용량 대비 크레딧 단가 조절 기준 (billingService와 동일 기본값)
+const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD || 2500);
 
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
@@ -472,6 +476,110 @@ router.post('/dashboard', async (req, res, next) => {
         deletedToday,
         churnRate: pct(deletions.length, totalUsers + deletions.length),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// AI 기능별 토큰 사용량 — operation(버튼)별 1회/평균 토큰·비용·크레딧 집계
+router.post('/ai-usage', async (req, res, next) => {
+  try {
+    if (!isAuthorized(req.body)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+
+    const walletsSnap = await adminDb.collection('creditWallets').get();
+    const txSnaps = await Promise.all(
+      walletsSnap.docs.map(d => d.ref.collection('transactions').get())
+    );
+
+    const groups = new Map();
+    let totalCalls = 0, totalTokens = 0, totalUsdCost = 0, totalCredits = 0;
+
+    for (const snap of txSnaps) {
+      for (const doc of snap.docs) {
+        const t = doc.data();
+        if (t.type !== 'usage') continue;
+
+        const op = t.operation || t.description || 'unknown';
+        if (!groups.has(op)) {
+          groups.set(op, {
+            operation: op,
+            label: t.description || op,
+            count: 0, withTokens: 0,
+            sumTokens: 0, sumInput: 0, sumOutput: 0, sumThinking: 0,
+            minTokens: Infinity, maxTokens: 0,
+            sumUsdCost: 0, sumCredits: 0,
+            estimatedCount: 0,
+            models: new Set(),
+            lastUsed: null,
+          });
+        }
+        const g = groups.get(op);
+        if (t.description && g.label === op) g.label = t.description;
+        g.count++;
+        totalCalls++;
+
+        const tt = Number(t.totalTokens || 0);
+        if (tt > 0) {
+          g.withTokens++;
+          g.sumTokens += tt;
+          g.sumInput += Number(t.inputTokens || 0);
+          g.sumOutput += Number(t.outputTokens || 0);
+          g.sumThinking += Number(t.thinkingTokens || 0);
+          g.minTokens = Math.min(g.minTokens, tt);
+          g.maxTokens = Math.max(g.maxTokens, tt);
+          totalTokens += tt;
+        }
+        if (t.estimatedUsage === true) g.estimatedCount++;
+
+        const usd = Number(t.usdCost || 0);
+        const credits = Math.abs(Number(t.amount || 0)) || Number(t.requestedCredits || 0);
+        g.sumUsdCost += usd;
+        g.sumCredits += credits;
+        totalUsdCost += usd;
+        totalCredits += credits;
+
+        (Array.isArray(t.models) ? t.models : []).forEach(m => m && g.models.add(m));
+        const ms = toMs(t.createdAt);
+        if (ms && (!g.lastUsed || ms > g.lastUsed)) g.lastUsed = ms;
+      }
+    }
+
+    const operations = [...groups.values()].map(g => ({
+      operation: g.operation,
+      label: g.label,
+      count: g.count,
+      tokenSamples: g.withTokens,
+      avgTokens: g.withTokens ? Math.round(g.sumTokens / g.withTokens) : 0,
+      avgInput: g.withTokens ? Math.round(g.sumInput / g.withTokens) : 0,
+      avgOutput: g.withTokens ? Math.round(g.sumOutput / g.withTokens) : 0,
+      avgThinking: g.withTokens ? Math.round(g.sumThinking / g.withTokens) : 0,
+      minTokens: g.withTokens ? g.minTokens : 0,
+      maxTokens: g.maxTokens,
+      totalTokens: g.sumTokens,
+      avgUsdCost: round4(g.sumUsdCost / g.count),
+      totalUsdCost: round4(g.sumUsdCost),
+      avgCredits: Math.round(g.sumCredits / g.count),
+      totalCredits: g.sumCredits,
+      estimatedCount: g.estimatedCount,
+      models: [...g.models],
+      lastUsed: g.lastUsed ? new Date(g.lastUsed).toISOString() : null,
+    })).sort((a, b) => b.totalUsdCost - a.totalUsdCost);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      summary: {
+        operationCount: operations.length,
+        totalCalls,
+        totalTokens,
+        totalUsdCost: round4(totalUsdCost),
+        totalCostKrw: Math.round(totalUsdCost * 1350),
+        totalCredits,
+        creditsPerUsd: CREDITS_PER_USD,
+      },
+      operations,
     });
   } catch (error) {
     next(error);
