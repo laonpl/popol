@@ -6532,7 +6532,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               >
                 {block.content ? (
                   <YooptaMiniEditor
-                    value={block.contentBlocks || createYooptaImageValue(block.content, block.title || 'image', undefined, `custom-image-${i}`)}
+                    value={(block.contentBlocks && findFirstYooptaImage(block.contentBlocks)) ? block.contentBlocks : createYooptaImageValue(block.content, block.title || 'image', undefined, `custom-image-${i}`)}
                     onChange={v => {
                       const blocks = [...(p.customBlocks || [])];
                       const image = findFirstYooptaImage(v);
