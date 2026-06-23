@@ -5,10 +5,24 @@ import { adminDb } from '../config/firebase.js';
 import { requireCredits } from '../services/billingService.js';
 import { validatePortfolioWithAI, matchSectionsToRequirements, generateThemedPortfolio } from '../services/geminiService.js';
 import { generateAiPptDeck, reviseAiPptSlide } from '../services/geminiPptFunctions.js';
+import { externalizeInlineImages } from '../services/inlineImageExtractor.js';
 
 const router = Router();
 
 const now = () => new Date();
+
+// Firestore 문서 한도(1,048,576 bytes)에 필드명 오버헤드 여유를 둔 안전선
+const MAX_DOC_BYTES = 1_000_000;
+function exceedsFirestoreLimit(obj, res) {
+  const bytes = Buffer.byteLength(JSON.stringify(obj));
+  if (bytes > MAX_DOC_BYTES) {
+    res.status(413).json({
+      error: `포트폴리오 용량이 너무 큽니다 (약 ${Math.round(bytes / 1024)}KB). 큰 이미지를 줄이거나 삭제한 뒤 다시 저장해 주세요.`,
+    });
+    return true;
+  }
+  return false;
+}
 
 function requirePortfolioOwner(data, uid, res) {
   if (!data) {
@@ -131,7 +145,9 @@ router.get('/list', authMiddleware, async (req, res, next) => {
 
 router.post('/', authMiddleware, async (req, res, next) => {
   try {
-    const payload = buildPortfolioPayload(req.body || {}, req.user.uid);
+    const cleanBody = await externalizeInlineImages(req.body || {});
+    const payload = buildPortfolioPayload(cleanBody, req.user.uid);
+    if (exceedsFirestoreLimit(payload, res)) return;
     const docRef = await adminDb.collection('portfolios').add(payload);
     res.status(201).json({ id: docRef.id, ...payload });
   } catch (error) {
@@ -498,9 +514,11 @@ router.patch('/:id', authMiddleware, async (req, res, next) => {
     const snap = await ref.get();
     const data = snap.exists ? snap.data() : null;
     if (!requirePortfolioOwner(data, req.user.uid, res)) return;
-    const update = { ...req.body, userId: req.user.uid, updatedAt: now() };
+    const cleanBody = await externalizeInlineImages(req.body || {});
+    const update = { ...cleanBody, userId: req.user.uid, updatedAt: now() };
     delete update.id;
     delete update.createdAt;
+    if (exceedsFirestoreLimit(update, res)) return;
     await ref.update(update);
     res.json({ id: req.params.id, ...data, ...update });
   } catch (error) {

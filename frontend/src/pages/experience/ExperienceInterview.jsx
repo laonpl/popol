@@ -24,6 +24,8 @@ export default function ExperienceInterview() {
 
   const [phase, setPhase] = useState('intro'); // intro | interview | review | building
   const [title, setTitle] = useState('');
+  const [startMonth, setStartMonth] = useState('');
+  const [endMonth, setEndMonth] = useState('');
   const [jobCategory, setJobCategory] = useState('common');
   const [braindump, setBraindump] = useState('');
   const [files, setFiles] = useState([]);
@@ -198,6 +200,8 @@ export default function ExperienceInterview() {
         title: title.trim(),
         framework: 'STRUCTURED',
         jobCategory: jobCategory || 'common',
+        // 기간을 입력했으면 타임라인이 읽는 형식(period)으로 저장. 비우면 '날짜 미입력'으로 하단 유도.
+        period: (startMonth && endMonth) ? `${startMonth}-01 ~ ${endMonth}-28` : undefined,
         content: { rawInput: finalText },
         // 보강(analyze) 시 핵심경험을 1개로 잠그지 않도록 reviewedMoments는 저장하지 않는다.
         // (인터뷰 답변은 content.rawInput에 모두 들어 있어 AI가 여러 핵심경험을 추출 가능)
@@ -260,6 +264,23 @@ export default function ExperienceInterview() {
               placeholder="예: 이미지 무단학습 방지 시스템 개발"
               className="w-full rounded-xl border border-surface-200 px-4 py-2.5 text-[14px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300 mb-4"
             />
+
+            <label className="block text-[13px] font-bold text-bluewood-700 mb-1.5">기간 <span className="text-bluewood-300 font-medium">(선택 — 비워두면 나중에 타임라인에서 추가할 수 있어요)</span></label>
+            <div className="flex items-center gap-2 mb-4">
+              <input
+                type="month"
+                value={startMonth}
+                onChange={e => setStartMonth(e.target.value)}
+                className="flex-1 rounded-xl border border-surface-200 px-4 py-2.5 text-[14px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
+              />
+              <span className="text-bluewood-300">~</span>
+              <input
+                type="month"
+                value={endMonth}
+                onChange={e => setEndMonth(e.target.value)}
+                className="flex-1 rounded-xl border border-surface-200 px-4 py-2.5 text-[14px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
+              />
+            </div>
 
             <label className="block text-[13px] font-bold text-bluewood-700 mb-1.5">직무</label>
             <select
