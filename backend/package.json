@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "nodemon --delay 500ms src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "postinstall": "puppeteer browsers install chrome"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",

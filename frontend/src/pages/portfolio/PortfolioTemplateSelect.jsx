@@ -114,6 +114,15 @@ const PORTFOLIO_TEMPLATES = [
     isNotion: true,
     previewBg: 'bg-[#191919]',
   },
+  {
+    id: 'visual-9',
+    name: '템플릿 11 (합격자형 프리미엄)',
+    description: '실제 합격 포트폴리오처럼 정돈된 단일 컬럼 레이아웃. 한 줄 소개·핵심 경력을 앞세우고, 인디고 포인트와 넉넉한 여백으로 신뢰감 있는 인상을 줍니다.',
+    tags: ['합격자형', '경력 중심', '프리미엄', '추천'],
+    category: 'common',
+    isNotion: true,
+    previewBg: 'bg-white',
+  },
 
 ];
 

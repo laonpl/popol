@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import { adminDb } from '../config/firebase.js';
 
 const billingStorage = new AsyncLocalStorage();
-const STARTER_CREDITS = Number(process.env.STARTER_CREDITS || 2000);
+// 가입 축하 크레딧: 신규 지갑 생성 시 1회 지급. (배포 env가 옛 값(2000)으로 덮어쓰지 않도록 1000 고정)
+const STARTER_CREDITS = 1000;
 const LEGACY_STARTER_CREDITS = Number(process.env.LEGACY_STARTER_CREDITS || 1500);
 // 크레딧 차감률: AI 원가 $1 = 2,500크레딧 (1크레딧 = $0.0004 ≈ 0.56원 원가)
 // 2026-06-11 10,000 → 2,500 조정: 기능당 체감가를 시장 수준(전체 경험 분석 ≈ 1,500원)으로 맞추되

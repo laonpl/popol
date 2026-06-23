@@ -3,7 +3,7 @@
 // 인적사항·학력·경력·기술·어학·자격/수상만 단일 컬럼으로 압축한 1~2페이지 이력서다.
 // 텍스트 내보내기(exportForResume)와 동일한 필드를 읽으며 AI 미사용·결정론.
 import { htmlToPdf } from './portfolioPdfService.js';
-import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
+import { sanitizeArtifactsDeep, stripFormulaArtifacts } from '../utils/sanitizeText.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]
@@ -20,14 +20,11 @@ const meta = (parts, sep = ' · ') => parts.filter(Boolean).map(esc).join(sep);
 
 function buildHeader(p) {
   const c = p.contact || {};
-  const rows = [
-    ['Email', c.email], ['Phone', c.phone], ['GitHub', c.github],
-    ['LinkedIn', c.linkedin], ['Website', c.website],
-  ].filter(([, v]) => v);
+  const items = [c.email, c.phone, c.github, c.linkedin, c.website].filter(Boolean);
   return `<header class="hd">
     <h1 class="name">${esc(p.userName || p.title || '이름')}${p.nameEn ? `<span class="name-en">${esc(p.nameEn)}</span>` : ''}</h1>
     ${p.headline ? `<p class="headline">${text(p.headline)}</p>` : ''}
-    ${rows.length ? `<ul class="contact">${rows.map(([k, v]) => `<li><span class="ck">${k}</span><span class="cv">${esc(v)}</span></li>`).join('')}</ul>` : ''}
+    ${items.length ? `<div class="contact">${items.map(v => `<span>${esc(v)}</span>`).join('<i>·</i>')}</div>` : ''}
   </header>`;
 }
 
@@ -42,40 +39,36 @@ function section(title, en, inner) {
 function buildEducation(p) {
   return nonEmpty(p.education)
     .filter(e => filled(e.school, e.name, e.major, e.degree, e.period, e.description, e.detail))
-    .map(e => {
-    const name = `${esc(e.school || e.name || '')}${e.nameEn ? ` <span class="it-sub">(${esc(e.nameEn)})</span>` : ''}`;
-    const sub = meta([e.major, e.degree], ' '); // "컴퓨터공학과 학사 재학"
-    const head = `<span class="it-title">${name}${sub ? ` <span class="it-edu-sub">${sub}</span>` : ''}</span>${e.period ? `<span class="it-sep">|</span><span class="it-period">${esc(e.period)}</span>` : ''}`;
-    return `<div class="item">
-      <div class="it-head">${head}</div>
-      ${(e.description || e.detail) ? `<div class="it-desc">${text(e.description || e.detail)}</div>` : ''}
-    </div>`;
-  }).join('');
+    .map(e => `<div class="item">
+    <div class="it-top">
+      <span class="it-title">${esc(e.school || e.name || '')}${e.nameEn ? ` <span class="it-sub">(${esc(e.nameEn)})</span>` : ''}</span>
+      ${e.period ? `<span class="it-period">${esc(e.period)}</span>` : ''}
+    </div>
+    ${meta([e.major, e.degree]) ? `<div class="it-meta">${meta([e.major, e.degree])}</div>` : ''}
+    ${(e.description || e.detail) ? `<div class="it-desc">${text(e.description || e.detail)}</div>` : ''}
+  </div>`).join('');
 }
 
 function buildExperiences(p) {
   return nonEmpty(p.experiences)
     .filter(e => filled(e.title, e.role, e.description, e.period, e.date, e.achievements))
     .map(e => {
-    const period = e.period || e.date;
     const ach = nonEmpty(e.achievements);
-    // "제목 | 기간 | 역할" 한 줄 헤더 + 핵심 성과 불릿. 성과가 없으면 설명을 불릿으로.
-    const bullets = ach.length ? ach : (e.description ? [e.description] : []);
-    const head = [
-      `<span class="it-title">${esc(e.title || '')}</span>`,
-      period ? `<span class="it-period">${esc(period)}</span>` : '',
-      e.role ? `<span class="it-role">${esc(e.role)}</span>` : '',
-    ].filter(Boolean).join('<span class="it-sep">|</span>');
     return `<div class="item">
-      <div class="it-head">${head}</div>
-      ${bullets.length ? `<ul class="bullets">${bullets.map(a => `<li>${text(a)}</li>`).join('')}</ul>` : ''}
+      <div class="it-top">
+        <span class="it-title">${esc(e.title || '')}</span>
+        ${(e.period || e.date) ? `<span class="it-period">${esc(e.period || e.date)}</span>` : ''}
+      </div>
+      ${e.role ? `<div class="it-meta">${esc(e.role)}</div>` : ''}
+      ${e.description ? `<div class="it-desc">${text(e.description)}</div>` : ''}
+      ${ach.length ? `<ul class="bullets">${ach.map(a => `<li>${text(a)}</li>`).join('')}</ul>` : ''}
     </div>`;
   }).join('');
 }
 
 function buildSkills(p) {
   const skills = p.skills || {};
-  const CAT = { languages: 'Languages', frameworks: 'Frameworks & Libraries', tools: 'Tools', others: 'Others' };
+  const CAT = { languages: '언어', frameworks: '프레임워크', tools: '도구', others: '기타' };
   const rows = Object.entries(skills)
     .map(([c, items]) => [CAT[c] || c, nonEmpty(items).map(skillName).filter(Boolean)])
     .filter(([, items]) => items.length);
@@ -110,12 +103,17 @@ export function buildResumeHtml(p) {
   const body = [
     buildHeader(p),
     section('학력', 'Education', buildEducation(p)),
-    section('경력 및 프로젝트', 'Experience', buildExperiences(p)),
+    section('경력 · 프로젝트', 'Experience', buildExperiences(p)),
     section('보유 기술', 'Skills', buildSkills(p)),
     section('어학', 'Language', buildLanguages(p)),
-    section('자격 및 수상', 'Certificates & Awards', buildAwards(p)),
+    section('자격 · 수상', 'Certificates & Awards', buildAwards(p)),
   ].join('');
 
+  return renderResumeDoc(body);
+}
+
+// 데이터 기반/텍스트 기반 양쪽이 같은 스타일을 쓰도록 문서 셸을 공유한다.
+function renderResumeDoc(body) {
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -139,10 +137,9 @@ export function buildResumeHtml(p) {
   .name { font-size: 26pt; font-weight: 800; color: var(--ink); line-height: 1.2; }
   .name-en { font-size: 12pt; font-weight: 600; color: var(--sub); margin-left: 10px; letter-spacing: 0.03em; }
   .headline { margin-top: 2.5mm; font-size: 11pt; font-weight: 600; color: var(--accent); }
-  .contact { margin-top: 3.5mm; list-style: none; display: flex; flex-direction: column; gap: 1mm; }
-  .contact li { font-size: 9.5pt; color: var(--body); display: flex; gap: 8px; }
-  .contact .ck { flex: 0 0 18mm; font-weight: 700; color: var(--ink); }
-  .contact .cv { color: var(--body); word-break: break-all; }
+  .contact { margin-top: 3.5mm; font-size: 9.5pt; color: var(--body); display: flex; flex-wrap: wrap; align-items: center; }
+  .contact i { margin: 0 8px; color: var(--line); font-style: normal; }
+  .contact-list { flex-direction: column; align-items: flex-start; gap: 1mm; }
 
   /* ── 섹션 ── */
   /* break-inside:avoid 를 섹션에 걸면 섹션이 통째로 다음 페이지로 밀려 공백이 생긴다.
@@ -158,17 +155,12 @@ export function buildResumeHtml(p) {
   /* ── 항목(학력·경력) ── */
   .item { padding: 2.8mm 0; break-inside: avoid; }
   .item + .item { border-top: 1px dashed var(--line); }
+  .it-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .it-title { font-size: 11pt; font-weight: 700; color: var(--ink); }
   .it-sub { font-weight: 500; color: var(--sub); font-size: 9pt; }
   .it-period { flex: 0 0 auto; font-size: 9pt; font-weight: 600; color: var(--sub); }
+  .it-meta { font-size: 9.5pt; font-weight: 600; color: var(--accent); margin-top: 0.8mm; }
   .it-desc { font-size: 9.8pt; color: var(--body); margin-top: 1.5mm; }
-  /* 경력·프로젝트: "제목 | 기간 | 역할" 한 줄 헤더 */
-  .it-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-  .it-head .it-title { font-size: 11pt; font-weight: 700; color: var(--ink); }
-  .it-head .it-period { flex: 0 0 auto; font-size: 9.5pt; font-weight: 600; color: var(--sub); }
-  .it-head .it-role { font-size: 9.5pt; font-weight: 600; color: var(--accent); }
-  .it-edu-sub { font-size: 9.8pt; font-weight: 500; color: var(--body); }
-  .it-sep { color: var(--line); font-size: 9pt; }
   .bullets { margin: 1.8mm 0 0; padding: 0; list-style: none; }
   .bullets li { position: relative; padding-left: 11px; font-size: 9.8pt; color: var(--body); margin-top: 1mm; }
   .bullets li::before { content: ''; position: absolute; left: 0; top: 6.5px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
@@ -193,6 +185,91 @@ ${body}
 </html>`;
 }
 
+// 사용자가 직접 붙여넣은 이력서 텍스트를 같은 PDF 스타일로 렌더한다.
+// 구조 인식: 첫 줄=이름, 구분선(──) 다음 줄=섹션 제목, "• / -"=불릿,
+// "제목 | 기간 | 역할"=항목 헤더, 그 외=문단.
+const isDividerLine = (l) => {
+  const t = l.trim();
+  return t.length >= 3 && /^[─—–\-=_~·∙•\s]+$/.test(t) && /[─—–\-=_]/.test(t) && !/[가-힣A-Za-z0-9]/.test(t);
+};
+const isBulletLine = (l) => /^\s*[•·‣◦\-*]\s+/.test(l);
+const stripBullet = (l) => l.replace(/^\s*[•·‣◦\-*]\s+/, '').trim();
+
+function renderTextBullets(buf) {
+  return buf.length ? `<ul class="bullets">${buf.map(b => `<li>${text(b)}</li>`).join('')}</ul>` : '';
+}
+
+function renderTextSection(lines) {
+  const out = [];
+  let item = null;       // 현재 항목(헤더 + 본문)
+  let bulletBuf = [];
+  const target = () => (item ? item.parts : out);
+  const flushBullets = () => { if (bulletBuf.length) { target().push(renderTextBullets(bulletBuf)); bulletBuf = []; } };
+  const closeItem = () => {
+    flushBullets();
+    if (item) { out.push(`<div class="item">${item.head}${item.parts.join('')}</div>`); item = null; }
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeItem(); continue; }              // 빈 줄 = 항목 경계
+    if (isBulletLine(line)) { bulletBuf.push(stripBullet(line)); continue; }
+    flushBullets();
+    if (line.includes('|')) {                          // "제목 | 기간 | 역할" 헤더
+      closeItem();
+      const parts = line.split('|').map(s => s.trim()).filter(Boolean);
+      const title = parts.shift() || '';
+      const metaStr = parts.join(' · ');
+      item = { head: `<div class="it-top"><span class="it-title">${esc(title)}</span>${metaStr ? `<span class="it-period">${esc(metaStr)}</span>` : ''}</div>`, parts: [] };
+    } else {                                           // 문단
+      target().push(`<p class="it-desc">${text(line)}</p>`);
+    }
+  }
+  closeItem();
+  return out.join('');
+}
+
+export function buildResumeHtmlFromText(raw) {
+  const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i++;
+  const name = (i < lines.length && !isDividerLine(lines[i])) ? lines[i].trim() : '';
+  if (name) i++;
+
+  // 첫 구분선 전까지 = 헤더(연락처 등)
+  const headerLines = [];
+  while (i < lines.length && !isDividerLine(lines[i])) {
+    const t = lines[i].trim();
+    if (t) headerLines.push(isBulletLine(t) ? stripBullet(t) : t);
+    i++;
+  }
+
+  // 구분선 기준 섹션 분할 (구분선 다음 첫 비어있지 않은 줄 = 섹션 제목)
+  const sections = [];
+  let cur = null;
+  for (; i < lines.length; i++) {
+    if (isDividerLine(lines[i])) { if (cur) sections.push(cur); cur = null; continue; }
+    if (!cur) { const t = lines[i].trim(); if (t) cur = { title: t, lines: [] }; continue; }
+    cur.lines.push(lines[i]);
+  }
+  if (cur) sections.push(cur);
+
+  const header = `<header class="hd">
+    ${name ? `<h1 class="name">${esc(name)}</h1>` : ''}
+    ${headerLines.length ? `<div class="contact contact-list">${headerLines.map(h => `<span>${esc(h)}</span>`).join('')}</div>` : ''}
+  </header>`;
+
+  const sectionsHtml = sections.map(s => {
+    const body = renderTextSection(s.lines);
+    return body.trim() ? `<section class="sec"><div class="sec-h"><h2>${esc(s.title)}</h2></div>${body}</section>` : '';
+  }).join('');
+
+  return renderResumeDoc(header + sectionsHtml);
+}
+
 export async function renderResumePdf(data) {
   return htmlToPdf(buildResumeHtml(sanitizeArtifactsDeep(data)));
+}
+
+export async function renderResumePdfFromText(rawText) {
+  return htmlToPdf(buildResumeHtmlFromText(stripFormulaArtifacts(String(rawText || ''))));
 }

@@ -9,6 +9,8 @@ export default function ResumeExportModal({ portfolio, onClose }) {
   const [fileType, setFileType] = useState('pdf');
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
+  // 사용자가 직접 붙여넣은 이력서 텍스트 — 있으면 포트폴리오 대신 이 텍스트로 추출
+  const [customText, setCustomText] = useState('');
 
   // 이력서에 필요한 필드만 추려 보낸다.
   //  - 포트폴리오 원본을 통째로 보내면 profileImageUrl(base64)·customBlocks 등
@@ -25,24 +27,15 @@ export default function ResumeExportModal({ portfolio, onClose }) {
     experiences: (portfolio?.experiences || []).map(e => {
       const sr = e.structuredResult || {};
       const ov = sr.projectOverview || {};
-      // 핵심 성과 불릿: 명시 achievements → keyExperiences → output/growth 순으로 채운다.
-      const keyBullets = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
-        .map(k => {
-          if (typeof k === 'string') return k;
-          if (k && typeof k === 'object') return [k.title || k.headline || k.label, k.metric].filter(Boolean).join(' — ');
-          return '';
-        })
-        .filter(Boolean);
-      const achievements = (e.achievements && e.achievements.length)
-        ? e.achievements
-        : (keyBullets.length ? keyBullets : [sr.output, sr.growth].filter(Boolean));
       return {
         title: e.title,
         date: e.date || e.period || ov.duration,
         period: e.period || e.date || ov.duration,
         role: e.role || ov.role,
         description: e.description || sr.intro || ov.summary || '',
-        achievements,
+        achievements: (e.achievements && e.achievements.length)
+          ? e.achievements
+          : [sr.output, sr.growth].filter(Boolean),
       };
     }),
     awards: portfolio?.awards || [],
@@ -52,12 +45,17 @@ export default function ResumeExportModal({ portfolio, onClose }) {
 
   const handleExport = async () => {
     const isPdf = fileType === 'pdf';
+    const pasted = customText.trim();
     setExporting(true);
     try {
-      const payload = { data: buildResumeData() };
       let blob;
-      if (isPdf) {
-        const { data: resData } = await api.post('/export/resume-pdf', payload, { timeout: 120000 });
+      if (pasted && !isPdf) {
+        // 붙여넣은 텍스트를 그대로 .txt 로 저장
+        blob = new Blob([customText], { type: 'text/plain;charset=utf-8' });
+      } else if (isPdf) {
+        // 붙여넣은 텍스트가 있으면 그 텍스트를, 없으면 포트폴리오 데이터를 같은 PDF 스타일로 렌더
+        const body = pasted ? { rawText: customText } : { data: buildResumeData() };
+        const { data: resData } = await api.post('/export/resume-pdf', body, { timeout: 120000 });
         const base64 = resData?.pdfBase64;
         if (!base64) throw new Error(resData?.message || '이력서 PDF 생성에 실패했습니다');
         const binary = atob(base64);
@@ -65,7 +63,7 @@ export default function ResumeExportModal({ portfolio, onClose }) {
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         blob = new Blob([bytes], { type: 'application/pdf' });
       } else {
-        const { data: resData } = await api.post('/export/resume', payload, { timeout: 120000 });
+        const { data: resData } = await api.post('/export/resume', { data: buildResumeData() }, { timeout: 120000 });
         const content = resData?.content;
         if (!content) throw new Error(resData?.message || '이력서 생성에 실패했습니다');
         blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -123,24 +121,48 @@ export default function ResumeExportModal({ portfolio, onClose }) {
               <p className="text-[15px] font-medium text-gray-700">이력서를 만드는 중…</p>
             </div>
           ) : (
-            <div>
-              <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">파일 형식</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[['pdf', 'PDF 파일', 'A4 이력서 문서'], ['txt', '텍스트', '.txt 파일']].map(([val, label, sub]) => {
-                  const on = fileType === val;
-                  return (
-                    <button
-                      key={val}
-                      onClick={() => setFileType(val)}
-                      className={`px-4 py-3 rounded-xl border text-left transition-all ${
-                        on ? 'border-emerald-500 bg-emerald-50/60' : 'border-gray-200 hover:bg-gray-50/60'
-                      }`}
-                    >
-                      <p className={`text-[14px] font-semibold ${on ? 'text-emerald-700' : 'text-gray-800'}`}>{label}</p>
-                      <p className="text-[11.5px] text-gray-400 mt-0.5">{sub}</p>
-                    </button>
-                  );
-                })}
+            <div className="space-y-4">
+              <div>
+                <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-3">파일 형식</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[['pdf', 'PDF 파일', 'A4 이력서 문서'], ['txt', '텍스트', '.txt 파일']].map(([val, label, sub]) => {
+                    const on = fileType === val;
+                    return (
+                      <button
+                        key={val}
+                        onClick={() => setFileType(val)}
+                        className={`px-4 py-3 rounded-xl border text-left transition-all ${
+                          on ? 'border-emerald-500 bg-emerald-50/60' : 'border-gray-200 hover:bg-gray-50/60'
+                        }`}
+                      >
+                        <p className={`text-[14px] font-semibold ${on ? 'text-emerald-700' : 'text-gray-800'}`}>{label}</p>
+                        <p className="text-[11.5px] text-gray-400 mt-0.5">{sub}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-dashed border-gray-200" />
+
+              <div>
+                <p className="text-[14px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  직접 텍스트 붙여넣기 <span className="normal-case font-normal text-gray-400">(선택)</span>
+                </p>
+                <p className="text-[12px] text-gray-400 leading-snug mb-2">
+                  내용을 붙여넣으면 포트폴리오 대신 이 텍스트로 이력서를 만듭니다. 구분선(──)으로 섹션을 나누고,
+                  줄 앞에 • 또는 - 로 항목을 적으면 PDF에서 깔끔하게 정리됩니다.
+                </p>
+                <textarea
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  rows={7}
+                  placeholder={'김유신\n- Email: name@example.com\n──────────\n경력 및 프로젝트\n프로젝트명 | 2025.11 ~ 2026.03 | 기획, 개발 담당\n• 핵심 성과 한 줄\n• 또 다른 성과'}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300 outline-none text-[13px] text-gray-700 placeholder:text-gray-300 resize-y leading-relaxed"
+                />
+                {customText.trim() && (
+                  <p className="text-[11.5px] text-emerald-600 mt-1.5">붙여넣은 텍스트로 내보냅니다 (포트폴리오 데이터는 사용하지 않음)</p>
+                )}
               </div>
             </div>
           )}

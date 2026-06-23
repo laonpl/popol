@@ -16,6 +16,7 @@ import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 import ResumeExportModal from '../../components/ResumeExportModal';
+import { uploadImageUrl } from '../../services/uploadImage';
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
 
@@ -959,11 +960,11 @@ export default function NotionPortfolioPreview() {
             )}
           </section>
 
-          {/* 자유 블록 — 편집기에서 지정한 order 위치에 끼워넣어 표시 */}
+          {/* 자유 블록 — 항상 고정 섹션 뒤(맨 아래)에 배열 순서대로 표시 */}
           {(p.customBlocks || []).map((block, i) => (
             hasCustomBlockContent(block) ? (
-              <section key={`cb-${i}`} className="mb-10" style={{ order: typeof block.order === 'number' ? block.order : 5 + i }}>
-                <CustomPortfolioBlocks blocks={[block]} variant="notion-bare" />
+              <section key={`cb-${i}`} className="mb-10" style={{ order: 1000 + i }}>
+                <CustomPortfolioBlocks blocks={[block]} variant="notion-bare" onOpenCard={(card) => openExperienceDetail(card)} />
               </section>
             ) : null
           ))}
@@ -1242,7 +1243,7 @@ function renderCustomBlockSegments(block, textClassName) {
   });
 }
 
-function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
+function CustomPortfolioBlocks({ blocks, variant = 'notion', onOpenCard }) {
   const visibleBlocks = (blocks || []).filter(hasCustomBlockContent);
   if (visibleBlocks.length === 0) return null;
 
@@ -1295,6 +1296,10 @@ function CustomPortfolioBlocks({ blocks, variant = 'notion' }) {
                     <a key={cardIndex} href={card.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-surface-100 p-4 transition hover:shadow-md">
                       {body}
                     </a>
+                  ) : onOpenCard ? (
+                    <button key={cardIndex} type="button" onClick={() => onOpenCard(card)} className="block w-full text-left rounded-xl border border-surface-100 p-4 transition hover:shadow-md cursor-pointer">
+                      {body}
+                    </button>
                   ) : (
                     <div key={cardIndex} className="rounded-xl border border-surface-100 p-4">{body}</div>
                   );
@@ -1635,7 +1640,7 @@ function AcademicLayout({ p, setSelectedExp }) {
 
         </div>
 
-        <CustomPortfolioBlocks blocks={p.customBlocks} variant="academic" />
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="academic" onOpenCard={setSelectedExp} />
 
         {/* Footer */}
         <div className="px-10 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">
@@ -1833,7 +1838,7 @@ function AshleyLayout({ p, setSelectedExp }) {
           </div>
         )}
 
-        <CustomPortfolioBlocks blocks={p.customBlocks} variant="ashley" />
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="ashley" onOpenCard={setSelectedExp} />
 
         {/* Footer */}
         <div className="px-10 py-5 border-t border-[#e8e4dc] flex items-center justify-between text-xs text-[#8a8578]">
@@ -1845,25 +1850,9 @@ function AshleyLayout({ p, setSelectedExp }) {
   );
 }
 
+// 이미지 리사이즈 후 Storage 업로드 → URL 반환. (base64를 문서에 저장하면 Firestore 1MB 한도 초과)
 function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new window.Image();
-      img.onload = () => {
-        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = ev.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return uploadImageUrl(file, maxPx, quality);
 }
 
 // ── Experience Detail Modal (Notion Page Style) ──
@@ -2071,7 +2060,7 @@ function TimelineLayout({ p, setSelectedExp }) {
           </div>
         )}
 
-        <CustomPortfolioBlocks blocks={p.customBlocks} variant="timeline" />
+        <CustomPortfolioBlocks blocks={p.customBlocks} variant="timeline" onOpenCard={setSelectedExp} />
 
         {/* Footer */}
         <div className="px-8 py-4 bg-surface-50 flex items-center justify-between text-xs text-gray-400 rounded-b-2xl">

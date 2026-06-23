@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, Download, Plus, Trash2, Loader2,
@@ -17,6 +17,7 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
 import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import api from '../../services/api';
+import { uploadImageUrl } from '../../services/uploadImage';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, EditText, VHtml } from './VisualPortfolioTemplates';
@@ -1147,12 +1148,8 @@ export default function NotionPortfolioEditor() {
 
   // Array helpers
   const addToArray = (field, item) => {
-    commitPortfolio(prev => ({
-      ...prev,
-      [field]: field === 'customBlocks'
-        ? [item, ...(prev[field] || [])]
-        : [...(prev[field] || []), item]
-    }));
+    // 커스텀 블록도 맨 끝에 추가(맨 아래) — 예전엔 prepend 라 위/중간에 들어갔다.
+    commitPortfolio(prev => ({ ...prev, [field]: [...(prev[field] || []), item] }));
   };
   const removeFromArray = (field, index) => {
     commitPortfolio(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
@@ -1317,17 +1314,19 @@ export default function NotionPortfolioEditor() {
     checkPortfolioRequirements(portfolio);
   };
 
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-  const flushEmbeddedEditors = async () => {
-    window.dispatchEvent(new CustomEvent('fitpoly:flush-yoopta-editors'));
-    await sleep(40);
+  // 임베디드 에디터(YooptaMiniEditor 등)의 보류 중 변경을 동기로 커밋한다.
+  // setTimeout 대기만으로는 React 18 동시성 렌더에서 커밋 전 스냅샷을 읽어
+  // 저장 직전 변경(예: 본문/커스텀 이미지 삭제)이 누락될 수 있어 flushSync 를 쓴다.
+  const flushEmbeddedEditors = () => {
+    flushSync(() => {
+      window.dispatchEvent(new CustomEvent('fitpoly:flush-yoopta-editors'));
+    });
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await flushEmbeddedEditors();
+      flushEmbeddedEditors();
       const snapshot = portfolioRef.current || portfolio;
       const { id: _id, ...data } = snapshot;
       await updatePortfolio(id, data);
@@ -2347,23 +2346,10 @@ function VisualEditor(props) {
   );
 }
 
-/* ── 공통 유틸: 이미지 base64 변환 ── */
+/* ── 공통 유틸: 이미지 리사이즈 후 Storage 업로드 → URL 반환 ──
+   (예전엔 base64 data URL을 문서에 저장해 Firestore 1MB 한도를 넘겨 저장이 실패했다.) */
 function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new window.Image();
-      img.onload = () => {
-        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width * scale; canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject; img.src = ev.target.result;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
+  return uploadImageUrl(file, maxPx, quality);
 }
 
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
@@ -2697,18 +2683,10 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
   const hideSection = (key) => update('hiddenSections', [...hiddenSections, key]);
   const showSection = (key) => update('hiddenSections', hiddenSections.filter(s => s !== key));
   const addSectionPackage = (sectionKey) => {
+    // 섹션 패키지는 편집 가능한 블록을 맨 아래에 추가만 한다.
+    // 네이티브 섹션 un-hide는 그 섹션이 원래(중간) 위치에 다시 나타나는 원인이라 제거.
     const startOrder = (p.customBlocks || []).length;
     update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
-    update('sections', [...new Set([...(p.sections || []), sectionKey])]);
-    showSection(sectionKey);
-    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
-    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
-    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
-    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
-    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
-    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
-    if (sectionKey === 'interests' && !(p.interests || []).length) update('interests', ['']);
-    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
     setShowCustomBlockMenu(false);
   };
 
@@ -2801,22 +2779,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     },
   });
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject; img.src = ev.target.result;
-      };
-      reader.onerror = reject; reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   return (
     <div className="flex gap-4 items-start">
@@ -3568,36 +3531,14 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
   );
 
   const addSectionPackage = (sectionKey) => {
+    // 섹션 패키지는 편집 가능한 블록을 맨 아래에 추가만 한다.
+    // 네이티브 섹션 un-hide는 그 섹션이 원래(중간) 위치에 다시 나타나는 원인이라 제거.
     const startOrder = (p.customBlocks || []).length;
     update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
-    update('sections', [...new Set([...sections, sectionKey])]);
-    update('hiddenSections', hiddenSections.filter(key => key !== sectionKey));
-    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
-    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
-    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
-    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
-    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
-    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
-    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
     setShowBlockMenu(false);
   };
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject; img.src = ev.target.result;
-      };
-      reader.onerror = reject; reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const academicSectionOrderManager = makeSectionOrderManager('academic', p.sectionOrder, update);
   const getAcademicSectionOrder = academicSectionOrderManager.getOrder;
@@ -4389,25 +4330,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const [showAddExpMenu, setShowAddExpMenu] = useState(false);
   const [activeSemester, setActiveSemester] = useState(null);
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const timelineSectionOrderManager = makeSectionOrderManager('timeline', p.sectionOrder, update);
   const getTimelineSectionOrder = timelineSectionOrderManager.getOrder;
@@ -5484,25 +5407,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(false);
   };
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -5591,14 +5496,10 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       e.stopPropagation();
       const from = parseInt(e.dataTransfer.getData('application/x-fitpoly-custom-block') || e.dataTransfer.getData('blockIdx'), 10);
       if (!isNaN(from) && from !== index) {
-        // 화면은 CSS order로 정렬되므로 드롭한 블록의 order를 대상 위치로 옮긴다
-        const band = buildBand();
-        const tPos = band.findIndex(it => it.kind === 'block' && it.idx === index);
-        const targetOrder = getCustomBlockOrder(index);
-        const above = tPos > 0 ? band[tPos - 1] : null;
-        const newOrder = above ? (above.order + targetOrder) / 2 : targetOrder - 1;
+        // 렌더가 배열 순서 기반이므로 드롭한 블록을 대상 위치로 배열 이동
         const blocks = [...(p.customBlocks || [])];
-        blocks[from] = { ...blocks[from], order: newOrder };
+        const [moved] = blocks.splice(from, 1);
+        blocks.splice(index, 0, moved);
         update('customBlocks', blocks);
       }
       setBlockDragging(null);
@@ -5678,77 +5579,23 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     moveContentBlock(sectionKey, blockKey, ordered[target], defaultOrder);
   };
 
-  // ── 자유 블록을 고정 섹션 사이에 끼워넣기 위한 순서(order) 관리 ──
-  // 재정렬 가능한 섹션은 order 0..N, 자유 블록은 숫자 order를 받아 그 사이에 위치.
-  const reorderableBandKeys = ['curricular', 'extracurricular', 'skills', 'goals', 'values'];
-  const getCustomBlockOrder = (idx) => {
-    const block = (p.customBlocks || [])[idx];
-    return typeof block?.order === 'number' ? block.order : reorderableBandKeys.length + idx;
-  };
-  // 밴드(재정렬 섹션 + 자유 블록)를 화면 순서대로 정렬한 목록
-  const buildBand = () => {
-    const items = [];
-    reorderableBandKeys.forEach(key => {
-      if (hiddenSections.includes(key) || !sections.includes(key)) return;
-      items.push({ kind: 'section', key, order: getSectionOrder(key) });
-    });
-    (p.customBlocks || []).forEach((_, idx) => items.push({ kind: 'block', idx, order: getCustomBlockOrder(idx) }));
-    return items.sort((a, b) => a.order - b.order);
-  };
-  // 자유 블록을 위(-1)/아래(+1)로 한 칸 이동 — 섹션 order는 건드리지 않고 블록 order만 중간값으로 조정
+  // 커스텀 블록은 항상 모든 밴드 섹션(order ≤ 섹션 수)보다 뒤(맨 아래)에, 배열 순서대로 렌더한다.
+  // (예전엔 저장된 order 값으로 섹션 사이에 끼워넣어 "중간에 추가"되는 문제가 있었다.)
+  const CUSTOM_BLOCK_ORDER_BASE = 1000;
+  const getCustomBlockOrder = (idx) => CUSTOM_BLOCK_ORDER_BASE + idx;
+  // 자유 블록을 위(-1)/아래(+1)로 한 칸 이동 — 배열 순서를 바꾼다(렌더가 배열 순서 기반).
   const moveCustomBlock = (idx, dir) => {
-    const band = buildBand();
-    const pos = band.findIndex(it => it.kind === 'block' && it.idx === idx);
-    if (pos < 0) return;
-    let newOrder;
-    if (dir < 0) {
-      if (pos === 0) return;
-      const above = band[pos - 1];
-      const aboveAbove = band[pos - 2];
-      newOrder = aboveAbove ? (aboveAbove.order + above.order) / 2 : above.order - 1;
-    } else {
-      if (pos === band.length - 1) return;
-      const below = band[pos + 1];
-      const belowBelow = band[pos + 2];
-      newOrder = belowBelow ? (below.order + belowBelow.order) / 2 : below.order + 1;
-    }
     const blocks = [...(p.customBlocks || [])];
-    blocks[idx] = { ...blocks[idx], order: newOrder };
+    const target = idx + dir;
+    if (target < 0 || target >= blocks.length) return;
+    [blocks[idx], blocks[target]] = [blocks[target], blocks[idx]];
     update('customBlocks', blocks);
   };
-  // 새 블록은 밴드 맨 아래에 추가
-  const nextBlockOrder = () => buildBand().reduce((max, it) => Math.max(max, it.order), reorderableBandKeys.length - 1) + 1;
   const addSectionPackage = (sectionKey) => {
-    const startOrder = nextBlockOrder();
-    update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, startOrder)]);
-    if (!sections.includes(sectionKey)) update('sections', [...sections, sectionKey]);
-    update('hiddenSections', (p.hiddenSections || []).filter(key => key !== sectionKey));
-    if (sectionKey === 'profile') update('profileVisible', true);
-    if (sectionKey === 'education' && !(p.education || []).length) update('education', [{ name: '', period: '', degree: '', detail: '' }]);
-    if (sectionKey === 'awards' && !(p.awards || []).length) update('awards', [{ date: '', title: '', organization: '', description: '' }]);
-    if (sectionKey === 'experiences' && !(p.experiences || []).length) update('experiences', [{ date: '', title: '', organization: '', description: '', content: '' }]);
-    if (sectionKey === 'curricular') {
-      update('curricular', {
-        ...curr,
-        summary: curr.summary || { credits: '', gpa: '', note: '' },
-        courses: (curr.courses || []).length ? curr.courses : [{ semester: '', name: '', grade: '' }],
-        creditStatus: (curr.creditStatus || []).length ? curr.creditStatus : [{ category: '', area: '', required: '', earned: '', remaining: '', rate: '' }],
-      });
-    }
-    if (sectionKey === 'extracurricular') {
-      update('extracurricular', {
-        ...extra,
-        summary: extra.summary || '',
-        badges: (extra.badges || []).length ? extra.badges : [{ name: '', issuer: '' }],
-        languages: (extra.languages || []).length ? extra.languages : [{ name: '', score: '', date: '' }],
-        details: (extra.details || []).length ? extra.details : [{ title: '', period: '', description: '' }],
-      });
-    }
-    if (sectionKey === 'skills') update('skills', { ...skills, tools: skills.tools || [], languages: skills.languages || [], frameworks: skills.frameworks || [], others: (skills.others || []).length ? skills.others : [''] });
-    if (sectionKey === 'goals' && !(p.goals || []).length) update('goals', [{ title: '', description: '', type: 'short', status: 'planned' }]);
-    if (sectionKey === 'values' && !p.valuesEssay && !p.valuesEssayBlocks) update('valuesEssay', '');
-    if (sectionKey === 'interests' && !(p.interests || []).length) update('interests', ['']);
-    if (sectionKey === 'contact') update('contact', { phone: '', email: '', linkedin: '', instagram: '', github: '', website: '', ...(p.contact || {}) });
+    // 섹션 패키지는 편집 가능한 블록을 "맨 아래"에 추가하는 용도다.
+    // 네이티브 섹션 un-hide는 그 섹션이 원래(중간) 위치에 다시 나타나는 원인이라 제거.
+    // (숨긴 섹션을 되살리는 건 아래 "숨긴 섹션" 복원 UI에서 한다.)
+    update('customBlocks', [...(p.customBlocks || []), ...makeSectionPackageBlocks(sectionKey, (p.customBlocks || []).length)]);
     setShowAddBlockMenu(false);
   };
 
@@ -6607,7 +6454,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
               >
                 {block.content ? (
                   <YooptaMiniEditor
-                    value={block.contentBlocks || createYooptaImageValue(block.content, block.title || 'image', undefined, `custom-image-${i}`)}
+                    value={(block.contentBlocks && findFirstYooptaImage(block.contentBlocks)) ? block.contentBlocks : createYooptaImageValue(block.content, block.title || 'image', undefined, `custom-image-${i}`)}
                     onChange={v => {
                       const blocks = [...(p.customBlocks || [])];
                       const image = findFirstYooptaImage(v);
@@ -6660,39 +6507,35 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                     {cards.map((card, ci) => (
                       <div key={ci}
                         onClick={() => setExpDetailIdx({ blockIdx: i, cardIdx: ci })}
-                        className="group/card relative bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-all cursor-pointer">
-                        <div className="aspect-[4/3] bg-surface-50 overflow-hidden">
+                        className="group/exp bg-white rounded-xl border border-surface-200 overflow-hidden relative hover:shadow-md transition-all cursor-pointer">
+                        {/* Thumbnail */}
+                        <div className="aspect-[4/3] bg-surface-50 overflow-hidden relative">
                           <img src={card.thumbnailUrl || DEFAULT_PROJECT_LOGO} alt={card.title || ''} className="w-full h-full object-cover" />
                         </div>
+                        {/* Card body inline edit — 기존 경험 카드와 동일하게 제목/날짜만 */}
                         <div className="p-3">
-                          <p className="text-sm font-bold text-gray-800 truncate">{card.title || '(제목 없음)'}</p>
-                          <p className="text-[13px] text-gray-400 mt-0.5">{card.date || ''}</p>
-                          {card.description && <p className="text-[13px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">{card.description}</p>}
-                          {(card.skills || []).length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {(card.skills || []).slice(0, 3).map((sk, si) => (
-                                <span key={si} className="px-1.5 py-0.5 bg-primary-50 text-primary-700 rounded text-[12px]">{typeof sk === 'string' ? sk : sk?.name}</span>
-                              ))}
-                              {(card.skills || []).length > 3 && <span className="text-[12px] text-gray-400">+{(card.skills || []).length - 3}</span>}
-                            </div>
-                          )}
+                          <input value={card.title || ''} onClick={e => e.stopPropagation()} onChange={e => updateCard(ci, { title: e.target.value })}
+                            placeholder="제목" className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded" />
+                          <input value={card.date || ''} onClick={e => e.stopPropagation()} onChange={e => updateCard(ci, { date: e.target.value })}
+                            placeholder="날짜" className="w-full text-[13px] text-gray-500 outline-none bg-transparent placeholder:text-gray-300 hover:bg-primary-50/30 rounded mt-1" />
                         </div>
-                        <label onClick={ev => ev.stopPropagation()}
-                          className="absolute top-1.5 right-9 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-gray-700 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity cursor-pointer" title="배경 사진 변경">
-                          <Camera size={14} />
-                          <input type="file" accept="image/*" className="hidden" onChange={async ev => {
-                            const file = ev.target.files?.[0];
+                        {/* 배경 사진 변경 */}
+                        <label onClick={e => e.stopPropagation()}
+                          className="absolute top-1.5 right-8 bg-white/80 p-1 rounded-full text-gray-400 hover:text-gray-700 transition-opacity shadow-sm cursor-pointer">
+                          <Camera size={12} />
+                          <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                            const file = e.target.files?.[0];
                             if (!file) return;
                             try {
                               const base64 = await resizeToBase64(file, 800, 0.8);
                               updateCard(ci, { thumbnailUrl: base64 });
                             } catch { toast.error('이미지 처리 실패'); }
-                            ev.target.value = '';
+                            e.target.value = '';
                           }} />
                         </label>
                         <button onClick={ev => { ev.stopPropagation(); removeCard(ci); }}
-                          className="absolute top-1.5 right-1.5 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-red-500 shadow-sm opacity-40 group-hover/card:opacity-100 transition-opacity" title="삭제">
-                          <Trash2 size={14} />
+                          className="absolute top-1.5 right-1.5 bg-white/80 p-1 rounded-full text-gray-400 hover:text-red-500 transition-opacity shadow-sm" title="삭제">
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     ))}
@@ -6767,7 +6610,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                   { type: 'table', icon: <Columns size={14} />, label: '표', desc: '행과 열을 편집할 수 있는 표' },
                   { type: 'divider', icon: <span className="text-xs">―</span>, label: '구분선', desc: '섹션 구분선' },
                 ].map(item => (
-                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, title: getDefaultCustomBlockTitle(item.type), content: '', contentBlocks: item.type === 'table' ? createYooptaTableValue() : undefined, order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                  <button key={item.type} onClick={() => { addToArray('customBlocks', { type: item.type, title: getDefaultCustomBlockTitle(item.type), content: '', contentBlocks: item.type === 'table' ? createYooptaTableValue() : undefined }); setShowAddBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600">{item.icon}</span>
                     <div><p className="text-sm font-medium text-gray-800">{item.label}</p><p className="text-[12px] text-gray-400">{item.desc}</p></div>
@@ -6775,7 +6618,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
                 ))}
                 <div className="border-t border-surface-100 mt-1 pt-1">
                   <p className="px-3 py-1 text-[12px] text-gray-400 font-bold uppercase tracking-wider">콘텐츠 블록</p>
-                  <button onClick={() => { addToArray('customBlocks', { type: 'project', title: getDefaultCustomBlockTitle('project'), content: [], order: nextBlockOrder() }); setShowAddBlockMenu(false); }}
+                  <button onClick={() => { addToArray('customBlocks', { type: 'project', title: getDefaultCustomBlockTitle('project'), content: [], order: 0 }); setShowAddBlockMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-50 text-left">
                     <span className="w-6 h-6 bg-primary-50 rounded flex items-center justify-center text-primary-600"><Briefcase size={14} /></span>
                     <div><p className="text-sm font-medium text-gray-800">프로젝트 / 경험</p><p className="text-[12px] text-gray-400">카드 갤러리, 경험 DB에서 불러오기</p></div>
@@ -6893,26 +6736,7 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
   const [uploadingProfile, setUploadingProfile] = useState(false);
 
   // 이미지 → Base64 변환 (Canvas로 리사이즈 + 압축)
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let { width, height } = img;
-        if (width > maxPx || height > maxPx) {
-          if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-          else { width = Math.round(width * maxPx / height); height = maxPx; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files?.[0];

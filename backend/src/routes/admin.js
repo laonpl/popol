@@ -434,15 +434,42 @@ router.post('/ai-usage', async (req, res, next) => {
       return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
     }
 
+    const emailByUid = new Map();
+    let pageToken;
+    do {
+      const page = await adminAuth.listUsers(1000, pageToken);
+      page.users.forEach(user => emailByUid.set(user.uid, user.email || ''));
+      pageToken = page.pageToken;
+    } while (pageToken);
+
     const walletsSnap = await adminDb.collection('creditWallets').get();
     const txSnaps = await Promise.all(
       walletsSnap.docs.map(d => d.ref.collection('transactions').get())
     );
 
     const groups = new Map();
+    const users = new Map();
     let totalCalls = 0, totalTokens = 0, totalUsdCost = 0, totalCredits = 0;
 
-    for (const snap of txSnaps) {
+    for (const [index, snap] of txSnaps.entries()) {
+      const walletDoc = walletsSnap.docs[index];
+      const wallet = walletDoc.data();
+      const uid = wallet.userId || walletDoc.id;
+      const userUsage = users.get(uid) || {
+        uid,
+        email: emailByUid.get(uid) || '',
+        balance: Number(wallet.balance || 0),
+        totalCharged: Number(wallet.totalCharged || 0),
+        totalUsed: Number(wallet.totalUsed || 0),
+        creditsUsed: 0,
+        usageCount: 0,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        thinkingTokens: 0,
+        usdCost: 0,
+        lastUsed: null,
+      };
       for (const doc of snap.docs) {
         const t = doc.data();
         if (t.type !== 'usage') continue;
@@ -476,6 +503,10 @@ router.post('/ai-usage', async (req, res, next) => {
           g.minTokens = Math.min(g.minTokens, tt);
           g.maxTokens = Math.max(g.maxTokens, tt);
           totalTokens += tt;
+          userUsage.totalTokens += tt;
+          userUsage.inputTokens += Number(t.inputTokens || 0);
+          userUsage.outputTokens += Number(t.outputTokens || 0);
+          userUsage.thinkingTokens += Number(t.thinkingTokens || 0);
         }
         if (t.estimatedUsage === true) g.estimatedCount++;
 
@@ -485,11 +516,16 @@ router.post('/ai-usage', async (req, res, next) => {
         g.sumCredits += credits;
         totalUsdCost += usd;
         totalCredits += credits;
+        userUsage.usageCount++;
+        userUsage.creditsUsed += credits;
+        userUsage.usdCost += usd;
 
         (Array.isArray(t.models) ? t.models : []).forEach(m => m && g.models.add(m));
         const ms = toMs(t.createdAt);
         if (ms && (!g.lastUsed || ms > g.lastUsed)) g.lastUsed = ms;
+        if (ms && (!userUsage.lastUsed || ms > userUsage.lastUsed)) userUsage.lastUsed = ms;
       }
+      if (userUsage.usageCount > 0) users.set(uid, userUsage);
     }
 
     const operations = [...groups.values()].map(g => ({
@@ -513,6 +549,28 @@ router.post('/ai-usage', async (req, res, next) => {
       lastUsed: g.lastUsed ? new Date(g.lastUsed).toISOString() : null,
     })).sort((a, b) => b.totalUsdCost - a.totalUsdCost);
 
+    const topUsers = [...users.values()]
+      .sort((a, b) => (b.totalTokens - a.totalTokens) || (b.creditsUsed - a.creditsUsed))
+      .slice(0, 15)
+      .map((user, index) => ({
+        rank: index + 1,
+        uid: user.uid,
+        email: user.email || '(이메일 없음)',
+        creditsUsed: Math.round(user.creditsUsed),
+        balance: Math.round(user.balance),
+        totalCharged: Math.round(user.totalCharged),
+        totalUsed: Math.round(user.totalUsed),
+        usageCount: user.usageCount,
+        totalTokens: Math.round(user.totalTokens),
+        inputTokens: Math.round(user.inputTokens),
+        outputTokens: Math.round(user.outputTokens + user.thinkingTokens),
+        avgTokens: user.usageCount ? Math.round(user.totalTokens / user.usageCount) : 0,
+        avgCredits: user.usageCount ? Math.round(user.creditsUsed / user.usageCount) : 0,
+        usdCost: round4(user.usdCost),
+        aiCostKrw: Math.round(user.usdCost * USD_TO_KRW),
+        lastUsed: user.lastUsed ? new Date(user.lastUsed).toISOString() : null,
+      }));
+
     res.json({
       generatedAt: new Date().toISOString(),
       summary: {
@@ -520,11 +578,12 @@ router.post('/ai-usage', async (req, res, next) => {
         totalCalls,
         totalTokens,
         totalUsdCost: round4(totalUsdCost),
-        totalCostKrw: Math.round(totalUsdCost * 1350),
+        totalCostKrw: Math.round(totalUsdCost * USD_TO_KRW),
         totalCredits,
         creditsPerUsd: CREDITS_PER_USD,
       },
       operations,
+      topUsers,
     });
   } catch (error) {
     next(error);

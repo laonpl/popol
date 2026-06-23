@@ -33,8 +33,10 @@ import { DividerUI } from '@yoopta/themes-shadcn/divider';
 import { LinkUI } from '@yoopta/themes-shadcn/link';
 import { ImageUI } from '@yoopta/themes-shadcn/image';
 import '@yoopta/themes-shadcn/variables.css';
-import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon } from 'lucide-react';
+import { Bold as BoldIcon, Check, Code as CodeIcon, Eraser, Highlighter, ImagePlus, Italic as ItalicIcon, Strikethrough, Underline as UnderlineIcon, X } from 'lucide-react';
 import { insertYooptaBlocks, blocksToYooptaValue } from '../utils/projectSections';
+import { uploadImageFile } from '../services/uploadImage';
+import toast from 'react-hot-toast';
 
 export const CUSTOM_IMAGE_DRAG_TYPE = 'application/x-fitpoly-custom-image';
 export const CUSTOM_PALETTE_DRAG_TYPE = 'application/x-fitpoly-palette';
@@ -516,6 +518,15 @@ function CornerResizableImageElement(props) {
       onMouseDownCapture={event => {
         if (event.target.closest('button')) return;
         event.stopPropagation();
+        // 이미지 블록을 선택 상태로 만들어 Backspace/Delete 로도 삭제되게 한다
+        // (선택이 안 잡히면 키 삭제가 모델에 반영되지 않음).
+        const order = editor.getBlock({ id: blockId })?.meta?.order;
+        if (typeof order === 'number') {
+          try {
+            Selection.setSelected(editor, { at: [order], source: 'image-click' });
+            Selection.setCurrent(editor, { at: order, source: 'image-click' });
+          } catch { /* noop */ }
+        }
       }}
       onDragStart={event => {
         if (!element?.props?.src) {
@@ -560,6 +571,21 @@ function CornerResizableImageElement(props) {
       <ShadcnImageElement {...props} />
       {frame && (
         <div className="pointer-events-none absolute z-10" style={frame}>
+          {/* 이미지 삭제 — 모델에서 블록 제거 후 즉시 커밋(저장 반영 보장) */}
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              deleteYooptaBlockById(editor, blockId);
+              window.dispatchEvent(new CustomEvent('fitpoly:yoopta-editor-touched', { detail: { editorId: editorInstanceId } }));
+            }}
+            className="pointer-events-auto absolute right-1 top-1 rounded-full bg-black/55 p-1 text-white opacity-0 shadow transition-opacity group-hover/corner-image:opacity-100 hover:bg-black/80"
+            title="이미지 삭제"
+          >
+            <X size={12} />
+          </button>
           {[
             ['left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize', -1],
             ['right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize', 1],
@@ -621,33 +647,12 @@ function getImageSizes(src) {
   });
 }
 
-// 이미지 파일 → 압축 base64 (Canvas 리사이즈). 원본 그대로 넣으면 base64가 수 MB가 되어
-// Firestore 문서 1MB 한도를 넘겨 저장이 실패하므로, 캔버스 삽입 이미지도 1200px/JPEG로 줄인다.
-function readImageFile(file, maxPx = 1200, quality = 0.78) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new window.Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-      if (!width || !height) { resolve({ src: '', sizes: { width: 720, height: 420 } }); return; }
-      if (width > maxPx || height > maxPx) {
-        if (width > height) { height = Math.round((height * maxPx) / width); width = maxPx; }
-        else { width = Math.round((width * maxPx) / height); height = maxPx; }
-      }
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve({ src: canvas.toDataURL('image/jpeg', quality), sizes: { width, height } });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 불러오지 못했습니다')); };
-    img.src = url;
-  });
+// 이미지 파일 → 1200px/JPEG로 리사이즈한 뒤 Firebase Storage에 업로드하고 공개 URL을 돌려준다.
+// (예전엔 base64 data URL을 본문에 박았는데, 이미지 몇 장만 쌓여도 Firestore 문서 1MB 한도를
+//  넘겨 저장이 실패했다. 이제 URL만 본문에 저장한다.)
+async function readImageFile(file, maxPx = 1200, quality = 0.78) {
+  const { url, width, height } = await uploadImageFile(file, maxPx, quality);
+  return { src: url, sizes: { width, height } };
 }
 
 /**
@@ -1217,10 +1222,17 @@ export default function YooptaMiniEditor({
   const insertImageFiles = async (files) => {
     const imageFiles = Array.from(files || []).filter(file => file.type.startsWith('image/'));
     if (imageFiles.length === 0) return false;
-    const images = await Promise.all(imageFiles.map(async file => ({
-      ...await readImageFile(file),
-      alt: file.name,
-    })));
+    // 업로드 실패한 이미지는 건너뛰고(토스트로 안내) 성공한 것만 삽입한다.
+    const results = await Promise.all(imageFiles.map(async file => {
+      try {
+        return { ...await readImageFile(file), alt: file.name };
+      } catch {
+        return null;
+      }
+    }));
+    const images = results.filter(Boolean);
+    if (images.length < imageFiles.length) toast.error('일부 이미지를 업로드하지 못했습니다');
+    if (images.length === 0) return false;
     return insertImageSources(images);
   };
   const commitContextAction = (action) => {
@@ -1695,7 +1707,17 @@ export const NotionDocEditor = forwardRef(function NotionDocEditor({
   const insertImageFiles = async (files) => {
     const imageFiles = Array.from(files || []).filter(file => file.type.startsWith('image/'));
     if (imageFiles.length === 0) return false;
-    const images = await Promise.all(imageFiles.map(async file => ({ ...await readImageFile(file), alt: file.name })));
+    // 업로드 실패한 이미지는 건너뛰고(토스트로 안내) 성공한 것만 삽입한다.
+    const results = await Promise.all(imageFiles.map(async file => {
+      try {
+        return { ...await readImageFile(file), alt: file.name };
+      } catch {
+        return null;
+      }
+    }));
+    const images = results.filter(Boolean);
+    if (images.length < imageFiles.length) toast.error('일부 이미지를 업로드하지 못했습니다');
+    if (images.length === 0) return false;
     return insertImageSources(images);
   };
   const commitContextAction = (action) => {

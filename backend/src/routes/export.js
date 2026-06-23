@@ -8,7 +8,7 @@ import { parsePptxLayout, extractDesignDna } from '../services/templateParser.js
 import { mapDeck } from '../services/geminiMapper.js';
 import { renderDeckInPlace, isContentPhoto } from '../services/pptxRendererInPlace.js';
 import { renderPortfolioPdf } from '../services/portfolioPdfService.js';
-import { renderResumePdf } from '../services/resumePdfService.js';
+import { renderResumePdf, renderResumePdfFromText } from '../services/resumePdfService.js';
 import { composePortfolioPptx } from '../services/pptComposeService.js';
 import { resolveComposition, refineProjectBullets } from '../services/pptComposeDirector.js';
 
@@ -273,8 +273,14 @@ router.post('/resume', authMiddleware, requireCredits, async (req, res, next) =>
 });
 
 // POST /api/export/resume-pdf - 이력서 PDF 파일 내보내기 (HTML→Puppeteer, AI 미사용·무과금)
+// rawText 가 오면 사용자가 직접 붙여넣은 텍스트를 같은 이력서 PDF 스타일로 렌더한다.
 router.post('/resume-pdf', authMiddleware, async (req, res, next) => {
   try {
+    const rawText = req.body?.rawText;
+    if (typeof rawText === 'string' && rawText.trim()) {
+      const pdf = await renderResumePdfFromText(rawText);
+      return res.json({ pdfBase64: pdf.toString('base64') });
+    }
     const data = req.body?.data || req.body?.portfolio;
     if (!data || typeof data !== 'object') {
       return res.status(400).json({ success: false, message: '내보낼 데이터가 없습니다' });
