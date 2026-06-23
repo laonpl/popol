@@ -100,8 +100,12 @@ api.interceptors.response.use(
     }
     const msg = error.response?.data?.error || error.response?.data?.detail || error.message || '알 수 없는 오류';
     console.error('API 에러:', msg);
+    // 일부 502는 의도된 폴백(서버가 실패 시 프론트 로컬 처리로 유도) — 모니터링 노이즈가 되므로 제외
+    const isHandledFallback = typeof reqUrl === 'string'
+      && error.response?.status === 502
+      && reqUrl.includes('/experience/draft');
     // 서버 측 오류(5xx)만 모니터링에 보고 — 4xx는 정상적인 검증/권한 실패
-    if (!isLogEndpoint && error.response?.status >= 500) {
+    if (!isLogEndpoint && !isHandledFallback && error.response?.status >= 500) {
       reportClientError({
         message: `API ${error.response.status}: ${error.config?.method || ''} ${reqUrl || ''} — ${msg}`.trim(),
         source: 'api',

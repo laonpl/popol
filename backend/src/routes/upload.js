@@ -30,16 +30,27 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res) =>
     const bucket = adminStorage.bucket();
     const fileRef = bucket.file(storagePath);
 
+    // Firebase 기본 버킷은 uniform 버킷 수준 접근이 켜져 있어 객체 ACL(makePublic)을 쓸 수 없다.
+    // 대신 Firebase 다운로드 토큰을 메타데이터에 넣어 토큰 기반 공개 URL을 만든다.
+    const downloadToken = randomUUID();
     await fileRef.save(req.file.buffer, {
-      metadata: { contentType: req.file.mimetype },
+      resumable: false,
+      metadata: {
+        contentType: req.file.mimetype,
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
     });
-    await fileRef.makePublic();
 
-    const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
     res.json({ url, filename: storagePath });
   } catch (error) {
-    console.error('[Upload] 업로드 실패:', error.message);
-    res.status(500).json({ error: '업로드에 실패했습니다' });
+    console.error('[Upload] 업로드 실패:', error);
+    const notFound = /bucket does not exist/i.test(error.message || '');
+    res.status(notFound ? 503 : 500).json({
+      error: notFound
+        ? 'Firebase Storage가 활성화되지 않았습니다. Firebase 콘솔에서 Storage를 시작해주세요.'
+        : '업로드에 실패했습니다',
+    });
   }
 });
 
@@ -49,10 +60,12 @@ router.delete('/image', authMiddleware, async (req, res) => {
     const { filename } = req.body;
     if (!filename) return res.status(400).json({ error: 'filename이 필요합니다' });
 
-    // URL로 들어온 경우 Firebase Storage 경로 추출
+    // URL로 들어온 경우 Storage 경로 추출 (토큰 URL · 공개 URL 두 형식 모두 처리)
     let storagePath = filename;
+    const tokenMatch = filename.match(/firebasestorage\.googleapis\.com\/v0\/b\/[^/]+\/o\/([^?]+)/);
     const gsMatch = filename.match(/storage\.googleapis\.com\/[^/]+\/(.+?)(?:\?|$)/);
-    if (gsMatch) storagePath = decodeURIComponent(gsMatch[1]);
+    if (tokenMatch) storagePath = decodeURIComponent(tokenMatch[1]);
+    else if (gsMatch) storagePath = decodeURIComponent(gsMatch[1]);
 
     const bucket = adminStorage.bucket();
     await bucket.file(storagePath).delete().catch(() => {});

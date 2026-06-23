@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick, FileDown, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Wand2, Download, Upload, X, Check, RefreshCw, Lock, ChevronRight, MousePointerClick, FileDown, CheckCircle2, Eye } from 'lucide-react';
 import { doc, getDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
@@ -279,137 +279,52 @@ export default function AiPptExport() {
   );
 }
 
-// ── 레이아웃 썸네일 미리보기 ─────────────────────────────────────────────
-function LayoutThumb({ layoutId, colors }) {
-  const ac = colors?.accent || '#FF4F1A';
-  const dk = colors?.headBg || colors?.side || '#1F1D20';
-  const bg = colors?.bg || '#F6F6F7';
-  const card = colors?.card || '#FFFFFF';
-  const line = colors?.line || '#E8E8EA';
-
-  if (layoutId === 'standard') {
-    return (
-      <div className="w-full h-full p-2 flex flex-col gap-1" style={{ background: bg }}>
-        <div className="w-full flex-shrink-0 h-[32%] rounded flex items-end px-2 pb-1.5 gap-1" style={{ background: dk }}>
-          <div className="w-10 h-1.5 rounded" style={{ background: 'rgba(255,255,255,0.7)' }} />
-          <div className="w-6 h-1 rounded" style={{ background: 'rgba(255,255,255,0.3)' }} />
-        </div>
-        <div className="flex gap-1 flex-1">
-          {[0, 1].map(i => (
-            <div key={i} className="flex-1 rounded p-1.5 flex flex-col gap-0.5" style={{ background: card, border: `1px solid ${line}` }}>
-              <div className="w-full h-1 rounded" style={{ background: ac, opacity: 0.7 }} />
-              <div className="w-3/4 h-1 rounded" style={{ background: line }} />
-              <div className="w-full h-1 rounded" style={{ background: line }} />
-              {i === 0 && <div className="w-5/6 h-1 rounded" style={{ background: line }} />}
-            </div>
-          ))}
-        </div>
+// ── 레이아웃 카드 미리보기 — 실제 슬라이드(960×540)를 컨테이너 폭에 맞춰 축소 렌더 ──
+function LayoutPreviewThumb({ template, sampleSlide, index = 0 }) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(0.33);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => { if (el.clientWidth) setScale(el.clientWidth / 960); };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="relative w-full overflow-hidden" style={{ aspectRatio: '16 / 9' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0 }}>
+        <SlidePreview slide={sampleSlide} template={template} scale={scale} index={index} />
       </div>
-    );
-  }
-  if (layoutId === 'narrative') {
-    return (
-      <div className="w-full h-full p-2 flex flex-col justify-between" style={{ background: dk }}>
-        <div className="flex justify-between items-start">
-          <div className="w-14 h-2 rounded" style={{ background: ac }} />
-          <div className="w-7 h-1 rounded" style={{ background: 'rgba(255,255,255,0.3)' }} />
-        </div>
-        <div className="space-y-1">
-          <div className="w-24 h-2 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
-          <div className="w-16 h-1 rounded" style={{ background: 'rgba(255,255,255,0.45)' }} />
-        </div>
-        <div className="grid grid-cols-4 gap-1 items-end">
-          {[2, 3, 4, 5].map((h, i) => (
-            <div key={i} className="rounded-t p-1" style={{ height: `${h * 12}px`, background: 'rgba(255,255,255,0.15)' }}>
-              <div className="w-3 h-3 rounded-full mb-1" style={{ background: ac }} />
-              <div className="w-full h-1 rounded" style={{ background: 'rgba(255,255,255,0.5)' }} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (layoutId === 'star') {
-    return (
-      <div className="w-full h-full p-2 grid grid-cols-2 gap-1.5" style={{ background: bg }}>
-        {['S', 'T', 'A', 'R'].map((label, i) => (
-          <div key={label} className="rounded-lg p-1.5" style={{ background: i === 3 ? ac : card, border: `1px solid ${i === 3 ? ac : line}` }}>
-            <div className="w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold" style={{ background: i === 3 ? 'rgba(255,255,255,0.9)' : dk, color: i === 3 ? ac : '#FFFFFF' }}>{label}</div>
-            <div className="mt-2 h-1 rounded" style={{ background: i === 3 ? 'rgba(255,255,255,0.8)' : line }} />
-            <div className="mt-1 h-1 rounded w-2/3" style={{ background: i === 3 ? 'rgba(255,255,255,0.5)' : line }} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (layoutId === 'kpi-dashboard') {
-    return (
-      <div className="w-full h-full p-2 grid grid-cols-3 gap-1.5" style={{ background: '#0E1727' }}>
-        <div className="col-span-2 rounded-lg p-2 flex flex-col justify-end" style={{ background: dk }}>
-          <div className="w-16 h-4 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
-          <div className="w-10 h-1 rounded mt-1" style={{ background: 'rgba(255,255,255,0.4)' }} />
-        </div>
-        <div className="rounded-lg p-2 flex flex-col justify-end" style={{ background: ac }}>
-          <div className="w-8 h-4 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
-        </div>
-        <div className="rounded-lg p-1.5" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
-          <div className="w-full h-1 rounded mb-1" style={{ background: 'rgba(255,255,255,0.3)' }} />
-          <div className="h-8 rounded" style={{ background: `linear-gradient(to top, ${ac}44, ${ac})` }} />
-        </div>
-        <div className="rounded-lg p-1.5 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
-          <div className="w-8 h-8 rounded-full border-4 mx-auto" style={{ borderColor: ac }} />
-        </div>
-        <div className="rounded-lg p-1.5 flex items-end gap-1" style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${ac}33` }}>
-          {[5, 8, 4].map((h, i) => <div key={i} className="flex-1 rounded-t" style={{ height: `${h * 4}px`, background: i % 2 ? ac : 'rgba(255,255,255,0.4)' }} />)}
-        </div>
-      </div>
-    );
-  }
-  if (layoutId === 'timeline') {
-    return (
-      <div className="w-full h-full p-3 flex items-center" style={{ background: bg }}>
-        <div className="relative w-full h-20">
-          <div className="absolute left-2 right-2 top-1/2 border-t-2 border-dotted" style={{ borderColor: line }} />
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="absolute -translate-x-1/2" style={{ left: `${10 + i * 27}%`, top: i % 2 ? 44 : 4 }}>
-              <div className="w-8 h-8 rounded-full border-4 shadow" style={{ background: i === 2 ? ac : dk, borderColor: bg }} />
-              <div className="w-12 h-1 rounded mt-1" style={{ background: line }} />
-              <div className="w-8 h-1 rounded mt-1" style={{ background: line }} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (layoutId === 'case-study') {
-    return (
-      <div className="w-full h-full p-2 grid grid-cols-[0.9fr_1.1fr] gap-2" style={{ background: bg }}>
-        <div className="rounded-lg p-2 flex flex-col justify-between" style={{ background: dk }}>
-          <div className="w-10 h-2 rounded" style={{ background: ac }} />
-          <div>
-            <div className="w-16 h-2 rounded" style={{ background: 'rgba(255,255,255,0.9)' }} />
-            <div className="w-10 h-1 rounded mt-1" style={{ background: 'rgba(255,255,255,0.4)' }} />
-          </div>
-        </div>
-        <div className="grid grid-rows-3 gap-1.5">
-          {[0, 1, 2].map(i => (
-            <div key={i} className="rounded-lg p-1.5" style={{ background: i === 2 ? ac : card, border: `1px solid ${i === 2 ? ac : line}` }}>
-              <div className="w-10 h-1 rounded" style={{ background: i === 2 ? 'rgba(255,255,255,0.9)' : dk }} />
-              <div className="w-full h-1 rounded mt-1" style={{ background: i === 2 ? 'rgba(255,255,255,0.55)' : line }} />
-              <div className="w-2/3 h-1 rounded mt-1" style={{ background: i === 2 ? 'rgba(255,255,255,0.35)' : line }} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  return null;
+    </div>
+  );
 }
 
 // ── 템플릿 선택 화면 (형식 선택 → 레이아웃 → 팔레트) ─────────────────────
 function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customFileName, fileInputRef, onUpload, onClearCustom, onStart, exportFormat, setExportFormat, onPdfExport, pdfExporting, pdfDone, onOpenPptExtract }) {
   const [step, setStep] = useState('layout');
   const [hoveredPalette, setHoveredPalette] = useState(null);
+  const [previewLayoutId, setPreviewLayoutId] = useState(null);
+  const [previewDeck, setPreviewDeck] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // 디자인 미리보기: 고정 샘플로 결정적(비-AI) 덱을 받아 레이아웃 디자인만 보여준다.
+  const openLayoutPreview = async (id) => {
+    setPreviewLayoutId(id);
+    setPreviewDeck(null);
+    setPreviewLoading(true);
+    try {
+      const { data } = await api.post('/portfolio/ppt-preview-deck', {
+        templateHint: `${id}:${templateId}`,
+      });
+      setPreviewDeck(data?.deck?.slides || []);
+    } catch (e) {
+      toast.error(e?.response?.data?.error || '미리보기를 불러오지 못했습니다');
+      setPreviewDeck([]);
+    }
+    setPreviewLoading(false);
+  };
   const selectedLayout = SLIDE_LAYOUTS.find(l => l.id === layoutId);
   const selectedPalette = COLOR_PALETTES.find(p => p.id === templateId);
   const paletteSwatches = COLOR_PALETTES.map(p => {
@@ -425,7 +340,6 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
   const previewTemplate = getComposedTemplate(layoutId, previewId);
   const previewColors = previewTemplate.colors;
   const previewPalette = COLOR_PALETTES.find(p => p.id === previewId);
-  const selectedPaletteColors = getComposedTemplate(layoutId, templateId).colors;
 
   const LAYOUT_SAMPLE_SLIDES = {
     'standard': { layout: 'cover', title: '홍길동', subtitle: '프론트엔드 개발자 · 3년차' },
@@ -668,12 +582,23 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
                   : 'border-surface-200 hover:border-surface-300 bg-white'
             }`}
           >
-            {/* 썸네일 */}
-            <div className="w-full h-32 rounded-lg mb-3 bg-gray-50 border border-surface-200 overflow-hidden flex items-center justify-center">
+            {/* 썸네일 — 실제 커버 슬라이드 디자인 미리보기 + 확대 미리보기 버튼 */}
+            <div className="relative w-full rounded-lg mb-3 bg-gray-50 border border-surface-200 overflow-hidden">
               {layout.available
-                ? <LayoutThumb layoutId={layout.id} colors={selectedPaletteColors} />
-                : <Lock size={22} className="text-gray-300" />
+                ? <LayoutPreviewThumb template={getComposedTemplate(layout.id, templateId)} sampleSlide={LAYOUT_SAMPLE_SLIDES[layout.id] || LAYOUT_SAMPLE_SLIDES.standard} />
+                : <div className="aspect-[16/9] flex items-center justify-center"><Lock size={22} className="text-gray-300" /></div>
               }
+              {layout.available && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); openLayoutPreview(layout.id); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); openLayoutPreview(layout.id); } }}
+                  className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur border border-surface-200 rounded-md text-[11px] font-medium text-gray-600 hover:text-primary-600 hover:border-primary-300 shadow-sm cursor-pointer transition-colors"
+                >
+                  <Eye size={11} /> 미리보기
+                </span>
+              )}
             </div>
 
             {/* 태그 */}
@@ -711,6 +636,61 @@ function ChooseStage({ layoutId, setLayoutId, templateId, setTemplateId, customF
           다음: 색상 팔레트 선택 <ChevronRight size={16} />
         </button>
       </div>
+
+      {/* 레이아웃 확대 미리보기 모달 — 실제 포트폴리오 내용으로 전체 구성을 보여줌 */}
+      {previewLayoutId && (() => {
+        const pl = SLIDE_LAYOUTS.find(l => l.id === previewLayoutId);
+        const previewTmpl = getComposedTemplate(previewLayoutId, templateId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPreviewLayoutId(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full mx-4 max-h-[92vh] overflow-hidden border border-surface-200" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 bg-surface-50/60">
+                <div>
+                  <h3 className="font-bold text-[17px] text-gray-800">
+                    {pl?.name}
+                    {pl?.tag && <span className="ml-2 text-xs font-medium text-gray-400">· {pl.tag}</span>}
+                    {previewDeck && <span className="ml-2 text-xs font-medium text-gray-400">· 총 {previewDeck.length}장</span>}
+                  </h3>
+                  <p className="text-[12px] text-gray-400 mt-0.5">샘플 내용으로 보여주는 레이아웃 디자인 예시입니다 · 실제 내용은 생성 시 채워집니다</p>
+                </div>
+                <button onClick={() => setPreviewLayoutId(null)} className="p-2 hover:bg-surface-100 rounded-lg transition-colors">
+                  <X size={17} className="text-gray-400" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(92vh-150px)] bg-surface-50/40">
+                {previewLoading ? (
+                  <div className="flex flex-col items-center justify-center py-24 gap-3 text-gray-400">
+                    <Loader2 size={28} className="animate-spin text-primary-500" />
+                    <span className="text-sm">디자인을 불러오는 중…</span>
+                  </div>
+                ) : previewDeck && previewDeck.length ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {previewDeck.map((s, i) => (
+                      <div key={s.id || i} className="rounded-lg border border-surface-200 overflow-hidden shadow-sm bg-white">
+                        <LayoutPreviewThumb template={previewTmpl} sampleSlide={s} index={i} />
+                        <div className="px-3 py-1.5 border-t border-surface-100 flex items-center justify-between text-[11px]">
+                          <span className="font-medium text-gray-500 truncate">{i + 1}. {s.title || s.sectionLabel || '슬라이드'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-24 text-sm text-gray-400">미리보기를 불러오지 못했습니다</div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-surface-200 bg-surface-50/60 flex items-center justify-between gap-3">
+                <p className="text-[13px] text-gray-400">색상 팔레트는 다음 단계에서 변경할 수 있습니다</p>
+                <button
+                  onClick={() => { setLayoutId(previewLayoutId); setPreviewLayoutId(null); }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[14px] font-bold hover:bg-primary-700 transition-colors"
+                >
+                  <Check size={15} /> 이 레이아웃 선택
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       </>
       )}
     </div>

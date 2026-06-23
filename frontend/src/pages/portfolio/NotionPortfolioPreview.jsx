@@ -16,6 +16,7 @@ import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
 import ResumeExportModal from '../../components/ResumeExportModal';
+import { uploadImageUrl } from '../../services/uploadImage';
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
 
@@ -1849,25 +1850,9 @@ function AshleyLayout({ p, setSelectedExp }) {
   );
 }
 
+// 이미지 리사이즈 후 Storage 업로드 → URL 반환. (base64를 문서에 저장하면 Firestore 1MB 한도 초과)
 function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new window.Image();
-      img.onload = () => {
-        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = ev.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return uploadImageUrl(file, maxPx, quality);
 }
 
 // ── Experience Detail Modal (Notion Page Style) ──

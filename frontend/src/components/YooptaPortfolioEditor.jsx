@@ -13,6 +13,7 @@ import Accordion from '@yoopta/accordion';
 import Embed from '@yoopta/embed';
 import Link from '@yoopta/link';
 import { Bold, Italic, Underline, Strike, CodeMark, Highlight } from '@yoopta/marks';
+import { uploadImageFile } from '../services/uploadImage';
 import { FloatingToolbar, FloatingBlockActions, BlockOptions, SlashCommandMenu } from '@yoopta/ui';
 import '@yoopta/themes-shadcn/variables.css';
 import {
@@ -36,17 +37,9 @@ const RAW_PLUGINS = [
   Image.extend({
     options: {
       async onUpload(file) {
-        // Base64 인코딩 (서버 업로드 없이 로컬 처리)
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve({
-            src: reader.result,
-            alt: file.name,
-            sizes: { width: 600, height: 400 },
-          });
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+        // 리사이즈 후 Storage 업로드 → URL 반환. (base64를 문서에 저장하면 Firestore 1MB 한도 초과)
+        const { url, width, height } = await uploadImageFile(file, 1200, 0.8);
+        return { src: url, alt: file.name, sizes: { width, height } };
       },
     },
   }),

@@ -17,6 +17,7 @@ import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
 import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
 import api from '../../services/api';
+import { uploadImageUrl } from '../../services/uploadImage';
 import toast from 'react-hot-toast';
 import YooptaMiniEditor, { CUSTOM_IMAGE_DRAG_TYPE, createYooptaImageValue, createYooptaTableValue, findFirstYooptaImage } from '../../components/YooptaMiniEditor';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, EditText, VHtml } from './VisualPortfolioTemplates';
@@ -2345,23 +2346,10 @@ function VisualEditor(props) {
   );
 }
 
-/* ── 공통 유틸: 이미지 base64 변환 ── */
+/* ── 공통 유틸: 이미지 리사이즈 후 Storage 업로드 → URL 반환 ──
+   (예전엔 base64 data URL을 문서에 저장해 Firestore 1MB 한도를 넘겨 저장이 실패했다.) */
 function resizeToBase64Global(file, maxPx = 1200, quality = 0.8) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new window.Image();
-      img.onload = () => {
-        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width * scale; canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject; img.src = ev.target.result;
-    };
-    reader.onerror = reject; reader.readAsDataURL(file);
-  });
+  return uploadImageUrl(file, maxPx, quality);
 }
 
 /* ── RichContentEditor: 텍스트와 이미지를 자유롭게 섞는 편집기 ── */
@@ -2791,22 +2779,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     },
   });
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject; img.src = ev.target.result;
-      };
-      reader.onerror = reject; reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   return (
     <div className="flex gap-4 items-start">
@@ -3565,22 +3538,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     setShowBlockMenu(false);
   };
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale; canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject; img.src = ev.target.result;
-      };
-      reader.onerror = reject; reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const academicSectionOrderManager = makeSectionOrderManager('academic', p.sectionOrder, update);
   const getAcademicSectionOrder = academicSectionOrderManager.getOrder;
@@ -4372,25 +4330,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
   const [showAddExpMenu, setShowAddExpMenu] = useState(false);
   const [activeSemester, setActiveSemester] = useState(null);
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const timelineSectionOrderManager = makeSectionOrderManager('timeline', p.sectionOrder, update);
   const getTimelineSectionOrder = timelineSectionOrderManager.getOrder;
@@ -5467,25 +5407,7 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setAnalyzingJob(false);
   };
 
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new window.Image();
-        img.onload = () => {
-          const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -6814,26 +6736,7 @@ function ProfileSection({ portfolio, update, addToArray, removeFromArray, update
   const [uploadingProfile, setUploadingProfile] = useState(false);
 
   // 이미지 → Base64 변환 (Canvas로 리사이즈 + 압축)
-  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let { width, height } = img;
-        if (width > maxPx || height > maxPx) {
-          if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-          else { width = Math.round(width * maxPx / height); height = maxPx; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
+  const resizeToBase64 = (file, maxPx = 800, quality = 0.8) => uploadImageUrl(file, maxPx, quality);
 
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files?.[0];

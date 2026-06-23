@@ -72,6 +72,96 @@ export async function generateAiPptDeck({ portfolio, templateHint, customTemplat
   }
 }
 
+// 미리보기 전용 고정 샘플 포트폴리오 — 사용자의 실제 내용 대신 디자인만 보여주기 위한 데이터.
+// (노션형 템플릿 미리보기가 '홍길동' 샘플을 쓰는 것과 동일한 방식)
+const SAMPLE_PREVIEW_PORTFOLIO = {
+  userName: '홍길동',
+  headline: '사용자 경험을 기술로 설계하는 프론트엔드 개발자',
+  targetCompany: '토스',
+  targetPosition: '프론트엔드 개발자',
+  about: '사용자 문제를 데이터로 정의하고, 실험과 협업으로 빠르게 검증하며 성과를 만드는 3년차 개발자입니다.',
+  valuesEssay: '작게 쪼개 빠르게 검증하고, 숫자로 증명하며, 팀과 함께 더 멀리 갑니다.',
+  contact: { email: 'hong@example.com', github: 'github.com/hong-dev', website: 'hong.dev' },
+  skills: {
+    languages: ['JavaScript', 'TypeScript', 'Python'],
+    frameworks: ['React', 'Next.js', 'Node.js'],
+    tools: ['Figma', 'Git', 'Storybook'],
+  },
+  education: [
+    { school: '한국대학교', degree: '컴퓨터공학 학사', major: '소프트웨어 전공', period: '2018.03 - 2024.02' },
+  ],
+  awards: [
+    { title: '전국 대학생 해커톤 대상', organization: '과학기술정보통신부', date: '2024.06' },
+    { title: '사내 우수 프로젝트상', organization: '토스', date: '2023.11' },
+  ],
+  goals: [
+    { title: '입사 후 3개월', description: '제품과 코드베이스를 이해하고 작은 개선부터 기여합니다.' },
+    { title: '입사 후 6개월', description: '핵심 기능을 주도하며 성능과 전환율 지표를 개선합니다.' },
+    { title: '입사 후 1년', description: '디자인 시스템과 실험 문화를 팀에 확산합니다.' },
+  ],
+  experiences: [
+    {
+      company: '온보딩 전환율 개선',
+      role: '프론트엔드 리드',
+      period: '2023.03 - 2023.08',
+      description: '신규 사용자 이탈 문제를 데이터로 정의하고 온보딩을 재설계했습니다.',
+      keywords: ['React', 'A/B 테스트', '데이터 분석'],
+      keyExperiences: [
+        {
+          title: '온보딩 재설계',
+          context: '신규 가입자의 40%가 첫 화면에서 이탈하는 문제를 데이터로 발견했습니다.',
+          action: '온보딩을 3단계로 축소하고 핵심 가치를 우선 노출했으며, A/B 테스트 4종을 운영했습니다.',
+          result: '이탈률을 40%에서 18%로 낮추고 온보딩 완료율을 35% 끌어올렸습니다.',
+          learning: '가설을 작게 쪼개 빠르게 검증하는 것이 성과의 핵심임을 배웠습니다.',
+          metricLabel: '이탈률',
+          beforeMetric: '40%',
+          afterMetric: '18%',
+        },
+        {
+          title: '초기 로딩 성능 최적화',
+          context: '초기 로딩이 3초 이상 걸려 사용자 불만이 누적되고 있었습니다.',
+          action: '코드 스플리팅과 이미지 최적화, 캐싱 전략을 도입했습니다.',
+          result: '페이지 로드 시간을 3.2초에서 1.1초로 단축했습니다.',
+          metricLabel: '로딩 시간',
+          beforeMetric: '3.2s',
+          afterMetric: '1.1s',
+        },
+      ],
+    },
+    {
+      company: '디자인 시스템 구축',
+      role: '프론트엔드 개발자',
+      period: '2022.05 - 2022.12',
+      description: '반복되는 UI 작업을 컴포넌트화하여 팀 생산성을 높였습니다.',
+      keywords: ['디자인 시스템', 'Storybook', 'TypeScript'],
+      keyExperiences: [
+        {
+          title: '공통 컴포넌트 라이브러리',
+          context: '팀마다 다른 UI 구현으로 일관성이 떨어지고 중복 작업이 많았습니다.',
+          action: '40여 개 공통 컴포넌트를 표준화하고 Storybook으로 문서화했습니다.',
+          result: 'UI 개발 시간을 30% 단축하고 디자인 일관성을 확보했습니다.',
+          metricLabel: 'UI 개발 시간',
+          beforeMetric: '100%',
+          afterMetric: '70%',
+        },
+      ],
+    },
+  ],
+};
+
+// 결정적(비-AI) 미리보기 덱. 합격형 6개 레이아웃은 AI 없이 즉시 빌드된다.
+// 디자인만 보여주는 미리보기이므로 사용자 실제 내용 대신 고정 샘플 포트폴리오를 사용한다.
+// 지원하지 않는 레이아웃(AI 폴백 경로)이면 null 을 반환한다.
+export function buildPreviewPptDeck({ portfolio, templateHint } = {}) {
+  const source = portfolio || SAMPLE_PREVIEW_PORTFOLIO;
+  const layoutMode = getPptLayoutMode(templateHint);
+  const acceptedLayoutDeck = buildAcceptedLayoutDeckFromPortfolio(source, layoutMode);
+  if (!acceptedLayoutDeck) return null;
+  const withImages = attachExperienceImages(acceptedLayoutDeck, source);
+  const safeDeck = sanitizeDeckToPortfolioSource(withImages, source);
+  return applyConciseToneToDeck(optimizeDeckDensity(safeDeck));
+}
+
 function attachExperienceImages(deck, portfolio) {
   const projects = normalizeExperiences(portfolio).filter(project => project.imageUrl);
   if (!projects.length || !Array.isArray(deck?.slides)) return deck;

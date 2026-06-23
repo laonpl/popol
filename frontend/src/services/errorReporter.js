@@ -13,6 +13,26 @@ function shouldSend(key) {
   return true;
 }
 
+// 사용자 동작/브라우저 환경에서 비롯돼 코드로 고칠 수 없는 양성(benign) 오류는 보고하지 않는다.
+// (모니터링 로그가 실제로 조치 가능한 오류만 담도록 노이즈를 걸러낸다.)
+const IGNORED_PATTERNS = [
+  // 클립보드 권한 거부 — 복사 기능은 실패해도 UX에 치명적이지 않음
+  'The request is not allowed by the user agent or the platform',
+  'Clipboard',
+  'Document is not focused',
+  // 교차 출처 스크립트의 상세 없는 일반 오류 — 조치 불가
+  'Script error.',
+  // 브라우저 IndexedDB 일시 장애 — 새로고침으로 해소
+  'Connection to Indexed Database server lost',
+  // 확장프로그램/외부 스크립트 노이즈
+  'ResizeObserver loop',
+];
+
+function isIgnored(message) {
+  const text = String(message || '');
+  return IGNORED_PATTERNS.some(p => text.includes(p));
+}
+
 /**
  * 클라이언트 오류를 백엔드 수집 엔드포인트로 전송한다.
  * 전송 실패는 무시 — 오류 보고가 또 다른 오류를 만들지 않게 한다.
@@ -20,6 +40,7 @@ function shouldSend(key) {
 export async function reportClientError({ message, stack, url, source = 'window', status, level = 'error' }) {
   try {
     if (!message) return;
+    if (isIgnored(message)) return;
     const key = `${source}:${String(message).slice(0, 80)}`;
     if (!shouldSend(key)) return;
 

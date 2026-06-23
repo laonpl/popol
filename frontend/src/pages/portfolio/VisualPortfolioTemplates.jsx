@@ -15,6 +15,7 @@ import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 // 무거운 노션 블록 에디터는 편집 모드에서만 필요 → 공개 보기 번들에서 분리(lazy)
 const YooptaMiniEditor = lazy(() => import('../../components/YooptaMiniEditor'));
 import RichTextRenderer, { richValueHasContent, richValueToPlainText } from '../../components/RichTextRenderer';
+import { uploadImageUrl } from '../../services/uploadImage';
 
 const SECTION_RECOMMEND_APPLY_EVENT = 'fitpoly:apply-section-recommendation';
 const DEFAULT_PROJECT_LOGO = '/logo.png';
@@ -872,13 +873,9 @@ function createVisualYooptaTableValue(rows = 3, columns = 3) {
   };
 }
 
+// 이미지 리사이즈 후 Storage 업로드 → URL 반환. (원본 base64를 문서에 저장하면 Firestore 1MB 한도 초과)
 function readVisualImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = event => resolve(event.target.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return uploadImageUrl(file, 1200, 0.85);
 }
 
 function getVisualBlockTitle(type) {
@@ -3825,8 +3822,276 @@ export const VisualTemplate8 = ({ portfolio, ec, onOpenExpDetail }) => {
   );
 };
 
+// 템플릿 9 섹션 헤더 — 좌측 액센트 바 + 아이콘 + 편집형 제목.
+// (렌더마다 재정의되면 제목 입력 포커스가 빠지므로 모듈 스코프에 둔다.)
+const T9SectionHead = ({ ec, portfolio, gp, sectionKey, title, icon, recommendKey }) => (
+  <div className="flex items-center justify-between gap-3 mb-5">
+    <div className="flex items-center gap-2.5">
+      <span className="w-1.5 h-6 bg-indigo-500 rounded-full inline-block shrink-0" />
+      <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey={sectionKey} fallback={icon} className="w-5 h-5 text-indigo-600" />
+      <h2 className="text-xl font-bold tracking-tight"><EH ec={ec} value={title} sectionKey={sectionKey} /></h2>
+    </div>
+    <div className="flex items-center gap-1">
+      {ec?.jobAnalysis && <VisualSectionRecommend sectionType={recommendKey || sectionKey} jobAnalysis={ec.jobAnalysis} />}
+      {ec && <span {...gp(sectionKey)}><GripVertical size={14} /></span>}
+      <SectionDeleteBtn ec={ec} sectionKey={sectionKey} />
+    </div>
+  </div>
+);
+
+// ── 템플릿 9: 합격자형 프리미엄 (단일 컬럼, 경력 중심) ──
+export const VisualTemplate9 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = ec ? (portfolio.experiences || []) : data.experience;
+  const projList = ec ? (portfolio.experiences || []) : data.projects;
+  const eduList = ec ? (portfolio.education || []) : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
+  const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, github: data.social?.github, website: data.social?.blog };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['experiences', 'projects', 'skills', 'education', 'awards', 'contact']);
+  const hidden9 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden9 = (key) => hidden9.includes(key);
+
+  const contactPills = [
+    { key: 'email', icon: Mail, value: contact.email, href: contact.email ? `mailto:${contact.email}` : null },
+    { key: 'phone', icon: Phone, value: contact.phone, href: null },
+    { key: 'github', icon: Globe, value: contact.github, href: contact.github || null },
+    { key: 'website', icon: ExternalLink, value: contact.website, href: contact.website || null },
+  ].filter(p => p.value);
+
+  return (
+    <div className="min-h-screen bg-white text-[#1f2328] font-sans selection:bg-indigo-200">
+      {/* 슬림 커버 */}
+      <ImageUploadSlot
+        src={ec ? portfolio.coverImageUrl : null}
+        onUpload={ec?.onUploadCoverImage}
+        className="w-full h-40"
+        imgClassName="w-full h-40 object-cover"
+        rounded=""
+      >
+        <div className="w-full h-40 bg-gradient-to-r from-slate-100 via-indigo-50 to-slate-100 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-60" style={{ backgroundImage: 'radial-gradient(circle at 15% 50%, #c7d2fe 0%, transparent 45%), radial-gradient(circle at 85% 40%, #e0e7ff 0%, transparent 45%)' }} />
+        </div>
+      </ImageUploadSlot>
+
+      <div className="max-w-3xl mx-auto px-6 md:px-10 pb-32">
+        {/* 헤더 */}
+        <div className="relative -mt-12 mb-6">
+          <ImageUploadSlot
+            src={ec ? portfolio.profileImageUrl : null}
+            onUpload={ec?.onUploadProfileImage}
+            className="w-28 h-28 rounded-2xl overflow-hidden bg-white shadow-md border-4 border-white z-10 relative"
+            imgClassName="w-full h-full object-cover"
+            rounded="rounded-2xl"
+          >
+            <div className="w-28 h-28 bg-slate-50 rounded-2xl flex items-center justify-center shadow-md border-4 border-white z-10 relative"><UserCircle2 className="w-14 h-14 text-slate-300" /></div>
+          </ImageUploadSlot>
+        </div>
+
+        <div className="mb-3">
+          <div className="flex items-end gap-3 flex-wrap">
+            <h1 className="text-4xl font-extrabold tracking-tight">
+              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-4xl font-extrabold" /> : <VHtml value={data.name} />}
+            </h1>
+            <span className="text-sm text-slate-400 pb-1.5">
+              {ec ? <EditText value={portfolio.nameEn || ''} onChange={v => ec.update('nameEn', v)} placeholder="English Name" className="text-sm text-slate-400" /> : <VHtml value={portfolio.nameEn} />}
+            </span>
+          </div>
+          <p className="text-xl font-semibold text-indigo-600 mt-1.5">
+            {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개 — 예: 데이터로 전환율을 높이는 그로스 마케터" className="text-xl font-semibold text-indigo-600" /> : <VHtml value={data.title} />}
+          </p>
+        </div>
+
+        {/* 연락처 + 위치 칩 */}
+        <div className="flex items-center gap-2 flex-wrap mb-6 text-sm text-slate-500">
+          {(ec || portfolio.location) && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">
+              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+              {ec ? <EditText value={portfolio.location || ''} onChange={v => ec.update('location', v)} placeholder="지역" className="text-sm text-slate-500" /> : <VHtml value={portfolio.location} />}
+            </span>
+          )}
+          {contactPills.map(({ key, icon: Icon, value, href }) => (
+            <a key={key} href={href || undefined} target={href ? '_blank' : undefined} rel="noreferrer"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100 ${href ? 'hover:border-indigo-300 hover:text-indigo-600 transition-colors' : ''}`}>
+              <Icon className="w-3.5 h-3.5 text-slate-400" />
+              <span className="truncate max-w-[180px]">{value}</span>
+            </a>
+          ))}
+        </div>
+
+        {/* About */}
+        <div className="mb-10 rounded-xl bg-slate-50/70 border border-slate-100 p-5">
+          <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
+            viewClassName="text-[15px] leading-relaxed text-slate-600"
+            placeholder="자기소개를 입력하세요. 어떤 문제를 어떻게 해결해왔는지, 핵심 성과 한두 가지를 숫자와 함께 적으면 좋아요." />
+        </div>
+
+        {/* Work Experience */}
+        {!isHidden9('experiences') && (
+          <div {...dp('experiences')} id="t9-experiences" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="experiences" title="Work Experience" icon={Briefcase} />
+            <ExperienceTimeline expList={expList} ec={ec} />
+          </div>
+        )}
+
+        {/* Projects */}
+        {!isHidden9('projects') && (
+          <div {...dp('projects')} id="t9-projects" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" title="Projects" icon={Folder} recommendKey="projects" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {projList.map((proj, idx) => (
+                <div key={idx} onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)} className="group cursor-pointer flex flex-col border border-slate-200 rounded-xl hover:shadow-lg hover:border-indigo-200 transition-all bg-white relative overflow-hidden">
+                  <ProjectCardActions ec={ec} idx={idx} />
+                  <div className={`aspect-video ${proj.img || 'bg-indigo-50'} overflow-hidden relative`}>
+                    <ImageUploadSlot
+                      src={projectImageSrc(proj)}
+                      onUpload={null}
+                      className={`aspect-video ${proj.img || 'bg-indigo-50'} overflow-hidden`}
+                      imgClassName="w-full h-full object-cover"
+                      rounded=""
+                    >
+                      <div className={`aspect-video ${proj.img || 'bg-indigo-50'} flex items-center justify-center overflow-hidden`}>
+                        <div className="w-3/4 h-3/4 bg-white/50 rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-300"></div>
+                      </div>
+                    </ImageUploadSlot>
+                    <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                  </div>
+                  <div className="p-4">
+                    {ec
+                      ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} className="font-bold text-base mb-1 block" placeholder="프로젝트명" />
+                      : <h3 className="font-bold text-base mb-1 flex items-center gap-1"><VHtml value={proj.name} /> <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" /></h3>
+                    }
+                    <ExperienceRichText
+                      ec={ec}
+                      exp={proj}
+                      idx={idx}
+                      className="text-sm text-slate-500 mb-3 block"
+                      viewClassName="text-sm text-slate-500 mb-3 line-clamp-2"
+                    />
+                    <span className={`text-[12px] px-1.5 py-0.5 rounded font-medium ${proj.tagColor || 'bg-indigo-100 text-indigo-700'}`}>{proj.tag || 'Project'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ec && <ExpControls ec={ec} />}
+          </div>
+        )}
+
+        {/* Skills */}
+        {!isHidden9('skills') && (skillList.length > 0 || ec) && (
+          <div {...dp('skills')} id="t9-skills" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" title="Skills" icon={Code} />
+            <div className="flex flex-wrap gap-2">
+              {skillList.map((skill, idx) => (
+                <div key={idx} className="relative group">
+                  {ec && <RemoveBtn onClick={() => {
+                    const cat = skill.category || 'tools';
+                    const arr = [...(portfolio.skills?.[cat] || [])];
+                    const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
+                    ec.update('skills', { ...portfolio.skills, [cat]: arr });
+                  }} />}
+                  <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" />
+                </div>
+              ))}
+            </div>
+            <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+          </div>
+        )}
+
+        {/* Education */}
+        {!isHidden9('education') && (eduList.length > 0 || ec) && (
+          <div {...dp('education')} id="t9-education" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="education" title="Education" icon={GraduationCap} />
+            <div className="space-y-3">
+              {eduList.map((edu, idx) => (
+                <div key={idx} className="flex flex-col md:flex-row gap-1 md:gap-8 hover:bg-slate-50 p-2.5 -ml-2.5 rounded-lg relative group">
+                  {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
+                  <div className="w-full md:w-1/4 text-slate-400 text-sm shrink-0 pt-0.5">
+                    {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="text-sm text-slate-400" /> : <VHtml value={edu.period} />}
+                  </div>
+                  <div>
+                    {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="font-bold block" placeholder="학교명" /> : <VHtml as="h3" className="font-bold" value={edu.school} />}
+                    {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-sm text-slate-500 block" placeholder="전공/학위" /> : <VHtml as="p" className="text-sm text-slate-500" value={edu.major} />}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors mt-3"><Plus size={12} /> 학력 추가</button>}
+          </div>
+        )}
+
+        {/* Awards */}
+        {!isHidden9('awards') && (awardList.length > 0 || ec) && (
+          <div {...dp('awards')} id="t9-awards" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="awards" title="Awards & Certificates" icon={Award} />
+            <div className="space-y-2.5">
+              {awardList.map((award, idx) => (
+                <div key={idx} className="flex gap-6 hover:bg-slate-50 p-2.5 -ml-2.5 rounded-lg relative group">
+                  {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
+                  <div className="w-1/4 text-slate-400 text-sm pt-0.5 shrink-0">
+                    {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-sm text-slate-400" /> : <VHtml value={award.date} />}
+                  </div>
+                  <div>
+                    {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="font-medium block" placeholder="수상명/자격증" /> : <VHtml className="font-medium" value={award.title} />}
+                    {ec && <EditText value={award.org || ''} onChange={v => ec.updateArrayItem('awards', idx, { org: v })} className="text-sm text-slate-500 block" placeholder="수여 기관" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors mt-3"><Plus size={12} /> 수상/자격 추가</button>}
+          </div>
+        )}
+
+        {/* Contact */}
+        {!isHidden9('contact') && (data.email || data.phone || ec) && (
+          <div {...dp('contact')} id="t9-contact" className="mb-12 group/section">
+            <T9SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="contact" title="Contact" icon={Mail} />
+            <div className="space-y-2 text-sm text-slate-600">
+              {ec ? (
+                <>
+                  <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-slate-400 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 outline-none bg-transparent border-b border-dashed border-slate-200 focus:border-indigo-400 py-0.5" /></div>
+                  <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-slate-400 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 outline-none bg-transparent border-b border-dashed border-slate-200 focus:border-indigo-400 py-0.5" /></div>
+                  <div className="flex items-center gap-3"><Globe className="w-4 h-4 text-slate-400 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 outline-none bg-transparent border-b border-dashed border-slate-200 focus:border-indigo-400 py-0.5" /></div>
+                  <div className="flex items-center gap-3"><ExternalLink className="w-4 h-4 text-slate-400 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn/블로그" className="flex-1 outline-none bg-transparent border-b border-dashed border-slate-200 focus:border-indigo-400 py-0.5" /></div>
+                </>
+              ) : (
+                <>
+                  {data.email && <p className="flex items-center gap-2"><Mail className="w-4 h-4 text-slate-400" /> {data.email}</p>}
+                  {data.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-slate-400" /> {data.phone}</p>}
+                  {contact.github && <p className="flex items-center gap-2"><Globe className="w-4 h-4 text-slate-400" /> {contact.github}</p>}
+                  {contact.website && <p className="flex items-center gap-2"><ExternalLink className="w-4 h-4 text-slate-400" /> {contact.website}</p>}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+        {ec && (ec.hiddenSections || []).length > 0 && (
+          <div className="mt-8 mb-4">
+            <div className="border border-dashed border-slate-200 rounded-xl p-4">
+              <p className="text-xs text-slate-400 mb-3">숨긴 섹션 복원</p>
+              <div className="flex flex-wrap gap-2">
+                {(ec.hiddenSections || []).map(key => (
+                  <button key={key} type="button" onClick={() => ec.showSection(key)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-50 text-slate-500 border border-slate-200 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+                    <Plus size={11} /> {key}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
 // ── 템플릿 라우터 ──
-export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8'];
+export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8','visual-9'];
 
 export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail }) {
   const templateId = portfolio?.templateId;
@@ -3839,6 +4104,7 @@ export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail
   if (templateId === 'visual-6') return <VisualTemplate6 {...props} />;
   if (templateId === 'visual-7') return <VisualTemplate7 {...props} />;
   if (templateId === 'visual-8') return <VisualTemplate8 {...props} />;
+  if (templateId === 'visual-9') return <VisualTemplate9 {...props} />;
   return null;
 }
 
