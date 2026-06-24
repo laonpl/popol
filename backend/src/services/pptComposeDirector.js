@@ -87,10 +87,23 @@ const TONE_LOOK = {
 };
 const COLOR_ACCENT = { warm: '#EA580C', cool: '#2563EB' };
 
+// 발표 대상 → 프로젝트 슬라이드 "페이지 골격"(본문 블록 위치). 시간(흐름)·톤(스타일)과
+// 별개 축이라, 같은 시간·톤이라도 대상이 다르면 내용이 놓이는 구도 자체가 달라진다.
+//  stack=상단 헤더+아래 본문(정석) / rail=좌측 컬러 제목 패널+우 본문(눈에 띄는 매거진형)
+//  / split=좌 본문+우 성과 대시보드 패널(지표·결과를 옆에 크게)
+// ※ structure=compact(발표 ~3분)는 자체 1장 골격이라 이 값과 무관하게 압축 배치된다.
+const AUDIENCE_LAYOUT = {
+  campus:    'rail',   // 교내·공모전 — 심사위원 눈길 끄는 매거진형
+  corporate: 'stack',  // 기업 면접 — 위에서 아래로 읽는 깔끔한 정석
+  startup:   'split',  // 투자·IR — 성과·지표를 옆에 대시보드로
+  client:    'split',  // 고객·제안 — 가치·결과를 옆 패널로 부각
+};
+
 function qaToComposition(qa = {}) {
   const toneKey = inEnum(qa.tone, QA_TONES, 'professional');
   const look = TONE_LOOK[toneKey];
   const structure = DURATION_STRUCTURE[inEnum(qa.duration, DURATIONS, 'medium')];
+  const projectLayout = AUDIENCE_LAYOUT[inEnum(qa.audience, AUDIENCES, '')] || '';
 
   // 색상: 흑백 → mono 톤 / 브랜드 → hex / 따뜻·차분 → 대표 hex / 자유 입력 → 색이름 파싱
   const colorKey = inEnum(qa.color, QA_COLORS, '');
@@ -115,7 +128,7 @@ function qaToComposition(qa = {}) {
     accentBar: look.accentBar,
     closing: look.closing,
     cardStyle: look.cardStyle,
-    projectLayout: '', // 컴포저가 structure/design 으로부터 추론
+    projectLayout, // 대상별 골격(빈값이면 컴포저가 structure/design 으로부터 추론)
     preset: '',
   };
 }
