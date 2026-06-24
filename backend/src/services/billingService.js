@@ -512,7 +512,7 @@ export async function createCreditRequest(uid, email, packageId) {
     createdAt: new Date(),
     updatedAt: new Date(),
   });
-  return { id: ref.id, credits: creditPackage.credits, price: creditPackage.price };
+  return { id: ref.id, credits: creditPackage.crwedits, price: creditPackage.price };
 }
 
 export async function createCheckout(uid, packageId, paymentMethod) {

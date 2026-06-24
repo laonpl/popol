@@ -449,7 +449,7 @@ router.post('/recommend-experiences', authMiddleware, requireCredits, async (req
       const kw = (exp.keywords || []).slice(0, 5).join(', ');
       const sk = (exp.skills || []).slice(0, 5).join(', ');
       return `[${i}]${title}: ${desc} | ${kw} | ${sk}`;
-    }).join('\n').substring(0, 3000);
+    }).join('\n').substring(0, 12000); // 경험 약 80개까지 포함(과거 3000자=15~20개 한도로 뒤쪽 경험이 누락되던 문제 해소). 토큰 폭주 방지용 상한은 유지.
 
     const safeJa = sanitizeJobAnalysis(jobAnalysis);
     const jaSkills = safeJa.skills.slice(0, 6).join(', ');

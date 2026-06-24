@@ -1026,6 +1026,8 @@ export default function PortfolioTemplateSelect() {
         nameEn: profile?.nameEn || '',
         location: profile?.location || '',
         birthDate: profile?.birthDate || '',
+        // 에디터 최초 진입 시 경험을 1회 자동 채우도록 플래그를 남긴다.
+        pendingAutofill: true,
       };
 
       // 학력 자동 매칭

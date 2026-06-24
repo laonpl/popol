@@ -171,8 +171,8 @@ function classifyDecor(d, W, H, mode) {
   const nearL = d.x <= W * 0.03, nearR = d.x + d.w >= W * 0.97;
   const fullW = d.x <= W * 0.06 && d.x + d.w >= W * 0.94;
   const fullH = d.y <= H * 0.06 && d.y + d.h >= H * 0.94;
-  const bandMax = mode === 'cover' ? 0.45 : 0.18;
-  const railMax = mode === 'cover' ? 0.38 : 0.14;
+  const bandMax = mode === 'cover' ? 0.5 : 0.22;
+  const railMax = mode === 'cover' ? 0.42 : 0.18;
   const nearAnyEdge = d.x <= W * 0.08 || d.y <= H * 0.08 || d.x + d.w >= W * 0.92 || d.y + d.h >= H * 0.92;
   // 중심이 가장자리 띠 안에 있는가 — 중앙을 가로지르는 라인/장식은 본문과 겹친다
   const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
@@ -180,19 +180,24 @@ function classifyDecor(d, W, H, mode) {
 
   if (thin) return { keep: inEdgeBand };
   // 소형 악센트는 가장자리에 붙은 것만
-  if (area <= 0.025 && nearAnyEdge) return { keep: true };
+  if (area <= 0.04 && nearAnyEdge) return { keep: true };
   if (fullW && nearT && d.h <= H * bandMax) return { keep: true, inset: ['top', d.y + d.h] };
   if (fullW && nearB && d.h <= H * bandMax) return { keep: true, inset: ['bottom', H - d.y] };
   if (fullH && nearL && d.w <= W * railMax) return { keep: true, inset: ['left', d.x + d.w] };
   if (fullH && nearR && d.w <= W * railMax) return { keep: true, inset: ['right', W - d.x] };
-  if ((nearT || nearB) && (nearL || nearR) && area <= 0.08) return { keep: true }; // 코너 악센트
+  if ((nearT || nearB) && (nearL || nearR) && area <= 0.1) return { keep: true }; // 코너 악센트
   return { keep: false };
 }
 
-const INSET_CAP = { top: 1.25, bottom: 0.9, left: 1.6, right: 1.6 };
+// 본문이 비켜 가야 하는 프레임 영역의 최대 깊이(인치). 이 값이 작으면 분류기가
+// "유지"로 판정한 밴드·레일도 통째로 버려져 템플릿 디자인이 안 보인다. 커버는
+// 큰 헤더 밴드·컬러 패널이 디자인의 핵심이라 더 깊게 허용한다.
+const INSET_CAP_CONTENT = { top: 1.7, bottom: 1.2, left: 2.0, right: 2.0 };
+const INSET_CAP_COVER = { top: 3.4, bottom: 2.6, left: 5.0, right: 5.0 };
 
 function buildFrame(slide, W, H, picUsage, mode) {
   const kx = SLIDE_W / W, ky = SLIDE_H / H;
+  const INSET_CAP = mode === 'cover' ? INSET_CAP_COVER : INSET_CAP_CONTENT;
   const insets = { top: 0, bottom: 0, left: 0, right: 0 };
   const shapes = [];
   let dropped = 0;

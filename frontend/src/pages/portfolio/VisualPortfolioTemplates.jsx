@@ -4109,7 +4109,12 @@ export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail
 }
 
 function projectImageSrc(project) {
-  return project?.thumbnailUrl || DEFAULT_PROJECT_LOGO;
+  const t = project?.thumbnailUrl;
+  // 정상 문자열 URL/데이터URI
+  if (typeof t === 'string' && t.trim()) return t;
+  // 과거 버그로 thumbnailUrl 에 { url, name } 이미지 객체가 통째로 저장된 경우 url 만 추출
+  if (t && typeof t === 'object' && typeof t.url === 'string' && t.url.trim()) return t.url;
+  return DEFAULT_PROJECT_LOGO;
 }
 
 function ProjectCardActions({ ec, idx, dark = false }) {
