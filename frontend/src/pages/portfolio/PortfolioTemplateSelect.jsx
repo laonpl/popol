@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import JobLinkInput, { JobAnalysisBadge } from '../../components/JobLinkInput';
+import ProfileBoostStep, { hasEmptyProfileFields } from './ProfileBoostStep';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -949,19 +950,34 @@ function TimelineFullPreview() {
 
 export default function PortfolioTemplateSelect() {
   const navigate = useNavigate();
-  const { user, profile } = useAuthStore();
+  const { user, profile, saveProfile } = useAuthStore();
   const { createPortfolio } = usePortfolioStore();
   const [selected, setSelected] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [step, setStep] = useState('template');
+  // 순서: 기업 공고 연결(joblink) → 템플릿 선택(template) → 빈 섹션 채우기(boost 모달)
+  const [step, setStep] = useState('joblink');
   const [jobAnalysis, setJobAnalysis] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [boostSaving, setBoostSaving] = useState(false);
 
-
-  const handleNext = () => {
+  // 템플릿 선택 완료 → 빈 항목이 있으면 3단계(빈 섹션 채우기)로, 없으면 바로 생성
+  const handleTemplateNext = () => {
     if (!selected) { toast.error('템플릿을 선택해주세요'); return; }
-    setStep('joblink');
+    if (hasEmptyProfileFields(profile)) setStep('boost');
+    else handleCreate(jobAnalysis);
+  };
+
+  // 보완 입력값을 기존 profile과 병합 저장(기존 정보 보존) 후 생성
+  const handleBoostSubmit = async (filled) => {
+    setBoostSaving(true);
+    try {
+      await saveProfile({ ...profile, ...filled });
+    } catch {
+      toast.error('프로필 저장에 실패했습니다');
+    }
+    setBoostSaving(false);
+    handleCreate(jobAnalysis);
   };
 
   const handleCreate = async (analysis) => {
@@ -993,7 +1009,7 @@ export default function PortfolioTemplateSelect() {
           tools: profile?.tools || [],
           languages: profile?.programmingLanguages || [],
           frameworks: profile?.frameworks || [],
-          others: [],
+          others: profile?.others || [],
         },
         goals: (profile?.goals || []).map(g => ({
           title: g.title || '',
@@ -1065,20 +1081,28 @@ export default function PortfolioTemplateSelect() {
 
       {/* 스텝 인디케이터 */}
       <div className="flex items-center gap-2 mb-8">
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'joblink' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
+          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
+          기업 공고 연결 (선택)
+        </div>
+        <ArrowRight size={13} className="text-bluewood-200" />
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'template' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>1</span>
+          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'template' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
           템플릿 선택
         </div>
         <ArrowRight size={13} className="text-bluewood-200" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'joblink' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
-          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'joblink' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>2</span>
-          기업 공고 연결 (선택)
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold border transition-all ${step === 'boost' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-bluewood-400 border-surface-200'}`}>
+          <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center font-bold ${step === 'boost' ? 'bg-white text-primary-600' : 'bg-surface-200 text-bluewood-400'}`}>3</span>
+          빈 섹션 채우기 (선택)
         </div>
       </div>
 
       {step === 'template' && (
         <>
           <div className="mb-8">
+            <button onClick={() => setStep('joblink')} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 mb-4 transition-colors">
+              <ArrowLeft size={14} /> 기업 공고 연결 다시 보기
+            </button>
             <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">포트폴리오 템플릿 선택</h1>
             <p className="text-[15px] text-bluewood-400">
               원하는 디자인을 미리보기로 확인 후 선택하세요. 프로필 정보가 자동으로 채워집니다.
@@ -1180,14 +1204,16 @@ export default function PortfolioTemplateSelect() {
           {/* 다음 버튼 */}
           <div className="sticky bottom-6">
             <button
-              onClick={handleNext}
-              disabled={!selected}
+              onClick={handleTemplateNext}
+              disabled={!selected || creating}
               className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-200"
             >
-              <ArrowRight size={17} />
-              {selected
-                ? `"${PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.name}" 선택 — 다음 단계`
-                : '템플릿을 선택해주세요'}
+              {creating ? <><Loader2 size={17} className="animate-spin" /> 생성 중...</> : <ArrowRight size={17} />}
+              {creating
+                ? null
+                : selected
+                  ? `"${PORTFOLIO_TEMPLATES.find(t => t.id === selected)?.name}" 선택 — 다음 단계`
+                  : '템플릿을 선택해주세요'}
             </button>
           </div>
         </>
@@ -1196,9 +1222,6 @@ export default function PortfolioTemplateSelect() {
       {step === 'joblink' && (
         <>
           <div className="mb-8">
-            <button onClick={() => setStep('template')} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 mb-4 transition-colors">
-              <ArrowLeft size={14} /> 템플릿 다시 선택
-            </button>
             <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">기업 공고 연결</h1>
             <p className="text-[15px] text-bluewood-400">
               지원할 공고 링크 또는 기업명, 모집분야, 지원서 접수 기간을 입력하면 기업 맞춤형 포트폴리오가 생성됩니다 (선택사항)
@@ -1209,26 +1232,31 @@ export default function PortfolioTemplateSelect() {
             <div className="space-y-4">
               <JobAnalysisBadge analysis={jobAnalysis} onRemove={() => setJobAnalysis(null)} />
               <button
-                onClick={() => handleCreate(jobAnalysis)}
-                disabled={creating}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-lg shadow-primary-200"
+                onClick={() => setStep('template')}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-primary-600 text-white rounded-xl text-[15px] font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-200"
               >
-                {creating ? (
-                  <><Loader2 size={17} className="animate-spin" /> 생성 중...</>
-                ) : (
-                  <><Building2 size={17} /> {jobAnalysis.company} 맞춤 포트폴리오 만들기</>
-                )}
+                <ArrowRight size={17} /> 다음: 템플릿 선택
               </button>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-surface-200 p-6">
               <JobLinkInput
                 onAnalysisComplete={(analysis) => setJobAnalysis(analysis)}
-                onSkip={() => handleCreate(null)}
+                onSkip={() => setStep('template')}
               />
             </div>
           )}
         </>
+      )}
+
+      {step === 'boost' && (
+        <ProfileBoostStep
+          profile={profile}
+          submitting={boostSaving || creating}
+          onBack={() => setStep('template')}
+          onSkip={() => handleCreate(jobAnalysis)}
+          onSubmit={handleBoostSubmit}
+        />
       )}
 
       {/* 템플릿 미리보기 모달 */}
