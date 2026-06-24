@@ -631,8 +631,8 @@ const SECTION_META = {
 const TAB_GUIDE = {
   story:    { step: '1단계', title: '프로젝트를 한 편의 글로 정리', desc: '배경·문제·과정·결과 순서로 작성해요. 여기 내용이 포트폴리오로 내보낼 화면의 본문이 됩니다. 아래 번호를 누르면 해당 부분으로 바로 이동해요.' },
   keyexp:   { step: '2단계', title: '면접에서 말할 대표 사례 2~3개', desc: '상황·행동·결과·성과 수치로 정리하면 내보낼 화면에 카드로 들어갑니다.' },
-  analysis: { step: '3단계', title: '내 역량 자동 정리', desc: '작성한 내용에서 핵심·파생·성장 역량을 모아 보여줘요. 자기소개와 강점 어필에 활용하세요.' },
-  research: { step: '4단계', title: '내 성과에 시장 근거 더하기', desc: '"시장조사 만들기"를 누르면 내 실제 성과 수치를 출처가 확인된 외부 연구와 연결해 의미를 키워줘요. 외부 수치는 비교 기준으로만 쓰입니다.' },
+  analysis: { step: '3단계', title: '역량 정리 + 시장 근거', desc: '작성한 내용에서 핵심·파생·성장 역량을 모으고, 성과에 출처가 확인된 시장 근거를 더해 의미를 키워요.' },
+  coverletter: { step: '4단계', title: '이 경험을 자소서에 쓰는 법', desc: '추천 문항, STAR 요약, 강조 포인트와 예시 문단을 모아 자기소개서 작성에 바로 활용하세요.' },
 };
 
 /* ── 역량 키워드 카테고리 스타일 ── */
@@ -770,6 +770,186 @@ function CompetencyMeter({ highlights = [], keywords = [], keyExperiences = [], 
         </div>
       )}
     </div>
+  );
+}
+
+function CompetencyMeterCompact({ highlights = [], keywords = [], keyExperiences = [], growthText = '' }) {
+  const TYPE_ORDER = ['core', 'derived', 'growth'];
+  const TYPE_META = {
+    core: { label: '핵심 역량', shortLabel: '핵심', desc: '가장 직접적으로 드러난 강점', color: '#ef4444', bg: '#fef2f2' },
+    derived: { label: '파생 역량', shortLabel: '파생', desc: '핵심 행동에서 함께 확장된 역량', color: '#f59e0b', bg: '#fffbeb' },
+    growth: { label: '성장 관점', shortLabel: '성장', desc: '배운 점과 다음 적용점', color: '#22c55e', bg: '#f0fdf4' },
+  };
+  const SECTION_LABELS = {
+    intro: '프로젝트 소개',
+    overview: '프로젝트 개요',
+    task: '진행한 일',
+    process: '과정',
+    output: '결과물',
+    growth: '성장한 점',
+    competency: '나의 역량',
+  };
+  const clean = (s) => stripMarkdown(String(s || '')).replace(/\s+/g, ' ').trim();
+  const isDraft = (s) => !clean(s) || String(s).trim().startsWith('[작성 필요]');
+  const shorten = (s, max = 128) => {
+    const v = clean(s);
+    return v.length > max ? `${v.slice(0, max - 1).trim()}…` : v;
+  };
+
+  const items = [];
+  const seen = new Set();
+  const push = (type, source, evidence, kws = []) => {
+    const body = clean(evidence);
+    if (!body) return;
+    const t = TYPE_ORDER.includes(type) ? type : 'core';
+    const signature = `${t}|${clean(source)}|${body}`.toLowerCase();
+    if (seen.has(signature)) return;
+    seen.add(signature);
+    items.push({
+      type: t,
+      source: clean(source) || '본문',
+      evidence: body,
+      keywords: (kws || []).map(clean).filter(Boolean),
+    });
+  };
+
+  (highlights || []).forEach(h => push(h.type, SECTION_LABELS[h.field] || '본문', h.text, h.keywords));
+  (keyExperiences || []).forEach(ke => {
+    if (!isDraft(ke.learning)) push('growth', clean(ke.title) || '핵심 경험', ke.learning, ke.keywords);
+  });
+  if (!items.some(item => item.type === 'growth')) {
+    splitSentences(growthText, 2).forEach(sentence => push('growth', '성장한 점', sentence));
+  }
+
+  const relatedKeywords = [...new Set((keywords || []).map(clean).filter(Boolean))];
+  const groups = TYPE_ORDER
+    .map(type => ({ type, ...TYPE_META[type], items: items.filter(item => item.type === type) }))
+    .filter(group => group.items.length > 0);
+  const keywordCounts = {};
+  items.forEach(item => item.keywords.forEach(keyword => { keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1; }));
+  const topKeywords = Object.entries(keywordCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const totalEvidence = items.length;
+
+  if (groups.length === 0 && relatedKeywords.length === 0) return null;
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-lg border border-surface-200 bg-white">
+      <div className="flex flex-col gap-4 border-b border-surface-200 px-5 py-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[12px] font-black uppercase tracking-[0.16em] text-primary-600">Competency Map</p>
+          <h2 className="mt-1 text-[20px] font-black text-bluewood-950">핵심 역량 한눈에 보기</h2>
+          <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+            경험에서 드러난 역량을 요약 보드로 압축했어요. 대표 근거만 먼저 보여주고, 긴 설명은 스토리 본문에서 확인할 수 있습니다.
+          </p>
+        </div>
+
+        <div className="grid w-full gap-2 sm:grid-cols-4 lg:max-w-[520px]">
+          <div className="rounded-lg border border-surface-200 bg-bluewood-950 px-3 py-2.5 text-white">
+            <span className="text-[12px] font-bold text-white/70">근거</span>
+            <p className="mt-1 text-[22px] font-black leading-none tabular-nums">{totalEvidence}</p>
+          </div>
+          {TYPE_ORDER.map(type => {
+            const meta = TYPE_META[type];
+            const count = groups.find(group => group.type === type)?.items.length || 0;
+            return (
+              <div key={type} className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-bold text-bluewood-500">{meta.shortLabel}</span>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: meta.color }} />
+                </div>
+                <p className="mt-1 text-[22px] font-black leading-none tabular-nums" style={{ color: meta.color }}>{count}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {(topKeywords.length > 0 || relatedKeywords.length > 0) && (
+        <div className="border-b border-surface-200 bg-surface-50/50 px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+            {topKeywords.length > 0 && (
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">반복해서 드러난 역량</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {topKeywords.map(([keyword, count]) => (
+                    <span key={keyword} className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-2.5 py-1 text-[12.5px] font-bold text-bluewood-700">
+                      {keyword}
+                      {count >= 2 && <span className="rounded bg-primary-50 px-1.5 py-px text-[11px] font-black tabular-nums text-primary-700">x{count}</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {relatedKeywords.length > 0 && (
+              <div className="min-w-0 flex-1 lg:border-l lg:border-surface-200 lg:pl-5">
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-bluewood-400">전체 키워드</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {relatedKeywords.slice(0, 12).map((keyword, index) => (
+                    <span key={`${keyword}-${index}`} className="rounded-full border border-surface-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{keyword}</span>
+                  ))}
+                  {relatedKeywords.length > 12 && (
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-bluewood-300">+{relatedKeywords.length - 12}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {groups.length > 0 ? (
+        <div className="grid gap-3 p-5 lg:grid-cols-3">
+          {groups.map(group => {
+            const visibleItems = group.items.slice(0, 3);
+            const hiddenCount = Math.max(0, group.items.length - visibleItems.length);
+            const groupKeywords = [...new Set(group.items.flatMap(item => item.keywords || []))].slice(0, 5);
+
+            return (
+              <article key={group.type} className="min-w-0 overflow-hidden rounded-lg border border-surface-200 bg-white">
+                <div className="border-b border-surface-100 px-4 py-3" style={{ backgroundColor: group.bg }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-black text-bluewood-950">{group.label}</h3>
+                      <p className="mt-0.5 truncate text-[12px] font-medium text-bluewood-500">{group.desc}</p>
+                    </div>
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[13px] font-black text-white tabular-nums" style={{ backgroundColor: group.color }}>
+                      {group.items.length}
+                    </span>
+                  </div>
+                  {groupKeywords.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {groupKeywords.map(keyword => (
+                        <span key={keyword} className="rounded-full bg-white/80 px-2 py-0.5 text-[11.5px] font-bold" style={{ color: group.color }}>{keyword}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="divide-y divide-surface-100">
+                  {visibleItems.map((item, index) => (
+                    <div key={`${item.source}-${index}`} className="px-4 py-3">
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: group.color }} />
+                        <span className="truncate text-[12.5px] font-extrabold" style={{ color: group.color }}>{item.source}</span>
+                      </div>
+                      <p className="line-clamp-2 text-[13px] leading-[1.6] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{shorten(item.evidence, 160)}</p>
+                    </div>
+                  ))}
+                  {hiddenCount > 0 && (
+                    <div className="px-4 py-2.5 text-[12px] font-bold text-bluewood-300">대표 근거 외 {hiddenCount}개는 본문 하이라이트에서 확인</div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="px-5 py-4 text-[13.5px] leading-relaxed text-bluewood-500">
+          아직 문장 근거가 충분하지 않아 키워드만 표시하고 있어요. 스토리 탭에서 행동, 결과, 배운 점을 더 채우면 역량 근거 카드가 자동으로 생성됩니다.
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2559,7 +2739,7 @@ export default function StructuredResult() {
     setActiveQualityId(item.id);
     setSectionSlideIdx(nextSlideIdx);
     // 항목이 속한 탭으로 먼저 전환한 뒤 해당 섹션으로 스크롤
-    const tab = item.id === 'keyExperiences' ? 'keyexp' : item.id === 'research' ? 'research' : 'story';
+    const tab = item.id === 'keyExperiences' ? 'keyexp' : item.id === 'research' ? 'analysis' : 'story';
     setActiveTab(tab);
     requestAnimationFrame(() => {
       const sectionKey = SECTION_KEYS[nextSlideIdx];
@@ -2634,16 +2814,16 @@ export default function StructuredResult() {
                 <span className="text-[13.5px] text-bluewood-300">{meta.subtitle}</span>
               </div>
 
-              {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 */}
+              {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 — 컴팩트 메타 스트립 */}
               {key === 'intro' && (
-                <dl className="mb-5 grid grid-cols-2 gap-x-8 gap-y-4 rounded-xl border border-surface-200 bg-surface-50/60 px-5 py-4 sm:grid-cols-3">
+                <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg border border-surface-200 bg-surface-50/50 px-4 py-3 sm:grid-cols-3">
                   {INTRO_META.map(item => {
                     const fullWidth = item.key === 'scopeOfImpact' || item.key === 'goal';
                     return (
-                      <div key={item.key} className={`min-w-0 ${fullWidth ? 'col-span-2 sm:col-span-3' : ''}`}>
-                        <dt className="mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-bluewood-400">{item.label}</dt>
+                      <div key={item.key} className={`flex min-w-0 items-baseline gap-2 ${fullWidth ? 'sm:col-span-3' : ''}`}>
+                        <dt className="w-[52px] shrink-0 text-[11px] font-bold text-bluewood-400">{item.label}</dt>
                         {viewOnly ? (
-                          <dd className="text-[14.5px] font-semibold leading-snug text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</dd>
+                          <dd className="min-w-0 flex-1 text-[13.5px] font-semibold leading-snug text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</dd>
                         ) : (
                           <textarea
                             rows={1}
@@ -2651,7 +2831,7 @@ export default function StructuredResult() {
                             value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
                             onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
                             placeholder={item.placeholder}
-                            className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
+                            className="min-w-0 flex-1 resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[13.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
                             style={{ overflow: 'hidden', overflowWrap: 'anywhere', boxSizing: 'border-box' }}
                           />
                         )}
@@ -2843,8 +3023,8 @@ export default function StructuredResult() {
           {[
             { key: 'story', label: '스토리', count: SECTION_COUNT },
             { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },
-            { key: 'analysis', label: '역량 분석', count: null },
-            { key: 'research', label: '시장 근거', count: (editedResearch.decisionMetrics.length + (editedResearch.impactBridges || []).length) || null },
+            { key: 'analysis', label: '역량 · 시장 근거', count: (editedResearch.decisionMetrics.length + (editedResearch.impactBridges || []).length) || null },
+            { key: 'coverletter', label: '자소서 활용', count: null },
           ].map(tab => {
             const active = activeTab === tab.key;
             return (
@@ -2954,7 +3134,7 @@ export default function StructuredResult() {
 
       {/* ── 분석 탭: 역량 인사이트 + 직군 특화 분석 ── */}
       {activeTab === 'analysis' && (<>
-      <CompetencyMeter
+      <CompetencyMeterCompact
         highlights={structured.highlights}
         keywords={editedKeywords}
         keyExperiences={editedKeyExperiences}
@@ -3076,7 +3256,7 @@ export default function StructuredResult() {
       {/* ╔══════════════════════════════════════════════╗
          ║  리서치 탭: 시장/지표 리서치 보강            ║
          ╚══════════════════════════════════════════════╝ */}
-      {activeTab === 'research' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || (editedResearch.impactBridges || []).length > 0 || editedResearch.deskResearchInfographic?.cards?.length > 0 || !viewOnly) && (() => {
+      {activeTab === 'analysis' && (editedResearch.marketOverview || editedResearch.decisionMetrics.length > 0 || (editedResearch.impactBridges || []).length > 0 || editedResearch.deskResearchInfographic?.cards?.length > 0 || !viewOnly) && (() => {
         const R = editedResearch;
         const confMeta = { high: { label: '신뢰 높음', dot: '#10b981' }, medium: { label: '신뢰 보통', dot: '#cbd5e1' }, low: { label: '참고', dot: '#cbd5e1' } };
         const validSources = (R.sourceNotes || []).filter(s => (s.title && s.title.trim()) || /^https?:\/\//.test(s.url || ''));
@@ -3297,6 +3477,270 @@ export default function StructuredResult() {
             )}
           </div>
         </div>
+        );
+      })()}
+
+      {/* ── 자소서 활용 (별도 탭) ── */}
+      {activeTab === 'coverletter' && (() => {
+        const ov = editedOverview || {};
+        const clean = (v) => stripMarkdown(sanitizeTextValue(v || '')).replace(/\s+/g, ' ').trim();
+        const clip = (v, max = 120) => {
+          const s = clean(v);
+          return s.length > max ? `${s.slice(0, max - 1).trim()}…` : s;
+        };
+        const experienceName = clip(editedTitle || ov.summary || '이 경험', 38);
+        const primaryKeyExp = editedKeyExperiences[0] || {};
+        const intro = clean(editedContent.intro) || clean(ov.summary) || clean(primaryKeyExp.context) || clean(editedContent.task);
+        const problem = clean(ov.background) || clean(ov.goal) || clean(primaryKeyExp.context) || intro;
+        const action = clean(editedContent.process) || clean(primaryKeyExp.action) || clean(primaryKeyExp.title);
+        const result = clean(editedContent.output) || clean(primaryKeyExp.result) || clean(primaryKeyExp.metric) || clean(primaryKeyExp.afterMetric);
+        const growth = clean(editedContent.growth) || clean(primaryKeyExp.learning);
+        const role = clean(ov.role);
+        const text = [
+          intro, problem, action, result, growth, role, clean(editedContent.competency),
+          ...(editedKeyExperiences || []).flatMap(k => [k.title, k.metric, k.context, k.action, k.result, k.learning].map(clean)),
+        ].join(' ');
+        const metrics = [...new Set((text.match(/\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위)/g) || []).map(s => s.trim()))].slice(0, 6);
+        const kws = [...new Set((editedKeywords || []).map(k => stripMarkdown(String(k)).trim()).filter(Boolean))].slice(0, 6);
+        const hasProblem = /문제|해결|개선|한계|이슈|불편|충돌|검증|실험|전환|구조/.test(text);
+        const hasTeam = /팀|협업|리드|소통|함께|동료|조율|이해관계/.test(text);
+        const hasMetrics = metrics.length > 0;
+        const questionTypes = [
+          '직무역량 문항',
+          hasProblem ? '문제해결 경험 문항' : '강점/역량 문항',
+          hasTeam ? '협업·조율 문항' : '성장 경험 문항',
+          growth ? '성장·배운 점 문항' : '지원동기 연결 문항',
+        ];
+        const assetList = [
+          {
+            title: '문제 정의 역량',
+            body: problem
+              ? `${clip(problem, 92)}라는 맥락을 단순 상황이 아니라 해결해야 할 구조로 해석한 점을 강조하세요.`
+              : '왜 이 경험이 필요했는지, 누구의 어떤 불편을 해결하려 했는지부터 제시하세요.',
+          },
+          {
+            title: '서비스/실행 기획력',
+            body: action
+              ? `${clip(action, 92)}처럼 실행 방식과 판단 기준을 함께 보여주면 설계 역량이 드러납니다.`
+              : '기능이나 활동 나열보다 핵심 루프, 우선순위, 의사결정 기준을 중심으로 정리하세요.',
+          },
+          {
+            title: '검증 중심 사고',
+            body: hasMetrics
+              ? `${metrics.slice(0, 3).join(', ')} 같은 수치와 근거를 성과 문장에 배치하세요.`
+              : '성과 수치가 아직 부족하다면 완주율, 채택률, 재방문율처럼 검증할 지표를 함께 제시하세요.',
+          },
+          {
+            title: '정보 구조화 역량',
+            body: '원본 경험을 상황, 행동, 결과, 배운 점으로 분리해 면접과 포트폴리오에서 재사용 가능한 자산으로 만들었다는 관점이 좋습니다.',
+          },
+          {
+            title: '채용 맥락 이해',
+            body: '지원자가 말하고 싶은 정보와 평가자가 빠르게 판단하고 싶은 정보 사이의 간극을 줄였다는 메시지로 연결하세요.',
+          },
+        ];
+        const strategyList = [
+          {
+            title: '직무역량 문항',
+            tag: '대표 사례로 배치',
+            body: '좋은 아이디어를 냈다는 표현보다 문제를 어떤 기준으로 정의했고, 어떤 정보 구조로 실행했는지를 중심으로 쓰는 것이 좋습니다.',
+          },
+          {
+            title: '지원동기 문항',
+            tag: '관점의 예시로 압축',
+            body: '사용자 요구와 운영 현실 사이의 차이를 구조적으로 해석하는 사람이라는 메시지와 지원 직무를 연결하기 좋습니다.',
+          },
+          {
+            title: hasTeam ? '협업·조율 문항' : '문제해결 경험 문항',
+            tag: hasTeam ? '시선 차이 조정' : '원인-행동-근거',
+            body: hasTeam
+              ? '서로 다른 기준을 가진 사람들의 요구를 서비스 기준이나 실행 기준으로 바꾼 과정을 강조하세요.'
+              : '문제를 발견한 뒤 어떤 가설을 세웠고, 어떤 행동으로 검증했는지 순서가 보이게 구성하세요.',
+          },
+        ];
+        const paragraphFlow = [
+          { label: '1문단 · 배경/문제', body: `${clip(problem || intro, 110) || '이 경험이 시작된 배경과 해결해야 할 문제'}를 먼저 제시하세요.` },
+          { label: '2문단 · 행동/설계', body: `${clip(action, 110) || '본인이 직접 선택한 실행 방식, 기준, 우선순위'}를 구체적으로 풀어주세요.` },
+          { label: '3문단 · 성과/의미', body: `${clip(result, 110) || '산출물, 변화, 검증 지표'}를 통해 경험의 차별점을 설명하세요.` },
+          { label: '4문단 · 교훈/직무 연결', body: `${clip(growth, 110) || '이 경험으로 얻은 일하는 방식'}을 지원 직무에서 어떻게 재현할지 연결하세요.` },
+        ];
+        const sentenceIdeas = [
+          `${experienceName} 경험은 단순한 활동 수행이 아니라, 흩어진 문제와 실행 내용을 채용 맥락에서 설명 가능한 경험 자산으로 구조화한 사례입니다.`,
+          problem
+            ? `${clip(problem, 78)}라는 문제를 발견한 뒤, 이를 해결 기준과 실행 순서로 전환한 문제 정의 경험으로 제시할 수 있습니다.`
+            : '사용자와 평가자 관점의 차이를 해석하고, 이를 정보 설계 기준으로 통합한 사례로 제시하기 좋습니다.',
+          action
+            ? `${clip(action, 82)} 과정에서 실행 기준을 세우고 근거를 남긴 점을 기획 역량으로 연결할 수 있습니다.`
+            : '원본 경험을 후속 질문과 근거 확인을 통해 상황, 행동, 결과 중심 정보로 정제한 역량을 드러낼 수 있습니다.',
+          result
+            ? `${clip(result, 82)}라는 결과를 통해 결과물의 외형보다 신뢰 가능한 실행 근거를 만든 사례로 활용할 수 있습니다.`
+            : '완성된 성과를 과장하기보다 핵심 루프, 검증 지표, 다음 실험 계획을 함께 보여주는 사례로 적합합니다.',
+          kws.length
+            ? `${kws.slice(0, 3).join(', ')} 역량이 실제 행동과 판단 기준 속에서 드러난 경험으로 정리할 수 있습니다.`
+            : '좋은 결과를 만들었다는 주장보다 왜 그렇게 판단했고 무엇을 검증했는지가 보이게 쓰는 것이 좋습니다.',
+        ];
+        const expressionGuide = [
+          { good: '~문제를 발견했다', better: '~의 구조적 충돌을 정의했다' },
+          { good: '정리했다', better: '검증 가능한 기준으로 구조화했다' },
+          { good: '차별화했다', better: '핵심 가치를 ~로 재정의했다' },
+          { good: '도와주는 서비스/활동', better: '재사용 가능한 경험 자산을 구축하는 과정' },
+        ];
+        const avoidList = [
+          '완전히 혁신했다처럼 검증 전 성과를 확정하는 표현',
+          '사용자 중심적으로 고민했다처럼 근거가 빠진 추상 표현',
+          '맞춤형, 효율적, 체계적 같은 단어의 반복',
+          '베타 단계의 가설을 이미 달성한 성과처럼 쓰는 방식',
+        ];
+        const interviewQuestions = [
+          `왜 ${experienceName}에서 결과물 자체보다 문제 정의와 검증 구조가 더 중요하다고 판단했는지 설명해보라는 질문이 나올 수 있습니다.`,
+          `사실, 추정, 가정을 어떻게 구분했고 신뢰 가능한 정보만 남기기 위해 어떤 기준을 적용했는지 구체 사례를 준비하세요.`,
+          hasMetrics
+            ? `${metrics[0]} 같은 지표를 어떤 방식으로 측정했고, 왜 그 지표를 우선순위로 삼았는지 후속 질문이 이어질 수 있습니다.`
+            : '완주율, 재방문율, 채택률, 만족도 등 여러 검증 지표 중 무엇을 먼저 볼 것인지 이유를 준비하세요.',
+        ];
+        const draft = [
+          intro,
+          (action || result) && `${role ? `${role}로서 ` : ''}${action}${result ? `, 그 결과 ${result}` : ''}`.replace(/\s+/g, ' ').trim(),
+          growth && `이 경험을 통해 ${growth}`,
+        ].filter(Boolean).join(' ');
+        if (!(intro || action || result || kws.length)) return null;
+        return (
+          <section className="rounded-lg border border-surface-200 bg-white">
+            <div className="border-b border-surface-200 px-5 py-5 sm:px-7">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[12px] font-black uppercase tracking-[0.18em] text-primary-600">Cover Letter Guide</p>
+                  <h3 className="mt-1 text-[22px] font-black leading-tight text-bluewood-950">자기소개서 활용 가이드</h3>
+                  <p className="mt-2 max-w-3xl text-[14px] leading-[1.75] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                    {experienceName} 경험을 자소서 문항에 바로 옮길 수 있도록 핵심 자산, 구성 전략, 문장 표현, 면접 확장 포인트로 정리했어요.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5 lg:max-w-[360px] lg:justify-end">
+                  {questionTypes.map(q => <span key={q} className="rounded-md border border-primary-100 bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-700">{q}</span>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-surface-200">
+              <div className="px-5 py-6 sm:px-7">
+                <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div>
+                    <p className="text-[13px] font-black text-primary-600">1) 경험 요약 및 핵심 자산화</p>
+                    <h4 className="mt-2 text-[18px] font-extrabold text-bluewood-900">이 경험을 어떻게 자소서 소재로 볼 것인가</h4>
+                    <p className="mt-3 text-[14.5px] leading-[1.85] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+                      {experienceName} 경험은 단순한 결과물 제작 사례가 아니라, 문제를 정의하고 실행 기준을 세운 뒤 검증 가능한 경험으로 구조화한 기획 사례입니다. 핵심은 많이 보여주고 싶은 경험을 평가자가 빠르게 판단할 수 있는 정보로 바꿨다는 점입니다.
+                    </p>
+                    {(metrics.length > 0 || kws.length > 0) && (
+                      <div className="mt-4 flex flex-wrap gap-1.5">
+                        {metrics.map(m => <span key={m} className="rounded-md bg-bluewood-900 px-2.5 py-1 text-[12px] font-bold text-white">{m}</span>)}
+                        {kws.map(k => <span key={k} className="rounded-md border border-surface-200 bg-surface-50 px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{k}</span>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {assetList.map(asset => (
+                      <div key={asset.title} className="rounded-lg border border-surface-200 bg-surface-50/70 p-4">
+                        <p className="text-[13px] font-extrabold text-bluewood-900">{asset.title}</p>
+                        <p className="mt-1.5 text-[13px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{asset.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-6 sm:px-7">
+                <p className="text-[13px] font-black text-primary-600">2) 추천 구성 전략</p>
+                <div className="mt-4 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="space-y-3">
+                    {strategyList.map(item => (
+                      <div key={item.title} className="rounded-lg border border-surface-200 p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[14px] font-extrabold text-bluewood-900">{item.title}</p>
+                          <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[11.5px] font-bold text-primary-700">{item.tag}</span>
+                        </div>
+                        <p className="mt-2 text-[13.5px] leading-[1.75] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{item.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h4 className="text-[15px] font-extrabold text-bluewood-900">문단 흐름</h4>
+                    <div className="mt-3 border-l-2 border-primary-200 pl-4">
+                      {paragraphFlow.map((item, index) => (
+                        <div key={item.label} className={index === paragraphFlow.length - 1 ? 'pb-0' : 'pb-4'}>
+                          <p className="text-[13px] font-bold text-bluewood-800">{item.label}</p>
+                          <p className="mt-1 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{item.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-6 sm:px-7">
+                <p className="text-[13px] font-black text-primary-600">3) 문장 아이디어와 표현 가이드</p>
+                <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                  <div>
+                    <h4 className="text-[15px] font-extrabold text-bluewood-900">핵심 문장 아이디어</h4>
+                    <ol className="mt-3 space-y-2.5">
+                      {sentenceIdeas.map((sentence, index) => (
+                        <li key={index} className="flex gap-3 text-[13.5px] leading-[1.75] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-bluewood-900 text-[11px] font-black text-white">{index + 1}</span>
+                          <span>{sentence}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  <div className="grid gap-4">
+                    <div>
+                      <h4 className="text-[15px] font-extrabold text-bluewood-900">추천 표현 방식</h4>
+                      <div className="mt-3 divide-y divide-surface-100 rounded-lg border border-surface-200">
+                        {expressionGuide.map(item => (
+                          <div key={item.good} className="grid grid-cols-[0.82fr_1fr] gap-3 px-3.5 py-3 text-[13px]">
+                            <span className="text-bluewood-300">{item.good}</span>
+                            <span className="font-semibold text-bluewood-700">{item.better}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[15px] font-extrabold text-bluewood-900">피해야 할 문장 유형</h4>
+                      <ul className="mt-3 space-y-2">
+                        {avoidList.map(item => (
+                          <li key={item} className="flex gap-2 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-6 sm:px-7">
+                <p className="text-[13px] font-black text-primary-600">4) 면접 확장 포인트</p>
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+                  <div className="space-y-3">
+                    {interviewQuestions.map((question, index) => (
+                      <div key={question} className="flex gap-3 rounded-lg border border-surface-200 p-4">
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-primary-600 text-[12px] font-black text-white">Q{index + 1}</span>
+                        <p className="text-[13.5px] leading-[1.75] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{question}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {draft && (
+                    <div className="rounded-lg border border-primary-100 bg-primary-50/60 p-4">
+                      <h4 className="text-[15px] font-extrabold text-bluewood-900">예시 한 문단</h4>
+                      <p className="mt-3 text-[13.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{draft}</p>
+                      <p className="mt-4 border-l-2 border-primary-500 pl-3 text-[12.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                        완성 문단으로 바로 쓰기보다 본인의 구체 수치, 고민 과정, 선택하지 않은 대안을 1~2문장 더 보태면 훨씬 진짜 경험처럼 읽힙니다.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
         );
       })()}
 

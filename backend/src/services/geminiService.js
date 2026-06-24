@@ -19,6 +19,9 @@ import {
   buildInterviewQuestionsPrompt,
   buildDraftAnalysisPrompt,
   buildEvidenceLabelPrompt,
+  buildTagPrompt,
+  JOB_COMPETENCIES,
+  WORK_STYLES,
 } from '../prompts/experiencePrompts.js';
 import {
   buildCoverLetterDraftPrompt,
@@ -945,6 +948,8 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     jobCategory: jobCategory || 'common',
     jobSpecific: overviewJson.jobSpecific || {},
     keywords: metaJson.keywords || [],
+    competencyTags: metaJson.competencyTags || [],
+    workStyleTags: metaJson.workStyleTags || [],
     highlights: metaJson.highlights || [],
     followUpQuestions: metaJson.followUpQuestions || [],
   };
@@ -1116,6 +1121,31 @@ export async function judgeEvidenceLabels(sections = {}) {
   } catch (err) {
     console.warn('[EvidenceLabels] AI judgement failed:', err.message);
     return {};
+  }
+}
+
+/**
+ * 경험 텍스트 → 직무역량/업무성향 태그 (기존 경험 자동 태깅 백필용).
+ * 허용 목록 밖 값은 버린다. 실패 시 빈 배열.
+ */
+export async function generateExperienceTags(text = '') {
+  const clean = String(text || '').trim();
+  if (clean.length < 5) return { competencyTags: [], workStyleTags: [] };
+  const COMP = new Set(JOB_COMPETENCIES);
+  const STYLE = new Set(WORK_STYLES);
+  try {
+    const out = await withTimeout(
+      generateWithRetry(buildTagPrompt(clean.slice(0, 4000)), LITE_ONLY_OPTIONS),
+      30000,
+      'AutoTag',
+    );
+    const json = parseJSON(out) || {};
+    const competencyTags = [...new Set((json.competencyTags || []).map(t => String(t).trim()))].filter(t => COMP.has(t)).slice(0, 4);
+    const workStyleTags = [...new Set((json.workStyleTags || []).map(t => String(t).trim()))].filter(t => STYLE.has(t)).slice(0, 3);
+    return { competencyTags, workStyleTags };
+  } catch (err) {
+    console.warn('[AutoTag] 태깅 실패:', err.message);
+    return { competencyTags: [], workStyleTags: [] };
   }
 }
 

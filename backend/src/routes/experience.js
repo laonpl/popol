@@ -12,12 +12,32 @@ import {
   researchMarketMetrics,
   generateInterviewQuestions,
   judgeEvidenceLabels,
+  generateExperienceTags,
 } from '../services/geminiService.js';
 import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 
 const router = Router();
 
 const now = () => new Date();
+
+// 경험 문서 → 태깅용 요약 텍스트
+function experienceToTagText(data = {}) {
+  const sr = data.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const parts = [
+    data.title,
+    ov.summary, ov.goal, ov.role,
+    sr.intro, sr.task, sr.process, sr.output, sr.competency,
+    Array.isArray(sr.keywords) ? sr.keywords.join(', ') : '',
+    Array.isArray(data.keywords) ? data.keywords.join(', ') : '',
+    typeof data.content?.rawInput === 'string' ? data.content.rawInput : '',
+  ].filter(Boolean);
+  return parts.join('\n').slice(0, 4000);
+}
+
+const hasTags = (d = {}) =>
+  (Array.isArray(d.competencyTags) && d.competencyTags.length > 0) ||
+  (Array.isArray(d.workStyleTags) && d.workStyleTags.length > 0);
 
 function requireExperienceOwner(data, uid, res) {
   if (!data) {
@@ -428,6 +448,32 @@ router.delete('/:id', authMiddleware, async (req, res, next) => {
     if (!requireExperienceOwner(data, req.user.uid, res)) return;
     await ref.delete();
     res.json({ deleted: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/auto-tag-all - 태그 없는 경험을 AI로 일괄 자동 태깅(백필)
+// force=true면 태그 유무와 무관하게 전부 재태깅. 한 번에 최대 12건 처리 후 남은 수 반환.
+router.post('/auto-tag-all', authMiddleware, aiRateLimiter, async (req, res, next) => {
+  try {
+    const force = req.body?.force === true;
+    const snap = await adminDb.collection('experiences').where('userId', '==', req.user.uid).get();
+    const targets = snap.docs.filter(d => force || !hasTags(d.data()));
+    const batchDocs = targets.slice(0, 12);
+
+    let tagged = 0;
+    const results = [];
+    for (const doc of batchDocs) {
+      const data = doc.data();
+      const { competencyTags, workStyleTags } = await generateExperienceTags(experienceToTagText(data));
+      if (competencyTags.length || workStyleTags.length) {
+        await doc.ref.update({ competencyTags, workStyleTags, updatedAt: now() });
+        tagged++;
+        results.push({ id: doc.id, competencyTags, workStyleTags });
+      }
+    }
+    res.json({ tagged, processed: batchDocs.length, remaining: Math.max(0, targets.length - batchDocs.length), results });
   } catch (error) {
     next(error);
   }

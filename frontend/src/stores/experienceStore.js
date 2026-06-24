@@ -158,6 +158,20 @@ const useExperienceStore = create((set, get) => ({
     }));
   },
 
+  // 태그 없는 경험을 AI로 일괄 자동 태깅(백필). 한 번 호출 = 최대 12건.
+  autoTagAll: async (force = false) => {
+    const { data } = await api.post('/experience/auto-tag-all', { force });
+    if (data.results?.length) {
+      set(state => ({
+        experiences: state.experiences.map(e => {
+          const r = data.results.find(x => x.id === e.id);
+          return r ? { ...e, competencyTags: r.competencyTags, workStyleTags: r.workStyleTags } : e;
+        }),
+      }));
+    }
+    return data; // { tagged, processed, remaining }
+  },
+
   deleteExperience: async (id) => {
     await api.delete(`/experience/${id}`);
     set(state => ({

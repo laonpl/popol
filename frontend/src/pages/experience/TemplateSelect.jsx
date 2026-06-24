@@ -1340,7 +1340,7 @@ export default function TemplateSelect() {
     return (
       <>
       {createTutorialOverlay}
-      <div className="animate-fadeIn max-w-[95%] 2xl:max-w-[1920px] mx-auto">
+      <div className="animate-fadeIn max-w-[1120px] mx-auto px-4 sm:px-6">
         {/* 뒤로가기 */}
         <button
           onClick={() => setStep(2)}
@@ -1563,7 +1563,7 @@ export default function TemplateSelect() {
                 <>
                 {/* 힌트 바 */}
                 {hint && (
-                  <div className={`px-2 py-1.5 border-l-2 text-[15px] leading-relaxed ${
+                  <div className={`px-4 py-3 border-l-2 text-[13.5px] leading-relaxed ${
                     hint.level === 'warn'
                       ? 'border-bluewood-400 text-bluewood-600'
                       : 'border-surface-200 text-bluewood-400'
@@ -1573,13 +1573,13 @@ export default function TemplateSelect() {
                 )}
 
                 {/* 경험 카드 */}
-                <div className="border border-surface-100 overflow-hidden">
+                <div className="border border-surface-200 rounded-xl overflow-hidden bg-white">
 
                   {/* 헤더 */}
-                  <div className="flex items-start justify-between gap-2 px-2 py-1.5 border-b border-surface-100">
+                  <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-surface-100">
                     <div className="flex-1 min-w-0">
                       {currentM.type && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
+                        <div className="flex flex-wrap gap-1.5 mb-2.5">
                           {currentM.type.split(',').map(t => t.trim()).filter(Boolean).map((typeKey, ti) => (
                             <span key={ti} className="relative group">
                               <span className="px-2 py-0.5 text-[15px] font-semibold rounded bg-surface-100 text-bluewood-500 border border-surface-200 cursor-default">
@@ -1599,20 +1599,20 @@ export default function TemplateSelect() {
                         value={currentM.title}
                         onChange={e => editingMomentId === currentM.id && updateMoment(currentM.id, 'title', e.target.value)}
                         readOnly={editingMomentId !== currentM.id}
-                        className={`w-full text-[11px] font-semibold text-primary-600 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
+                        className={`w-full text-[18px] font-bold text-primary-600 leading-snug bg-transparent outline-none border-b border-transparent transition-colors ${editingMomentId === currentM.id ? 'focus:border-surface-300 cursor-text' : 'cursor-default pointer-events-none'}`}
                       />
                     </div>
                     {editingMomentId === currentM.id ? (
                       <button
                         onClick={() => setEditingMomentId(null)}
-                        className="flex-shrink-0 px-2 py-1.5 text-[9px] font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                        className="flex-shrink-0 px-3.5 py-2 text-[12.5px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                       >
                         완료
                       </button>
                     ) : (
                       <button
                         onClick={() => setEditingMomentId(currentM.id)}
-                        className="flex-shrink-0 px-2 py-1.5 text-[9px] font-medium border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-50 transition-colors"
+                        className="flex-shrink-0 px-3.5 py-2 text-[12.5px] font-semibold border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-50 transition-colors"
                       >
                         수정
                       </button>
@@ -1620,7 +1620,10 @@ export default function TemplateSelect() {
                   </div>
 
                   {/* 본문 */}
-                  <div className="px-2 py-1.5">
+                  <div className="px-6 py-5">
+                    {!currentM._git && (
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-bluewood-300">프로젝트 소개 · 핵심 경험</p>
+                    )}
                     {/* GitHub 커밋 분석 결과 전용 뷰 */}
                     {currentM._git ? (
                       <div className="space-y-3 text-[15px]">
@@ -1695,8 +1698,8 @@ export default function TemplateSelect() {
 
                   {/* 키워드 */}
                   {(currentM.keywords || []).length > 0 && (
-                    <div className="px-2 pb-5 pt-2 border-t border-surface-100">
-                      <p className="text-[11px] text-bluewood-400 font-medium mb-2">역량 키워드</p>
+                    <div className="px-6 pb-6 pt-4 border-t border-surface-100">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-bluewood-300">역량 키워드</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(currentM.keywords || []).map((kw, ki) => (
                           <span key={ki} className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-100 text-bluewood-600 text-[11px] rounded-md border border-surface-200">
@@ -1719,10 +1722,10 @@ export default function TemplateSelect() {
                   )}
 
                   {/* 하단 네비게이션 */}
-                  <div className="flex items-center justify-between px-2 py-1.5 border-t border-surface-100">
+                  <div className="flex items-center justify-between px-6 py-4 border-t border-surface-100 bg-surface-50/40">
                     <button
                       onClick={() => handleDeleteAndMove(currentM.id)}
-                      className="text-[9px] text-red-400 hover:text-red-600 hover:underline transition-colors"
+                      className="text-[12px] text-red-400 hover:text-red-600 hover:underline transition-colors"
                     >
                       이 경험 제외
                     </button>
@@ -1730,21 +1733,21 @@ export default function TemplateSelect() {
                       <button
                         onClick={() => { setCurrentMomentIdx(i => Math.max(0, i - 1)); setEditingMomentId(null); }}
                         disabled={safeIdx === 0}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-medium border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="flex items-center gap-1 px-3.5 py-2 text-[12.5px] font-semibold border border-surface-200 text-bluewood-500 rounded-lg hover:bg-surface-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        <ChevronLeft size={10} /> 이전
+                        <ChevronLeft size={13} /> 이전
                       </button>
                       {safeIdx < moments.length - 1 ? (
                         <button
                           onClick={() => { setCurrentMomentIdx(i => i + 1); setEditingMomentId(null); }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                          className="flex items-center gap-1 px-3.5 py-2 text-[12.5px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                         >
-                          다음 <ChevronRight size={10} />
+                          다음 <ChevronRight size={13} />
                         </button>
                       ) : (
                         <button
                           onClick={() => document.getElementById('final-submit-btn')?.scrollIntoView({ behavior: 'smooth' })}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                          className="flex items-center gap-1 px-3.5 py-2 text-[12.5px] font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                         >
                           검토 완료
                         </button>
@@ -2094,10 +2097,10 @@ export default function TemplateSelect() {
       {step === 2 && (
         <div>
           {/* 헤더 */}
-          <div className="mb-6">
-            <p className="text-[15px] font-bold uppercase tracking-[0.22em] text-bluewood-300 mb-3">Data Collection · Step 2 of 3</p>
-            <h1 className="text-[21px] font-bold tracking-[-0.02em] text-primary-600 leading-tight">자료 수집</h1>
-            <p className="mt-2 text-[11px] text-bluewood-400 leading-relaxed">
+          <div className="mb-7 rounded-2xl border border-primary-100 bg-white px-5 py-5 shadow-sm">
+            <p className="text-[13px] font-black uppercase tracking-[0.22em] text-primary-500 mb-2">Data Collection · Step 2 of 3</p>
+            <h1 className="text-[24px] font-black tracking-[-0.02em] text-bluewood-950 leading-tight">자료 수집</h1>
+            <p className="mt-2 text-[13px] text-bluewood-500 leading-relaxed">
               파일, 링크, 텍스트 중 하나 이상을 추가하면 AI가 핵심 경험을 추출하고 다음 단계에서 직접 검토·수정할 수 있습니다.
             </p>
           </div>
@@ -2105,15 +2108,15 @@ export default function TemplateSelect() {
           <input ref={fileInputRef} type="file" accept={ACCEPT_FILES} multiple onChange={handleFileAdd} className="hidden" />
 
           {/* 폼 테이블 */}
-          <div className="divide-y divide-surface-100">
+          <div className="space-y-5">
 
             {/* 01 파일 업로드 */}
-            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
-              <div className="flex items-start gap-2 pt-0.5">
-                <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">01</span>
+            <div className="grid gap-5 rounded-2xl border border-primary-100 border-l-4 border-l-primary-600 bg-white p-5 shadow-sm md:grid-cols-[200px_1fr]">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[12px] font-black text-white tabular-nums shadow-sm">01</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">파일 첨부</p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">PDF · 이미지 · 최대 10개</p>
+                  <p className="text-[14px] font-extrabold text-bluewood-950">파일 첨부</p>
+                  <p className="text-[12px] text-bluewood-500 mt-1">PDF · 이미지 · 최대 10개</p>
                 </div>
               </div>
               <div>
@@ -2122,22 +2125,22 @@ export default function TemplateSelect() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-full border border-dashed rounded-lg py-6 flex flex-col items-center gap-1.5 cursor-pointer transition-all select-none ${
+                  className={`w-full rounded-xl border-2 border-dashed px-5 py-7 flex flex-col items-center gap-1.5 cursor-pointer transition-all select-none ${
                     isDragging
-                      ? 'border-bluewood-400 bg-bluewood-50 text-bluewood-600'
-                      : 'border-surface-300 text-bluewood-300 hover:border-bluewood-300 hover:text-bluewood-500 hover:bg-surface-50'
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-inner'
+                      : 'border-primary-200 bg-primary-50/30 text-bluewood-600 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50/70'
                   }`}
                 >
-                  <p className="text-[11px] font-medium">클릭하거나 파일을 여기에 끌어오세요</p>
-                  <p className="text-[11px] text-bluewood-200">PDF, JPG, PNG, WEBP · 최대 25MB · HWP는 PDF 변환 후 업로드</p>
+                  <p className="text-[13px] font-bold">클릭하거나 파일을 여기에 끌어오세요</p>
+                  <p className="text-[12px] text-bluewood-400">PDF, JPG, PNG, WEBP · 최대 25MB · HWP는 PDF 변환 후 업로드</p>
                 </div>
                 {files.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {files.map((f, i) => (
-                      <div key={i} className="flex items-center gap-2 py-1.5 border-b border-surface-100">
+                      <div key={i} className="flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/30 px-3 py-2">
                         <CheckCircle2 size={10} className="text-emerald-400 flex-shrink-0" />
-                        <p className="flex-1 text-[11px] text-bluewood-700 truncate">{f.name}</p>
-                        <span className="text-[11px] text-bluewood-300">{(f.size / 1024).toFixed(0)} KB</span>
+                        <p className="flex-1 text-[12px] font-semibold text-bluewood-800 truncate">{f.name}</p>
+                        <span className="text-[11px] text-bluewood-500">{(f.size / 1024).toFixed(0)} KB</span>
                         <button onClick={() => removeFile(i)} className="p-1 text-bluewood-200 hover:text-red-400 transition-colors flex-shrink-0">
                           <X size={10} />
                         </button>
@@ -2149,12 +2152,12 @@ export default function TemplateSelect() {
             </div>
 
             {/* 02 직접 입력 */}
-            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
-              <div className="flex items-start gap-2 pt-0.5">
-                <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">02</span>
+            <div className="grid gap-5 rounded-2xl border border-primary-100 border-l-4 border-l-primary-600 bg-white p-5 shadow-sm md:grid-cols-[200px_1fr]">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[12px] font-black text-white tabular-nums shadow-sm">02</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">직접 입력</p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">자유 형식 텍스트</p>
+                  <p className="text-[14px] font-extrabold text-bluewood-950">직접 입력</p>
+                  <p className="text-[12px] text-bluewood-500 mt-1">자유 형식 텍스트</p>
                 </div>
               </div>
               <div>
@@ -2164,101 +2167,101 @@ export default function TemplateSelect() {
                   onChange={e => setTextInput(e.target.value)}
                   placeholder={`프로젝트나 경험에 대해 자유롭게 작성해주세요.\n\n예) 어떤 문제를 해결했나요? 내가 맡은 역할은? 어떤 성과가 있었나요?`}
                   rows={5}
-                  className="w-full border-0 border-b-2 border-surface-200 bg-transparent py-1.5 text-[15px] text-primary-600 resize-none outline-none transition-all placeholder:text-bluewood-200 focus:border-primary-400"
+                  className="w-full resize-none rounded-xl border border-primary-100 bg-primary-50/30 px-4 py-3 text-[15px] leading-relaxed text-bluewood-900 outline-none transition-all placeholder:text-bluewood-400 focus:border-primary-400 focus:bg-white focus:ring-4 focus:ring-primary-100"
                 />
                 {textInput && (
-                  <p className="text-[11px] text-bluewood-300 text-right mt-1">{textInput.length}자</p>
+                  <p className="text-[11px] text-bluewood-500 text-right mt-1">{textInput.length}자</p>
                 )}
               </div>
             </div>
 
             {/* 03 링크 */}
-            <div className="grid md:grid-cols-[200px_1fr] gap-6 py-7">
-              <div className="flex items-start gap-2 pt-0.5">
-                <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">03</span>
+            <div className="grid gap-5 rounded-2xl border border-primary-100 border-l-4 border-l-primary-600 bg-white p-5 shadow-sm md:grid-cols-[200px_1fr]">
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[12px] font-black text-white tabular-nums shadow-sm">03</span>
                 <div>
-                  <p className="text-[11px] font-semibold text-bluewood-700">링크 연결</p>
-                  <p className="text-[11px] text-bluewood-300 mt-0.5">Notion · GitHub · 블로그</p>
+                  <p className="text-[14px] font-extrabold text-bluewood-950">링크 연결</p>
+                  <p className="text-[12px] text-bluewood-500 mt-1">Notion · GitHub · 블로그</p>
                 </div>
               </div>
               <div className="space-y-4">
                 {/* Notion */}
                 <div>
-                  <p className="text-[15px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">Notion</p>
-                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
-                    <Globe size={10} className="text-bluewood-200 flex-shrink-0" />
+                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-600 mb-1.5">Notion</p>
+                  <div className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/30 px-3 py-2.5 transition-all focus-within:border-primary-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary-100">
+                    <Globe size={13} className="text-primary-500 flex-shrink-0" />
                     <input
                       type="url"
                       value={notionUrl}
                       onChange={e => setNotionUrl(e.target.value)}
                       placeholder="https://notion.so/..."
-                      className="flex-1 bg-transparent py-1 text-[15px] text-primary-600 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent text-[14px] text-bluewood-900 outline-none placeholder:text-bluewood-400"
                     />
                   </div>
                 </div>
                 {/* GitHub */}
                 <div>
-                  <p className="text-[15px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">GitHub</p>
-                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
-                    <Github size={10} className="text-bluewood-200 flex-shrink-0" />
+                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-600 mb-1.5">GitHub</p>
+                  <div className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/30 px-3 py-2.5 transition-all focus-within:border-primary-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary-100">
+                    <Github size={13} className="text-primary-500 flex-shrink-0" />
                     <input
                       type="url"
                       value={githubUrl}
                       onChange={e => setGithubUrl(e.target.value)}
                       placeholder="https://github.com/user/repo"
-                      className="flex-1 bg-transparent py-1 text-[15px] text-primary-600 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent text-[14px] text-bluewood-900 outline-none placeholder:text-bluewood-400"
                     />
                   </div>
                   {githubUrl.trim() && (
-                    <div className="flex items-center gap-2 border-b border-surface-100 focus-within:border-primary-300 transition-all pb-1 mt-2">
-                      <span className="text-[11px] font-medium text-bluewood-200">@</span>
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary-100 bg-white px-3 py-2 transition-all focus-within:border-primary-300 focus-within:ring-4 focus-within:ring-primary-100">
+                      <span className="text-[12px] font-bold text-primary-500">@</span>
                       <input
                         type="text"
                         value={githubUsername}
                         onChange={e => setGithubUsername(e.target.value)}
                         placeholder="내 GitHub 아이디 (커밋 필터용)"
-                        className="flex-1 bg-transparent py-1 text-[11px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
+                        className="flex-1 bg-transparent text-[12px] text-bluewood-800 outline-none placeholder:text-bluewood-400"
                       />
                     </div>
                   )}
                 </div>
                 {/* 블로그 */}
                 <div>
-                  <p className="text-[15px] font-bold uppercase tracking-[0.14em] text-bluewood-200 mb-1.5">블로그 / 기타</p>
-                  <div className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
-                    <Globe size={10} className="text-bluewood-200 flex-shrink-0" />
+                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-600 mb-1.5">블로그 / 기타</p>
+                  <div className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/30 px-3 py-2.5 transition-all focus-within:border-primary-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary-100">
+                    <Globe size={13} className="text-primary-500 flex-shrink-0" />
                     <input
                       type="url"
                       value={blogUrl}
                       onChange={e => setBlogUrl(e.target.value)}
                       placeholder="https://..."
-                      className="flex-1 bg-transparent py-1 text-[15px] text-primary-600 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent text-[14px] text-bluewood-900 outline-none placeholder:text-bluewood-400"
                     />
                   </div>
                 </div>
                 {/* 추가 링크 */}
                 {linkInputs.map((link, i) => (
-                  <div key={i} className="flex items-center gap-2 border-b-2 border-surface-200 focus-within:border-primary-400 transition-all pb-1">
-                    <Link2 size={10} className="text-bluewood-200 flex-shrink-0" />
+                  <div key={i} className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/30 px-3 py-2.5 transition-all focus-within:border-primary-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary-100">
+                    <Link2 size={13} className="text-primary-500 flex-shrink-0" />
                     <input
                       type="url"
                       value={link}
                       onChange={e => updateLink(i, e.target.value)}
                       placeholder="추가 링크 URL"
-                      className="flex-1 bg-transparent py-1 text-[15px] text-primary-600 outline-none placeholder:text-bluewood-200"
+                      className="flex-1 bg-transparent text-[14px] text-bluewood-900 outline-none placeholder:text-bluewood-400"
                     />
-                    <button onClick={() => removeLink(i)} className="text-bluewood-200 hover:text-red-400 transition-colors">
-                      <X size={10} />
+                    <button onClick={() => removeLink(i)} className="text-bluewood-300 transition-colors hover:text-red-400">
+                      <X size={12} />
                     </button>
                   </div>
                 ))}
                 <button
                   onClick={addLinkInput}
-                  className="flex items-center gap-1.5 text-[11px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors"
+                  className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-primary-100 bg-white px-3 py-1.5 text-[12px] font-bold text-primary-600 transition-colors hover:border-primary-300 hover:bg-primary-50"
                 >
-                  <Plus size={10} /> 링크 추가
+                  <Plus size={12} /> 링크 추가
                 </button>
-                <p className="text-[11px] text-bluewood-200">공개된 페이지·리포지토리만 가져올 수 있습니다.</p>
+                <p className="text-[12px] text-bluewood-500">공개된 페이지·리포지토리만 가져올 수 있습니다.</p>
               </div>
             </div>
 
@@ -2266,16 +2269,16 @@ export default function TemplateSelect() {
 
           {/* 수집 현황 + 안내 */}
           {hasInput && (
-            <div className="mt-6 flex items-start gap-2 py-1.5 border-t border-surface-100">
+            <div className="mt-6 flex items-start gap-2 rounded-2xl border border-primary-100 bg-primary-50/40 px-4 py-3">
               <div className="flex flex-wrap gap-2 flex-1">
-                {files.length > 0 && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 파일 {files.length}개</span>}
-                {textInput.trim() && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 텍스트</span>}
-                {notionUrl.trim() && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> Notion</span>}
-                {githubUrl.trim() && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> GitHub</span>}
-                {blogUrl.trim() && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 블로그</span>}
-                {linkInputs.filter(l => l.trim()).length > 0 && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-bluewood-500"><CheckCircle2 size={11} className="text-emerald-400" /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개</span>}
+                {files.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 파일 {files.length}개</span>}
+                {textInput.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 텍스트</span>}
+                {notionUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> Notion</span>}
+                {githubUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> GitHub</span>}
+                {blogUrl.trim() && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 블로그</span>}
+                {linkInputs.filter(l => l.trim()).length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-bluewood-700 shadow-sm"><CheckCircle2 size={11} className="text-emerald-500" /> 추가 링크 {linkInputs.filter(l => l.trim()).length}개</span>}
               </div>
-              <p className="text-[11px] text-bluewood-300 leading-relaxed text-right flex-shrink-0">자료량에 따라 최대 5분 소요<br/>분석 중 페이지 이탈 금지</p>
+              <p className="text-[11px] text-bluewood-500 leading-relaxed text-right flex-shrink-0">자료량에 따라 최대 5분 소요<br/>분석 중 페이지 이탈 금지</p>
             </div>
           )}
 

@@ -2,9 +2,13 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
-  GripVertical, CalendarDays, Star, ArrowUpDown,
-  UserRound, RotateCcw, Save, Mail,
+  GripVertical, Star, ArrowUpDown,
+  RotateCcw, Save, Mail,
 } from 'lucide-react';
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
+  PieChart, Pie, LabelList,
+} from 'recharts';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
@@ -16,6 +20,23 @@ import ExportModal from '../../components/ExportModal';
 import { stripMd } from '../../utils/textUtils';
 import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
+import {
+  JOB_COMPETENCIES, WORK_STYLES,
+  sanitizeCompetencyTags, sanitizeWorkStyleTags,
+  COMPETENCY_CHIP, WORKSTYLE_CHIP,
+  EXPERIENCE_CATEGORIES, UNCATEGORIZED, readCategory,
+  WORK_STYLE_INFO,
+} from '../../constants/competencies';
+import { recommendJobFamilies, recommendByWorkStyle } from '../../constants/jobFamilies';
+import { SKILL_ICONS, matchSkillIcon } from '../../constants/skillIcons';
+
+/* 경험에서 표준 태그 읽기 (top-level 우선, 없으면 structuredResult) */
+function readCompetencyTags(exp) {
+  return sanitizeCompetencyTags(exp.competencyTags || exp.structuredResult?.competencyTags || []);
+}
+function readWorkStyleTags(exp) {
+  return sanitizeWorkStyleTags(exp.workStyleTags || exp.structuredResult?.workStyleTags || []);
+}
 
 function formatDate(ts) {
   if (!ts) return '';
@@ -170,7 +191,7 @@ export default function ExperienceHub() {
   const forceTutorial = new URLSearchParams(location.search).get('tutorial') === '1';
   const tutorialInitialStep = parseInt(new URLSearchParams(location.search).get('step') || '0', 10) || 0;
   const { visible: tutorialVisible, dismiss: dismissTutorial, show: showTutorial } = useOnboarding(tutorialKey, { force: forceTutorial });
-  const { experiences, fetchExperiences, loading, deleteExperience, createExperience, updateExperience, reorderExperiences } = useExperienceStore();
+  const { experiences, fetchExperiences, loading, deleteExperience, createExperience, updateExperience } = useExperienceStore();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
   const [detailData, setDetailData] = useState(null);
@@ -182,6 +203,11 @@ export default function ExperienceHub() {
   const [editTitle, setEditTitle] = useState('');
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+  const [editTags, setEditTags] = useState([]);     // 직무 역량
+  const [editStyles, setEditStyles] = useState([]); // 업무 성향
+  const [editCategory, setEditCategory] = useState(''); // 경험 유형(폴더)
+  const [compFilter, setCompFilter] = useState('');  // 목록 직무역량 필터
+  const [activeFolder, setActiveFolder] = useState('all'); // 목록 좌측 폴더 선택
 
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
   const [chooserOpen, setChooserOpen] = useState(false); // 새 경험 추가 방식 선택 모달
@@ -277,36 +303,6 @@ export default function ExperienceHub() {
   const datedExperiences = useMemo(() => sortedExperiences.filter(hasRealPeriod), [sortedExperiences]);
   const undatedExperiences = useMemo(() => sortedExperiences.filter(e => !hasRealPeriod(e)), [sortedExperiences]);
 
-  /* ── 드래그 앤 드롭 (custom 모드에서만) ── */
-  const [dragIdx, setDragIdx] = useState(null);
-  const [overIdx, setOverIdx] = useState(null);
-
-  const handleDragStart = useCallback((e, idx) => {
-    setDragIdx(idx);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-  }, []);
-
-  const handleDragOver = useCallback((e, idx) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setOverIdx(idx);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    if (dragIdx != null && overIdx != null && dragIdx !== overIdx) {
-      // sortedExperiences 기준으로 새 순서를 계산한 뒤 저장
-      const ids = sortedExperiences.map(e => e.id);
-      const [moved] = ids.splice(dragIdx, 1);
-      ids.splice(overIdx, 0, moved);
-      reorderExperiences(ids);
-      // 드래그 후에는 직접 정렬 모드로 전환
-      setSortBy('custom');
-    }
-    setDragIdx(null);
-    setOverIdx(null);
-  }, [dragIdx, overIdx, sortedExperiences, reorderExperiences]);
-
   /* ── 타임라인 인라인 편집 ── */
   const startEditing = (exp, e) => {
     e?.stopPropagation();
@@ -315,8 +311,13 @@ export default function ExperienceHub() {
     setEditTitle(exp.title || '');
     setEditStart(`${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`);
     setEditEnd(`${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}`);
+    setEditTags(readCompetencyTags(exp));
+    setEditStyles(readWorkStyleTags(exp));
+    setEditCategory(EXPERIENCE_CATEGORIES.includes(exp.category) ? exp.category : '');
   };
   const cancelEditing = (e) => { e?.stopPropagation(); setEditingId(null); };
+  const toggleEditTag = (tag) => setEditTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const toggleEditStyle = (tag) => setEditStyles(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   const saveEditing = async (e) => {
     e?.stopPropagation();
     if (!editingId || !editTitle.trim()) return;
@@ -324,14 +325,19 @@ export default function ExperienceHub() {
       toast.error('시작/종료 연도와 월을 선택해주세요');
       return;
     }
+    const tagPatch = {
+      competencyTags: sanitizeCompetencyTags(editTags),
+      workStyleTags: sanitizeWorkStyleTags(editStyles),
+      category: editCategory || '',
+    };
     if (editingId === tutorialDemoExperience?.id) {
-      setTutorialDemoExperience(prev => prev ? { ...prev, title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` } : prev);
+      setTutorialDemoExperience(prev => prev ? { ...prev, title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28`, ...tagPatch } : prev);
       toast.success('가상 경험이 수정되었습니다');
       setEditingId(null);
       return;
     }
     try {
-      await updateExperience(editingId, { title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28` });
+      await updateExperience(editingId, { title: editTitle.trim(), period: `${editStart}-01 ~ ${editEnd}-28`, ...tagPatch });
       toast.success('수정 완료');
     } catch { toast.error('수정 실패'); }
     setEditingId(null);
@@ -515,6 +521,140 @@ export default function ExperienceHub() {
     },
   ], [navigate, dismissTutorial, showTutorialDemo, tutorialDemoExperience]);
 
+  /* ── 경험 수정 패널 (목록·폴더 공용) ── */
+  const renderEditPanel = (exp) => (
+    <div key={exp.id} data-tour={exp.isTutorialDemo ? 'experience-edit-panel' : undefined} className="bg-surface-50/60 border border-surface-200 rounded-xl px-5 py-5">
+      <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.14em] mb-4">경험 수정</p>
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="block text-[13px] text-bluewood-400 mb-1">제목</label>
+          <input
+            value={editTitle}
+            onChange={e => setEditTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
+            className="w-full text-[15px] font-semibold text-primary-600 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
+            autoFocus
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <label className="block text-[13px] text-bluewood-400 mb-1">시작</label>
+            <input type="month" value={editStart} onChange={e => setEditStart(e.target.value)}
+              className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors" />
+          </div>
+          <span className="text-bluewood-300 mt-5">–</span>
+          <div className="flex-1">
+            <label className="block text-[13px] text-bluewood-400 mb-1">종료</label>
+            <input type="month" value={editEnd} onChange={e => setEditEnd(e.target.value)}
+              className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-[13px] text-bluewood-400 mb-1">경험 유형 <span className="text-bluewood-300">(폴더)</span></label>
+          <select value={editCategory} onChange={e => setEditCategory(e.target.value)}
+            className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors">
+            <option value="">미분류</option>
+            {EXPERIENCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[13px] text-bluewood-400 mb-1.5">직무 역량 <span className="text-bluewood-300">(2~4개 권장)</span></label>
+          <div className="flex flex-wrap gap-1.5">
+            {JOB_COMPETENCIES.map(tag => {
+              const on = editTags.includes(tag);
+              return (
+                <button key={tag} type="button" onClick={() => toggleEditTag(tag)}
+                  className={`px-2.5 py-1 rounded-md text-[12px] font-semibold border transition-colors ${on ? COMPETENCY_CHIP : 'bg-white text-bluewood-400 border-surface-200 hover:border-caribbean-200'}`}>
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <label className="block text-[13px] text-bluewood-400 mb-1.5">업무 성향 <span className="text-bluewood-300">(2~3개 권장)</span></label>
+          <div className="flex flex-wrap gap-1.5">
+            {WORK_STYLES.map(tag => {
+              const on = editStyles.includes(tag);
+              return (
+                <button key={tag} type="button" onClick={() => toggleEditStyle(tag)}
+                  className={`px-2.5 py-1 rounded-md text-[12px] font-semibold border transition-colors ${on ? WORKSTYLE_CHIP : 'bg-white text-bluewood-400 border-surface-200 hover:border-primary-200'}`}>
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={cancelEditing} className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-500 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors">
+            <X size={13} /> 취소
+          </button>
+          <button onClick={saveEditing} className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+            <Check size={13} /> 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── 경험 카드 (폴더 뷰) ── */
+  const renderExperienceCard = (exp) => {
+    const overview = exp.structuredResult?.projectOverview || {};
+    const compTags = readCompetencyTags(exp);
+    const styleTags = readWorkStyleTags(exp);
+    const isFav = favorites.has(exp.id);
+    const isSelected = selectedId === exp.id;
+    const dated = hasRealPeriod(exp);
+    const { start } = parsePeriod(exp);
+    const dateLabel = dated ? `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')}` : '날짜 미입력';
+    return (
+      <div
+        key={exp.id}
+        onClick={() => setSelectedId(isSelected ? null : exp.id)}
+        onDoubleClick={() => { if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`); }}
+        className={`group relative flex flex-col gap-2.5 rounded-xl border bg-white p-4 cursor-pointer transition-all ${
+          isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-card-hover'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <span className={`text-[12px] font-bold tabular-nums ${dated ? 'text-primary-600' : 'text-gray-300'}`}>{dateLabel}</span>
+          <button
+            onClick={(e) => toggleFavorite(exp.id, e)}
+            className={`transition-colors ${isFav ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-300'}`}
+            title={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+          >
+            <Star size={15} className={isFav ? 'fill-current' : ''} />
+          </button>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2" style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
+          {(overview.role || overview.summary) && (
+            <p className="mt-1 text-[12.5px] text-gray-400 line-clamp-1">{stripMd(overview.role || overview.summary)}</p>
+          )}
+        </div>
+        {(compTags.length > 0 || styleTags.length > 0) && (
+          <div className="flex flex-wrap gap-1">
+            {compTags.slice(0, 3).map((t, i) => (
+              <span key={`c${i}`} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${COMPETENCY_CHIP}`}>{t}</span>
+            ))}
+            {styleTags.slice(0, 2).map((t, i) => (
+              <span key={`s${i}`} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${WORKSTYLE_CHIP}`}>{t}</span>
+            ))}
+          </div>
+        )}
+        {/* hover 액션 */}
+        <div className="absolute right-2 bottom-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+          <button onClick={(e) => startEditing(exp, e)} className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors" title="수정">
+            <Pencil size={13} />
+          </button>
+          <button onClick={(e) => handleTimelineDelete(exp, e)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" title="삭제">
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
     <GuidedTutorial
@@ -526,9 +666,9 @@ export default function ExperienceHub() {
       initialStep={tutorialInitialStep}
       onStepChange={setTutorialCurrentStep}
     />
-    <div className="animate-fadeIn max-w-[1240px] mx-auto">
+    <div className="animate-fadeIn max-w-[1320px] mx-auto">
       {/* ═══ 페이지 헤더 ═══ */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h1 className="text-[34px] font-extrabold text-gray-900 tracking-[-0.03em] leading-tight">경험 정리</h1>
@@ -562,62 +702,79 @@ export default function ExperienceHub() {
           </div>
         </div>
         {/* 컨트롤 바 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => { navigate('/app/experience?tutorial=1'); showTutorial(); }}
-            className="px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
-          >
-            튜토리얼 보기
-          </button>
-          {/* 정렬 드롭다운 */}
-          <div className="relative" ref={sortDropRef}>
-            <button
-              data-tour="experience-sort"
-              onClick={() => setSortDropOpen(v => !v)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-600 hover:border-gray-300 transition-colors"
-            >
-              <ArrowUpDown size={13} />
-              {currentSortLabel}
-              <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {sortDropOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1.5 min-w-[130px]">
-                {SORT_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
-                    className={`w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors ${
-                      sortBy === opt.value ? 'text-primary-600 bg-primary-50 font-semibold' : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
+        {/* 컨트롤 바 — 전문 라인형 탭 (메인 네이비 밑줄로 섹션 구분) */}
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-gray-200">
+          {/* 뷰 탭 */}
+          <div data-tour="experience-view-toggle" className="flex items-center gap-1">
+            {[
+              { key: 'timeline', label: '타임라인' },
+              { key: 'table', label: '목록' },
+              { key: 'dashboard', label: '대시보드' },
+              { key: 'profile', label: '프로필' },
+            ].map(t => {
+              const active = viewMode === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    setViewMode(t.key);
+                    if (t.key === 'profile' && tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
+                  }}
+                  className={`relative px-3.5 pt-1 pb-3 text-[14.5px] font-bold transition-colors ${
+                    active ? 'text-primary-700' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {t.label}
+                  {active && <span className="absolute -bottom-px left-2 right-2 h-[2.5px] rounded-full bg-primary-600" />}
+                </button>
+              );
+            })}
           </div>
 
-          {/* 뷰 전환 */}
-          <div data-tour="experience-view-toggle" className="flex items-center gap-0.5 border border-gray-200 rounded-xl p-1 bg-white">
+          {/* 우측 컨트롤 */}
+          <div className="flex items-center gap-2 pb-2">
+            {viewMode === 'table' && (
+              <select
+                value={compFilter}
+                onChange={e => setCompFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-600 hover:border-gray-300 transition-colors outline-none"
+              >
+                <option value="">전체 직무역량</option>
+                {JOB_COMPETENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            <div className="relative" ref={sortDropRef}>
+              <button
+                data-tour="experience-sort"
+                onClick={() => setSortDropOpen(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-600 hover:border-gray-300 transition-colors"
+              >
+                <ArrowUpDown size={13} />
+                {currentSortLabel}
+                <ChevronDown size={11} className={`transition-transform ${sortDropOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {sortDropOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 py-1.5 min-w-[130px]">
+                  {SORT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setSortBy(opt.value); setSortDropOpen(false); }}
+                      className={`w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                        sortBy === opt.value ? 'text-primary-600 bg-primary-50 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
-              onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all ${
-                viewMode === 'timeline' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
-              }`}
+              type="button"
+              onClick={() => { navigate('/app/experience?tutorial=1'); showTutorial(); }}
+              className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[13px] font-medium text-gray-500 hover:border-primary-200 hover:text-primary-600 transition-colors"
             >
-              <CalendarDays size={13} />타임라인
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('profile');
-                if (tutorialVisible && tutorialCurrentStep === 2) tutorialRef.current?.next();
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all ${
-                viewMode === 'profile' ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
-              }`}
-            >
-              <UserRound size={13} />프로필
+              튜토리얼
             </button>
           </div>
         </div>
@@ -662,7 +819,8 @@ export default function ExperienceHub() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[15px] font-bold text-bluewood-700">경험 타임라인</span>
+                  <span className="h-3.5 w-1 rounded-full bg-primary-600" />
+                  <span className="text-[15px] font-bold text-bluewood-800">경험 타임라인</span>
                   <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
                     {ganttData.items.length}개
                   </span>
@@ -843,7 +1001,8 @@ export default function ExperienceHub() {
           {viewMode === 'timeline' && undatedExperiences.length > 0 && (
             <div className="mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
               <div className="px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
-                <span className="text-[15px] font-bold text-bluewood-700">날짜 미입력 경험</span>
+                <span className="h-3.5 w-1 rounded-full bg-primary-600" />
+                <span className="text-[15px] font-bold text-bluewood-800">날짜 미입력 경험</span>
                 <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
                   {undatedExperiences.length}개
                 </span>
@@ -857,200 +1016,67 @@ export default function ExperienceHub() {
             </div>
           )}
 
-          {/* ═══ 경험 목록 (테이블) ═══ */}
-          {viewMode === 'table' && (
-            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-              {/* 테이블 헤더 */}
-              <div className="grid grid-cols-[28px_28px_48px_1fr_160px_140px_72px] items-center gap-3 px-6 py-3.5 border-b border-gray-100 bg-gray-50">
-                <span></span>
-                <span></span>
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">#</span>
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">프로젝트</span>
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">키워드</span>
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">기간</span>
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em] text-right">관리</span>
-              </div>
-
-              {/* 테이블 바디 */}
-              <div className="divide-y divide-gray-100">
-                {sortedExperiences.map((exp, idx) => {
-                  const theme = COLOR_PALETTES[colorPalette][idx % 3];
-                  const overview = exp.structuredResult?.projectOverview || {};
-                  const displayKeywords = exp.keywords || exp.structuredResult?.keywords || [];
-                  const { start, end } = parsePeriod(exp);
-                  const periodStr = `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')} – ${end.getFullYear()}.${String(end.getMonth() + 1).padStart(2, '0')}`;
-                  const isSelected = selectedId === exp.id;
-                  const isEditing = editingId === exp.id;
-                  const isDragging = dragIdx === idx;
-                  const isOver = overIdx === idx;
-                  const isFav = favorites.has(exp.id);
-
-                  /* ── 편집 상태: 그리드를 무너뜨리고 풀 너비 form 패널 ── */
-                  if (isEditing) {
-                    return (
-                      <div key={exp.id} data-tour={exp.isTutorialDemo ? 'experience-edit-panel' : undefined} className="bg-surface-50/60 border-y border-surface-200 px-5 py-5">
-                        <p className="text-[12px] font-bold text-bluewood-400 uppercase tracking-[0.14em] mb-4">경험 수정</p>
-                        <div className="flex flex-col gap-3">
-                          {/* 제목 */}
-                          <div>
-                            <label className="block text-[13px] text-bluewood-400 mb-1">제목</label>
-                            <input
-                              value={editTitle}
-                              onChange={e => setEditTitle(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter') saveEditing(e); if (e.key === 'Escape') cancelEditing(e); }}
-                              className="w-full text-[15px] font-semibold text-primary-600 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
-                              autoFocus
-                            />
-                          </div>
-                          {/* 기간 */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <label className="block text-[13px] text-bluewood-400 mb-1">시작</label>
-                              <input
-                                type="month"
-                                value={editStart}
-                                onChange={e => setEditStart(e.target.value)}
-                                className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
-                              />
-                            </div>
-                            <span className="text-bluewood-300 mt-5">–</span>
-                            <div className="flex-1">
-                              <label className="block text-[13px] text-bluewood-400 mb-1">종료</label>
-                              <input
-                                type="month"
-                                value={editEnd}
-                                onChange={e => setEditEnd(e.target.value)}
-                                className="w-full text-[14px] text-bluewood-700 bg-white border border-surface-200 rounded-lg px-3 py-2 outline-none focus:border-bluewood-400 transition-colors"
-                              />
-                            </div>
-                          </div>
-                          {/* 버튼 */}
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={cancelEditing}
-                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-bluewood-500 bg-white border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors"
-                            >
-                              <X size={13} /> 취소
-                            </button>
-                            <button
-                              onClick={saveEditing}
-                              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-                            >
-                              <Check size={13} /> 저장
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  /* ── 일반 행 ── */
-                  return (
-                    <div
-                      key={exp.id}
-                      data-tour={exp.isTutorialDemo ? 'experience-demo-row' : undefined}
-                      draggable={!isEditing}
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDragEnd={handleDragEnd}
-                      onDoubleClick={() => {
-                        if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
-                      }}
-                      className={`group grid grid-cols-[28px_28px_48px_1fr_160px_140px_72px] items-center gap-3 px-6 py-4 cursor-pointer transition-all duration-150 ${
-                        isDragging ? 'opacity-40' : ''
-                      } ${isOver && !isDragging ? 'border-t-2 border-t-primary-400' : ''
-                      } ${isSelected ? 'bg-primary-50/60' : 'hover:bg-gray-50'}`}
-                      onClick={() => {
-                        if (tutorialVisible && tutorialCurrentStep === 3 && exp.isTutorialDemo) {
-                          startEditing(exp);
-                          tutorialRef.current?.next();
-                        } else {
-                          setSelectedId(isSelected ? null : exp.id);
-                        }
-                      }}
-                    >
-                      {/* 드래그 핸들 — 모든 모드에서 활성화 */}
-                      <div
-                        className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-600"
-                        onMouseDown={e => e.stopPropagation()}
-                      >
-                        <GripVertical size={14} />
-                      </div>
-
-                      {/* 즐겨찾기 별 */}
-                      <button
-                        onClick={(e) => toggleFavorite(exp.id, e)}
-                        className={`flex items-center justify-center transition-all ${
-                          isFav ? 'text-yellow-400' : 'text-gray-200 group-hover:text-gray-300 hover:!text-yellow-300'
-                        }`}
-                        title={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-                      >
-                        <Star size={14} className={isFav ? 'fill-current' : ''} />
-                      </button>
-
-                      {/* # */}
-                      <div className={`w-7 h-7 rounded-lg ${theme.bar} ${theme.border || ''} flex items-center justify-center flex-shrink-0`}>
-                        <span className={`text-[13px] font-bold ${theme.barText}`}>{idx + 1}</span>
-                      </div>
-
-                      {/* 프로젝트 */}
-                      <div className="min-w-0 overflow-hidden">
-                        <p className="text-[15px] font-bold text-gray-900 truncate leading-tight block w-full">{stripMd(exp.title)}</p>
-                        <p className="text-[13px] text-gray-400 truncate mt-0.5 block w-full">
-                          {overview.role || overview.summary ? stripMd(overview.role || overview.summary) : ''}
-                        </p>
-                      </div>
-
-                      {/* 키워드 */}
-                      <div className="flex flex-wrap gap-1 overflow-hidden max-h-[36px]">
-                        {displayKeywords.slice(0, 2).map((k, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[11px] font-semibold truncate max-w-[64px]">{k}</span>
-                        ))}
-                      </div>
-
-                      {/* 기간 */}
-                      <span className="text-[13px] text-gray-600 font-medium tabular-nums truncate">{periodStr}</span>
-
-                      {/* 관리 */}
-                      <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+          {/* ═══ 경험 목록 (좌측 폴더 메뉴 + 카드) ═══ */}
+          {viewMode === 'table' && (() => {
+            const list = sortedExperiences.filter(exp => !compFilter || readCompetencyTags(exp).includes(compFilter));
+            const counts = {};
+            list.forEach(exp => { const c = readCategory(exp); counts[c] = (counts[c] || 0) + 1; });
+            const favCount = list.filter(e => favorites.has(e.id)).length;
+            const folderItems = [
+              { key: 'all', label: '전체', count: list.length },
+              { key: 'fav', label: '즐겨찾기', count: favCount },
+              ...[...EXPERIENCE_CATEGORIES, UNCATEGORIZED].filter(c => counts[c]).map(c => ({ key: c, label: c, count: counts[c] })),
+            ];
+            const shown = activeFolder === 'all'
+              ? list
+              : activeFolder === 'fav'
+                ? list.filter(e => favorites.has(e.id))
+                : list.filter(e => readCategory(e) === activeFolder);
+            return (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-[210px_1fr]">
+                {/* 좌측 폴더 메뉴 */}
+                <aside className="self-start md:sticky md:top-4">
+                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-2">
+                    <p className="px-3 pt-2 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-300">폴더</p>
+                    {folderItems.map(it => {
+                      const on = activeFolder === it.key;
+                      return (
                         <button
-                          onClick={(e) => startEditing(exp, e)}
-                          className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                          title="이름/기간 수정"
+                          key={it.key}
+                          onClick={() => setActiveFolder(it.key)}
+                          className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[13.5px] font-semibold transition-colors ${
+                            on ? 'bg-primary-50 text-primary-700' : 'text-bluewood-600 hover:bg-gray-50'
+                          }`}
                         >
-                          <Pencil size={13} />
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={`h-3.5 w-1 rounded-full ${on ? 'bg-primary-600' : 'bg-transparent'}`} />
+                            <span className="truncate">{it.label}</span>
+                          </span>
+                          <span className={`text-[11px] tabular-nums ${on ? 'text-primary-500' : 'text-gray-300'}`}>{it.count}</span>
                         </button>
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            if (exp.isTutorialDemo) {
-                              setTutorialDemoBuildStep('idle');
-                              setTutorialDemoExperience(null);
-                              setSelectedId(null);
-                              toast.success('가상 경험을 지웠습니다');
-                              return;
-                            }
-                            if (!confirm('이 경험을 삭제하시겠습니까?')) return;
-                            try {
-                              await deleteExperience(exp.id);
-                              if (selectedId === exp.id) setSelectedId(null);
-                              toast.success('삭제되었습니다');
-                            } catch (err) {
-                              console.error('경험 삭제 실패:', err);
-                              toast.error('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
-                            }
-                          }}
-                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          title="삭제"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      );
+                    })}
+                  </div>
+                </aside>
+                {/* 메인 카드 영역 */}
+                <div>
+                  {shown.length === 0 ? (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center text-[14px] text-gray-400 shadow-sm">이 폴더에 경험이 없어요.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {shown.map(exp => editingId === exp.id ? (
+                        <div key={exp.id} className="sm:col-span-2 xl:col-span-3">{renderEditPanel(exp)}</div>
+                      ) : renderExperienceCard(exp))}
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
-            </div>
+            );
+          })()}
+
+          {/* ═══ 대시보드 (커리어 GPS: 직무역량 집계 → 추천 직업군) ═══ */}
+          {viewMode === 'dashboard' && (
+            <CareerDashboard experiences={displayExperiences} user={user} profile={profile} />
           )}
 
           {/* ═══ 프로필 (나를 한눈에) ═══ */}
@@ -1169,6 +1195,16 @@ export default function ExperienceHub() {
   );
 }
 
+/* 실제 소프트웨어/툴만 인정 — 역량 문구(설계서 작성·문제 정의 등)는 제외.
+   알려진 소프트웨어이거나, 한글이 아닌 영문 기술명(Figma·Python·SQL 등)만 허용. */
+function isSoftwareSkill(name) {
+  const s = String(name).trim();
+  if (!s || s.length > 24) return false;
+  if (matchSkillIcon(s)) return true;        // 카탈로그/별칭에 있는 소프트웨어(노션·피그마 등 한글명 포함)
+  if (/[가-힣]/.test(s)) return false;       // 한글 역량 문구 제외
+  return /[a-zA-Z]/.test(s);                  // 영문 기술명만 허용
+}
+
 /* ── 전체 경험에서 프로필 초안 자동 생성 (블로그 기법: 한 문장 + 역량 3키워드 + 기술 집계) ── */
 function buildProfileDraft(experiences = []) {
   const skillCount = new Map();
@@ -1183,7 +1219,7 @@ function buildProfileDraft(experiences = []) {
     const skills = Array.isArray(exp.skills) ? exp.skills : [];
     [...stack, ...skills].forEach(s => {
       const k = String(s).trim();
-      if (k) skillCount.set(k, (skillCount.get(k) || 0) + 1);
+      if (k && isSoftwareSkill(k)) skillCount.set(k, (skillCount.get(k) || 0) + 1);
     });
     const kws = exp.keywords || exp.structuredResult?.keywords || [];
     kws.forEach(s => {
@@ -1228,6 +1264,7 @@ function ProfileView({ experiences, user, profile }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [iconPickerFor, setIconPickerFor] = useState(null); // 아이콘 선택 중인 스킬명
 
   // 저장된 프로필 로드
   useEffect(() => {
@@ -1249,6 +1286,10 @@ function ProfileView({ experiences, user, profile }) {
     setForm({
       oneLiner: saved?.oneLiner ?? draft.oneLiner,
       competencies: (saved?.competencies?.length ? saved.competencies : draft.competencies).slice(0, 3),
+      hiddenIds: saved?.hiddenExperienceIds ?? [],   // 이력서에서 숨긴 경험
+      software: saved?.software ?? draft.skills        // 아이콘 있는 실제 소프트웨어만 시드(거짓·무아이콘 제외)
+        .map(s => ({ name: s.name, icon: matchSkillIcon(s.name), level: Math.min(5, Math.max(2, s.count + 1)) }))
+        .filter(s => s.icon),
     });
   }, [loaded, form, saved, draft]);
 
@@ -1257,15 +1298,43 @@ function ProfileView({ experiences, user, profile }) {
     setForm(f => ({ ...f, competencies: f.competencies.map((c, idx) => idx === i ? { ...c, [field]: v } : c) }));
     setDirty(true);
   };
+  const toggleHidden = (id) => {
+    setForm(f => {
+      const set = new Set(f.hiddenIds || []);
+      set.has(id) ? set.delete(id) : set.add(id);
+      return { ...f, hiddenIds: [...set] };
+    });
+    setDirty(true);
+  };
+  const seedSoftware = () => draft.skills
+    .map(s => ({ name: s.name, icon: matchSkillIcon(s.name), level: Math.min(5, Math.max(2, s.count + 1)) }))
+    .filter(s => s.icon);
+  const addSoftware = (nm, icon) => {
+    setForm(f => {
+      if ((f.software || []).some(s => s.name.toLowerCase() === nm.toLowerCase())) return f;
+      return { ...f, software: [...(f.software || []), { name: nm, icon, level: 3 }] };
+    });
+    setDirty(true);
+    setIconPickerFor(null);
+  };
+  const removeSoftware = (i) => { setForm(f => ({ ...f, software: f.software.filter((_, j) => j !== i) })); setDirty(true); };
+  const setSoftwareIcon = (i, icon) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, icon } : s) })); setDirty(true); setIconPickerFor(null); };
+  const setSoftwareLevel = (i, level) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, level } : s) })); setDirty(true); };
   const resetToDraft = () => {
-    setForm({ oneLiner: draft.oneLiner, competencies: draft.competencies.slice(0, 3) });
+    setForm({ oneLiner: draft.oneLiner, competencies: draft.competencies.slice(0, 3), hiddenIds: [], software: seedSoftware() });
     setDirty(true);
   };
   const save = async () => {
     if (!uid) { toast.error('로그인이 필요합니다'); return; }
     setSaving(true);
     try {
-      const careerProfile = { oneLiner: form.oneLiner || '', competencies: form.competencies || [], updatedAt: new Date().toISOString() };
+      const careerProfile = {
+        oneLiner: form.oneLiner || '',
+        competencies: form.competencies || [],
+        hiddenExperienceIds: form.hiddenIds || [],
+        software: form.software || [],
+        updatedAt: new Date().toISOString(),
+      };
       // profiles 보안 규칙: request.resource.data.uid == userId 필요 → uid 동봉
       await setDoc(doc(db, 'profiles', uid), { uid, careerProfile }, { merge: true });
       setSaved(careerProfile);
@@ -1291,13 +1360,13 @@ function ProfileView({ experiences, user, profile }) {
   const email = user?.email || profile?.email || '';
   const competencies = form.competencies || [];
   const subtitle = competencies.map(c => c.keyword).filter(Boolean).slice(0, 3).join(' · ');
-  const maxSkill = draft.skills[0]?.count || 1;
-  const topSkills = draft.skills.slice(0, 9);
+  const hiddenSet = new Set(form.hiddenIds || []);
+  const visibleItems = editing ? careerItems : careerItems.filter(({ exp }) => !hiddenSet.has(exp.id));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* ── 편집 툴바 ── */}
-      <div className="flex items-center justify-end gap-1.5 border-b border-gray-100 bg-gray-50/60 px-5 py-2.5 sm:px-8">
+      <div className="flex items-center justify-end gap-1.5 rounded-t-2xl border-b border-gray-100 bg-gray-50/60 px-5 py-2.5 sm:px-8">
         {editing ? (
           <>
             <button onClick={resetToDraft} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors" title="자동 초안으로 다시 채우기">
@@ -1393,57 +1462,144 @@ function ProfileView({ experiences, user, profile }) {
           {/* 대표 경험 */}
           <section>
             <ResumeSectionTitle ko="대표 경험" en="Projects" />
-            <div className="space-y-5">
-              {careerItems.map(({ exp, start, end }) => {
+            {editing && <p className="mb-3 text-[12px] text-gray-400">이력서에 넣을 경험을 직접 고르세요. 빼면 이력서에서 숨겨져요.</p>}
+            <div className="space-y-4">
+              {visibleItems.length === 0 && <p className="text-[13px] text-gray-300">표시할 경험이 없어요.</p>}
+              {visibleItems.map(({ exp, start, end }) => {
                 const ov = exp.structuredResult?.projectOverview || {};
                 const ke = exp.structuredResult?.keyExperiences?.[0] || {};
                 const desc = stripMd(ov.summary || exp.structuredResult?.intro || ke.title || '');
                 const yr = start.getFullYear() === end.getFullYear()
                   ? `${start.getFullYear()}`
                   : `${start.getFullYear()} - ${end.getFullYear()}`;
+                const hidden = hiddenSet.has(exp.id);
                 return (
-                  <button
-                    key={exp.id}
-                    type="button"
-                    onClick={() => navigate(`/app/experience/result/${exp.id}`)}
-                    className="group flex w-full gap-3 text-left"
-                  >
+                  <div key={exp.id} className={`flex gap-3 ${hidden ? 'opacity-40' : ''}`}>
                     <span className="w-[64px] shrink-0 pt-0.5 text-[12px] font-semibold tabular-nums text-gray-400">{yr}</span>
-                    <div className="min-w-0 flex-1 border-l border-gray-100 pl-4 pb-1">
-                      <p className="text-[15px] font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors" style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
-                      {desc && <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{desc}</p>}
+                    <div className="min-w-0 flex-1 border-l border-gray-100 pl-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { if (!editing) navigate(`/app/experience/result/${exp.id}`); }}
+                          className="min-w-0 text-left"
+                        >
+                          <p className={`text-[15px] font-extrabold text-gray-900 ${editing ? '' : 'hover:text-primary-600'} transition-colors`} style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
+                          {desc && <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{desc}</p>}
+                        </button>
+                        {editing && (
+                          <button
+                            type="button"
+                            onClick={() => toggleHidden(exp.id)}
+                            className={`shrink-0 rounded-md border px-2 py-1 text-[11.5px] font-semibold transition-colors ${
+                              hidden ? 'border-primary-200 text-primary-600 hover:bg-primary-50' : 'border-gray-200 text-gray-400 hover:border-red-200 hover:text-red-500'
+                            }`}
+                          >
+                            {hidden ? '추가' : '빼기'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </section>
         </div>
 
-        {/* 소프트웨어 (전체 너비, 하단) */}
-        <section className="mt-10">
+        {/* 소프트웨어 (전체 너비, 하단) — 사용자 관리 목록 */}
+        <section className="relative z-20 mt-10">
           <ResumeSectionTitle ko="소프트웨어" en="Software" />
-          {topSkills.length > 0 ? (
+          {editing && <p className="mb-3 text-[12px] text-gray-400">다룰 수 있는 소프트웨어를 직접 추가하고, 막대를 눌러 숙련도를 표시하세요.</p>}
+          {(form.software?.length > 0 || editing) ? (
             <div className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-              {topSkills.map(({ name: skill, count }) => (
-                <div key={skill} className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-[14px] font-extrabold uppercase text-gray-400">
-                    {skill.slice(0, 1)}
-                  </div>
+              {(form.software || []).map((sw, i) => (
+                <div key={`${sw.name}-${i}`} className="relative flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!editing}
+                    onClick={() => setIconPickerFor(iconPickerFor === `i${i}` ? null : `i${i}`)}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${editing ? 'border-gray-300 hover:border-primary-400 cursor-pointer' : 'border-gray-200'}`}
+                    title={editing ? '아이콘 변경' : undefined}
+                  >
+                    <img src={sw.icon} alt={sw.name} className="h-7 w-7 object-contain" />
+                  </button>
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[13.5px] font-semibold text-gray-700">{skill}</span>
-                      <span className="shrink-0 text-[11px] tabular-nums text-gray-300">프로젝트 {count}</span>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="truncate text-[13.5px] font-semibold text-gray-700">{sw.name}</span>
+                      {editing && (
+                        <button type="button" onClick={() => removeSoftware(i)} className="shrink-0 text-[16px] leading-none text-gray-300 hover:text-red-500 transition-colors" title="삭제">&times;</button>
+                      )}
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-gray-100">
-                      <div className="h-1.5 rounded-full bg-primary-600" style={{ width: `${Math.max(8, Math.round((count / maxSkill) * 100))}%` }} />
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map(lv => (
+                        <button
+                          key={lv}
+                          type="button"
+                          disabled={!editing}
+                          onClick={() => setSoftwareLevel(i, lv)}
+                          className={`h-1.5 flex-1 rounded-full transition-colors ${lv <= (sw.level || 3) ? 'bg-primary-600' : 'bg-gray-100'} ${editing ? 'cursor-pointer hover:opacity-80' : ''}`}
+                          title={editing ? `숙련도 ${lv}/5` : undefined}
+                        />
+                      ))}
                     </div>
                   </div>
+
+                  {/* 아이콘 변경 팝오버 */}
+                  {editing && iconPickerFor === `i${i}` && (
+                    <div className="absolute left-0 top-12 z-50 w-[268px] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl">
+                      <p className="mb-1.5 text-[12px] font-bold text-bluewood-600">아이콘 변경</p>
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {SKILL_ICONS.map(ic => (
+                          <button
+                            key={ic.id}
+                            type="button"
+                            onClick={() => setSoftwareIcon(i, ic.src)}
+                            title={ic.label}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${sw.icon === ic.src ? 'border-primary-500 bg-primary-50' : 'border-transparent hover:bg-gray-50'}`}
+                          >
+                            <img src={ic.src} alt={ic.label} className="h-6 w-6 object-contain" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
+
+              {/* + 소프트웨어 추가 */}
+              {editing && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIconPickerFor(iconPickerFor === 'add' ? null : 'add')}
+                    className="flex h-full min-h-[52px] w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 text-[13px] font-semibold text-gray-400 hover:border-primary-300 hover:text-primary-600 transition-colors"
+                  >
+                    + 소프트웨어 추가
+                  </button>
+                  {iconPickerFor === 'add' && (
+                    <div className="mt-2 w-full rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl">
+                      <p className="mb-1.5 text-[12px] font-bold text-bluewood-600">소프트웨어 선택</p>
+                      <div className="grid grid-cols-5 gap-1">
+                        {SKILL_ICONS.map(ic => (
+                          <button
+                            key={ic.id}
+                            type="button"
+                            onClick={() => addSoftware(ic.label, ic.src)}
+                            title={ic.label}
+                            className="flex flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 hover:bg-gray-50"
+                          >
+                            <img src={ic.src} alt={ic.label} className="h-7 w-7 object-contain" />
+                            <span className="w-full truncate text-center text-[9px] text-gray-400">{ic.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <p className="text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 기술 스택을 추가하면 여기에 모여요.</p>
+            <p className="text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>편집에서 다룰 수 있는 소프트웨어를 추가해보세요.</p>
           )}
         </section>
       </div>
@@ -1488,6 +1644,259 @@ function UndatedExperienceCard({ exp, onAdd }) {
           {saving && <span className="h-3 w-3 animate-spin rounded-full border-b-2 border-white" />}
           타임라인에 추가
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── 대시보드 보조 컴포넌트 ── */
+// 네이비 액센트 바 + 제목 (라인형 섹션 헤더)
+function SectionHead({ title, sub, right }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="h-3.5 w-1 rounded-full bg-primary-600" />
+          <h3 className="text-[15px] font-extrabold text-bluewood-800">{title}</h3>
+        </div>
+        {sub && <p className="mt-1 ml-3 text-[13px] text-gray-400" style={{ wordBreak: 'keep-all' }}>{sub}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
+// 보더리스 KPI (세로 라인으로 구분)
+function DashStat({ label, value, hint, accent }) {
+  return (
+    <div className="py-1 sm:px-6 sm:first:pl-0 sm:last:pr-0">
+      <p className="text-[12px] font-semibold text-gray-400">{label}</p>
+      <p className={`mt-1 text-[20px] font-extrabold ${accent ? 'text-primary-700' : 'text-gray-900'}`} style={{ wordBreak: 'keep-all' }}>{value}</p>
+      {hint && <p className="mt-0.5 text-[11.5px] text-gray-400">{hint}</p>}
+    </div>
+  );
+}
+
+/* 커리어 대시보드 — 직무역량 집계 → 추천 직업군 (커리어 GPS) */
+function CareerDashboard({ experiences = [], user, profile }) {
+  const name = profile?.nameKo || user?.displayName || '회원';
+  const autoTagAll = useExperienceStore(s => s.autoTagAll);
+  const [tagging, setTagging] = useState(false);
+  const [tagDone, setTagDone] = useState(0);
+
+  const runAutoTag = async () => {
+    setTagging(true);
+    setTagDone(0);
+    try {
+      let total = 0;
+      for (let i = 0; i < 30; i++) { // 안전 상한 (회당 12건)
+        const r = await autoTagAll(false);
+        total += r.tagged;
+        setTagDone(total);
+        if (!r.remaining) break;
+      }
+      toast.success(total > 0 ? `${total}개 경험을 자동 태깅했어요` : '새로 태깅할 경험이 없어요');
+    } catch {
+      toast.error('자동 태깅에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setTagging(false);
+    }
+  };
+
+  const stats = useMemo(() => {
+    const compCounts = {};
+    const styleCounts = {};
+    let tagged = 0;
+    experiences.forEach(exp => {
+      const c = readCompetencyTags(exp);
+      const s = readWorkStyleTags(exp);
+      if (c.length || s.length) tagged++;
+      c.forEach(t => { compCounts[t] = (compCounts[t] || 0) + 1; });
+      s.forEach(t => { styleCounts[t] = (styleCounts[t] || 0) + 1; });
+    });
+    const compTop = Object.entries(compCounts).sort((a, b) => b[1] - a[1]);
+    const styleTop = Object.entries(styleCounts).sort((a, b) => b[1] - a[1]);
+    return {
+      compTop, styleTop,
+      families: recommendJobFamilies(compCounts, styleCounts), // 역량+성향 함께 반영
+      styleFamilies: recommendByWorkStyle(styleCounts),         // 성향이 잘 맞는 직무
+      tagged, total: experiences.length,
+    };
+  }, [experiences]);
+
+  if (experiences.length === 0) {
+    return <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center text-[14px] text-gray-400 shadow-sm">경험을 추가하고 역량을 태깅하면 추천 직업군과 강점이 정리됩니다.</div>;
+  }
+
+  const topFamily = stats.families[0];
+  const topComp = stats.compTop[0]?.[0];
+  const presentComp = new Set(stats.compTop.map(([t]) => t));
+  const gap = topFamily ? topFamily.competencies.filter(c => !presentComp.has(c)) : [];
+  const topComps = stats.compTop.slice(0, 2).map(([t]) => t);
+  const topStyles = stats.styleTop.slice(0, 2).map(([t]) => t);
+  const headline = stats.total > 0 && topComps.length
+    ? `${stats.total}개의 경험에서 ${topComps.join(' · ')} 역량을 중심으로${topStyles.length ? `, ${topStyles.join(' · ')}한 방식으로` : ''} 일해왔어요.`
+    : '';
+  const styleNames = stats.styleTop.slice(0, 3).map(([t]) => t);
+  const styleDesc = styleNames.map(t => WORK_STYLE_INFO[t]).filter(Boolean).join(', ');
+  // 차트 데이터 (리포트 느낌)
+  const compChart = stats.compTop.slice(0, 7).map(([name, count]) => ({ name, count }));
+  const styleChart = stats.styleTop.slice(0, 6).map(([name, value]) => ({ name, value }));
+  const STYLE_COLORS = ['#002F6C', '#274d86', '#3a6db0', '#5f92c7', '#87add5', '#cdddee'];
+  const chartTooltip = {
+    cursor: { fill: 'rgba(0,47,108,0.04)' },
+    contentStyle: { borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12, padding: '6px 10px', boxShadow: '0 6px 20px rgba(0,47,108,0.10)' },
+  };
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-8 py-7">
+      {/* ① 나의 정체성 */}
+      <div>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-primary-400">Career Summary</p>
+            <h2 className="mt-1.5 text-[28px] font-extrabold leading-tight text-gray-900">{name}님의 커리어</h2>
+            {headline
+              ? <p className="mt-3 max-w-[680px] text-[16.5px] leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{headline}</p>
+              : <p className="mt-3 text-[15px] text-gray-400">경험에 역량·성향을 태깅하면 나만의 커리어 요약이 만들어져요.</p>}
+            <p className="mt-3 text-[12.5px] font-semibold text-bluewood-400">경험 {stats.total}개 · 역량 태깅 {stats.tagged}/{stats.total}</p>
+            {stats.compTop.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {stats.compTop.slice(0, 5).map(([t]) => (
+                  <span key={t} className={`px-2.5 py-1 rounded-md text-[12px] font-semibold ${COMPETENCY_CHIP}`}>{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+          {(stats.tagged < stats.total || tagging) && (
+            <button
+              onClick={runAutoTag}
+              disabled={tagging}
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-60 transition-colors"
+            >
+              {tagging
+                ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-b-2 border-white" />태깅 중… {tagDone > 0 ? `${tagDone}건` : ''}</>
+                : '전체 경험 자동 태깅'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ② 앞으로의 방향 */}
+      <div className="mt-8 pt-8 border-t border-gray-100">
+        <SectionHead title="앞으로의 방향" sub="내 경험이 가리키는 추천 진로와, 다음에 키우면 좋은 역량이에요" />
+        {topFamily ? (
+          <div className="mt-5 grid gap-6 lg:grid-cols-[1.05fr_1fr]">
+            {/* 추천 진로 — 네이비 강조 블록 */}
+            <div className="rounded-2xl bg-primary-600 px-6 py-6 text-white shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/60">추천 진로</p>
+              <p className="mt-1.5 text-[26px] font-extrabold leading-tight">{topFamily.name}</p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-white/85" style={{ wordBreak: 'keep-all' }}>{topFamily.desc}</p>
+              <div className="mt-4">
+                <p className="mb-1.5 text-[11.5px] font-semibold text-white/60">내 경험이 증명하는 역량</p>
+                <div className="flex flex-wrap gap-1">
+                  {topFamily.matched.map(c => <span key={c} className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/15 text-white">{c}</span>)}
+                </div>
+              </div>
+            </div>
+            {/* 다음 단계 + 대안 진로 */}
+            <div>
+              <p className="text-[13px] font-bold text-bluewood-700">다음으로 키우면 좋은 역량</p>
+              {gap.length > 0 ? (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {gap.map(c => <span key={c} className="px-2.5 py-1 rounded-md text-[12px] font-semibold border border-dashed border-caribbean-300 bg-caribbean-50/50 text-caribbean-700">{c}</span>)}
+                  </div>
+                  <p className="mt-2.5 text-[12.5px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>이 역량이 드러나는 경험을 추가하면 <b className="text-bluewood-600">{topFamily.name}</b> 적합도가 올라가요.</p>
+                </>
+              ) : (
+                <p className="mt-2 text-[12.5px] text-gray-400">핵심 역량을 충분히 갖췄어요. 이제 성과 수치를 보강해 설득력을 높여보세요.</p>
+              )}
+              {stats.families.length > 1 && (
+                <div className="mt-5">
+                  <p className="text-[13px] font-bold text-bluewood-700">대안 진로</p>
+                  <div className="mt-1 divide-y divide-gray-100">
+                    {stats.families.slice(1, 3).map(f => (
+                      <div key={f.name} className="flex items-center justify-between gap-3 py-2.5">
+                        <span className="text-[14px] font-bold text-gray-800">{f.name}</span>
+                        <span className="text-[12px] text-gray-400 truncate">{f.matched.slice(0, 3).join(' · ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-[13px] text-gray-300">역량을 태깅하면 추천 진로와 다음 단계를 보여드려요.</p>
+        )}
+      </div>
+
+      {/* ③ 분포 — 직무 역량(가로 막대) / 업무 성향(도넛) */}
+      <div className="mt-8 pt-8 border-t border-gray-100">
+        <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2">
+          {/* 직무 역량 분포 — 가로 막대 차트 */}
+          <section>
+            <SectionHead title="직무 역량 분포" sub={topComp ? <>가장 뛰어난 역량은 <span className="font-bold text-caribbean-600">{topComp}</span></> : null} />
+            {compChart.length === 0 ? (
+              <p className="mt-4 text-[13px] text-gray-300">경험에 직무 역량을 태깅하면 분포가 보여요.</p>
+            ) : (
+              <div className="mt-4" style={{ width: '100%', height: compChart.length * 42 + 10 }}>
+                <ResponsiveContainer>
+                  <BarChart data={compChart} layout="vertical" margin={{ top: 0, right: 28, left: 0, bottom: 0 }} barCategoryGap="28%">
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={108} tickLine={false} axisLine={false} tick={{ fontSize: 12.5, fill: '#445060', fontWeight: 600 }} />
+                    <Tooltip {...chartTooltip} formatter={(v) => [`${v}개 경험`, '']} separator="" />
+                    <Bar dataKey="count" fill="#09dd6d" radius={[0, 6, 6, 0]} maxBarSize={18}>
+                      <LabelList dataKey="count" position="right" fill="#94a3b8" fontSize={11} fontWeight={700} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </section>
+
+          {/* 업무 성향 — 도넛 + 범례 */}
+          <section className="lg:border-l lg:border-gray-100 lg:pl-12">
+            <SectionHead title="업무 성향" sub={styleNames.length ? <><span className="font-bold text-primary-600">{styleNames.join(' · ')}</span>{styleDesc ? ` · ${styleDesc} 스타일` : ''}</> : null} />
+            {styleChart.length === 0 ? (
+              <p className="mt-4 text-[13px] text-gray-300">경험에 업무 성향을 태깅하면 분포가 보여요.</p>
+            ) : (
+              <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row">
+                <div className="relative" style={{ width: 168, height: 168 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={styleChart} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={2} stroke="none">
+                        {styleChart.map((e, i) => <Cell key={e.name} fill={STYLE_COLORS[i % STYLE_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip {...chartTooltip} formatter={(v, n) => [`${v}회`, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-[22px] font-extrabold text-primary-700 leading-none">{styleNames[0] || ''}</span>
+                    <span className="mt-1 text-[11px] font-semibold text-gray-400">대표 성향</span>
+                  </div>
+                </div>
+                <ul className="flex-1 space-y-1.5">
+                  {styleChart.map((e, i) => (
+                    <li key={e.name} className="flex items-center gap-2 text-[13px]">
+                      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: STYLE_COLORS[i % STYLE_COLORS.length] }} />
+                      <span className="font-semibold text-gray-700">{e.name}</span>
+                      <span className="ml-auto tabular-nums text-gray-300">{e.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {stats.styleFamilies.length > 0 && (
+              <div className="mt-6 border-l-2 border-primary-600 pl-4">
+                <p className="mb-1.5 text-[12px] font-semibold text-gray-400">이 성향이 잘 맞는 직무</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {stats.styleFamilies.slice(0, 4).map(f => <span key={f.name} className="px-2.5 py-1 rounded-md text-[12px] font-semibold bg-primary-50 text-primary-700">{f.name}</span>)}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
