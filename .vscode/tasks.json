@@ -2,6 +2,34 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "백엔드 시작",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "POPOL Backend 서버 실행 중"
+        }
+      },
+      "presentation": {
+        "group": "devServers",
+        "reveal": "always",
+        "panel": "dedicated",
+        "label": "백엔드"
+      }
+    },
+    {
       "label": "프론트엔드 시작",
       "type": "shell",
       "command": "npm run dev",

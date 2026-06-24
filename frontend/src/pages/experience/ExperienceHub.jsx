@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FolderOpen, ChevronDown, Pencil, Trash2, Check, X,
   GripVertical, CalendarDays, Star, ArrowUpDown,
-  UserRound, RotateCcw, Save,
+  UserRound, RotateCcw, Save, Mail,
 } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -41,6 +41,12 @@ function parsePeriod(exp) {
   const created = exp.createdAt?.toDate?.() ?? (exp.createdAt instanceof Date ? exp.createdAt : new Date(exp.createdAt || Date.now()));
   const end = new Date(created); end.setMonth(end.getMonth() + 2);
   return { start: created, end };
+}
+
+/* 타임라인에 표시할 실제 기간(날짜)이 있는지 — 없으면 '날짜 미입력'으로 분류 */
+function hasRealPeriod(exp) {
+  const period = exp.period || exp.structuredResult?.projectOverview?.duration || '';
+  return /(\d{4})[.\-/](\d{1,2})/.test(period);
 }
 
 const COLOR_PALETTES = {
@@ -267,6 +273,10 @@ export default function ExperienceHub() {
     return list; // custom — 원본 순서 유지
   }, [displayExperiences, sortBy, favorites]);
 
+  /* 날짜 보유 여부로 분리 — 타임라인은 날짜 있는 것만, 미입력은 하단에서 유도 */
+  const datedExperiences = useMemo(() => sortedExperiences.filter(hasRealPeriod), [sortedExperiences]);
+  const undatedExperiences = useMemo(() => sortedExperiences.filter(e => !hasRealPeriod(e)), [sortedExperiences]);
+
   /* ── 드래그 앤 드롭 (custom 모드에서만) ── */
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
@@ -349,6 +359,28 @@ export default function ExperienceHub() {
     }
   }, [deleteExperience, selectedId]);
 
+  /* ── 날짜 미입력 경험에 기간 추가 → 타임라인 자동 편입 ── */
+  const handleAddPeriod = useCallback(async (exp, startM, endM) => {
+    if (!startM || !endM) { toast.error('시작/종료 월을 모두 선택해주세요'); return; }
+    if (endM < startM) { toast.error('종료 월이 시작 월보다 빠를 수 없어요'); return; }
+    const period = `${startM}-01 ~ ${endM}-28`;
+    const startYear = parseInt(startM.split('-')[0], 10);
+    if (exp.isTutorialDemo) {
+      setTutorialDemoExperience(prev => prev ? { ...prev, period } : prev);
+      setSelectedYear(startYear);
+      toast.success('타임라인에 추가되었습니다');
+      return;
+    }
+    try {
+      await updateExperience(exp.id, { period });
+      setSelectedYear(startYear); // 새로 들어간 경험이 보이도록 해당 연도로 이동
+      toast.success('타임라인에 추가되었습니다');
+    } catch (err) {
+      console.error('기간 저장 실패:', err);
+      toast.error('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+  }, [updateExperience]);
+
   useEffect(() => {
     if (user?.uid) fetchExperiences(user.uid);
   }, [user?.uid]);
@@ -379,25 +411,25 @@ export default function ExperienceHub() {
 
   /* ── 간트 타임라인 계산 ── */
   const ganttData = useMemo(() => {
-    if (sortedExperiences.length === 0) return null;
-    const items = sortedExperiences.map(exp => ({ exp, ...parsePeriod(exp) }));
+    if (datedExperiences.length === 0) return null;
+    const items = datedExperiences.map(exp => ({ exp, ...parsePeriod(exp) }));
     const globalStart = new Date(selectedYear, 0, 1);
     const globalEnd = new Date(selectedYear, 11, 31);
     const months = Array.from({ length: 12 }, (_, i) => ({ year: selectedYear, month: i }));
     const totalMs = globalEnd.getTime() - globalStart.getTime();
     const visibleItems = items.filter(({ start, end }) => end >= globalStart && start <= globalEnd);
     return { items: visibleItems, allItems: items, globalStart, globalEnd, months, totalMs };
-  }, [sortedExperiences, selectedYear]);
+  }, [datedExperiences, selectedYear]);
 
   const availableYears = useMemo(() => {
-    if (displayExperiences.length === 0) return [new Date().getFullYear()];
+    if (datedExperiences.length === 0) return [new Date().getFullYear()];
     const years = new Set();
-    displayExperiences.forEach(exp => {
+    datedExperiences.forEach(exp => {
       const { start, end } = parsePeriod(exp);
       for (let y = start.getFullYear(); y <= end.getFullYear(); y++) years.add(y);
     });
     return [...years].sort((a, b) => b - a);
-  }, [displayExperiences]);
+  }, [datedExperiences]);
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
   const headerSummary = useMemo(() => {
@@ -807,6 +839,24 @@ export default function ExperienceHub() {
             </div>
           )}
 
+          {/* ═══ 날짜 미입력 경험 — 기간 입력 시 타임라인에 자동 편입 ═══ */}
+          {viewMode === 'timeline' && undatedExperiences.length > 0 && (
+            <div className="mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+              <div className="px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
+                <span className="text-[15px] font-bold text-bluewood-700">날짜 미입력 경험</span>
+                <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
+                  {undatedExperiences.length}개
+                </span>
+                <span className="text-[13px] text-gray-400">기간을 입력하면 타임라인에 자동으로 들어가요</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {undatedExperiences.map(exp => (
+                  <UndatedExperienceCard key={exp.id} exp={exp} onAdd={handleAddPeriod} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ═══ 경험 목록 (테이블) ═══ */}
           {viewMode === 'table' && (
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -1158,8 +1208,14 @@ function buildProfileDraft(experiences = []) {
   return { oneLiner, competencies, skills };
 }
 
-function SectionLabel({ children }) {
-  return <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-gray-400">{children}</p>;
+/* 이력서 섹션 제목 — 파란 굵은 한글 제목 + 하단 구분선 (이미지 톤) */
+function ResumeSectionTitle({ ko, en }) {
+  return (
+    <div className="mb-4 flex items-baseline gap-2 border-b border-gray-200 pb-2.5">
+      <h3 className="text-[16px] font-extrabold tracking-tight text-primary-700">{ko}</h3>
+      {en && <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-300">{en}</span>}
+    </div>
+  );
 }
 
 function ProfileView({ experiences, user, profile }) {
@@ -1234,21 +1290,17 @@ function ProfileView({ experiences, user, profile }) {
   const name = profile?.nameKo || user?.displayName || '이름';
   const email = user?.email || profile?.email || '';
   const competencies = form.competencies || [];
+  const subtitle = competencies.map(c => c.keyword).filter(Boolean).slice(0, 3).join(' · ');
   const maxSkill = draft.skills[0]?.count || 1;
-  const topSkills = draft.skills.slice(0, 10);
+  const topSkills = draft.skills.slice(0, 9);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-8 py-10 sm:px-12 sm:py-12">
-      {/* ── 헤더: Resume + 이름 + 한 문장 ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.22em] text-gray-300">Resume</p>
-          <h2 className="mt-1.5 text-[40px] sm:text-[52px] font-extrabold leading-none tracking-tight text-gray-900">{name}</h2>
-        </div>
-        {/* 편집 도구 */}
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      {/* ── 편집 툴바 ── */}
+      <div className="flex items-center justify-end gap-1.5 border-b border-gray-100 bg-gray-50/60 px-5 py-2.5 sm:px-8">
         {editing ? (
-          <div className="flex flex-shrink-0 items-center gap-1.5">
-            <button onClick={resetToDraft} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors" title="자동 초안으로 다시 채우기">
+          <>
+            <button onClick={resetToDraft} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors" title="자동 초안으로 다시 채우기">
               <RotateCcw size={12} /> 초안
             </button>
             <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm hover:bg-primary-700 disabled:opacity-40 transition-colors">
@@ -1257,42 +1309,51 @@ function ProfileView({ experiences, user, profile }) {
             <button onClick={() => setEditing(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="편집 닫기">
               <X size={14} />
             </button>
-          </div>
+          </>
         ) : (
-          <button onClick={() => setEditing(true)} className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
+          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
             <Pencil size={12} /> 편집
           </button>
         )}
       </div>
 
-      {/* 한 문장 (태그라인) */}
-      {editing ? (
-        <textarea
-          rows={2}
-          value={form.oneLiner}
-          onChange={e => updateOneLiner(e.target.value)}
-          placeholder="나를 표현하는 한 문장 (예: 사용자 문제를 데이터로 정의하고 빠르게 검증하는 디자이너)"
-          className="mt-4 w-full resize-none border-b border-dashed border-gray-200 bg-transparent pb-2 text-[16px] leading-relaxed text-gray-600 outline-none transition-colors placeholder:text-gray-300 focus:border-primary-300"
-          style={{ wordBreak: 'keep-all' }}
-        />
-      ) : (
-        form.oneLiner && <p className="mt-4 max-w-[640px] text-[16px] leading-relaxed text-gray-500" style={{ wordBreak: 'keep-all' }}>{form.oneLiner}</p>
-      )}
+      {/* ── 이력서 문서 ── */}
+      <div className="px-7 py-9 sm:px-12 sm:py-11">
+        {/* 상단 밴드: 좌 신원 / 우 연락처 + 소개 */}
+        <div className="grid items-start gap-x-12 gap-y-7 border-b border-gray-100 pb-9 lg:grid-cols-[1.05fr_1fr]">
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-gray-300">Resume</p>
+            <h2 className="mt-2 text-[40px] sm:text-[52px] font-extrabold leading-[1.02] tracking-tight text-gray-900">{name}</h2>
+            {subtitle && <p className="mt-3 text-[15px] font-semibold text-primary-700" style={{ wordBreak: 'keep-all' }}>{subtitle}</p>}
+          </div>
+          <div className="space-y-4 lg:pt-2">
+            {email && (
+              <div className="flex items-center gap-2.5 text-[14px] text-gray-700">
+                <Mail size={15} className="shrink-0 text-primary-600" />
+                <span className="break-all">{email}</span>
+              </div>
+            )}
+            {editing ? (
+              <textarea
+                rows={3}
+                value={form.oneLiner}
+                onChange={e => updateOneLiner(e.target.value)}
+                placeholder="나를 표현하는 한 문장 (예: 사용자 문제를 데이터로 정의하고 빠르게 검증하는 디자이너)"
+                className="w-full resize-none border-b border-dashed border-gray-200 bg-transparent pb-2 text-[14.5px] leading-relaxed text-gray-600 outline-none transition-colors placeholder:text-gray-300 focus:border-primary-300"
+                style={{ wordBreak: 'keep-all' }}
+              />
+            ) : (
+              form.oneLiner && <p className="text-[14.5px] leading-relaxed text-gray-500" style={{ wordBreak: 'keep-all' }}>{form.oneLiner}</p>
+            )}
+          </div>
+        </div>
 
-      {/* ── 3단 컬럼 ── */}
-      <div className="mt-12 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)_minmax(0,1.15fr)]">
-        {/* 좌: 연락처 + 역량 */}
-        <div className="space-y-9">
-          {email && (
-            <div>
-              <SectionLabel>CONTACT</SectionLabel>
-              <p className="mt-3 text-[14px] text-gray-700 break-all">{email}</p>
-            </div>
-          )}
-
-          <div>
-            <SectionLabel>STRENGTHS</SectionLabel>
-            <div className="mt-4 space-y-5">
+        {/* 본문 2단: 핵심 역량 / 대표 경험 */}
+        <div className="mt-9 grid gap-x-14 gap-y-10 lg:grid-cols-2">
+          {/* 핵심 역량 */}
+          <section>
+            <ResumeSectionTitle ko="핵심 역량" en="Strengths" />
+            <div className="space-y-5">
               {competencies.length === 0 && (
                 <p className="text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 키워드가 쌓이면 대표 역량이 자동으로 제안됩니다.</p>
               )}
@@ -1316,67 +1377,117 @@ function ProfileView({ experiences, user, profile }) {
                   </div>
                 ) : (
                   (c.keyword || c.definition) && (
-                    <div key={i}>
-                      {c.keyword && <p className="text-[15px] font-extrabold text-gray-900">{c.keyword}</p>}
-                      {c.definition && <p className="mt-0.5 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{c.definition}</p>}
+                    <div key={i} className="flex gap-3">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-600" />
+                      <div className="min-w-0">
+                        {c.keyword && <p className="text-[15px] font-extrabold text-gray-900">{c.keyword}</p>}
+                        {c.definition && <p className="mt-0.5 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{c.definition}</p>}
+                      </div>
                     </div>
                   )
                 )
               ))}
             </div>
-          </div>
+          </section>
+
+          {/* 대표 경험 */}
+          <section>
+            <ResumeSectionTitle ko="대표 경험" en="Projects" />
+            <div className="space-y-5">
+              {careerItems.map(({ exp, start, end }) => {
+                const ov = exp.structuredResult?.projectOverview || {};
+                const ke = exp.structuredResult?.keyExperiences?.[0] || {};
+                const desc = stripMd(ov.summary || exp.structuredResult?.intro || ke.title || '');
+                const yr = start.getFullYear() === end.getFullYear()
+                  ? `${start.getFullYear()}`
+                  : `${start.getFullYear()} - ${end.getFullYear()}`;
+                return (
+                  <button
+                    key={exp.id}
+                    type="button"
+                    onClick={() => navigate(`/app/experience/result/${exp.id}`)}
+                    className="group flex w-full gap-3 text-left"
+                  >
+                    <span className="w-[64px] shrink-0 pt-0.5 text-[12px] font-semibold tabular-nums text-gray-400">{yr}</span>
+                    <div className="min-w-0 flex-1 border-l border-gray-100 pl-4 pb-1">
+                      <p className="text-[15px] font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors" style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
+                      {desc && <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{desc}</p>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        {/* 중: TOOLS (사용 빈도 막대) */}
-        <div>
-          <SectionLabel>TOOLS</SectionLabel>
+        {/* 소프트웨어 (전체 너비, 하단) */}
+        <section className="mt-10">
+          <ResumeSectionTitle ko="소프트웨어" en="Software" />
           {topSkills.length > 0 ? (
-            <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
               {topSkills.map(({ name: skill, count }) => (
-                <div key={skill}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="text-[13.5px] font-semibold text-gray-700">{skill}</span>
-                    <span className="text-[11px] text-gray-300 tabular-nums">프로젝트 {count}</span>
+                <div key={skill} className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-[14px] font-extrabold uppercase text-gray-400">
+                    {skill.slice(0, 1)}
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-gray-100">
-                    <div className="h-1.5 rounded-full bg-gray-900" style={{ width: `${Math.max(8, Math.round((count / maxSkill) * 100))}%` }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[13.5px] font-semibold text-gray-700">{skill}</span>
+                      <span className="shrink-0 text-[11px] tabular-nums text-gray-300">프로젝트 {count}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-gray-100">
+                      <div className="h-1.5 rounded-full bg-primary-600" style={{ width: `${Math.max(8, Math.round((count / maxSkill) * 100))}%` }} />
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-4 text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 기술 스택을 추가하면 여기에 모여요.</p>
+            <p className="text-[13px] text-gray-300" style={{ wordBreak: 'keep-all' }}>경험에 기술 스택을 추가하면 여기에 모여요.</p>
           )}
-        </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 
-        {/* 우: PROJECTS */}
-        <div>
-          <SectionLabel>PROJECTS</SectionLabel>
-          <div className="mt-4 space-y-6">
-            {careerItems.map(({ exp, start, end }) => {
-              const ov = exp.structuredResult?.projectOverview || {};
-              const ke = exp.structuredResult?.keyExperiences?.[0] || {};
-              const desc = stripMd(ov.summary || exp.structuredResult?.intro || ke.title || '');
-              const yr = start.getFullYear() === end.getFullYear()
-                ? `${start.getFullYear()}`
-                : `${start.getFullYear()} - ${end.getFullYear()}`;
-              return (
-                <button
-                  key={exp.id}
-                  type="button"
-                  onClick={() => navigate(`/app/experience/result/${exp.id}`)}
-                  className="group block w-full text-left -mx-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-50"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-[15px] font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors" style={{ wordBreak: 'keep-all' }}>{stripMd(exp.title)}</p>
-                    <span className="flex-shrink-0 text-[12px] text-gray-300 tabular-nums">{yr}</span>
-                  </div>
-                  {desc && <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-gray-400" style={{ wordBreak: 'keep-all' }}>{desc}</p>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+/* 날짜 미입력 경험 1건 — 기간 입력 후 '타임라인에 추가' */
+function UndatedExperienceCard({ exp, onAdd }) {
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    await onAdd(exp, start, end);
+    setSaving(false);
+  };
+  return (
+    <div className="flex flex-col gap-3 px-6 py-4 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center">
+      <p className="min-w-0 flex-1 truncate text-[15px] font-bold text-gray-900">
+        {stripMd(exp.title)}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="month"
+          value={start}
+          onChange={e => setStart(e.target.value)}
+          className="rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[13px] text-bluewood-700 outline-none transition-colors focus:border-primary-400"
+        />
+        <span className="text-bluewood-300">~</span>
+        <input
+          type="month"
+          value={end}
+          onChange={e => setEnd(e.target.value)}
+          className="rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[13px] text-bluewood-700 outline-none transition-colors focus:border-primary-400"
+        />
+        <button
+          onClick={submit}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-[13px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700 disabled:opacity-50"
+        >
+          {saving && <span className="h-3 w-3 animate-spin rounded-full border-b-2 border-white" />}
+          타임라인에 추가
+        </button>
       </div>
     </div>
   );

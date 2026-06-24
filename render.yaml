@@ -22,7 +22,8 @@ services:
       - key: NOTION_INTEGRATION_TOKEN
         sync: false
       - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
+        # 홈(~/.cache)은 빌드→런타임 미보존 → 프로젝트 내부(보존 경로)로 고정. .puppeteerrc.cjs와 동일 경로
+        value: /opt/render/project/src/backend/.cache/puppeteer
       - key: FIREBASE_PROJECT_ID
         value: popol-cb20b
       - key: FIREBASE_STORAGE_BUCKET
