@@ -68,6 +68,103 @@ function parseColor(text) {
 const inEnum = (v, list, fb) => (typeof v === 'string' && list.includes(v.trim()) ? v.trim() : fb);
 const validHex = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '').trim()) ? String(v).trim().toUpperCase() : '');
 
+// ── Q&A(클로드식 질의응답) → 구성 매핑 ──────────────────────────────────
+// 업로드 템플릿 + 5개 질문(대상·발표시간·톤·색상·강조점) 답을 받아 고객마다 다른
+// 덱이 되도록 composer 옵션을 만든다. 프리셋과 달리 "발표 맥락"에서 구성을 도출한다.
+const AUDIENCES = ['campus', 'corporate', 'startup', 'client'];
+const DURATIONS = ['short', 'medium', 'long'];
+const QA_TONES = ['professional', 'minimal', 'friendly', 'bold'];
+const QA_COLORS = ['auto', 'mono', 'brand', 'warm', 'cool']; // auto = 템플릿 추출 강조색 그대로
+
+// 발표 시간 → 흐름(장수·서술 밀도)
+const DURATION_STRUCTURE = { short: 'compact', medium: 'story', long: 'detailed' };
+// 톤 → 본문 배치·표지·헤더 등 "룩" 한 벌
+const TONE_LOOK = {
+  professional: { design: 'cards',     cover: 'profile', tone: 'calm',  headerStyle: 'block',     accentBar: 'left', closing: 'dark',   cardStyle: 'bar'      },
+  minimal:      { design: 'editorial', cover: 'impact',  tone: 'calm',  headerStyle: 'underline', accentBar: 'none', closing: 'light',  cardStyle: 'pill'     },
+  friendly:     { design: 'cards',     cover: 'banner',  tone: 'calm',  headerStyle: 'block',     accentBar: 'top',  closing: 'light',  cardStyle: 'pill'     },
+  bold:         { design: 'cards',     cover: 'impact',  tone: 'vivid', headerStyle: 'block',     accentBar: 'top',  closing: 'accent', cardStyle: 'numbered' },
+};
+const COLOR_ACCENT = { warm: '#EA580C', cool: '#2563EB' };
+
+// 발표 대상 → 프로젝트 슬라이드 "페이지 골격"(본문 블록 위치). 시간(흐름)·톤(스타일)과
+// 별개 축이라, 같은 시간·톤이라도 대상이 다르면 내용이 놓이는 구도 자체가 달라진다.
+//  stack=상단 헤더+아래 본문(정석) / rail=좌측 컬러 제목 패널+우 본문(눈에 띄는 매거진형)
+//  / split=좌 본문+우 성과 대시보드 패널(지표·결과를 옆에 크게)
+// ※ structure=compact(발표 ~3분)는 자체 1장 골격이라 이 값과 무관하게 압축 배치된다.
+const AUDIENCE_LAYOUT = {
+  campus:    'rail',   // 교내·공모전 — 심사위원 눈길 끄는 매거진형
+  corporate: 'stack',  // 기업 면접 — 위에서 아래로 읽는 깔끔한 정석
+  startup:   'split',  // 투자·IR — 성과·지표를 옆에 대시보드로
+  client:    'split',  // 고객·제안 — 가치·결과를 옆 패널로 부각
+};
+
+function qaToComposition(qa = {}) {
+  const toneKey = inEnum(qa.tone, QA_TONES, 'professional');
+  const look = TONE_LOOK[toneKey];
+  const structure = DURATION_STRUCTURE[inEnum(qa.duration, DURATIONS, 'medium')];
+  const projectLayout = AUDIENCE_LAYOUT[inEnum(qa.audience, AUDIENCES, '')] || '';
+
+  // 색상: 흑백 → mono 톤 / 브랜드 → hex / 따뜻·차분 → 대표 hex / 자유 입력 → 색이름 파싱
+  const colorKey = inEnum(qa.color, QA_COLORS, '');
+  let toneTok = look.tone;
+  let accentHex = '';
+  if (colorKey === 'mono') toneTok = 'mono';
+  else if (colorKey === 'brand') accentHex = validHex(qa.brandHex);
+  else if (COLOR_ACCENT[colorKey]) accentHex = COLOR_ACCENT[colorKey];
+  if (!accentHex && colorKey !== 'mono') {
+    const parsed = parseColor(qa.brandHex || qa.color);
+    if (parsed) accentHex = parsed;
+  }
+
+  return {
+    structure,
+    design: look.design,
+    cover: look.cover,
+    tone: toneTok,
+    accentHex: accentHex || '',
+    emphasis: typeof qa.emphasis === 'string' ? qa.emphasis.slice(0, 80) : '',
+    headerStyle: look.headerStyle,
+    accentBar: look.accentBar,
+    closing: look.closing,
+    cardStyle: look.cardStyle,
+    projectLayout, // 대상별 골격(빈값이면 컴포저가 structure/design 으로부터 추론)
+    preset: '',
+  };
+}
+
+const AUDIENCE_LABEL = {
+  campus: '교내·공모전 심사위원', corporate: '기업 면접관·채용 담당자',
+  startup: '투자자·IR 청중', client: '고객·제안 대상자',
+};
+
+function buildEmphasisPrompt(qa, portfolio) {
+  const ctx = [portfolio?.userName, portfolio?.headline, portfolio?.targetPosition].filter(Boolean).join(' / ');
+  return `포트폴리오 발표 PPT의 표지와 마무리 장에 넣을 강렬한 한 줄 슬로건을 한국어로 딱 1개만 만드세요.
+[지원자] ${ctx || '정보 없음'}
+[발표 대상] ${AUDIENCE_LABEL[qa.audience] || qa.audience || '일반'}
+[강조하고 싶은 점] ${qa.emphasis || '(지정 없음 — 지원자 강점으로)'}
+[규칙] 30자 이내, 명사형/체언 종결, 따옴표·이모지·마침표 금지, 한 줄만.
+[출력] 슬로건 텍스트만 출력(설명·JSON 금지).`;
+}
+
+// 강조점 + 발표 대상을 표지/마무리용 한 줄 슬로건으로 다듬는다(선택·AI, 실패 시 원문 유지).
+async function refineEmphasis(qa, portfolio) {
+  const hasInput = (qa.emphasis && qa.emphasis.trim()) || qa.audience;
+  if (!hasInput) return '';
+  try {
+    const text = await generateWithRetry(buildEmphasisPrompt(qa, portfolio), {
+      models: ['gemini-2.5-flash-lite'],
+      retries: 1, delayMs: 600, rateLimitDelayMs: 2000, callTimeoutMs: 15000, githubFallback: false,
+    });
+    const line = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
+    return line.replace(/^["'`「『]+|["'`」』]+$/g, '').replace(/[.。]$/, '').slice(0, 40);
+  } catch (err) {
+    console.warn('[refineEmphasis] AI 슬로건 생략 (원문 유지):', err.message);
+    return '';
+  }
+}
+
 // 결정론적 키워드 매핑 — 요청 텍스트에서 옵션 추론
 function keywordOverride(base, requests) {
   const out = { ...base };
@@ -146,8 +243,16 @@ function buildPrompt(base, requests, portfolio) {
 {"structure":"","design":"","projectLayout":"","cover":"","tone":"","headerStyle":"","accentBar":"","closing":"","accentHex":"#RRGGBB 또는 빈문자열","emphasis":"표지·마무리에 넣을 한 줄(요청에 근거할 때만, 없으면 빈문자열, 40자 이내)"}`;
 }
 
-// 최종 구성 해석. choices=프리셋/드롭다운 기본값, requests=4개 자유 입력.
-export async function resolveComposition({ portfolio, choices = {}, requests = {} }) {
+// 최종 구성 해석. qa=클로드식 질의응답(우선), choices=프리셋/드롭다운, requests=자유 입력.
+export async function resolveComposition({ portfolio, choices = {}, requests = {}, qa = null }) {
+  // Q&A 경로 — 5개 답을 발표 맥락 기반 구성으로 변환하고, 강조점은 슬로건으로 다듬는다.
+  if (qa && typeof qa === 'object') {
+    const base = qaToComposition(qa);
+    const slogan = await refineEmphasis(qa, portfolio);
+    if (slogan) base.emphasis = slogan;
+    return base;
+  }
+
   // 프리셋이 있으면 4축 기본값과 골격 정체성(헤더·악센트 바·마무리)을 공급한다.
   const preset = PRESETS[String(choices.preset || '').trim()] || null;
   const dflt = preset || { structure: 'story', design: 'editorial', cover: 'impact', tone: 'calm' };

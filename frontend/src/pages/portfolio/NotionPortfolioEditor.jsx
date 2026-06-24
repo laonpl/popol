@@ -946,6 +946,80 @@ const SECTIONS_BASE = [
   { id: 'contact', icon: Mail, defaultLabel: '연락처' },
 ];
 
+/**
+ * 사용자 경험(experiences 컬렉션) 1건 → 포트폴리오 experiences 항목으로 변환.
+ * importExperience(수동 선택)와 신규 생성 시 자동 채움이 공유한다.
+ */
+function buildPortfolioExpEntry(exp) {
+  const aiResult = exp.structuredResult || {};
+  const savedExportCfg = aiResult.exportConfig;
+
+  let sections = [];
+  let description = '';
+  let contentSource = {};
+
+  if (savedExportCfg?.sections?.length > 0) {
+    // 사용자가 미리보기에서 저장한 섹션 구성 사용
+    sections = savedExportCfg.sections
+      .map(s => normalizePortfolioSection({ ...s, title: s.title || s.label }))
+      .filter(s => s.content?.trim() || s.blocks?.some(block => block.type === 'image' || block.type === 'slide'))
+      .map(s => ({ title: s.label || s.title, content: s.content, blocks: s.blocks || [], key: s.key, type: s.type || 'custom' }));
+    description = aiResult.projectOverview?.summary || aiResult.intro || sections[0]?.content || '';
+  } else {
+    // 저장된 구성 없으면 프레임워크 기본값 사용
+    const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
+    const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
+    contentSource = {};
+    fields.forEach(field => {
+      contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
+    });
+    sections = fields
+      .filter(field => contentSource[field.key]?.trim?.())
+      .map(field => normalizePortfolioSection({ key: field.key, title: field.label, content: contentSource[field.key] }));
+    description =
+      aiResult.projectOverview?.summary ||
+      aiResult.intro ||
+      exp.content?.intro ||
+      exp.content?.overview ||
+      (sections[0]?.content ?? '');
+  }
+
+  // 키워드에서 skills 추출
+  const autoSkills = aiResult.keywords || exp.keywords || [];
+
+  return {
+    date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || exp.updatedAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
+    title: exp.title || '',
+    description,
+    // 원본 경험 ID 보존 (상세 모달에서 이미지 로딩용)
+    experienceId: exp.id || null,
+    notionDoc: exp.notionDoc || null,
+    // 상세 데이터 보존 (AI 분석 결과 우선)
+    framework: exp.framework || 'STRUCTURED',
+    frameworkContent: contentSource,
+    keywords: autoSkills,
+    aiSummary: aiResult.projectOverview?.summary || aiResult.intro || '',
+    // AI 분석 전체 데이터 보존 (keyExperiences, projectOverview 등)
+    structuredResult: savedExportCfg?.sections?.length > 0 ? {
+      ...aiResult,
+      exportConfig: {
+        ...(savedExportCfg || {}),
+        sections: sections.map(s => ({ key: s.key, label: s.label || s.title, type: s.type || 'custom', content: s.content, blocks: s.blocks || [] })),
+      },
+    } : aiResult,
+    // Notion 스타일 필드 — 경험 이미지는 { url, name } 객체 배열이므로 url 만 추출
+    thumbnailUrl: exp.images?.[0]?.url || (typeof exp.images?.[0] === 'string' ? exp.images[0] : '') || '',
+    status: 'finished',
+    classify: [],
+    skills: (aiResult.projectOverview?.techStack || []).length > 0
+      ? aiResult.projectOverview.techStack
+      : autoSkills.slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
+    role: aiResult.projectOverview?.role || '',
+    link: '',
+    sections,
+  };
+}
+
 export default function NotionPortfolioEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1038,6 +1112,31 @@ export default function NotionPortfolioEditor() {
       setUserExperiences(useExperienceStore.getState().experiences);
       // 초기 로드 완료 표시 — 이후 변경분부터 저장 안 됨 상태로 표시
       setTimeout(() => { initialLoaded.current = true; }, 500);
+
+      // 신규 생성 포트폴리오: 경험을 1회 자동으로 채운다.
+      // 기업(jobAnalysis)을 선택했으면 추천된 경험만, 아니면 전체 경험을 넣는다.
+      const snapData = portfolioSnap.exists() ? portfolioSnap.data() : null;
+      if (snapData?.pendingAutofill && !location.state?.exportConfig) {
+        const allExps = useExperienceStore.getState().experiences || [];
+        let chosen = allExps;
+        if (snapData.jobAnalysis && allExps.length > 0) {
+          try {
+            const { data: rec } = await api.post('/job/recommend-experiences', { jobAnalysis: snapData.jobAnalysis });
+            const recIds = new Set((rec.recommendations || []).map(r => r.experience?.id).filter(Boolean));
+            const filtered = allExps.filter(e => recIds.has(e.id));
+            if (filtered.length > 0) chosen = filtered; // 추천 결과 있으면 그것만, 없으면 전체로 폴백
+          } catch { /* 추천 실패 시 전체 경험으로 폴백 */ }
+        }
+        const autoExps = chosen.map(buildPortfolioExpEntry);
+        setPortfolio(prev => {
+          const base = prev || { ...EMPTY_PORTFOLIO, ...snapData };
+          const next = { ...base, experiences: autoExps, pendingAutofill: false };
+          setCurrentPortfolio(next);
+          return next;
+        });
+        await updatePortfolio(id, { experiences: autoExps, pendingAutofill: false });
+        if (autoExps.length > 0) toast.success(`경험 ${autoExps.length}건이 자동으로 채워졌습니다`);
+      }
 
       // 경험 내보내기 config가 있으면 자동 import
       const exportConfig = location.state?.exportConfig;
@@ -1342,76 +1441,10 @@ export default function NotionPortfolioEditor() {
 
 
   const importExperience = (exp) => {
-    const aiResult = exp.structuredResult || {};
-    const savedExportCfg = aiResult.exportConfig;
-
-    let sections = [];
-    let description = '';
-    let contentSource = {};
-
-    if (savedExportCfg?.sections?.length > 0) {
-      // 사용자가 미리보기에서 저장한 섹션 구성 사용
-      sections = savedExportCfg.sections
-        .map(s => normalizePortfolioSection({ ...s, title: s.title || s.label }))
-        .filter(s => s.content?.trim() || s.blocks?.some(block => block.type === 'image' || block.type === 'slide'))
-        .map(s => ({ title: s.label || s.title, content: s.content, blocks: s.blocks || [], key: s.key, type: s.type || 'custom' }));
-      description = aiResult.projectOverview?.summary || aiResult.intro || sections[0]?.content || '';
-    } else {
-      // 저장된 구성 없으면 프레임워크 기본값 사용
-      const frameworkDef = exp.framework ? FRAMEWORKS[exp.framework] : FRAMEWORKS.STRUCTURED;
-      const fields = frameworkDef?.fields || FRAMEWORKS.STRUCTURED.fields;
-      contentSource = {};
-      fields.forEach(field => {
-        contentSource[field.key] = aiResult[field.key] || exp.content?.[field.key] || '';
-      });
-      sections = fields
-        .filter(field => contentSource[field.key]?.trim?.())
-        .map(field => normalizePortfolioSection({ key: field.key, title: field.label, content: contentSource[field.key] }));
-      description =
-        aiResult.projectOverview?.summary ||
-        aiResult.intro ||
-        exp.content?.intro ||
-        exp.content?.overview ||
-        (sections[0]?.content ?? '');
-    }
-
-    // 키워드에서 skills 추출
-    const autoSkills = aiResult.keywords || exp.keywords || [];
-
-    const newExp = {
-      date: exp.createdAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || exp.updatedAt?.toDate?.()?.toISOString?.()?.slice(0, 7) || '',
-      title: exp.title || '',
-      description,
-      // 원본 경험 ID 보존 (상세 모달에서 이미지 로딩용)
-      experienceId: exp.id || null,
-      notionDoc: exp.notionDoc || null,
-      // 상세 데이터 보존 (AI 분석 결과 우선)
-      framework: exp.framework || 'STRUCTURED',
-      frameworkContent: contentSource,
-      keywords: autoSkills,
-      aiSummary: aiResult.projectOverview?.summary || aiResult.intro || '',
-      // AI 분석 전체 데이터 보존 (keyExperiences, projectOverview 등)
-      structuredResult: savedExportCfg?.sections?.length > 0 ? {
-        ...aiResult,
-        exportConfig: {
-          ...(savedExportCfg || {}),
-          sections: sections.map(s => ({ key: s.key, label: s.label || s.title, type: s.type || 'custom', content: s.content, blocks: s.blocks || [] })),
-        },
-      } : aiResult,
-      // Notion 스타일 필드
-      thumbnailUrl: exp.images?.[0] || '',
-      status: 'finished',
-      classify: [],
-      skills: (aiResult.projectOverview?.techStack || []).length > 0
-        ? aiResult.projectOverview.techStack
-        : autoSkills.slice(0, 8).map(k => typeof k === 'string' ? k : k?.name ?? '').filter(Boolean),
-      role: aiResult.projectOverview?.role || '',
-      link: '',
-      sections,
-    };
+    const newExp = buildPortfolioExpEntry(exp);
     addToArray('experiences', newExp);
     setShowExpPicker(false);
-    toast.success(`"${exp.title}" 경험이 추가되었습니다 (${sections.length}개 섹션)`);
+    toast.success(`"${exp.title}" 경험이 추가되었습니다 (${newExp.sections.length}개 섹션)`);
   };
 
   if (loading) {

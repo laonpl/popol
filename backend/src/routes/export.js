@@ -137,12 +137,13 @@ router.post('/ppt-compose', authMiddleware, pptUpload.single('template'), async 
     if (!portfolio || typeof portfolio !== 'object') {
       return res.status(400).json({ success: false, message: '포트폴리오 데이터가 필요합니다' });
     }
-    // 구성 질문 답변 — choices(드롭다운) + requests(자유 입력 4칸)
+    // 구성 질문 답변 — qa(질의응답) 우선, 없으면 choices/requests(구버전)
     let payload = {};
     try { payload = JSON.parse(req.body.options || '{}'); } catch { /* 기본 구성 */ }
     const choices = payload.choices || payload; // 구버전 호환(평면 옵션)
     const requests = payload.requests || {};
-    const options = await resolveComposition({ portfolio, choices, requests });
+    const qa = payload.qa || null; // 클로드식 질의응답(대상·발표시간·톤·색상·강조점)
+    const options = await resolveComposition({ portfolio, choices, requests, qa });
     // 본문을 단답형 핵심 불릿으로 재작성(AI, 실패/무키 시 문장 분리로 폴백)
     const bullets = await refineProjectBullets({ portfolio });
     const pptxBuf = await composePortfolioPptx(portfolio, req.file.buffer, { ...options, bullets });
