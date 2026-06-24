@@ -1037,6 +1037,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
   const [isRefining, setIsRefining] = useState(false);
   const [collapsedIdx, setCollapsedIdx] = useState({});   // 리스트 모드: 카드별 접힘
   const [listRefine, setListRefine] = useState({});        // 리스트 모드: 카드별 AI 보강 메모
+  const [memoOpenIdx, setMemoOpenIdx] = useState({});      // 리스트 모드: 카드별 보강 메모 펼침
   const [listRefiningIdx, setListRefiningIdx] = useState(null);
   const refineKeyExperience = useExperienceStore(s => s.refineKeyExperience);
   const touchStartX = useRef(null);
@@ -1180,26 +1181,37 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
               </div>
               {!collapsed && (
                 <div className="px-5 py-5">
-                  {/* 자유 보강 메모 — 적으면 아래 항목으로 자동 정리 */}
-                  <div className="mb-4 rounded-xl border border-surface-200 bg-surface-50 p-3.5">
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-bold text-bluewood-700">자유 보강 메모</p>
-                        <p className="text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적으면 아래 상황·행동·결과·지표에 자동으로 정리됩니다.</p>
-                      </div>
-                      <button onClick={() => refineCard(i)} disabled={!listRefine[i]?.trim() || listRefiningIdx === i}
-                        className="flex-shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50">
-                        {listRefiningIdx === i ? '정리 중...' : '보강하기'}
-                      </button>
-                    </div>
-                    <textarea
-                      value={listRefine[i] || ''}
-                      onChange={ev => setListRefine(prev => ({ ...prev, [i]: ev.target.value }))}
-                      placeholder="예: 매출 30% 증가, 리텐션 20%→45% 개선. 초기 예상과 달리 네트워크 비용이 문제라서..."
-                      className="w-full h-16 px-3 py-2 text-[13px] rounded-lg border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
-                    />
-                  </div>
+                  {/* 경험 내용 먼저 */}
                   <SlideContent exp={e} theme={t} editing onChange={(field, val) => updateAt(i, field, val)} />
+
+                  {/* 자유 보강 메모 — 접이식(기본 숨김)으로 분리 */}
+                  <div className="mt-4 border-t border-surface-100 pt-3">
+                    <button
+                      onClick={() => setMemoOpenIdx(prev => ({ ...prev, [i]: !prev[i] }))}
+                      className="flex items-center gap-1.5 text-[12px] font-semibold text-bluewood-400 transition-colors hover:text-primary-600"
+                    >
+                      <ChevronDown size={13} className={`transition-transform ${memoOpenIdx[i] ? 'rotate-180' : ''}`} />
+                      자유 보강 메모
+                      {listRefine[i]?.trim() && !memoOpenIdx[i] && <span className="text-[11px] font-medium text-primary-500">· 작성됨</span>}
+                    </button>
+                    {memoOpenIdx[i] && (
+                      <div className="mt-2.5 rounded-xl border border-surface-200 bg-surface-50 p-3.5">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <p className="min-w-0 text-[11px] leading-relaxed text-bluewood-400">성과·내용을 자유롭게 적고 ‘보강하기’를 누르면 위 상황·행동·결과·지표에 자동 정리됩니다.</p>
+                          <button onClick={() => refineCard(i)} disabled={!listRefine[i]?.trim() || listRefiningIdx === i}
+                            className="flex-shrink-0 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50">
+                            {listRefiningIdx === i ? '정리 중...' : '보강하기'}
+                          </button>
+                        </div>
+                        <textarea
+                          value={listRefine[i] || ''}
+                          onChange={ev => setListRefine(prev => ({ ...prev, [i]: ev.target.value }))}
+                          placeholder="예: 매출 30% 증가, 리텐션 20%→45% 개선. 초기 예상과 달리 네트워크 비용이 문제라서..."
+                          className="w-full h-16 px-3 py-2 text-[13px] rounded-lg border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-white resize-none"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
