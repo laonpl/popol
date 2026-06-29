@@ -3853,12 +3853,8 @@ export const VisualTemplate9 = ({ portfolio, ec, onOpenExpDetail }) => {
   const hidden9 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
   const isHidden9 = (key) => hidden9.includes(key);
 
-  const contactPills = [
-    { key: 'email', icon: Mail, value: contact.email, href: contact.email ? `mailto:${contact.email}` : null },
-    { key: 'phone', icon: Phone, value: contact.phone, href: null },
-    { key: 'github', icon: Globe, value: contact.github, href: contact.github || null },
-    { key: 'website', icon: ExternalLink, value: contact.website, href: contact.website || null },
-  ].filter(p => p.value);
+  // 상단 핵심 역량 칩: 프로필/스킬에서 추출한 키워드 (연락처 대신 노출)
+  const topKeywords = (skillList || []).map(s => (typeof s === 'string' ? s : s?.name)).filter(Boolean).slice(0, 8);
 
   return (
     <div className="min-h-screen bg-white text-[#1f2328] font-sans selection:bg-indigo-200">
@@ -3903,22 +3899,16 @@ export const VisualTemplate9 = ({ portfolio, ec, onOpenExpDetail }) => {
           </p>
         </div>
 
-        {/* 연락처 + 위치 칩 */}
-        <div className="flex items-center gap-2 flex-wrap mb-6 text-sm text-slate-500">
-          {(ec || portfolio.location) && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">
-              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-              {ec ? <EditText value={portfolio.location || ''} onChange={v => ec.update('location', v)} placeholder="지역" className="text-sm text-slate-500" /> : <VHtml value={portfolio.location} />}
-            </span>
-          )}
-          {contactPills.map(({ key, icon: Icon, value, href }) => (
-            <a key={key} href={href || undefined} target={href ? '_blank' : undefined} rel="noreferrer"
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100 ${href ? 'hover:border-indigo-300 hover:text-indigo-600 transition-colors' : ''}`}>
-              <Icon className="w-3.5 h-3.5 text-slate-400" />
-              <span className="truncate max-w-[180px]">{value}</span>
-            </a>
-          ))}
-        </div>
+        {/* 핵심 역량 키워드 칩 (프로필 스킬 기반) */}
+        {topKeywords.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            {topKeywords.map((kw, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-sm font-medium">
+                {kw}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* About */}
         <div className="mb-10 rounded-xl bg-slate-50/70 border border-slate-100 p-5">

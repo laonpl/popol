@@ -456,7 +456,7 @@ router.post('/recommend-experiences', authMiddleware, requireCredits, async (req
     const jaValues = safeJa.coreValues.slice(0, 4).join(', ');
     const jaReq = (safeJa.requirements?.essential || []).slice(0, 4).join(', ');
 
-    const prompt = `기업 채용공고를 분석하여 핵심 키워드 3개를 추출하고, 사용자 경험 중 가장 적합한 것을 추천하세요.
+    const prompt = `기업 채용공고를 분석하여 핵심 키워드 3개를 추출하고, 사용자 경험 중 적합한 것을 적합도 순으로 모두 추천하세요. 관련성이 있는 경험은 빠짐없이 포함하되, 가장 적합한 경험을 배열 앞쪽에 배치하세요(최대 8개).
 
 기업:${safeJa.company} 직무:${safeJa.position}
 스킬:${jaSkills} | 가치관:${jaValues} | 필수:${jaReq}
@@ -464,8 +464,8 @@ router.post('/recommend-experiences', authMiddleware, requireCredits, async (req
 경험목록:
 ${expSummaries}
 
-JSON으로만 응답:
-{"keywords":[{"keyword":"k1","description":"이유"},{"keyword":"k2","description":"이유"},{"keyword":"k3","description":"이유"}],"recommendations":[{"experienceIndex":0,"matchedKeywords":["k1"],"reason":"추천 이유"}]}`;
+JSON으로만 응답(recommendations는 적합도 높은 순):
+{"keywords":[{"keyword":"k1","description":"이유"},{"keyword":"k2","description":"이유"},{"keyword":"k3","description":"이유"}],"recommendations":[{"experienceIndex":0,"matchedKeywords":["k1"],"reason":"추천 이유"},{"experienceIndex":2,"matchedKeywords":["k2"],"reason":"추천 이유"}]}`;
 
     const raw = await callProFirst(prompt, 'RecommendExperiences');
     const result = parseJSON(raw);
