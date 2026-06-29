@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
@@ -22,8 +22,8 @@ const ACCENT = '#002F6C';
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const SEG_VARIANTS = {
-  heading: { label: '제목', cls: 'text-[21px] sm:text-[25px] font-extrabold leading-snug text-bluewood-900' },
-  paragraph: { label: '본문', cls: 'text-[16px] leading-[1.85] text-bluewood-600' },
+  heading: { label: '제목', cls: 'text-[16px] sm:text-[18px] font-extrabold leading-snug text-bluewood-900' },
+  paragraph: { label: '본문', cls: 'text-[14px] leading-[1.7] text-bluewood-600' },
 };
 
 // 이미지 → 압축 Base64 (Canvas 리사이즈)
@@ -145,17 +145,32 @@ function normalizeCaseStudy(cs) {
 }
 
 /* ── 자동 높이 조절 + 자동 줄바꿈 인라인 텍스트 (글자 잘림 방지) ── */
-function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false }) {
+function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false, dense = false }) {
   const ref = useRef(null);
-  const resize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 8}px`; } };
-  useEffect(() => { resize(ref.current); }, [value]);
+  const resize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
+  // 값이 바뀔 때마다 페인트 전에 높이를 글자량에 맞춘다.
+  useLayoutEffect(() => { resize(ref.current); }, [value]);
+  // 너비가 바뀔 때(아코디언 펼침·반응형 등) 다시 측정 — 좁은 상태에서 잘못 측정돼 박스가 커지는 문제 방지.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    let lastW = el.offsetWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.offsetWidth !== lastW) { lastW = el.offsetWidth; resize(el); }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const tone = dark
     ? 'border border-white/10 bg-white/[0.06] placeholder:text-white/45 hover:bg-white/[0.1] focus:bg-white/[0.14] focus:border-white/30'
     : prose
       // 큰 본문·제목: 점선 밑줄 + hover (문서 느낌 유지)
       ? 'border border-transparent border-dashed border-b-bluewood-200 placeholder:text-bluewood-300 hover:bg-surface-50 focus:bg-surface-50/70 focus:border-b-primary-400'
-      // 짧은 입력 필드: 은은한 회색 필드
-      : 'border border-transparent bg-surface-50/70 placeholder:text-bluewood-300 hover:bg-surface-100 hover:border-surface-200 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
+      : dense
+        // 촘촘한 본문 필드: 평문처럼 보이다가 hover/포커스에만 강조 (회색 박스 없음)
+        ? 'border border-transparent bg-transparent placeholder:text-bluewood-300 hover:bg-surface-100/60 focus:bg-surface-50 focus:border-surface-200'
+        // 짧은 입력 필드: 은은한 회색 필드
+        : 'border border-transparent bg-surface-50/70 placeholder:text-bluewood-300 hover:bg-surface-100 hover:border-surface-200 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100';
   return (
     <textarea
       ref={ref}
@@ -163,7 +178,7 @@ function AutoText({ value, onChange, placeholder, className = '', dark = false, 
       value={value}
       placeholder={placeholder}
       onChange={(e) => { onChange(e.target.value); resize(e.target); }}
-      className={`w-full resize-none whitespace-pre-wrap break-words rounded-md -ml-2 px-2 py-1 outline-none transition-all duration-150 cursor-text ${tone} ${className}`}
+      className={`w-full resize-none whitespace-pre-wrap break-words rounded-md -ml-2 px-2 ${dense ? 'py-0.5' : 'py-1'} outline-none transition-colors duration-150 cursor-text ${tone} ${className}`}
       style={{ overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}
     />
   );
@@ -368,6 +383,7 @@ export default function ExperienceResult() {
   const [saving, setSaving] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [draftGuideOpen, setDraftGuideOpen] = useState(false);
+  const [openExps, setOpenExps] = useState([]); // 펼쳐진 핵심 경험 id 목록 (아코디언)
   const keyExpFileRef = useRef(null);
   const pendingKeyExpApply = useRef(null);
   const feedbackContext = state?.feedbackContext || 'experience_complete';
@@ -436,8 +452,13 @@ export default function ExperienceResult() {
   const setField = (key, val) => patch(prev => ({ ...prev, [key]: val }));
   const setMeta = (key, val) => patch(prev => ({ ...prev, meta: { ...prev.meta, [key]: val } }));
   const setKeyExp = (keId, key, val) => patch(prev => ({ ...prev, keyExps: prev.keyExps.map(k => k.id === keId ? { ...k, [key]: val } : k) }));
-  const addKeyExp = () => patch(prev => ({ ...prev, keyExps: [...prev.keyExps, { id: uid(), title: '', metric: '', problem: '', action: '', result: '', learning: '', images: [] }] }));
-  const removeKeyExp = (keId) => patch(prev => ({ ...prev, keyExps: prev.keyExps.filter(k => k.id !== keId) }));
+  const toggleExp = (keId) => setOpenExps(prev => prev.includes(keId) ? prev.filter(x => x !== keId) : [...prev, keId]);
+  const addKeyExp = () => {
+    const newId = uid();
+    patch(prev => ({ ...prev, keyExps: [...prev.keyExps, { id: newId, title: '', metric: '', problem: '', action: '', result: '', learning: '', images: [] }] }));
+    setOpenExps(prev => [...prev, newId]); // 새로 추가한 경험은 펼친 상태로
+  };
+  const removeKeyExp = (keId) => { patch(prev => ({ ...prev, keyExps: prev.keyExps.filter(k => k.id !== keId) })); setOpenExps(prev => prev.filter(x => x !== keId)); };
 
   // 핵심 경험 카드의 사진 추가/교체/삭제/리사이즈
   const addKeyExpImage = (keId) => {
@@ -545,7 +566,7 @@ export default function ExperienceResult() {
 
       {/* ── 상단 액션 바 ── */}
       <div className="sticky top-0 z-20 border-b border-surface-200 bg-white/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
           <button onClick={() => guardedNav('/app/experience')} className="shrink-0 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← <span className="hidden sm:inline">경험 목록</span></button>
 
           {/* 보기 전환 — 케이스 스터디 ↔ 자세히 보기 */}
@@ -568,165 +589,193 @@ export default function ExperienceResult() {
         </div>
       </div>
 
-      <article className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-12">
-        {/* ════ 히어로 (전체 폭) ════ */}
-        <div className="max-w-3xl">
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="text-[12px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>CASE STUDY</p>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400">
-              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-              회색으로 표시된 영역을 눌러 바로 편집할 수 있어요
-            </span>
-          </div>
-          <AutoText
-            prose
-            value={cs.title}
-            onChange={(v) => setField('title', v)}
-            placeholder="경험 제목을 입력하세요"
-            className="text-[30px] sm:text-[40px] font-black leading-[1.18] text-bluewood-900 tracking-tight"
-          />
-          <AutoText
-            prose
-            value={cs.summary}
-            onChange={(v) => setField('summary', v)}
-            placeholder="한 줄 요약 — 이 경험이 무엇이고 왜 중요한지"
-            className="mt-4 text-[17px] sm:text-[19px] leading-[1.6] text-bluewood-500"
-          />
-          {/* 메타(자동 줄바꿈) + 기술 */}
-          <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3">
-            {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
-              <div key={m.k} className="min-w-0">
-                <p className="text-[12px] font-bold text-bluewood-300 mb-0.5">{m.label}</p>
-                <AutoText
-                  value={cs.meta[m.k]}
-                  onChange={(v) => setMeta(m.k, v)}
-                  placeholder="—"
-                  className="text-[15px] font-semibold text-bluewood-700"
-                />
-              </div>
-            ))}
-          </div>
-          {cs.tech.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {cs.tech.map((t, i) => (
-                <span key={i} className="px-2.5 py-1 rounded-md bg-surface-100 text-[12px] font-semibold text-bluewood-600">{t}</span>
+      <article className="max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9">
+        <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
+
+          {/* ════ 왼쪽 — 한눈에 보는 정보 (선으로 구분된 단일 페이지, sticky) ════ */}
+          <div className="lg:sticky lg:top-[72px] lg:pr-2">
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="text-[11.5px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>CASE STUDY</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                눌러서 편집
+              </span>
+            </div>
+            <AutoText
+              prose
+              value={cs.title}
+              onChange={(v) => setField('title', v)}
+              placeholder="경험 제목을 입력하세요"
+              className="text-[22px] sm:text-[26px] font-black leading-[1.22] text-bluewood-900 tracking-tight"
+            />
+            <AutoText
+              prose
+              value={cs.summary}
+              onChange={(v) => setField('summary', v)}
+              placeholder="한 줄 요약 — 이 경험이 무엇이고 왜 중요한지"
+              className="mt-2 text-[14px] sm:text-[14.5px] leading-[1.55] text-bluewood-500"
+            />
+            {/* 메타 */}
+            <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
+              {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
+                <div key={m.k} className="min-w-0">
+                  <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-0.5">{m.label}</p>
+                  <AutoText
+                    value={cs.meta[m.k]}
+                    onChange={(v) => setMeta(m.k, v)}
+                    placeholder="—"
+                    className="text-[12.5px] font-semibold text-bluewood-700"
+                  />
+                </div>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className="mt-10 grid grid-cols-1 items-start gap-x-10 gap-y-12 border-t border-surface-200 pt-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:gap-x-16">
-
-          {/* ════ 내용 · 역량 (데스크탑 왼쪽 / 모바일 아래) ════ */}
-          <div className="min-w-0">
-            {/* 내용: 노션식 자유 편집 */}
-            <section>
-              <h2 className="text-[12.5px] font-black uppercase tracking-[0.16em] text-bluewood-400 mb-3">내용</h2>
-              <CaseBody body={cs.body} onChange={(next) => setField('body', next)} />
-            </section>
-
-            {/* 핵심 역량 — 키워드 기반으로 추출 */}
+            {/* 기술 */}
+            {cs.tech.length > 0 && (
+              <div className="mt-4 border-t border-surface-200 pt-4">
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">기술</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cs.tech.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-100 text-[11px] font-semibold text-bluewood-600">{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* 핵심 역량 */}
             {(() => {
               const groups = deriveCompetencies(exp?.structuredResult, cs.skills);
               const active = COMP_GROUPS.filter(g => groups[g.key].length > 0);
               if (active.length === 0) return null;
               return (
-                <section className="mt-10 border-t border-surface-200 pt-8">
-                  <h2 className="text-[12.5px] font-black uppercase tracking-[0.16em] text-bluewood-400 mb-5">핵심 역량</h2>
-                  <div className="space-y-5">
-                    {active.map(g => (
-                      <div key={g.key}>
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: g.color }} />
-                          <span className="text-[13.5px] font-bold text-bluewood-800">{g.label}</span>
-                          <span className="text-[12px] text-bluewood-300">{g.desc}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {groups[g.key].map((s, i) => (
-                            <span key={i} className="rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                <div className="mt-4 border-t border-surface-200 pt-4">
+                  <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">핵심 역량</p>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+                    {active.flatMap(g => groups[g.key].map((s, i) => (
+                      <span key={`${g.key}-${i}`} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: g.color }} />
+                        {s}
+                      </span>
+                    )))}
                   </div>
-                </section>
+                </div>
               );
             })()}
           </div>
 
-          {/* ════ 핵심 경험 (데스크탑 오른쪽 / 모바일 위로) ════ */}
-          <aside className="order-first min-w-0 lg:order-none lg:border-l lg:border-surface-200 lg:pl-10 xl:pl-14">
-            <div className="mb-5 flex items-baseline justify-between">
-              <h2 className="text-[16px] font-extrabold text-bluewood-900">핵심 경험</h2>
-              {cs.keyExps.length > 0 && <span className="text-[12px] font-semibold text-bluewood-300">{cs.keyExps.length}건</span>}
+          {/* ════ 오른쪽 — 핵심 경험 (Q&A식 아코디언) ════ */}
+          <section className="min-w-0">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 className="text-[15px] font-extrabold text-bluewood-900">핵심 경험</h2>
+              {cs.keyExps.length > 0 && <span className="text-[11.5px] font-semibold text-bluewood-300">{cs.keyExps.length}건 · 눌러서 펼치기</span>}
             </div>
-            <div className="divide-y divide-surface-100">
-              {cs.keyExps.map((k, i) => (
-                <div key={k.id} className="py-7 first:pt-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                      <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
-                      <AutoText
-                        prose
-                        value={k.title}
-                        onChange={(v) => setKeyExp(k.id, 'title', v)}
-                        placeholder={`핵심 경험 ${i + 1}`}
-                        className="text-[20px] sm:text-[22px] font-extrabold leading-snug text-bluewood-900"
-                      />
-                    </div>
-                    <button type="button" onClick={() => removeKeyExp(k.id)} className="mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
-                  </div>
-
-                  {/* 성과 — 강조 줄 */}
-                  <div className="mt-3 flex items-baseline gap-3">
-                    <span className="w-[56px] flex-shrink-0 text-[13px] font-bold pt-1.5" style={{ color: ACCENT }}>성과</span>
-                    <AutoText
-                      value={k.metric}
-                      onChange={(v) => setKeyExp(k.id, 'metric', v)}
-                      placeholder="성과·수치 (예: 누락률 32% 감소)"
-                      className="text-[16px] font-bold text-bluewood-900"
-                    />
-                  </div>
-                  {/* 문제 / 실행 / 결과 / 배운 점 */}
-                  <div className="mt-2 space-y-2.5">
-                    {KE_ROWS.map(r => (
-                      <div key={r.key} className="flex items-baseline gap-3">
-                        <span className="w-[56px] flex-shrink-0 text-[13px] font-bold text-bluewood-400 pt-1.5">{r.label}</span>
-                        <AutoText
-                          value={k[r.key]}
-                          onChange={(v) => setKeyExp(k.id, r.key, v)}
-                          placeholder={`${r.label} 입력`}
-                          className={`text-[15.5px] leading-[1.8] ${r.strong ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`}
-                        />
+            <div className="border-t border-surface-200">
+              {cs.keyExps.map((k, i) => {
+                const open = openExps.includes(k.id);
+                return (
+                  <div key={k.id} className="border-b border-surface-200">
+                    {open ? (
+                      /* ── 펼침: 편집 가능한 헤더 (번호 + 제목 + 성과) ── */
+                      <div className="flex items-start gap-2.5 pt-2.5 pb-1">
+                        <span className="mt-0.5 flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{i + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <AutoText
+                            prose
+                            value={k.title}
+                            onChange={(v) => setKeyExp(k.id, 'title', v)}
+                            placeholder={`핵심 경험 ${i + 1}`}
+                            className="text-[14px] sm:text-[14.5px] font-extrabold leading-snug text-bluewood-900"
+                          />
+                          <div className="mt-1 flex items-baseline gap-2">
+                            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
+                            <AutoText
+                              value={k.metric}
+                              onChange={(v) => setKeyExp(k.id, 'metric', v)}
+                              placeholder="성과·수치 (예: 누락률 32% 감소)"
+                              className="text-[12.5px] font-bold text-bluewood-900"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-shrink-0 items-center gap-1">
+                          <button type="button" onClick={() => removeKeyExp(k.id)} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+                          <button
+                            type="button"
+                            onClick={() => toggleExp(k.id)}
+                            aria-expanded
+                            aria-label="접기"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-500 transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600"
+                            style={{ transform: 'rotate(180deg)' }}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      /* ── 접힘: 행 전체 클릭 · 일반 텍스트 · 컴팩트 ── */
+                      <button type="button" onClick={() => toggleExp(k.id)} aria-expanded={false} className="group flex w-full items-center gap-2.5 py-2 text-left">
+                        <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{i + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className={`truncate text-[14.5px] font-extrabold leading-snug ${k.title ? 'text-bluewood-900' : 'text-bluewood-300'}`}>{k.title || `핵심 경험 ${i + 1}`}</p>
+                          {k.metric && (
+                            <p className="mt-0.5 truncate text-[12px] font-semibold text-bluewood-500">
+                              <span className="font-black" style={{ color: ACCENT }}>성과 </span>{k.metric}
+                            </p>
+                          )}
+                        </div>
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600">
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                        </span>
+                      </button>
+                    )}
 
-                  {/* 사진 (자유 크기 조절) */}
-                  {k.images.length > 0 && (
-                    <div className="mt-4 flex flex-col gap-3">
-                      {k.images.map(im => (
-                        <ResizableFigure
-                          key={im.id}
-                          src={im.url}
-                          width={im.width}
-                          onWidth={(w) => setKeyExpImage(k.id, im.id, { width: w })}
-                          onReplace={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { setKeyExpImage(k.id, im.id, { url: await resizeToBase64(f) }); } catch { toast.error('사진 처리에 실패했어요.'); } }}
-                          onDelete={() => deleteKeyExpImage(k.id, im.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <button type="button" onClick={() => addKeyExpImage(k.id)} className="mt-3 rounded-md border border-surface-200 px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
-                </div>
-              ))}
+                    {/* 접히는 본문 — 문제/실행/결과/배운점 + 사진 (열렸을 때만 렌더 → 올바른 너비에서 높이 측정) */}
+                    {open && (
+                      <div className="pb-2 pl-[28px]">
+                        <div className="space-y-0.5">
+                          {KE_ROWS.map(r => (
+                            <div key={r.key} className="flex items-baseline gap-2.5">
+                              <span className="w-[38px] flex-shrink-0 text-[11px] font-bold text-bluewood-400">{r.label}</span>
+                              <AutoText
+                                dense
+                                value={k[r.key]}
+                                onChange={(v) => setKeyExp(k.id, r.key, v)}
+                                placeholder={`${r.label} 입력`}
+                                className={`text-[12.5px] leading-[1.45] ${r.strong ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {k.images.length > 0 && (
+                          <div className="mt-3 flex flex-col gap-2.5">
+                            {k.images.map(im => (
+                              <ResizableFigure
+                                key={im.id}
+                                src={im.url}
+                                width={im.width}
+                                onWidth={(w) => setKeyExpImage(k.id, im.id, { width: w })}
+                                onReplace={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { setKeyExpImage(k.id, im.id, { url: await resizeToBase64(f) }); } catch { toast.error('사진 처리에 실패했어요.'); } }}
+                                onDelete={() => deleteKeyExpImage(k.id, im.id)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <button type="button" onClick={() => addKeyExpImage(k.id)} className="mt-2 rounded-md border border-surface-200 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <button type="button" onClick={addKeyExp} className="mt-5 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[13px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 transition-colors">＋ 핵심 경험 추가</button>
-          </aside>
+            <button type="button" onClick={addKeyExp} className="mt-4 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[12.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 transition-colors">＋ 핵심 경험 추가</button>
+
+            {/* 내용 — 자유 편집(부가 설명) */}
+            <div className="mt-8 border-t border-surface-200 pt-7">
+              <h2 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400 mb-2">내용</h2>
+              <CaseBody body={cs.body} onChange={(next) => setField('body', next)} />
+            </div>
+          </section>
         </div>
 
         {/* 하단 CTA */}
-        <div className="mt-12 flex flex-wrap gap-3 border-t border-surface-200 pt-8">
+        <div className="mt-9 flex flex-wrap gap-3 border-t border-surface-200 pt-7">
           <button
             onClick={handleSave}
             disabled={saving || !dirty}
