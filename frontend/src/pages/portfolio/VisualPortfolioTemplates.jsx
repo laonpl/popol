@@ -1869,73 +1869,64 @@ function SkillVTCategoryInput({ category, portfolio, ec }) {
 
   const presets = SKILL_VT_PRESETS[category] || [];
 
+  const unselectedPresets = presets.filter(name => !selectedNames.includes(name));
+
   return (
-    <div className="mb-4">
-      <p className="text-[13px] font-semibold text-gray-400 mb-1.5">{SKILL_VT_CATEGORY_LABELS[category]}</p>
-      {items.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {items.map((item, i) => {
-            const name = getItemName(item);
-            const prof = getItemProficiency(item);
-            return (
-              <div key={i} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setEditingSkill(editingSkill === name ? null : name)}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200 hover:bg-blue-100 transition-colors"
-                >
-                  {name}
-                  {prof > 0 && (
-                    <span className="flex gap-0.5 ml-1">
-                      {[1,2,3,4,5].map(l => (
-                        <span key={l} className={`w-1 h-2.5 rounded-sm ${l <= prof ? SKILL_VT_PROFICIENCY_LEVELS[prof-1].color : 'bg-gray-200'}`} />
-                      ))}
-                    </span>
-                  )}
-                  <span role="button" onClick={ev => { ev.stopPropagation(); toggleSkill(name); }} className="hover:text-red-500 ml-0.5">
-                    <X size={9} />
-                  </span>
-                </button>
-                {editingSkill === name && (
-                  <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[140px]">
-                    <p className="text-[12px] text-gray-400 mb-1 px-1">숙련도</p>
-                    {SKILL_VT_PROFICIENCY_LEVELS.map(lv => (
-                      <button key={lv.value} type="button" onClick={() => setProficiency(name, lv.value)}
-                        className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-gray-50 ${prof === lv.value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600'}`}>
-                        <span className="flex gap-0.5">
-                          {[1,2,3,4,5].map(l => <span key={l} className={`w-1 h-2.5 rounded-sm ${l <= lv.value ? lv.color : 'bg-gray-200'}`} />)}
-                        </span>
-                        {lv.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {presets.map(name => {
-          const isSelected = selectedNames.includes(name);
+    <div className="mb-3.5">
+      <p className="text-[12px] font-semibold text-gray-400 mb-1.5">{SKILL_VT_CATEGORY_LABELS[category]}</p>
+      {/* 선택된 스킬 → 추천(미선택) 칩 → 직접 입력을 한 줄 흐름으로 */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {items.map((item, i) => {
+          const name = getItemName(item);
+          const prof = getItemProficiency(item);
           return (
-            <button key={name} type="button" onClick={() => toggleSkill(name)}
-              className={`px-2 py-0.5 rounded-full text-[13px] font-medium border transition-all ${
-                isSelected
-                  ? 'bg-blue-100 text-blue-700 border-blue-300'
-                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600'
-              }`}>
-              {isSelected ? '✓ ' : ''}{name}
-            </button>
+            <div key={i} className="relative">
+              <button
+                type="button"
+                onClick={() => setEditingSkill(editingSkill === name ? null : name)}
+                title="클릭하여 숙련도 조절"
+                className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200 hover:bg-blue-100 transition-colors"
+              >
+                {name}
+                {prof > 0 && (
+                  <span className="flex gap-0.5">
+                    {[1,2,3,4,5].map(l => (
+                      <span key={l} className={`w-1 h-2 rounded-sm ${l <= prof ? SKILL_VT_PROFICIENCY_LEVELS[prof-1].color : 'bg-blue-200/70'}`} />
+                    ))}
+                  </span>
+                )}
+                <span role="button" onClick={ev => { ev.stopPropagation(); toggleSkill(name); }} className="text-blue-400 hover:text-red-500">
+                  <X size={11} />
+                </span>
+              </button>
+              {editingSkill === name && (
+                <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[140px]">
+                  <p className="text-[12px] text-gray-400 mb-1 px-1">숙련도</p>
+                  {SKILL_VT_PROFICIENCY_LEVELS.map(lv => (
+                    <button key={lv.value} type="button" onClick={() => setProficiency(name, lv.value)}
+                      className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-gray-50 ${prof === lv.value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600'}`}>
+                      <span className="flex gap-0.5">
+                        {[1,2,3,4,5].map(l => <span key={l} className={`w-1 h-2.5 rounded-sm ${l <= lv.value ? lv.color : 'bg-gray-200'}`} />)}
+                      </span>
+                      {lv.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           );
         })}
-      </div>
-      <div className="flex gap-1">
-        <input value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="직접 입력..."
-          className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded outline-none focus:ring-1 focus:ring-blue-300"
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }} />
-        <button type="button" onClick={addCustom}
-          className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs hover:bg-gray-200">추가</button>
+
+        {unselectedPresets.map(name => (
+          <button key={name} type="button" onClick={() => toggleSkill(name)}
+            className="flex items-center gap-0.5 pl-1.5 pr-2 py-1 rounded-full text-xs text-gray-500 border border-dashed border-gray-300 hover:border-blue-300 hover:text-blue-600 transition-colors">
+            <Plus size={11} /> {name}
+          </button>
+        ))}
+
+        <input value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="직접 입력"
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+          className="w-24 px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-full outline-none focus:w-32 focus:border-blue-300 transition-all placeholder:text-gray-400" />
       </div>
     </div>
   );
@@ -4109,10 +4100,20 @@ function projectImageSrc(project) {
 
 function ProjectCardActions({ ec, idx, dark = false }) {
   if (!ec) return null;
+  // 카드 안쪽 우상단에 배치 — overflow-hidden 카드에서도 잘리지 않도록 음수 오프셋을 쓰지 않는다.
   return (
     <>
-      <CameraUploadBtn onUpload={f => ec.onUploadExpImage(f, idx)} dark={dark} className="-top-2 right-5" />
-      <RemoveBtn dark={dark} onClick={() => ec.removeFromArray('experiences', idx)} />
+      <CameraUploadBtn onUpload={f => ec.onUploadExpImage(f, idx)} dark={dark} className="top-1.5 right-10" />
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); ec.removeFromArray('experiences', idx); }}
+        title="삭제"
+        className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md ${
+          dark ? 'bg-[#2A2A2A] text-red-400 hover:text-red-300 border border-[#3A3A3A]' : 'bg-white text-red-500 hover:text-red-600 border border-gray-200'
+        }`}
+      >
+        <X size={13} />
+      </button>
     </>
   );
 }

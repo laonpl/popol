@@ -772,6 +772,95 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
 }
 
 /**
+ * 포트폴리오 "빈 섹션 채우기" 초안 생성.
+ * 경험정리 + 프로필 + (선택) 공고 분석을 바탕으로 자기소개/스킬/가치관/목표/비교과 초안을 만든다.
+ * 근거가 없는 항목은 빈 값으로 반환한다.
+ */
+export async function generateProfileBoostDraft({ profile = {}, experiences = [], jobAnalysis = null } = {}) {
+  const expText = (experiences || []).slice(0, 12).map((e, i) => {
+    const c = e.content || {};
+    const sr = e.structuredResult || {};
+    const ov = sr.projectOverview || {};
+    const parts = [
+      e.title && `제목: ${e.title}`,
+      (c.intro || sr.intro) && `소개: ${c.intro || sr.intro}`,
+      ov.summary && `개요: ${ov.summary}`,
+      (c.competency || sr.competency) && `역량: ${c.competency || sr.competency}`,
+      (c.growth || sr.growth) && `성장: ${c.growth || sr.growth}`,
+      e.category && `유형: ${e.category}`,
+      Array.isArray(e.competencyTags) && e.competencyTags.length && `직무역량태그: ${e.competencyTags.join(', ')}`,
+      Array.isArray(e.workStyleTags) && e.workStyleTags.length && `성향태그: ${e.workStyleTags.join(', ')}`,
+    ].filter(Boolean).join('\n');
+    return parts ? `[경험 ${i + 1}]\n${parts}` : '';
+  }).filter(Boolean).join('\n\n').slice(0, 9000);
+
+  const profileText = [
+    profile.nameKo && `이름: ${profile.nameKo}`,
+    profile.location && `지역: ${profile.location}`,
+    Array.isArray(profile.education) && profile.education.length &&
+      `학력: ${profile.education.map(ed => [ed.school, ed.major, ed.degree].filter(Boolean).join(' ')).join(' / ')}`,
+    profile.valuesEssay && `기존 소개: ${profile.valuesEssay}`,
+  ].filter(Boolean).join('\n');
+
+  const job = jobAnalysis || {};
+  const jobText = [
+    job.company && `지원 기업: ${job.company}`,
+    job.position && `지원 직무: ${job.position}`,
+    Array.isArray(job.skills) && job.skills.length && `요구 역량: ${job.skills.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean).join(', ')}`,
+    Array.isArray(job.coreValues) && job.coreValues.length && `기업 인재상: ${job.coreValues.join(' / ')}`,
+  ].filter(Boolean).join('\n');
+
+  const empty = { valuesEssay: '', skills: [], values: [], goals: [], extracurricular: '' };
+  if (!expText && !profileText) return empty;
+
+  const prompt = `당신은 취업 포트폴리오 작성을 돕는 코치입니다. 아래 지원자의 "경험정리"와 "프로필", 그리고 (있다면) "지원 공고" 정보를 바탕으로 포트폴리오의 빈 섹션 초안을 한국어로 작성하세요.
+
+규칙:
+- 제공된 정보에만 근거합니다. 사실을 지어내지 마세요. 근거가 없으면 빈 문자열("") 또는 빈 배열([])로 두세요.
+- 담백하고 자연스러운 평서문("~습니다")으로 작성합니다. 과장·미사여구 금지.
+- valuesEssay(자기소개): 1인칭, 2~3문장. 어떤 문제를 어떤 역량으로 풀어왔는지 중심. 공고가 있으면 직무와 자연스럽게 연결.
+- skills: 역량/스킬을 짧은 키워드(1~3단어)로 5~8개. 공고의 문장형 인재상을 그대로 넣지 말고 실제 보유 역량 위주.
+- values: 가치관/업무 성향을 짧은 단어/구로 3~6개. 문장 금지.
+- goals: 앞으로의 목표를 짧은 문장 1~3개.
+- extracurricular: 대외활동·동아리·공모전·봉사 등 비교과 활동 요약 1~2문장. 관련 경험이 있으면 반드시 채우세요.
+
+[경험정리]
+${expText || '(없음)'}
+
+[프로필]
+${profileText || '(없음)'}
+
+[지원 공고]
+${jobText || '(없음)'}
+
+아래 JSON만 출력하세요(설명·코드블록 금지):
+{"valuesEssay":"","skills":[],"values":[],"goals":[],"extracurricular":""}`;
+
+  const text = await withTimeout(
+    generateWithRetry(prompt, {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1200,
+      rateLimitDelayMs: 4000,
+      callTimeoutMs: 45000,
+    }),
+    55000,
+    'ProfileBoostDraft',
+  );
+  const json = parseJSON(text) || {};
+  const toArr = (v) => Array.isArray(v)
+    ? [...new Set(v.map(x => String(typeof x === 'string' ? x : (x?.name ?? x?.keyword ?? x?.value ?? '')).trim()).filter(Boolean))]
+    : [];
+  return {
+    valuesEssay: typeof json.valuesEssay === 'string' ? json.valuesEssay.trim() : '',
+    skills: toArr(json.skills).slice(0, 10),
+    values: toArr(json.values).slice(0, 8),
+    goals: toArr(json.goals).slice(0, 5),
+    extracurricular: typeof json.extracurricular === 'string' ? json.extracurricular.trim() : '',
+  };
+}
+
+/**
  * 분할 호출 기반 경험 분석.
  *
  * 단계:

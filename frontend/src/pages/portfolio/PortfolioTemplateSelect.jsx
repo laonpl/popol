@@ -1252,6 +1252,7 @@ export default function PortfolioTemplateSelect() {
       {step === 'boost' && (
         <ProfileBoostStep
           profile={profile}
+          jobAnalysis={jobAnalysis}
           submitting={boostSaving || creating}
           onBack={() => setStep('template')}
           onSkip={() => handleCreate(jobAnalysis)}

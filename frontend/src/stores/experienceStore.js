@@ -226,6 +226,12 @@ const useExperienceStore = create((set, get) => ({
     return data;
   },
 
+  /** 빈 섹션 채우기 초안: 경험정리+프로필+공고로 자기소개/스킬/가치관/목표/비교과 생성 */
+  generateBoostDraft: async ({ profile, jobAnalysis }) => {
+    const { data } = await api.post('/experience/boost-draft', { profile, jobAnalysis }, { timeout: 90000 });
+    return data; // { valuesEssay, skills, values, goals, extracurricular }
+  },
+
   /** 자료 텍스트에서 핵심 경험(moments)을 추출. TemplateSelect 자료 수집 플로우용. */
   extractMoments: async (rawText, title) => {
     const { data } = await api.post('/experience/extract-moments', {

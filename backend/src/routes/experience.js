@@ -6,6 +6,7 @@ import { requireCredits } from '../services/billingService.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
+  generateProfileBoostDraft,
   buildFallbackExperienceAnalysis,
   extractMoments,
   refineKeyExperience,
@@ -171,6 +172,31 @@ router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req,
     // 그 외 실패는 프론트 로컬 폴백을 유도 (502)
     console.warn('[Draft] 빠른 초안 생성 실패 → 프론트 로컬 폴백 유도:', msg);
     return res.status(502).json({ error: '초안 생성에 실패했습니다.', detail: msg });
+  }
+});
+
+// POST /api/experience/boost-draft - 경험정리+프로필+공고로 빈 섹션 초안 생성
+router.post('/boost-draft', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { profile, jobAnalysis } = req.body || {};
+    const snapshot = await adminDb.collection('experiences')
+      .where('userId', '==', req.user.uid)
+      .get();
+    const experiences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const draft = await generateProfileBoostDraft({
+      profile: profile || {},
+      experiences,
+      jobAnalysis: jobAnalysis || null,
+    });
+    res.json(draft);
+  } catch (error) {
+    const msg = error.message || '';
+    const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('요청 한도') || msg.includes('RESOURCE_EXHAUSTED');
+    if (isQuota) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    next(error);
   }
 });
 
