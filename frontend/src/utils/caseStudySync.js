@@ -38,6 +38,8 @@ export function mergeCaseStudyIntoStructured(structuredResult, caseStudy) {
     afterMetric: k.metric || '',
     metric: k.metric || prevKE[i]?.metric || '',
     context: k.problem || '',
+    // 자세히 보기 일부(미리보기 슬라이드 등)는 situation 필드를 읽으므로 함께 채워 반영 누락을 막는다.
+    situation: k.problem || '',
     action: k.action || '',
     result: k.result || '',
     learning: k.learning || '',
