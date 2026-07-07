@@ -242,6 +242,84 @@ ${diffText || '(diff 정보 없음 — 커밋 메시지 기반으로만 분석)'
 }
 
 /**
+ * AI 응답을 저장 가능한 형태로 정규화.
+ * Firestore는 배열 속 배열 같은 중첩 엔티티를 거부(INVALID_ARGUMENT)하므로,
+ * 모든 필드를 문자열 / 문자열 배열 / 평탄한 객체 배열로 강제한다.
+ */
+function asStr(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(asStr).filter(Boolean).join('\n');
+  if (typeof v === 'object') return Object.values(v).map(asStr).filter(Boolean).join(' ');
+  return String(v);
+}
+function asStrArr(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.map(asStr).map(s => s.trim()).filter(Boolean);
+  const s = asStr(v).trim();
+  return s ? [s] : [];
+}
+function asSnippetArr(v, keys) {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map(item => {
+      if (item == null) return null;
+      if (typeof item === 'string') return { code: item };
+      if (typeof item !== 'object' || Array.isArray(item)) return null;
+      const out = {};
+      for (const k of keys) out[k] = asStr(item[k]).trim();
+      return out;
+    })
+    .filter(s => s && Object.values(s).some(Boolean));
+}
+function normalizeGitExperience(raw) {
+  const e = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const codeSnippets = asSnippetArr(e.code_snippets, ['file', 'code', 'why']);
+  // 일부 응답은 why 대신 change 키를 씀 — why로 통일
+  if (Array.isArray(e.code_snippets)) {
+    e.code_snippets.forEach((item, i) => {
+      if (codeSnippets[i] && !codeSnippets[i].why && item && typeof item === 'object') {
+        codeSnippets[i].why = asStr(item.change).trim();
+      }
+    });
+  }
+  return {
+    project_name: asStr(e.project_name).trim(),
+    core_tech_stack: asStr(e.core_tech_stack).trim(),
+    core_impact: asStr(e.core_impact).trim(),
+    period: asStr(e.period).trim(),
+    problem_definition: asStrArr(e.problem_definition),
+    code_changes: asStrArr(e.code_changes),
+    code_snippets: codeSnippets,
+    troubleshooting: asStrArr(e.troubleshooting),
+    troubleshooting_snippets: asSnippetArr(e.troubleshooting_snippets, ['issue', 'file', 'code', 'solution']),
+    action_and_solution: asStrArr(e.action_and_solution),
+    learning: asStrArr(e.learning),
+  };
+}
+
+/**
+ * 커밋 메시지 → 작업 유형 분류.
+ * conventional prefix(feat: 등)가 없으면 한국어/영어 키워드로 추정 — 한국어 커밋 레포에서 전부 'other'로 뭉치는 문제 방지.
+ */
+const CONVENTIONAL_TYPES = new Set(['feat', 'fix', 'refactor', 'docs', 'style', 'test', 'chore', 'perf', 'build', 'ci', 'revert']);
+function classifyCommitType(msg) {
+  const m = msg.match(/^([a-z]+)(?:\([^)]+\))?\s*[:!]/i);
+  if (m && CONVENTIONAL_TYPES.has(m[1].toLowerCase())) return m[1].toLowerCase();
+  const s = msg.toLowerCase();
+  if (/(fix|hotfix|patch|버그|오류|에러|수정|해결)/.test(s)) return 'fix';
+  if (/(feat|기능|추가|구현|신규|생성|개발|제작)/.test(s)) return 'feat';
+  if (/(refactor|리팩터|리팩토링|개선|정리)/.test(s)) return 'refactor';
+  if (/(perf|성능|최적화|속도)/.test(s)) return 'perf';
+  if (/(docs|문서|readme|주석)/.test(s)) return 'docs';
+  if (/(test|테스트)/.test(s)) return 'test';
+  if (/(style|스타일|디자인|\bui\b|css|레이아웃|화면)/.test(s)) return 'ui';
+  if (/(chore|build|deploy|merge|배포|설정|빌드|config|의존성|버전)/.test(s)) return 'chore';
+  return 'etc';
+}
+
+/**
  * 커밋 기여 비중 통계 — 기여자 API(내 커밋/전체·순위) + 언어 비율.
  * 실패해도 분석 전체를 막지 않도록 항상 객체를 반환(부분 실패는 무시).
  */
@@ -256,21 +334,24 @@ async function getContributionStats(owner, repo, authorParam, token, myCommits =
     languages: [],
     commitTypes: [],   // [{ type: 'feat', count: n }] — 내 커밋 유형 분포 (근거)
     activePeriod: null, // { first, last } — 내 활동 기간 (근거)
+    dailyActivity: [], // [{ d: 'YYYY-MM-DD', count }] — 내 커밋 일별 분포 (잔디 그래프용)
   };
 
-  // 내 커밋에서 유형 분포·활동 기간 산출 (실제 커밋 메시지·날짜 기반 근거)
+  // 내 커밋에서 유형 분포·활동 기간·일별 분포 산출 (실제 커밋 메시지·날짜 기반 근거)
   if (Array.isArray(myCommits) && myCommits.length) {
     const typeCount = {};
+    const dayCount = {};
     let first = null, last = null;
     for (const c of myCommits) {
       const msg = c?.commit?.message || '';
-      const m = msg.match(/^([a-z]+)(?:\([^)]+\))?:/i);
-      const type = m ? m[1].toLowerCase() : 'other';
+      const type = classifyCommitType(msg);
       typeCount[type] = (typeCount[type] || 0) + 1;
       const d = c?.commit?.author?.date || c?.commit?.committer?.date;
       if (d) {
         if (!first || d < first) first = d;
         if (!last || d > last) last = d;
+        const day = d.slice(0, 10);
+        dayCount[day] = (dayCount[day] || 0) + 1;
       }
     }
     stats.commitTypes = Object.entries(typeCount)
@@ -278,6 +359,9 @@ async function getContributionStats(owner, repo, authorParam, token, myCommits =
       .slice(0, 6)
       .map(([type, count]) => ({ type, count }));
     if (first && last) stats.activePeriod = { first: first.slice(0, 10), last: last.slice(0, 10) };
+    stats.dailyActivity = Object.entries(dayCount)
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([d, count]) => ({ d, count }));
   }
 
   // 기여자별 커밋수 → 내 비중·순위
@@ -324,7 +408,8 @@ export async function analyzeGitCommits(repoUrl, authorParam, token) {
   const { owner, repo } = parseGitHubUrl(repoUrl);
 
   console.log(`[GitAnalysis] ${owner}/${repo} - author: ${authorParam} 커밋 수집 중...`);
-  const commits = await getCommitsByAuthor(owner, repo, authorParam, token);
+  // 150개까지 수집 — 잔디(일별 활동)·기여 통계의 커버리지 확보 (목록 API 5페이지)
+  const commits = await getCommitsByAuthor(owner, repo, authorParam, token, 150);
 
   if (commits.length === 0) {
     throw new Error(`해당 레포지토리에서 '${authorParam}'의 커밋을 찾을 수 없습니다. GitHub 사용자명을 확인해주세요.`);
@@ -341,7 +426,7 @@ export async function analyzeGitCommits(repoUrl, authorParam, token) {
 
   const experiences = results
     .filter(r => r.status === 'fulfilled' && r.value)
-    .map(r => r.value);
+    .map(r => normalizeGitExperience(r.value));
 
   if (experiences.length === 0) {
     // 개별 그룹 분석(주로 Gemini 호출)의 첫 실패 사유를 함께 노출 → 원인 특정

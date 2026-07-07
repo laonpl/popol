@@ -7,7 +7,7 @@ import { db } from '../../config/firebase';
 import api from '../../services/api';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
 import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
-import { ArchitectureDiagram, buildFallbackDiagram } from '../../components/portfolio/ArchDiagram';
+import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 — 케이스 스터디 구조가 직군별로 갈라지는 첫 분기 */
@@ -469,32 +469,128 @@ function GitConnectPanel({ expId, sr, onApplied, onCancel, compact = false }) {
 /* 문서 톤 마이크로 라벨 — '내용' 헤더와 동일한 위계 */
 const MICRO_LABEL = 'text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400';
 
-/* ── 기여도 · 영향력 — 박스 없이 타이포그래피로 정리한 스탯 스트립 ── */
-function GitStatStrip({ stats }) {
-  const pct = Number(stats.contributionPct) || 0;
-  const langs = Array.isArray(stats.languages) ? stats.languages : [];
-  const types = Array.isArray(stats.commitTypes) ? stats.commitTypes.slice(0, 4) : [];
-  const LANG_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b'];
-  const items = [
-    { v: pct ? `${pct}%` : '—', l: '기여 비중', accent: true },
-    { v: stats.myCommits ?? '—', l: '내 커밋' },
-    { v: stats.totalCommits || '—', l: '전체 커밋' },
-    { v: stats.rank ? `${stats.rank}위` : '—', l: `기여자 ${stats.contributorCount || 0}명 중` },
-  ];
+/* ── 커밋 잔디 — GitHub 컨트리뷰션 그래프 (열=주, 행=요일, 진하기=그날 커밋 수) ── */
+const GRASS_COLORS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+const GRASS_CELL = 10, GRASS_GAP = 3;
+
+function CommitGrass({ days }) {
+  const map = new Map(days.map(x => [x.d, x.count]));
+  const total = days.reduce((s, x) => s + (x.count || 0), 0);
+  const max = Math.max(1, ...days.map(x => x.count || 0));
+  const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+  const sorted = [...days].sort((a, b) => (a.d < b.d ? -1 : 1));
+  const firstDt = parse(sorted[0].d);
+  const lastDt = parse(sorted[sorted.length - 1].d);
+  // 첫 커밋 주의 일요일로 스냅해 주 단위 열 구성 — 최근 30주만 표시
+  const weeks = [];
+  const cursor = new Date(firstDt);
+  cursor.setDate(cursor.getDate() - cursor.getDay());
+  while (cursor <= lastDt) {
+    weeks.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  const shown = weeks.slice(-30);
+
+  // 0 = 빈 칸, 1~4 = 최댓값 대비 사분위 (GitHub 방식)
+  const level = (c) => (c <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((c / max) * 4))));
 
   return (
     <div>
-      <h3 className={`${MICRO_LABEL} mb-3`}>기여도 · 영향력</h3>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
-        {items.map((it, i) => (
-          <div key={i} className="min-w-0">
-            <p className="text-[21px] font-black leading-none tracking-tight" style={it.accent ? { color: ACCENT } : { color: '#1e293b' }}>{it.v}</p>
-            <p className="mt-1.5 text-[11px] font-medium text-bluewood-400">{it.l}</p>
+      <div className="overflow-x-auto pb-1">
+        <div style={{ width: 26 + shown.length * (GRASS_CELL + GRASS_GAP) }}>
+          {/* 월 라벨 — 월이 바뀌는 열에만 */}
+          <div className="flex" style={{ paddingLeft: 26, gap: GRASS_GAP }}>
+            {shown.map((ws, i) => {
+              const m = ws.getMonth();
+              const label = (i === 0 || shown[i - 1].getMonth() !== m) ? `${m + 1}월` : '';
+              return (
+                <span key={i} className="whitespace-nowrap text-[9.5px] leading-none text-bluewood-300" style={{ width: GRASS_CELL, overflow: 'visible' }}>{label}</span>
+              );
+            })}
           </div>
-        ))}
+          <div className="mt-1.5 flex" style={{ gap: GRASS_GAP }}>
+            {/* 요일 라벨 (월·수·금) */}
+            <div className="flex flex-shrink-0 flex-col" style={{ gap: GRASS_GAP, width: 26 - GRASS_GAP }}>
+              {['', '월', '', '수', '', '금', ''].map((lb, i) => (
+                <span key={i} className="pr-1 text-right text-[9px] text-bluewood-300" style={{ height: GRASS_CELL, lineHeight: `${GRASS_CELL}px` }}>{lb}</span>
+              ))}
+            </div>
+            {/* 주 열 × 요일 행 */}
+            {shown.map((ws, wi) => (
+              <div key={wi} className="flex flex-col" style={{ gap: GRASS_GAP }}>
+                {Array.from({ length: 7 }, (_, dow) => {
+                  const dt = new Date(ws);
+                  dt.setDate(dt.getDate() + dow);
+                  if (dt > lastDt) return <span key={dow} style={{ width: GRASS_CELL, height: GRASS_CELL }} />;
+                  const key = fmt(dt);
+                  const c = map.get(key) || 0;
+                  return (
+                    <span
+                      key={dow}
+                      title={`${key} · 커밋 ${c}개`}
+                      className="rounded-[2px] transition-transform hover:scale-125"
+                      style={{ width: GRASS_CELL, height: GRASS_CELL, backgroundColor: GRASS_COLORS[level(c)] }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* 근거 + 범례 */}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10.5px] text-bluewood-300">분석된 최근 커밋 {total}개 기준</span>
+        <span className="flex items-center gap-1 text-[10px] text-bluewood-300">
+          적음
+          {GRASS_COLORS.map((c, i) => (
+            <span key={i} className="rounded-[2px]" style={{ width: GRASS_CELL, height: GRASS_CELL, backgroundColor: c }} />
+          ))}
+          많음
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── 기여도 · 영향력 — 문서 톤 스탯 블록 (기여 바 · 언어 바 · 월별 활동 · 커밋 유형) ── */
+function GitHeroCard({ stats }) {
+  const pct = Number(stats.contributionPct) || 0;
+  const langs = Array.isArray(stats.languages) ? stats.languages : [];
+  const types = Array.isArray(stats.commitTypes) ? stats.commitTypes.slice(0, 5) : [];
+  const grassDays = Array.isArray(stats.dailyActivity) ? stats.dailyActivity : [];
+  const maxType = Math.max(1, ...types.map(t => t.count || 0));
+  // 언어 식별 색 — 고정 순서 배정 (검증 통과 팔레트, 범례에 이름·% 라벨 병기)
+  const LANG_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0d9488'];
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className={MICRO_LABEL}>기여도 · 영향력</h3>
+        {stats.activePeriod && (
+          <span className="text-[11px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span>
+        )}
       </div>
 
-      {/* 기여 비중 바 — 원자료(내 커밋/전체)를 함께 표기해 근거 명시 */}
+      {/* 메인 수치 — 기여 비중을 크게, 나머지는 보조 */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+        <div>
+          <p className="text-[34px] font-black leading-none tracking-tight" style={{ color: ACCENT }}>{pct ? `${pct}%` : '—'}</p>
+          <p className="mt-1.5 text-[11.5px] font-semibold text-bluewood-400">커밋 기여 비중</p>
+        </div>
+        <div>
+          <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{stats.myCommits ?? '—'}<span className="text-[13px] font-semibold text-bluewood-400"> / {stats.totalCommits || '—'}</span></p>
+          <p className="mt-1.5 text-[11px] text-bluewood-400">내 커밋 / 전체</p>
+        </div>
+        <div>
+          <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{stats.rank ? `${stats.rank}위` : '—'}</p>
+          <p className="mt-1.5 text-[11px] text-bluewood-400">기여자 {stats.contributorCount || 0}명 중</p>
+        </div>
+      </div>
+
+      {/* 기여 비중 바 */}
       {pct > 0 && (
         <div className="mt-4">
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface-100">
@@ -504,18 +600,18 @@ function GitStatStrip({ stats }) {
         </div>
       )}
 
-      {/* 언어 구성 — 한 줄 스택 바 + 인라인 범례 */}
+      {/* 언어 구성 — 스택 바 + 이름·% 범례 */}
       {langs.length > 0 && (
-        <div className="mt-4">
-          <div className="flex h-2 w-full overflow-hidden rounded-full">
+        <div className="mt-5">
+          <div className="flex h-2 w-full gap-[2px] overflow-hidden rounded-full">
             {langs.map((l, i) => (
-              <div key={i} style={{ width: `${l.pct}%`, backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} title={`${l.name} ${l.pct}%`} />
+              <div key={i} className="rounded-full" style={{ width: `${l.pct}%`, backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} title={`${l.name} ${l.pct}%`} />
             ))}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1">
             {langs.map((l, i) => (
               <span key={i} className="inline-flex items-center gap-1.5 text-[11.5px] text-bluewood-500">
-                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} />
                 {l.name} <span className="text-bluewood-300">{l.pct}%</span>
               </span>
             ))}
@@ -523,104 +619,248 @@ function GitStatStrip({ stats }) {
         </div>
       )}
 
-      {/* 활동 기간 + 커밋 유형 — 한 줄 근거 */}
-      {(stats.activePeriod || types.length > 0) && (
-        <p className="mt-3 text-[11.5px] text-bluewood-400">
-          {stats.activePeriod && <>활동 <span className="font-semibold text-bluewood-600">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span></>}
-          {types.map((t, i) => <span key={i}> · {t.type} <span className="font-semibold text-bluewood-600">{t.count}회</span></span>)}
-        </p>
+      {/* 커밋 잔디 — 언제 얼마나 꾸준히 기여했는지 (GitHub 컨트리뷰션 그래프) */}
+      {grassDays.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">커밋 활동</p>
+          <CommitGrass days={grassDays} />
+        </div>
+      )}
+
+      {/* 커밋 유형 분포 — 무슨 일을 주로 했는지 (feat/fix/refactor …) */}
+      {types.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2 text-[11px] font-bold text-bluewood-400">커밋 유형</p>
+          <div className="space-y-1.5">
+            {types.map((t, i) => (
+              <div key={i} className="flex items-center gap-2.5 text-[11.5px]">
+                <span className="w-16 flex-shrink-0 truncate font-mono text-bluewood-500">{t.type}</span>
+                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100">
+                  <div className="h-full rounded-full" style={{ width: `${Math.round((t.count / maxType) * 100)}%`, backgroundColor: ACCENT }} />
+                </div>
+                <span className="w-9 flex-shrink-0 text-right font-semibold tabular-nums text-bluewood-700">{t.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-/* ── 문제 해결 아코디언 행 — 핵심 경험 아코디언과 같은 인터랙션 문법 ── */
-function GitProjectRow({ exp, index, open, onToggle }) {
+/* ── 코드 창 — 보기: IDE 스타일, hover '수정' → 다크 에디터에서 파일·코드 직접 수정 ── */
+function EditableCodeWindow({ file, code, onPatch }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <div className="group/cw relative">
+        <CodeSnippet file={file} code={code} />
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="absolute right-2 top-1.5 hidden rounded border border-[#30363d] bg-[#161b22] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#8b949e] hover:text-white group-hover/cw:block"
+        >수정</button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-3 overflow-hidden rounded-lg border border-primary-400 bg-[#0d1117] shadow-md">
+      <div className="flex items-center gap-2 border-b border-[#21262d] bg-[#161b22] px-3 py-1.5">
+        <input
+          value={file || ''}
+          onChange={e => onPatch({ file: e.target.value })}
+          placeholder="파일 경로 (예: src/auth/middleware.ts)"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-[#e6edf3] outline-none placeholder:text-[#4d5566]"
+        />
+        <button type="button" onClick={() => setEditing(false)} className="flex-shrink-0 rounded bg-primary-600 px-2 py-0.5 text-[10.5px] font-bold text-white hover:bg-primary-500">완료</button>
+      </div>
+      <textarea
+        autoFocus
+        value={code || ''}
+        onChange={e => onPatch({ code: e.target.value })}
+        rows={Math.min(16, Math.max(4, String(code || '').split('\n').length + 1))}
+        spellCheck={false}
+        className="block w-full resize-y bg-transparent px-3 py-2 font-mono text-[11.5px] leading-[1.7] text-[#d4d4d4] outline-none placeholder:text-[#4d5566]"
+        placeholder="코드를 입력하세요"
+      />
+    </div>
+  );
+}
+
+/* 여러 줄 리스트 편집 블록 — 라벨 + AutoText(dense). (행 내부 정의 시 재마운트로 포커스가 끊겨 모듈 레벨로 둠) */
+function GitListEdit({ label, color, value, onChange, placeholder }) {
+  return (
+    <div>
+      <p className="mb-0.5 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <AutoText
+        dense
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder || `${label} 입력 (줄바꿈으로 항목 구분)`}
+        className="text-[12.5px] leading-[1.6] text-bluewood-600"
+      />
+    </div>
+  );
+}
+
+/* ── 문제 해결 아코디언 행 — 핵심 경험 아코디언과 같은 인터랙션 문법 + 전 필드 인라인 편집 ── */
+function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
   const title = clean(exp.project_name) || `프로젝트 ${index + 1}`;
   const impact = clean(exp.core_impact);
-  const tags = (exp.core_tech_stack || '').split(/,\s*/).map(s => s.trim()).filter(Boolean);
-  const problem = toLines(exp.problem_definition);
-  const action = toLines(exp.action_and_solution);
-  const codeChanges = toLines(exp.code_changes);
   const snippets = Array.isArray(exp.code_snippets) ? exp.code_snippets.filter(s => s && (s.code || s.why || s.file)) : [];
   const troubleSnippets = Array.isArray(exp.troubleshooting_snippets) ? exp.troubleshooting_snippets.filter(s => s && (s.code || s.solution || s.issue)) : [];
   const trouble = toLines(exp.troubleshooting);
-  const learning = toLines(exp.learning);
 
-  const List = ({ label, color, lines }) => (lines.length ? (
-    <div>
-      <p className="mb-1 text-[11px] font-bold" style={{ color }}>{label}</p>
-      <ul className="space-y-1">
-        {lines.map((l, i) => <li key={i} className="text-[12.5px] leading-[1.6] text-bluewood-600">• {l}</li>)}
-      </ul>
-    </div>
-  ) : null);
+  // 배열 필드 ↔ 여러 줄 텍스트 편집 (한 줄 = 한 항목)
+  const linesVal = (v) => toLines(v).join('\n');
+  const setLines = (key) => (v) => onPatch({ [key]: v.split('\n') });
+  const patchSnippet = (listKey) => (i, changes) => {
+    const list = Array.isArray(exp[listKey]) ? [...exp[listKey]] : [];
+    list[i] = { ...(list[i] || {}), ...changes };
+    onPatch({ [listKey]: list });
+  };
+  const patchCode = patchSnippet('code_snippets');
+  const patchTrouble = patchSnippet('troubleshooting_snippets');
 
   return (
     <div className="border-b border-surface-200">
-      <button type="button" onClick={onToggle} aria-expanded={open} className="group flex w-full items-center gap-2.5 py-2.5 text-left">
-        <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14.5px] font-extrabold leading-snug text-bluewood-900">{title}</p>
-          {impact && !open && (
-            <p className="mt-0.5 truncate text-[12px] font-semibold text-bluewood-500">
-              <span className="font-black" style={{ color: ACCENT }}>성과 </span>{impact}
-            </p>
-          )}
+      {open ? (
+        /* ── 펼침: 편집 가능한 헤더 (번호 + 제목) ── */
+        <div className="flex items-start gap-2.5 pt-2.5 pb-1">
+          <span className="mt-0.5 flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <AutoText
+              prose
+              value={exp.project_name || ''}
+              onChange={(v) => onPatch({ project_name: v })}
+              placeholder={`프로젝트 ${index + 1}`}
+              className="text-[14px] sm:text-[14.5px] font-extrabold leading-snug text-bluewood-900"
+            />
+            <div className="mt-1 flex items-center gap-2">
+              <AutoText
+                value={exp.period || ''}
+                onChange={(v) => onPatch({ period: v })}
+                placeholder="기간 (예: 2026.05 ~ 2026.07)"
+                className="w-40 flex-shrink-0 text-[11px] text-bluewood-400"
+              />
+              <AutoText
+                value={exp.core_tech_stack || ''}
+                onChange={(v) => onPatch({ core_tech_stack: v })}
+                placeholder="기술 태그 (쉼표로 구분)"
+                className="flex-1 text-[11px] text-bluewood-500"
+              />
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <button type="button" onClick={onDelete} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded
+              aria-label="접기"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-500 transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600"
+              style={{ transform: 'rotate(180deg)' }}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+          </div>
         </div>
-        <span
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600"
-          style={open ? { transform: 'rotate(180deg)' } : undefined}
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-        </span>
-      </button>
+      ) : (
+        /* ── 접힘: 행 전체 클릭 · 컴팩트 ── */
+        <button type="button" onClick={onToggle} aria-expanded={false} className="group flex w-full items-center gap-2.5 py-2.5 text-left">
+          <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14.5px] font-extrabold leading-snug text-bluewood-900">{title}</p>
+            {impact && (
+              <p className="mt-0.5 truncate text-[12px] font-semibold text-bluewood-500">
+                <span className="font-black" style={{ color: ACCENT }}>성과 </span>{impact}
+              </p>
+            )}
+          </div>
+          {/* 접힘 상태에서도 깊이가 보이도록 — 코드·픽스 카운트 */}
+          {(snippets.length > 0 || troubleSnippets.length > 0 || trouble.length > 0) && (
+            <span className="hidden flex-shrink-0 items-center gap-1.5 font-mono text-[10px] sm:flex">
+              {snippets.length > 0 && <span className="rounded border border-surface-200 bg-surface-50 px-1.5 py-0.5 text-bluewood-400">{'</>'} {snippets.length}</span>}
+              {(troubleSnippets.length > 0 || trouble.length > 0) && <span className="rounded px-1.5 py-0.5 font-semibold" style={{ color: '#b45309', backgroundColor: '#fef7ec' }}>fix {troubleSnippets.length || trouble.length}</span>}
+            </span>
+          )}
+          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          </span>
+        </button>
+      )}
 
       {open && (
         <div className="space-y-3.5 pb-4 pl-[28px]">
-          {(exp.period || tags.length > 0) && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {clean(exp.period) && <span className="text-[11px] text-bluewood-400">{clean(exp.period)}</span>}
-              {tags.slice(0, 8).map((t, i) => <span key={i} className="rounded bg-surface-100 px-1.5 py-0.5 text-[10.5px] font-medium text-bluewood-500">#{t}</span>)}
-            </div>
-          )}
+          <ListEdit label="문제" color="#314157" field="problem_definition" />
+          <ListEdit label="해결" color={ACCENT} field="action_and_solution" />
 
-          <List label="문제" color="#314157" lines={problem} />
-          <List label="해결" color={ACCENT} lines={action} />
+          {/* 성과 — 접힘 요약·하이라이트와 동기화 */}
+          <div className="flex items-baseline gap-2">
+            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
+            <AutoText
+              dense
+              value={exp.core_impact || ''}
+              onChange={(v) => onPatch({ core_impact: v })}
+              placeholder="이 작업의 핵심 성과 한 줄"
+              className="text-[12.5px] font-bold leading-[1.55] text-bluewood-900"
+            />
+          </div>
 
-          {impact && (
-            <div className="flex items-baseline gap-2">
-              <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
-              <p className="text-[12.5px] font-bold leading-[1.55] text-bluewood-900">{impact}</p>
-            </div>
-          )}
-
+          {/* 코드 변경 — 파일·코드·설명 모두 편집 가능 */}
           {snippets.length > 0 ? (
             <div>
               <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
-              {snippets.map((s, i) => <CodeSnippet key={i} file={s.file} code={s.code} explanation={s.why || s.change} />)}
+              {exp.code_snippets.map((s, i) => (
+                (s && (s.code || s.why || s.file)) ? (
+                  <div key={i} className="mb-3">
+                    <EditableCodeWindow file={s.file} code={s.code} onPatch={(ch) => patchCode(i, ch)} />
+                    <AutoText
+                      dense
+                      value={s.why || s.change || ''}
+                      onChange={(v) => patchCode(i, { why: v })}
+                      placeholder="이 코드가 무엇을 어떻게 바꾸는지 설명"
+                      className="-mt-2 text-[12.5px] leading-[1.7] text-bluewood-600"
+                    />
+                  </div>
+                ) : null
+              ))}
             </div>
-          ) : codeChanges.length > 0 ? (
-            <List label="코드 변경" color="#334155" lines={codeChanges} />
-          ) : null}
+          ) : (
+            <ListEdit label="코드 변경" color="#334155" field="code_changes" placeholder="핵심 코드 변경 내용 (줄바꿈으로 항목 구분)" />
+          )}
 
+          {/* 트러블슈팅 — 이슈·파일·코드·해결 설명 편집 가능 */}
           {troubleSnippets.length > 0 ? (
             <div>
               <p className="mb-1.5 text-[11px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
-              {troubleSnippets.map((s, i) => <CodeSnippet key={i} lead={s.issue} file={s.file} code={s.code} explanation={s.solution} />)}
+              {exp.troubleshooting_snippets.map((s, i) => (
+                (s && (s.code || s.solution || s.issue)) ? (
+                  <div key={i} className="mb-3">
+                    <AutoText
+                      dense
+                      value={s.issue || ''}
+                      onChange={(v) => patchTrouble(i, { issue: v })}
+                      placeholder="발생한 문제 한 줄"
+                      className="mb-1 text-[12.5px] font-semibold text-bluewood-800"
+                    />
+                    <EditableCodeWindow file={s.file} code={s.code} onPatch={(ch) => patchTrouble(i, ch)} />
+                    <AutoText
+                      dense
+                      value={s.solution || ''}
+                      onChange={(v) => patchTrouble(i, { solution: v })}
+                      placeholder="이 코드로 어떻게 해결했는지 설명"
+                      className="-mt-2 text-[12.5px] leading-[1.7] text-bluewood-600"
+                    />
+                  </div>
+                ) : null
+              ))}
             </div>
           ) : (
-            <List label="트러블슈팅" color="#b45309" lines={trouble} />
+            <ListEdit label="트러블슈팅" color="#b45309" field="troubleshooting" placeholder="발생한 문제 → 원인 → 해결 흐름" />
           )}
 
-          {learning.length > 0 && (
-            <div>
-              <p className="mb-1 text-[11px] font-bold text-bluewood-300">배운 점</p>
-              <ul className="space-y-1">
-                {learning.map((l, i) => <li key={i} className="text-[12.5px] italic leading-[1.55] text-bluewood-400">• {l}</li>)}
-              </ul>
-            </div>
-          )}
+          <ListEdit label="배운 점" color="#94a3b8" field="learning" placeholder="이 작업으로 배운 점" />
         </div>
       )}
     </div>
@@ -645,8 +885,13 @@ function DevImpactSection({ expId, exp, onApplied }) {
     ...(Array.isArray(ov.techStack) ? ov.techStack : []).map(t => (typeof t === 'string' ? t : t?.name || '')),
     ...(sr.keywords || exp?.keywords || []),
     ...gitExps.flatMap(e => String(e.core_tech_stack || '').split(/,\s*/)),
+    // 레포 언어 통계도 재료로 — 기술스택·키워드가 비어도 다이어그램이 그려지도록
+    ...(Array.isArray(stats?.languages) ? stats.languages.map(l => l.name) : []),
   ];
   const diagram = savedDiagram || buildFallbackDiagram(techs);
+
+  // Engineering Highlights — 각 커밋 그룹의 핵심 임팩트 한 줄 (스캔 3초 안에 성과가 보이도록)
+  const highlights = gitExps.map(e => clean(e.core_impact)).filter(Boolean).slice(0, 4);
 
   const toggleProject = (i) => setOpenProjects(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
 
@@ -676,7 +921,22 @@ function DevImpactSection({ expId, exp, onApplied }) {
               <GitConnectPanel expId={expId} sr={sr} onApplied={(next) => { onApplied(next); setConnectOpen(false); }} onCancel={() => setConnectOpen(false)} compact />
             )}
 
-            {stats && <GitStatStrip stats={stats} />}
+            {stats && <GitHeroCard stats={stats} />}
+
+            {/* Engineering Highlights — 프로젝트별 핵심 성과 한 줄 요약 */}
+            {highlights.length > 0 && (
+              <div>
+                <h3 className={`${MICRO_LABEL} mb-3`}>Engineering Highlights</h3>
+                <div className="space-y-2.5">
+                  {highlights.map((h, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="mt-px flex-shrink-0 font-mono text-[12px] font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
+                      <p className="min-w-0 text-[13.5px] font-bold leading-[1.55] text-bluewood-900">{h}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {diagram && (
               <div>

@@ -23,19 +23,90 @@ export function toLines(v) {
   return s ? s.split('\n').map(l => l.replace(/^[-•]\s*/, '').trim()).filter(Boolean) : [];
 }
 
-/* ── 코드 스니펫: (선택)문제 라벨 → 코드 → 흰 배경 자연 설명 ── */
+/* ══ 코드 스니펫 — 실제 IDE(VS Code Dark+) 모습: 창 크롬 + 줄번호 + 문법 하이라이팅 + diff 색상 ══ */
+
+/* 간이 토크나이저 — 표시용 근사 하이라이팅 (JS/TS/Python 계열 공통 키워드) */
+const KW_CONTROL = new Set(['if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'yield', 'await', 'elif', 'pass', 'raise', 'match', 'when', 'not', 'and', 'or', 'in', 'of', 'is']);
+const KW_DECL = new Set(['const', 'let', 'var', 'function', 'class', 'extends', 'implements', 'interface', 'type', 'enum', 'import', 'export', 'from', 'default', 'new', 'async', 'static', 'get', 'set', 'public', 'private', 'protected', 'readonly', 'def', 'lambda', 'with', 'as', 'struct', 'impl', 'fn', 'pub', 'use', 'mod', 'mut', 'package', 'void', 'int', 'float', 'double', 'boolean']);
+const KW_LITERAL = new Set(['true', 'false', 'null', 'undefined', 'None', 'True', 'False', 'this', 'self', 'super', 'NaN']);
+
+function tokenizeCodeLine(line) {
+  const out = [];
+  const re = /(\/\/.*|#\s.*|#$)|("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|`(?:[^`\\]|\\.)*`?)|(\b\d[\w.]*\b)|([A-Za-z_$][\w$]*)|([^A-Za-z0-9_$]+)/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    const [, comment, str, num, ident, other] = m;
+    if (comment != null) out.push({ t: comment, c: '#6a9955' });
+    else if (str != null) out.push({ t: str, c: '#ce9178' });
+    else if (num != null) out.push({ t: num, c: '#b5cea8' });
+    else if (ident != null) {
+      let c = '#9cdcfe';
+      if (KW_CONTROL.has(ident)) c = '#c586c0';
+      else if (KW_DECL.has(ident) || KW_LITERAL.has(ident)) c = '#569cd6';
+      else if (/^[A-Z]/.test(ident)) c = '#4ec9b0';
+      else if (/^\s*\(/.test(line.slice(re.lastIndex))) c = '#dcdcaa'; // 함수 호출
+      out.push({ t: ident, c });
+    } else if (other != null) out.push({ t: other, c: '#d4d4d4' });
+  }
+  return out;
+}
+
+/* diff 라인 판정 — git patch(+/-/@@)를 GitHub 스타일 색으로 */
+function parseDiffLine(raw) {
+  if (/^@@/.test(raw)) return { sign: '', text: raw, hunk: true };
+  if (/^\+(?!\+\+)/.test(raw)) return { sign: '+', text: raw.slice(1), bg: 'rgba(63,185,80,0.13)', signColor: '#3fb950' };
+  if (/^-(?!--)/.test(raw)) return { sign: '-', text: raw.slice(1), bg: 'rgba(248,81,73,0.13)', signColor: '#f85149' };
+  return { sign: '', text: raw };
+}
+
 export function CodeSnippet({ file, code, lead, explanation }) {
+  const raw = String(code || '').replace(/\n+$/, '');
+  const lines = raw ? raw.split('\n') : [];
+  // +/- 라인이 2줄 이상이거나 hunk 헤더가 있으면 git diff로 간주
+  const isDiff = lines.filter(l => /^[+-](?![+-]{2})/.test(l)).length >= 2 || /^@@/m.test(raw);
+  const ext = /\.([a-z0-9]+)$/i.exec(String(file || ''))?.[1]?.toUpperCase();
+
   return (
     <div className="mb-3">
-      {lead && <p className="mb-1 text-[12.5px] font-semibold text-bluewood-800">{lead}</p>}
-      {(file || code) && (
-        <div className="overflow-hidden rounded-lg border border-[#1e2b45] shadow-sm">
-          {file && (
-            <div className="bg-[#1c2740] px-3 py-1.5">
-              <span className="font-mono text-[11px] font-bold text-sky-300">{file}</span>
+      {lead && <p className="mb-1.5 text-[12.5px] font-semibold text-bluewood-800">{lead}</p>}
+      {(file || raw) && (
+        <div className="overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117] shadow-md">
+          {/* 창 크롬 — 트래픽 라이트 + 파일명 탭 */}
+          <div className="flex items-center gap-1.5 border-b border-[#21262d] bg-[#161b22] px-3 py-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#27c93f' }} />
+            {file && <span className="ml-1.5 truncate font-mono text-[11px] text-[#8b949e]">{file}</span>}
+            <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+              {ext && !isDiff && <span className="rounded border border-[#30363d] px-1.5 py-px font-mono text-[9.5px] font-semibold text-[#8b949e]">{ext}</span>}
+              {isDiff && <span className="rounded px-1.5 py-px font-mono text-[9.5px] font-bold text-[#3fb950]" style={{ backgroundColor: 'rgba(63,185,80,0.15)' }}>DIFF</span>}
+            </span>
+          </div>
+          {/* 코드 본문 — 줄번호 + 하이라이팅 (+/- diff 라인 배경) */}
+          {raw && (
+            <div className="overflow-x-auto py-2 font-mono text-[11.5px] leading-[1.75]">
+              {lines.map((l, i) => {
+                const d = isDiff ? parseDiffLine(l) : { sign: '', text: l };
+                if (d.hunk) {
+                  return (
+                    <div key={i} className="flex whitespace-pre px-0" style={{ backgroundColor: 'rgba(56,139,253,0.1)' }}>
+                      <span className="w-9 flex-shrink-0 select-none pr-2 text-right text-[#4d5566]">…</span>
+                      <span className="flex-1 pr-4 italic text-[#8b949e]">{d.text}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={i} className="flex whitespace-pre" style={d.bg ? { backgroundColor: d.bg } : undefined}>
+                    <span className="w-9 flex-shrink-0 select-none pr-2 text-right text-[#4d5566]">{i + 1}</span>
+                    <span className="w-4 flex-shrink-0 select-none text-center font-bold" style={{ color: d.signColor || 'transparent' }}>{d.sign || ' '}</span>
+                    <span className="flex-1 pr-4">
+                      {tokenizeCodeLine(d.text).map((tk, ti) => <span key={ti} style={{ color: tk.c }}>{tk.t}</span>)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
-          {code && <pre className="overflow-x-auto bg-[#0e1626] px-3 py-2.5 text-[11.5px] leading-[1.6] text-sky-100"><code>{code}</code></pre>}
         </div>
       )}
       {explanation && <p className="mt-1.5 text-[12.5px] leading-[1.7] text-bluewood-600">{explanation}</p>}

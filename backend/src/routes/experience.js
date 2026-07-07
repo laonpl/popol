@@ -21,6 +21,30 @@ const router = Router();
 
 const now = () => new Date();
 
+/**
+ * Firestore는 배열 속 배열을 거부한다(INVALID_ARGUMENT: invalid nested entity).
+ * AI 응답이 섞이는 저장 페이로드를 깊이 순회해 중첩 배열은 문자열로 평탄화하고 undefined는 제거.
+ * (배열→객체→배열은 합법이므로 배열 "바로 안"의 배열만 평탄화)
+ */
+function firestoreSafe(value, insideArray = false) {
+  if (value === null || typeof value !== 'object') return value === undefined ? null : value;
+  if (Array.isArray(value)) {
+    if (insideArray) {
+      return value.map(v => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''))).join('\n');
+    }
+    return value.map(v => firestoreSafe(v, true));
+  }
+  // Date·Timestamp 등 비순수 객체는 그대로 통과
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (v === undefined) continue;
+    out[k] = firestoreSafe(v, false);
+  }
+  return out;
+}
+
 // 경험 문서 → 태깅용 요약 텍스트
 function experienceToTagText(data = {}) {
   const sr = data.structuredResult || {};
@@ -438,15 +462,17 @@ router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async
 
 router.post('/', authMiddleware, async (req, res, next) => {
   try {
+    // AI 응답(초안·git 분석)이 섞이는 본문은 Firestore가 거부하는 구조(중첩 배열 등)를 깊이 정규화
+    const body = firestoreSafe(req.body || {});
     const payload = {
-      ...req.body,
+      ...body,
       userId: req.user.uid,
-      title: req.body.title || '',
-      framework: req.body.framework || 'STRUCTURED',
-      jobCategory: req.body.jobCategory || 'common',
-      content: req.body.content || {},
-      images: req.body.images || [],
-      keywords: req.body.keywords || [],
+      title: body.title || '',
+      framework: body.framework || 'STRUCTURED',
+      jobCategory: body.jobCategory || 'common',
+      content: body.content || {},
+      images: body.images || [],
+      keywords: body.keywords || [],
       createdAt: now(),
       updatedAt: now(),
     };
