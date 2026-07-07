@@ -491,6 +491,8 @@ export default function TemplateSelect() {
   const [notionUrl, setNotionUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [githubUsername, setGithubUsername] = useState('');
+  const [gitStats, setGitStats] = useState(null); // GitHub 커밋 기여 비중 통계
+  const [gitAnalysis, setGitAnalysis] = useState(null); // GitHub 분석 원본(코드변경·트러블슈팅 등) 보존
   const [blogUrl, setBlogUrl] = useState('');
   const [linkInputs, setLinkInputs] = useState([]);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -716,6 +718,10 @@ export default function TemplateSelect() {
 
   const hasInput = files.length > 0 || textInput.trim() || notionUrl.trim() || githubUrl.trim() || blogUrl.trim() || linkInputs.some(l => l.trim());
   const canNext1 = title.trim() && startDate && jobCategory;
+  // 개발자 트랙: GitHub 연동을 1순위 입력으로 배치하고 전용 안내를 노출
+  const isDevTrack = jobCategory === 'dev';
+  // 포트폴리오 트랙: 공통(common) 외 모든 직군은 직군 인식형 포트폴리오 화면으로 진입
+  const isPortfolioTrack = Boolean(jobCategory) && jobCategory !== 'common';
 
   const updateLoadingStep = (stepIdx, status) => {
     setLoadingSteps(prev => prev.map((s, i) => i === stepIdx ? { ...s, status } : s));
@@ -817,6 +823,14 @@ export default function TemplateSelect() {
               } else {
                 toast.error('커밋 분석에 실패했습니다.', { duration: 3000 });
               }
+            }
+            // 커밋 기여 비중 통계 보존 (개발자 포트폴리오에서 표시)
+            if (gitData?.contributionStats) {
+              setGitStats({ ...gitData.contributionStats, repoName: gitData.repoName });
+            }
+            // GitHub 분석 원본(코드변경·코드스니펫·트러블슈팅) 보존 → 포트폴리오에서 코드 상세 렌더
+            if (gitData?.experiences?.length > 0) {
+              setGitAnalysis({ repoName: gitData.repoName, experiences: gitData.experiences });
             }
             // 커밋 분석 성공 → moments에 직접 추가 (allText 우회)
             if (gitData?.experiences?.length > 0) {
@@ -1048,6 +1062,17 @@ export default function TemplateSelect() {
           자료: cleanRawText(collectedText) || collectedText,
           핵심경험: momentsText,
         };
+        // GitHub 분석이 있으면 트러블슈팅·코드변경·기술스택을 명시적으로 넣어
+        // 초안 AI가 트러블슈팅 섹션·아키텍처 다이어그램을 안정적으로 채우도록 강한 신호 제공
+        if (gitAnalysis?.experiences?.length) {
+          const gj = (arr) => (arr || []).map(x => (typeof x === 'string' ? x : Object.values(x || {}).filter(v => typeof v === 'string').join(' '))).filter(Boolean);
+          const troubleshooting = gitAnalysis.experiences.flatMap(e => gj(e.troubleshooting));
+          const codeChanges = gitAnalysis.experiences.flatMap(e => gj(e.code_changes));
+          const techStacks = gitAnalysis.experiences.map(e => e.core_tech_stack).filter(Boolean);
+          if (troubleshooting.length) draftContent.트러블슈팅 = troubleshooting.join('\n');
+          if (codeChanges.length) draftContent.코드변경 = codeChanges.join('\n');
+          if (techStacks.length) draftContent.기술스택 = techStacks.join(', ');
+        }
         draftAnalysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
       } catch (draftErr) {
         console.warn('[TemplateSelect] AI 초안 실패 → 로컬 초안 폴백:', draftErr?.message);
@@ -1060,6 +1085,12 @@ export default function TemplateSelect() {
           content: { rawInput: finalText },
         });
       }
+      // GitHub 기여 통계 + 분석 원본(코드·트러블슈팅)을 structuredResult에 보존 → 개발자 포트폴리오에서 코드 상세 렌더
+      const draftWithStats = {
+        ...draftAnalysis,
+        ...(gitStats ? { githubStats: gitStats } : {}),
+        ...(gitAnalysis?.experiences?.length ? { gitAnalysis } : {}),
+      };
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
@@ -1069,7 +1100,7 @@ export default function TemplateSelect() {
         content: { rawInput: finalText },
         momentsCount: moments.length,
         reviewedMoments: syncedMoments,
-        structuredResult: draftAnalysis,
+        structuredResult: draftWithStats,
         keywords: draftAnalysis.keywords || [],
         analysisMode: 'draft',
       });
@@ -1080,16 +1111,23 @@ export default function TemplateSelect() {
       updateLoadingStep(2, 'done');
 
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
-      navigate(`/app/experience/result/${experienceId}`, {
-        state: {
-          analysis: draftAnalysis,
-          title: title.trim(),
-          framework: 'STRUCTURED',
-          content: { rawInput: finalText },
-          showFeedback: true,
-          feedbackContext: 'experience_material_draft_complete',
-        },
-      });
+      // 공통 외 직군은 직군 인식형 포트폴리오 화면으로 진입
+      if (isPortfolioTrack) {
+        navigate(`/app/experience/dev-portfolio/${experienceId}`, {
+          state: { title: title.trim(), jobCategory, structuredResult: draftWithStats, keywords: draftAnalysis.keywords || [] },
+        });
+      } else {
+        navigate(`/app/experience/result/${experienceId}`, {
+          state: {
+            analysis: draftAnalysis,
+            title: title.trim(),
+            framework: 'STRUCTURED',
+            content: { rawInput: finalText },
+            showFeedback: true,
+            feedbackContext: 'experience_material_draft_complete',
+          },
+        });
+      }
     } catch (error) {
       console.error('경험 생성 실패:', error);
       if (error?.isCreditError) {
@@ -2072,6 +2110,23 @@ export default function TemplateSelect() {
               </div>
             </div>
 
+            {/* 개발자 전용 분기 안내 */}
+            {isDevTrack && (
+              <div className="py-5">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50/60 px-5 py-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Github size={15} className="text-sky-600" />
+                    <span className="text-[13px] font-extrabold text-sky-800">개발자 포트폴리오 모드</span>
+                  </div>
+                  <p className="text-[12px] text-bluewood-600 leading-relaxed">
+                    다음 단계에서 <strong className="text-sky-700">GitHub 리포지토리</strong>를 연결하면 AI가 커밋을 분석해
+                    <strong className="text-sky-700"> 기술 스택·시스템 아키텍처·트러블슈팅</strong> 초안을 자동으로 만들어 줍니다.
+                    완성 후엔 채용 담당자 관점의 <strong className="text-sky-700">완성도 진단 점수</strong>까지 받아볼 수 있어요.
+                  </p>
+                </div>
+              </div>
+            )}
+
           </div>{/* end divide-y */}
 
           {/* 하단 액션 */}
@@ -2109,6 +2164,48 @@ export default function TemplateSelect() {
 
           {/* 폼 테이블 */}
           <div className="space-y-5">
+
+            {/* ★ 개발자 우선: GitHub 연동 */}
+            {isDevTrack && (
+              <div className="grid gap-5 rounded-2xl border border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/40 p-5 shadow-sm md:grid-cols-[200px_1fr]">
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
+                    <Github size={15} />
+                  </span>
+                  <div>
+                    <p className="text-[14px] font-extrabold text-bluewood-950">GitHub 연동 <span className="text-[10px] font-bold text-sky-600 align-middle">추천</span></p>
+                    <p className="text-[12px] text-bluewood-500 mt-1">커밋 자동 분석 → 초안 생성</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2.5 transition-all focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100">
+                    <Github size={13} className="text-sky-500 flex-shrink-0" />
+                    <input
+                      type="url"
+                      value={githubUrl}
+                      onChange={e => setGithubUrl(e.target.value)}
+                      placeholder="https://github.com/user/repo"
+                      className="flex-1 bg-transparent text-[14px] text-bluewood-900 outline-none placeholder:text-bluewood-400"
+                    />
+                  </div>
+                  {githubUrl.trim() && (
+                    <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2 transition-all focus-within:border-sky-300 focus-within:ring-4 focus-within:ring-sky-100">
+                      <span className="text-[12px] font-bold text-sky-500">@</span>
+                      <input
+                        type="text"
+                        value={githubUsername}
+                        onChange={e => setGithubUsername(e.target.value)}
+                        placeholder="내 GitHub 아이디 (내 커밋만 분석)"
+                        className="flex-1 bg-transparent text-[12px] text-bluewood-800 outline-none placeholder:text-bluewood-400"
+                      />
+                    </div>
+                  )}
+                  <p className="text-[12px] text-bluewood-500 leading-relaxed">
+                    아이디를 입력하면 <strong className="text-sky-700">내 커밋만</strong> 골라 문제정의·코드변경·트러블슈팅·기술스택을 추출합니다. 공개 리포지토리만 가져올 수 있어요.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* 01 파일 업로드 */}
             <div className="grid gap-5 rounded-2xl border border-primary-100 border-l-4 border-l-primary-600 bg-white p-5 shadow-sm md:grid-cols-[200px_1fr]">
@@ -2199,7 +2296,8 @@ export default function TemplateSelect() {
                     />
                   </div>
                 </div>
-                {/* GitHub */}
+                {/* GitHub — 개발자 트랙은 상단 우선 카드로 분리되어 여기선 숨김 */}
+                {!isDevTrack && (
                 <div>
                   <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-600 mb-1.5">GitHub</p>
                   <div className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/30 px-3 py-2.5 transition-all focus-within:border-primary-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-primary-100">
@@ -2225,6 +2323,7 @@ export default function TemplateSelect() {
                     </div>
                   )}
                 </div>
+                )}
                 {/* 블로그 */}
                 <div>
                   <p className="text-[12px] font-black uppercase tracking-[0.14em] text-primary-600 mb-1.5">블로그 / 기타</p>

@@ -105,6 +105,10 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
             reason: errMsg.slice(0, 240),
           }
         );
+        // 재분석 시 유실 방지: GitHub 기여도는 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
+        analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
+        analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+        analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
         await docRef.update({
           structuredResult: analysis,
           keywords: analysis.keywords || [],
@@ -134,6 +138,12 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
       }
       return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
     }
+
+    // 재분석 시 유실 방지: GitHub 기여도·분석원본은 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
+    analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
+    analysis.gitAnalysis = data.structuredResult?.gitAnalysis || analysis.gitAnalysis || null;
+    analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+    analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
@@ -410,11 +420,19 @@ router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async
     res.json(result);
   } catch (error) {
     const msg = error.message || '';
+    // 실제 원인을 서버 로그와 응답 detail로 노출 (generic 500으로 원인 숨기지 않음)
+    console.error('[analyze-git] 실패:', msg, '\n', error.stack);
     if (msg.includes('찾을 수 없습니다') || msg.includes('유효한') || msg.includes('커밋을 찾을 수 없습니다')) {
       return res.status(400).json({ error: msg });
     }
-    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
-    next(error);
+    if (msg.includes('요청 한도') || msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+      return res.status(429).json({ error: 'GitHub 또는 AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
+    }
+    if (msg.includes('API key') || msg.includes('API Key')) {
+      return res.status(502).json({ error: 'AI API 키가 유효하지 않습니다. 서버 .env의 GEMINI_API_KEY를 확인해주세요.', detail: msg });
+    }
+    // 그 외(커밋 분석 실패 등)도 원인 메시지를 담아 반환 → 프론트 토스트로 확인 가능
+    return res.status(502).json({ error: msg || 'GitHub 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
   }
 });
 

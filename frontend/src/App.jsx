@@ -27,6 +27,7 @@ const ExperienceResult      = lazy(() => import('./pages/experience/ExperienceRe
 const ExperienceEditor      = lazy(() => import('./pages/experience/ExperienceEditor'));
 const AnalysisResult        = lazy(() => import('./pages/experience/AnalysisResult'));
 const StructuredResult      = lazy(() => import('./pages/experience/StructuredResult'));
+const DeveloperPortfolio    = lazy(() => import('./pages/experience/DeveloperPortfolio'));
 const PortfolioHub          = lazy(() => import('./pages/portfolio/PortfolioHub'));
 const PortfolioTemplateSelect = lazy(() => import('./pages/portfolio/PortfolioTemplateSelect'));
 const NotionPortfolioEditor = lazy(() => import('./pages/portfolio/NotionPortfolioEditor'));
@@ -100,6 +101,7 @@ const router = createBrowserRouter(
         <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
         <Route path="experience/analysis/:id" element={<AnalysisResult />} />
         <Route path="experience/structured/:id" element={<StructuredResult />} />
+        <Route path="experience/dev-portfolio/:id" element={<DeveloperPortfolio />} />
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
         <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />

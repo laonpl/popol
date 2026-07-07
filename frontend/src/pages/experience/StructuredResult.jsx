@@ -5,6 +5,8 @@ import { ArrowLeft, Sparkles, Save, Loader2, PenLine, Check, ChevronDown, Chevro
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import { FRAMEWORKS, JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
+import { computeDevDiagnostic, getJobPortfolioMeta } from '../../utils/devPortfolio';
+import VisualDataEditor from '../../components/portfolio/VisualDataEditor';
 import useExperienceStore from '../../stores/experienceStore';
 import useAuthStore from '../../stores/authStore';
 import KeyExperienceSlider from '../../components/KeyExperienceSlider';
@@ -1388,7 +1390,9 @@ export default function StructuredResult() {
   const sliderRef = useRef(null);
   const [sectionSlideIdx, setSectionSlideIdx] = useState(0);
   // 고급수정 4탭: 스토리 / 핵심경험 / 분석 / 리서치
-  const [activeTab, setActiveTab] = useState('story');
+  // 진입 탭: 직군 특화 경험(포트폴리오)에서 '편집'으로 들어오면 역량·시장 근거 탭(직군 특화 섹션·차트 편집)으로 바로
+  const initialTab = ['story', 'keyexp', 'analysis', 'coverletter'].includes(navState?.tab) ? navState.tab : 'story';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const mobileDefaultTabAppliedRef = useRef(false);
 
   /* ── 역량 키워드 커스터마이징 ── */
@@ -1402,9 +1406,11 @@ export default function StructuredResult() {
   const [jobCategory, setJobCategory] = useState('common');
   const [editedJobSpecific, setEditedJobSpecific] = useState({});
   const [editingJobSections, setEditingJobSections] = useState({});
+  const [editedVisuals, setEditedVisuals] = useState({}); // portfolioVisuals 차트 데이터 편집
 
   /* ── 포트폴리오 내보내기 커스텀 패널 ── */
   const [showExportPanel, setShowExportPanel] = useState(false);
+  const [showSectionPicker, setShowSectionPicker] = useState(false); // 내보내기: 알려진 섹션 추가 드롭다운
   const [showProjectPreviewEditor, setShowProjectPreviewEditor] = useState(false);
   const [exportEnabled, setExportEnabled] = useState({});
   const [exportOrder, setExportOrder] = useState([]);
@@ -1489,6 +1495,7 @@ export default function StructuredResult() {
       setEditedKeyExperiences((structured.keyExperiences || []).map(e => ({ ...e })));
       setJobCategory(structured.jobCategory || 'common');
       setEditedJobSpecific(structured.jobSpecific || {});
+      setEditedVisuals(structured.portfolioVisuals || {});
       if (!viewOnly) {
         // 비어있거나 아니거나 모든 섹션을 즐시 편집 모드로
         const autoEdit = {};
@@ -1558,6 +1565,7 @@ export default function StructuredResult() {
         setEditedKeyExperiences((sr.keyExperiences || []).map(e => ({ ...e })));
         setJobCategory(data.jobCategory || sr.jobCategory || 'common');
         setEditedJobSpecific(sr.jobSpecific || {});
+        setEditedVisuals(sr.portfolioVisuals || {});
         setEditedLink(data.link || '');
         setExportCoverImg(sr.exportConfig?.coverImg || null);
         const savedExportSections = Array.isArray(sr.exportConfig?.draftSections) && sr.exportConfig.draftSections.length > 0
@@ -1572,8 +1580,22 @@ export default function StructuredResult() {
             blocks: Array.isArray(section.blocks) ? section.blocks : (section.content ? [makeTextBlock(section.content)] : []),
             enabled: section.enabled !== false,
           })));
-          setExportCustomSections(savedSections);
-          setActiveExportSectionKey(savedSections.find(section => !isSlideDeckSection(section))?.key || savedSections[0]?.key || null);
+          // 저장 구성에 없는 직군 특화 경험 섹션을 병합 — 이 기능 추가 이전 경험도 포트폴리오 부분이 내보내기 목록에 뜨도록
+          const jc = data.jobCategory || sr.jobCategory || 'common';
+          const js = sr.jobSpecific || {};
+          const existingKeys = new Set(savedSections.map(s => s.key));
+          const missingJobSections = (JOB_SPECIFIC_FIELDS[jc] || [])
+            .filter(f => !existingKeys.has(`job-${f.key}`))
+            .map(f => {
+              const content = sanitizeTextValue(js[f.key] || '');
+              return normalizeExportSection({
+                key: `job-${f.key}`, sourceKey: f.key, label: f.label, type: 'job',
+                content, blocks: content ? [makeTextBlock(content)] : [], enabled: !!content.trim(),
+              });
+            });
+          const mergedSections = missingJobSections.length ? [...savedSections, ...missingJobSections] : savedSections;
+          setExportCustomSections(mergedSections);
+          setActiveExportSectionKey(mergedSections.find(section => !isSlideDeckSection(section))?.key || mergedSections[0]?.key || null);
         }
         if (!viewOnly) {
           // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
@@ -1595,6 +1617,17 @@ export default function StructuredResult() {
     }
     mobileDefaultTabAppliedRef.current = true;
   }, [activeTab, editedKeyExperiences.length, loading]);
+
+  // 직군 특화 경험(포트폴리오) '편집'으로 진입하면 직군 특화 섹션으로 스크롤
+  const jobEditScrolledRef = useRef(false);
+  useEffect(() => {
+    if (jobEditScrolledRef.current || loading || navState?.tab !== 'analysis') return;
+    const el = document.getElementById('job-specific-edit');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      jobEditScrolledRef.current = true;
+    }
+  }, [loading, activeTab, navState?.tab]);
 
   const handleFieldChange = (key, value) => {
     const cleanValue = sanitizeTextValue(value);
@@ -2174,6 +2207,7 @@ export default function StructuredResult() {
         keyExperiences: keyExperiencesForSave,
         jobCategory,
         jobSpecific: editedJobSpecific,
+        portfolioVisuals: editedVisuals,
         exportConfig: (() => {
           const prevCfg = experience?.structuredResult?.exportConfig || {};
           const sections = cleanEnabledExportSections.map(section => ({
@@ -2438,6 +2472,19 @@ export default function StructuredResult() {
     const next = normalizeExportSection({ key, label: '새 섹션', type: 'custom', content: '', blocks: [makeTextBlock('')], enabled: true });
     setExportCustomSections(prev => [...prev, next]);
     setActiveExportSectionKey(key);
+  };
+
+  // 내보내기 목록에 아직 없는 "알려진 섹션"(직군 특화 경험·기본 섹션 등)을 다시 추가할 수 있게
+  const availableKnownSections = () => {
+    const present = new Set(exportCustomSections.map(s => s.key));
+    return buildDefaultExportSections().filter(s => !present.has(s.key));
+  };
+  const addKnownSection = (key) => {
+    const found = buildDefaultExportSections().find(s => s.key === key);
+    if (!found) return;
+    setExportCustomSections(prev => (prev.some(s => s.key === key) ? prev : [...prev, found]));
+    setActiveExportSectionKey(key);
+    setShowSectionPicker(false);
   };
 
   const removeExportSection = (key) => {
@@ -2943,6 +2990,11 @@ export default function StructuredResult() {
             <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
               케이스 스터디
             </Link>
+            {jobCategory && jobCategory !== 'common' && (
+              <Link to={`/app/experience/dev-portfolio/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
+                직군 특화 경험
+              </Link>
+            )}
             <span className="rounded-lg bg-white px-3 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
           </div>
         )}
@@ -3152,13 +3204,50 @@ export default function StructuredResult() {
         const jobLabel = jobMeta?.label || jobCategory;
 
         return (
-          <div className="border border-surface-100 overflow-hidden">
+          <div id="job-specific-edit" className="scroll-mt-20 border border-surface-100 overflow-hidden">
             {/* 직군 특화 헤더 */}
             <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
               <span className="px-2.5 py-1 bg-primary-600 text-white rounded-md text-[13px] font-bold tracking-wide uppercase">직군 특화</span>
               <span className="text-[14px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
               <span className="text-[14px] text-bluewood-300 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
             </div>
+
+            {/* 완성도 진단 카드 */}
+            {(() => {
+              const diag = computeDevDiagnostic({
+                jobSpecific: editedJobSpecific,
+                content: editedContent,
+                keyExperiences: editedKeyExperiences,
+                jobSections,
+              });
+              const barColor = diag.score >= 80 ? 'bg-caribbean-500' : diag.score >= 50 ? 'bg-amber-400' : 'bg-rose-400';
+              const scoreColor = diag.score >= 80 ? 'text-caribbean-600' : diag.score >= 50 ? 'text-amber-600' : 'text-rose-500';
+              return (
+                <div className="px-6 py-4 border-b border-surface-100 bg-surface-50/30">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <span className="text-[13px] font-bold text-bluewood-800">포트폴리오 완성도</span>
+                    <span className={`text-[15px] font-extrabold ${scoreColor}`}>{diag.score}점</span>
+                    <span className="text-[12px] text-bluewood-400">({diag.passed}/{diag.total} 항목 충족)</span>
+                  </div>
+                  <div className="h-2 w-full bg-surface-100 rounded-full overflow-hidden mb-3">
+                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${diag.score}%` }} />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">
+                    {diag.checks.map((c, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-[12px]">
+                        {c.ok
+                          ? <Check size={14} className="text-caribbean-500 mt-[1px] flex-shrink-0" />
+                          : <X size={14} className="text-bluewood-300 mt-[1px] flex-shrink-0" />}
+                        <span className={c.ok ? 'text-bluewood-600' : 'text-bluewood-400'}>
+                          {c.label}
+                          {!c.ok && <span className="block text-[11px] text-amber-600/90">{c.hint}</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="divide-y divide-surface-100">
               {jobSections.map((field, idx) => {
@@ -3251,6 +3340,18 @@ export default function StructuredResult() {
           </div>
         );
       })()}
+
+      {/* ── 차트 데이터 편집 (직군별 시각화 입력기) — 편집 모드에서만 ── */}
+      {!viewOnly && (JOB_SPECIFIC_FIELDS[jobCategory] || []).length > 0 && (
+        <div className="mt-6">
+          <VisualDataEditor
+            jobCategory={jobCategory}
+            value={editedVisuals}
+            accent={getJobPortfolioMeta(jobCategory).accent}
+            onChange={(nextPv) => { markDirty(); setEditedVisuals(nextPv); }}
+          />
+        </div>
+      )}
       </>)}
 
       {/* ╔══════════════════════════════════════════════╗
@@ -3995,12 +4096,43 @@ export default function StructuredResult() {
                       초기화
                     </button>
                   </div>
-                  <button
-                    onClick={addExportSection}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary-200 bg-primary-50/50 px-3 py-2 text-[12px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
-                  >
-                    <Plus size={13} /> 빈 섹션 추가
-                  </button>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={addExportSection}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary-200 bg-primary-50/50 px-2 py-2 text-[11.5px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
+                    >
+                      <Plus size={13} /> 빈 섹션
+                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowSectionPicker(v => !v)}
+                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-primary-200 bg-white px-2 py-2 text-[11.5px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
+                      >
+                        <Plus size={13} /> 구성에서 추가
+                      </button>
+                      {showSectionPicker && (() => {
+                        const avail = availableKnownSections();
+                        return (
+                          <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-surface-200 bg-white p-1 shadow-lg">
+                            {avail.length === 0 ? (
+                              <p className="px-2 py-3 text-center text-[11px] text-bluewood-400">추가할 섹션이 없습니다.<br />모두 목록에 있어요.</p>
+                            ) : avail.map(s => (
+                              <button
+                                key={s.key}
+                                onClick={() => addKnownSection(s.key)}
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-bluewood-700 hover:bg-surface-50 transition-colors"
+                              >
+                                <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold ${s.type === 'job' ? 'bg-caribbean-50 text-caribbean-700' : s.type === 'base' ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-500'}`}>
+                                  {s.type === 'job' ? '직군' : s.type === 'base' ? '본문' : s.type === 'summary' ? '경험' : s.type === 'research' ? '리서치' : s.type === 'meta' ? '정보' : '섹션'}
+                                </span>
+                                <span className="truncate font-semibold">{s.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
                   <p className="mt-2 text-[10px] text-bluewood-300 text-center">⠿ 드래그로 순서 변경 · 체크로 표시 여부 설정</p>
                 </div>
                 <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">

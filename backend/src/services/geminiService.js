@@ -537,6 +537,7 @@ function mergeDraftKeyExperience(primary = {}, fallback = {}, index = 0, title =
       ...deriveFallbackKeywords(combined, 6),
     ], 8),
     chartType: primary.chartType || fallback.chartType || 'horizontalBar',
+    jobData: primary.jobData && typeof primary.jobData === 'object' ? primary.jobData : (fallback.jobData || null),
   };
 }
 
@@ -601,6 +602,48 @@ function buildDraftMarketResearch(jsonResearch = {}, sections = {}, keyExperienc
   };
 }
 
+// 아키텍처 다이어그램 구조 정규화 — 노드(박스) + 엣지(연결) 그래프.
+// { nodes: [{ id, label, tech, tier }], edges: [{ from, to, label }] }
+function normalizeArchitectureDiagram(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  let nodes = Array.isArray(raw.nodes) ? raw.nodes : [];
+  let edges = Array.isArray(raw.edges) ? raw.edges : [];
+
+  // 구버전(layers/flow) 호환 → 레이어를 tier 노드로, 순차 연결로 변환
+  if (nodes.length === 0 && Array.isArray(raw.layers) && raw.layers.length) {
+    nodes = raw.layers.map((l, i) => ({
+      id: `tier${i}`,
+      label: String(l?.name || `Layer ${i + 1}`).trim(),
+      tech: (Array.isArray(l?.items) ? l.items : []).map(x => String(x || '').trim()).filter(Boolean).join(' · '),
+      tier: i,
+    }));
+    edges = nodes.slice(1).map((n, i) => ({ from: nodes[i].id, to: n.id, label: '' }));
+  }
+
+  const cleanNodes = nodes
+    .map((n, i) => ({
+      id: String(n?.id || `n${i}`).trim() || `n${i}`,
+      label: String(n?.label || '').trim(),
+      tech: String(n?.tech || '').trim(),
+      tier: Number.isFinite(n?.tier) ? Math.max(0, Math.min(6, Math.floor(n.tier))) : 0,
+    }))
+    .filter(n => n.label)
+    .slice(0, 12);
+
+  const ids = new Set(cleanNodes.map(n => n.id));
+  const cleanEdges = edges
+    .map(e => ({
+      from: String(e?.from || '').trim(),
+      to: String(e?.to || '').trim(),
+      label: String(e?.label || '').trim(),
+    }))
+    .filter(e => ids.has(e.from) && ids.has(e.to) && e.from !== e.to)
+    .slice(0, 20);
+
+  if (cleanNodes.length === 0) return null;
+  return { nodes: cleanNodes, edges: cleanEdges };
+}
+
 function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
@@ -652,6 +695,8 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     sectionSlides: hasSectionSlides ? json.sectionSlides : fallbackSectionSlides(sections, keyExperiences),
     jobCategory: jobCategory || 'common',
     jobSpecific,
+    architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
+    portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -930,7 +975,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   })();
 
   const keyExpPromises = momentHints.map((hint, i) => (async () => {
-    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount);
+    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount, jobCategory);
     try {
       const expText = hasReviewed
         ? await callFastLite(expPrompt, `Step2-KeyExp-Fast[${i + 1}/${targetCount}]`)
@@ -955,6 +1000,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           learning: pick(expJson.learning, hint.learning),
           keywords: (expJson.keywords && expJson.keywords.length ? expJson.keywords : (hint.keywords || [])),
           chartType: expJson.chartType || 'horizontalBar',
+          jobData: expJson.jobData && typeof expJson.jobData === 'object' ? expJson.jobData : (hint.jobData || null),
         };
       }
       return {
@@ -969,6 +1015,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
         learning: expJson.learning || '',
         keywords: expJson.keywords || [],
         chartType: expJson.chartType || 'horizontalBar',
+        jobData: expJson.jobData && typeof expJson.jobData === 'object' ? expJson.jobData : null,
       };
     } catch (err) {
       console.warn(`[Step2-KeyExp[${i + 1}]] 추출 실패:`, err.message);
@@ -1036,6 +1083,8 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     sectionSlides: overviewJson.sectionSlides || {},
     jobCategory: jobCategory || 'common',
     jobSpecific: overviewJson.jobSpecific || {},
+    architectureDiagram: normalizeArchitectureDiagram(overviewJson.architectureDiagram),
+    portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
     keywords: metaJson.keywords || [],
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],

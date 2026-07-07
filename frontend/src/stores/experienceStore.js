@@ -64,7 +64,8 @@ export const JOB_CATEGORIES = [
 export const JOB_SPECIFIC_FIELDS = {
   common: [],
   dev: [
-    { key: 'techStack',       label: '기술 스택 및 아키텍처',  subtitle: '기술 선정의 논리적 근거 (왜 이 프레임워크/DB를 썼는가)',      placeholder: '어떤 기술 스택을 선택했고, 그 이유는 무엇인가요?',               color: 'bg-sky-50 border-sky-200' },
+    { key: 'techStack',       label: '기술 스택 & 기술 선택',  subtitle: '기술 선정의 논리적 근거 (왜 이 프레임워크/DB를 썼는가, 대안 비교)',  placeholder: '어떤 기술 스택을 선택했고, 그 이유는 무엇인가요?',               color: 'bg-sky-50 border-sky-200' },
+    { key: 'architecture',    label: '시스템 아키텍처 & 설계',  subtitle: '구조도·데이터 흐름·컴포넌트 구성과 설계 결정의 trade-off',          placeholder: '시스템을 어떻게 설계했고, 어떤 설계 결정을 내렸나요? (구조·데이터 흐름·확장성)', color: 'bg-sky-50 border-sky-200' },
     { key: 'troubleshooting', label: '트러블슈팅 및 로직',     subtitle: '한계점 극복 과정 (성능 저하, 메모리 누수 해결 등)',            placeholder: '마주한 기술적 문제와 해결 과정을 설명해주세요',                   color: 'bg-sky-50 border-sky-200' },
     { key: 'optimization',    label: '코드 최적화 성과',       subtitle: '렌더링 속도 개선율 등 기술적 수치',                            placeholder: '성능 개선이나 최적화 작업 결과를 수치로 표현해주세요',           color: 'bg-sky-50 border-sky-200' },
   ],

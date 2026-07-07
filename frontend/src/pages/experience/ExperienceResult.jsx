@@ -401,7 +401,7 @@ export default function ExperienceResult() {
         const snap = await getDoc(doc(db, 'experiences', id));
         if (snap.exists()) {
           const data = snap.data();
-          const full = { title: data.title, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null };
+          const full = { title: data.title, jobCategory: data.jobCategory, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null };
           setExp(full);
           initCaseStudy(full);
         } else if (exp) {
@@ -569,9 +569,12 @@ export default function ExperienceResult() {
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
           <button onClick={() => guardedNav('/app/experience')} className="shrink-0 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← <span className="hidden sm:inline">경험 목록</span></button>
 
-          {/* 보기 전환 — 케이스 스터디 ↔ 자세히 보기 */}
+          {/* 보기 전환 — 케이스 스터디 ↔ (개발자 포트폴리오) ↔ 자세히 보기 */}
           <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
             <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">케이스 스터디</span>
+            {(() => { const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory; return jc && jc !== 'common'; })() && (
+              <button onClick={() => guardedNav(`/app/experience/dev-portfolio/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">직군 특화 경험</button>
+            )}
             <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">자세히 보기</button>
           </div>
 
