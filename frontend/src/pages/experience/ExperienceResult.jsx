@@ -736,19 +736,23 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
               placeholder={`프로젝트 ${index + 1}`}
               className="text-[14px] sm:text-[14.5px] font-extrabold leading-snug text-bluewood-900"
             />
-            <div className="mt-1 flex items-center gap-2">
-              <AutoText
-                value={exp.period || ''}
-                onChange={(v) => onPatch({ period: v })}
-                placeholder="기간 (예: 2026.05 ~ 2026.07)"
-                className="w-40 flex-shrink-0 text-[11px] text-bluewood-400"
-              />
-              <AutoText
-                value={exp.core_tech_stack || ''}
-                onChange={(v) => onPatch({ core_tech_stack: v })}
-                placeholder="기술 태그 (쉼표로 구분)"
-                className="flex-1 text-[11px] text-bluewood-500"
-              />
+            <div className="mt-1 flex items-start gap-2">
+              <div className="w-44 flex-shrink-0">
+                <AutoText
+                  value={exp.period || ''}
+                  onChange={(v) => onPatch({ period: v })}
+                  placeholder="기간 (예: 2026.05 ~ 2026.07)"
+                  className="text-[11px] text-bluewood-400"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <AutoText
+                  value={exp.core_tech_stack || ''}
+                  onChange={(v) => onPatch({ core_tech_stack: v })}
+                  placeholder="기술 태그 (쉼표로 구분)"
+                  className="text-[11px] text-bluewood-500"
+                />
+              </div>
             </div>
           </div>
           <div className="flex flex-shrink-0 items-center gap-1">
@@ -792,8 +796,8 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
 
       {open && (
         <div className="space-y-3.5 pb-4 pl-[28px]">
-          <ListEdit label="문제" color="#314157" field="problem_definition" />
-          <ListEdit label="해결" color={ACCENT} field="action_and_solution" />
+          <GitListEdit label="문제" color="#314157" value={linesVal(exp.problem_definition)} onChange={setLines('problem_definition')} />
+          <GitListEdit label="해결" color={ACCENT} value={linesVal(exp.action_and_solution)} onChange={setLines('action_and_solution')} />
 
           {/* 성과 — 접힘 요약·하이라이트와 동기화 */}
           <div className="flex items-baseline gap-2">
@@ -827,7 +831,7 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
               ))}
             </div>
           ) : (
-            <ListEdit label="코드 변경" color="#334155" field="code_changes" placeholder="핵심 코드 변경 내용 (줄바꿈으로 항목 구분)" />
+            <GitListEdit label="코드 변경" color="#334155" value={linesVal(exp.code_changes)} onChange={setLines('code_changes')} placeholder="핵심 코드 변경 내용 (줄바꿈으로 항목 구분)" />
           )}
 
           {/* 트러블슈팅 — 이슈·파일·코드·해결 설명 편집 가능 */}
@@ -857,10 +861,10 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
               ))}
             </div>
           ) : (
-            <ListEdit label="트러블슈팅" color="#b45309" field="troubleshooting" placeholder="발생한 문제 → 원인 → 해결 흐름" />
+            <GitListEdit label="트러블슈팅" color="#b45309" value={linesVal(exp.troubleshooting)} onChange={setLines('troubleshooting')} placeholder="발생한 문제 → 원인 → 해결 흐름" />
           )}
 
-          <ListEdit label="배운 점" color="#94a3b8" field="learning" placeholder="이 작업으로 배운 점" />
+          <GitListEdit label="배운 점" color="#94a3b8" value={linesVal(exp.learning)} onChange={setLines('learning')} placeholder="이 작업으로 배운 점" />
         </div>
       )}
     </div>
@@ -868,9 +872,15 @@ function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
 }
 
 /* ── 개발 임팩트 — 케이스 스터디의 개발 직군 구조: 기여도 → 아키텍처 → 문제 해결 (문서 톤, 얇은 구분선) ── */
-function DevImpactSection({ expId, exp, onApplied }) {
+function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
   const [connectOpen, setConnectOpen] = useState(false);
   const [openProjects, setOpenProjects] = useState([0]); // 첫 항목은 펼친 상태로
+
+  // 아키텍처 편집 상태 (개발자 포트폴리오와 동일한 캔버스)
+  const [editDiagram, setEditDiagram] = useState(false);
+  const [diagramDraft, setDiagramDraft] = useState({ nodes: [], edges: [] });
+  const [editCanvas, setEditCanvas] = useState({ w: 800, h: 420 });
+
   const sr = exp?.structuredResult || {};
   const ov = sr.projectOverview || {};
   const stats = sr.githubStats || null;
@@ -890,10 +900,78 @@ function DevImpactSection({ expId, exp, onApplied }) {
   ];
   const diagram = savedDiagram || buildFallbackDiagram(techs);
 
-  // Engineering Highlights — 각 커밋 그룹의 핵심 임팩트 한 줄 (스캔 3초 안에 성과가 보이도록)
-  const highlights = gitExps.map(e => clean(e.core_impact)).filter(Boolean).slice(0, 4);
+  // git 경험 편집 — structuredResult.gitAnalysis.experiences에 반영 (상단 '저장'으로 일괄 저장)
+  const patchGitExp = (i, changes) => {
+    const experiences = gitExps.map((e, ei) => (ei === i ? { ...e, ...changes } : e));
+    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+  };
+  const deleteGitExp = (i) => {
+    if (!window.confirm('이 문제 해결 항목을 삭제할까요?')) return;
+    const experiences = gitExps.filter((_, ei) => ei !== i);
+    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+    setOpenProjects(prev => prev.filter(x => x !== i).map(x => (x > i ? x - 1 : x)));
+  };
 
   const toggleProject = (i) => setOpenProjects(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+
+  // ── 아키텍처 편집 — 진입 시 좌표 없는 노드를 자동배치 좌표로 시딩하고 캔버스 크기 고정 ──
+  const enterEditDiagram = () => {
+    const base = diagram || { nodes: [], edges: [] };
+    const metrics = computeNodeMetrics(base.nodes);
+    const autoPos = autoLayoutPositions(base.nodes, metrics);
+    const seeded = base.nodes.map(n => {
+      const m = metrics[n.id];
+      const p = hasXY(n) ? { x: n.x, y: n.y } : (autoPos[n.id] || { x: PAD, y: PAD });
+      return {
+        ...n,
+        x: Math.round(p.x), y: Math.round(p.y),
+        w: Number.isFinite(n.w) ? n.w : Math.round(m.w),
+        h: Number.isFinite(n.h) ? n.h : Math.round(m.h),
+      };
+    });
+    let maxX = 0, maxY = 0;
+    seeded.forEach(n => { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+    setEditCanvas({ w: Math.max(720, Math.ceil(maxX) + 90), h: Math.max(340, Math.ceil(maxY) + 90) });
+    setDiagramDraft({ nodes: seeded, edges: (base.edges || []).map(e => ({ ...e })) });
+    setEditDiagram(true);
+  };
+  const addNode = () => setDiagramDraft(d => ({
+    ...d,
+    nodes: [...d.nodes, { id: `n${Date.now().toString(36)}`, label: '새 컴포넌트', tech: '', tier: 0, x: 24, y: 24 }],
+  }));
+  const updateNodeById = (nodeId, patch) => setDiagramDraft(d => ({ ...d, nodes: d.nodes.map(n => (n.id === nodeId ? { ...n, ...patch } : n)) }));
+  const removeNodeById = (nodeId) => setDiagramDraft(d => ({
+    nodes: d.nodes.filter(n => n.id !== nodeId),
+    edges: d.edges.filter(e => e.from !== nodeId && e.to !== nodeId),
+  }));
+  const connectNodes = (from, to) => setDiagramDraft(d => (
+    from && to && from !== to && !d.edges.some(e => e.from === from && e.to === to)
+      ? { ...d, edges: [...d.edges, { from, to, label: '' }] }
+      : d
+  ));
+  const updateEdge = (i, patch) => setDiagramDraft(d => ({ ...d, edges: d.edges.map((e, ei) => (ei === i ? { ...e, ...patch } : e)) }));
+  const removeEdge = (i) => setDiagramDraft(d => ({ ...d, edges: d.edges.filter((_, ei) => ei !== i) }));
+  const saveDiagramEdit = () => {
+    const cleanNodes = diagramDraft.nodes
+      .map((n, i) => {
+        const node = { id: String(n.id || `n${i}`).trim() || `n${i}`, label: String(n.label || '').trim(), tech: String(n.tech || '').trim(), tier: Number(n.tier) || 0 };
+        if (Number.isFinite(n.x) && Number.isFinite(n.y)) { node.x = Math.round(n.x); node.y = Math.round(n.y); }
+        if (Number.isFinite(n.w)) node.w = Math.round(n.w);
+        if (Number.isFinite(n.h)) node.h = Math.round(n.h);
+        return node;
+      })
+      .filter(n => n.label);
+    const ids = new Set(cleanNodes.map(n => n.id));
+    const cleanEdges = diagramDraft.edges
+      .map(e => {
+        const edge = { from: String(e.from || '').trim(), to: String(e.to || '').trim(), label: String(e.label || '').trim() };
+        if (Number.isFinite(e.mx) && Number.isFinite(e.my)) { edge.mx = Math.round(e.mx); edge.my = Math.round(e.my); }
+        return edge;
+      })
+      .filter(e => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+    onPatchSr({ ...sr, architectureDiagram: cleanNodes.length ? { nodes: cleanNodes, edges: cleanEdges } : null });
+    setEditDiagram(false);
+  };
 
   return (
     <>
@@ -923,28 +1001,64 @@ function DevImpactSection({ expId, exp, onApplied }) {
 
             {stats && <GitHeroCard stats={stats} />}
 
-            {/* Engineering Highlights — 프로젝트별 핵심 성과 한 줄 요약 */}
-            {highlights.length > 0 && (
+            {/* Engineering Highlights — 프로젝트별 핵심 성과 한 줄 (수정하면 아래 성과와 동기화) */}
+            {gitExps.length > 0 && (
               <div>
                 <h3 className={`${MICRO_LABEL} mb-3`}>Engineering Highlights</h3>
                 <div className="space-y-2.5">
-                  {highlights.map((h, i) => (
+                  {gitExps.slice(0, 4).map((e, i) => (
                     <div key={i} className="flex items-start gap-3">
-                      <span className="mt-px flex-shrink-0 font-mono text-[12px] font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
-                      <p className="min-w-0 text-[13.5px] font-bold leading-[1.55] text-bluewood-900">{h}</p>
+                      <span className="mt-1 flex-shrink-0 font-mono text-[12px] font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
+                      <AutoText
+                        dense
+                        value={e.core_impact || ''}
+                        onChange={(v) => patchGitExp(i, { core_impact: v })}
+                        placeholder={`${clean(e.project_name) || `프로젝트 ${i + 1}`}의 핵심 성과 한 줄`}
+                        className="min-w-0 flex-1 text-[13.5px] font-bold leading-[1.55] text-bluewood-900"
+                      />
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {diagram && (
+            {(diagram || editDiagram) && (
               <div>
                 <div className="mb-2.5 flex items-baseline justify-between gap-2">
                   <h3 className={MICRO_LABEL}>아키텍처</h3>
-                  {!savedDiagram && <span className="text-[11px] text-bluewood-300">기술 스택 기반 자동 구성</span>}
+                  {editDiagram ? (
+                    <span className="flex items-center gap-1.5">
+                      <button type="button" onClick={addNode} className="rounded-md border border-dashed border-primary-300 px-2 py-0.5 text-[11px] font-semibold text-primary-600 hover:bg-primary-50 transition-colors">＋ 박스</button>
+                      <button type="button" onClick={saveDiagramEdit} className="rounded-md bg-primary-600 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors">완료</button>
+                      <button type="button" onClick={() => setEditDiagram(false)} className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">취소</button>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      {!savedDiagram && <span className="text-[11px] text-bluewood-300">기술 스택 기반 자동 구성</span>}
+                      <button type="button" onClick={enterEditDiagram} className="text-[11.5px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">구조 편집</button>
+                    </span>
+                  )}
                 </div>
-                <ArchitectureDiagram diagram={diagram} />
+                {editDiagram ? (
+                  <>
+                    <ArchitectureEditorCanvas
+                      nodes={diagramDraft.nodes}
+                      edges={diagramDraft.edges}
+                      canvas={editCanvas}
+                      onMoveNode={(id, x, y) => updateNodeById(id, { x, y })}
+                      onResizeNode={(id, patch) => updateNodeById(id, patch)}
+                      onUpdateNode={updateNodeById}
+                      onRemoveNode={removeNodeById}
+                      onMoveEdge={(i, mx, my) => updateEdge(i, { mx, my })}
+                      onUpdateEdge={updateEdge}
+                      onRemoveEdge={removeEdge}
+                      onConnect={connectNodes}
+                    />
+                    <p className="mt-1.5 text-[11px] text-bluewood-300">박스를 드래그해 배치하고, 파란 포트를 다른 박스로 끌어 연결하세요 · ‘완료’ 후 상단 저장으로 반영됩니다</p>
+                  </>
+                ) : (
+                  <ArchitectureDiagram diagram={diagram} />
+                )}
               </div>
             )}
 
@@ -952,11 +1066,19 @@ function DevImpactSection({ expId, exp, onApplied }) {
               <div>
                 <div className="mb-1.5 flex items-baseline justify-between gap-2">
                   <h3 className={MICRO_LABEL}>문제 해결 과정</h3>
-                  <span className="text-[11.5px] font-semibold text-bluewood-300">{gitExps.length}건 · 눌러서 펼치기</span>
+                  <span className="text-[11.5px] font-semibold text-bluewood-300">{gitExps.length}건 · 눌러서 펼치기 · 눌러서 편집</span>
                 </div>
                 <div className="border-t border-surface-200">
                   {gitExps.map((e, i) => (
-                    <GitProjectRow key={i} exp={e} index={i} open={openProjects.includes(i)} onToggle={() => toggleProject(i)} />
+                    <GitProjectRow
+                      key={i}
+                      exp={e}
+                      index={i}
+                      open={openProjects.includes(i)}
+                      onToggle={() => toggleProject(i)}
+                      onPatch={(changes) => patchGitExp(i, changes)}
+                      onDelete={() => deleteGitExp(i)}
+                    />
                   ))}
                 </div>
               </div>
@@ -1272,6 +1394,11 @@ export default function ExperienceResult() {
                 expId={id}
                 exp={exp}
                 onApplied={(nextSr) => setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }))}
+                onPatchSr={(nextSr) => {
+                  // 인라인 편집 → 상태 반영 + 저장 대기(dirty) — 상단 '저장'이 structuredResult까지 일괄 저장
+                  setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
+                  setDirty(true);
+                }}
               />
             ) : (<>
             <div className="mb-2 flex items-baseline justify-between">
