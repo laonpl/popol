@@ -52,6 +52,17 @@ export async function recommendExperiences(jobAnalysis) {
   return data;
 }
 
+export async function recommendLiveJobs(options = {}) {
+  const payload = {
+    targetRoles: Array.isArray(options.targetRoles) ? options.targetRoles : [],
+    locations: Array.isArray(options.locations) ? options.locations : [],
+    preferences: options.preferences || {},
+    limit: options.limit || 6,
+  };
+  const { data } = await api.post('/job/recommend-live-postings', payload, { timeout: 240000 });
+  return data;
+}
+
 /** 포트폴리오 섹션별(스킬/가치관 등) 맞춤 문구 추천. */
 export async function recommendSection(jobAnalysis, sectionType) {
   const { data } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });

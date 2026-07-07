@@ -1376,7 +1376,7 @@ export default function StructuredResult() {
   const [dropTarget, setDropTarget] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showHighlights, setShowHighlights] = useState(true);
-  const [showQualityPanel, setShowQualityPanel] = useState(true);
+  const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [activeQualityId, setActiveQualityId] = useState('sections');
   const [imageConfig, setImageConfig] = useState({});
   const [keyExpImages, setKeyExpImages] = useState({}); // 케이스 스터디에서 추가한 핵심 경험 사진 (index → [{url,width}])
@@ -3871,30 +3871,31 @@ export default function StructuredResult() {
         <ProjectTimeline experiences={experiences} currentId={id} onBeforeNavigate={confirmDiscardChanges} />
       </div>
 
-      {/* 작성 완성도 플로팅 패널 */}
+      {/* 작성 완성도 패널 — 페이지 톤에 맞춘 진행 링 + 체크리스트 */}
       {showQualityPanel ? (
-        <div className="animate-fadeIn fixed bottom-5 left-5 z-40 w-[min(340px,calc(100vw-40px))] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
-          <div className="flex items-center justify-between border-b border-surface-100 px-4 py-3">
-            <div>
-              <p className="text-[13px] font-extrabold text-primary-600">작성 완성도</p>
-              <p className="mt-0.5 text-[12px] font-medium text-bluewood-300">슬라이드 품질 체크리스트</p>
+        <div className="animate-fadeIn fixed bottom-5 left-5 z-40 w-[min(336px,calc(100vw-40px))] overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-xl shadow-bluewood-900/10">
+          <div className="flex items-center gap-3 border-b border-surface-100 px-4 py-3.5">
+            <span className="relative inline-flex h-10 w-10 flex-shrink-0 items-center justify-center">
+              <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+                <circle cx="20" cy="20" r="17" fill="none" strokeWidth="3.5" className="stroke-surface-100" />
+                <circle cx="20" cy="20" r="17" fill="none" strokeWidth="3.5" strokeLinecap="round" className="stroke-primary-600 transition-all duration-500" strokeDasharray={2 * Math.PI * 17} strokeDashoffset={2 * Math.PI * 17 * (1 - qualityPct / 100)} />
+              </svg>
+              <span className="absolute text-[11px] font-black tabular-nums text-primary-700">{qualityPct}</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-extrabold text-bluewood-700">작성 완성도</p>
+              <p className="mt-0.5 text-[12px] font-medium text-bluewood-300">{passedChecks}/{qualityChecks.length}개 항목 완료</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-black text-primary-600">{passedChecks}/{qualityChecks.length}</span>
-              <button
-                onClick={() => setShowQualityPanel(false)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600"
-                aria-label="작성 완성도 패널 닫기"
-              >
-                <X size={14} />
-              </button>
-            </div>
+            <button
+              onClick={() => setShowQualityPanel(false)}
+              className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-bluewood-300 transition-colors hover:bg-surface-100 hover:text-bluewood-600"
+              aria-label="작성 완성도 패널 접기"
+            >
+              <ChevronDown size={16} />
+            </button>
           </div>
-          <div className="px-4 pb-4 pt-3">
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-100">
-              <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${qualityPct}%` }} />
-            </div>
-            <div className="max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
+          <div className="px-3 pb-3.5 pt-2.5">
+            <div className="max-h-[300px] space-y-1 overflow-y-auto pr-1">
               {qualityChecks.map(item => {
                 const passed = item.check();
                 const active = activeQualityCheck?.id === item.id;
@@ -3913,18 +3914,32 @@ export default function StructuredResult() {
                 );
               })}
             </div>
-            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2">
-              <p className="text-[12px] font-bold text-amber-700">수정 팁</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-amber-700">{activeQualityCheck?.tip || followUpQuestions[0] || '현재 선택한 체크 항목에 맞춰 슬라이드 내용을 보강해 주세요.'}</p>
+            <div className="mt-2.5 flex gap-2 rounded-xl bg-surface-50 px-3 py-2.5">
+              <Sparkles size={14} className="mt-0.5 flex-shrink-0 text-primary-500" />
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-bluewood-600">{activeQualityCheck?.label || '수정 팁'}</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-bluewood-400">{activeQualityCheck?.tip || followUpQuestions[0] || '현재 선택한 체크 항목에 맞춰 슬라이드 내용을 보강해 주세요.'}</p>
+              </div>
             </div>
           </div>
         </div>
       ) : (
         <button
           onClick={() => setShowQualityPanel(true)}
-          className="fixed bottom-5 left-5 z-40 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white px-4 py-3 text-[13px] font-extrabold text-primary-600 shadow-[0_14px_35px_rgba(15,23,42,0.16)] hover:bg-primary-50 active:scale-95 transition-transform"
+          className="animate-fadeIn fixed bottom-5 left-5 z-40 inline-flex items-center gap-2.5 rounded-full border border-surface-200 bg-white/95 py-2 pl-2 pr-4 shadow-lg shadow-bluewood-900/5 backdrop-blur transition-all hover:border-primary-200 hover:shadow-primary-600/10 active:scale-95"
+          aria-label="작성 완성도 열기"
         >
-          <Check size={15} /> 작성 완성도 {qualityPct}%
+          <span className="relative inline-flex h-9 w-9 items-center justify-center">
+            <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
+              <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-surface-100" />
+              <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-primary-600 transition-all duration-500" strokeDasharray={2 * Math.PI * 15} strokeDashoffset={2 * Math.PI * 15 * (1 - qualityPct / 100)} />
+            </svg>
+            <span className="absolute text-[10px] font-black tabular-nums text-primary-700">{qualityPct}</span>
+          </span>
+          <span className="text-left leading-tight">
+            <span className="block text-[13px] font-extrabold text-bluewood-700">작성 완성도</span>
+            <span className="block text-[11px] font-semibold text-bluewood-300">{passedChecks}/{qualityChecks.length}개 완료</span>
+          </span>
         </button>
       )}
 

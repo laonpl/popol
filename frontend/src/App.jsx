@@ -22,6 +22,7 @@ const ProfileSetup          = lazy(() => import('./pages/ProfileSetup'));
 const ExperienceHub         = lazy(() => import('./pages/experience/ExperienceHub'));
 const TemplateSelect        = lazy(() => import('./pages/experience/TemplateSelect'));
 const ExperienceInterview   = lazy(() => import('./pages/experience/ExperienceInterview'));
+const ExperienceChat        = lazy(() => import('./pages/experience/ExperienceChat'));
 const ExperienceResult      = lazy(() => import('./pages/experience/ExperienceResult'));
 const ExperienceEditor      = lazy(() => import('./pages/experience/ExperienceEditor'));
 const AnalysisResult        = lazy(() => import('./pages/experience/AnalysisResult'));
@@ -93,6 +94,7 @@ const router = createBrowserRouter(
         <Route path="experience" element={<ExperienceHub />} />
         <Route path="experience/new" element={<TemplateSelect />} />
         <Route path="experience/interview" element={<ExperienceInterview />} />
+        <Route path="experience/chat" element={<ExperienceChat />} />
         <Route path="experience/result/:id" element={<ExperienceResult />} />
         <Route path="experience/edit/:id" element={<ExperienceEditor />} />
         <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
