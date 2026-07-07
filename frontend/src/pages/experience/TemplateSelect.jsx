@@ -720,8 +720,6 @@ export default function TemplateSelect() {
   const canNext1 = title.trim() && startDate && jobCategory;
   // 개발자 트랙: GitHub 연동을 1순위 입력으로 배치하고 전용 안내를 노출
   const isDevTrack = jobCategory === 'dev';
-  // 포트폴리오 트랙: 공통(common) 외 모든 직군은 직군 인식형 포트폴리오 화면으로 진입
-  const isPortfolioTrack = Boolean(jobCategory) && jobCategory !== 'common';
 
   const updateLoadingStep = (stepIdx, status) => {
     setLoadingSteps(prev => prev.map((s, i) => i === stepIdx ? { ...s, status } : s));
@@ -1111,23 +1109,18 @@ export default function TemplateSelect() {
       updateLoadingStep(2, 'done');
 
       toast.success('빠른 초안이 완성되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
-      // 공통 외 직군은 직군 인식형 포트폴리오 화면으로 진입
-      if (isPortfolioTrack) {
-        navigate(`/app/experience/dev-portfolio/${experienceId}`, {
-          state: { title: title.trim(), jobCategory, structuredResult: draftWithStats, keywords: draftAnalysis.keywords || [] },
-        });
-      } else {
-        navigate(`/app/experience/result/${experienceId}`, {
-          state: {
-            analysis: draftAnalysis,
-            title: title.trim(),
-            framework: 'STRUCTURED',
-            content: { rawInput: finalText },
-            showFeedback: true,
-            feedbackContext: 'experience_material_draft_complete',
-          },
-        });
-      }
+      // 모든 직군이 케이스 스터디로 진입 — 개발 직군은 케이스 스터디 안에서 GitHub 기반 개발 임팩트를 보여준다
+      navigate(`/app/experience/result/${experienceId}`, {
+        state: {
+          analysis: draftWithStats,
+          title: title.trim(),
+          jobCategory,
+          framework: 'STRUCTURED',
+          content: { rawInput: finalText },
+          showFeedback: true,
+          feedbackContext: 'experience_material_draft_complete',
+        },
+      });
     } catch (error) {
       console.error('경험 생성 실패:', error);
       if (error?.isCreditError) {

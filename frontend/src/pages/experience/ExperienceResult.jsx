@@ -1,10 +1,17 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Github, Loader2 } from 'lucide-react';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
+import api from '../../services/api';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
+import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
+import { ArchitectureDiagram, buildFallbackDiagram } from '../../components/portfolio/ArchDiagram';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
+
+/* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 — 케이스 스터디 구조가 직군별로 갈라지는 첫 분기 */
+const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -368,6 +375,339 @@ function CaseBody({ body, onChange }) {
   );
 }
 
+/* ── GitHub 연결 — 레포 URL + 내 아이디로 커밋 기여도·코드·트러블슈팅 분석 ── */
+function GitConnectPanel({ expId, sr, onApplied, onCancel, compact = false }) {
+  const [repoUrl, setRepoUrl] = useState(sr?.githubStats?.repoName ? `https://github.com/${sr.githubStats.repoName}` : '');
+  const [ghUser, setGhUser] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const runAnalyze = async () => {
+    if (!repoUrl.trim() || !ghUser.trim()) {
+      toast.error('레포 URL과 GitHub 아이디를 모두 입력해주세요');
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const res = await api.post('/experience/analyze-git', {
+        repoUrl: repoUrl.trim(),
+        authorParam: ghUser.trim(),
+      });
+      const d = res.data;
+      const nextSr = {
+        ...(sr || {}),
+        ...(d?.contributionStats ? { githubStats: { ...d.contributionStats, repoName: d.repoName } } : {}),
+        ...(d?.experiences?.length ? { gitAnalysis: { repoName: d.repoName, experiences: d.experiences } } : {}),
+      };
+      if (expId) {
+        await updateDoc(doc(db, 'experiences', expId), { structuredResult: nextSr, updatedAt: new Date() });
+      }
+      onApplied(nextSr);
+      toast.success('GitHub 분석을 반영했어요.');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'GitHub 분석에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+    setAnalyzing(false);
+  };
+
+  return (
+    <div className={`rounded-2xl border border-dashed border-surface-300 bg-surface-50/50 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}>
+      {!compact && (
+        <>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: ACCENT }}><Github size={17} /></span>
+            <div>
+              <h3 className="text-[15px] font-extrabold text-bluewood-900">GitHub으로 내 개발 경험 분석하기</h3>
+              <p className="text-[12px] text-bluewood-400">레포와 아이디만 입력하면 커밋을 읽고 아래 내용을 채워드려요</p>
+            </div>
+          </div>
+          <ul className="mt-3.5 mb-4 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px] text-bluewood-500">
+            <li>· 기여도 · 영향력 (커밋 비중·순위)</li>
+            <li>· 아키텍처 구조 시각화</li>
+            <li>· 트러블슈팅 과정</li>
+            <li>· 실제 코드 기반 문제 해결 설명</li>
+          </ul>
+        </>
+      )}
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary-200">
+          <Github size={14} className="flex-shrink-0 text-bluewood-300" />
+          <input
+            value={repoUrl}
+            onChange={e => setRepoUrl(e.target.value)}
+            placeholder="https://github.com/username/repo"
+            className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+          />
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary-200">
+          <span className="flex-shrink-0 text-[13px] font-bold text-bluewood-300">@</span>
+          <input
+            value={ghUser}
+            onChange={e => setGhUser(e.target.value)}
+            placeholder="내 GitHub 아이디 — 이 레포에서 내 커밋을 찾아요"
+            className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={runAnalyze}
+            disabled={analyzing}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-[13.5px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700 disabled:opacity-50"
+          >
+            {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Github size={14} />}
+            {analyzing ? '커밋 분석 중… (최대 1분)' : '내 기여 분석하기'}
+          </button>
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="rounded-xl px-3.5 py-2.5 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">닫기</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* 문서 톤 마이크로 라벨 — '내용' 헤더와 동일한 위계 */
+const MICRO_LABEL = 'text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400';
+
+/* ── 기여도 · 영향력 — 박스 없이 타이포그래피로 정리한 스탯 스트립 ── */
+function GitStatStrip({ stats }) {
+  const pct = Number(stats.contributionPct) || 0;
+  const langs = Array.isArray(stats.languages) ? stats.languages : [];
+  const types = Array.isArray(stats.commitTypes) ? stats.commitTypes.slice(0, 4) : [];
+  const LANG_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b'];
+  const items = [
+    { v: pct ? `${pct}%` : '—', l: '기여 비중', accent: true },
+    { v: stats.myCommits ?? '—', l: '내 커밋' },
+    { v: stats.totalCommits || '—', l: '전체 커밋' },
+    { v: stats.rank ? `${stats.rank}위` : '—', l: `기여자 ${stats.contributorCount || 0}명 중` },
+  ];
+
+  return (
+    <div>
+      <h3 className={`${MICRO_LABEL} mb-3`}>기여도 · 영향력</h3>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+        {items.map((it, i) => (
+          <div key={i} className="min-w-0">
+            <p className="text-[21px] font-black leading-none tracking-tight" style={it.accent ? { color: ACCENT } : { color: '#1e293b' }}>{it.v}</p>
+            <p className="mt-1.5 text-[11px] font-medium text-bluewood-400">{it.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 기여 비중 바 — 원자료(내 커밋/전체)를 함께 표기해 근거 명시 */}
+      {pct > 0 && (
+        <div className="mt-4">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-100">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: ACCENT }} />
+          </div>
+          <p className="mt-1.5 text-[11px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
+        </div>
+      )}
+
+      {/* 언어 구성 — 한 줄 스택 바 + 인라인 범례 */}
+      {langs.length > 0 && (
+        <div className="mt-4">
+          <div className="flex h-2 w-full overflow-hidden rounded-full">
+            {langs.map((l, i) => (
+              <div key={i} style={{ width: `${l.pct}%`, backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} title={`${l.name} ${l.pct}%`} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1">
+            {langs.map((l, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 text-[11.5px] text-bluewood-500">
+                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} />
+                {l.name} <span className="text-bluewood-300">{l.pct}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 활동 기간 + 커밋 유형 — 한 줄 근거 */}
+      {(stats.activePeriod || types.length > 0) && (
+        <p className="mt-3 text-[11.5px] text-bluewood-400">
+          {stats.activePeriod && <>활동 <span className="font-semibold text-bluewood-600">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span></>}
+          {types.map((t, i) => <span key={i}> · {t.type} <span className="font-semibold text-bluewood-600">{t.count}회</span></span>)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── 문제 해결 아코디언 행 — 핵심 경험 아코디언과 같은 인터랙션 문법 ── */
+function GitProjectRow({ exp, index, open, onToggle }) {
+  const title = clean(exp.project_name) || `프로젝트 ${index + 1}`;
+  const impact = clean(exp.core_impact);
+  const tags = (exp.core_tech_stack || '').split(/,\s*/).map(s => s.trim()).filter(Boolean);
+  const problem = toLines(exp.problem_definition);
+  const action = toLines(exp.action_and_solution);
+  const codeChanges = toLines(exp.code_changes);
+  const snippets = Array.isArray(exp.code_snippets) ? exp.code_snippets.filter(s => s && (s.code || s.why || s.file)) : [];
+  const troubleSnippets = Array.isArray(exp.troubleshooting_snippets) ? exp.troubleshooting_snippets.filter(s => s && (s.code || s.solution || s.issue)) : [];
+  const trouble = toLines(exp.troubleshooting);
+  const learning = toLines(exp.learning);
+
+  const List = ({ label, color, lines }) => (lines.length ? (
+    <div>
+      <p className="mb-1 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <ul className="space-y-1">
+        {lines.map((l, i) => <li key={i} className="text-[12.5px] leading-[1.6] text-bluewood-600">• {l}</li>)}
+      </ul>
+    </div>
+  ) : null);
+
+  return (
+    <div className="border-b border-surface-200">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="group flex w-full items-center gap-2.5 py-2.5 text-left">
+        <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14.5px] font-extrabold leading-snug text-bluewood-900">{title}</p>
+          {impact && !open && (
+            <p className="mt-0.5 truncate text-[12px] font-semibold text-bluewood-500">
+              <span className="font-black" style={{ color: ACCENT }}>성과 </span>{impact}
+            </p>
+          )}
+        </div>
+        <span
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600"
+          style={open ? { transform: 'rotate(180deg)' } : undefined}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+        </span>
+      </button>
+
+      {open && (
+        <div className="space-y-3.5 pb-4 pl-[28px]">
+          {(exp.period || tags.length > 0) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {clean(exp.period) && <span className="text-[11px] text-bluewood-400">{clean(exp.period)}</span>}
+              {tags.slice(0, 8).map((t, i) => <span key={i} className="rounded bg-surface-100 px-1.5 py-0.5 text-[10.5px] font-medium text-bluewood-500">#{t}</span>)}
+            </div>
+          )}
+
+          <List label="문제" color="#314157" lines={problem} />
+          <List label="해결" color={ACCENT} lines={action} />
+
+          {impact && (
+            <div className="flex items-baseline gap-2">
+              <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
+              <p className="text-[12.5px] font-bold leading-[1.55] text-bluewood-900">{impact}</p>
+            </div>
+          )}
+
+          {snippets.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
+              {snippets.map((s, i) => <CodeSnippet key={i} file={s.file} code={s.code} explanation={s.why || s.change} />)}
+            </div>
+          ) : codeChanges.length > 0 ? (
+            <List label="코드 변경" color="#334155" lines={codeChanges} />
+          ) : null}
+
+          {troubleSnippets.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
+              {troubleSnippets.map((s, i) => <CodeSnippet key={i} lead={s.issue} file={s.file} code={s.code} explanation={s.solution} />)}
+            </div>
+          ) : (
+            <List label="트러블슈팅" color="#b45309" lines={trouble} />
+          )}
+
+          {learning.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-bold text-bluewood-300">배운 점</p>
+              <ul className="space-y-1">
+                {learning.map((l, i) => <li key={i} className="text-[12.5px] italic leading-[1.55] text-bluewood-400">• {l}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 개발 임팩트 — 케이스 스터디의 개발 직군 구조: 기여도 → 아키텍처 → 문제 해결 (문서 톤, 얇은 구분선) ── */
+function DevImpactSection({ expId, exp, onApplied }) {
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [openProjects, setOpenProjects] = useState([0]); // 첫 항목은 펼친 상태로
+  const sr = exp?.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const stats = sr.githubStats || null;
+  const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
+  const hasGit = Boolean(stats || gitExps.length > 0);
+  const repoName = sr.gitAnalysis?.repoName || stats?.repoName || '';
+
+  // 아키텍처: AI 생성 다이어그램 우선, 없으면 기술스택 기반 기본 구조 폴백
+  const savedDiagram = Array.isArray(sr.architectureDiagram?.nodes) && sr.architectureDiagram.nodes.length > 0
+    ? sr.architectureDiagram : null;
+  const techs = [
+    ...(Array.isArray(ov.techStack) ? ov.techStack : []).map(t => (typeof t === 'string' ? t : t?.name || '')),
+    ...(sr.keywords || exp?.keywords || []),
+    ...gitExps.flatMap(e => String(e.core_tech_stack || '').split(/,\s*/)),
+  ];
+  const diagram = savedDiagram || buildFallbackDiagram(techs);
+
+  const toggleProject = (i) => setOpenProjects(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+
+  return (
+    <>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h2>
+        {hasGit ? (
+          <button
+            type="button"
+            onClick={() => setConnectOpen(o => !o)}
+            className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-bluewood-300 transition-colors hover:text-primary-600"
+          >
+            <Github size={12} className="flex-shrink-0" /><span className="truncate">{repoName}</span><span className="flex-shrink-0">· 다시 분석</span>
+          </button>
+        ) : (
+          <span className="text-[11.5px] font-semibold text-bluewood-300">GitHub 커밋 근거 기반</span>
+        )}
+      </div>
+
+      <div className="border-t border-surface-200 pt-5">
+        {!hasGit ? (
+          <GitConnectPanel expId={expId} sr={sr} onApplied={onApplied} />
+        ) : (
+          <div className="space-y-8">
+            {connectOpen && (
+              <GitConnectPanel expId={expId} sr={sr} onApplied={(next) => { onApplied(next); setConnectOpen(false); }} onCancel={() => setConnectOpen(false)} compact />
+            )}
+
+            {stats && <GitStatStrip stats={stats} />}
+
+            {diagram && (
+              <div>
+                <div className="mb-2.5 flex items-baseline justify-between gap-2">
+                  <h3 className={MICRO_LABEL}>아키텍처</h3>
+                  {!savedDiagram && <span className="text-[11px] text-bluewood-300">기술 스택 기반 자동 구성</span>}
+                </div>
+                <ArchitectureDiagram diagram={diagram} />
+              </div>
+            )}
+
+            {gitExps.length > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <h3 className={MICRO_LABEL}>문제 해결 과정</h3>
+                  <span className="text-[11.5px] font-semibold text-bluewood-300">{gitExps.length}건 · 눌러서 펼치기</span>
+                </div>
+                <div className="border-t border-surface-200">
+                  {gitExps.map((e, i) => (
+                    <GitProjectRow key={i} exp={e} index={i} open={openProjects.includes(i)} onToggle={() => toggleProject(i)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 /* ──────────────────────────────────────────────────────────
    경험 결과 — 내가 프로젝트에서 한 핵심을 정리해 보여주는 한 장의 문서
    (핵심 경험은 구조화해서 보여주고, 글·사진은 자유롭게 편집 → Firestore 저장)
@@ -376,7 +716,7 @@ export default function ExperienceResult() {
   const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
-  const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title } : null);
+  const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title, jobCategory: state.jobCategory } : null);
   const [cs, setCs] = useState(null);
   const [loading, setLoading] = useState(!state?.analysis);
   const [dirty, setDirty] = useState(false);
@@ -551,6 +891,10 @@ export default function ExperienceResult() {
     { key: 'learning', label: '배운 점' },
   ];
 
+  // 직군별 케이스 스터디 구조 분기 — 개발 직군은 핵심 경험 대신 GitHub 기반 개발 임팩트를 보여준다
+  const jobCategory = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+  const isDevJob = DEV_GIT_JOBS.includes(jobCategory);
+
   return (
     <>
     <FeedbackModal
@@ -569,12 +913,9 @@ export default function ExperienceResult() {
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-between gap-3">
           <button onClick={() => guardedNav('/app/experience')} className="shrink-0 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">← <span className="hidden sm:inline">경험 목록</span></button>
 
-          {/* 보기 전환 — 케이스 스터디 ↔ (개발자 포트폴리오) ↔ 자세히 보기 */}
+          {/* 보기 전환 — 케이스 스터디 ↔ 자세히 보기 */}
           <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
             <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">케이스 스터디</span>
-            {(() => { const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory; return jc && jc !== 'common'; })() && (
-              <button onClick={() => guardedNav(`/app/experience/dev-portfolio/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">직군 특화 경험</button>
-            )}
             <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">자세히 보기</button>
           </div>
 
@@ -664,8 +1005,15 @@ export default function ExperienceResult() {
             })()}
           </div>
 
-          {/* ════ 오른쪽 — 핵심 경험 (Q&A식 아코디언) ════ */}
+          {/* ════ 오른쪽 — 직군별 구조: 개발 직군은 GitHub 기반 개발 임팩트, 그 외엔 핵심 경험 아코디언 ════ */}
           <section className="min-w-0">
+            {isDevJob ? (
+              <DevImpactSection
+                expId={id}
+                exp={exp}
+                onApplied={(nextSr) => setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }))}
+              />
+            ) : (<>
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="text-[15px] font-extrabold text-bluewood-900">핵심 경험</h2>
               {cs.keyExps.length > 0 && <span className="text-[11.5px] font-semibold text-bluewood-300">{cs.keyExps.length}건 · 눌러서 펼치기</span>}
@@ -768,6 +1116,7 @@ export default function ExperienceResult() {
               })}
             </div>
             <button type="button" onClick={addKeyExp} className="mt-4 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[12.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 transition-colors">＋ 핵심 경험 추가</button>
+            </>)}
 
             {/* 내용 — 자유 편집(부가 설명) */}
             <div className="mt-8 border-t border-surface-200 pt-7">

@@ -2990,11 +2990,6 @@ export default function StructuredResult() {
             <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
               케이스 스터디
             </Link>
-            {jobCategory && jobCategory !== 'common' && (
-              <Link to={`/app/experience/dev-portfolio/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
-                직군 특화 경험
-              </Link>
-            )}
             <span className="rounded-lg bg-white px-3 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
           </div>
         )}
