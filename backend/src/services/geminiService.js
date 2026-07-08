@@ -644,6 +644,26 @@ function normalizeArchitectureDiagram(raw) {
   return { nodes: cleanNodes, edges: cleanEdges };
 }
 
+/** AI가 뽑은 product(서비스 자체 설명)를 저장 가능한 평탄 구조로 정규화. 값이 전혀 없으면 null. */
+function normalizeProduct(raw) {
+  const p = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const str = (v) => (v == null ? '' : String(Array.isArray(v) ? v.join(' ') : v).replace(/\s+/g, ' ').trim());
+  const features = (Array.isArray(p.features) ? p.features : [])
+    .map(f => (typeof f === 'string' ? { name: str(f), desc: '' } : { name: str(f?.name || f?.title), desc: str(f?.desc || f?.description || f?.summary) }))
+    .filter(f => f.name || f.desc)
+    .slice(0, 8);
+  const outcomes = (Array.isArray(p.outcomes) ? p.outcomes : [])
+    .map(o => (typeof o === 'string' ? { label: '', value: str(o) } : { label: str(o?.label || o?.name || o?.metric), value: str(o?.value || o?.metric || o?.number) }))
+    .filter(o => o.label || o.value)
+    .slice(0, 10);
+  const out = {
+    name: str(p.name), tagline: str(p.tagline),
+    problem: str(p.problem), solution: str(p.solution),
+    features, outcomes,
+  };
+  return (out.problem || out.solution || features.length || outcomes.length || out.name || out.tagline) ? out : null;
+}
+
 function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
@@ -695,7 +715,9 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     sectionSlides: hasSectionSlides ? json.sectionSlides : fallbackSectionSlides(sections, keyExperiences),
     jobCategory: jobCategory || 'common',
     jobSpecific,
+    product: normalizeProduct(json.product),
     architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
     portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
@@ -1083,7 +1105,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     sectionSlides: overviewJson.sectionSlides || {},
     jobCategory: jobCategory || 'common',
     jobSpecific: overviewJson.jobSpecific || {},
+    product: normalizeProduct(overviewJson.product),
     architectureDiagram: normalizeArchitectureDiagram(overviewJson.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(overviewJson.flowDiagram),
     portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
     keywords: metaJson.keywords || [],
     competencyTags: metaJson.competencyTags || [],

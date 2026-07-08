@@ -815,21 +815,26 @@ export default function ExperienceChat() {
 
       for (const link of links) {
         setStep(stepIdx, 'loading');
-        try {
-          const data = await importFromUrl(link.source, link.url, 'experience');
-          if (data?.imported?.content) {
-            allText += `\n\n--- ${link.label}: ${link.url} ---\n${data.imported.content}`;
+        // ⚠ GitHub 레포 README는 개발 중심이라 서비스 문제정의를 흐린다. git은 아래 커밋 분석이
+        //   별도로 처리하므로, 레포 README/구조는 초안·서비스 추출 자료(allText)에 넣지 않는다.
+        if (link.source !== 'github') {
+          try {
+            const data = await importFromUrl(link.source, link.url, 'experience');
+            if (data?.imported?.content) {
+              allText += `\n\n--- ${link.label}: ${link.url} ---\n${data.imported.content}`;
+            }
+          } catch {
+            toast.error(`${link.label} 불러오기에 실패해 건너뛰었어요`);
           }
-        } catch {
-          toast.error(`${link.label} 불러오기에 실패해 건너뛰었어요`);
         }
         setStep(stepIdx, 'done');
         stepIdx++;
       }
 
-      // GitHub 커밋 분석 — 내 아이디로 기여도·코드변경·트러블슈팅 추출 (실패해도 나머지 자료로 진행)
+      // GitHub 커밋 분석 — 기여도·코드·트러블슈팅은 '문제 해결 과정'으로 별도 보존.
+      // (파일/텍스트 분석과 독립 — git이 초안·개요를 지배하지 않게 함)
       gitRef.current = null;
-      let gitMoments = [];
+      let gitExpCount = 0;
       if (runGitAnalysis) {
         setStep(stepIdx, 'loading');
         try {
@@ -842,32 +847,7 @@ export default function ExperienceChat() {
             ...(gitData?.contributionStats ? { githubStats: { ...gitData.contributionStats, repoName: gitData.repoName } } : {}),
             ...(gitData?.experiences?.length ? { gitAnalysis: { repoName: gitData.repoName, experiences: gitData.experiences } } : {}),
           };
-          // 커밋 분석 결과 → 핵심 경험 후보로 직접 추가 (TemplateSelect 플로우와 동일 매핑)
-          if (gitData?.experiences?.length > 0) {
-            const toStrArr = (arr) => (arr || []).map(item =>
-              typeof item === 'string' ? item : Object.values(item).filter(v => typeof v === 'string').join(' ')
-            );
-            gitMoments = gitData.experiences.map((exp, i) => ({
-              id: `git-${Date.now()}-${i}`,
-              title: exp.project_name || `GitHub 경험 ${i + 1}`,
-              type: 'project',
-              description: exp.core_impact || '',
-              keywords: exp.core_tech_stack ? exp.core_tech_stack.split(/,\s*/).map(s => s.trim()).filter(Boolean) : [],
-              context: [
-                exp.period ? `기간: ${exp.period}` : '',
-                ...toStrArr(exp.problem_definition),
-              ].filter(Boolean).join('\n'),
-              action: [
-                ...toStrArr(exp.code_changes),
-                ...toStrArr(exp.action_and_solution),
-              ].join('\n'),
-              result: exp.core_impact || '',
-              learning: [
-                ...toStrArr(exp.troubleshooting),
-                ...toStrArr(exp.learning),
-              ].join('\n'),
-            }));
-          }
+          gitExpCount = gitData?.experiences?.length || 0;
         } catch (gitErr) {
           const msg = gitErr?.response?.data?.error || '';
           if (msg.includes('찾을 수 없습니다')) {
@@ -882,14 +862,14 @@ export default function ExperienceChat() {
 
       if (text) allText += `\n\n--- 직접 입력 ---\n${text}`;
 
-      if (!allText.trim() && gitMoments.length === 0) {
+      if (!allText.trim() && !gitRef.current) {
         setPhase('materials');
         await pushAi('자료에서 내용을 읽지 못했어요. 다른 자료를 올리거나 직접 조금 적어주시겠어요?');
         return;
       }
       setSourceText(allText.trim());
 
-      // 핵심 경험 추출 — 실패해도 자료만으로 초안 진행
+      // 핵심 경험 추출 — 파일/텍스트 자료 기반 (git 경험은 문제 해결 과정에서 따로 다뤄짐)
       setStep(stepIdx, 'loading');
       let extracted = [];
       if (allText.trim()) {
@@ -902,18 +882,16 @@ export default function ExperienceChat() {
       }
       setStep(stepIdx, 'done');
 
-      // 커밋 분석 경험을 앞에 두고 자료 추출 경험을 뒤에 합류
-      const combined = [...gitMoments, ...extracted];
-      if (combined.length === 0) {
-        await pushAi('자료에서 핵심 경험을 따로 추출하지 못했어요. 자료 내용만으로 초안을 만들게요.');
+      const gitNote = gitExpCount > 0 ? `\n(GitHub 커밋에서 찾은 개발 경험 ${gitExpCount}개는 ‘문제 해결 과정’으로 따로 정리했어요)` : '';
+      if (extracted.length === 0) {
+        await pushAi(`자료에서 핵심 경험을 따로 추출하지 못했어요. 자료 내용으로 초안을 만들게요.${gitNote}`);
         await generateDraft(allText.trim(), []);
         return;
       }
 
-      const withFlags = combined.map((m, i) => ({ ...m, id: m.id || `moment-${Date.now()}-${i}`, selected: true }));
+      const withFlags = extracted.map((m, i) => ({ ...m, id: m.id || `moment-${Date.now()}-${i}`, selected: true }));
       setMoments(withFlags);
       setPhase('moments');
-      const gitNote = gitMoments.length > 0 ? `\n(이 중 ${gitMoments.length}개는 GitHub 커밋 분석에서 찾았어요)` : '';
       await pushAi(`자료를 꼼꼼히 읽었어요. 핵심 경험 ${withFlags.length}개를 찾았습니다!${gitNote}\n포트폴리오에 담을 경험만 남기고 확인을 눌러주세요. 선택한 경험을 중심으로 초안을 만들게요.`);
     } catch (err) {
       console.error('자료 수집 실패:', err);
@@ -945,19 +923,12 @@ export default function ExperienceChat() {
       let analysis;
       try {
         const cleaned = cleanRawText(allText) || allText;
+        // 초안(개요·README)은 파일/텍스트 자료 + 핵심경험으로만 생성 —
+        // git 커밋 상세는 개요를 지배하지 않도록 주입하지 않고 '문제 해결 과정'에서 별도 표시.
+        // (기술스택 힌트만, 아키텍처 다이어그램 폴백용으로 가볍게 전달)
         const draftContent = { 자료: cleaned, ...(momentsText ? { 핵심경험: momentsText } : {}) };
-        // GitHub 분석이 있으면 트러블슈팅·코드변경·기술스택을 명시적으로 넣어
-        // 초안 AI가 트러블슈팅 섹션·아키텍처 다이어그램을 안정적으로 채우도록 강한 신호 제공
-        const gitAnalysis = gitRef.current?.gitAnalysis;
-        if (gitAnalysis?.experiences?.length) {
-          const gj = (arr) => (arr || []).map(x => (typeof x === 'string' ? x : Object.values(x || {}).filter(v => typeof v === 'string').join(' '))).filter(Boolean);
-          const troubleshooting = gitAnalysis.experiences.flatMap(e => gj(e.troubleshooting));
-          const codeChanges = gitAnalysis.experiences.flatMap(e => gj(e.code_changes));
-          const techStacks = gitAnalysis.experiences.map(e => e.core_tech_stack).filter(Boolean);
-          if (troubleshooting.length) draftContent.트러블슈팅 = troubleshooting.join('\n');
-          if (codeChanges.length) draftContent.코드변경 = codeChanges.join('\n');
-          if (techStacks.length) draftContent.기술스택 = techStacks.join(', ');
-        }
+        const techStacks = (gitRef.current?.gitAnalysis?.experiences || []).map(e => e.core_tech_stack).filter(Boolean);
+        if (techStacks.length) draftContent.기술스택 = [...new Set(techStacks.join(', ').split(/,\s*/))].filter(Boolean).join(', ');
         analysis = await draftAnalyze({
           content: draftContent,
           jobCategory: jobCategory || 'common',

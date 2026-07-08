@@ -172,11 +172,12 @@ async function analyzeCommitGroup(group, repoName, owner, repo, token) {
 5. 반드시 완벽한 JSON 객체 형식으로만 출력하십시오.
 
 <depth_rules>
-- 각 서술은 "얇게" 쓰지 마십시오. 면접관이 그 자리에서 이해할 수 있도록 구체적인 파일·함수·자료구조·기술명을 근거로 서술하십시오.
-- problem_definition / action_and_solution / troubleshooting 항목은 각 항목당 1~2문장(한 줄 요약 금지)으로, "무엇을 왜 어떻게"가 드러나게 쓰십시오. 각 배열은 가능하면 2개 이상 채우십시오.
-- code_snippets는 diff에 코드가 있으면 반드시 1개 이상(가능하면 2~3개) 발췌하십시오. why는 "이 코드가 어떤 문제를 어떻게 푸는지" 실질적으로 설명하십시오(단순 '코드를 추가함' 금지).
-- diff에 실제 코드 라인(+/-)이 있으면 code_snippets/troubleshooting_snippets의 code에 그 라인을 그대로 발췌하십시오. 상상해서 지어내지 마십시오.
-- core_impact는 이 그룹에서 실제로 좋아진 점을 근거(파일·라인·범위·수치)와 함께 한 문장으로 구체적으로 쓰십시오.
+- 핵심만 간결하게. 각 배열 항목은 한 문장(60자 내외)으로, 구체적 파일·함수·기술명을 근거로 쓰되 장황한 배경 설명은 금지합니다.
+- problem_definition / action_and_solution / troubleshooting / learning 배열은 각각 최대 2개 항목까지만 채우십시오. 덜 중요한 내용은 버리십시오.
+- code_snippets는 diff에 코드가 있으면 가장 핵심적인 것 1~2개만 발췌하십시오. why는 "이 코드가 어떤 문제를 어떻게 푸는지" 한 문장으로(단순 '코드를 추가함' 금지).
+- diff에 실제 코드 라인(+/-)이 있으면 code_snippets/troubleshooting_snippets의 code에 그 라인을 그대로 발췌하십시오. 상상해서 지어내지 마십시오. 코드도 핵심 3~8줄만.
+- core_impact는 이 그룹에서 실제로 좋아진 점을 근거와 함께 한 문장으로 구체적으로 쓰십시오.
+- project_name은 프로젝트/레포 이름이나 "기능 개선", "버그 수정" 같은 광범위한 제목 금지. "무슨 문제를 해결/구현했는지"가 드러나는 구체적 제목으로 쓰십시오. (좋은 예: "동시 결제 요청 중복 처리 문제 해결", "이미지 업로드 OCR 파이프라인 구축" / 나쁜 예: "Popol 개선", "코드 리팩토링")
 </depth_rules>
 </core_principles>
 
@@ -196,7 +197,7 @@ ${diffText || '(diff 정보 없음 — 커밋 메시지 기반으로만 분석)'
 아래 JSON 스키마를 반드시 따르십시오. 단 하나의 JSON 객체만 출력하십시오.
 
 {
-  "project_name": "프로젝트 이름 (레포명 기반, 읽기 좋게 변환)",
+  "project_name": "이 커밋 그룹이 해결한 구체적 문제/작업이 드러나는 한 줄 제목 (예: '동시 결제 중복 처리 문제 해결' — 레포 이름·'기능 개선' 같은 광범위한 제목 금지)",
   "core_tech_stack": "이 작업에 사용된 핵심 기술/언어/프레임워크 (예: React, TypeScript, Redis)",
   "core_impact": "이 커밋 그룹 전체의 가장 핵심적인 성과 한 줄 요약",
   "period": "작업 기간 (예: 2024.01 ~ 2024.03)",

@@ -796,11 +796,8 @@ export default function TemplateSelect() {
       if (githubUrl.trim()) {
         updateLoadingStep(stepIdx, 'loading');
         try {
-          // README/코드 구조 가져오기
-          const data = await importFromUrl('github', githubUrl, 'experience');
-          if (data.imported?.content) {
-            allText += `\n\n--- GitHub 리포지토리 ---\n${data.imported.content}`;
-          }
+          // ⚠ 레포 README(개발 중심)는 서비스 문제정의를 흐리므로 allText에 넣지 않는다.
+          //   git은 아래 커밋 분석으로만 반영(문제 해결 과정·기여도).
           // 내 커밋 분석 (username 입력된 경우)
           if (githubUsername.trim()) {
             let gitData = null;
@@ -1060,16 +1057,11 @@ export default function TemplateSelect() {
           자료: cleanRawText(collectedText) || collectedText,
           핵심경험: momentsText,
         };
-        // GitHub 분석이 있으면 트러블슈팅·코드변경·기술스택을 명시적으로 넣어
-        // 초안 AI가 트러블슈팅 섹션·아키텍처 다이어그램을 안정적으로 채우도록 강한 신호 제공
+        // git 커밋 상세(트러블슈팅·코드변경)는 개요를 지배하지 않도록 초안에 주입하지 않고
+        // '문제 해결 과정'에서 별도 표시(draftWithStats.gitAnalysis). 기술스택 힌트만 가볍게 전달(아키텍처 폴백용).
         if (gitAnalysis?.experiences?.length) {
-          const gj = (arr) => (arr || []).map(x => (typeof x === 'string' ? x : Object.values(x || {}).filter(v => typeof v === 'string').join(' '))).filter(Boolean);
-          const troubleshooting = gitAnalysis.experiences.flatMap(e => gj(e.troubleshooting));
-          const codeChanges = gitAnalysis.experiences.flatMap(e => gj(e.code_changes));
           const techStacks = gitAnalysis.experiences.map(e => e.core_tech_stack).filter(Boolean);
-          if (troubleshooting.length) draftContent.트러블슈팅 = troubleshooting.join('\n');
-          if (codeChanges.length) draftContent.코드변경 = codeChanges.join('\n');
-          if (techStacks.length) draftContent.기술스택 = techStacks.join(', ');
+          if (techStacks.length) draftContent.기술스택 = [...new Set(techStacks.join(', ').split(/,\s*/))].filter(Boolean).join(', ');
         }
         draftAnalysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
       } catch (draftErr) {

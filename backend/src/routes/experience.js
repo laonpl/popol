@@ -132,6 +132,10 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
         // 재분석 시 유실 방지: GitHub 기여도는 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
         analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
         analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+        analysis.flowDiagram = data.structuredResult?.flowDiagram || analysis.flowDiagram || null;
+        analysis.readme = data.structuredResult?.readme || analysis.readme || null;
+        analysis.overviewDoc = data.structuredResult?.overviewDoc || analysis.overviewDoc || null;
+        analysis.product = analysis.product || data.structuredResult?.product || null;
         analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
         await docRef.update({
           structuredResult: analysis,
@@ -167,6 +171,10 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
     analysis.gitAnalysis = data.structuredResult?.gitAnalysis || analysis.gitAnalysis || null;
     analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+    analysis.flowDiagram = data.structuredResult?.flowDiagram || analysis.flowDiagram || null;
+    analysis.readme = data.structuredResult?.readme || analysis.readme || null;
+    analysis.overviewDoc = data.structuredResult?.overviewDoc || analysis.overviewDoc || null;
+    analysis.product = analysis.product || data.structuredResult?.product || null;
     analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
 
     // 분석 결과를 Firestore에 저장
@@ -440,7 +448,8 @@ router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async
     if (!repoUrl) return res.status(400).json({ error: 'GitHub 레포지토리 URL이 필요합니다.' });
     if (!authorParam) return res.status(400).json({ error: 'GitHub 사용자명이 필요합니다.' });
 
-    const result = await analyzeGitCommits(repoUrl, authorParam, githubToken || undefined);
+    // 서버 GITHUB_TOKEN 폴백 — 무인증(60req/h) 레이트리밋으로 기여도·언어 통계가 자주 비는 문제 방지
+    const result = await analyzeGitCommits(repoUrl, authorParam, githubToken || process.env.GITHUB_TOKEN || undefined);
     res.json(result);
   } catch (error) {
     const msg = error.message || '';

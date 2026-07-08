@@ -27,6 +27,27 @@ const METRIC_FILTER_GUIDELINES = `
 ※ 원본에 수치가 있으면 반드시 metric/beforeMetric/afterMetric에 채우세요.
 `;
 
+// product: 서비스(아이템) 자체 설명 — 포트폴리오 소개의 최우선 블록.
+// 개발/테스트/코드 서사가 아니라 "이 서비스가 무엇이고 어떤 사용자 문제를 어떻게 푸는지"를 뽑는다.
+const PRODUCT_EXTRACTION_GUIDE = `
+[★★ product — 서비스(아이템) 자체 설명 · 소개의 최우선 (가장 중요) ★★]
+자료에 발표자료·기획서·PDF의 "Problem/문제" 슬라이드나 시장·사용자 pain point가 있으면 그것이 product의 핵심 재료입니다. 반드시 서비스/사업 관점으로 추출하세요.
+
+- name: 서비스/제품 이름. tagline: 한 줄 소개.
+- problem: 이 서비스가 겨냥한 "시장/사용자의 문제". 누가 어떤 상황에서 어떤 불편·비효율을 겪는지, 가능하면 수치 포함.
+  ✅ 좋은 예: "취준생이 포트폴리오 제작에 평균 40시간 이상 쓰고, 기업별로 5.2개를 재작성하며, ATS 서류 단계에서 62%가 형식·키워드 미달로 탈락한다"
+  ❌ 나쁜 예(개발 서사 절대 금지): "TTV를 측정하려 베타 테스트를 기획했다", "가입~첫 결과 확인 시간을 KPI로 설정했다", "React/Zustand로 상태관리를 최적화했다"
+- solution: 그 문제를 서비스가 어떤 방식으로 푸는지 (제품/개념 관점).
+  ✅ "경험을 추출·검증·구조화해 재사용 가능한 마스터 DB를 만들고, 이를 바탕으로 다양한 형식의 포트폴리오를 자동 생성한다"
+  ❌ "베타 테스트로 검증했다", "온보딩 UI를 최적화했다" (이건 개발/실행 이야기)
+- features: 서비스의 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
+- outcomes: 정량 성과를 지표/값 쌍으로. 각 { "label": 지표명, "value": 값 }. 원본에 있는 수치만.
+
+⚠ 규칙:
+- 개발·테스트·코드·아키텍처·기술스택 이야기는 절대 product.problem/solution에 넣지 마세요. (그건 다른 섹션에서 다룸)
+- 자료 어딘가에 서비스/시장 문제 단서가 조금이라도 있으면(특히 "Problem"·"문제 정의"·통계·pain point 슬라이드) 반드시 그것을 problem에 쓰세요. 개발 이야기밖에 없을 때만 빈 값.
+`;
+
 const NO_HALLUCINATION_RULES = `
 [⛔ 원본에 없는 내용 절대 금지 — 기술명·수치·회사명·역할·상황 창작 불가]
 ✅ 허용: 원본 내용 요약·재구성·CARL 구조 매핑·명시된 수치 추출
@@ -331,12 +352,12 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
     ? ',\n  "jobSpecific": {\n' + jobSecs.map(s => `    "${s.key}": "${s.label} 초안 (원본 단서 기반 2~4문장, 단서 없으면 빈 문자열)"`).join(',\n') + '\n  }'
     : '';
   const archSchema = diagSec
-    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름(예: REST, 학습 데이터, 배포)" } ] }'
+    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름(예: REST, 학습 데이터, 배포)" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
     : '';
   const visual = buildVisualPrompt(jobCategory);
   const keyExpAddon = buildKeyExpJobAddon(jobCategory);
   const jobGuide = jobSecs.length
-    ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 구조화하세요. 노드 3~8개, id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${visual.guide}`
+    ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 상세히 구조화하세요. 노드 5~9개로 충분히 디테일하게 — 클라이언트/서버뿐 아니라 인증·외부 API·저장소·핵심 도메인 모듈 등 구성요소를 분리하고, 각 노드 tech에는 실제 기술명(예: React, Node.js·Express, Firestore, Google Gemini API)을 적으세요. id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 label에는 관계/흐름(예: API 요청, 조회/저장, 연동)을 적고 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → QR 교환 → 카드 수집 → 가챠 → 리포트 전달). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가, label은 단계 이름, tech에는 그 단계에서 일어나는 일을 짧게. 자료에 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${visual.guide}`
     : '';
   return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
 아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
@@ -373,6 +394,7 @@ ${contentText}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
+  "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] },
   "projectOverview": { "summary": "", "background": "", "goal": "", "role": "", "team": "", "duration": "", "techStack": [] },
   "marketResearch": {
     "marketOverview": "",
@@ -389,7 +411,7 @@ ${contentText}
   ],
   "keywords": []${jobSpecificSchema}${archSchema}${visual.schema}
 }
-${jobGuide}${keyExpAddon.guide}
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}
 수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
 }
 
@@ -415,10 +437,10 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
   // 아키텍처 다이어그램 스키마 (다이어그램 섹션이 있는 직군: dev·aiml·devops)
   const diagSec = diagramSectionOf(jobInfo.sections);
   const archSchema = diagSec
-    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름" } ] }'
+    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
     : '';
   const archGuide = diagSec
-    ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 구조화하세요. 노드 3~8개, id는 영문 고유값, tier는 위→아래 0부터(${diagSec.tierHint}). edges의 from/to는 반드시 존재하는 노드 id여야 합니다. 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n`
+    ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 구조화하세요. 노드 3~8개, id는 영문 고유값, tier는 위→아래 0부터(${diagSec.tierHint}). edges의 from/to는 반드시 존재하는 노드 id여야 합니다. 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → 핵심 행동 → 보상/결과 → 재방문). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가. 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n`
     : '';
   const visual = buildVisualPrompt(jobCategory);
 
@@ -479,12 +501,14 @@ ${WRITING_QUALITY_RULES}
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
 ${jobEmphasis}
 ${section7Guide}
+${PRODUCT_EXTRACTION_GUIDE}
 
 경험 내용:
 ${contentText}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
+  "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] },
   "projectOverview": {
     "summary": "【XYZ 공식】 핵심 성과(X)를 측정값(Y)으로 증명하고 방법(Z)을 포함한 1~2줄 임팩트 요약",
     "background": "이 프로젝트가 왜 필요했는가 — 비즈니스 문제/기회/맥락 (구체적)",
