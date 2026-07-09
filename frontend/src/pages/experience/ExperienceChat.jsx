@@ -943,13 +943,18 @@ export default function ExperienceChat() {
           content: { rawInput: allText },
         });
       }
-      // 서비스 설명(product)이 비면 전용 경량 추출로 보강 — 전체 초안이 실패/누락해도 서비스 문제정의를 확보
-      if (!asText(analysis?.product?.problem) && !asText(analysis?.product?.solution) && allText.trim()) {
+      // 서비스 설명(product)·아키텍처/흐름이 비면 전용 경량 추출로 보강 — 전체 초안 실패/누락 대비
+      const needProduct = !asText(analysis?.product?.problem) && !asText(analysis?.product?.solution);
+      const needArch = !(analysis?.architectureDiagram?.nodes?.length);
+      if ((needProduct || needArch) && allText.trim()) {
         try {
           const pr = await api.post('/experience/extract-product', { material: allText.trim() });
-          if (pr.data?.product) analysis = { ...analysis, product: pr.data.product };
+          const d = pr.data || {};
+          if (needProduct && d.product) analysis = { ...analysis, product: d.product };
+          if (needArch && d.architectureDiagram?.nodes?.length) analysis = { ...analysis, architectureDiagram: d.architectureDiagram };
+          if (!(analysis?.flowDiagram?.nodes?.length) && d.flowDiagram?.nodes?.length) analysis = { ...analysis, flowDiagram: d.flowDiagram };
         } catch (e) {
-          console.warn('[ExperienceChat] product 전용 추출 실패(무시):', e?.message);
+          console.warn('[ExperienceChat] product/다이어그램 전용 추출 실패(무시):', e?.message);
         }
       }
       setBuildSteps([{ label: 'AI 초안 생성', status: 'done' }]);

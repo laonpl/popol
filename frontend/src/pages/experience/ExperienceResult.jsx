@@ -1446,14 +1446,22 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
     if (!raw) { toast.error('원본 자료가 없어 다시 뽑을 수 없어요. (경험을 새로 만들 때 자료를 첨부해야 해요)'); return; }
     setRegenProduct(true);
     try {
-      // 전용 경량 추출 — 전체 초안이 커져 실패하는 문제와 무관하게 서비스 설명만 안정적으로 뽑는다
+      // 전용 경량 추출 — 전체 초안 실패와 무관하게 서비스 설명 + 아키텍처/흐름 다이어그램을 안정적으로 뽑는다
       const res = await api.post('/experience/extract-product', { material: raw });
       const p = res.data?.product;
       const has = p && (clean(p.problem) || clean(p.solution) || (Array.isArray(p.features) && p.features.length));
       if (!has) { toast.error('자료에서 서비스 설명을 찾지 못했어요. 문제·해결·기능이 담긴 자료인지 확인해주세요.'); setRegenProduct(false); return; }
-      // product 반영 + overviewDoc 리셋(→ product 기반 시드로 다시 그려짐)
-      onPatchSr({ ...sr, product: p, overviewDoc: null });
-      toast.success('서비스 설명을 다시 정리했어요. 상단 저장을 눌러 반영하세요.');
+      // product + (있으면)아키텍처·흐름 다이어그램 반영 + overviewDoc 리셋(→ product 기반 시드로 다시 그려짐)
+      const arch = res.data?.architectureDiagram;
+      const flow = res.data?.flowDiagram;
+      onPatchSr({
+        ...sr,
+        product: p,
+        overviewDoc: null,
+        ...(arch?.nodes?.length ? { architectureDiagram: arch } : {}),
+        ...(flow?.nodes?.length ? { flowDiagram: flow } : {}),
+      });
+      toast.success('서비스 설명·아키텍처를 다시 정리했어요. 상단 저장을 눌러 반영하세요.');
     } catch (e) {
       toast.error(e?.response?.data?.error || '다시 정리에 실패했어요. 잠시 후 다시 시도해주세요.');
     }

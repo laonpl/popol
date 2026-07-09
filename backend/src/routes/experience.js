@@ -7,6 +7,7 @@ import {
   analyzeExperience,
   generateDraftAnalysis,
   extractProduct,
+  extractDiagrams,
   generateProfileBoostDraft,
   buildFallbackExperienceAnalysis,
   extractMoments,
@@ -226,8 +227,14 @@ router.post('/extract-product', authMiddleware, requireCredits, aiRateLimiter, a
     if (!material || !String(material).trim()) {
       return res.status(400).json({ error: '자료가 필요합니다' });
     }
-    const product = await extractProduct(material);
-    res.json({ product });
+    // product(필수·서비스 전용)와 다이어그램(best-effort)을 각각 집중된 프롬프트로 분리 추출 (병렬).
+    // 다이어그램 실패는 무시 — 개발 프레이밍을 product 추출과 섞지 않는 게 핵심.
+    const diagramsPromise = extractDiagrams(material).catch((e) => {
+      console.warn('[extract-product] 다이어그램 추출 실패(무시):', e.message);
+      return { architectureDiagram: null, flowDiagram: null };
+    });
+    const [product, diagrams] = await Promise.all([extractProduct(material), diagramsPromise]);
+    res.json({ product, architectureDiagram: diagrams.architectureDiagram || null, flowDiagram: diagrams.flowDiagram || null });
   } catch (error) {
     const msg = error.message || '';
     if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {

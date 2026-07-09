@@ -839,9 +839,9 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
 }
 
 /**
- * 서비스(아이템) 설명만 추출하는 경량 프롬프트.
- * 전체 초안(product+7섹션+다이어그램…)은 응답이 커져 파싱 실패 시 로컬 폴백(원본 덤프)으로 떨어지는데,
- * 이 함수는 product만 뽑아 응답이 작고 안정적이라 '서비스 설명 다시 뽑기'에서 신뢰성 있게 동작한다.
+ * 서비스(아이템) 설명만 뽑는 경량 프롬프트 (product 전용 · 최고 신뢰).
+ * ⚠ 아키텍처/개발 지시를 절대 섞지 말 것 — 개발 프레이밍이 problem 추출을 오염시켜
+ * "베타 테스트·PMF 검증" 같은 개발 서사가 문제정의로 나온다(2026-07-09 회귀). 다이어그램은 extractDiagrams로 분리.
  */
 export async function extractProduct(materialText) {
   const text = String(materialText || '').replace(/\r\n/g, '\n').trim().slice(0, 9000);
@@ -850,10 +850,10 @@ export async function extractProduct(materialText) {
 아래 자료에서 이 서비스가 무엇이고, 어떤 사용자/시장 문제를 어떻게 푸는지를 추출하세요.
 
 [규칙]
-- ⛔ 개발 과정·베타 테스트·코드·기술스택 이야기가 아니라 "서비스/사업 관점"으로 뽑으세요.
+- ⛔ 개발 과정·베타 테스트·PMF 검증·코드·기술스택 이야기가 아니라 "서비스/사업 관점"으로 뽑으세요.
 - problem: 서비스가 겨냥한 시장/사용자의 문제. 누가 어떤 상황에서 어떤 불편·비효율을 겪는지, 가능하면 수치 포함.
   ✅ 좋은 예: "취준생이 포트폴리오 제작에 평균 40시간 이상 쓰고, 기업별로 5.2개를 재작성하며, ATS 서류에서 62%가 형식·키워드 미달로 탈락한다"
-  ❌ 나쁜 예(금지): "TTV 측정을 위해 베타 테스트를 기획했다", "React/Zustand로 상태관리를 최적화했다"
+  ❌ 나쁜 예(절대 금지): "84명 가입자로 2주 베타 테스트를 분석했다", "TTV 측정을 위해 베타 테스트를 기획했다", "Sean Ellis Test로 PMF를 검증했다", "React/Zustand로 상태관리를 최적화했다"
 - solution: 그 문제를 서비스가 어떤 방식으로 푸는지(제품·개념 관점). 테스트 방법·개발 이야기 금지.
 - features: 서비스 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
 - outcomes: 정량 성과 { "label": 지표명, "value": 값 }. 자료에 있는 수치만.
@@ -876,6 +876,51 @@ ${text}
     'ExtractProduct',
   );
   return normalizeProduct(parseJSON(raw));
+}
+
+/**
+ * 아키텍처(개발 구조) + 흐름 다이어그램만 뽑는 경량 프롬프트.
+ * product 추출과 분리해 개발 프레이밍이 서비스 문제정의를 오염시키지 않게 한다.
+ */
+export async function extractDiagrams(materialText) {
+  const text = String(materialText || '').replace(/\r\n/g, '\n').trim().slice(0, 9000);
+  if (!text) return { architectureDiagram: null, flowDiagram: null };
+  const prompt = `아래 자료를 바탕으로 이 서비스/시스템의 두 다이어그램을 박스(nodes)와 연결선(edges)으로 그리세요.
+
+[architectureDiagram] 시스템 개발 구조.
+- 노드 5~7개: 클라이언트, 서버/API, AI·핵심 엔진, 저장소(DB), (있으면)외부 API/생성 모듈 등으로 분리.
+- 각 노드 tech에 실제 기술명(예: React·JSX, Node.js·Express, Firebase Firestore, Google Gemini API). tier는 위→아래 0부터.
+- edges label에 관계/흐름(예: API 요청, 데이터 저장/조회). from/to는 존재하는 node id.
+
+[flowDiagram] 기술이 아니라 "사용자·데이터가 서비스를 어떻게 지나가는지"를 단계 박스로.
+- 노드 5~7단계(예: 원본 입력 → 처리/변환 → 검증 → 저장 → 산출/활용). tier는 흐름 순서대로 0부터. label은 단계명, tech에는 그 단계에서 일어나는 일.
+
+id는 영문 고유값. 단서가 전혀 없으면 해당 nodes/edges를 빈 배열로.
+
+자료:
+${text}
+
+아래 JSON만 출력 (설명·마크다운·코드블록 금지):
+{
+  "architectureDiagram": { "nodes": [ { "id": "", "label": "", "tech": "", "tier": 0 } ], "edges": [ { "from": "", "to": "", "label": "" } ] },
+  "flowDiagram": { "nodes": [ { "id": "", "label": "", "tech": "", "tier": 0 } ], "edges": [ { "from": "", "to": "", "label": "" } ] }
+}`;
+  const raw = await withTimeout(
+    generateWithRetry(prompt, {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1000,
+      rateLimitDelayMs: 4000,
+      callTimeoutMs: 40000,
+    }),
+    50000,
+    'ExtractDiagrams',
+  );
+  const json = parseJSON(raw) || {};
+  return {
+    architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
+  };
 }
 
 /**
