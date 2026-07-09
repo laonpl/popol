@@ -6,6 +6,7 @@ import { requireCredits } from '../services/billingService.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
+  extractProduct,
   generateProfileBoostDraft,
   buildFallbackExperienceAnalysis,
   extractMoments,
@@ -214,6 +215,25 @@ router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req,
     // 그 외 실패는 프론트 로컬 폴백을 유도 (502)
     console.warn('[Draft] 빠른 초안 생성 실패 → 프론트 로컬 폴백 유도:', msg);
     return res.status(502).json({ error: '초안 생성에 실패했습니다.', detail: msg });
+  }
+});
+
+// POST /api/experience/extract-product - 자료에서 서비스(아이템) 설명(product)만 경량 추출
+// 전체 초안이 응답 과대로 실패하는 경우에도 안정적으로 서비스 문제정의를 뽑기 위한 전용 경로.
+router.post('/extract-product', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
+  try {
+    const material = req.body?.material;
+    if (!material || !String(material).trim()) {
+      return res.status(400).json({ error: '자료가 필요합니다' });
+    }
+    const product = await extractProduct(material);
+    res.json({ product });
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    return res.status(502).json({ error: '서비스 설명 추출에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
   }
 });
 

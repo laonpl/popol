@@ -1446,10 +1446,8 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
     if (!raw) { toast.error('원본 자료가 없어 다시 뽑을 수 없어요. (경험을 새로 만들 때 자료를 첨부해야 해요)'); return; }
     setRegenProduct(true);
     try {
-      const res = await api.post('/experience/draft', {
-        content: { 자료: raw },
-        jobCategory: exp.jobCategory || sr.jobCategory || 'dev',
-      });
+      // 전용 경량 추출 — 전체 초안이 커져 실패하는 문제와 무관하게 서비스 설명만 안정적으로 뽑는다
+      const res = await api.post('/experience/extract-product', { material: raw });
       const p = res.data?.product;
       const has = p && (clean(p.problem) || clean(p.solution) || (Array.isArray(p.features) && p.features.length));
       if (!has) { toast.error('자료에서 서비스 설명을 찾지 못했어요. 문제·해결·기능이 담긴 자료인지 확인해주세요.'); setRegenProduct(false); return; }

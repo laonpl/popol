@@ -839,6 +839,46 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
 }
 
 /**
+ * 서비스(아이템) 설명만 추출하는 경량 프롬프트.
+ * 전체 초안(product+7섹션+다이어그램…)은 응답이 커져 파싱 실패 시 로컬 폴백(원본 덤프)으로 떨어지는데,
+ * 이 함수는 product만 뽑아 응답이 작고 안정적이라 '서비스 설명 다시 뽑기'에서 신뢰성 있게 동작한다.
+ */
+export async function extractProduct(materialText) {
+  const text = String(materialText || '').replace(/\r\n/g, '\n').trim().slice(0, 9000);
+  if (!text) return null;
+  const prompt = `당신은 발표자료·기획서·문서에서 "서비스(제품) 자체"를 정리하는 전문가입니다.
+아래 자료에서 이 서비스가 무엇이고, 어떤 사용자/시장 문제를 어떻게 푸는지를 추출하세요.
+
+[규칙]
+- ⛔ 개발 과정·베타 테스트·코드·기술스택 이야기가 아니라 "서비스/사업 관점"으로 뽑으세요.
+- problem: 서비스가 겨냥한 시장/사용자의 문제. 누가 어떤 상황에서 어떤 불편·비효율을 겪는지, 가능하면 수치 포함.
+  ✅ 좋은 예: "취준생이 포트폴리오 제작에 평균 40시간 이상 쓰고, 기업별로 5.2개를 재작성하며, ATS 서류에서 62%가 형식·키워드 미달로 탈락한다"
+  ❌ 나쁜 예(금지): "TTV 측정을 위해 베타 테스트를 기획했다", "React/Zustand로 상태관리를 최적화했다"
+- solution: 그 문제를 서비스가 어떤 방식으로 푸는지(제품·개념 관점). 테스트 방법·개발 이야기 금지.
+- features: 서비스 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
+- outcomes: 정량 성과 { "label": 지표명, "value": 값 }. 자료에 있는 수치만.
+- "Problem"·"문제"·통계·pain point가 담긴 부분을 반드시 problem에 반영하세요. 서비스 단서가 정말 없을 때만 빈 값. 지어내기 금지.
+
+자료:
+${text}
+
+아래 JSON만 출력 (설명·마크다운·코드블록 금지):
+{ "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] }`;
+  const raw = await withTimeout(
+    generateWithRetry(prompt, {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1000,
+      rateLimitDelayMs: 4000,
+      callTimeoutMs: 40000,
+    }),
+    50000,
+    'ExtractProduct',
+  );
+  return normalizeProduct(parseJSON(raw));
+}
+
+/**
  * 포트폴리오 "빈 섹션 채우기" 초안 생성.
  * 경험정리 + 프로필 + (선택) 공고 분석을 바탕으로 자기소개/스킬/가치관/목표/비교과 초안을 만든다.
  * 근거가 없는 항목은 빈 값으로 반환한다.
