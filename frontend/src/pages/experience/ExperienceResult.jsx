@@ -1,14 +1,22 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Github, Loader2, Sparkles } from 'lucide-react';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
+import api from '../../services/api';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
 import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
 import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
 import useExperienceStore from '../../stores/experienceStore';
 import { DEMO_MARKETER_EXPERIENCE } from './demoExperience';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
+import YooptaMiniEditor from '../../components/YooptaMiniEditor';
+import { blocksToYooptaValue } from '../../utils/projectSections';
+
+/* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
+const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
 
 /* 마크다운/플레이스홀더 정리 */
 const isDraft = (v) => {
@@ -109,6 +117,52 @@ const resizeToBase64 = (file, maxPx = 1200, quality = 0.75) =>
   });
 
 const textSeg = (content = '', variant = 'paragraph') => ({ id: uid(), type: 'text', variant, content });
+
+function makeYooptaTextBlock(content = '', variant = 'paragraph') {
+  const map = {
+    heading: ['HeadingOne', 'heading-one'],
+    subheading: ['HeadingTwo', 'heading-two'],
+    quote: ['Blockquote', 'blockquote'],
+    bullet: ['BulletedList', 'bulleted-list'],
+    paragraph: ['Paragraph', 'paragraph'],
+  };
+  const [blockType, elementType] = map[variant] || map.paragraph;
+  return {
+    id: `overview-${uid()}`,
+    type: blockType,
+    value: [{ id: `overview-el-${uid()}`, type: elementType, children: [{ text: content || '' }] }],
+    meta: { depth: 0 },
+  };
+}
+
+function makeYooptaImageBlock(src, width = '100%') {
+  return {
+    id: `overview-img-${uid()}`,
+    type: 'Image',
+    value: [{
+      id: `overview-img-el-${uid()}`,
+      type: 'image',
+      children: [{ text: '' }],
+      props: { src, alt: 'image', sizes: { width: width === '100%' ? 720 : 520, height: 420 }, fit: 'contain', nodeType: 'void' },
+    }],
+    meta: { depth: 0, align: 'center' },
+  };
+}
+
+function isYooptaDoc(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).some(block => block?.type && block?.value));
+}
+
+function caseBodyToYooptaValue(segments = []) {
+  const blocks = (Array.isArray(segments) ? segments : [])
+    .map(seg => {
+      if (seg?.type === 'image' && seg.content) return makeYooptaImageBlock(seg.content, seg.width);
+      if (seg?.type === 'text') return makeYooptaTextBlock(seg.content || '', seg.variant);
+      return null;
+    })
+    .filter(Boolean);
+  return blocksToYooptaValue(blocks);
+}
 
 /* 키워드 기반 역량 추출 — 본문 하이라이트/핵심경험 키워드를 유형별로 정리 */
 const COMP_GROUPS = [
