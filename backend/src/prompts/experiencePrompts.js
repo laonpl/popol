@@ -127,6 +127,28 @@ const GLOBAL_PORTFOLIO_TECHNIQUES = `
 `;
 
 // ============================================================
+// 마케터 특별 규칙 (ma.md 기반 — 마케터 경험정리 AI 운영 문서)
+// ============================================================
+const MARKETER_RULES = `
+[🎯 마케터 경험정리 특별 규칙 — 반드시 준수]
+당신은 단순 글정리 도우미가 아니라 마케터 커리어 자료를 설계하는 AI 커리어 전략가입니다.
+"이 경험이 어떤 마케팅 역량을 증명하는가?"를 찾아내는 것이 최우선 목표입니다.
+
+1. 구조: 경험을 "활동 나열"이 아니라 문제 → 목표/KPI → 타깃 → 전략 → 실행 → 성과 → 인사이트 구조로 재구성하세요.
+2. 수치: 조회수·전환율·매출·광고비·ROAS·고객 데이터는 사용자가 제공하지 않으면 절대 생성 금지. 없으면 "[확인 필요]"로 표기하세요.
+3. 대체 지표: 수치가 없으면 제작물 수, 운영 기간, 게시 빈도, 실험 횟수, 협업 인원, 전후 비교 가능성, 정성 피드백을 대체 지표로 제안하세요.
+4. 직무 번역: 단순 활동을 마케팅 직무 언어로 번역하세요. (예: "카드뉴스를 만들었다" → "타깃이 반복 소비하는 정보형 콘텐츠를 기획·제작하고 반응 데이터로 개선")
+5. 역할 구분: 팀 성과와 본인 기여를 반드시 구분하고, 기여 형태(단독/리드/공동/보조)를 명시하세요.
+6. 문장 공식: "담당했습니다", "참여했습니다"로 끝나는 약한 문장 금지. "[강한 동사]+[대상/업무]+[방법/툴/전략]+[성과/결과]" 공식으로 작성하세요.
+7. 금지: "열정", "책임감" 같은 추상어 반복 금지. 확인 안 된 성과("ROAS 300% 달성") 작성 금지. 실패 경험을 억지로 성공담으로 포장 금지 — 실패는 판단 과정과 배움으로 정리.
+8. 민감 정보: 회사 내부 매출·광고비·고객 데이터는 비식별 표현(예: "전월 대비 n% 수준", "내부 기준 상위권")을 제안하세요.
+9. 직무 관점: 같은 경험도 콘텐츠/퍼포먼스/CRM/브랜드/그로스 중 어떤 관점을 증명하는지 구분해 키워드로 남기세요.
+10. 최종 산출물: 마케터 경험정리는 반드시 아래 7개가 함께 나와야 합니다.
+    ① 마케터 포지셔닝 진단 리포트 ② 경험정리 카드 ③ 포트폴리오 초안 ④ 이력서/경력기술서 문장 ⑤ 자기소개서 소재 ⑥ 면접 답변 스크립트 ⑦ 부족한 경험/증거 보완 액션 플랜.
+11. 각 산출물은 "완성본 + 근거 + 수정 방향"을 함께 제시하세요. 그럴듯한 완성문만 쓰지 말고, 어떤 증거가 부족한지와 다음에 무엇을 확인해야 하는지를 명확히 남기세요.
+`;
+
+// ============================================================
 // 직군별 특화 섹션 정의 (ex.md 기반)
 // ============================================================
 const JOB_META = {
@@ -186,11 +208,14 @@ const JOB_META = {
     ],
   },
   marketer: {
-    label: '마케터 (콘텐츠/퍼포먼스)',
-    emphasis: '타겟 페르소나 설정 논리, 채널 믹스 전략, ROAS·CVR·CTR 수치 성과에 집중하세요.',
+    label: '마케터 (콘텐츠/퍼포먼스/CRM/브랜드/그로스)',
+    emphasis: '경험을 문제 → 목표/KPI → 타깃 → 전략 → 실행 → 성과 → 인사이트의 마케팅 사고 과정으로 재구성하세요. 수치가 없으면 [확인 필요]로 표기하고 대체 지표(제작물 수·운영 기간·게시 빈도·실험 횟수·정성 피드백)를 제안하세요.',
     sections: [
-      { key: 'mediaStrategy', label: '매체 전략 및 타겟팅',    guide: '타겟 페르소나 설정 기준, 채널(메타·구글·카카오 등) 선택 이유와 믹스 비율, 크리에이티브 전략.' },
-      { key: 'kpi',           label: '핵심 성과 지표 (KPI)',  guide: 'ROAS·CVR·CTR·CPA·CAC 등 캠페인 목표 지표와 실제 달성 수치, 기간별 추이, 최적화 액션.' },
+      { key: 'funnel',        label: '캠페인 스토리 (문제→인사이트)', guide: '문제/기회 → 목표·KPI → 타깃 → 전략 → 실행 → 성과 → 인사이트 순서로 마케팅 사고 과정을 단계별로 서술. 각 단계가 명확히 구분되게. 성과 수치가 없으면 [확인 필요]와 대체 지표를 함께 제시.' },
+      { key: 'targetChannel', label: '타깃 & 채널 전략',            guide: '타깃 페르소나 설정 기준(누구를, 왜), 채널(메타·구글·인스타그램·카카오 등) 선택 이유와 믹스, 크리에이티브/메시지 방향과 그 근거.' },
+      { key: 'kpiEvidence',   label: 'KPI & 증거 자료',             guide: '① 확인된 정량 지표(사용자 제공 수치만) ② [확인 필요] 지표 ③ 사용 가능한 대체 지표(제작물 수·운영 기간·빈도·실험 횟수) ④ 확보하면 좋은 증거 자료(콘텐츠 캡처·성과 리포트·링크) 순으로 정리.' },
+      { key: 'resumeBullets', label: '이력서 bullet 초안',          guide: '"[강한 동사]+[대상/업무]+[방법/툴/전략]+[성과/결과]" 공식으로 2~3개 작성. 수치 없으면 [확인 필요] 표기. "담당했습니다"류 약한 종결 금지. 한 줄씩 개행으로 구분.' },
+      { key: 'jdKeywordMap',  label: 'JD 키워드 매핑',              guide: '이 경험이 증명하는 직무 키워드(콘텐츠 기획, SNS 운영, 퍼포먼스 최적화, CRM 시나리오, 데이터 기반 개선 등)와 각 키워드를 어떤 사실이 증명하는지 연결해 서술.' },
     ],
   },
   hr: {
@@ -214,12 +239,113 @@ const JOB_META = {
 };
 
 // ============================================================
+// 마케터 전용 산출물(marketerKit) JSON 스키마 — draft/overview 공용
+// ============================================================
+const MARKETER_KIT_SCHEMA = `,
+  "marketerKit": {
+    "positioning": "추천 방향을 한 문장으로 압축. 예: 콘텐츠 기획과 채널 운영 경험을 가진 신입 콘텐츠 마케터",
+    "positioningReport": {
+      "recommendedPositions": [
+        { "name": "콘텐츠 마케터", "score": 78, "reason": "이 점수의 근거. 점수는 진단용 추정치이며 성과 수치가 아님" },
+        { "name": "브랜드 마케터", "score": 64, "reason": "브랜드 메시지/타깃 이해 등 근거" },
+        { "name": "CRM 마케터", "score": 42, "reason": "고객 세그먼트/메시지 경험 근거 또는 부족한 이유" },
+        { "name": "퍼포먼스 마케터", "score": 31, "reason": "광고·전환·KPI 경험 근거 또는 부족한 이유" }
+      ],
+      "strengths": ["현재 강점 3~5개"],
+      "weaknesses": ["현재 약점 3~5개"],
+      "recommendation": "추천 포지셔닝 문장. 어떤 마케터로 보이면 좋은지 명확히",
+      "priorityFixes": ["우선 보완할 것 3~5개"]
+    },
+    "experienceCards": [
+      {
+        "id": "EXP-001",
+        "title": "프로젝트/경험명",
+        "experienceType": "대외활동 / 콘텐츠 마케팅 / SNS 운영 등",
+        "period": "기간 또는 [확인 필요]",
+        "oneLineSummary": "프로젝트 한 줄 요약",
+        "problem": "문제",
+        "goal": "목표",
+        "role": ["내 역할"],
+        "tools": ["사용 툴"],
+        "execution": ["실행 내용"],
+        "results": ["성과. 수치가 없으면 [확인 필요] 또는 정성 결과"],
+        "evidence": ["증거 자료"],
+        "portfolioFit": "A-|B+ 등",
+        "resumeFit": "A-|B+ 등",
+        "coverLetterUses": ["직무역량", "문제해결", "콘텐츠 기획 경험"]
+      }
+    ],
+    "portfolioDraft": {
+      "pages": [
+        { "page": "1P", "title": "커버", "copy": "실제 넣을 문구", "visuals": ["넣을 이미지/증거"], "revisionNote": "보완 방향" }
+      ],
+      "projects": [
+        {
+          "title": "대표 프로젝트명",
+          "slides": [
+            { "title": "Slide 1. 프로젝트 개요", "purpose": "프로젝트 목적", "role": "내 역할", "keyResult": "핵심 성과", "images": ["넣을 이미지"] },
+            { "title": "Slide 2. 문제 정의와 전략", "problem": "문제", "hypothesis": "가설", "strategy": ["전략"] },
+            { "title": "Slide 3. 결과와 인사이트", "result": "결과", "insight": "인사이트", "nextImprovement": "다음 개선안" }
+          ]
+        }
+      ]
+    },
+    "resumeVariants": [
+      { "label": "1안: 수치가 부족한 보수적 버전", "sentence": "성과를 과장하지 않은 이력서 문장" },
+      { "label": "2안: 수치 입력형 버전", "sentence": "[x]% 등 확인 후 채울 수 있는 문장" },
+      { "label": "3안: 콘텐츠 마케터 지원용", "sentence": "콘텐츠 직무 키워드 중심 문장" },
+      { "label": "4안: 브랜드 마케터 지원용", "sentence": "브랜드 메시지/타깃 관점 문장" },
+      { "label": "5안: 경력기술서형", "sentence": "목적/역할/실행/성과/툴이 보이는 문장 또는 bullet 묶음" }
+    ],
+    "coverLetter": {
+      "mappings": [
+        { "questionType": "직무역량", "fit": "가장 적합|활용 가능|보완 필요|부적합", "reason": "왜 이 문항에 맞는지/부족한지" }
+      ],
+      "drafts": [
+        { "questionType": "직무역량", "text": "자기소개서 초안 4~5문단" }
+      ],
+      "warning": "보완 필요 경고. 정확한 수치/증거가 없으면 무엇을 확인해야 하는지"
+    },
+    "interviewScripts": {
+      "answers": [
+        {
+          "question": "이 경험을 설명해 주세요",
+          "answer30": "30초 답변",
+          "answer60": "1분 답변",
+          "answer180": "3분 답변",
+          "followUps": ["예상 꼬리질문"],
+          "defense": "수치가 부족하거나 역할 질문을 받을 때의 방어 답변"
+        }
+      ]
+    },
+    "actionPlan": [
+      { "priority": "1", "action": "보완 액션", "why": "왜 필요한지", "how": "어떻게 할지", "evidenceToCollect": ["확보할 자료"] }
+    ],
+    "funnel": { "problem": "해결하려던 문제/기회", "goal": "목표·KPI", "target": "타깃", "strategy": "전략", "execution": "실행", "result": "성과", "insight": "인사이트" },
+    "kpis": [ { "name": "지표명", "value": "값 또는 [확인 필요]", "status": "확인됨|확인 필요" } ],
+    "altMetrics": ["대체 지표"],
+    "resumeBullets": ["기존 호환용 이력서 문장"],
+    "jdKeywords": ["직무 키워드"],
+    "evidenceChecklist": ["증거 자료"]
+  }`;
+
+const MARKETER_DRAFT_JOB_SCHEMA = `,
+  "jobSpecific": {
+    "funnel": "문제→목표→타깃→전략→실행→성과→인사이트 구조의 캠페인 스토리 (4~7문장)",
+    "targetChannel": "타깃 페르소나 설정 기준과 채널 선택 이유·믹스 (2~4문장)",
+    "kpiEvidence": "확인된 지표 / [확인 필요] 지표 / 대체 지표 / 확보할 증거 자료 정리",
+    "resumeBullets": "이력서 bullet 2~3개 (한 줄씩 개행으로 구분)",
+    "jdKeywordMap": "직무 키워드와 각 키워드를 증명하는 사실 연결"
+  }${MARKETER_KIT_SCHEMA}`;
+
+// ============================================================
 // 빠른 초안(Draft) — 단일 호출용 경량 프롬프트
 //   목적: 검색·분할 없이 flash 1회로 "봐줄 수준"의 초안을 빠르게 생성.
 //   깊이 있는 보강(시장지표/검색/핵심경험 N개)은 이후 analyze 단계가 담당.
 // ============================================================
 export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
   const jobInfo = JOB_META[jobCategory] || JOB_META.common;
+  const isMarketer = jobCategory === 'marketer';
   return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
 아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
 완성본이 아니라 초안이지만, 그대로 읽어도 어색하지 않은 자연스러운 한국어가 되어야 합니다.
@@ -228,6 +354,7 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
 ${NO_HALLUCINATION_RULES}
 
 ${WRITING_QUALITY_RULES}
+${isMarketer ? MARKETER_RULES : ''}
 
 [초안 작성 규칙]
 - 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 섹션에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
@@ -269,9 +396,9 @@ ${contentText}
   "keyExperiences": [
     { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar" }
   ],
-  "keywords": []
+  "keywords": []${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : ''}
 }
-
+${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
 수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
 }
 
@@ -281,6 +408,7 @@ ${contentText}
 export function buildOverviewPrompt(contentText, jobCategory = 'common') {
   const jobInfo = JOB_META[jobCategory] || JOB_META.common;
   const hasJobSections = jobInfo.sections.length > 0;
+  const isMarketer = jobCategory === 'marketer';
 
   // 직군 특화 섹션 지시문 생성
   const jobSectionGuides = hasJobSections
@@ -349,6 +477,7 @@ ${MARKET_RESEARCH_RULES}
 ${SLIDE_PORTFOLIO_RULES}
 ${WRITING_QUALITY_RULES}
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
+${isMarketer ? MARKETER_RULES : ''}
 ${jobEmphasis}
 ${section7Guide}
 
@@ -406,9 +535,10 @@ ${contentText}
   "process": "행동과 의사결정 과정 (Trade-off+대안 비교+Bias for Action 포함, 3~5문장)",
   "output": "성과와 산출물 (XYZ 공식+Second-Order Effect 체인으로 서술, 3~5문장)",
   "growth": "성장·인사이트 (Counter-Intuitive Insight 패턴 권장, 역량 변화 구체화, 3~4문장)",
-  "competency": "발휘된 역량과 입사 후 기여 (Amazon LP 관점, 구체적 기여 방법, 3~4문장)"${jobSectionSchema}
+  "competency": "발휘된 역량과 입사 후 기여 (Amazon LP 관점, 구체적 기여 방법, 3~4문장)"${jobSectionSchema}${isMarketer ? MARKETER_KIT_SCHEMA : ''}
 }
 ${hasJobSections ? `\n[직군 특화 섹션 작성 지침 — jobSpecific]\n${jobSectionGuides}\n원본에 관련 내용이 있다면 최대한 끌어모아 3~5문장으로 풍부하게 서술하세요. 원본에 없으면 "[작성 필요] ..." 처리.` : ''}
+${isMarketer ? '\n[marketerKit 작성 지침] 마케터 채용 문서(포트폴리오·이력서)에 바로 붙여넣을 수 있는 수준으로 작성하세요. 성과 수치는 원본에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하고 altMetrics에 대체 지표를 제안하세요.' : ''}
 
 원본에 없는 내용은 "[작성 필요] ..." 로 남기세요. 있는 내용은 강력한 능동 동사, XYZ 공식, Second-Order Effect로 재구성하세요.`;
 }

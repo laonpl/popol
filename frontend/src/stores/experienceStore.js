@@ -94,8 +94,11 @@ export const JOB_SPECIFIC_FIELDS = {
     { key: 'designSystem',     label: '디자인 시스템',        subtitle: '일관된 컴포넌트, 폰트, 컬러 규격화 수립 여부',                  placeholder: '디자인 시스템 구축 과정과 적용 범위를 설명해주세요',           color: 'bg-pink-50 border-pink-200' },
   ],
   marketer: [
-    { key: 'mediaStrategy', label: '매체 전략 및 타겟팅',    subtitle: '타겟 페르소나 설정 및 채널(메타, 구글 등) 믹스 전략',            placeholder: '타겟 설정과 매체 믹스 전략을 설명해주세요',                   color: 'bg-rose-50 border-rose-200' },
-    { key: 'kpi',           label: '핵심 성과 지표 (KPI)',  subtitle: 'ROAS, CVR, CTR 등 캠페인 결과 데이터 시각화',                  placeholder: '캠페인 성과 지표와 달성 결과를 구체적으로 설명해주세요',         color: 'bg-rose-50 border-rose-200' },
+    { key: 'funnel',        label: '캠페인 스토리',    subtitle: '문제 → 목표/KPI → 타깃 → 전략 → 실행 → 성과 → 인사이트',           placeholder: '어떤 문제/기회에서 시작해 어떤 전략으로 실행하고 무엇을 배웠는지 흐름으로 설명해주세요', color: 'bg-rose-50 border-rose-200' },
+    { key: 'targetChannel', label: '타깃 & 채널 전략', subtitle: '타깃 페르소나 설정 기준과 채널(메타·구글 등) 믹스 전략',              placeholder: '누구를 타깃으로, 어떤 채널을 왜 선택했는지 설명해주세요',                             color: 'bg-rose-50 border-rose-200' },
+    { key: 'kpiEvidence',   label: 'KPI & 증거 자료',  subtitle: '확인된 지표 · [확인 필요] 지표 · 대체 지표 · 증거 자료',              placeholder: '확인된 수치와 확보 가능한 증거 자료(캡처·리포트·링크)를 정리해주세요',                 color: 'bg-rose-50 border-rose-200' },
+    { key: 'resumeBullets', label: '이력서 bullet',    subtitle: '[강한 동사]+[대상/업무]+[방법/툴]+[성과] 공식 문장',                 placeholder: '이력서에 바로 쓸 수 있는 한 줄 성과 문장을 작성해주세요',                             color: 'bg-rose-50 border-rose-200' },
+    { key: 'jdKeywordMap',  label: 'JD 키워드 매핑',   subtitle: '이 경험이 증명하는 직무 키워드와 근거 연결',                         placeholder: '콘텐츠 기획, SNS 운영, 퍼포먼스 최적화 등 증명 가능한 키워드를 연결해주세요',           color: 'bg-rose-50 border-rose-200' },
   ],
   hr: [
     { key: 'hiringPipeline', label: '채용 파이프라인 기획', subtitle: '서류 스크리닝, 자동화 등 채용 리드타임 단축 전략',                 placeholder: '채용 프로세스 설계와 리드타임 단축 전략을 설명해주세요',       color: 'bg-amber-50 border-amber-200' },

@@ -524,10 +524,18 @@ function PreviewKeySlides({ keyExperiences }) {
 
 // 하이라이트 색상 매핑 (밑줄 스타일)
 const highlightColors = {
-  core:    { underline: '#ef4444', bg: 'bg-red-50',   label: '핵심 역량', desc: '이 경험에서 발휘된 핵심 역량입니다',       dot: 'bg-red-400',   text: 'text-red-700'   },
-  derived: { underline: '#f59e0b', bg: 'bg-amber-50', label: '파생 역량', desc: '핵심 역량에서 파생된 부가적인 역량입니다', dot: 'bg-amber-400', text: 'text-amber-700' },
-  growth:  { underline: '#22c55e', bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
+  core:    { underline: '#ef4444', hl: 'rgba(239,68,68,0.30)',  bg: 'bg-red-50',   label: '핵심 역량', desc: '이 경험에서 발휘된 핵심 역량입니다',       dot: 'bg-red-400',   text: 'text-red-700'   },
+  derived: { underline: '#f59e0b', hl: 'rgba(245,158,11,0.32)', bg: 'bg-amber-50', label: '파생 역량', desc: '핵심 역량에서 파생된 부가적인 역량입니다', dot: 'bg-amber-400', text: 'text-amber-700' },
+  growth:  { underline: '#22c55e', hl: 'rgba(34,197,94,0.30)',  bg: 'bg-green-50', label: '성장 관점', desc: '이 경험을 통해 성장하거나 배운 내용입니다', dot: 'bg-green-400', text: 'text-green-700' },
 };
+// 형광펜 스타일 — 글자 아래쪽만 마커로 덮음 (밑줄 대신)
+const hlMarker = (rgba) => ({
+  background: `linear-gradient(180deg, transparent 40%, ${rgba} 40%)`,
+  padding: '0 3px 1px',
+  borderRadius: '2px',
+  boxDecorationBreak: 'clone',
+  WebkitBoxDecorationBreak: 'clone',
+});
 
 /* ── 근거 레벨 (A~D) — 주장의 증거 강도. 보고서: A 직접증거 ~ D 추정 ── */
 const EVIDENCE_LEVELS = {
@@ -625,14 +633,6 @@ const SECTION_META = {
   output:     { num: '05', label: '결과물', subtitle: '최종으로 진행한 내용 + 포인트', accent: 'primary', accentHex: '#10b981' },
   growth:     { num: '06', label: '성장한 점', subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점', accent: 'primary', accentHex: '#f43f5e' },
   competency: { num: '07', label: '나의 역량', subtitle: '입사 시 기여할 수 있는 부분', accent: 'primary', accentHex: '#0d9488' },
-};
-
-/* ── 탭별 안내: 무엇을 / 어떻게 / 어디에 쓰이는지 (사용자가 헤매지 않도록) ── */
-const TAB_GUIDE = {
-  story:    { step: '1단계', title: '프로젝트를 한 편의 글로 정리', desc: '배경·문제·과정·결과 순서로 작성해요. 여기 내용이 포트폴리오로 내보낼 화면의 본문이 됩니다. 아래 번호를 누르면 해당 부분으로 바로 이동해요.' },
-  keyexp:   { step: '2단계', title: '면접에서 말할 대표 사례 2~3개', desc: '상황·행동·결과·성과 수치로 정리하면 내보낼 화면에 카드로 들어갑니다.' },
-  analysis: { step: '3단계', title: '역량 정리 + 시장 근거', desc: '작성한 내용에서 핵심·파생·성장 역량을 모으고, 성과에 출처가 확인된 시장 근거를 더해 의미를 키워요.' },
-  coverletter: { step: '4단계', title: '이 경험을 자소서에 쓰는 법', desc: '추천 문항, STAR 요약, 강조 포인트와 예시 문단을 모아 자기소개서 작성에 바로 활용하세요.' },
 };
 
 /* ── 역량 키워드 카테고리 스타일 ── */
@@ -833,7 +833,7 @@ function CompetencyMeterCompact({ highlights = [], keywords = [], keyExperiences
   if (groups.length === 0 && relatedKeywords.length === 0) return null;
 
   return (
-    <section className="mb-5 overflow-hidden rounded-lg border border-surface-200 bg-white">
+    <section className="mb-5 overflow-hidden rounded-2xl border border-surface-100 bg-white shadow-[0_6px_24px_rgba(15,40,80,0.05)]">
       <div className="flex flex-col gap-4 border-b border-surface-200 px-5 py-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="text-[12px] font-black uppercase tracking-[0.16em] text-primary-600">Competency Map</p>
@@ -1388,8 +1388,7 @@ export default function StructuredResult() {
   const sliderRef = useRef(null);
   const [sectionSlideIdx, setSectionSlideIdx] = useState(0);
   // 고급수정 4탭: 스토리 / 핵심경험 / 분석 / 리서치
-  const [activeTab, setActiveTab] = useState('story');
-  const mobileDefaultTabAppliedRef = useRef(false);
+  const [activeTab, setActiveTab] = useState('story'); // 스토리 / 자소서 활용 2개만
 
   /* ── 역량 키워드 커스터마이징 ── */
   const [newKeywordIdx, setNewKeywordIdx] = useState(null);     // 팝인 애니메이션 대상 인덱스
@@ -1578,7 +1577,7 @@ export default function StructuredResult() {
         if (!viewOnly) {
           // 모든 섹션 즉시 오픈 (딩칸/채워진 관계없이)
           const autoEdit = {};
-          SECTION_KEYS.forEach(k => { autoEdit[k] = true; });
+          SECTION_KEYS.forEach(k => { autoEdit[k] = false; });
           setEditingSections(autoEdit);
         }
       }
@@ -1587,14 +1586,6 @@ export default function StructuredResult() {
     }
     setLoading(false);
   };
-
-  useEffect(() => {
-    if (mobileDefaultTabAppliedRef.current || loading || activeTab !== 'story' || editedKeyExperiences.length === 0) return;
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-      setActiveTab('keyexp');
-    }
-    mobileDefaultTabAppliedRef.current = true;
-  }, [activeTab, editedKeyExperiences.length, loading]);
 
   const handleFieldChange = (key, value) => {
     const cleanValue = sanitizeTextValue(value);
@@ -2738,12 +2729,10 @@ export default function StructuredResult() {
     const nextSlideIdx = Math.min(item.targetSlide ?? 0, SECTION_COUNT - 1);
     setActiveQualityId(item.id);
     setSectionSlideIdx(nextSlideIdx);
-    // 항목이 속한 탭으로 먼저 전환한 뒤 해당 섹션으로 스크롤
-    const tab = item.id === 'keyExperiences' ? 'keyexp' : item.id === 'research' ? 'analysis' : 'story';
-    setActiveTab(tab);
+    // 스토리 섹션으로 스크롤 (탭 제거로 스토리/자소서만 노출)
     requestAnimationFrame(() => {
       const sectionKey = SECTION_KEYS[nextSlideIdx];
-      const target = (tab === 'story' && sectionKey && document.getElementById(`story-${sectionKey}`)) || detailSlidesRef.current;
+      const target = (sectionKey && document.getElementById(`story-${sectionKey}`)) || detailSlidesRef.current;
       target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   };
@@ -2777,23 +2766,7 @@ export default function StructuredResult() {
   ];
 
   const renderDetailSlides = () => (
-    <div ref={detailSlidesRef} className="mb-6 w-full scroll-mt-6">
-      {/* 진행률 + 하이라이트 범례 (카드 없이 한 줄) */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-surface-200 pb-3">
-        <span className="flex items-center gap-2.5 text-[13.5px] font-semibold text-bluewood-400 tabular-nums">
-          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-100">
-            <span className="block h-full rounded-full bg-primary-500 transition-all" style={{ width: `${completionPct}%` }} />
-          </span>
-          {filledCount}/{SECTION_COUNT} 섹션 작성됨
-        </span>
-        {(structured.highlights || []).length > 0 && Object.entries(highlightColors).map(([key, color]) => (
-          <div key={key} className="flex items-center gap-1.5 text-[13px] text-bluewood-500">
-            <span className="inline-block w-4" style={{ borderBottom: `2.5px solid ${color.underline}` }} />
-            {color.label}
-          </div>
-        ))}
-      </div>
-
+    <div ref={detailSlidesRef} className="w-full scroll-mt-6">
       <div className="divide-y divide-surface-200">
         {SECTION_KEYS.map((key) => {
           const meta = SECTION_META[key];
@@ -2808,78 +2781,73 @@ export default function StructuredResult() {
                 {/* 좌측 번호 거터 — 본문은 오른쪽으로 들여써 왼쪽 여백 확보 */}
                 <span className="shrink-0 w-6 pt-0.5 text-right text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
                 <div className="min-w-0 flex-1">
-              {/* 섹션 헤더 */}
-              <div className="mb-3.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="text-[21px] sm:text-[24px] font-extrabold leading-snug text-bluewood-900">{meta.label}</h3>
-                <span className="text-[13.5px] text-bluewood-300">{meta.subtitle}</span>
+              {/* 섹션 헤더 — 제목 + 오른쪽으로 뻗는 얇은 선 (결과 페이지와 동일한 문법) */}
+              <div className="mb-3.5 flex items-center gap-3.5">
+                <h3 className="flex-shrink-0 text-[19px] sm:text-[21px] font-extrabold leading-snug tracking-tight text-bluewood-900">{meta.label}</h3>
+                <span className="h-px flex-1 bg-surface-200" />
               </div>
 
-              {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 — 컴팩트 메타 스트립 */}
+              {/* 프로젝트 소개에만: 기간/역할/팀/범위/목표 — 보기 모드는 한 줄 인라인으로 압축 */}
               {key === 'intro' && (
-                <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg border border-surface-200 bg-surface-50/50 px-4 py-3 sm:grid-cols-3">
-                  {INTRO_META.map(item => {
-                    const fullWidth = item.key === 'scopeOfImpact' || item.key === 'goal';
+                viewOnly ? (
+                  (() => {
+                    const items = INTRO_META.map(m => [m.label, cleanForDisplay(editedOverview?.[m.key])]).filter(([, v]) => v);
+                    if (items.length === 0) return null;
                     return (
-                      <div key={item.key} className={`flex min-w-0 items-baseline gap-2 ${fullWidth ? 'sm:col-span-3' : ''}`}>
-                        <dt className="w-[52px] shrink-0 text-[11px] font-bold text-bluewood-400">{item.label}</dt>
-                        {viewOnly ? (
-                          <dd className="min-w-0 flex-1 text-[13.5px] font-semibold leading-snug text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{cleanForDisplay(editedOverview?.[item.key]) || '—'}</dd>
-                        ) : (
-                          <textarea
-                            rows={1}
-                            ref={el => autoGrow(el)}
-                            value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
-                            onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
-                            placeholder={item.placeholder}
-                            className="min-w-0 flex-1 resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[13.5px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
-                            style={{ overflow: 'hidden', overflowWrap: 'anywhere', boxSizing: 'border-box' }}
-                          />
-                        )}
+                      <div className="mb-3.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] leading-snug">
+                        {items.map(([label, v], i) => (
+                          <span key={i} style={{ wordBreak: 'keep-all' }}><span className="font-bold text-bluewood-400">{label}</span> <span className="font-semibold text-bluewood-700">{v}</span></span>
+                        ))}
                       </div>
                     );
-                  })}
-                </dl>
-              )}
-
-              {/* 본문 */}
-              {!viewOnly ? (
-                <textarea
-                  rows={1}
-                  ref={el => autoGrow(el)}
-                  value={display}
-                  onChange={e => { handleFieldChange(key, e.target.value); autoGrow(e.target); }}
-                  placeholder={field?.placeholder || '내용을 입력하세요'}
-                  className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[16.5px] leading-[1.9] text-bluewood-700 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
-                  style={{ overflow: 'hidden', overflowWrap: 'anywhere', minHeight: '3.2rem', boxSizing: 'border-box' }}
-                />
-              ) : display ? (
-                <div className="whitespace-pre-wrap break-words text-[16.5px] leading-[1.9] text-bluewood-700" style={{ overflowWrap: 'anywhere' }}>
-                  <HighlightedText text={display} highlights={sectionHighlights} keywords={editedKeywords} showKeywordUnderline={true} />
-                </div>
-              ) : (
-                <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>
-              )}
-
-              {/* 핵심 포인트 — 편집 중에도 수치/역량 키워드를 강조해 보여준다 */}
-              {!viewOnly && (() => {
-                const metricTokens = [...new Set((display.match(/\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위)/g) || []).map(s => s.trim()))].slice(0, 6);
-                const kwSeen = new Set();
-                const hlKw = [];
-                (sectionHighlights || []).forEach(h => (h.keywords || []).forEach(k => {
-                  const kk = stripMarkdown(String(k || '')).trim();
-                  if (kk && !kwSeen.has(kk)) { kwSeen.add(kk); hlKw.push({ k: kk, type: h.type }); }
-                }));
-                if (metricTokens.length === 0 && hlKw.length === 0) return null;
-                return (
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-bluewood-300">핵심 포인트</span>
-                    {metricTokens.map((m, i) => (
-                      <span key={`m${i}`} className="rounded-md bg-primary-50 px-2 py-0.5 text-[12px] font-extrabold text-primary-700">{m}</span>
+                  })()
+                ) : (
+                  <dl className="mb-4 grid grid-cols-2 gap-x-5 gap-y-1 rounded-lg border border-surface-200 bg-surface-50/50 px-3.5 py-2 sm:grid-cols-3">
+                    {INTRO_META.map(item => (
+                      <div key={item.key} className="flex min-w-0 items-baseline gap-2">
+                        <dt className="w-[48px] shrink-0 text-[11px] font-bold text-bluewood-400">{item.label}</dt>
+                        <textarea
+                          rows={1}
+                          ref={el => autoGrow(el)}
+                          value={isInstructionLike(editedOverview?.[item.key]) ? '' : sanitizeTextValue(editedOverview?.[item.key] || '')}
+                          onChange={e => { markDirty(); setEditedOverview(prev => ({ ...prev, [item.key]: sanitizeTextValue(e.target.value) })); autoGrow(e.target); }}
+                          placeholder={item.placeholder}
+                          className="min-w-0 flex-1 resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[13px] font-semibold leading-snug text-bluewood-800 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-white"
+                          style={{ overflow: 'hidden', overflowWrap: 'anywhere', boxSizing: 'border-box' }}
+                        />
+                      </div>
                     ))}
-                    {hlKw.slice(0, 6).map((h, i) => {
-                      const c = highlightColors[h.type]?.underline || '#64748b';
-                      return <span key={`k${i}`} className="rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${c}1a`, color: c }}>{h.k}</span>;
-                    })}
+                  </dl>
+                )
+              )}
+
+              {/* 본문 — 편집 모드에서도 형광펜 하이라이트를 보여주고, 클릭하면 편집 */}
+              {(() => {
+                const editing = !viewOnly && (editingSections[key] || !display);
+                if (editing) {
+                  return (
+                    <textarea
+                      rows={1}
+                      ref={el => autoGrow(el)}
+                      autoFocus={!!editingSections[key]}
+                      value={display}
+                      onChange={e => { handleFieldChange(key, e.target.value); autoGrow(e.target); }}
+                      onBlur={() => setEditingSections(prev => ({ ...prev, [key]: false }))}
+                      placeholder={field?.placeholder || '내용을 입력하세요'}
+                      className="w-full resize-none break-words rounded-md bg-transparent px-1 -mx-1 text-[14.5px] leading-[1.9] text-bluewood-600 outline-none transition-colors placeholder:text-bluewood-300 focus:bg-primary-50/40"
+                      style={{ overflow: 'hidden', overflowWrap: 'anywhere', minHeight: '3.2rem', boxSizing: 'border-box' }}
+                    />
+                  );
+                }
+                if (!display) return <p className="text-[15px] text-bluewood-300">아직 내용이 없습니다.</p>;
+                return (
+                  <div
+                    className={`whitespace-pre-wrap break-words rounded-md text-[14.5px] leading-[1.9] text-bluewood-600 ${!viewOnly ? 'cursor-text px-1 -mx-1 transition-colors hover:bg-surface-50/70' : ''}`}
+                    style={{ overflowWrap: 'anywhere' }}
+                    onClick={!viewOnly ? () => setEditingSections(prev => ({ ...prev, [key]: true })) : undefined}
+                    title={!viewOnly ? '클릭해서 편집' : undefined}
+                  >
+                    <HighlightedText text={display} highlights={sectionHighlights} keywords={editedKeywords} showKeywordUnderline={true} />
                   </div>
                 );
               })()}
@@ -2940,10 +2908,10 @@ export default function StructuredResult() {
         )}
         {!navState?.isTutorialDemo && (
           <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
-            <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
-              케이스 스터디
+            <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 sm:px-3.5 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
+              핵심 경험
             </Link>
-            <span className="rounded-lg bg-white px-3 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
+            <span className="rounded-lg bg-white px-3 sm:px-3.5 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
           </div>
         )}
         {!viewOnly && !navState?.isTutorialDemo && (
@@ -3017,46 +2985,28 @@ export default function StructuredResult() {
       {/* 제목 + 탭 — 한 덩어리의 헤더 (밑줄은 탭 아래 하나만) */}
       <h1 className="mb-3 text-[28px] font-extrabold leading-tight text-bluewood-900 sm:text-[34px]">{editedTitle || experience?.title || '경험 제목'}</h1>
 
-      {/* ── 고급수정 4탭 네비게이션 — GitHub UnderlineNav 스타일 (호버 필 + 활성 밑줄) ── */}
-      <div className="sticky top-0 z-20 mb-6 border-b border-surface-200 bg-white">
-        <nav className="-mb-px flex gap-1 overflow-x-auto">
+      {/* ── 스토리 / 자소서 활용 2개 메뉴 ── */}
+      <div className="mb-6 border-b border-surface-200">
+        <nav className="-mb-px flex gap-1">
           {[
-            { key: 'story', label: '스토리', count: SECTION_COUNT },
-            { key: 'keyexp', label: '핵심 경험', count: editedKeyExperiences.length || null },
-            { key: 'analysis', label: '역량 · 시장 근거', count: (editedResearch.decisionMetrics.length + (editedResearch.impactBridges || []).length) || null },
-            { key: 'coverletter', label: '자소서 활용', count: null },
+            { key: 'story', label: '스토리' },
+            { key: 'coverletter', label: '활용' },
           ].map(tab => {
             const active = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`group relative whitespace-nowrap px-1 pb-2 pt-1.5 border-b-2 transition-colors ${active ? 'border-primary-600' : 'border-transparent hover:border-surface-300'}`}
+                className={`whitespace-nowrap border-b-2 px-1 pb-2 pt-1.5 transition-colors ${active ? 'border-primary-600' : 'border-transparent hover:border-surface-300'}`}
               >
-                <span className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[14px] transition-colors ${active ? 'font-bold text-bluewood-900' : 'font-medium text-bluewood-400 group-hover:bg-surface-50 group-hover:text-bluewood-700'}`}>
-                  {tab.label}
-                  {tab.count != null && (
-                    <span className={`rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums ${active ? 'bg-primary-50 text-primary-700' : 'bg-surface-100 text-bluewood-400'}`}>{tab.count}</span>
-                  )}
-                </span>
+                <span className={`rounded-md px-3.5 py-1.5 text-[16px] transition-colors ${active ? 'font-extrabold text-bluewood-900' : 'font-semibold text-bluewood-400 hover:bg-surface-50 hover:text-bluewood-700'}`}>{tab.label}</span>
               </button>
             );
           })}
         </nav>
       </div>
 
-      {/* 현재 탭이 무엇을·어떻게·어디에 쓰이는지 안내 (박스 없이 한 줄로) */}
-      {TAB_GUIDE[activeTab] && (
-        <p className="mb-6 text-[13px] leading-relaxed text-bluewood-400">
-          <span className="font-bold text-primary-600">{TAB_GUIDE[activeTab].step}</span>
-          <span className="mx-1.5 text-bluewood-200">·</span>
-          <span className="font-bold text-bluewood-700">{TAB_GUIDE[activeTab].title}</span>
-          <span className="mx-1.5 text-bluewood-200">—</span>
-          {TAB_GUIDE[activeTab].desc}
-        </p>
-      )}
-
-      {/* 스토리 탭: 섹션 바로가기 — 어디까지 썼는지 + 클릭 시 해당 섹션으로 이동 */}
+      {/* 섹션 바로가기 — 어디까지 썼는지 + 클릭 시 해당 섹션으로 이동 */}
       {activeTab === 'story' && (
         <div className="mb-6 flex flex-wrap gap-1.5">
           {SECTION_KEYS.map(key => {
@@ -3104,9 +3054,10 @@ export default function StructuredResult() {
       {/* 케이스 스터디에서 추가한 핵심 경험 사진 — 자세히보기에도 자연스럽게 반영 */}
       {activeTab === 'keyexp' && Object.keys(keyExpImages).length > 0 && (
         <div className="mb-6 border-t border-surface-200 pt-6">
-          <div className="mb-4 flex items-baseline gap-2">
-            <h3 className="text-[15px] font-extrabold text-bluewood-900">핵심 경험 사진</h3>
-            <span className="text-[12px] text-bluewood-300">케이스 스터디에서 추가한 사진이 함께 반영됩니다</span>
+          <div className="mb-4 flex items-center gap-3.5">
+            <h3 className="flex-shrink-0 text-[16px] font-extrabold tracking-tight text-bluewood-900">핵심 경험 사진</h3>
+            <span className="h-px flex-1 bg-surface-200" />
+            <span className="hidden flex-shrink-0 text-[12px] text-bluewood-300 sm:block">케이스 스터디에서 추가한 사진이 함께 반영됩니다</span>
           </div>
           <div className="space-y-6">
             {Object.entries(keyExpImages).map(([idx, imgs]) => {
@@ -3152,12 +3103,13 @@ export default function StructuredResult() {
         const jobLabel = jobMeta?.label || jobCategory;
 
         return (
-          <div className="border border-surface-100 overflow-hidden">
-            {/* 직군 특화 헤더 */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-100">
-              <span className="px-2.5 py-1 bg-primary-600 text-white rounded-md text-[13px] font-bold tracking-wide uppercase">직군 특화</span>
-              <span className="text-[14px] font-semibold text-bluewood-700">{jobLabel} 핵심 분석 섹션</span>
-              <span className="text-[14px] text-bluewood-300 ml-1">— 채용 담당자가 가장 주목하는 항목</span>
+          <div className="overflow-hidden rounded-2xl border border-surface-100 bg-white shadow-[0_6px_24px_rgba(15,40,80,0.05)]">
+            {/* 직군 특화 헤더 — 제목 + 가로선 (통일 문법) */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-surface-100 px-6 py-4">
+              <span className="rounded-md bg-primary-600 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-white">직군 특화</span>
+              <span className="text-[15px] font-extrabold tracking-tight text-bluewood-900">{jobLabel} 핵심 분석 섹션</span>
+              <span className="hidden h-px flex-1 bg-surface-200 sm:block" />
+              <span className="text-[12.5px] text-bluewood-300">채용 담당자가 가장 주목하는 항목</span>
             </div>
 
             <div className="divide-y divide-surface-100">
@@ -3263,12 +3215,12 @@ export default function StructuredResult() {
         const infographic = normalizeDeskResearchInfographic(R.deskResearchInfographic);
         return (
         <div className="mt-2">
-          {/* 헤더 */}
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-surface-200 pb-4 mb-7">
-            <div className="min-w-0">
-              <h2 className="text-[21px] font-extrabold text-bluewood-900">시장·지표 근거</h2>
-              <p className="mt-1.5 text-[14px] text-bluewood-500 leading-relaxed">AI가 실제 출처 기반 시장조사 인포그래픽과 의사결정 지표를 정리합니다. 외부 수치는 비교 기준으로만 사용합니다.</p>
-            </div>
+          {/* 헤더 — 제목 + 가로선 (결과 페이지와 동일한 문법) */}
+          <div className="mb-7">
+            <div className="flex flex-wrap items-center gap-4">
+              <h2 className="flex-shrink-0 text-[16px] font-extrabold tracking-tight text-bluewood-900">시장 · 지표 근거</h2>
+              <span className="h-px flex-1 bg-surface-200" />
+            <p className="order-last w-full pt-2 text-[13px] leading-relaxed text-bluewood-400">AI가 실제 출처 기반 시장조사 인포그래픽과 의사결정 지표를 정리합니다. 외부 수치는 비교 기준으로만 사용합니다.</p>
             {!viewOnly && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={handleResearchMetrics} disabled={researchingMetrics}
@@ -3280,13 +3232,14 @@ export default function StructuredResult() {
                   className="px-3 py-2 rounded-lg border border-surface-200 text-[13.5px] font-semibold text-bluewood-600 hover:bg-surface-50 transition-colors">지표 추가</button>
               </div>
             )}
+            </div>
           </div>
 
           <div className="space-y-9">
             {/* 시장 맥락 */}
             {(R.marketOverview || !viewOnly) && (
               <div>
-                <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">시장 맥락</p>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">시장 맥락</p>
                 {viewOnly ? (
                   <p className="text-[15.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{R.marketOverview || '—'}</p>
                 ) : (
@@ -3303,7 +3256,7 @@ export default function StructuredResult() {
             {infographic.cards.length > 0 && (
               <div>
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">시장조사 인포그래픽</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">시장조사 인포그래픽</p>
                   <span className="text-[12px] font-semibold text-bluewood-300">출처 URL이 확인된 수치만 표시</span>
                 </div>
                 <DeskResearchInfographic infographic={infographic} />
@@ -3314,7 +3267,7 @@ export default function StructuredResult() {
             {(R.impactBridges || []).length > 0 && (
               <div>
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">내 성과 × 외부 연구</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">내 성과 × 외부 연구</p>
                   <span className="text-[12px] font-semibold text-bluewood-300">내 실제 수치는 그대로, 의미는 출처 있는 연구로 해석한 추정입니다</span>
                 </div>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
@@ -3360,7 +3313,7 @@ export default function StructuredResult() {
             {/* 의사결정 지표 — 깔끔한 목록형 */}
             {R.decisionMetrics.length > 0 && (
               <div>
-                <p className="mb-1 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">의사결정에 쓸 지표</p>
+                <p className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">의사결정에 쓸 지표</p>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {R.decisionMetrics.map((metric, index) => {
                     const cm = confMeta[metric.confidence] || confMeta.medium;
@@ -3431,7 +3384,7 @@ export default function StructuredResult() {
             {/* 강조 관점 — 목록형 */}
             {R.portfolioAngles.length > 0 && (
               <div>
-                <p className="mb-2.5 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">포트폴리오에서 강조할 관점</p>
+                <p className="mb-2.5 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">포트폴리오에서 강조할 관점</p>
                 <ul className="space-y-2.5">
                   {R.portfolioAngles.map((angle, i) => (
                     <li key={i} className="flex gap-2.5 text-[14.5px] leading-[1.7] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
@@ -3446,7 +3399,7 @@ export default function StructuredResult() {
             {/* 근거 자료 (출처) */}
             {validSources.length > 0 && (
               <div>
-                <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[0.08em] text-bluewood-400">근거 자료 {validSources.length}건</p>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500">근거 자료 {validSources.length}건</p>
                 <div className="border-t border-surface-200 divide-y divide-surface-200">
                   {validSources.map((source, index) => {
                     const hasUrl = /^https?:\/\//.test(source.url || '');
@@ -3480,8 +3433,8 @@ export default function StructuredResult() {
         );
       })()}
 
-      {/* ── 자소서 활용 (별도 탭) ── */}
-      {activeTab === 'coverletter' && (() => {
+      {/* ── 자소서 활용 가이드 (비마케터 — 마케터는 아래 통합 활용 킷으로 대체) ── */}
+      {activeTab === 'coverletter' && !experience?.structuredResult?.marketerKit && (() => {
         const ov = editedOverview || {};
         const clean = (v) => stripMarkdown(sanitizeTextValue(v || '')).replace(/\s+/g, ' ').trim();
         const clip = (v, max = 120) => {
@@ -3598,14 +3551,28 @@ export default function StructuredResult() {
             ? `${metrics[0]} 같은 지표를 어떤 방식으로 측정했고, 왜 그 지표를 우선순위로 삼았는지 후속 질문이 이어질 수 있습니다.`
             : '완주율, 재방문율, 채택률, 만족도 등 여러 검증 지표 중 무엇을 먼저 볼 것인지 이유를 준비하세요.',
         ];
-        const draft = [
-          intro,
-          (action || result) && `${role ? `${role}로서 ` : ''}${action}${result ? `, 그 결과 ${result}` : ''}`.replace(/\s+/g, ' ').trim(),
-          growth && `이 경험을 통해 ${growth}`,
-        ].filter(Boolean).join(' ');
+        // 자소서 예시 — 한 덩어리 대신 문단별로 나눠 추천 (자연스러운 1인칭 어투)
+        const draftParagraphs = [
+          {
+            label: '1문단 · 문제를 마주한 순간',
+            body: `${problem ? `${clip(problem, 92)} 상황에서도` : '눈에 띄는 문제를 그냥 넘기지 않고'} 저는 무엇이 진짜 원인인지부터 확인하려 했습니다. 보기 좋은 결과를 서두르기보다, 문제를 정확히 정의하는 일이 먼저라고 생각했기 때문입니다.`,
+          },
+          {
+            label: '2문단 · 어떻게 움직였는가',
+            body: `${role ? `${role}로서 ` : ''}${action ? clip(action, 100) : '가설을 세우고 우선순위를 정해 하나씩 실행했습니다'}. 여러 선택지 중 왜 이 방법을 골랐는지 기준을 먼저 세웠고, 판단의 근거를 기록으로 남겨 다음 결정에 다시 활용했습니다.`,
+          },
+          {
+            label: '3문단 · 결과와 그 근거',
+            body: `${result ? `그 결과 ${clip(result, 100)}` : '그 결과 눈에 보이는 변화를 만들 수 있었습니다'}. ${metrics.length ? `${metrics.slice(0, 2).join(', ')} 같은 수치는 운이 아니라 반복 가능한 과정에서 나왔다고 생각합니다.` : '숫자로 다 담기는 어려웠지만, 같은 방식이라면 다시 만들 수 있다는 확신을 얻었습니다.'}`,
+          },
+          {
+            label: '4문단 · 배운 점과 직무 연결',
+            body: `${growth ? `이 경험은 저에게 ${clip(growth, 88)}를 남겼습니다.` : '이 경험은 문제를 구조로 바라보는 습관을 남겼습니다.'} 앞으로 ${role || '지원한 직무'}에서도 과제를 빠르게 쳐내기보다, 무엇을 왜 하는지부터 정의하고 검증하며 일하겠습니다.`,
+          },
+        ];
         if (!(intro || action || result || kws.length)) return null;
         return (
-          <section className="rounded-lg border border-surface-200 bg-white">
+          <section className="rounded-2xl border border-surface-100 bg-white shadow-[0_6px_24px_rgba(15,40,80,0.05)]">
             <div className="border-b border-surface-200 px-5 py-5 sm:px-7">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -3625,7 +3592,7 @@ export default function StructuredResult() {
               <div className="px-5 py-6 sm:px-7">
                 <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                   <div>
-                    <p className="text-[13px] font-black text-primary-600">1) 경험 요약 및 핵심 자산화</p>
+                    <p className="flex items-baseline gap-2.5"><span className="text-[24px] font-extrabold leading-none text-primary-500">1</span><span className="text-[14.5px] font-extrabold text-bluewood-900">경험 요약 및 핵심 자산화</span></p>
                     <h4 className="mt-2 text-[18px] font-extrabold text-bluewood-900">이 경험을 어떻게 자소서 소재로 볼 것인가</h4>
                     <p className="mt-3 text-[14.5px] leading-[1.85] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
                       {experienceName} 경험은 단순한 결과물 제작 사례가 아니라, 문제를 정의하고 실행 기준을 세운 뒤 검증 가능한 경험으로 구조화한 기획 사례입니다. 핵심은 많이 보여주고 싶은 경험을 평가자가 빠르게 판단할 수 있는 정보로 바꿨다는 점입니다.
@@ -3649,7 +3616,7 @@ export default function StructuredResult() {
               </div>
 
               <div className="px-5 py-6 sm:px-7">
-                <p className="text-[13px] font-black text-primary-600">2) 추천 구성 전략</p>
+                <p className="flex items-baseline gap-2.5"><span className="text-[24px] font-extrabold leading-none text-primary-500">2</span><span className="text-[14.5px] font-extrabold text-bluewood-900">추천 구성 전략</span></p>
                 <div className="mt-4 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
                   <div className="space-y-3">
                     {strategyList.map(item => (
@@ -3663,7 +3630,7 @@ export default function StructuredResult() {
                     ))}
                   </div>
                   <div>
-                    <h4 className="text-[15px] font-extrabold text-bluewood-900">문단 흐름</h4>
+                    <h4 className="text-[17px] font-extrabold text-bluewood-900">문단 흐름</h4>
                     <div className="mt-3 border-l-2 border-primary-200 pl-4">
                       {paragraphFlow.map((item, index) => (
                         <div key={item.label} className={index === paragraphFlow.length - 1 ? 'pb-0' : 'pb-4'}>
@@ -3677,10 +3644,10 @@ export default function StructuredResult() {
               </div>
 
               <div className="px-5 py-6 sm:px-7">
-                <p className="text-[13px] font-black text-primary-600">3) 문장 아이디어와 표현 가이드</p>
+                <p className="flex items-baseline gap-2.5"><span className="text-[24px] font-extrabold leading-none text-primary-500">3</span><span className="text-[14.5px] font-extrabold text-bluewood-900">문장 아이디어와 표현 가이드</span></p>
                 <div className="mt-4 grid gap-6 lg:grid-cols-2">
                   <div>
-                    <h4 className="text-[15px] font-extrabold text-bluewood-900">핵심 문장 아이디어</h4>
+                    <h4 className="text-[17px] font-extrabold text-bluewood-900">핵심 문장 아이디어</h4>
                     <ol className="mt-3 space-y-2.5">
                       {sentenceIdeas.map((sentence, index) => (
                         <li key={index} className="flex gap-3 text-[13.5px] leading-[1.75] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
@@ -3692,7 +3659,7 @@ export default function StructuredResult() {
                   </div>
                   <div className="grid gap-4">
                     <div>
-                      <h4 className="text-[15px] font-extrabold text-bluewood-900">추천 표현 방식</h4>
+                      <h4 className="text-[17px] font-extrabold text-bluewood-900">추천 표현 방식</h4>
                       <div className="mt-3 divide-y divide-surface-100 rounded-lg border border-surface-200">
                         {expressionGuide.map(item => (
                           <div key={item.good} className="grid grid-cols-[0.82fr_1fr] gap-3 px-3.5 py-3 text-[13px]">
@@ -3703,7 +3670,7 @@ export default function StructuredResult() {
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-[15px] font-extrabold text-bluewood-900">피해야 할 문장 유형</h4>
+                      <h4 className="text-[17px] font-extrabold text-bluewood-900">피해야 할 문장 유형</h4>
                       <ul className="mt-3 space-y-2">
                         {avoidList.map(item => (
                           <li key={item} className="flex gap-2 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
@@ -3718,7 +3685,7 @@ export default function StructuredResult() {
               </div>
 
               <div className="px-5 py-6 sm:px-7">
-                <p className="text-[13px] font-black text-primary-600">4) 면접 확장 포인트</p>
+                <p className="flex items-baseline gap-2.5"><span className="text-[24px] font-extrabold leading-none text-primary-500">4</span><span className="text-[14.5px] font-extrabold text-bluewood-900">면접 확장 포인트</span></p>
                 <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                   <div className="space-y-3">
                     {interviewQuestions.map((question, index) => (
@@ -3728,16 +3695,277 @@ export default function StructuredResult() {
                       </div>
                     ))}
                   </div>
-                  {draft && (
+                  {draftParagraphs.length > 0 && (
                     <div className="rounded-lg border border-primary-100 bg-primary-50/60 p-4">
-                      <h4 className="text-[15px] font-extrabold text-bluewood-900">예시 한 문단</h4>
-                      <p className="mt-3 text-[13.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{draft}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-[17px] font-extrabold text-bluewood-900">예시 자소서 문단</h4>
+                        <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-primary-600 ring-1 ring-primary-100">직무역량 문항 기준</span>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {draftParagraphs.map((p, i) => (
+                          <div key={i}>
+                            <p className="text-[11.5px] font-bold text-primary-500">{p.label}</p>
+                            <p className="mt-0.5 text-[13.5px] leading-[1.8] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{p.body}</p>
+                          </div>
+                        ))}
+                      </div>
                       <p className="mt-4 border-l-2 border-primary-500 pl-3 text-[12.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
-                        완성 문단으로 바로 쓰기보다 본인의 구체 수치, 고민 과정, 선택하지 않은 대안을 1~2문장 더 보태면 훨씬 진짜 경험처럼 읽힙니다.
+                        그대로 옮기기보다 문단마다 본인의 구체 수치·고민·선택하지 않은 대안을 한두 문장 더 얹어 주세요. 담백한 '~했습니다' 어투로 한 문장에 한 가지 메시지만 담으면 훨씬 사람이 쓴 것처럼 읽힙니다.
                       </p>
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ── 취업 활용 킷 (마케터) — 이력서·자소서·면접 작성법을 적용한 통합 페이지 ── */}
+      {activeTab === 'coverletter' && experience?.structuredResult?.marketerKit && (() => {
+        const kit = experience.structuredResult.marketerKit || {};
+        const kt = (v) => stripMarkdown(sanitizeTextValue(String(v ?? ''))).trim();
+        const clip = (v, m = 92) => { const s = kt(v); return s.length > m ? `${s.slice(0, m - 1).trim()}…` : s; };
+
+        // ── AI 산출물 ──
+        const resumeVariants = (Array.isArray(kit.resumeVariants) && kit.resumeVariants.length
+          ? kit.resumeVariants.map(r => ({ sentence: kt(r?.sentence || r?.text) }))
+          : (Array.isArray(kit.resumeBullets) ? kit.resumeBullets.map(s => ({ sentence: kt(s) })) : [])
+        ).filter(r => r.sentence);
+        const mappings = (Array.isArray(kit.coverLetter?.mappings) ? kit.coverLetter.mappings : [])
+          .map(m => ({ questionType: kt(m?.questionType), fit: kt(m?.fit), reason: kt(m?.reason) })).filter(m => m.questionType || m.reason);
+        const drafts = (Array.isArray(kit.coverLetter?.drafts) ? kit.coverLetter.drafts : [])
+          .map(d => ({ questionType: kt(d?.questionType), text: kt(d?.text) })).filter(d => d.text);
+        const warning = kt(kit.coverLetter?.warning);
+        const answers = (Array.isArray(kit.interviewScripts?.answers) ? kit.interviewScripts.answers : [])
+          .map(a => ({
+            question: kt(a?.question), answer30: kt(a?.answer30), answer60: kt(a?.answer60),
+            answer180: kt(a?.answer180), defense: kt(a?.defense),
+            followUps: (Array.isArray(a?.followUps) ? a.followUps : []).map(kt).filter(Boolean),
+          })).filter(a => a.question || a.answer30);
+        const plan = ((Array.isArray(kit.actionPlan) && kit.actionPlan.length)
+          ? kit.actionPlan.map(p => ({ action: kt(p?.action), why: kt(p?.why), how: kt(p?.how), evidence: (Array.isArray(p?.evidenceToCollect) ? p.evidenceToCollect : []).map(kt).filter(Boolean) }))
+          : (Array.isArray(kit.evidenceChecklist) ? kit.evidenceChecklist : []).map(item => ({ action: kt(item), why: '이력서·자소서 문장의 근거를 보강하기 위해', how: '캡처·링크·기획안·리포트로 정리', evidence: [] }))
+        ).filter(p => p.action);
+
+        // ── 경험 맥락 (예시·핵심 자산용) ──
+        const ov = editedOverview || {};
+        const pk = editedKeyExperiences[0] || {};
+        const intro = kt(editedContent.intro) || kt(ov.summary) || kt(pk.context);
+        const problem = kt(ov.background) || kt(ov.goal) || kt(pk.context) || intro;
+        const action = kt(editedContent.process) || kt(pk.action) || kt(pk.title);
+        const result = kt(editedContent.output) || kt(pk.result) || kt(pk.metric) || kt(pk.afterMetric);
+        const growth = kt(editedContent.growth) || kt(pk.learning);
+        const role = kt(ov.role);
+        const allText = [intro, problem, action, result, growth,
+          ...editedKeyExperiences.flatMap(k => [k.title, k.metric, k.context, k.action, k.result, k.learning].map(kt))].join(' ');
+        const metrics = [...new Set((allText.match(/\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위)/g) || []).map(s => s.trim()))].slice(0, 6);
+        const kws = [...new Set([...(Array.isArray(kit.jdKeywords) ? kit.jdKeywords : []), ...(editedKeywords || [])].map(kt).filter(Boolean))].slice(0, 8);
+
+        // ── 취업 자료 작성 팁 (간결) ──
+        const STRONG_VERBS = ['주도', '설계', '구축', '개선', '전환', '달성', '단축', '검증'];
+        const EXPR_GUIDE = [
+          { bad: '담당했다 / 참여했다', good: '주도해 ~을 만들었다' },
+          { bad: '문제를 발견했다', good: '~의 구조적 원인을 정의했다' },
+          { bad: '열심히 / 최선을 다했다', good: '~기준으로 우선순위를 정해 실행했다' },
+          { bad: '정리했다', good: '검증 가능한 기준으로 구조화했다' },
+          { bad: '많이 배웠다', good: '~을 다음 프로젝트에 적용했다' },
+        ];
+        const AVOID = [
+          '열정·노력·최선처럼 근거 없는 추상 표현',
+          '검증 전 성과를 확정하는 표현 (예: 완전히 혁신했다)',
+          '맞춤형·효율적·체계적 같은 단어의 반복',
+          '한 문장에 여러 메시지를 몰아넣는 긴 문장',
+        ];
+        const experienceName = clip(editedTitle || ov.summary || '이 경험', 34);
+        const draftParagraphs = [
+          { label: '1문단 · 문제를 마주한 순간', body: `${problem ? `${clip(problem, 90)} 상황에서도` : '눈에 띄는 문제를 그냥 넘기지 않고'} 저는 무엇이 진짜 원인인지부터 확인하려 했습니다. 보기 좋은 결과를 서두르기보다, 문제를 정확히 정의하는 일이 먼저라고 생각했기 때문입니다.` },
+          { label: '2문단 · 어떻게 움직였는가', body: `${role ? `${role}로서 ` : ''}${action ? clip(action, 96) : '가설을 세우고 우선순위를 정해 하나씩 실행했습니다'}. 여러 선택지 중 왜 이 방법을 골랐는지 기준을 먼저 세웠고, 판단의 근거를 기록으로 남겨 다음 결정에 다시 활용했습니다.` },
+          { label: '3문단 · 결과와 그 근거', body: `${result ? `그 결과 ${clip(result, 96)}` : '그 결과 눈에 보이는 변화를 만들 수 있었습니다'}. ${metrics.length ? `${metrics.slice(0, 2).join(', ')} 같은 수치는 운이 아니라 반복 가능한 과정에서 나왔다고 생각합니다.` : '숫자로 다 담기는 어려웠지만, 같은 방식이라면 다시 만들 수 있다는 확신을 얻었습니다.'}` },
+          { label: '4문단 · 배운 점과 직무 연결', body: `${growth ? `이 경험은 저에게 ${clip(growth, 84)}를 남겼습니다.` : '이 경험은 문제를 구조로 바라보는 습관을 남겼습니다.'} 앞으로 ${role || '지원한 직무'}에서도 과제를 빠르게 쳐내기보다, 무엇을 왜 하는지부터 정의하고 검증하며 일하겠습니다.` },
+        ];
+
+        const EmptyHint = ({ children }) => (
+          <p className="mt-3 rounded-lg border border-dashed border-surface-200 bg-surface-50/50 px-4 py-3 text-[13.5px] leading-[1.75] text-bluewood-400" style={{ wordBreak: 'keep-all' }}>{children}</p>
+        );
+        const TipLine = ({ children }) => (
+          <p className="mt-2 flex gap-1.5 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}><span className="flex-shrink-0">💡</span><span>{children}</span></p>
+        );
+
+        return (
+          <section className="mt-8 overflow-hidden rounded-2xl border border-surface-100 bg-white shadow-[0_6px_24px_rgba(15,40,80,0.05)]">
+            <div className="border-b border-surface-200 bg-gradient-to-br from-primary-50/70 to-white px-6 py-6 sm:px-8">
+              <p className="text-[12.5px] font-black uppercase tracking-[0.18em] text-primary-600">Application Kit</p>
+              <h3 className="mt-1.5 text-[27px] font-black leading-tight text-bluewood-950">취업 활용 킷</h3>
+              <p className="mt-2 max-w-3xl text-[14.5px] leading-[1.75] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{experienceName} 경험을 이력서·자기소개서·면접에 바로 옮길 수 있게 정리했어요.</p>
+              {(metrics.length > 0 || kws.length > 0) && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {metrics.map(m => <span key={m} className="rounded-md bg-bluewood-900 px-2.5 py-1 text-[13.5px] font-black text-white">{m}</span>)}
+                  {kws.map(k => <span key={k} className="rounded-md border border-primary-100 bg-white px-2.5 py-1 text-[13px] font-bold text-primary-700">{k}</span>)}
+                </div>
+              )}
+            </div>
+
+            <div className="divide-y divide-surface-200">
+              {/* 이력서 — 내 문장 위주, 팁은 한 줄 */}
+              <div className="px-6 py-6 sm:px-8">
+                <h4 className="text-[18px] font-extrabold text-bluewood-900">이력서 · 경력기술서 문장</h4>
+                <TipLine><b className="text-bluewood-800">XYZ 공식</b> — [성과]를 [수치]만큼, [방법]을 통해. {STRONG_VERBS.slice(0, 6).join('·')} 같은 강한 동사로 시작하세요.</TipLine>
+                {resumeVariants.length > 0 ? (
+                  <ol className="mt-4 space-y-2.5">
+                    {resumeVariants.map((r, i) => (
+                      <li key={i} className="flex gap-3">
+                        <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-bluewood-900 text-[12px] font-black text-white">{i + 1}</span>
+                        <p className="text-[15px] font-bold leading-[1.75] text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{r.sentence}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <EmptyHint>아직 추출된 이력서 문장이 없어요. 핵심 경험 페이지에서 AI로 보강하면 성과 수치가 담긴 문장이 채워집니다.</EmptyHint>
+                )}
+              </div>
+
+              {/* 자기소개서 — 내 자료(추천 문항·초안·예시) 위주, 가이드는 접이식 */}
+              <div className="px-6 py-6 sm:px-8">
+                <h4 className="text-[18px] font-extrabold text-bluewood-900">자기소개서</h4>
+                <TipLine><b className="text-bluewood-800">두괄식</b>으로 결론 먼저 → <b className="text-bluewood-800">STAR</b>(상황·과제·행동·결과)로 근거. 담백한 ‘~했습니다’ 어투, 한 문장에 한 메시지.</TipLine>
+
+                {(mappings.length > 0 || drafts.length > 0 || warning) && (
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                    {mappings.length > 0 && (
+                      <div className="space-y-2.5">
+                        <p className="text-[13px] font-bold text-bluewood-400">추천 문항</p>
+                        {mappings.map((m, i) => (
+                          <div key={i} className="rounded-lg border border-surface-200 p-3.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-[14px] font-extrabold text-bluewood-900">{m.questionType}</p>
+                              {m.fit && <span className="rounded bg-primary-50 px-2 py-0.5 text-[11.5px] font-bold text-primary-700">{m.fit}</span>}
+                            </div>
+                            {m.reason && <p className="mt-1.5 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{m.reason}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {drafts.length > 0 && <p className="text-[13px] font-bold text-bluewood-400">AI 초안</p>}
+                      {drafts.map((d, i) => (
+                        <div key={i} className="relative overflow-hidden rounded-lg border border-surface-200 p-4">
+                          <span className="absolute left-0 top-0 h-full w-1 bg-primary-500" />
+                          {d.questionType && <p className="text-[13px] font-black text-primary-600">{d.questionType}</p>}
+                          <p className="mt-1.5 text-[14px] leading-[1.8] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{d.text}</p>
+                        </div>
+                      ))}
+                      {warning && <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-[13.5px] font-bold leading-[1.7] text-amber-800" style={{ wordBreak: 'keep-all' }}>{warning}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* 예시 자소서 (문단별) */}
+                <div className="mt-5 rounded-xl border border-primary-100 bg-primary-50/50 p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h5 className="text-[15px] font-extrabold text-bluewood-900">예시 자소서 (문단별)</h5>
+                    <span className="rounded-md bg-white px-2 py-0.5 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">직무역량 문항</span>
+                  </div>
+                  <div className="mt-3.5 space-y-3.5">
+                    {draftParagraphs.map((p, i) => (
+                      <div key={i}>
+                        <p className="text-[12.5px] font-bold text-primary-500">{p.label}</p>
+                        <p className="mt-1 text-[14.5px] leading-[1.85] text-bluewood-700" style={{ wordBreak: 'keep-all' }}>{p.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-4 border-l-2 border-primary-500 pl-3.5 text-[13px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                    그대로 옮기기보다 문단마다 본인의 구체 수치·고민·선택하지 않은 대안을 한두 문장 더 얹으면 훨씬 진짜 경험처럼 읽힙니다.
+                  </p>
+                </div>
+
+                {/* 표현 가이드 — 접이식으로 접어 시야에서 뺌 */}
+                <details className="group mt-4 rounded-lg border border-surface-200 px-4 py-3">
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-[13.5px] font-bold text-bluewood-600">
+                    <span>표현 업그레이드 · 피해야 할 표현 보기</span>
+                    <span className="text-bluewood-300 transition-transform group-open:rotate-180">▾</span>
+                  </summary>
+                  <div className="mt-3 grid gap-5 lg:grid-cols-2">
+                    <div className="divide-y divide-surface-100 overflow-hidden rounded-lg border border-surface-200">
+                      {EXPR_GUIDE.map((e, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5">
+                          <span className="text-[13px] text-bluewood-300 line-through">{e.bad}</span>
+                          <span className="text-[12px] text-primary-400">→</span>
+                          <span className="text-[13px] font-bold text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{e.good}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <ul className="space-y-2">
+                      {AVOID.map((a, i) => (
+                        <li key={i} className="flex gap-2.5 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                          <span className="mt-[8px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" />{a}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
+              </div>
+
+              {/* 면접 — 내 답변 위주, 팁은 한 줄 */}
+              <div className="px-6 py-6 sm:px-8">
+                <h4 className="text-[18px] font-extrabold text-bluewood-900">면접 답변</h4>
+                <TipLine><b className="text-bluewood-800">STAR</b>(상황·과제·행동·결과)로 구조 잡고, 30초 → 1분 → 3분으로 확장하세요.</TipLine>
+                {answers.length > 0 ? (
+                  <div className="mt-4 space-y-4">
+                    {answers.map((a, i) => (
+                      <div key={i} className="rounded-lg border border-surface-200 p-5">
+                        <div className="flex items-start gap-2.5">
+                          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bluewood-900 text-[12px] font-black text-white">Q</span>
+                          <p className="pt-0.5 text-[15.5px] font-extrabold leading-snug text-bluewood-950" style={{ wordBreak: 'keep-all' }}>{a.question}</p>
+                        </div>
+                        {a.answer30 && (
+                          <div className="mt-3.5 rounded-lg bg-indigo-50/60 px-4 py-3 ring-1 ring-indigo-100/70">
+                            <p className="text-[11px] font-black uppercase tracking-wide text-indigo-500">30초 · 핵심</p>
+                            <p className="mt-1 text-[14.5px] font-bold leading-[1.7] text-indigo-950" style={{ wordBreak: 'keep-all' }}>{a.answer30}</p>
+                          </div>
+                        )}
+                        {(a.answer60 || a.answer180) && (
+                          <div className="mt-2.5">
+                            <p className="text-[11px] font-black uppercase tracking-wide text-bluewood-400">1~3분 · 상세</p>
+                            <p className="mt-1 text-[14px] leading-[1.85] text-bluewood-600" style={{ wordBreak: 'keep-all' }}>{[a.answer60, a.answer180].filter(Boolean).join(' ')}</p>
+                          </div>
+                        )}
+                        {a.followUps.length > 0 && (
+                          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[12px] font-bold text-bluewood-400">예상 꼬리질문</span>
+                            {a.followUps.map((f, fi) => <span key={fi} className="rounded-full bg-amber-50 px-2.5 py-1 text-[12.5px] font-bold text-amber-700 ring-1 ring-amber-100">{f}</span>)}
+                          </div>
+                        )}
+                        {a.defense && <p className="mt-3 border-l-2 border-red-200 pl-3.5 text-[13.5px] font-semibold leading-[1.7] text-red-900/70" style={{ wordBreak: 'keep-all' }}>압박 방어 — {a.defense}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyHint>면접 답변 스크립트가 아직 없어요. 핵심 경험 페이지에서 AI로 보강하면 예상 질문과 STAR 답변이 채워집니다.</EmptyHint>
+                )}
+              </div>
+
+              {/* 보완 액션 — 내 할 일 위주 */}
+              <div className="px-6 py-6 sm:px-8">
+                <h4 className="text-[18px] font-extrabold text-bluewood-900">부족한 부분 보완</h4>
+                <p className="mt-1.5 text-[13.5px] text-bluewood-400">지금 이 자료를 더 강하게 만들 일들이에요.</p>
+                <div className="mt-4" />
+                {plan.length > 0 ? (
+                  <div className="space-y-3">
+                    {plan.map((p, i) => (
+                      <div key={i} className="flex gap-3">
+                        <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-bluewood-900 text-[12px] font-black text-white">{i + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[14.5px] font-bold leading-snug text-bluewood-900" style={{ wordBreak: 'keep-all' }}>{p.action}</p>
+                          {(p.why || p.how) && <p className="mt-1 text-[13.5px] leading-[1.7] text-bluewood-500" style={{ wordBreak: 'keep-all' }}>{[p.why, p.how].filter(Boolean).join(' · ')}</p>}
+                          {p.evidence.length > 0 && <p className="mt-1 text-[12.5px] font-bold text-bluewood-400">확보 자료: {p.evidence.join(' · ')}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyHint>보완 액션이 아직 없어요. 성과 캡처·본인 역할 정리처럼 증거를 모을 일들이 이곳에 정리됩니다.</EmptyHint>
+                )}
               </div>
             </div>
           </section>
@@ -4528,8 +4756,8 @@ function SentenceKwSpan({ text, color, keywords }) {
     <span className="relative inline">
       <span
         ref={spanRef}
-        className="cursor-help"
-        style={{ borderBottom: `2px solid ${color}`, paddingBottom: '1px' }}
+        className="cursor-help font-semibold text-bluewood-900"
+        style={hlMarker(`${color}40`)}
         onMouseEnter={handleEnter}
         onMouseLeave={() => setVisible(false)}
       >{text}</span>
@@ -4571,12 +4799,8 @@ function HighlightSpan({ text, type, keywords }) {
     <span className="relative inline">
       <span
         ref={spanRef}
-        className="cursor-help font-medium transition-colors"
-        style={{
-          borderBottom: `2.5px solid ${color.underline}`,
-          paddingBottom: '1px',
-          backgroundColor: `${color.underline}10`,
-        }}
+        className="cursor-help font-semibold text-bluewood-900 transition-colors"
+        style={hlMarker(color.hl || `${color.underline}4d`)}
         onMouseEnter={handleEnter}
         onMouseLeave={() => setVisible(false)}
       >{text}</span>

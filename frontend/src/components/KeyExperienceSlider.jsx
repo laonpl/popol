@@ -1158,7 +1158,7 @@ const KeyExperienceSlider = forwardRef(function KeyExperienceSlider({
           const title = stripMd(e.title) || `핵심 경험 ${i + 1}`;
           const metric = stripMd(e.metric);
           return (
-            <div key={i} className="rounded-[14px] border border-surface-200 bg-white overflow-hidden" style={{ boxShadow: '0 10px 40px rgba(49,65,87,0.06)' }}>
+            <div key={i} className="rounded-2xl border border-surface-100 bg-white overflow-hidden" style={{ boxShadow: '0 6px 24px rgba(15,40,80,0.05)' }}>
               <div className="h-1 w-full" style={{ backgroundColor: NAVY }} />
               <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-surface-100">
                 <div className="flex items-center gap-2.5 min-w-0">

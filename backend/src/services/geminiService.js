@@ -601,6 +601,223 @@ function buildDraftMarketResearch(jsonResearch = {}, sections = {}, keyExperienc
   };
 }
 
+function toStringList(value, limit = 10) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => {
+      if (typeof item === 'string') return compactFallbackText(item, 260);
+      if (item && typeof item === 'object') {
+        return compactFallbackText(item.text || item.sentence || item.title || item.name || item.action || '', 260);
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function nonEmptyArray(value) {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function mergeObjectFallback(raw = {}, fallback = {}) {
+  const result = { ...fallback, ...(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) };
+  Object.entries(fallback).forEach(([key, fallbackValue]) => {
+    const rawValue = raw?.[key];
+    if (Array.isArray(fallbackValue)) {
+      result[key] = nonEmptyArray(rawValue) ? rawValue : fallbackValue;
+    } else if (fallbackValue && typeof fallbackValue === 'object' && !Array.isArray(fallbackValue)) {
+      result[key] = mergeObjectFallback(rawValue, fallbackValue);
+    } else if (rawValue == null || rawValue === '') {
+      result[key] = fallbackValue;
+    }
+  });
+  return result;
+}
+
+function buildFallbackMarketerKit({
+  rawKit = null,
+  sections = {},
+  keyExperiences = [],
+  keywords = [],
+  projectOverview = {},
+  jobSpecific = {},
+  contentText = '',
+} = {}) {
+  const text = [contentText, Object.values(sections).join('\n'), keywords.join(' ')].join('\n').toLowerCase();
+  const has = (...needles) => needles.some(needle => text.includes(String(needle).toLowerCase()));
+  const score = (base, ...needles) => Math.min(92, base + needles.filter(needle => has(needle)).length * 7);
+  const first = keyExperiences[0] || {};
+  const firstTitle = compactFallbackText(first.title || projectOverview.summary || '마케팅 경험', 120);
+  const resultText = compactFallbackText(first.result || first.metric || first.afterMetric || '[확인 필요] 성과 수치', 220);
+  const actionText = compactFallbackText(first.action || sections.process || '[작성 필요] 실행 과정', 260);
+  const problemText = compactFallbackText(first.context || sections.task || sections.overview || '[작성 필요] 문제 정의', 260);
+  const learningText = compactFallbackText(first.learning || sections.growth || '콘텐츠/메시지 반응을 기준으로 다음 실행 방향을 개선하는 관점을 정리할 수 있습니다.', 260);
+  const tools = Array.isArray(projectOverview.techStack) ? projectOverview.techStack.filter(Boolean).slice(0, 6) : [];
+  const role = compactFallbackText(projectOverview.role || '[작성 필요] 본인 역할', 160);
+  const duration = compactFallbackText(projectOverview.duration || '[확인 필요]', 80);
+  const jdKeywords = uniqueFallbackList([
+    ...keywords,
+    ...(has('sns', '인스타', '콘텐츠', '카드뉴스', '릴스') ? ['콘텐츠 기획', 'SNS 채널 운영', '반응 데이터 분석'] : []),
+    ...(has('브랜드', '메시지', '캠페인') ? ['브랜드 메시지 설계'] : []),
+    ...(has('crm', '고객', '리텐션', '세그먼트') ? ['CRM 메시지 기획'] : []),
+    ...(has('광고', 'roas', 'ctr', 'cvr', '전환') ? ['퍼포먼스 지표 개선'] : []),
+  ], 8);
+  const evidenceChecklist = uniqueFallbackList([
+    ...(toStringList(rawKit?.evidenceChecklist, 8)),
+    '게시물/콘텐츠 원본 이미지',
+    '채널 인사이트 캡처',
+    '기획안 또는 캘린더 캡처',
+    '본인 역할을 확인할 수 있는 작업 기록',
+  ], 8);
+
+  const experienceCards = (keyExperiences.length ? keyExperiences : [first]).slice(0, 3).map((item, index) => {
+    const title = compactFallbackText(item.title || firstTitle || `마케팅 경험 ${index + 1}`, 120);
+    return {
+      id: `EXP-${String(index + 1).padStart(3, '0')}`,
+      title,
+      experienceType: has('인턴') ? '인턴 / 마케팅 프로젝트' : has('대외활동') ? '대외활동 / 마케팅 프로젝트' : '프로젝트 / 마케팅 경험',
+      period: duration,
+      oneLineSummary: compactFallbackText(item.context || projectOverview.summary || `${title}을 마케팅 채용 문서용 케이스로 정리한 경험`, 220),
+      problem: compactFallbackText(item.context || problemText, 260),
+      goal: compactFallbackText(projectOverview.goal || '[작성 필요] 목표/KPI', 180),
+      role: [role],
+      tools,
+      execution: [compactFallbackText(item.action || actionText, 260)],
+      results: [compactFallbackText(item.result || item.metric || item.afterMetric || '[확인 필요] 결과 수치 또는 정성 반응', 260)],
+      evidence: evidenceChecklist.slice(0, 4),
+      portfolioFit: item.result || item.metric || item.afterMetric ? 'A-' : 'B+',
+      resumeFit: item.action && (item.result || item.metric || item.afterMetric) ? 'A-' : 'B',
+      coverLetterUses: ['직무역량', '문제해결', '콘텐츠 기획 경험'],
+    };
+  });
+
+  const mainCard = experienceCards[0] || {};
+  const positioning = compactFallbackText(
+    rawKit?.positioning
+      || `콘텐츠 기획과 채널 운영 경험을 가진 신입 콘텐츠 마케터로 포지셔닝하는 것이 가장 적합합니다.`,
+    220
+  );
+  const portfolioProjects = experienceCards.slice(0, 3).map(card => ({
+    title: card.title,
+    slides: [
+      {
+        title: 'Slide 1. 프로젝트 개요',
+        purpose: compactFallbackText(projectOverview.goal || card.oneLineSummary, 240),
+        role: card.role?.[0] || role,
+        keyResult: card.results?.[0] || '[확인 필요] 핵심 성과',
+        images: ['대표 콘텐츠 이미지 2~3장', '성과/인사이트 캡처', '기획안 일부'],
+      },
+      {
+        title: 'Slide 2. 문제 정의와 전략',
+        problem: card.problem,
+        hypothesis: '타깃이 실제로 필요로 하는 정보/메시지 구조로 바꾸면 저장·공유·반응이 개선될 가능성이 있습니다.',
+        strategy: ['타깃 관심사 기반 주제 선정', '첫 장/썸네일 메시지 개선', '게시물별 반응 비교'],
+      },
+      {
+        title: 'Slide 3. 결과와 인사이트',
+        result: card.results?.[0] || '[확인 필요] 결과',
+        insight: learningText,
+        nextImprovement: '업로드 시간, 썸네일 카피, 콘텐츠 형식별 A/B 테스트를 함께 진행해 반응 차이를 더 정교하게 분석하세요.',
+      },
+    ],
+  }));
+
+  const fallback = {
+    positioning,
+    positioningReport: {
+      recommendedPositions: [
+        { name: '콘텐츠 마케터', score: score(57, '콘텐츠', 'sns', '인스타', '카드뉴스', '릴스', '블로그'), reason: '콘텐츠 제작·채널 운영·타깃 메시지 구성 단서가 가장 많이 보입니다.' },
+        { name: '브랜드 마케터', score: score(45, '브랜드', '메시지', '캠페인', '인지도'), reason: '브랜드 메시지와 타깃 관점이 있으면 보조 포지션으로 활용 가능합니다.' },
+        { name: 'CRM 마케터', score: score(32, 'crm', '고객', '세그먼트', '리텐션', '재방문'), reason: '고객 세그먼트·메시지 시나리오 증거가 있으면 보강 가능합니다.' },
+        { name: '퍼포먼스 마케터', score: score(28, '광고', 'ctr', 'cvr', 'roas', '전환', '매체'), reason: '광고 지표·전환 실험 수치가 부족하면 우선순위는 낮게 잡는 것이 안전합니다.' },
+      ],
+      strengths: uniqueFallbackList([
+        actionText && '실제 실행 경험을 마케팅 언어로 설명할 수 있음',
+        has('sns', '인스타', '콘텐츠', '카드뉴스', '릴스') && 'SNS 콘텐츠 제작·채널 운영 경험이 있음',
+        has('타깃', '페르소나', '고객') && '타깃 관점으로 메시지를 구성한 경험이 있음',
+        keyExperiences.length > 0 && '프로젝트 단위로 정리 가능한 경험이 있음',
+      ].filter(Boolean), 5),
+      weaknesses: [
+        resultText.includes('[확인 필요]') ? '성과 수치가 부족함' : '성과 수치의 산출 근거를 함께 제시해야 함',
+        '프로젝트별 문제 정의와 본인 역할을 더 명확히 쓰면 좋음',
+        '포트폴리오에 넣을 증거 자료를 추가로 확보해야 함',
+      ],
+      recommendation: positioning,
+      priorityFixes: ['게시물별 조회수/저장수/댓글수 캡처', '프로젝트별 본인 역할 정리', '콘텐츠 제작 전후 변화 정리'],
+    },
+    experienceCards,
+    portfolioDraft: {
+      pages: [
+        { page: '1P', title: '커버', copy: `${firstTitle}\n${positioning}`, visuals: ['대표 결과물 이미지'], revisionNote: '지원 직무명과 핵심 성과를 첫 화면에 배치하세요.' },
+        { page: '2P', title: '나는 어떤 마케터인가', copy: positioning, visuals: ['포지셔닝 키워드'], revisionNote: '콘텐츠/브랜드/CRM/퍼포먼스 중 1순위 직무를 분명히 하세요.' },
+        { page: '3P', title: '핵심 역량 요약', copy: jdKeywords.slice(0, 5).join(' · '), visuals: ['역량 태그'], revisionNote: '역량마다 근거 경험을 1개씩 연결하세요.' },
+        { page: '4P', title: '대표 프로젝트 목록', copy: experienceCards.map(card => `${card.id} ${card.title}`).join('\n'), visuals: ['프로젝트 썸네일'], revisionNote: '가장 강한 프로젝트 2~3개만 깊게 보여주세요.' },
+        { page: '5~13P', title: '대표 프로젝트 케이스 스터디', copy: '각 프로젝트를 개요 → 문제/전략 → 결과/인사이트 3장 구조로 구성하세요.', visuals: ['콘텐츠 이미지', '인사이트 캡처', '기획안'], revisionNote: '문제-해결-결과 흐름이 보이게 재배치하세요.' },
+        { page: '14P', title: '툴/역량/성과 요약', copy: [...tools, ...jdKeywords].slice(0, 10).join(' · '), visuals: ['툴 로고/성과 표'], revisionNote: '툴 이름만 나열하지 말고 어떤 의사결정에 썼는지 적으세요.' },
+        { page: '15P', title: '지원 직무와의 연결', copy: '이 경험을 지원 직무의 콘텐츠 기획, 채널 운영, 반응 분석 역량과 연결하세요.', visuals: ['JD 키워드 매핑'], revisionNote: '지원 공고 키워드와 경험 근거를 1:1로 연결하세요.' },
+      ],
+      projects: portfolioProjects,
+    },
+    resumeVariants: [
+      { label: '1안: 수치가 부족한 보수적 버전', sentence: `${mainCard.title || firstTitle}에서 ${actionText}을 수행하고, 결과 반응을 비교해 개선 방향을 도출` },
+      { label: '2안: 수치 입력형 버전', sentence: `채널 인사이트 기반으로 ${mainCard.title || firstTitle}의 도달·저장·댓글 반응을 분석하고, 정보형 콘텐츠 비중을 확대해 평균 저장 수 [x]% 개선` },
+      { label: '3안: 콘텐츠 마케터 지원용', sentence: `타깃 관심사 리서치를 바탕으로 ${mainCard.title || firstTitle}을 기획·제작하고, 게시물별 반응 분석을 통해 저장·공유 유도형 콘텐츠 방향성 도출` },
+      { label: '4안: 브랜드 마케터 지원용', sentence: `브랜드 메시지를 타깃 관심사에 맞춰 콘텐츠로 재구성하고, 채널 반응 데이터를 기반으로 효과적인 메시지 유형을 도출` },
+      { label: '5안: 경력기술서형', sentence: `[${mainCard.title || firstTitle}]\n- 목적: ${projectOverview.goal || '[작성 필요] 목표/KPI'}\n- 역할: ${role}\n- 실행: ${actionText}\n- 성과: ${resultText}\n- 사용 툴: ${tools.join(', ') || '[확인 필요]'}` },
+    ],
+    coverLetter: {
+      mappings: [
+        { questionType: '직무역량', fit: '가장 적합', reason: '문제 정의, 콘텐츠/메시지 기획, 실행, 반응 분석 흐름을 모두 보여줄 수 있습니다.' },
+        { questionType: '문제해결', fit: '활용 가능', reason: '기존 방식의 한계를 발견하고 다른 콘텐츠/메시지 방향을 시도한 흐름이 있습니다.' },
+        { questionType: '협업', fit: role.includes('팀') || role.includes('협업') ? '활용 가능' : '보완 필요', reason: '팀원과의 역할 분담, 갈등 조율, 피드백 반영 과정이 더 필요합니다.' },
+        { questionType: '실패 경험', fit: '보완 필요', reason: '실패 원인, 재시도, 개선 결과가 명확히 드러날 때만 사용하는 것이 안전합니다.' },
+      ],
+      drafts: [
+        {
+          questionType: '직무역량',
+          text: `저는 ${firstTitle}을 진행하며 마케팅에서 중요한 것은 단순한 제작량이 아니라 타깃이 반응할 이유를 설계하는 것임을 배웠습니다.\n\n초기에는 ${problemText}라는 문제가 있었고, 저는 이를 해결하기 위해 ${actionText}을 실행했습니다.\n\n그 결과 ${resultText}을 확인했습니다. 정확한 수치가 부족한 항목은 채널 인사이트에서 도달, 저장, 공유, 댓글 수를 추가로 확인해 보완할 수 있습니다.\n\n이 경험을 통해 콘텐츠 마케터에게 필요한 역량은 감각적인 제작뿐 아니라 타깃 행동을 분석하고, 반응 데이터를 기반으로 다음 콘텐츠 방향을 개선하는 능력이라는 점을 배웠습니다.`
+        },
+      ],
+      warning: '현재 정확한 성과 수치가 부족한 항목은 문장 강도가 약합니다. 채널 인사이트에서 게시물별 도달, 저장, 공유, 댓글 수를 확인해 입력하면 더 강한 문장으로 바꿀 수 있습니다.',
+    },
+    interviewScripts: {
+      answers: [
+        {
+          question: '이 경험을 설명해 주세요',
+          answer30: `${firstTitle}은 ${problemText}를 해결하기 위해 진행한 마케팅 경험입니다. 저는 ${actionText}을 맡았고, ${resultText}을 확인했습니다.`,
+          answer60: `${firstTitle}에서 가장 중요한 문제는 ${problemText}였습니다. 저는 타깃이 실제로 반응할 이유를 먼저 정의하고 ${actionText}을 실행했습니다. 이후 ${resultText}을 바탕으로 다음 콘텐츠 방향을 정리했습니다. 이 경험을 통해 콘텐츠는 제작물 자체보다 저장·공유·댓글 같은 행동을 설계하는 일이 중요하다는 점을 배웠습니다.`,
+          answer180: `상황은 ${problemText}였습니다.\n\n제가 맡은 역할은 ${role}였고, 핵심 실행은 ${actionText}이었습니다.\n\n결과는 ${resultText}입니다. 다만 아직 검증이 필요한 수치는 실제 인사이트 캡처로 보완할 계획입니다.\n\n이 경험에서 배운 점은 ${learningText}입니다. 다음에는 업로드 시간, 썸네일 카피, 콘텐츠 형식별 A/B 테스트까지 함께 설계해 더 정교하게 개선하겠습니다.`,
+          followUps: ['정확한 성과 수치는 어떻게 확인했나요?', '팀에서 본인 역할은 어디까지였나요?', '왜 그 타깃/채널을 선택했나요?', '다시 한다면 무엇을 바꾸겠나요?'],
+          defense: '수치가 아직 부족한 항목은 임의로 말하지 말고, 현재 확인 가능한 제작물 수·운영 기간·게시 빈도·정성 반응을 말한 뒤 추가로 인사이트 캡처를 확인하겠다고 답하세요.',
+        },
+      ],
+    },
+    actionPlan: [
+      { priority: '1', action: '성과 수치 확인', why: '이력서와 포트폴리오 문장의 신뢰도를 높이기 위해 필요', how: 'Instagram Insights/GA/광고 관리자에서 게시물별 도달·저장·공유·댓글·전환을 확인', evidenceToCollect: ['인사이트 캡처', '성과 리포트'] },
+      { priority: '2', action: '본인 역할 정리', why: '팀 성과와 개인 기여를 구분해야 면접에서 방어 가능', how: '기획, 카피, 제작, 업로드, 분석 중 직접 담당한 범위를 체크', evidenceToCollect: ['기획안', '작업 보드', '회의 기록'] },
+      { priority: '3', action: '포트폴리오 증거 정리', why: '결과물만 나열하면 케이스 스터디 설득력이 약함', how: '대표 이미지, 링크, 전후 비교, 주제별 반응 표를 프로젝트별 폴더로 묶기', evidenceToCollect: evidenceChecklist.slice(0, 4) },
+    ],
+    funnel: mergeObjectFallback(rawKit?.funnel, {
+      problem: problemText,
+      goal: projectOverview.goal || '[작성 필요] 목표·KPI',
+      target: has('20대') ? '20대 타깃' : '[작성 필요] 타깃',
+      strategy: actionText,
+      execution: actionText,
+      result: resultText,
+      insight: learningText,
+    }),
+    kpis: nonEmptyArray(rawKit?.kpis) ? rawKit.kpis : [{ name: '도달/저장/댓글/공유', value: '[확인 필요]', status: '확인 필요' }],
+    altMetrics: nonEmptyArray(rawKit?.altMetrics) ? rawKit.altMetrics : ['제작물 수', '운영 기간', '게시 빈도', '실험 횟수', '정성 피드백'],
+    resumeBullets: nonEmptyArray(rawKit?.resumeBullets) ? rawKit.resumeBullets : [],
+    jdKeywords,
+    evidenceChecklist,
+  };
+
+  return rawKit && typeof rawKit === 'object' && !Array.isArray(rawKit)
+    ? mergeObjectFallback(rawKit, fallback)
+    : fallback;
+}
+
 function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
@@ -631,27 +848,43 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
   const jobSpecific = json.jobSpecific && typeof json.jobSpecific === 'object' && !Array.isArray(json.jobSpecific)
     ? json.jobSpecific
     : {};
+  const rawMarketerKit = json.marketerKit && typeof json.marketerKit === 'object' && !Array.isArray(json.marketerKit)
+    ? json.marketerKit
+    : null;
+  const projectOverview = {
+    summary: mergeDraftText(ov.summary, fallbackOv.summary, 400),
+    background: mergeDraftText(ov.background, fallbackOv.background || sections.overview, 600),
+    goal: compactFallbackText(ov.goal || fallbackOv.goal || '', 400),
+    role: compactFallbackText(ov.role || fallbackOv.role || '', 240),
+    team: compactFallbackText(ov.team || fallbackOv.team || '', 180),
+    duration: compactFallbackText(ov.duration || fallbackOv.duration || '', 120),
+    scopeOfImpact: compactFallbackText(ov.scopeOfImpact || fallbackOv.scopeOfImpact || '', 300),
+    techStack: Array.isArray(ov.techStack) && ov.techStack.length ? ov.techStack : keywords.slice(0, 5),
+  };
+  const marketerKit = jobCategory === 'marketer'
+    ? buildFallbackMarketerKit({
+        rawKit: rawMarketerKit,
+        sections,
+        keyExperiences,
+        keywords,
+        projectOverview,
+        jobSpecific,
+        contentText,
+      })
+    : rawMarketerKit;
 
   return {
     _draft: true,
     _draftMode: 'ai',
     _draftVersion: 2,
-    projectOverview: {
-      summary: mergeDraftText(ov.summary, fallbackOv.summary, 400),
-      background: mergeDraftText(ov.background, fallbackOv.background || sections.overview, 600),
-      goal: compactFallbackText(ov.goal || fallbackOv.goal || '', 400),
-      role: compactFallbackText(ov.role || fallbackOv.role || '', 240),
-      team: compactFallbackText(ov.team || fallbackOv.team || '', 180),
-      duration: compactFallbackText(ov.duration || fallbackOv.duration || '', 120),
-      scopeOfImpact: compactFallbackText(ov.scopeOfImpact || fallbackOv.scopeOfImpact || '', 300),
-      techStack: Array.isArray(ov.techStack) && ov.techStack.length ? ov.techStack : keywords.slice(0, 5),
-    },
+    projectOverview,
     marketResearch: buildDraftMarketResearch(json.marketResearch || {}, sections, keyExperiences, keywords),
     keyExperiences,
     ...sections,
     sectionSlides: hasSectionSlides ? json.sectionSlides : fallbackSectionSlides(sections, keyExperiences),
     jobCategory: jobCategory || 'common',
     jobSpecific,
+    ...(marketerKit ? { marketerKit } : {}),
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -700,22 +933,32 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     growth: join(keyExperiences.map(item => item.learning), '배운 점과 인사이트, 다음 적용점을 보강해 주세요.'),
     competency: join([keywords.join(', '), keyExperiences.map(item => item.title).join(', ')], '이 경험에서 드러난 역량을 보강해 주세요.'),
   };
+  const projectOverview = {
+    summary: compactFallbackText(first.context || contentText, 300) || '입력한 자료를 바탕으로 한 초안입니다.',
+    background: compactFallbackText(first.context, 500),
+    goal: '',
+    role: '',
+    team: '',
+    duration: meta.period || '',
+    scopeOfImpact: '',
+    techStack: keywords.slice(0, 5),
+  };
+  const marketerKit = jobCategory === 'marketer'
+    ? buildFallbackMarketerKit({
+        sections,
+        keyExperiences,
+        keywords,
+        projectOverview,
+        contentText,
+      })
+    : null;
 
   return {
     _draft: true,
     _fallback: true,
     _fallbackVersion: 1,
     _fallbackReason: meta.reason || 'ai_unavailable',
-    projectOverview: {
-      summary: compactFallbackText(first.context || contentText, 300) || '입력한 자료를 바탕으로 한 초안입니다.',
-      background: compactFallbackText(first.context, 500),
-      goal: '',
-      role: '',
-      team: '',
-      duration: meta.period || '',
-      scopeOfImpact: '',
-      techStack: keywords.slice(0, 5),
-    },
+    projectOverview,
     marketResearch: {
       marketOverview: '',
       deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' },
@@ -729,6 +972,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     sectionSlides: fallbackSectionSlides(sections, keyExperiences),
     jobCategory: jobCategory || 'common',
     jobSpecific: {},
+    ...(marketerKit ? { marketerKit } : {}),
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: [
@@ -1018,14 +1262,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   // ============================================================
   // 결과 통합
   // ============================================================
-  const result = {
-    projectOverview: overviewJson.projectOverview || {
-      summary: '', background: '', goal: '', role: '', team: '', duration: '', techStack: [],
-    },
-    marketResearch: overviewJson.marketResearch || {
-      marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
-    },
-    keyExperiences,
+  const resultProjectOverview = overviewJson.projectOverview || {
+    summary: '', background: '', goal: '', role: '', team: '', duration: '', techStack: [],
+  };
+  const resultSections = {
     intro: overviewJson.intro || '',
     overview: overviewJson.overview || '',
     task: overviewJson.task || '',
@@ -1033,10 +1273,35 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     output: overviewJson.output || '',
     growth: overviewJson.growth || '',
     competency: overviewJson.competency || '',
+  };
+  const resultJobSpecific = overviewJson.jobSpecific || {};
+  const resultKeywords = metaJson.keywords || [];
+  const rawMarketerKit = overviewJson.marketerKit && typeof overviewJson.marketerKit === 'object' && !Array.isArray(overviewJson.marketerKit)
+    ? overviewJson.marketerKit
+    : null;
+  const marketerKit = jobCategory === 'marketer'
+    ? buildFallbackMarketerKit({
+        rawKit: rawMarketerKit,
+        sections: resultSections,
+        keyExperiences,
+        keywords: resultKeywords,
+        projectOverview: resultProjectOverview,
+        jobSpecific: resultJobSpecific,
+        contentText,
+      })
+    : rawMarketerKit;
+  const result = {
+    projectOverview: resultProjectOverview,
+    marketResearch: overviewJson.marketResearch || {
+      marketOverview: '', deskResearchInfographic: { title: '', subtitle: '', cards: [], conclusion: '', limitations: '' }, decisionMetrics: [], sourceNotes: [], portfolioAngles: [], limitations: '',
+    },
+    keyExperiences,
+    ...resultSections,
     sectionSlides: overviewJson.sectionSlides || {},
     jobCategory: jobCategory || 'common',
-    jobSpecific: overviewJson.jobSpecific || {},
-    keywords: metaJson.keywords || [],
+    jobSpecific: resultJobSpecific,
+    ...(marketerKit ? { marketerKit } : {}),
+    keywords: resultKeywords,
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],
     highlights: metaJson.highlights || [],

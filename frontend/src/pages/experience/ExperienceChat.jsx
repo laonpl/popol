@@ -93,13 +93,15 @@ const MATERIAL_PRESETS = {
     ],
   },
   marketer: {
-    intro: '마케팅 경험은 캠페인 리포트와 콘텐츠 링크에 잘 남아 있어요. 성과 리포트나 캠페인 링크를 올려주세요.',
+    intro: '마케팅 산출물은 채널 곳곳에 흩어져 있죠. 인스타그램 게시물, Figma 카드뉴스·대시보드, 캠페인 리포트, 블로그·노션 — 어디에 있든 링크와 파일로 올려주세요. 제가 읽고 성과 중심으로 정리할게요.',
     accept: '.pdf,.doc,.docx,image/*',
-    filesHint: '캠페인 리포트 · 성과 자료 (PDF / DOCX / 이미지)',
+    filesHint: '캠페인 리포트 · 카드뉴스/대시보드 캡처 (PDF / DOCX / 이미지)',
     links: [
-      { key: 'campaign', label: '캠페인/콘텐츠 링크', placeholder: 'https://...', source: 'blog', icon: Link2 },
-      { key: 'notion', label: 'Notion 페이지 (선택)', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
+      { key: 'instagram', label: '인스타그램/SNS 게시물·계정', placeholder: 'https://instagram.com/... 게시물 또는 계정', source: 'blog', icon: Link2 },
+      { key: 'figma', label: 'Figma 카드뉴스·대시보드 (선택)', placeholder: 'https://figma.com/...', source: 'blog', icon: Link2 },
+      { key: 'campaign', label: '캠페인/블로그/노션 링크 (선택)', placeholder: 'https://... (랜딩페이지, 블로그, 노션)', source: 'blog', icon: Link2 },
     ],
+    extraLinks: true, // 채널이 많은 직군 — 링크를 계속 추가할 수 있게
   },
   hr: {
     intro: '인사/채용 경험은 프로세스 문서와 온보딩 자료에 잘 남아 있어요. 문서 파일이나 Notion 링크를 올려주세요.',
@@ -145,6 +147,29 @@ const JOB_LABELS = Object.fromEntries(
   JOB_CATEGORIES.flatMap(g => g.items.map(it => [it.value, it.label]))
 );
 
+/* 마케터 캠페인 스토리 단계 (ma.md: 문제→목표→타깃→전략→실행→성과→인사이트) */
+const FUNNEL_STEPS = [
+  { key: 'problem', label: '문제' },
+  { key: 'goal', label: '목표' },
+  { key: 'target', label: '타깃' },
+  { key: 'strategy', label: '전략' },
+  { key: 'execution', label: '실행' },
+  { key: 'result', label: '성과' },
+  { key: 'insight', label: '인사이트' },
+];
+
+/* 값이 없거나 [확인 필요] 표기인지 */
+function needsConfirm(value) {
+  const t = asText(value);
+  return !t || /\[확인 필요\]|\[작성 필요\]|\[검증 필요\]/.test(t);
+}
+
+/* 문자열에서 첫 번째 숫자 추출 (수치 시각화용) */
+function parseMetricNum(value) {
+  const m = String(value || '').replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 /* 답변 시작을 도와주는 빠른 문구 (탭하면 입력창에 삽입) */
@@ -157,7 +182,46 @@ const STARTERS = [
 
 /* 진행 단계 표시 (챗 헤더 스테퍼) */
 const FLOW_STEPS = ['분야 선택', '기본 정보', '자료 입력', '핵심 경험', '초안 생성', '대화로 완성'];
-const PHASE_STEP = { field: 0, basics: 1, materials: 2, extracting: 3, moments: 3, building: 4, fill: 5, saving: 5 };
+const PHASE_STEP = { field: 0, mkField: 0, basics: 1, materials: 2, extracting: 3, moments: 3, building: 4, fill: 5, saving: 5 };
+
+/* ── 마케터 세부 분야 — 분야별 핵심 목표·역량·평가 지표를 챗봇이 짚어준 뒤 정리 시작 ── */
+const MARKETER_FIELDS = [
+  {
+    key: 'contentPlan', label: '콘텐츠 기획',
+    desc: '타깃·채널별 콘텐츠 주제와 톤앤매너 기획, 캠페인 컨셉 설계',
+    goal: '타깃이 반응할 콘텐츠 방향과 캠페인 컨셉을 설계해 브랜드 인지→관심→행동으로 이어지는 흐름을 만드는 것',
+    skills: '타깃 정의 · 컨셉/톤앤매너 설계 · 기획서 작성 · 채널 이해',
+    metrics: '도달·노출, 반응률(좋아요·저장·공유·댓글), 기획안 채택률, 캠페인 목표(KPI) 달성 여부',
+  },
+  {
+    key: 'contentMake', label: '콘텐츠 제작',
+    desc: '카피라이팅, 카드뉴스·숏폼·상세페이지 등 제작 및 편집',
+    goal: '기획 의도를 실제 결과물(카피·이미지·영상)로 완성도 있게 구현해 클릭과 반응을 끌어내는 것',
+    skills: '카피라이팅 · 디자인/편집 툴 활용 · 포맷별 문법 이해(카드뉴스·숏폼·상세페이지) · 마감 관리',
+    metrics: '제작물 수·제작 주기, 콘텐츠별 CTR·조회수·완주율, 저장/공유 수, 전환 기여',
+  },
+  {
+    key: 'channelOps', label: '채널 운영',
+    desc: '블로그·인스타·유튜브 등 온드미디어 운영, 발행 일정 관리',
+    goal: '채널을 꾸준히 운영해 팔로워·구독자를 자산으로 쌓고, 브랜드와 고객의 접점을 유지하는 것',
+    skills: '콘텐츠 캘린더 운영 · 커뮤니티 소통 · 채널 알고리즘 이해 · 일관된 브랜딩 유지',
+    metrics: '팔로워/구독자 증가율, 게시 빈도·운영 기간, 도달·프로필 방문, 참여율(ER)',
+  },
+  {
+    key: 'analytics', label: '성과 분석',
+    desc: '도달·클릭·전환 등 데이터 측정 후 다음 콘텐츠에 반영',
+    goal: '데이터로 무엇이 통했는지 검증하고, 다음 실행의 우선순위를 바꿔 성과를 반복 개선하는 것',
+    skills: '지표 정의 · 데이터 수집/해석(GA·인사이트 등) · A/B 테스트 · 리포팅과 개선 제안',
+    metrics: 'CTR·전환율·CPA/ROAS, 실험 횟수와 개선폭(전/후 비교), 리포트 기반 의사결정 사례',
+  },
+  {
+    key: 'trend', label: '트렌드 리서치',
+    desc: '밈·트렌드·경쟁사 모니터링으로 콘텐츠 아이디어 발굴',
+    goal: '시장·밈·경쟁사 흐름을 빠르게 포착해 우리 브랜드가 쓸 수 있는 아이디어로 번역하는 것',
+    skills: '트렌드 감지력 · 경쟁사/레퍼런스 분석 · 인사이트 요약 · 아이디어 제안',
+    metrics: '리서치→실제 반영된 아이디어 수, 반영 콘텐츠의 반응, 리서치 주기·아카이브 축적량',
+  },
+];
 
 function Spinner({ light = false, size = 16 }) {
   return (
@@ -390,7 +454,7 @@ function MetricWidget({ target, onSubmit, onSkip }) {
   const targetSnippet = displayText(target?.result || target?.context || target?.action);
 
   return (
-    <div className="ml-11 mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn">
+    <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn">
       {/* 어떤 핵심 경험을 채우는지 명확하게 보여주는 대상 카드 */}
       {targetTitle && (
         <div className="rounded-xl bg-white border-l-4 border border-primary-200 border-l-primary-600 px-3.5 py-2.5">
@@ -477,11 +541,12 @@ function MetricWidget({ target, onSubmit, onSkip }) {
   );
 }
 
-/* ── 채팅 내 자료 입력 위젯 (분야 프리셋 반영) ── */
-function MaterialsWidget({ preset, onSubmit, busy }) {
+/* ── 자료 입력 위젯 (분야 프리셋 반영) — bare: 우측 패널에 담을 때 자체 테두리 없이 ── */
+function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
   const fileInputRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [links, setLinks] = useState({});
+  const [extraLinks, setExtraLinks] = useState([]);
   const [text, setText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
@@ -493,10 +558,10 @@ function MaterialsWidget({ preset, onSubmit, busy }) {
     });
   };
 
-  const hasInput = files.length > 0 || text.trim() || Object.values(links).some(v => v?.trim());
+  const hasInput = files.length > 0 || text.trim() || Object.values(links).some(v => v?.trim()) || extraLinks.some(v => v.trim());
 
   return (
-    <div className="ml-11 mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn">
+    <div className={bare ? 'space-y-3' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn'}>
       {/* 파일 */}
       <div
         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -549,6 +614,31 @@ function MaterialsWidget({ preset, onSubmit, busy }) {
         );
       })}
 
+      {/* 추가 링크 — 채널이 많은 직군(마케터 등) */}
+      {preset.extraLinks && (
+        <div className="space-y-2">
+          {extraLinks.map((v, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200">
+              <Link2 size={14} className="flex-shrink-0 text-bluewood-300" />
+              <input
+                value={v}
+                onChange={e => setExtraLinks(prev => prev.map((x, xi) => xi === i ? e.target.value : x))}
+                placeholder="https://... (추가 산출물 링크)"
+                className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+              />
+              <button onClick={() => setExtraLinks(prev => prev.filter((_, xi) => xi !== i))} className="flex-shrink-0 text-[11px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setExtraLinks(prev => [...prev, ''])}
+            className="text-[12px] font-semibold text-bluewood-400 hover:text-primary-600 transition-colors"
+          >
+            + 산출물 링크 추가
+          </button>
+        </div>
+      )}
+
       {/* 직접 입력 */}
       <div>
         <label className="block text-[12px] font-bold text-bluewood-600 mb-1">또는 직접 적어주세요 <span className="text-bluewood-300 font-medium">(두서없어도 괜찮아요)</span></label>
@@ -563,9 +653,10 @@ function MaterialsWidget({ preset, onSubmit, busy }) {
 
       <button
         onClick={() => {
-          const linkList = preset.links
-            .map(l => ({ ...l, url: (links[l.key] || '').trim() }))
-            .filter(l => l.url);
+          const linkList = [
+            ...preset.links.map(l => ({ ...l, url: (links[l.key] || '').trim() })),
+            ...extraLinks.map((url, i) => ({ key: `extra-${i}`, label: '산출물 링크', source: 'blog', url: url.trim() })),
+          ].filter(l => l.url);
           onSubmit({ files, links: linkList, text: text.trim() });
         }}
         disabled={!hasInput || busy}
@@ -578,8 +669,8 @@ function MaterialsWidget({ preset, onSubmit, busy }) {
   );
 }
 
-/* ── 채팅 내 핵심 경험 검토 위젯 — 추출된 경험을 선택/해제 후 확정 ── */
-function MomentsWidget({ moments, onToggle, onConfirm }) {
+/* ── 핵심 경험 검토 — 추출된 경험을 선택/해제 후 확정 (우측 분할 패널에서 사용) ── */
+function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const toggleExpand = (id) => setExpanded(prev => {
     const next = new Set(prev);
@@ -589,7 +680,7 @@ function MomentsWidget({ moments, onToggle, onConfirm }) {
   const selectedCount = moments.filter(m => m.selected).length;
 
   return (
-    <div className="ml-11 mt-2 space-y-2.5">
+    <div className="space-y-2.5">
       {moments.map((m, i) => {
         const isOpen = expanded.has(m.id);
         const desc = displayText(m.description);
@@ -604,7 +695,8 @@ function MomentsWidget({ moments, onToggle, onConfirm }) {
             <div className="flex items-start gap-2.5">
               <button
                 onClick={() => onToggle(m.id)}
-                className={`flex-shrink-0 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+                disabled={readOnly}
+                className={`flex-shrink-0 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed ${
                   m.selected ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white border-surface-300 text-transparent hover:border-primary-300'
                 }`}
                 title={m.selected ? '선택 해제' : '선택'}
@@ -639,13 +731,15 @@ function MomentsWidget({ moments, onToggle, onConfirm }) {
           </div>
         );
       })}
-      <button
-        onClick={onConfirm}
-        disabled={selectedCount === 0}
-        className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
-      >
-        <Sparkles size={15} /> 선택한 경험 {selectedCount}개로 초안 만들기
-      </button>
+      {!readOnly && (
+        <button
+          onClick={onConfirm}
+          disabled={selectedCount === 0}
+          className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
+        >
+          <Sparkles size={15} /> 선택한 경험 {selectedCount}개로 초안 만들기
+        </button>
+      )}
     </div>
   );
 }
@@ -655,7 +749,8 @@ export default function ExperienceChat() {
   const user = useAuthStore(s => s.user);
   const { createExperience, draftAnalyze, extractMoments } = useExperienceStore();
 
-  const [phase, setPhase] = useState('field'); // field(히어로) | basics(제목·기간) | materials | extracting | moments | building | fill | saving
+  const [phase, setPhase] = useState('field'); // field(히어로) | mkField(마케터 세부분야) | basics(제목·기간) | materials | extracting | moments | building | fill | saving
+  const [marketerField, setMarketerField] = useState(null); // 마케터 세부 분야 (MARKETER_FIELDS 항목)
   const [messages, setMessages] = useState([]);
   const [aiTyping, setAiTyping] = useState(false);
   const [fillDone, setFillDone] = useState(false);
@@ -672,6 +767,7 @@ export default function ExperienceChat() {
   const [flashKey, setFlashKey] = useState(null);
   const [typeFx, setTypeFx] = useState(null);   // { key, from } — 방금 수정된 섹션 타이핑 연출
   const [history, setHistory] = useState([]);   // 답변 되돌리기용 스냅샷 스택
+  const [expandedSecs, setExpandedSecs] = useState(() => new Set()); // 우측 패널 섹션 펼침 상태
 
   const [queue, setQueue] = useState([]);       // 남은 질문
   const [currentQ, setCurrentQ] = useState(null);
@@ -715,7 +811,9 @@ export default function ExperienceChat() {
   const panelRefs = useRef({});
   useEffect(() => {
     if (!currentQ || phase !== 'fill') return;
-    const key = currentQ.widget === 'metric' ? 'keyExperiences' : currentQ.key;
+    const key = currentQ.widget === 'metric' ? 'keyExperiences'
+      : currentQ.key.startsWith('mk') ? 'marketerKit'
+      : currentQ.key;
     const el = panelRefs.current[key];
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [currentQ, phase]);
@@ -725,10 +823,31 @@ export default function ExperienceChat() {
   /* ── 1) 분야 선택 (히어로) → 기본 정보(제목·기간) ── */
   const selectField = async (item) => {
     setJobCategory(item.value);
-    setPhase('basics');
     pushMsg('user', item.label);
+    // 마케터는 세부 분야를 먼저 고르고, 분야의 목표·역량·지표를 짚은 뒤 정리 시작
+    if (item.value === 'marketer') {
+      setPhase('mkField');
+      await pushAi('좋아요, 마케터 경험이군요! 😊\n마케팅은 분야마다 증명해야 할 역량과 평가 지표가 달라요.\n어떤 분야의 경험을 정리할까요?');
+      return;
+    }
+    setPhase('basics');
     await pushAi(`좋아요, ${item.label} 경험이군요! 😊\n먼저 이 경험의 이름(제목)을 뭐라고 부를까요?`);
     setCurrentQ({ key: 'title', label: '제목', question: '경험 제목', placeholder: '예: 이미지 무단학습 방지 시스템 개발' });
+  };
+
+  /* 마케터 세부 분야 선택 → 분야 브리핑(목표·역량·지표) → 제목 질문 */
+  const selectMarketerField = async (f) => {
+    setMarketerField(f);
+    pushMsg('user', f.label);
+    setPhase('basics');
+    await pushAi(
+      `${f.label} — 좋은 선택이에요! 정리를 시작하기 전에 이 분야를 짧게 짚어볼게요 💡\n\n` +
+      `🎯 핵심 목표\n${f.goal}\n\n` +
+      `💪 핵심 역량\n${f.skills}\n\n` +
+      `📊 주요 지표·평가 방식\n${f.metrics}\n\n` +
+      `이 관점을 염두에 두면 경험이 훨씬 설득력 있게 정리돼요.\n그럼, 이 경험의 이름(제목)을 뭐라고 부를까요?`
+    );
+    setCurrentQ({ key: 'title', label: '제목', question: '경험 제목', placeholder: '예: 인스타그램 릴스 운영으로 팔로워 3배 성장' });
   };
 
   /* 기본 정보 — 기간 질문 */
@@ -738,12 +857,12 @@ export default function ExperienceChat() {
     setCurrentQ({ key: 'period', label: '기간', widget: 'period', question: '진행 기간' });
   };
 
-  /* 기본 정보 완료 → 자료 입력 */
+  /* 기본 정보 완료 → 자료 입력 (입력 패널은 오른쪽에 분리) */
   const goMaterials = async () => {
     setCurrentQ(null);
     setPhase('materials');
     const p = MATERIAL_PRESETS[jobCategory] || MATERIAL_PRESETS.common;
-    await pushAi(p.intro);
+    await pushAi(`${p.intro}\n\n👉 오른쪽 자료 패널(화면이 좁으면 아래)에 파일·링크를 넣고, 준비되면 버튼을 눌러주세요.`);
   };
 
   /* 핵심 경험 목록 → rawInput/AI 프롬프트용 텍스트 */
@@ -791,13 +910,22 @@ export default function ExperienceChat() {
 
       for (const link of links) {
         setStep(stepIdx, 'loading');
+        // URL로 소스 자동 감지 (깃허브/노션은 전용 파서 사용)
+        const source = /github\.com/i.test(link.url) ? 'github'
+          : /notion\.(so|site)/i.test(link.url) ? 'notion'
+          : link.source || 'blog';
+        let content = '';
         try {
-          const data = await importFromUrl(link.source, link.url, 'experience');
-          if (data?.imported?.content) {
-            allText += `\n\n--- ${link.label}: ${link.url} ---\n${data.imported.content}`;
-          }
+          const data = await importFromUrl(source, link.url, 'experience');
+          content = data?.imported?.content || '';
         } catch {
-          toast.error(`${link.label} 불러오기에 실패해 건너뛰었어요`);
+          content = '';
+        }
+        if (content.trim()) {
+          allText += `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
+        } else {
+          // 인스타그램·Figma 등 직접 읽기 어려운 채널 — 링크 자체를 산출물/증거 자료로 기록해 AI가 활용하게 한다
+          allText += `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
         }
         setStep(stepIdx, 'done');
         stepIdx++;
@@ -809,6 +937,10 @@ export default function ExperienceChat() {
         setPhase('materials');
         await pushAi('자료에서 내용을 읽지 못했어요. 다른 자료를 올리거나 직접 조금 적어주시겠어요?');
         return;
+      }
+      // 마케터 세부 분야 컨텍스트 — AI가 분야 관점(목표·지표)으로 정리하도록 자료 앞에 명시
+      if (marketerField) {
+        allText = `--- 마케팅 세부 분야 ---\n${marketerField.label}: ${marketerField.desc}\n이 경험은 '${marketerField.label}' 관점에서 정리하세요. 이 분야의 주요 지표: ${marketerField.metrics}\n${allText}`;
       }
       setSourceText(allText.trim());
 
@@ -832,7 +964,7 @@ export default function ExperienceChat() {
       const withFlags = extracted.map((m, i) => ({ ...m, id: m.id || `moment-${Date.now()}-${i}`, selected: true }));
       setMoments(withFlags);
       setPhase('moments');
-      await pushAi(`자료를 꼼꼼히 읽었어요. 핵심 경험 ${withFlags.length}개를 찾았습니다!\n포트폴리오에 담을 경험만 남기고 확인을 눌러주세요. 선택한 경험을 중심으로 초안을 만들게요.`);
+      await pushAi(`자료를 꼼꼼히 읽었어요. 핵심 경험 ${withFlags.length}개를 찾았습니다!\n오른쪽 화면에서 포트폴리오에 담을 경험만 남기고 버튼을 눌러주세요. 선택한 경험을 중심으로 초안을 만들게요.`);
     } catch (err) {
       console.error('자료 수집 실패:', err);
       setPhase('materials');
@@ -893,6 +1025,14 @@ export default function ExperienceChat() {
           chips: ['프론트엔드 개발', '백엔드 개발', '기획 / PM', '디자이너', '데이터 분석', '마케팅'],
         });
       }
+      // 마케터 — 타깃이 비어 있으면 우선 질문 (ma.md: 타깃 없는 마케팅 경험은 설득력이 약함)
+      if (jobCategory === 'marketer' && needsConfirm(analysis?.marketerKit?.funnel?.target)) {
+        q.push({
+          key: 'mkTarget', label: '타깃',
+          question: '이 캠페인/콘텐츠는 누구를 타깃으로 했나요?\n(예: 20대 여성 예비 구매자, 가입 후 미구매 고객)',
+          placeholder: '타깃과 그렇게 정한 이유를 적어주세요',
+        });
+      }
       SECTION_DEFS.forEach(def => {
         if (isWeak(analysis?.[def.key])) {
           q.push({ key: def.key, label: def.label, question: `[${def.label}] 부분이 비어 있어요.\n${def.q}`, placeholder: '키워드만 적어도 괜찮아요' });
@@ -912,6 +1052,14 @@ export default function ExperienceChat() {
       });
       if (needMetric.length === 0 && !/\d/.test(asText(analysis?.output))) {
         q.push({ key: 'metric', label: '성과 수치', widget: 'metric', keIndex: null, question: '결과를 수치로 표현할 수 있나요?\n예를 들면 응답속도 40% 개선, 사용자 1,200명 달성 같은 형태요.' });
+      }
+      // 마케터 — 증거 자료는 마지막에 확인 (포트폴리오 신뢰도의 핵심)
+      if (jobCategory === 'marketer') {
+        q.push({
+          key: 'mkEvidence', label: '증거 자료',
+          question: '마지막으로, 증거로 남아 있는 자료가 있나요? (콘텐츠 캡처, 성과 리포트, 링크 등)\n증거 자료가 있으면 포트폴리오 신뢰도가 크게 올라가요. 없으면 건너뛰어도 괜찮아요.',
+          placeholder: '예: 카드뉴스 캡처 10장, 인스타그램 인사이트 캡처, 캠페인 링크',
+        });
       }
 
       setFillDone(false);
@@ -946,6 +1094,21 @@ export default function ExperienceChat() {
       setTitle(a);
     } else if (item.key === 'role') {
       setDraft(prev => ({ ...prev, projectOverview: { ...(prev?.projectOverview || {}), role: a } }));
+    } else if (item.key === 'mkTarget') {
+      setDraft(prev => ({
+        ...prev,
+        marketerKit: { ...(prev?.marketerKit || {}), funnel: { ...(prev?.marketerKit?.funnel || {}), target: a } },
+      }));
+      setFlashKey('marketerKit');
+    } else if (item.key === 'mkEvidence') {
+      setDraft(prev => ({
+        ...prev,
+        marketerKit: {
+          ...(prev?.marketerKit || {}),
+          evidenceChecklist: [a, ...(prev?.marketerKit?.evidenceChecklist || [])],
+        },
+      }));
+      setFlashKey('marketerKit');
     } else {
       const cur = asText(draft?.[item.key]);
       const wasWeak = isWeak(cur);
@@ -1008,6 +1171,7 @@ export default function ExperienceChat() {
   const changeField = () => {
     if (aiTyping) return;
     setJobCategory('');
+    setMarketerField(null);
     setCurrentQ(null);
     setChatInput('');
     setPhase('field');
@@ -1122,6 +1286,7 @@ export default function ExperienceChat() {
         title: title.trim(),
         framework: 'STRUCTURED',
         jobCategory: jobCategory || 'common',
+        ...(marketerField ? { marketerField: marketerField.label } : {}),
         period: (startMonth && endMonth) ? `${startMonth}-01 ~ ${endMonth}-28` : undefined,
         content: { rawInput: finalText },
         momentsCount: reviewedMoments.length || 3,
@@ -1224,9 +1389,9 @@ export default function ExperienceChat() {
         ← 경험 목록으로
       </Link>
 
-      <div className={draft
+      <div className={(draft || phase === 'materials' || (moments.length > 0 && (phase === 'moments' || phase === 'building')))
         ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start'
-        : 'max-w-[860px] mx-auto'
+        : 'max-w-[960px] mx-auto'
       }>
         {/* ═══ 좌측: AI 채팅 ═══ */}
         <div className="rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)] flex flex-col h-[calc(100dvh-170px)] min-h-[520px]">
@@ -1259,23 +1424,25 @@ export default function ExperienceChat() {
             {/* AI 입력 중 */}
             {aiTyping && <TypingBubble />}
 
-            {/* 자료 입력 위젯 */}
-            {phase === 'materials' && !aiTyping && (
-              <MaterialsWidget preset={preset} onSubmit={collectMaterials} busy={false} />
-            )}
-
-            {/* 핵심 경험 검토 위젯 */}
-            {phase === 'moments' && !aiTyping && (
-              <MomentsWidget
-                moments={moments}
-                onToggle={(id) => setMoments(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m))}
-                onConfirm={confirmMoments}
-              />
+            {/* 마케터 세부 분야 선택 카드 */}
+            {phase === 'mkField' && !aiTyping && (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 animate-fadeIn">
+                {MARKETER_FIELDS.map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => selectMarketerField(f)}
+                    className="rounded-xl border border-surface-200 bg-white px-4 py-3 text-left transition-all hover:border-primary-400 hover:bg-primary-50 active:scale-[0.98]"
+                  >
+                    <p className="text-[13.5px] font-extrabold text-bluewood-900">{f.label}</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>{f.desc}</p>
+                  </button>
+                ))}
+              </div>
             )}
 
             {/* 자료 수집·초안 생성 진행 */}
             {(phase === 'extracting' || phase === 'building') && (
-              <div className="ml-11 mt-2 rounded-xl border border-surface-200 bg-surface-50/50 px-4 py-3.5 space-y-2">
+              <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 px-4 py-3.5 space-y-2">
                 {buildSteps.map((s, i) => (
                   <div key={i} className="flex items-center gap-2.5 text-[13px]">
                     <span className="flex h-5 w-5 items-center justify-center">
@@ -1302,7 +1469,7 @@ export default function ExperienceChat() {
 
             {/* 기간 입력 위젯 */}
             {(phase === 'fill' || phase === 'basics') && currentQ?.widget === 'period' && !aiTyping && (
-              <div className="ml-11 mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 animate-fadeIn">
+              <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 animate-fadeIn">
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     type="month" value={startMonth} onChange={e => setStartMonth(e.target.value)}
@@ -1323,7 +1490,7 @@ export default function ExperienceChat() {
 
             {/* 완료 상태 — 완성 카드 + 저장 버튼 */}
             {phase === 'fill' && fillDone && !aiTyping && (
-              <div className="ml-11 mt-2 rounded-xl border border-caribbean-200 bg-caribbean-50/50 p-4 animate-pop-in">
+              <div className="mt-2 rounded-xl border border-caribbean-200 bg-caribbean-50/50 p-4 animate-pop-in">
                 <div className="flex items-center gap-2.5 mb-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-caribbean-500 text-white animate-pulse-check">
                     <Check size={16} />
@@ -1343,7 +1510,7 @@ export default function ExperienceChat() {
             )}
 
             {phase === 'saving' && (
-              <div className="ml-11 mt-2 flex items-center gap-2.5 text-[13.5px] font-semibold text-bluewood-600">
+              <div className="mt-2 flex items-center gap-2.5 text-[13.5px] font-semibold text-bluewood-600">
                 <BarsLoader height={14} /> 경험을 저장하고 있어요...
               </div>
             )}
@@ -1406,7 +1573,7 @@ export default function ExperienceChat() {
                     : (phase === 'fill' || phase === 'basics')
                       ? '위 버튼으로 진행해주세요'
                       : phase === 'moments'
-                        ? '위에서 핵심 경험을 확인하고 선택해주세요'
+                        ? '오른쪽 화면에서 핵심 경험을 확인하고 선택해주세요'
                         : '초안이 만들어지면 대화로 채울 수 있어요'
                 }
                 className="flex-1 resize-none bg-transparent text-[14px] leading-relaxed text-bluewood-800 outline-none placeholder:text-bluewood-300 disabled:cursor-not-allowed max-h-32"
@@ -1454,6 +1621,48 @@ export default function ExperienceChat() {
             )}
           </div>
         </div>
+
+        {/* ═══ 우측: 핵심 경험 검토 — 추출되면 화면이 나뉘며 슬라이드 인 ═══ */}
+        {/* ═══ 우측: 자료 입력 패널 — 대화와 분리해 간섭 없이 자료를 넣는다 ═══ */}
+        {phase === 'materials' && !draft && (
+          <div className="lg:sticky lg:top-6 rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)] animate-panel-in">
+            <div className="px-5 py-4 border-b border-surface-100 bg-gray-50/50 flex items-center gap-2">
+              <span className="h-3.5 w-1 rounded-full bg-primary-600" />
+              <span className="text-[14px] font-bold text-bluewood-800">자료 올리기</span>
+            </div>
+            <div className="px-5 py-5 max-h-[calc(100dvh-240px)] overflow-y-auto custom-scrollbar">
+              <p className="mb-3 text-[12.5px] text-bluewood-400 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                파일·링크·메모, 있는 대로 편하게 넣어주세요. 완벽하지 않아도 괜찮아요.
+              </p>
+              <MaterialsWidget bare preset={preset} onSubmit={collectMaterials} busy={false} />
+            </div>
+          </div>
+        )}
+
+        {!draft && moments.length > 0 && (phase === 'moments' || phase === 'building') && (
+          <div className="lg:sticky lg:top-6 rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)] animate-panel-in">
+            <div className="px-5 py-4 border-b border-surface-100 bg-gray-50/50 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-3.5 w-1 rounded-full bg-primary-600" />
+                <span className="text-[14px] font-bold text-bluewood-800">핵심 경험 검토</span>
+              </div>
+              <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
+                {moments.filter(m => m.selected).length} / {moments.length} 선택
+              </span>
+            </div>
+            <div className="px-5 py-5 max-h-[calc(100dvh-240px)] overflow-y-auto">
+              <p className="mb-3 text-[12.5px] text-bluewood-400 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                자료에서 추출한 핵심 경험이에요. 포트폴리오에 담을 경험만 남겨주세요.
+              </p>
+              <MomentsWidget
+                moments={moments}
+                onToggle={(id) => setMoments(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m))}
+                onConfirm={confirmMoments}
+                readOnly={phase === 'building'}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ═══ 우측: 초안 미리보기 — 초안이 생기면 부드럽게 슬라이드 인 ═══ */}
         {draft && (
@@ -1508,6 +1717,164 @@ export default function ExperienceChat() {
                 )}
               </div>
 
+              {/* ═══ 채우기 파이프라인 — 부족한 부분을 한눈에 보고 바로 채우기 ═══ */}
+              {(() => {
+                const missing = [];
+                if (!title.trim()) missing.push({ key: '__title', label: '제목' });
+                SECTION_DEFS.forEach(d => { if (isWeak(draft[d.key])) missing.push({ key: d.key, label: d.label }); });
+                const doneCount = SECTION_DEFS.filter(d => !isWeak(draft[d.key])).length;
+                return (
+                  <div className="rounded-xl border border-surface-100 bg-white px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em]">채우기 진행</p>
+                      <span className="text-[11px] font-bold text-primary-600 tabular-nums">{doneCount} / {SECTION_DEFS.length} 섹션</span>
+                    </div>
+                    {/* 섹션별 세그먼트 바 */}
+                    <div className="mb-2.5 flex gap-1">
+                      {SECTION_DEFS.map(d => (
+                        <span
+                          key={d.key}
+                          title={d.label}
+                          className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${
+                            isWeak(draft[d.key]) ? 'bg-surface-200' : 'bg-primary-500'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {missing.length === 0 ? (
+                      <p className="flex items-center gap-1.5 text-[12px] font-semibold text-caribbean-700">
+                        <Check size={12} /> 모든 부분이 채워졌어요
+                      </p>
+                    ) : phase === 'fill' ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {missing.map(m => (
+                          <button
+                            key={m.key}
+                            onClick={() => (m.key === '__title' ? askTitle() : askSection(m.key))}
+                            className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11.5px] font-bold text-amber-700 hover:bg-amber-100 transition-colors"
+                          >
+                            + {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11.5px] text-bluewood-300">비어 있는 {missing.length}곳은 대화로 채울 수 있어요</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ═══ 마케터 전용 산출물 (ma.md 기반) ═══ */}
+              {draft.marketerKit && (() => {
+                const kit = draft.marketerKit;
+                const positioning = displayText(kit.positioning);
+                const kpis = Array.isArray(kit.kpis) ? kit.kpis.filter(k => asText(k?.name)) : [];
+                const altMetrics = Array.isArray(kit.altMetrics) ? kit.altMetrics.filter(Boolean) : [];
+                const bullets = Array.isArray(kit.resumeBullets) ? kit.resumeBullets.filter(Boolean) : [];
+                const jdKeywords = Array.isArray(kit.jdKeywords) ? kit.jdKeywords.filter(Boolean) : [];
+                const evidence = Array.isArray(kit.evidenceChecklist) ? kit.evidenceChecklist.filter(Boolean) : [];
+                return (
+                  <div
+                    ref={el => { panelRefs.current.marketerKit = el; }}
+                    className={`rounded-xl border overflow-hidden transition-colors duration-700 ${
+                      flashKey === 'marketerKit' ? 'border-caribbean-300 animate-section-glow' : 'border-primary-100 bg-white'
+                    }`}
+                  >
+                    {/* 포지셔닝 */}
+                    {positioning && (
+                      <div className="bg-primary-600 px-4 py-3">
+                        <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.14em] mb-1">Positioning</p>
+                        <p className="text-[12.5px] font-semibold text-white leading-relaxed" style={{ wordBreak: 'keep-all' }}>{positioning}</p>
+                      </div>
+                    )}
+                    <div className="px-4 py-3.5 space-y-4">
+                      {/* 캠페인 스토리 퍼널 */}
+                      <div>
+                        <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-2">캠페인 스토리</p>
+                        <div className="space-y-1.5">
+                          {FUNNEL_STEPS.map(step => {
+                            const value = displayText(kit.funnel?.[step.key]);
+                            const empty = needsConfirm(kit.funnel?.[step.key]);
+                            return (
+                              <div key={step.key} className="flex items-start gap-2">
+                                <span className={`flex-shrink-0 mt-[1px] w-11 text-center px-1 py-0.5 rounded-md text-[10.5px] font-bold ${
+                                  empty ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-primary-50 text-primary-600'
+                                }`}>{step.label}</span>
+                                <p className={`min-w-0 text-[12.5px] leading-relaxed ${empty ? 'text-amber-600/80' : 'text-bluewood-700'}`} style={{ wordBreak: 'keep-all' }}>
+                                  {value || '확인 필요 — 채팅에서 채워보세요'}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* KPI */}
+                      {(kpis.length > 0 || altMetrics.length > 0) && (
+                        <div>
+                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">KPI</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {kpis.map((k, i) => {
+                              const unverified = needsConfirm(k.value) || asText(k.status) === '확인 필요';
+                              return (
+                                <span key={i} className={`px-2 py-1 rounded-md text-[11px] font-bold border ${
+                                  unverified ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-primary-50 text-primary-700 border-primary-100'
+                                }`}>
+                                  {asText(k.name)}{asText(k.value) ? ` ${asText(k.value)}` : ''}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          {altMetrics.length > 0 && (
+                            <p className="mt-1.5 text-[11.5px] text-bluewood-400 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                              대체 지표 제안: {altMetrics.map(asText).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 이력서 bullet */}
+                      {bullets.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">이력서 Bullet</p>
+                          <div className="space-y-1.5">
+                            {bullets.map((b, i) => (
+                              <p key={i} className="rounded-lg bg-surface-50 border border-surface-100 px-3 py-2 text-[12px] text-bluewood-700 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                                {displayText(b)}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* JD 키워드 */}
+                      {jdKeywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {jdKeywords.slice(0, 8).map((kw, i) => (
+                            <span key={i} className="px-1.5 py-0.5 rounded bg-surface-50 border border-surface-200 text-[10.5px] font-semibold text-bluewood-500">#{asText(kw)}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 증거 자료 체크리스트 */}
+                      {evidence.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.12em] mb-1.5">증거 자료</p>
+                          <div className="space-y-1">
+                            {evidence.slice(0, 6).map((ev, i) => (
+                              <p key={i} className="flex items-start gap-1.5 text-[12px] text-bluewood-600 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                                <Check size={12} className="flex-shrink-0 mt-0.5 text-caribbean-600" />
+                                {displayText(ev)}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* 섹션들 */}
               {SECTION_DEFS.map(def => {
                 const value = displayText(draft[def.key]);
@@ -1549,11 +1916,33 @@ export default function ExperienceChat() {
                         className="text-[13px] leading-relaxed whitespace-pre-wrap text-bluewood-700"
                         style={{ wordBreak: 'keep-all' }}
                       />
-                    ) : (
-                      <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${weak ? 'text-bluewood-400' : 'text-bluewood-700'}`} style={{ wordBreak: 'keep-all' }}>
-                        {value}
-                      </p>
-                    )}
+                    ) : (() => {
+                      /* 긴 본문은 2줄 요약으로 접어 스캔 피로를 줄인다 */
+                      const opened = expandedSecs.has(def.key) || isCurrent || isFlashing;
+                      const long = value.length > 90;
+                      return (
+                        <>
+                          <p
+                            className={`text-[13px] leading-relaxed whitespace-pre-wrap ${weak ? 'text-bluewood-400' : 'text-bluewood-700'} ${!opened && long ? 'line-clamp-2' : ''}`}
+                            style={{ wordBreak: 'keep-all' }}
+                          >
+                            {value}
+                          </p>
+                          {long && (
+                            <button
+                              onClick={() => setExpandedSecs(prev => {
+                                const next = new Set(prev);
+                                next.has(def.key) ? next.delete(def.key) : next.add(def.key);
+                                return next;
+                              })}
+                              className="mt-0.5 text-[11.5px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors"
+                            >
+                              {opened ? '접기' : '더 보기'}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1591,9 +1980,36 @@ export default function ExperienceChat() {
                             {isTarget && snippet && (
                               <p className="mt-0.5 text-[11.5px] text-bluewood-400 leading-relaxed line-clamp-2" style={{ wordBreak: 'keep-all' }}>{snippet}</p>
                             )}
-                            {asText(ke.metric || ke.afterMetric) && (
-                              <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-primary-50 text-[10.5px] font-bold text-primary-600 animate-pop-in">{asText(ke.metric || ke.afterMetric)}</span>
-                            )}
+                            {(() => {
+                              /* 전/후 수치가 모두 있으면 미니 비교 막대로 시각화 */
+                              const beforeNum = parseMetricNum(ke.beforeMetric);
+                              const afterNum = parseMetricNum(ke.afterMetric || ke.metric);
+                              if (beforeNum != null && afterNum != null && beforeNum !== afterNum) {
+                                const maxV = Math.max(Math.abs(beforeNum), Math.abs(afterNum)) || 1;
+                                return (
+                                  <div className="mt-1.5 space-y-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-6 flex-shrink-0 text-[9.5px] font-bold text-bluewood-300">이전</span>
+                                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-100">
+                                        <span className="block h-full rounded-full bg-surface-300" style={{ width: `${Math.abs(beforeNum) / maxV * 100}%`, transition: 'width 0.6s' }} />
+                                      </div>
+                                      <span className="flex-shrink-0 text-[10px] font-bold text-bluewood-400 tabular-nums">{asText(ke.beforeMetric)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-6 flex-shrink-0 text-[9.5px] font-bold text-primary-600">이후</span>
+                                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-100">
+                                        <span className="block h-full rounded-full bg-primary-500" style={{ width: `${Math.abs(afterNum) / maxV * 100}%`, transition: 'width 0.6s' }} />
+                                      </div>
+                                      <span className="flex-shrink-0 text-[10px] font-bold text-primary-700 tabular-nums">{asText(ke.afterMetric || ke.metric)}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              const metricText = asText(ke.metric || ke.afterMetric);
+                              return metricText ? (
+                                <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-primary-50 text-[10.5px] font-bold text-primary-600 animate-pop-in">{metricText}</span>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
                       );

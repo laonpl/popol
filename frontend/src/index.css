@@ -487,3 +487,26 @@ textarea {
 .animate-panel-in {
   animation: panel-in 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* 2줄 말줄임 (카드 제목용) */
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── 포트폴리오 문서 인쇄(PDF 저장) — ExperienceResult 마케터 문서형 ── */
+@media print {
+  @page { size: A4; margin: 12mm 14mm; }
+  body { background: #fff !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* 문서 안의 모든 버튼(편집 컨트롤)은 인쇄에서 숨김 */
+  article button { display: none !important; }
+  /* 빈 입력칸의 안내 문구가 PDF에 찍히지 않도록 */
+  textarea::placeholder { color: transparent !important; }
+  .print-break-avoid { break-inside: avoid; }
+}

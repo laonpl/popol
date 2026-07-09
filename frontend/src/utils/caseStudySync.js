@@ -37,6 +37,7 @@ export function mergeCaseStudyIntoStructured(structuredResult, caseStudy) {
     // 간략 보기의 'metric'은 결과 수치 → 자세히 보기의 afterMetric에 대응 (deriveCaseStudy와 동일 규칙)
     afterMetric: k.metric || '',
     metric: k.metric || prevKE[i]?.metric || '',
+    beforeMetric: k.beforeMetric ?? prevKE[i]?.beforeMetric ?? '',
     context: k.problem || '',
     // 자세히 보기 일부(미리보기 슬라이드 등)는 situation 필드를 읽으므로 함께 채워 반영 누락을 막는다.
     situation: k.problem || '',
@@ -82,6 +83,7 @@ export function mergeStructuredIntoCaseStudy(caseStudy, structuredResult, title)
       ...(caseStudy.keyExps?.[i] || { id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`, images: [] }),
       title: clean(k.title),
       metric: clean(k.afterMetric) || clean(k.metric),
+      beforeMetric: clean(k.beforeMetric),
       problem: clean(k.context || k.situation),
       action: clean(k.action),
       result: clean(k.result),
