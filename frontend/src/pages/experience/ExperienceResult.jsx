@@ -4,6 +4,8 @@ import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
+import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
+import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
 import useExperienceStore from '../../stores/experienceStore';
 import { DEMO_MARKETER_EXPERIENCE } from './demoExperience';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
@@ -430,6 +432,1221 @@ function CaseBody({ body, onChange }) {
         <button type="button" onClick={() => addImage(body.length - 1)} className="rounded-lg border border-surface-200 px-3 py-1.5 text-[12.5px] font-semibold text-bluewood-500 hover:border-primary-300 hover:text-primary-600">＋ 사진 추가</button>
       </div>
     </div>
+  );
+}
+
+/* ── GitHub 연결 — 레포 URL + 내 아이디로 커밋 기여도·코드·트러블슈팅 분석 ── */
+function GitConnectPanel({ expId, sr, onApplied, onCancel, compact = false }) {
+  const [repoUrl, setRepoUrl] = useState(sr?.githubStats?.repoName ? `https://github.com/${sr.githubStats.repoName}` : '');
+  const [ghUser, setGhUser] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const runAnalyze = async () => {
+    if (!repoUrl.trim() || !ghUser.trim()) {
+      toast.error('레포 URL과 GitHub 아이디를 모두 입력해주세요');
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const res = await api.post('/experience/analyze-git', {
+        repoUrl: repoUrl.trim(),
+        authorParam: ghUser.trim(),
+      });
+      const d = res.data;
+      const nextSr = {
+        ...(sr || {}),
+        ...(d?.contributionStats ? { githubStats: { ...d.contributionStats, repoName: d.repoName } } : {}),
+        ...(d?.experiences?.length ? { gitAnalysis: { repoName: d.repoName, experiences: d.experiences } } : {}),
+      };
+      if (expId) {
+        await updateDoc(doc(db, 'experiences', expId), { structuredResult: nextSr, updatedAt: new Date() });
+      }
+      onApplied(nextSr);
+      toast.success('GitHub 분석을 반영했어요.');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'GitHub 분석에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+    setAnalyzing(false);
+  };
+
+  return (
+    <div className={`rounded-2xl border border-dashed border-surface-300 bg-surface-50/50 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}>
+      {!compact && (
+        <>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: ACCENT }}><Github size={17} /></span>
+            <div>
+              <h3 className="text-[15px] font-extrabold text-bluewood-900">GitHub으로 내 개발 경험 분석하기</h3>
+              <p className="text-[12px] text-bluewood-400">레포와 아이디만 입력하면 커밋을 읽고 아래 내용을 채워드려요</p>
+            </div>
+          </div>
+          <ul className="mt-3.5 mb-4 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px] text-bluewood-500">
+            <li>· 기여도 · 영향력 (커밋 비중·순위)</li>
+            <li>· 아키텍처 구조 시각화</li>
+            <li>· 트러블슈팅 과정</li>
+            <li>· 실제 코드 기반 문제 해결 설명</li>
+          </ul>
+        </>
+      )}
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary-200">
+          <Github size={14} className="flex-shrink-0 text-bluewood-300" />
+          <input
+            value={repoUrl}
+            onChange={e => setRepoUrl(e.target.value)}
+            placeholder="https://github.com/username/repo"
+            className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+          />
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary-200">
+          <span className="flex-shrink-0 text-[13px] font-bold text-bluewood-300">@</span>
+          <input
+            value={ghUser}
+            onChange={e => setGhUser(e.target.value)}
+            placeholder="내 GitHub 아이디 — 이 레포에서 내 커밋을 찾아요"
+            className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={runAnalyze}
+            disabled={analyzing}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-[13.5px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700 disabled:opacity-50"
+          >
+            {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Github size={14} />}
+            {analyzing ? '커밋 분석 중… (최대 1분)' : '내 기여 분석하기'}
+          </button>
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="rounded-xl px-3.5 py-2.5 text-[13px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">닫기</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* 문서 톤 마이크로 라벨 — '내용' 헤더와 동일한 위계 */
+const MICRO_LABEL = 'text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400';
+
+/* ── 커밋 잔디 — GitHub 컨트리뷰션 그래프 (열=주, 행=요일, 진하기=그날 커밋 수) ── */
+const GRASS_COLORS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+const GRASS_CELL = 10, GRASS_GAP = 3;
+
+function CommitGrass({ days }) {
+  const map = new Map(days.map(x => [x.d, x.count]));
+  const total = days.reduce((s, x) => s + (x.count || 0), 0);
+  const max = Math.max(1, ...days.map(x => x.count || 0));
+  const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+  const sorted = [...days].sort((a, b) => (a.d < b.d ? -1 : 1));
+  const firstDt = parse(sorted[0].d);
+  const lastDt = parse(sorted[sorted.length - 1].d);
+  // 첫 커밋 주의 일요일로 스냅해 주 단위 열 구성 — 최근 30주만 표시
+  const weeks = [];
+  const cursor = new Date(firstDt);
+  cursor.setDate(cursor.getDate() - cursor.getDay());
+  while (cursor <= lastDt) {
+    weeks.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  const shown = weeks.slice(-30);
+
+  // 0 = 빈 칸, 1~4 = 최댓값 대비 사분위 (GitHub 방식)
+  const level = (c) => (c <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((c / max) * 4))));
+
+  return (
+    <div>
+      <div className="overflow-x-auto pb-1">
+        <div style={{ width: 26 + shown.length * (GRASS_CELL + GRASS_GAP) }}>
+          {/* 월 라벨 — 월이 바뀌는 열에만 */}
+          <div className="flex" style={{ paddingLeft: 26, gap: GRASS_GAP }}>
+            {shown.map((ws, i) => {
+              const m = ws.getMonth();
+              const label = (i === 0 || shown[i - 1].getMonth() !== m) ? `${m + 1}월` : '';
+              return (
+                <span key={i} className="whitespace-nowrap text-[9.5px] leading-none text-bluewood-300" style={{ width: GRASS_CELL, overflow: 'visible' }}>{label}</span>
+              );
+            })}
+          </div>
+          <div className="mt-1.5 flex" style={{ gap: GRASS_GAP }}>
+            {/* 요일 라벨 (월·수·금) */}
+            <div className="flex flex-shrink-0 flex-col" style={{ gap: GRASS_GAP, width: 26 - GRASS_GAP }}>
+              {['', '월', '', '수', '', '금', ''].map((lb, i) => (
+                <span key={i} className="pr-1 text-right text-[9px] text-bluewood-300" style={{ height: GRASS_CELL, lineHeight: `${GRASS_CELL}px` }}>{lb}</span>
+              ))}
+            </div>
+            {/* 주 열 × 요일 행 */}
+            {shown.map((ws, wi) => (
+              <div key={wi} className="flex flex-col" style={{ gap: GRASS_GAP }}>
+                {Array.from({ length: 7 }, (_, dow) => {
+                  const dt = new Date(ws);
+                  dt.setDate(dt.getDate() + dow);
+                  if (dt > lastDt) return <span key={dow} style={{ width: GRASS_CELL, height: GRASS_CELL }} />;
+                  const key = fmt(dt);
+                  const c = map.get(key) || 0;
+                  return (
+                    <span
+                      key={dow}
+                      title={`${key} · 커밋 ${c}개`}
+                      className="rounded-[2px] transition-transform hover:scale-125"
+                      style={{ width: GRASS_CELL, height: GRASS_CELL, backgroundColor: GRASS_COLORS[level(c)] }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* 근거 + 범례 */}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10.5px] text-bluewood-300">분석된 최근 커밋 {total}개 기준</span>
+        <span className="flex items-center gap-1 text-[10px] text-bluewood-300">
+          적음
+          {GRASS_COLORS.map((c, i) => (
+            <span key={i} className="rounded-[2px]" style={{ width: GRASS_CELL, height: GRASS_CELL, backgroundColor: c }} />
+          ))}
+          많음
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* 내 역할 추론 — 코드 스니펫의 파일 경로 + 언어 구성으로 프론트/백엔드/풀스택 판별 */
+function inferDevRole(stats, gitExps) {
+  const paths = [];
+  (gitExps || []).forEach(e => {
+    (e.code_snippets || []).forEach(s => s?.file && paths.push(String(s.file)));
+    (e.troubleshooting_snippets || []).forEach(s => s?.file && paths.push(String(s.file)));
+  });
+  let fe = 0, be = 0;
+  paths.forEach(p => {
+    const s = p.toLowerCase();
+    const beDir = /(^|\/)(routes?|controllers?|services?|models?|api|server|middleware|migrations?|repository|handlers?|backend|db)\//.test(s);
+    const feDir = /(^|\/)(components?|pages?|views?|styles?|hooks|layouts?|frontend|client)\//.test(s);
+    const beExt = /\.(py|go|java|rb|php|rs|cs|kt|sql)$/.test(s);
+    const feExt = /\.(jsx|tsx|vue|svelte|css|scss|less|html)$/.test(s);
+    if (beDir || beExt) be++;
+    else if (feDir || feExt) fe++;   // 경로 없는 순수 .js/.ts는 모호 → 건너뜀
+  });
+  // 파일 근거가 약하면 언어 구성으로 보강 (JS/TS는 모호해서 제외)
+  const langs = Array.isArray(stats?.languages) ? stats.languages : [];
+  const langPct = (re) => langs.filter(l => re.test(l.name)).reduce((a, l) => a + (l.pct || 0), 0);
+  const feScore = fe * 2 + langPct(/^(html|css|scss|less|vue|svelte)$/i) / 12;
+  const beScore = be * 2 + langPct(/^(python|java|go|ruby|php|rust|c#|c\+\+|kotlin|scala|elixir|sql|shell|dockerfile)$/i) / 12;
+  if (feScore < 0.5 && beScore < 0.5) return null;
+  const lo = Math.min(feScore, beScore), hi = Math.max(feScore, beScore);
+  if (lo > 0 && lo / hi >= 0.35) return '풀스택';
+  return feScore >= beScore ? '프론트엔드' : '백엔드';
+}
+
+/* ── 기여도 · 영향력 — 문서 톤 스탯 블록 (기여 바 · 언어 바 · 월별 활동 · 커밋 유형 · 핵심 역할) ── */
+function GitHeroCard({ stats, role, rolePoints = [] }) {
+  const pct = Number(stats.contributionPct) || 0;
+  const langs = Array.isArray(stats.languages) ? stats.languages : [];
+  const types = Array.isArray(stats.commitTypes) ? stats.commitTypes.slice(0, 5) : [];
+  const grassDays = Array.isArray(stats.dailyActivity) ? stats.dailyActivity : [];
+  const maxType = Math.max(1, ...types.map(t => t.count || 0));
+  // 언어 식별 색 — 고정 순서 배정 (검증 통과 팔레트, 범례에 이름·% 라벨 병기)
+  const LANG_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0d9488'];
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className={MICRO_LABEL}>기여도 · 영향력</h3>
+        {stats.activePeriod && (
+          <span className="text-[11px] tabular-nums text-bluewood-300">{stats.activePeriod.first} ~ {stats.activePeriod.last}</span>
+        )}
+      </div>
+
+      {/* 메인 수치 — 기여 비중을 크게. 통계 일부가 비면(레이트리밋 등) 내 커밋 수를 메인으로 폴백 */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+        <div>
+          <p className="text-[34px] font-black leading-none tracking-tight" style={{ color: ACCENT }}>{pct ? `${pct}%` : (stats.myCommits || '—')}</p>
+          <p className="mt-1.5 text-[11.5px] font-semibold text-bluewood-400">{pct ? '커밋 기여 비중' : '내 커밋'}</p>
+        </div>
+        {pct > 0 && (
+          <div>
+            <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{stats.myCommits ?? '—'}<span className="text-[13px] font-semibold text-bluewood-400"> / {stats.totalCommits || '—'}</span></p>
+            <p className="mt-1.5 text-[11px] text-bluewood-400">내 커밋 / 전체</p>
+          </div>
+        )}
+        <div>
+          <p className="text-[20px] font-extrabold leading-none text-bluewood-900">{role || '—'}</p>
+          <p className="mt-1.5 text-[11px] text-bluewood-400">주 역할</p>
+        </div>
+      </div>
+
+      {/* 기여 비중 바 */}
+      {pct > 0 && (
+        <div className="mt-4">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-100">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: ACCENT }} />
+          </div>
+          <p className="mt-1.5 text-[11px] text-bluewood-300">내 커밋 {stats.myCommits} / 전체 {stats.totalCommits} · GitHub 기여자 통계(기본 브랜치) 기준</p>
+        </div>
+      )}
+
+      {/* 언어 구성 — 스택 바 + 이름·% 범례 */}
+      {langs.length > 0 && (
+        <div className="mt-5">
+          <div className="flex h-2 w-full gap-[2px] overflow-hidden rounded-full">
+            {langs.map((l, i) => (
+              <div key={i} className="rounded-full" style={{ width: `${l.pct}%`, backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} title={`${l.name} ${l.pct}%`} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1">
+            {langs.map((l, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 text-[11.5px] text-bluewood-500">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: LANG_COLORS[i % LANG_COLORS.length] }} />
+                {l.name} <span className="text-bluewood-300">{l.pct}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 커밋 잔디 — 언제 얼마나 꾸준히 기여했는지 (GitHub 컨트리뷰션 그래프) */}
+      {grassDays.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2.5 text-[11px] font-bold text-bluewood-400">커밋 활동</p>
+          <CommitGrass days={grassDays} />
+        </div>
+      )}
+
+      {/* 커밋 유형 분포 — 무슨 일을 주로 했는지 (feat/fix/refactor …) */}
+      {types.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2 text-[11px] font-bold text-bluewood-400">커밋 유형</p>
+          <div className="space-y-1.5">
+            {types.map((t, i) => (
+              <div key={i} className="flex items-center gap-2.5 text-[11.5px]">
+                <span className="w-16 flex-shrink-0 truncate font-mono text-bluewood-500">{t.type}</span>
+                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100">
+                  <div className="h-full rounded-full" style={{ width: `${Math.round((t.count / maxType) * 100)}%`, backgroundColor: ACCENT }} />
+                </div>
+                <span className="w-9 flex-shrink-0 text-right font-semibold tabular-nums text-bluewood-700">{t.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 핵심 역할 — 이 개발에서 내가 맡아 해결한 작업 포인트 (git 경험 요약) */}
+      {rolePoints.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2 text-[11px] font-bold text-bluewood-400">핵심 역할</p>
+          <ul className="space-y-1.5">
+            {rolePoints.map((p, i) => (
+              <li key={i} className="flex gap-2 text-[12px] leading-[1.5] text-bluewood-600">
+                <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: ACCENT }} />
+                <span className="min-w-0">{p}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 코드 창 — 보기: IDE 스타일, hover '수정' → 다크 에디터에서 파일·코드 직접 수정 ── */
+function EditableCodeWindow({ file, code, onPatch }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <div className="group/cw relative">
+        <CodeSnippet file={file} code={code} />
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="absolute right-2 top-1.5 hidden rounded border border-[#30363d] bg-[#161b22] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#8b949e] hover:text-white group-hover/cw:block"
+        >수정</button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-3 overflow-hidden rounded-lg border border-primary-400 bg-[#0d1117] shadow-md">
+      <div className="flex items-center gap-2 border-b border-[#21262d] bg-[#161b22] px-3 py-1.5">
+        <input
+          value={file || ''}
+          onChange={e => onPatch({ file: e.target.value })}
+          placeholder="파일 경로 (예: src/auth/middleware.ts)"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-[#e6edf3] outline-none placeholder:text-[#4d5566]"
+        />
+        <button type="button" onClick={() => setEditing(false)} className="flex-shrink-0 rounded bg-primary-600 px-2 py-0.5 text-[10.5px] font-bold text-white hover:bg-primary-500">완료</button>
+      </div>
+      <textarea
+        autoFocus
+        value={code || ''}
+        onChange={e => onPatch({ code: e.target.value })}
+        rows={Math.min(16, Math.max(4, String(code || '').split('\n').length + 1))}
+        spellCheck={false}
+        className="block w-full resize-y bg-transparent px-3 py-2 font-mono text-[11.5px] leading-[1.7] text-[#d4d4d4] outline-none placeholder:text-[#4d5566]"
+        placeholder="코드를 입력하세요"
+      />
+    </div>
+  );
+}
+
+/* 여러 줄 리스트 편집 블록 — 라벨 + AutoText(dense). (행 내부 정의 시 재마운트로 포커스가 끊겨 모듈 레벨로 둠) */
+function GitListEdit({ label, color, value, onChange, placeholder }) {
+  return (
+    <div>
+      <p className="mb-0.5 text-[11px] font-bold" style={{ color }}>{label}</p>
+      <AutoText
+        dense
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder || `${label} 입력 (줄바꿈으로 항목 구분)`}
+        className="text-[12.5px] leading-[1.6] text-bluewood-600"
+      />
+    </div>
+  );
+}
+
+/* ── 문제 해결 아코디언 행 — 핵심 경험 아코디언과 같은 인터랙션 문법 + 전 필드 인라인 편집 ── */
+function GitProjectRow({ exp, index, open, onToggle, onPatch, onDelete }) {
+  const title = clean(exp.project_name) || `프로젝트 ${index + 1}`;
+  const impact = clean(exp.core_impact);
+  const problemLine = toLines(exp.problem_definition)[0] || '';  // 접힘 상태에 보여줄 '어떤 문제'
+  const snippets = Array.isArray(exp.code_snippets) ? exp.code_snippets.filter(s => s && (s.code || s.why || s.file)) : [];
+  const troubleSnippets = Array.isArray(exp.troubleshooting_snippets) ? exp.troubleshooting_snippets.filter(s => s && (s.code || s.solution || s.issue)) : [];
+  const trouble = toLines(exp.troubleshooting);
+
+  // 배열 필드 ↔ 여러 줄 텍스트 편집 (한 줄 = 한 항목)
+  const linesVal = (v) => toLines(v).join('\n');
+  const setLines = (key) => (v) => onPatch({ [key]: v.split('\n') });
+  const patchSnippet = (listKey) => (i, changes) => {
+    const list = Array.isArray(exp[listKey]) ? [...exp[listKey]] : [];
+    list[i] = { ...(list[i] || {}), ...changes };
+    onPatch({ [listKey]: list });
+  };
+  const patchCode = patchSnippet('code_snippets');
+  const patchTrouble = patchSnippet('troubleshooting_snippets');
+
+  return (
+    <div className="border-b border-surface-200">
+      {open ? (
+        /* ── 펼침: 편집 가능한 헤더 (번호 + 제목) ── */
+        <div className="flex items-start gap-2.5 pt-2.5 pb-1">
+          <span className="mt-0.5 flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <AutoText
+              prose
+              value={exp.project_name || ''}
+              onChange={(v) => onPatch({ project_name: v })}
+              placeholder={`프로젝트 ${index + 1}`}
+              className="text-[14px] sm:text-[14.5px] font-extrabold leading-snug text-bluewood-900"
+            />
+            <div className="mt-1 flex items-start gap-2">
+              <div className="w-44 flex-shrink-0">
+                <AutoText
+                  value={exp.period || ''}
+                  onChange={(v) => onPatch({ period: v })}
+                  placeholder="기간 (예: 2026.05 ~ 2026.07)"
+                  className="text-[11px] text-bluewood-400"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <AutoText
+                  value={exp.core_tech_stack || ''}
+                  onChange={(v) => onPatch({ core_tech_stack: v })}
+                  placeholder="기술 태그 (쉼표로 구분)"
+                  className="text-[11px] text-bluewood-500"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <button type="button" onClick={onDelete} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded
+              aria-label="접기"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-500 transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600"
+              style={{ transform: 'rotate(180deg)' }}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── 접힘: 행 전체 클릭 · 컴팩트 ── */
+        <button type="button" onClick={onToggle} aria-expanded={false} className="group flex w-full items-center gap-2.5 py-2.5 text-left">
+          <span className="flex flex-shrink-0 items-center justify-center rounded text-[10.5px] font-black text-white" style={{ backgroundColor: ACCENT, height: '18px', width: '18px' }}>{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14.5px] font-extrabold leading-snug text-bluewood-900">{title}</p>
+            {problemLine ? (
+              <p className="mt-0.5 truncate text-[12px] text-bluewood-500">
+                <span className="font-bold" style={{ color: '#314157' }}>문제 </span>{problemLine}
+              </p>
+            ) : impact ? (
+              <p className="mt-0.5 truncate text-[12px] font-semibold text-bluewood-500">
+                <span className="font-black" style={{ color: ACCENT }}>성과 </span>{impact}
+              </p>
+            ) : null}
+          </div>
+          {/* 접힘 상태에서도 깊이가 보이도록 — 코드·픽스 카운트 */}
+          {(snippets.length > 0 || troubleSnippets.length > 0 || trouble.length > 0) && (
+            <span className="hidden flex-shrink-0 items-center gap-1.5 font-mono text-[10px] sm:flex">
+              {snippets.length > 0 && <span className="rounded border border-surface-200 bg-surface-50 px-1.5 py-0.5 text-bluewood-400">{'</>'} {snippets.length}</span>}
+              {(troubleSnippets.length > 0 || trouble.length > 0) && <span className="rounded px-1.5 py-0.5 font-semibold" style={{ color: '#b45309', backgroundColor: '#fef7ec' }}>fix {troubleSnippets.length || trouble.length}</span>}
+            </span>
+          )}
+          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-400 transition-all group-hover:border-primary-300 group-hover:bg-primary-50 group-hover:text-primary-600">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          </span>
+        </button>
+      )}
+
+      {open && (
+        <div className="space-y-3.5 pb-4 pl-[28px]">
+          <GitListEdit label="문제" color="#314157" value={linesVal(exp.problem_definition)} onChange={setLines('problem_definition')} />
+          <GitListEdit label="해결" color={ACCENT} value={linesVal(exp.action_and_solution)} onChange={setLines('action_and_solution')} />
+
+          {/* 성과 — 접힘 요약·하이라이트와 동기화 */}
+          <div className="flex items-baseline gap-2">
+            <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide" style={{ color: ACCENT }}>성과</span>
+            <AutoText
+              dense
+              value={exp.core_impact || ''}
+              onChange={(v) => onPatch({ core_impact: v })}
+              placeholder="이 작업의 핵심 성과 한 줄"
+              className="text-[12.5px] font-bold leading-[1.55] text-bluewood-900"
+            />
+          </div>
+
+          {/* 코드 변경 — 파일·코드·설명 모두 편집 가능 */}
+          {snippets.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold text-bluewood-700">코드 변경</p>
+              {exp.code_snippets.map((s, i) => (
+                (s && (s.code || s.why || s.file)) ? (
+                  <div key={i} className="mb-3">
+                    <EditableCodeWindow file={s.file} code={s.code} onPatch={(ch) => patchCode(i, ch)} />
+                    <AutoText
+                      dense
+                      value={s.why || s.change || ''}
+                      onChange={(v) => patchCode(i, { why: v })}
+                      placeholder="이 코드가 무엇을 어떻게 바꾸는지 설명"
+                      className="-mt-2 text-[12.5px] leading-[1.7] text-bluewood-600"
+                    />
+                  </div>
+                ) : null
+              ))}
+            </div>
+          ) : (
+            <GitListEdit label="코드 변경" color="#334155" value={linesVal(exp.code_changes)} onChange={setLines('code_changes')} placeholder="핵심 코드 변경 내용 (줄바꿈으로 항목 구분)" />
+          )}
+
+          {/* 트러블슈팅 — 이슈·파일·코드·해결 설명 편집 가능 */}
+          {troubleSnippets.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold" style={{ color: '#b45309' }}>트러블슈팅</p>
+              {exp.troubleshooting_snippets.map((s, i) => (
+                (s && (s.code || s.solution || s.issue)) ? (
+                  <div key={i} className="mb-3">
+                    <AutoText
+                      dense
+                      value={s.issue || ''}
+                      onChange={(v) => patchTrouble(i, { issue: v })}
+                      placeholder="발생한 문제 한 줄"
+                      className="mb-1 text-[12.5px] font-semibold text-bluewood-800"
+                    />
+                    <EditableCodeWindow file={s.file} code={s.code} onPatch={(ch) => patchTrouble(i, ch)} />
+                    <AutoText
+                      dense
+                      value={s.solution || ''}
+                      onChange={(v) => patchTrouble(i, { solution: v })}
+                      placeholder="이 코드로 어떻게 해결했는지 설명"
+                      className="-mt-2 text-[12.5px] leading-[1.7] text-bluewood-600"
+                    />
+                  </div>
+                ) : null
+              ))}
+            </div>
+          ) : (
+            <GitListEdit label="트러블슈팅" color="#b45309" value={linesVal(exp.troubleshooting)} onChange={setLines('troubleshooting')} placeholder="발생한 문제 → 원인 → 해결 흐름" />
+          )}
+
+          <GitListEdit label="배운 점" color="#94a3b8" value={linesVal(exp.learning)} onChange={setLines('learning')} placeholder="이 작업으로 배운 점" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* 레거시 README 마크다운 → 일반 문서 세그먼트 변환 (한 번 저장했던 사용자 데이터 보존) */
+function markdownToSegs(md) {
+  const segs = [];
+  const strip = (s) => s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').trim();
+  const push = (variant, content) => content && segs.push({ id: uid(), type: 'text', variant, content });
+  String(md).replace(/\r\n/g, '\n').split('\n').forEach(line => {
+    const t = line.trim();
+    if (/^---\s*[^-]+?\s*---$/.test(t)) return; // 수집 단계 메타 라벨 생략
+    if (!t || /^(-{3,}|\*{3,}|_{3,})$/.test(t) || /^\|?[\s:|-]*-[\s:|-]*\|?$/.test(t)) return; // 빈 줄·구분선·표 구분행 생략
+    const h = t.match(/^#{1,6}\s+(.*)$/);
+    if (h) return push('heading', strip(h[1]));
+    if (/^>\s?/.test(t)) return push('paragraph', strip(t.replace(/^>\s?/, '')));
+    if (/^([-*+]|\d+\.)\s+/.test(t)) return push('bullet', strip(t.replace(/^([-*+]|\d+\.)\s+/, '')));
+    if (t.includes('|')) {
+      const cells = t.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => strip(c)).filter(Boolean);
+      if (cells.length >= 2 && cells[0] !== '기능') push('bullet', `${cells[0]} — ${cells.slice(1).join(' · ')}`);
+      return;
+    }
+    push('paragraph', strip(t));
+  });
+  return segs;
+}
+
+function getRawMaterialText(exp) {
+  return String(
+    exp?.content?.rawInput
+    || exp?.rawInput
+    || exp?.structuredResult?.rawInput
+    || '',
+  ).trim();
+}
+
+/* 원본 자료에서 GitHub 레포 섹션(개발 중심 README/구조)을 제거 — 서비스 설명 추출을 흐리지 않게. */
+function stripGithubSections(raw) {
+  const cleaned = String(raw || '')
+    .split(/(?:^|\n)===\s*AI\s*추출\s*핵심\s*경험\s*===/)[0]
+    .replace(/\r\n/g, '\n');
+  const parts = [];
+  const re = /(?:^|\n)---[ \t]+(.+?)[ \t]+---[ \t]*(?:\n|$)/g;
+  let m, lastIdx = 0, lastLabel = '원본';
+  while ((m = re.exec(cleaned)) !== null) {
+    if (m.index > lastIdx) parts.push({ label: lastLabel, text: cleaned.slice(lastIdx, m.index) });
+    lastLabel = m[1]; lastIdx = re.lastIndex;
+  }
+  parts.push({ label: lastLabel, text: cleaned.slice(lastIdx) });
+  const isGithub = (label) => /github|깃허브|리포지토리|repo/i.test(label);
+  const kept = parts.filter(p => !isGithub(p.label)).map(p => p.text.trim()).filter(Boolean).join('\n\n').trim();
+  // GitHub 외 섹션이 하나도 없으면(레포만 넣은 경우) 원본 그대로 반환
+  return kept || cleaned.trim();
+}
+
+function extractReadmeLikeMarkdown(exp) {
+  const sr = exp?.structuredResult || {};
+  const direct = String(sr.readme || '').trim();
+  if (direct) return direct;
+  const raw = getRawMaterialText(exp);
+  if (!raw) return '';
+  const cleaned = raw
+    .split(/(?:^|\n)===\s*AI\s*추출\s*핵심\s*경험\s*===/)[0]
+    .replace(/\r\n/g, '\n')
+    .trim();
+
+  // 자료를 '--- 라벨 ---' 구분자로 섹션 분할 (업로드 파일 vs GitHub 레포 README 구분)
+  // ⚠ 한 줄로 한정([ \t]*) — 마크다운 수평선(---)을 섹션 구분자로 오인하지 않도록.
+  const parts = [];
+  const re = /(?:^|\n)---[ \t]+(.+?)[ \t]+---[ \t]*(?:\n|$)/g;
+  let m, lastIdx = 0, lastLabel = '원본';
+  while ((m = re.exec(cleaned)) !== null) {
+    if (m.index > lastIdx) parts.push({ label: lastLabel, text: cleaned.slice(lastIdx, m.index).trim() });
+    lastLabel = m[1]; lastIdx = re.lastIndex;
+  }
+  parts.push({ label: lastLabel, text: cleaned.slice(lastIdx).trim() });
+
+  const isReadme = (t) => /(^|\n)#{1,2}\s+\S/.test(t) && /(문제\s*정의|해결\s*방법|핵심\s*기능|주요\s*기능)/.test(t);
+  const isGithub = (label) => /github|깃허브|리포지토리|repo/i.test(label);
+  // 1순위: 업로드한 서비스 파일 README, 2순위: GitHub 레포 README, 3순위: 전체
+  // (내 깃허브 README는 개발 README라 서비스 설명 파일보다 뒤로)
+  const fileReadme = parts.find(p => !isGithub(p.label) && isReadme(p.text));
+  if (fileReadme) return fileReadme.text;
+  const ghReadme = parts.find(p => isGithub(p.label) && isReadme(p.text));
+  if (ghReadme) return ghReadme.text;
+  return isReadme(cleaned) ? cleaned : '';
+}
+
+function sectionTextFromMarkdown(markdown, heading) {
+  const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex(line => new RegExp(`^#{1,4}\\s*${heading}\\s*$`).test(line.trim()));
+  if (start < 0) return '';
+  const out = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^#{1,4}\s+\S/.test(line.trim())) break;
+    out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+function featureRowsFromMarkdown(markdown) {
+  const block = sectionTextFromMarkdown(markdown, '핵심 기능') || sectionTextFromMarkdown(markdown, '주요 기능');
+  const rows = [];
+  String(block).split('\n').forEach(line => {
+    const t = line.trim();
+    if (!t || /^\|?\s*[-:]+\s*\|/.test(t)) return;
+    if (t.includes('|')) {
+      const cells = t.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.replace(/\*\*/g, '').trim()).filter(Boolean);
+      if (cells.length >= 2 && !/^기능$/i.test(cells[0])) rows.push({ name: cells[0], desc: cells.slice(1).join(' · ') });
+      return;
+    }
+    const bullet = t.match(/^[-*+]\s+(.+)$/);
+    if (bullet) rows.push({ name: bullet[1], desc: '' });
+  });
+  return rows;
+}
+
+function firstMarkdownHeading(markdown) {
+  const hit = String(markdown || '').match(/^#{1,2}\s+(.+)$/m);
+  return clean(hit?.[1] || '').replace(/^>\s*/, '').trim();
+}
+
+function collectYooptaText(value) {
+  const out = [];
+  const walk = (node) => {
+    if (!node) return;
+    if (typeof node === 'string') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (typeof node !== 'object') return;
+    if (typeof node.text === 'string') out.push(node.text);
+    Object.values(node).forEach(walk);
+  };
+  walk(value);
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function collectCaseSegmentText(value) {
+  if (!Array.isArray(value)) return '';
+  return value.map(seg => clean(seg?.content || '')).filter(Boolean).join(' ');
+}
+
+function shouldUseReadmeSeed(exp, savedOverviewDoc) {
+  const readme = extractReadmeLikeMarkdown(exp);
+  if (!readme) return false;
+  const savedText = (isYooptaDoc(savedOverviewDoc) ? collectYooptaText(savedOverviewDoc) : collectCaseSegmentText(savedOverviewDoc));
+  if (!savedText) return true;
+  const title = firstMarkdownHeading(readme);
+  if (title && !savedText.includes(title)) return true;
+  const hasReadmeSections = /(문제\s*정의|해결\s*방법|핵심\s*기능|주요\s*기능)/.test(savedText);
+  if (title && savedText.includes(title) && hasReadmeSections) return false;
+  const looksDevHeavy = /(프론트엔드|백엔드|HMR|Zustand|Firebase|Firestore|Node\.?js|Express|커밋|개발\s*환경|기술\s*스택)/i.test(savedText);
+  return !hasReadmeSections || looksDevHeavy;
+}
+
+/* 경험 내용 → 프로젝트 소개 문서 초안 (일반 글 세그먼트).
+ * 우선순위: ① 원본 README 흐름 → ② 내 아이템의 문제정의/해결/핵심 기능.
+ * 코드·트러블슈팅은 아래 '문제 해결 과정'에서 다루므로 여기엔 넣지 않는다. */
+/* README 마크다운에서 특정 섹션(핵심 기능·성과)을 제거 — 그 내용은 아래 표(ProductFacts)로 별도 표시 */
+function stripReadmeSections(md, headings) {
+  const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let skip = false;
+  for (const line of lines) {
+    const h = line.trim().match(/^#{1,4}\s+(.*)$/);
+    if (h) { const name = h[1].replace(/\s+/g, ''); skip = headings.some(hd => name.includes(hd)); if (skip) continue; }
+    if (!skip) out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+/* 프로젝트 소개 초안 — 서사(제목·소개·문제정의·해결방법)만. 핵심기능·성과는 ProductFacts 표로 분리.
+ * 우선순위: ① 원본 README 흐름 → ② 사업(아이템) 관점 문제정의 → (없으면) 개발 관점. */
+function buildOverviewSeedSegs(exp) {
+  const sr = exp?.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const product = sr.product && typeof sr.product === 'object' ? sr.product : {};
+  const oneLine = (v) => clean(v).replace(/\n+/g, ' ').trim();
+  const norm = (v) => clean(v).replace(/\s+/g, '').slice(0, 80);
+
+  // 최우선: AI가 뽑은 서비스(아이템) 설명(product) — 개발 서사보다 앞선다.
+  const title = oneLine(product.name) || oneLine(sr.projectName || sr.title || ov.name || exp?.title);
+  const tagline = oneLine(product.tagline) || oneLine(sr.intro) || oneLine(ov.summary) || oneLine(ov.goal);
+  const problem = clean(product.problem) || clean(ov.background) || clean(ov.goal) || clean(sr.problem) || clean(sr.overview);
+  let solution = clean(product.solution) || clean(ov.solution) || clean(ov.summary) || clean(sr.solution) || clean(sr.intro);
+
+  // product가 없을 때만 원본 README 서사로 폴백(핵심기능·성과 섹션만 제거)
+  if (!clean(product.problem) && !clean(product.solution)) {
+    const readmeLike = extractReadmeLikeMarkdown(exp);
+    if (readmeLike) return markdownToSegs(stripReadmeSections(readmeLike, ['핵심기능', '주요기능', '성과', '주요성과']));
+  }
+
+  // 문제·해결·소개가 같은 문장으로 3중 중복되는 것 방지
+  if (norm(solution) && norm(solution) === norm(problem)) solution = clean(sr.process) || clean(sr.task) || '';
+  const showTagline = tagline && norm(tagline) !== norm(problem) && norm(tagline) !== norm(solution);
+
+  const segs = [];
+  const push = (variant, content) => content && segs.push({ id: uid(), type: 'text', variant, content });
+  if (title) push('heading', title);
+  if (showTagline) push('paragraph', tagline);
+  push('heading', '문제 정의');
+  push('paragraph', problem || '이 아이템이 해결하려는 사업적 문제 — 누가, 어떤 상황에서, 어떤 불편을 겪는지 적어주세요.');
+  push('heading', '해결 방법');
+  push('paragraph', solution || '이 서비스가 문제를 푸는 방식을 개념 위주로 적어주세요.');
+  return segs;
+}
+
+/* 성과 문장을 지표/값 쌍으로 파싱 — "만족도 70%", "사용자 400명 달성", "조회수 78,881회" 등 */
+function parseMetricPair(s) {
+  const t = clean(s).replace(/\n+/g, ' ').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim(); // 괄호 부연 제거
+  if (!t) return null;
+  const UNIT = '%|명|건|원|점|배|분|초|시간|일|주|개월|년|만|천|억|회|k|K|x|X';
+  const m = t.match(new RegExp(`^(.*?)[\\s:·]*((?:[\\d.,]+\\s*(?:${UNIT})?)(?:\\s*(?:이상|이하|달성|증가|감소|단축|초과|돌파))?)\\s*$`));
+  if (m && /\d/.test(m[2])) {
+    const label = m[1].replace(/[:·\-]\s*$/, '').trim();
+    return { label: label || '성과', value: m[2].trim() };
+  }
+  return { label: t, value: '' };
+}
+
+/* ── 주요 성과 · 핵심 기능 — 서사 문서와 분리한 깔끔한 표 (product 우선) ── */
+function ProductFacts({ exp }) {
+  const sr = exp?.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const product = sr.product && typeof sr.product === 'object' ? sr.product : {};
+  const oneLine = (v) => clean(v).replace(/\n+/g, ' ').trim();
+  const clip = (s, n = 150) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+  const readme = extractReadmeLikeMarkdown(exp);
+
+  const kes = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
+
+  // 핵심 기능 — '서비스 기능'만: product.features → 서비스 README 표 → 전체 자료에서 기능 표 탐색.
+  // (개발 성과 keyExp는 여기 넣지 않음. 단, 어느 자료에서든 기능 표가 있으면 반드시 찾아 비지 않게 함)
+  let rows = (Array.isArray(product.features) ? product.features : [])
+    .map(f => ({ name: oneLine(f?.name), desc: oneLine(f?.desc) })).filter(r => r.name || r.desc);
+  if (!rows.length) rows = featureRowsFromMarkdown(readme);
+  if (!rows.length) rows = featureRowsFromMarkdown(getRawMaterialText(exp));
+  rows = rows.map(r => ({ name: clip(oneLine(r.name) || '기능', 40), desc: clip(oneLine(r.desc) || '', 160) })).filter(r => r.name).slice(0, 10);
+
+  // 주요 성과 — product.outcomes(지표|값) → 핵심 경험의 성과(제목|성과 설명/수치)
+  let outcomes = (Array.isArray(product.outcomes) ? product.outcomes : [])
+    .map(o => ({ label: oneLine(o?.label), value: oneLine(o?.value) })).filter(o => o.label || o.value);
+  if (!outcomes.length) {
+    outcomes = kes
+      .map(k => {
+        const label = oneLine(k.title);
+        const value = oneLine(k.result) || oneLine(k.metric || k.afterMetric) || oneLine(k.context);
+        return label || value ? { label: label || '성과', value } : null;
+      })
+      .filter(Boolean);
+  }
+  outcomes = outcomes.map(o => ({ label: clip(o.label || '성과', 60), value: clip(o.value || '', 200) })).slice(0, 8);
+
+  if (!rows.length && !outcomes.length) return null;
+
+  const Table = ({ label, rowsData }) => (
+    <div>
+      <h3 className={`${MICRO_LABEL} mb-2.5`}>{label}</h3>
+      <div className="overflow-hidden rounded-xl border border-surface-200">
+        <table className="w-full border-collapse text-[13px]">
+          <tbody>
+            {rowsData.map((r, i) => (
+              <tr key={i} className="border-b border-surface-100 last:border-0">
+                <td className="w-[34%] border-r border-surface-100 bg-surface-50/50 px-3 py-2 align-top font-bold text-bluewood-800">{r.name}</td>
+                <td className="px-3 py-2 align-top leading-[1.6] text-bluewood-600">{r.desc || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {outcomes.length > 0 && <Table label="주요 성과" rowsData={outcomes.map(o => ({ name: o.label, desc: o.value }))} />}
+      {rows.length > 0 && <Table label="핵심 기능" rowsData={rows} />}
+    </>
+  );
+}
+
+/* 프로젝트 흐름 폴백 — AI 흐름도가 없으면 핵심 경험(기능)을 사용자 여정 단계로 체인 */
+function buildFallbackFlow(sr) {
+  const kes = Array.isArray(sr?.keyExperiences) ? sr.keyExperiences : [];
+  const steps = kes
+    .map(k => clean(k.title).split('\n')[0].trim())
+    .filter(Boolean)
+    .map(s => (s.length > 24 ? `${s.slice(0, 23)}…` : s))
+    .slice(0, 5);
+  if (steps.length < 2) return null;
+  const nodes = [
+    { id: 'flow0', label: '사용자 진입', tech: '', tier: 0 },
+    ...steps.map((s, i) => ({ id: `flow${i + 1}`, label: s, tech: '', tier: i + 1 })),
+  ];
+  const edges = nodes.slice(0, -1).map((n, i) => ({ from: n.id, to: nodes[i + 1].id, label: '' }));
+  return { nodes, edges };
+}
+
+/* ── 프로젝트 소개 — 일반 글 형식 문서 (내용 섹션과 같은 편집기: 클릭 편집 + 우클릭 서식) ── */
+function OverviewDoc({ value, seed, onChange }) {
+  const doc = useMemo(() => (
+    isYooptaDoc(value) ? value : caseBodyToYooptaValue(Array.isArray(value) && value.length > 0 ? value : seed)
+  ), [value, seed]);
+  const isSeed = !isYooptaDoc(value) && !(Array.isArray(value) && value.length > 0);
+  return (
+    <div>
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <h3 className={MICRO_LABEL}>프로젝트 소개</h3>
+        <span className="text-[11px] text-bluewood-300">{isSeed ? '내용 기반 자동 초안 · ' : ''}노션형 편집 · 우클릭 서식</span>
+      </div>
+      <div className="rounded-lg border border-transparent px-1 py-1 transition-colors hover:border-surface-100 hover:bg-surface-50/40">
+        <YooptaMiniEditor
+          value={doc}
+          onChange={onChange}
+          minHeight={24}
+          placeholder="프로젝트 소개를 입력하세요..."
+          className="dev-impact-overview-doc"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ContextMenuHost() {
+  const [menu, setMenu] = useState(null);
+  useEffect(() => {
+    const onOpen = (event) => {
+      const items = event.detail?.items;
+      if (!items?.length) return;
+      const x = Math.max(8, Math.min(event.detail.x, window.innerWidth - 180));
+      const y = Math.max(8, Math.min(event.detail.y, window.innerHeight - (items.length * 40 + 16)));
+      setMenu({ x, y, items });
+    };
+    const onClose = () => setMenu(null);
+    const onKey = (event) => { if (event.key === 'Escape') setMenu(null); };
+    window.addEventListener('fitpoly:open-context-menu', onOpen);
+    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('fitpoly:open-context-menu', onOpen);
+      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+  if (!menu) return null;
+  return createPortal(
+    <>
+      <div
+        className="fixed inset-0 z-[1000]"
+        onClick={() => setMenu(null)}
+        onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}
+      />
+      <div
+        className="fixed z-[1001] min-w-[168px] overflow-y-auto rounded-lg border border-surface-200 bg-white py-1 shadow-xl"
+        style={{ top: menu.y, left: menu.x, maxHeight: 'min(520px, calc(100vh - 16px))' }}
+      >
+        {menu.items.map((item, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => { item.onClick?.(); setMenu(null); }}
+            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors ${item.danger ? 'text-red-500 hover:bg-red-50' : 'text-bluewood-700 hover:bg-surface-50'}`}
+          >
+            {item.icon && <item.icon size={14} />} {item.label}
+          </button>
+        ))}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+/* ── 개발 임팩트 — 케이스 스터디의 개발 직군 구조: README → 아키텍처 → 문제 해결 (기여도 통계는 좌측 사이드바로 이동) ── */
+function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [openProjects, setOpenProjects] = useState([0]); // 첫 항목은 펼친 상태로
+
+  // 아키텍처 편집 상태 (개발자 포트폴리오와 동일한 캔버스). archTab: 'system'(개발 구조) | 'flow'(프로젝트 흐름)
+  const [archTab, setArchTab] = useState('system');
+  const [editDiagram, setEditDiagram] = useState(false);
+  const [diagramDraft, setDiagramDraft] = useState({ nodes: [], edges: [] });
+  const [editCanvas, setEditCanvas] = useState({ w: 800, h: 420 });
+  const [regenProduct, setRegenProduct] = useState(false); // 원본 자료로 서비스 설명 재추출 중
+
+  const sr = exp?.structuredResult || {};
+  const ov = sr.projectOverview || {};
+  const stats = sr.githubStats || null;
+  const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
+  const hasGit = Boolean(stats || gitExps.length > 0);
+  const repoName = sr.gitAnalysis?.repoName || stats?.repoName || '';
+
+  // 아키텍처 1) 개발 구조 — AI가 만든 다이어그램 우선, 없으면 실제 기술스택 기반 폴백
+  // (키워드는 사업/예시 단어가 섞여 무관한 박스를 만들어 제외 — 실제 기술만)
+  const savedSystem = Array.isArray(sr.architectureDiagram?.nodes) && sr.architectureDiagram.nodes.length > 0
+    ? sr.architectureDiagram : null;
+  const techs = [
+    ...(Array.isArray(ov.techStack) ? ov.techStack : []).map(t => (typeof t === 'string' ? t : t?.name || '')),
+    ...gitExps.flatMap(e => String(e.core_tech_stack || '').split(/,\s*/)),
+    ...(Array.isArray(stats?.languages) ? stats.languages.map(l => l.name) : []),
+  ];
+  const systemDiagram = savedSystem || buildFallbackDiagram(techs);
+
+  // 아키텍처 2) 프로젝트 흐름 — AI가 만든 서비스 흐름 우선, 없으면 핵심 경험 단계로 폴백
+  const savedFlow = Array.isArray(sr.flowDiagram?.nodes) && sr.flowDiagram.nodes.length > 0
+    ? sr.flowDiagram : null;
+  const flowDiagram = savedFlow || buildFallbackFlow(sr);
+  const activeDiagram = archTab === 'flow' ? flowDiagram : systemDiagram;
+  const isFlow = archTab === 'flow';
+
+  // 프로젝트 소개 초안 — product(서비스 설명) 최우선, 없으면 README 원본
+  const overviewSeed = useMemo(() => buildOverviewSeedSegs(exp), [exp]);
+  const overviewDocValue = useMemo(() => {
+    const saved = sr.overviewDoc;
+    const savedText = (isYooptaDoc(saved) ? collectYooptaText(saved) : collectCaseSegmentText(saved)).replace(/\s+/g, '');
+    // product(서비스 설명)가 있는데 저장 문서가 그 문제정의를 아직 반영 안 했으면 시드(product)로 재구성
+    const prob = clean(sr.product?.problem).replace(/\s+/g, '').slice(0, 20);
+    if (prob && savedText && !savedText.includes(prob)) return null;
+    return shouldUseReadmeSeed(exp, saved) ? null : saved;
+  }, [exp, sr.overviewDoc, sr.product]);
+
+  // 원본 자료(PDF·문서 등)로 서비스 설명(product)을 AI로 다시 추출 — 개발 서사가 굳은 경우 서비스 관점으로 재정리
+  const regenerateProduct = async () => {
+    // GitHub 레포 README(개발 내용)를 뺀 '서비스 자료'만으로 재추출 — 문제정의가 개발 서사로 쏠리지 않게
+    const raw = stripGithubSections(getRawMaterialText(exp));
+    if (!raw) { toast.error('원본 자료가 없어 다시 뽑을 수 없어요. (경험을 새로 만들 때 자료를 첨부해야 해요)'); return; }
+    setRegenProduct(true);
+    try {
+      // 전용 경량 추출 — 전체 초안 실패와 무관하게 서비스 설명 + 아키텍처/흐름 다이어그램을 안정적으로 뽑는다
+      const res = await api.post('/experience/extract-product', { material: raw });
+      const p = res.data?.product;
+      const has = p && (clean(p.problem) || clean(p.solution) || (Array.isArray(p.features) && p.features.length));
+      if (!has) { toast.error('자료에서 서비스 설명을 찾지 못했어요. 문제·해결·기능이 담긴 자료인지 확인해주세요.'); setRegenProduct(false); return; }
+      // product + (있으면)아키텍처·흐름 다이어그램 반영 + overviewDoc 리셋(→ product 기반 시드로 다시 그려짐)
+      const arch = res.data?.architectureDiagram;
+      const flow = res.data?.flowDiagram;
+      onPatchSr({
+        ...sr,
+        product: p,
+        overviewDoc: null,
+        ...(arch?.nodes?.length ? { architectureDiagram: arch } : {}),
+        ...(flow?.nodes?.length ? { flowDiagram: flow } : {}),
+      });
+      toast.success('서비스 설명·아키텍처를 다시 정리했어요. 상단 저장을 눌러 반영하세요.');
+    } catch (e) {
+      toast.error(e?.response?.data?.error || '다시 정리에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+    setRegenProduct(false);
+  };
+
+  // git 경험 편집 — structuredResult.gitAnalysis.experiences에 반영 (상단 '저장'으로 일괄 저장)
+  const patchGitExp = (i, changes) => {
+    const experiences = gitExps.map((e, ei) => (ei === i ? { ...e, ...changes } : e));
+    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+  };
+  const deleteGitExp = (i) => {
+    if (!window.confirm('이 문제 해결 항목을 삭제할까요?')) return;
+    const experiences = gitExps.filter((_, ei) => ei !== i);
+    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+    setOpenProjects(prev => prev.filter(x => x !== i).map(x => (x > i ? x - 1 : x)));
+  };
+
+  const toggleProject = (i) => setOpenProjects(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+
+  // ── 아키텍처 편집 — 진입 시 좌표 없는 노드를 자동배치 좌표로 시딩하고 캔버스 크기 고정 ──
+  // 흐름 탭이 비어 있으면 시작 노드 2개를 깔아 바로 그릴 수 있게 한다.
+  const flowStarter = { nodes: [{ id: 'f1', label: '시작', tech: '사용자 진입', tier: 0 }, { id: 'f2', label: '다음 단계', tech: '', tier: 1 }], edges: [{ from: 'f1', to: 'f2', label: '' }] };
+  const enterEditDiagram = () => {
+    const base = activeDiagram || (isFlow ? flowStarter : { nodes: [], edges: [] });
+    const metrics = computeNodeMetrics(base.nodes);
+    const autoPos = autoLayoutPositions(base.nodes, metrics);
+    const seeded = base.nodes.map(n => {
+      const m = metrics[n.id];
+      const p = hasXY(n) ? { x: n.x, y: n.y } : (autoPos[n.id] || { x: PAD, y: PAD });
+      return {
+        ...n,
+        x: Math.round(p.x), y: Math.round(p.y),
+        w: Number.isFinite(n.w) ? n.w : Math.round(m.w),
+        h: Number.isFinite(n.h) ? n.h : Math.round(m.h),
+      };
+    });
+    let maxX = 0, maxY = 0;
+    seeded.forEach(n => { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+    setEditCanvas({ w: Math.max(720, Math.ceil(maxX) + 90), h: Math.max(340, Math.ceil(maxY) + 90) });
+    setDiagramDraft({ nodes: seeded, edges: (base.edges || []).map(e => ({ ...e })) });
+    setEditDiagram(true);
+  };
+  const addNode = () => setDiagramDraft(d => ({
+    ...d,
+    nodes: [...d.nodes, { id: `n${Date.now().toString(36)}`, label: '새 컴포넌트', tech: '', tier: 0, x: 24, y: 24 }],
+  }));
+  const updateNodeById = (nodeId, patch) => setDiagramDraft(d => ({ ...d, nodes: d.nodes.map(n => (n.id === nodeId ? { ...n, ...patch } : n)) }));
+  const removeNodeById = (nodeId) => setDiagramDraft(d => ({
+    nodes: d.nodes.filter(n => n.id !== nodeId),
+    edges: d.edges.filter(e => e.from !== nodeId && e.to !== nodeId),
+  }));
+  const connectNodes = (from, to) => setDiagramDraft(d => (
+    from && to && from !== to && !d.edges.some(e => e.from === from && e.to === to)
+      ? { ...d, edges: [...d.edges, { from, to, label: '' }] }
+      : d
+  ));
+  const updateEdge = (i, patch) => setDiagramDraft(d => ({ ...d, edges: d.edges.map((e, ei) => (ei === i ? { ...e, ...patch } : e)) }));
+  const removeEdge = (i) => setDiagramDraft(d => ({ ...d, edges: d.edges.filter((_, ei) => ei !== i) }));
+  const saveDiagramEdit = () => {
+    const cleanNodes = diagramDraft.nodes
+      .map((n, i) => {
+        const node = { id: String(n.id || `n${i}`).trim() || `n${i}`, label: String(n.label || '').trim(), tech: String(n.tech || '').trim(), tier: Number(n.tier) || 0 };
+        if (Number.isFinite(n.x) && Number.isFinite(n.y)) { node.x = Math.round(n.x); node.y = Math.round(n.y); }
+        if (Number.isFinite(n.w)) node.w = Math.round(n.w);
+        if (Number.isFinite(n.h)) node.h = Math.round(n.h);
+        return node;
+      })
+      .filter(n => n.label);
+    const ids = new Set(cleanNodes.map(n => n.id));
+    const cleanEdges = diagramDraft.edges
+      .map(e => {
+        const edge = { from: String(e.from || '').trim(), to: String(e.to || '').trim(), label: String(e.label || '').trim() };
+        if (Number.isFinite(e.mx) && Number.isFinite(e.my)) { edge.mx = Math.round(e.mx); edge.my = Math.round(e.my); }
+        return edge;
+      })
+      .filter(e => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+    const next = cleanNodes.length ? { nodes: cleanNodes, edges: cleanEdges } : null;
+    // 현재 탭에 해당하는 다이어그램 필드에 저장 (개발 구조 ↔ 프로젝트 흐름)
+    onPatchSr({ ...sr, [isFlow ? 'flowDiagram' : 'architectureDiagram']: next });
+    setEditDiagram(false);
+  };
+
+  return (
+    <>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h2>
+        {hasGit ? (
+          <button
+            type="button"
+            onClick={() => setConnectOpen(o => !o)}
+            className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-bluewood-300 transition-colors hover:text-primary-600"
+          >
+            <Github size={12} className="flex-shrink-0" /><span className="truncate">{repoName}</span><span className="flex-shrink-0">· 다시 분석</span>
+          </button>
+        ) : (
+          <span className="text-[11.5px] font-semibold text-bluewood-300">GitHub 커밋 근거 기반</span>
+        )}
+      </div>
+
+      <div className="border-t border-surface-200 pt-5">
+          <div className="space-y-8">
+            {connectOpen && (
+              <GitConnectPanel expId={expId} sr={sr} onApplied={(next) => { onApplied(next); setConnectOpen(false); }} onCancel={() => setConnectOpen(false)} compact />
+            )}
+
+            {/* 프로젝트 소개 — 서사 문서 (맨 위). 개발 서사로 나오면 원본 자료로 서비스 설명 재추출 */}
+            <div>
+              <div className="mb-1.5 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={regenerateProduct}
+                  disabled={regenProduct}
+                  title="업로드한 PDF·문서에서 서비스의 문제정의·해결·기능을 AI로 다시 정리합니다"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 px-2 py-1 text-[11px] font-semibold text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600 disabled:opacity-50"
+                >
+                  {regenProduct ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  {regenProduct ? '서비스 설명 정리 중…' : '서비스 설명 다시 뽑기'}
+                </button>
+              </div>
+              <OverviewDoc
+                value={overviewDocValue}
+                seed={overviewSeed}
+                onChange={(next) => onPatchSr({ ...sr, overviewDoc: next })}
+              />
+            </div>
+
+            {/* 주요 성과 · 핵심 기능 — 깔끔한 표/칩 (서사와 분리) */}
+            <ProductFacts exp={exp} />
+
+            {(systemDiagram || flowDiagram || hasGit) && (
+              <div>
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                  <div className="flex items-center gap-3">
+                    <h3 className={MICRO_LABEL}>아키텍처</h3>
+                    {/* 탭 — 1) 개발 구조  2) 프로젝트 흐름 */}
+                    <div className="inline-flex items-center gap-0.5 rounded-lg bg-surface-100 p-0.5">
+                      {[{ k: 'system', label: '개발 구조' }, { k: 'flow', label: '프로젝트 흐름' }].map(t => (
+                        <button
+                          key={t.k}
+                          type="button"
+                          onClick={() => { setEditDiagram(false); setArchTab(t.k); }}
+                          className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${archTab === t.k ? 'bg-white text-bluewood-900 shadow-sm' : 'text-bluewood-400 hover:text-bluewood-700'}`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {editDiagram ? (
+                    <span className="flex items-center gap-1.5">
+                      <button type="button" onClick={addNode} className="rounded-md border border-dashed border-primary-300 px-2 py-0.5 text-[11px] font-semibold text-primary-600 hover:bg-primary-50 transition-colors">＋ 박스</button>
+                      <button type="button" onClick={saveDiagramEdit} className="rounded-md bg-primary-600 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-primary-700 transition-colors">완료</button>
+                      <button type="button" onClick={() => setEditDiagram(false)} className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">취소</button>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      {!isFlow && !savedSystem && activeDiagram && <span className="text-[11px] text-bluewood-300">기술 스택 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
+                      {isFlow && !savedFlow && activeDiagram && <span className="text-[11px] text-bluewood-300">핵심 경험 기반 자동 구성 · 편집으로 다듬어 주세요</span>}
+                      {activeDiagram && <button type="button" onClick={enterEditDiagram} className="text-[11.5px] font-semibold text-bluewood-300 hover:text-primary-600 transition-colors">{isFlow ? '흐름 편집' : '구조 편집'}</button>}
+                    </span>
+                  )}
+                </div>
+                {editDiagram ? (
+                  <>
+                    <ArchitectureEditorCanvas
+                      nodes={diagramDraft.nodes}
+                      edges={diagramDraft.edges}
+                      canvas={editCanvas}
+                      onMoveNode={(id, x, y) => updateNodeById(id, { x, y })}
+                      onResizeNode={(id, patch) => updateNodeById(id, patch)}
+                      onUpdateNode={updateNodeById}
+                      onRemoveNode={removeNodeById}
+                      onMoveEdge={(i, mx, my) => updateEdge(i, { mx, my })}
+                      onUpdateEdge={updateEdge}
+                      onRemoveEdge={removeEdge}
+                      onConnect={connectNodes}
+                    />
+                    <p className="mt-1.5 text-[11px] text-bluewood-300">박스를 드래그해 배치하고, 파란 포트를 다른 박스로 끌어 연결하세요 · ‘완료’ 후 상단 저장으로 반영됩니다</p>
+                  </>
+                ) : activeDiagram ? (
+                  <ArchitectureDiagram diagram={activeDiagram} />
+                ) : (
+                  /* 빈 상태 (주로 프로젝트 흐름) — 직접 그리기 유도 */
+                  <button
+                    type="button"
+                    onClick={enterEditDiagram}
+                    className="flex w-full flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-surface-300 bg-surface-50/40 py-8 text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600"
+                  >
+                    <span className="text-[13px] font-bold">＋ {isFlow ? '프로젝트 흐름 그리기' : '아키텍처 그리기'}</span>
+                    <span className="text-[11.5px]">{isFlow ? '사용자·데이터가 서비스를 어떻게 흐르는지 단계로 그려보세요' : '컴포넌트 박스를 놓고 연결해 구조를 표현하세요'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {gitExps.length > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <h3 className={MICRO_LABEL}>문제 해결 과정</h3>
+                  <span className="text-[11.5px] font-semibold text-bluewood-300">{gitExps.length}건 · 눌러서 펼치기 · 눌러서 편집</span>
+                </div>
+                <div className="border-t border-surface-200">
+                  {gitExps.map((e, i) => (
+                    <GitProjectRow
+                      key={i}
+                      exp={e}
+                      index={i}
+                      open={openProjects.includes(i)}
+                      onToggle={() => toggleProject(i)}
+                      onPatch={(changes) => patchGitExp(i, changes)}
+                      onDelete={() => deleteGitExp(i)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GitHub 미연결 — README 아래에서 연결 유도 (연결하면 기여도·아키텍처·문제해결이 채워짐) */}
+            {!hasGit && !connectOpen && (
+              <GitConnectPanel expId={expId} sr={sr} onApplied={onApplied} />
+            )}
+          </div>
+      </div>
+    </>
   );
 }
 
@@ -1584,7 +2801,7 @@ export default function ExperienceResult() {
   const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
-  const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title } : null);
+  const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title, jobCategory: state.jobCategory } : null);
   const [cs, setCs] = useState(null);
   const [kit, setKit] = useState(null); // 마케터 전용 산출물(marketerKit) 편집 상태
   const [loading, setLoading] = useState(!state?.analysis);
@@ -1619,7 +2836,7 @@ export default function ExperienceResult() {
         const snap = await getDoc(doc(db, 'experiences', id));
         if (snap.exists()) {
           const data = snap.data();
-          const full = { title: data.title, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, jobCategory: data.jobCategory || 'common' };
+          const full = { title: data.title, jobCategory: data.jobCategory || data.structuredResult?.jobCategory || 'common', structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null };
           setExp(full);
           initCaseStudy(full);
           setKit(normalizeKit(full.structuredResult?.marketerKit));
@@ -1850,6 +3067,14 @@ export default function ExperienceResult() {
     { key: 'learning', label: '배운 점' },
   ];
 
+  // 직군별 케이스 스터디 구조 분기 — 개발 직군은 GitHub 기반 개발 임팩트를 보여준다.
+  const jobCategory = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+  const isDevJob = DEV_GIT_JOBS.includes(jobCategory);
+  const devStats = exp?.structuredResult?.githubStats || null;
+  const devGitExps = Array.isArray(exp?.structuredResult?.gitAnalysis?.experiences) ? exp.structuredResult.gitAnalysis.experiences : [];
+  const devRole = devStats ? inferDevRole(devStats, devGitExps) : null;
+  const rolePoints = devGitExps.map(e => clean(e.project_name)).filter(Boolean).slice(0, 5);
+
   return (
     <>
     <FeedbackModal
@@ -1859,6 +3084,7 @@ export default function ExperienceResult() {
       experienceId={id}
       title={cs?.title || exp?.title || state?.title || ''}
     />
+    <ContextMenuHost />
     <DraftEnhanceGuideModal open={draftGuideOpen} onClose={closeDraftGuide} onEnhance={goEnhanceDraft} />
     <div className={`min-h-screen ${isMarketer ? 'bg-surface-50 print:bg-white' : 'bg-white'}`}>
       <input ref={keyExpFileRef} type="file" accept="image/*" className="hidden" onChange={onKeyExpFile} />
@@ -1921,7 +3147,7 @@ export default function ExperienceResult() {
         <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
 
           {/* ════ 왼쪽 — 한눈에 보는 정보 (선으로 구분된 단일 페이지, sticky) ════ */}
-          <div className="lg:sticky lg:top-[72px] lg:pr-2">
+          <div className={`lg:pr-2 ${isDevJob ? '' : 'lg:sticky lg:top-[72px]'}`}>
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
               <p className="text-[11.5px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>핵심 경험 리포트</p>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11px] font-semibold text-bluewood-400">
@@ -1936,6 +3162,15 @@ export default function ExperienceResult() {
               placeholder="경험 제목을 입력하세요"
               className="text-[22px] sm:text-[26px] font-black leading-[1.22] text-bluewood-900 tracking-tight"
             />
+            {isDevJob ? (
+              devStats ? (
+                <div className="mt-4 border-t border-surface-200 pt-4">
+                  <GitHeroCard stats={devStats} role={devRole} rolePoints={rolePoints} />
+                </div>
+              ) : (
+                <p className="mt-3 text-[13px] leading-[1.6] text-bluewood-400">오른쪽 <span className="font-semibold text-bluewood-500">개발 임팩트</span>에서 GitHub을 연결하면 기여도·커밋 활동이 여기 표시됩니다.</p>
+              )
+            ) : (<>
             <AutoText
               prose
               value={cs.summary}
@@ -1957,8 +3192,9 @@ export default function ExperienceResult() {
                 </div>
               ))}
             </div>
+            </>)}
             {/* 기술 */}
-            {cs.tech.length > 0 && (
+            {!isDevJob && cs.tech.length > 0 && (
               <div className="mt-4 border-t border-surface-200 pt-4">
                 <p className="text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300 mb-2">기술</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -1989,8 +3225,19 @@ export default function ExperienceResult() {
             })()}
           </div>
 
-          {/* ════ 오른쪽 — 핵심 경험 리포트 (성과를 시각 지표로) ════ */}
+          {/* ════ 오른쪽 — 직군별 구조: 개발 직군은 GitHub 기반 개발 임팩트, 그 외엔 핵심 경험 리포트 ════ */}
           <section className="min-w-0">
+            {isDevJob ? (
+              <DevImpactSection
+                expId={id}
+                exp={exp}
+                onApplied={(nextSr) => setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }))}
+                onPatchSr={(nextSr) => {
+                  setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
+                  setDirty(true);
+                }}
+              />
+            ) : (<>
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-[15px] font-extrabold text-bluewood-900">핵심 경험</h2>
               {cs.keyExps.length > 0 && <span className="text-[11.5px] font-semibold text-bluewood-300">{cs.keyExps.length}건</span>}
@@ -2141,6 +3388,7 @@ export default function ExperienceResult() {
               })}
             </div>
             <button type="button" onClick={addKeyExp} className="mt-4 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[12.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 transition-colors">＋ 핵심 경험 추가</button>
+            </>)}
 
             {/* 내용 — 자유 편집(부가 설명) */}
             <div className="mt-8 border-t border-surface-200 pt-7">

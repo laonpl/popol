@@ -405,6 +405,42 @@ textarea {
   outline: none !important;
 }
 
+/* Developer case-study overview: keep the Notion-style editor visually like a natural article. */
+.dev-impact-overview-doc .yoopta-editor {
+  min-height: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.75 !important;
+}
+.dev-impact-overview-doc .yoopta-editor [data-yoopta-block],
+.dev-impact-overview-doc .yoopta-editor .yoopta-block {
+  margin: 0.15rem 0 !important;
+}
+.dev-impact-overview-doc .yoopta-editor h1,
+.dev-impact-overview-doc .yoopta-editor h2,
+.dev-impact-overview-doc .yoopta-editor h3 {
+  margin-top: 1rem !important;
+  margin-bottom: 0.25rem !important;
+  font-size: 1rem !important;
+  line-height: 1.45 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+.dev-impact-overview-doc .yoopta-editor [data-yoopta-block]:first-child h1,
+.dev-impact-overview-doc .yoopta-editor [data-yoopta-block]:first-child h2,
+.dev-impact-overview-doc .yoopta-editor [data-yoopta-block]:first-child h3 {
+  margin-top: 0 !important;
+}
+.dev-impact-overview-doc .yoopta-editor p {
+  margin: 0 !important;
+}
+.dev-impact-overview-doc .yoopta-editor ul,
+.dev-impact-overview-doc .yoopta-editor ol {
+  margin: 0.25rem 0 0.25rem 1.25rem !important;
+}
+.dev-impact-overview-doc .yoopta-editor li {
+  margin: 0.1rem 0 !important;
+}
+
 /* ── Floating Icon Animations ── */
 @keyframes float {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }

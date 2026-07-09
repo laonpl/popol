@@ -6,6 +6,8 @@ import { requireCredits } from '../services/billingService.js';
 import {
   analyzeExperience,
   generateDraftAnalysis,
+  extractProduct,
+  extractDiagrams,
   generateProfileBoostDraft,
   buildFallbackExperienceAnalysis,
   extractMoments,
@@ -20,6 +22,30 @@ import { analyzeGitCommits } from '../services/gitAnalysisService.js';
 const router = Router();
 
 const now = () => new Date();
+
+/**
+ * Firestore는 배열 속 배열을 거부한다(INVALID_ARGUMENT: invalid nested entity).
+ * AI 응답이 섞이는 저장 페이로드를 깊이 순회해 중첩 배열은 문자열로 평탄화하고 undefined는 제거.
+ * (배열→객체→배열은 합법이므로 배열 "바로 안"의 배열만 평탄화)
+ */
+function firestoreSafe(value, insideArray = false) {
+  if (value === null || typeof value !== 'object') return value === undefined ? null : value;
+  if (Array.isArray(value)) {
+    if (insideArray) {
+      return value.map(v => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''))).join('\n');
+    }
+    return value.map(v => firestoreSafe(v, true));
+  }
+  // Date·Timestamp 등 비순수 객체는 그대로 통과
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (v === undefined) continue;
+    out[k] = firestoreSafe(v, false);
+  }
+  return out;
+}
 
 // 경험 문서 → 태깅용 요약 텍스트
 function experienceToTagText(data = {}) {
@@ -105,6 +131,14 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
             reason: errMsg.slice(0, 240),
           }
         );
+        // 재분석 시 유실 방지: GitHub 기여도는 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
+        analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
+        analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+        analysis.flowDiagram = data.structuredResult?.flowDiagram || analysis.flowDiagram || null;
+        analysis.readme = data.structuredResult?.readme || analysis.readme || null;
+        analysis.overviewDoc = data.structuredResult?.overviewDoc || analysis.overviewDoc || null;
+        analysis.product = analysis.product || data.structuredResult?.product || null;
+        analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
         await docRef.update({
           structuredResult: analysis,
           keywords: analysis.keywords || [],
@@ -134,6 +168,16 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
       }
       return res.status(502).json({ error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: errMsg });
     }
+
+    // 재분석 시 유실 방지: GitHub 기여도·분석원본은 항상, 아키텍처·시각화는 새로 안 만들어졌을 때만 보존
+    analysis.githubStats = data.structuredResult?.githubStats || analysis.githubStats || null;
+    analysis.gitAnalysis = data.structuredResult?.gitAnalysis || analysis.gitAnalysis || null;
+    analysis.architectureDiagram = analysis.architectureDiagram || data.structuredResult?.architectureDiagram || null;
+    analysis.flowDiagram = data.structuredResult?.flowDiagram || analysis.flowDiagram || null;
+    analysis.readme = data.structuredResult?.readme || analysis.readme || null;
+    analysis.overviewDoc = data.structuredResult?.overviewDoc || analysis.overviewDoc || null;
+    analysis.product = analysis.product || data.structuredResult?.product || null;
+    analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
@@ -172,6 +216,31 @@ router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req,
     // 그 외 실패는 프론트 로컬 폴백을 유도 (502)
     console.warn('[Draft] 빠른 초안 생성 실패 → 프론트 로컬 폴백 유도:', msg);
     return res.status(502).json({ error: '초안 생성에 실패했습니다.', detail: msg });
+  }
+});
+
+// POST /api/experience/extract-product - 자료에서 서비스(아이템) 설명(product)만 경량 추출
+// 전체 초안이 응답 과대로 실패하는 경우에도 안정적으로 서비스 문제정의를 뽑기 위한 전용 경로.
+router.post('/extract-product', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
+  try {
+    const material = req.body?.material;
+    if (!material || !String(material).trim()) {
+      return res.status(400).json({ error: '자료가 필요합니다' });
+    }
+    // product(필수·서비스 전용)와 다이어그램(best-effort)을 각각 집중된 프롬프트로 분리 추출 (병렬).
+    // 다이어그램 실패는 무시 — 개발 프레이밍을 product 추출과 섞지 않는 게 핵심.
+    const diagramsPromise = extractDiagrams(material).catch((e) => {
+      console.warn('[extract-product] 다이어그램 추출 실패(무시):', e.message);
+      return { architectureDiagram: null, flowDiagram: null };
+    });
+    const [product, diagrams] = await Promise.all([extractProduct(material), diagramsPromise]);
+    res.json({ product, architectureDiagram: diagrams.architectureDiagram || null, flowDiagram: diagrams.flowDiagram || null });
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('요청 한도')) {
+      return res.status(429).json({ error: 'AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    return res.status(502).json({ error: '서비스 설명 추출에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
   }
 });
 
@@ -406,29 +475,40 @@ router.post('/analyze-git', authMiddleware, requireCredits, aiRateLimiter, async
     if (!repoUrl) return res.status(400).json({ error: 'GitHub 레포지토리 URL이 필요합니다.' });
     if (!authorParam) return res.status(400).json({ error: 'GitHub 사용자명이 필요합니다.' });
 
-    const result = await analyzeGitCommits(repoUrl, authorParam, githubToken || undefined);
+    // 서버 GITHUB_TOKEN 폴백 — 무인증(60req/h) 레이트리밋으로 기여도·언어 통계가 자주 비는 문제 방지
+    const result = await analyzeGitCommits(repoUrl, authorParam, githubToken || process.env.GITHUB_TOKEN || undefined);
     res.json(result);
   } catch (error) {
     const msg = error.message || '';
+    // 실제 원인을 서버 로그와 응답 detail로 노출 (generic 500으로 원인 숨기지 않음)
+    console.error('[analyze-git] 실패:', msg, '\n', error.stack);
     if (msg.includes('찾을 수 없습니다') || msg.includes('유효한') || msg.includes('커밋을 찾을 수 없습니다')) {
       return res.status(400).json({ error: msg });
     }
-    if (msg.includes('요청 한도')) return res.status(429).json({ error: msg });
-    next(error);
+    if (msg.includes('요청 한도') || msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+      return res.status(429).json({ error: 'GitHub 또는 AI 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
+    }
+    if (msg.includes('API key') || msg.includes('API Key')) {
+      return res.status(502).json({ error: 'AI API 키가 유효하지 않습니다. 서버 .env의 GEMINI_API_KEY를 확인해주세요.', detail: msg });
+    }
+    // 그 외(커밋 분석 실패 등)도 원인 메시지를 담아 반환 → 프론트 토스트로 확인 가능
+    return res.status(502).json({ error: msg || 'GitHub 분석에 실패했습니다. 잠시 후 다시 시도해주세요.', detail: msg });
   }
 });
 
 router.post('/', authMiddleware, async (req, res, next) => {
   try {
+    // AI 응답(초안·git 분석)이 섞이는 본문은 Firestore가 거부하는 구조(중첩 배열 등)를 깊이 정규화
+    const body = firestoreSafe(req.body || {});
     const payload = {
-      ...req.body,
+      ...body,
       userId: req.user.uid,
-      title: req.body.title || '',
-      framework: req.body.framework || 'STRUCTURED',
-      jobCategory: req.body.jobCategory || 'common',
-      content: req.body.content || {},
-      images: req.body.images || [],
-      keywords: req.body.keywords || [],
+      title: body.title || '',
+      framework: body.framework || 'STRUCTURED',
+      jobCategory: body.jobCategory || 'common',
+      content: body.content || {},
+      images: body.images || [],
+      keywords: body.keywords || [],
       createdAt: now(),
       updatedAt: now(),
     };

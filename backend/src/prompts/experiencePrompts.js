@@ -27,6 +27,27 @@ const METRIC_FILTER_GUIDELINES = `
 ※ 원본에 수치가 있으면 반드시 metric/beforeMetric/afterMetric에 채우세요.
 `;
 
+// product: 서비스(아이템) 자체 설명 — 포트폴리오 소개의 최우선 블록.
+// 개발/테스트/코드 서사가 아니라 "이 서비스가 무엇이고 어떤 사용자 문제를 어떻게 푸는지"를 뽑는다.
+const PRODUCT_EXTRACTION_GUIDE = `
+[★★ product — 서비스(아이템) 자체 설명 · 소개의 최우선 (가장 중요) ★★]
+자료에 발표자료·기획서·PDF의 "Problem/문제" 슬라이드나 시장·사용자 pain point가 있으면 그것이 product의 핵심 재료입니다. 반드시 서비스/사업 관점으로 추출하세요.
+
+- name: 서비스/제품 이름. tagline: 한 줄 소개.
+- problem: 이 서비스가 겨냥한 "시장/사용자의 문제". 누가 어떤 상황에서 어떤 불편·비효율을 겪는지, 가능하면 수치 포함.
+  ✅ 좋은 예: "취준생이 포트폴리오 제작에 평균 40시간 이상 쓰고, 기업별로 5.2개를 재작성하며, ATS 서류 단계에서 62%가 형식·키워드 미달로 탈락한다"
+  ❌ 나쁜 예(개발 서사 절대 금지): "TTV를 측정하려 베타 테스트를 기획했다", "가입~첫 결과 확인 시간을 KPI로 설정했다", "React/Zustand로 상태관리를 최적화했다"
+- solution: 그 문제를 서비스가 어떤 방식으로 푸는지 (제품/개념 관점).
+  ✅ "경험을 추출·검증·구조화해 재사용 가능한 마스터 DB를 만들고, 이를 바탕으로 다양한 형식의 포트폴리오를 자동 생성한다"
+  ❌ "베타 테스트로 검증했다", "온보딩 UI를 최적화했다" (이건 개발/실행 이야기)
+- features: 서비스의 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
+- outcomes: 정량 성과를 지표/값 쌍으로. 각 { "label": 지표명, "value": 값 }. 원본에 있는 수치만.
+
+⚠ 규칙:
+- 개발·테스트·코드·아키텍처·기술스택 이야기는 절대 product.problem/solution에 넣지 마세요. (그건 다른 섹션에서 다룸)
+- 자료 어딘가에 서비스/시장 문제 단서가 조금이라도 있으면(특히 "Problem"·"문제 정의"·통계·pain point 슬라이드) 반드시 그것을 problem에 쓰세요. 개발 이야기밖에 없을 때만 빈 값.
+`;
+
 const NO_HALLUCINATION_RULES = `
 [⛔ 원본에 없는 내용 절대 금지 — 기술명·수치·회사명·역할·상황 창작 불가]
 ✅ 허용: 원본 내용 요약·재구성·CARL 구조 매핑·명시된 수치 추출
@@ -157,7 +178,8 @@ const JOB_META = {
     label: '개발자 (FE/BE)',
     emphasis: '기술 선택의 논리, 트러블슈팅 과정, 수치화된 성능 개선에 집중하세요.',
     sections: [
-      { key: 'techStack',       label: '기술 스택 및 아키텍처',  guide: '사용 기술명·버전, 선택 이유(대안과 비교), 아키텍처 구조 결정 배경을 구체적으로 서술. 기술 선택의 논리적 근거가 핵심.' },
+      { key: 'techStack',       label: '기술 스택 & 기술 선택',  guide: '사용 기술명·버전, 선택 이유(대안과 비교), 기술 선택의 논리적 근거가 핵심.' },
+      { key: 'architecture',    label: '시스템 아키텍처 & 설계',  guide: '시스템 구조(컴포넌트/레이어), 데이터 흐름, 주요 설계 결정과 trade-off(확장성·일관성·성능 사이의 선택)를 구체적으로 서술.' },
       { key: 'troubleshooting', label: '트러블슈팅 및 로직',     guide: '발생한 기술 문제(버그·성능병목·메모리 누수 등), 원인 파악 과정, 적용한 해결책, 효과를 단계별로 서술.' },
       { key: 'optimization',    label: '코드 최적화 성과',       guide: '렌더링 속도, API 응답 시간, 메모리·번들 사이즈 등 기술적 지표 before→after 수치로 명시.' },
     ],
@@ -337,6 +359,108 @@ const MARKETER_DRAFT_JOB_SCHEMA = `,
     "resumeBullets": "이력서 bullet 2~3개 (한 줄씩 개행으로 구분)",
     "jdKeywordMap": "직무 키워드와 각 키워드를 증명하는 사실 연결"
   }${MARKETER_KIT_SCHEMA}`;
+// 직무별 핵심 경험 추출 스키마 (keyExperiences[].jobData)
+//   직무마다 "핵심 경험"의 단위와 구성 요소가 다르다:
+//   마케터=캠페인, PM=의사결정, 디자이너=개선 반복, DA=분석, HR=프로그램, 세일즈=딜, AI/ML=실험, 데브옵스=인시던트/개선.
+//   개발자가 커밋에서 코드·트러블슈팅을 추출하듯, 각 직무의 고유 요소를 구조화해 추출한다.
+// ============================================================
+const JOB_KEYEXP_META = {
+  marketer: {
+    unit: '캠페인/실험',
+    guide: '각 핵심 경험을 하나의 캠페인 단위로 추출: 누구에게(타겟)·어디서(채널)·어떤 메시지로 집행해 어떤 KPI를 얻었는지가 반드시 드러나야 합니다.',
+    schema: '{ "target": "타겟 페르소나·세그먼트 (예: 2534 직장인 여성)", "channels": ["집행 채널 (예: 메타, 구글)"], "creative": "크리에이티브·메시지 전략 한 줄", "kpis": [ { "name": "ROAS", "value": "350%" } ] }',
+  },
+  pm: {
+    unit: '의사결정',
+    guide: '각 핵심 경험을 하나의 프로덕트 의사결정 단위로 추출: 무엇을 하기로 결정했고, 어떤 대안을 왜 기각했으며, 누구를 어떻게 설득했고, 결과를 어떻게 검증했는지.',
+    schema: '{ "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "validation": "결정 검증 방법과 결과 (데이터·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
+  },
+  designer: {
+    unit: '개선 반복',
+    guide: '각 핵심 경험을 하나의 디자인 개선 반복(iteration)으로 추출: 발견한 페인포인트 → 디자인 결정(왜 이 UI인지) → 테스트·검증 결과.',
+    schema: '{ "painPoint": "발견한 사용자 페인포인트 1문장", "designDecision": "디자인 결정과 이유 1~2문장", "testResult": "사용성 테스트·검증 결과 (수치 있으면 포함)" }',
+  },
+  da: {
+    unit: '분석',
+    guide: '각 핵심 경험을 하나의 분석 단위로 추출: 가설 → 분석 방법·도구 → 데이터에서 발견한 사실 → 실행된 비즈니스 액션.',
+    schema: '{ "hypothesis": "검증한 가설 1문장", "method": "분석 방법·도구 (SQL, A/B 테스트, 코호트 등)", "finding": "데이터에서 발견한 사실 (수치 포함)", "businessAction": "이 발견으로 실행된 비즈니스 액션", "control": "대조군(기존) 수치 (예: 2.1%) — A/B 비교가 있을 때만", "variant": "실험군(개선) 수치 (예: 3.4%)", "significance": "통계 유의성 (예: p<0.05, 신뢰수준 95%)" }',
+  },
+  hr: {
+    unit: '프로그램/제도',
+    guide: '각 핵심 경험을 하나의 인사 프로그램·제도 단위로 추출: 조직 과제 → 설계한 프로세스 → 퍼널·지표 변화.',
+    schema: '{ "goal": "해결하려던 조직·채용 과제 1문장", "program": "설계·운영한 프로그램/프로세스", "funnelChange": "퍼널·지표 변화 (전환율·리드타임 등 수치)" }',
+  },
+  sales: {
+    unit: '딜/계약',
+    guide: '각 핵심 경험을 하나의 딜 단위로 추출: 고객(익명화 가능) → 접근·제안 전략 → 협상 포인트 → 계약 성과.',
+    schema: '{ "client": "고객사·세그먼트 (예: 제조 대기업 A사)", "approach": "접근·제안 전략 1~2문장", "negotiation": "협상 포인트와 돌파 방법 1문장", "dealSize": "계약 규모 (ARR·MRR·금액, 원본에 있을 때만)", "stage": "딜 진행 단계 (리드·미팅·제안·협상·계약 중 하나, 원본에서 유추 가능할 때만)" }',
+  },
+  aiml: {
+    unit: '실험/모델',
+    guide: '각 핵심 경험을 하나의 ML 실험 단위로 추출: 데이터 → 모델 선택(대안 대비 왜) → 평가 지표 결과.',
+    schema: '{ "dataset": "데이터셋·규모", "model": "사용 모델/아키텍처", "whyModel": "이 모델을 선택한 이유 (대안 비교)", "metrics": [ { "name": "F1", "value": "0.92", "baseline": "비교 기준(베이스라인) 수치 — 원본에 있을 때만" } ] }',
+  },
+  devops: {
+    unit: '인시던트/개선',
+    guide: '각 핵심 경험을 하나의 인시던트 대응 또는 인프라 개선 단위로 추출: 상황 → 원인 분석 → 조치·자동화 → 지표 개선.',
+    schema: '{ "incident": "상황 (장애·비용·병목) 1문장", "rootCause": "원인 분석 결과 1문장", "actionTaken": "적용한 조치·자동화", "impact": "지표 개선 (가용성·비용·리드타임)" }',
+  },
+};
+// keyExperience 프롬프트에 붙일 직무별 스키마·지침
+function buildKeyExpJobAddon(jobCategory) {
+  const m = JOB_KEYEXP_META[jobCategory];
+  if (!m) return { schema: '', guide: '' };
+  return {
+    schema: `,\n  "jobData": ${m.schema}`,
+    guide: `\n[★ 직무 특화 추출 — ${m.unit} 단위]\n${m.guide}\njobData의 각 필드는 원본에 근거해 채우고, 근거 없는 필드는 빈 문자열/빈 배열로 두세요. context/action/result도 ${m.unit} 관점으로 서술하세요.\n`,
+  };
+}
+
+// ============================================================
+// 직무별 포트폴리오 시각화 데이터 (portfolioVisuals)
+//   각 직무 화면이 퍼널·KPI·덤벨비교·채널믹스·MSC보드·프로세스 중 무엇을 그릴지 다르므로,
+//   직무별로 채울 블록만 지시한다. 수치는 반드시 원본에 있는 것만 사용(창작 금지).
+// ============================================================
+const VISUAL_BLOCK_SCHEMAS = {
+  kpis:    '"kpis": [ { "label": "지표명(예: ROAS)", "value": "수치+단위(예: 350%)", "target": "목표치(원본에 있을 때만)", "note": "짧은 맥락(선택)" } ]',
+  funnel:  '"funnel": { "stages": [ { "label": "단계명", "value": 숫자 } ] }',
+  funnelCompare: '"funnelCompare": { "stages": [ { "label": "단계명", "before": "개선 전 수치(전환율·인원)", "after": "개선 후 수치" } ] }',
+  compare: '"compare": [ { "label": "지표명", "before": "개선 전 수치", "after": "개선 후 수치", "unit": "단위(선택)" } ]',
+  mix:     '"mix": { "items": [ { "label": "채널/항목명", "pct": 숫자(비중%) } ] }',
+  goals:   '"goals": [ { "label": "목표 문장", "target": "목표 수치", "actual": "실제 수치", "achieved": true|false } ]',
+  gauges:  '"gauges": [ { "label": "지표명(예: 가용성)", "value": "현재 수치(예: 99.95)", "unit": "단위(예: %)", "target": "목표치(원본에 있을 때만)" } ]',
+  timeline: '"timeline": { "phases": [ { "label": "단계명", "start": 시작(숫자, 상대 주·월 등), "span": 기간(숫자), "desc": "1문장(선택)" } ] }',
+  process: '"process": { "steps": [ { "label": "단계명", "desc": "1문장 설명" } ] }',
+};
+const JOB_VISUAL_GUIDES = {
+  aiml:     { blocks: ['kpis', 'compare', 'process'], hint: 'kpis=Accuracy·F1·AUC 등 평가 지표, compare=경량화·추론속도 최적화 전후, process=데이터수집→전처리→학습→평가→서빙 실제 수행 단계' },
+  da:       { blocks: ['compare', 'kpis', 'funnel'],  hint: 'compare=A/B 실험 지표 전후, kpis=핵심 분석 지표, funnel=사용자 여정 단계별 전환(원본에 단계 수치가 있을 때만)' },
+  devops:   { blocks: ['gauges', 'process', 'compare', 'kpis'], hint: 'gauges=가용성·SLA 달성률·MTTR 등 "목표 대비 현재" 게이지 지표(가용성은 %, 목표치 있으면 target), process=CI/CD 파이프라인 단계(빌드→테스트→배포 등 실제 구성), compare=비용·배포 리드타임 전후, kpis=배포 빈도 등 운영 지표' },
+  pm:       { blocks: ['goals', 'timeline', 'kpis', 'process'],   hint: 'goals=MSC(최소 성공 기준) 목표별 target/actual/achieved, timeline=프로젝트 로드맵 단계별 start/span(원본에 기간·순서 단서가 있을 때만, 상대 단위 주·월), kpis=DAU·전환율·매출 등 임팩트, process=문제정의→가설→실행→검증 흐름' },
+  designer: { blocks: ['process', 'compare', 'kpis'], hint: 'process=실제 수행한 디자인 프로세스(리서치→정의→프로토타입→테스트 등), compare=사용성 테스트 전후 지표, kpis=과업성공률·만족도 등' },
+  marketer: { blocks: ['kpis', 'funnel', 'mix', 'compare'], hint: 'kpis=ROAS·CVR·CTR·CPA(목표치 있으면 target), funnel=노출→클릭→전환 수치, mix=채널별 예산/성과 비중(%), compare=최적화 전후' },
+  hr:       { blocks: ['funnel', 'funnelCompare', 'kpis', 'compare'],  hint: 'funnel=지원→서류→면접→최종합격 인원, funnelCompare=프로세스 개선 전후의 단계별 전환율·인원(전후 수치가 모두 원본에 있을 때만, 증가 방향 지표 위주), kpis=채용 리드타임·리텐션, compare=프로세스 개선 전후(리드타임 등)' },
+  sales:    { blocks: ['funnel', 'kpis', 'compare'],  hint: 'funnel=리드→미팅→제안→계약 건수, kpis=ARR·MRR·계약 건수·평균 계약 규모, compare=전환율·사이클 개선 전후' },
+  common:   { blocks: ['kpis', 'compare'],            hint: 'kpis=원본의 정량 성과, compare=개선 전후 수치' },
+};
+function buildVisualPrompt(jobCategory) {
+  const g = JOB_VISUAL_GUIDES[jobCategory];
+  if (!g) return { schema: '', guide: '' };
+  const schema = ',\n  "portfolioVisuals": {\n    ' + g.blocks.map(b => VISUAL_BLOCK_SCHEMAS[b]).join(',\n    ') + '\n  }';
+  const guide = `\n[portfolioVisuals — 직무 전용 시각화 데이터 (이 직군 화면의 차트가 이 데이터로 그려짐)]\n${g.hint}\n- 수치·단계는 반드시 원본 자료에 근거한 것만 넣으세요. 수치를 창작하지 마세요.\n- 근거가 없는 블록은 빈 배열([]) 또는 생략하세요. funnel/process는 단계 2개 이상일 때만.\n`;
+  return { schema, guide };
+}
+
+// 아키텍처 다이어그램으로 시각화할 직군별 섹션 (dev=architecture, aiml=datasetArch, devops=infraArch)
+const DIAGRAM_SECTIONS = {
+  architecture: { struct: '시스템',                tierHint: '0=클라이언트, 1=API/서버, 2=DB/캐시/외부연동' },
+  datasetArch:  { struct: '모델·데이터 파이프라인', tierHint: '0=데이터 소스·수집, 1=전처리·피처, 2=모델·학습, 3=평가·서빙' },
+  infraArch:    { struct: '인프라',                tierHint: '0=사용자·엣지, 1=LB·게이트웨이, 2=서비스·컨테이너, 3=DB·스토리지·모니터링' },
+};
+function diagramSectionOf(sections) {
+  const s = (sections || []).find(x => DIAGRAM_SECTIONS[x.key]);
+  return s ? { key: s.key, ...DIAGRAM_SECTIONS[s.key] } : null;
+}
 
 // ============================================================
 // 빠른 초안(Draft) — 단일 호출용 경량 프롬프트
@@ -346,6 +470,19 @@ const MARKETER_DRAFT_JOB_SCHEMA = `,
 export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
   const jobInfo = JOB_META[jobCategory] || JOB_META.common;
   const isMarketer = jobCategory === 'marketer';
+  const jobSecs = jobInfo.sections || [];
+  const diagSec = diagramSectionOf(jobSecs);
+  const jobSpecificSchema = jobSecs.length
+    ? ',\n  "jobSpecific": {\n' + jobSecs.map(s => `    "${s.key}": "${s.label} 초안 (원본 단서 기반 2~4문장, 단서 없으면 빈 문자열)"`).join(',\n') + '\n  }'
+    : '';
+  const archSchema = diagSec
+    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름(예: REST, 학습 데이터, 배포)" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
+    : '';
+  const visual = buildVisualPrompt(jobCategory);
+  const keyExpAddon = buildKeyExpJobAddon(jobCategory);
+  const jobGuide = jobSecs.length
+    ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 상세히 구조화하세요. 노드 5~9개로 충분히 디테일하게 — 클라이언트/서버뿐 아니라 인증·외부 API·저장소·핵심 도메인 모듈 등 구성요소를 분리하고, 각 노드 tech에는 실제 기술명(예: React, Node.js·Express, Firestore, Google Gemini API)을 적으세요. id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 label에는 관계/흐름(예: API 요청, 조회/저장, 연동)을 적고 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → QR 교환 → 카드 수집 → 가챠 → 리포트 전달). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가, label은 단계 이름, tech에는 그 단계에서 일어나는 일을 짧게. 자료에 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${visual.guide}`
+    : '';
   return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
 아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
 완성본이 아니라 초안이지만, 그대로 읽어도 어색하지 않은 자연스러운 한국어가 되어야 합니다.
@@ -382,6 +519,7 @@ ${contentText}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
+  "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] },
   "projectOverview": { "summary": "", "background": "", "goal": "", "role": "", "team": "", "duration": "", "techStack": [] },
   "marketResearch": {
     "marketOverview": "",
@@ -394,11 +532,11 @@ ${contentText}
   },
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
   "keyExperiences": [
-    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar" }
+    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema} }
   ],
-  "keywords": []${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : ''}
+  "keywords": []${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
 }
-${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
 수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
 }
 
@@ -421,6 +559,16 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
       jobInfo.sections.map(s => `    "${s.key}": "상세 내용 (원본 기반, 3~5문장으로 풍부하게)"`).join(',\n') +
       '\n  }'
     : '';
+
+  // 아키텍처 다이어그램 스키마 (다이어그램 섹션이 있는 직군: dev·aiml·devops)
+  const diagSec = diagramSectionOf(jobInfo.sections);
+  const archSchema = diagSec
+    ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
+    : '';
+  const archGuide = diagSec
+    ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 구조화하세요. 노드 3~8개, id는 영문 고유값, tier는 위→아래 0부터(${diagSec.tierHint}). edges의 from/to는 반드시 존재하는 노드 id여야 합니다. 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → 핵심 행동 → 보상/결과 → 재방문). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가. 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n`
+    : '';
+  const visual = buildVisualPrompt(jobCategory);
 
   const jobEmphasis = hasJobSections
     ? `\n[★ 직군 강조 — ${jobInfo.label}]\n${jobInfo.emphasis}\n직군 특화 섹션(jobSpecific)은 면접관이 가장 먼저 보는 핵심 파트입니다. 원본의 관련 내용을 최대한 끌어모아 풍부하게 서술하세요.\n`
@@ -480,12 +628,14 @@ ${GLOBAL_PORTFOLIO_TECHNIQUES}
 ${isMarketer ? MARKETER_RULES : ''}
 ${jobEmphasis}
 ${section7Guide}
+${PRODUCT_EXTRACTION_GUIDE}
 
 경험 내용:
 ${contentText}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON):
 {
+  "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] },
   "projectOverview": {
     "summary": "【XYZ 공식】 핵심 성과(X)를 측정값(Y)으로 증명하고 방법(Z)을 포함한 1~2줄 임팩트 요약",
     "background": "이 프로젝트가 왜 필요했는가 — 비즈니스 문제/기회/맥락 (구체적)",
@@ -535,9 +685,9 @@ ${contentText}
   "process": "행동과 의사결정 과정 (Trade-off+대안 비교+Bias for Action 포함, 3~5문장)",
   "output": "성과와 산출물 (XYZ 공식+Second-Order Effect 체인으로 서술, 3~5문장)",
   "growth": "성장·인사이트 (Counter-Intuitive Insight 패턴 권장, 역량 변화 구체화, 3~4문장)",
-  "competency": "발휘된 역량과 입사 후 기여 (Amazon LP 관점, 구체적 기여 방법, 3~4문장)"${jobSectionSchema}${isMarketer ? MARKETER_KIT_SCHEMA : ''}
+  "competency": "발휘된 역량과 입사 후 기여 (Amazon LP 관점, 구체적 기여 방법, 3~4문장)"${jobSectionSchema}${archSchema}${visual.schema}${isMarketer ? MARKETER_KIT_SCHEMA : ''}
 }
-${hasJobSections ? `\n[직군 특화 섹션 작성 지침 — jobSpecific]\n${jobSectionGuides}\n원본에 관련 내용이 있다면 최대한 끌어모아 3~5문장으로 풍부하게 서술하세요. 원본에 없으면 "[작성 필요] ..." 처리.` : ''}
+${hasJobSections ? `\n[직군 특화 섹션 작성 지침 — jobSpecific]\n${jobSectionGuides}\n원본에 관련 내용이 있다면 최대한 끌어모아 3~5문장으로 풍부하게 서술하세요. 원본에 없으면 "[작성 필요] ..." 처리.` : ''}${archGuide}${visual.guide}
 ${isMarketer ? '\n[marketerKit 작성 지침] 마케터 채용 문서(포트폴리오·이력서)에 바로 붙여넣을 수 있는 수준으로 작성하세요. 성과 수치는 원본에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하고 altMetrics에 대체 지표를 제안하세요.' : ''}
 
 원본에 없는 내용은 "[작성 필요] ..." 로 남기세요. 있는 내용은 강력한 능동 동사, XYZ 공식, Second-Order Effect로 재구성하세요.`;
@@ -546,7 +696,8 @@ ${isMarketer ? '\n[marketerKit 작성 지침] 마케터 채용 문서(포트폴�
 // ============================================================
 // 분할 Step 2: keyExperience 개별 추출 (1개씩, 매우 작은 output)
 // ============================================================
-export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total) {
+export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total, jobCategory = 'common') {
+  const jobAddon = buildKeyExpJobAddon(jobCategory);
   const hintBlock = momentHint ? `
 [이번에 분석할 경험 — ${index + 1}/${total}번째]
 ${JSON.stringify(momentHint, null, 2)}
@@ -595,9 +746,9 @@ ${contentText}
   "result": "XYZ 공식+Second-Order Effect 체인, 수치 포함, 2~3문장",
   "learning": "Counter-Intuitive Insight 패턴, 역량 변화 구체화, 1~2문장",
   "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
-  "chartType": "horizontalBar"
+  "chartType": "horizontalBar"${jobAddon.schema}
 }
-
+${jobAddon.guide}
 원본에 before/after 수치 패턴("800ms → 480ms", "3일을 1일로 단축")이 있으면 반드시 beforeMetric/afterMetric을 모두 채워 비교 그래프를 그릴 수 있게 하세요.`;
 }
 

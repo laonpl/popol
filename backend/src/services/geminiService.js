@@ -818,6 +818,68 @@ function buildFallbackMarketerKit({
     : fallback;
 }
 
+// 아키텍처 다이어그램 구조 정규화 — 노드(박스) + 엣지(연결) 그래프.
+// { nodes: [{ id, label, tech, tier }], edges: [{ from, to, label }] }
+function normalizeArchitectureDiagram(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  let nodes = Array.isArray(raw.nodes) ? raw.nodes : [];
+  let edges = Array.isArray(raw.edges) ? raw.edges : [];
+
+  // 구버전(layers/flow) 호환 → 레이어를 tier 노드로, 순차 연결로 변환
+  if (nodes.length === 0 && Array.isArray(raw.layers) && raw.layers.length) {
+    nodes = raw.layers.map((l, i) => ({
+      id: `tier${i}`,
+      label: String(l?.name || `Layer ${i + 1}`).trim(),
+      tech: (Array.isArray(l?.items) ? l.items : []).map(x => String(x || '').trim()).filter(Boolean).join(' · '),
+      tier: i,
+    }));
+    edges = nodes.slice(1).map((n, i) => ({ from: nodes[i].id, to: n.id, label: '' }));
+  }
+
+  const cleanNodes = nodes
+    .map((n, i) => ({
+      id: String(n?.id || `n${i}`).trim() || `n${i}`,
+      label: String(n?.label || '').trim(),
+      tech: String(n?.tech || '').trim(),
+      tier: Number.isFinite(n?.tier) ? Math.max(0, Math.min(6, Math.floor(n.tier))) : 0,
+    }))
+    .filter(n => n.label)
+    .slice(0, 12);
+
+  const ids = new Set(cleanNodes.map(n => n.id));
+  const cleanEdges = edges
+    .map(e => ({
+      from: String(e?.from || '').trim(),
+      to: String(e?.to || '').trim(),
+      label: String(e?.label || '').trim(),
+    }))
+    .filter(e => ids.has(e.from) && ids.has(e.to) && e.from !== e.to)
+    .slice(0, 20);
+
+  if (cleanNodes.length === 0) return null;
+  return { nodes: cleanNodes, edges: cleanEdges };
+}
+
+/** AI가 뽑은 product(서비스 자체 설명)를 저장 가능한 평탄 구조로 정규화. 값이 전혀 없으면 null. */
+function normalizeProduct(raw) {
+  const p = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const str = (v) => (v == null ? '' : String(Array.isArray(v) ? v.join(' ') : v).replace(/\s+/g, ' ').trim());
+  const features = (Array.isArray(p.features) ? p.features : [])
+    .map(f => (typeof f === 'string' ? { name: str(f), desc: '' } : { name: str(f?.name || f?.title), desc: str(f?.desc || f?.description || f?.summary) }))
+    .filter(f => f.name || f.desc)
+    .slice(0, 8);
+  const outcomes = (Array.isArray(p.outcomes) ? p.outcomes : [])
+    .map(o => (typeof o === 'string' ? { label: '', value: str(o) } : { label: str(o?.label || o?.name || o?.metric), value: str(o?.value || o?.metric || o?.number) }))
+    .filter(o => o.label || o.value)
+    .slice(0, 10);
+  const out = {
+    name: str(p.name), tagline: str(p.tagline),
+    problem: str(p.problem), solution: str(p.solution),
+    features, outcomes,
+  };
+  return (out.problem || out.solution || features.length || outcomes.length || out.name || out.tagline) ? out : null;
+}
+
 function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
@@ -885,6 +947,10 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     jobCategory: jobCategory || 'common',
     jobSpecific,
     ...(marketerKit ? { marketerKit } : {}),
+    product: normalizeProduct(json.product),
+    architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
+    portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -1301,6 +1367,10 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     jobCategory: jobCategory || 'common',
     jobSpecific: resultJobSpecific,
     ...(marketerKit ? { marketerKit } : {}),
+    product: normalizeProduct(overviewJson.product),
+    architectureDiagram: normalizeArchitectureDiagram(overviewJson.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(overviewJson.flowDiagram),
+    portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
     keywords: resultKeywords,
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],

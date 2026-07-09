@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
+import api from '../../services/api';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 import { stripMd } from '../../utils/textUtils';
 
@@ -39,18 +40,18 @@ function displayText(value) {
 /* ── 분야별 자료 수집 프리셋 — 사람들이 경험을 자주 남겨두는 곳에 맞춤 ── */
 const MATERIAL_PRESETS = {
   dev: {
-    intro: '개발 경험은 GitHub 리포지토리와 README·기술문서에 가장 잘 남아 있어요. 가지고 있는 자료를 올려주시면 제가 읽고 초안을 만들게요.',
-    accept: '.pdf,.doc,.docx,.md,.txt',
-    filesHint: 'README · 기술문서 · 발표자료 (PDF / DOCX / MD)',
+    intro: '개발 경험은 GitHub 리포지토리와 README·기술문서에 가장 잘 남아 있어요. GitHub 아이디를 함께 입력하면 내 커밋 기여도·트러블슈팅·코드까지 분석해드려요.',
+    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    filesHint: 'README · 기술문서 · 발표자료 (PDF / DOCX / MD / 이미지)',
     links: [
       { key: 'github', label: 'GitHub 리포지토리', placeholder: 'https://github.com/username/repo', source: 'github', icon: Github },
       { key: 'blog', label: '기술 블로그 (선택)', placeholder: 'https://velog.io/... 또는 블로그 글 주소', source: 'blog', icon: Link2 },
     ],
   },
   aiml: {
-    intro: 'AI/ML 경험은 코드 저장소와 실험 리포트에 잘 남아 있어요. 모델 리포트나 GitHub 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt',
-    filesHint: '실험 리포트 · 논문/발표자료 (PDF / DOCX / MD)',
+    intro: 'AI/ML 경험은 코드 저장소와 실험 리포트에 잘 남아 있어요. GitHub 아이디를 함께 입력하면 내 커밋 기여도·코드까지 분석해드려요.',
+    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    filesHint: '실험 리포트 · 논문/발표자료 (PDF / DOCX / MD / 이미지)',
     links: [
       { key: 'github', label: 'GitHub 리포지토리', placeholder: 'https://github.com/username/repo', source: 'github', icon: Github },
       { key: 'blog', label: '블로그/아카이브 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
@@ -105,8 +106,8 @@ const MATERIAL_PRESETS = {
   },
   hr: {
     intro: '인사/채용 경험은 프로세스 문서와 온보딩 자료에 잘 남아 있어요. 문서 파일이나 Notion 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt',
-    filesHint: '프로세스 문서 · 온보딩 자료 (PDF / DOCX)',
+    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    filesHint: '프로세스 문서 · 온보딩 자료 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
       { key: 'blog', label: '기타 링크 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
@@ -114,8 +115,8 @@ const MATERIAL_PRESETS = {
   },
   sales: {
     intro: '세일즈/사업개발 경험은 제안서와 성과 정리 문서에 잘 남아 있어요. 문서 파일이나 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt',
-    filesHint: '제안서 · 성과 정리 문서 (PDF / DOCX)',
+    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    filesHint: '제안서 · 성과 정리 문서 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
       { key: 'blog', label: '기타 링크 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
@@ -547,6 +548,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
   const [files, setFiles] = useState([]);
   const [links, setLinks] = useState({});
   const [extraLinks, setExtraLinks] = useState([]);
+  const [ghUser, setGhUser] = useState(''); // GitHub 아이디 — 내 커밋 기여도·코드 분석용
   const [text, setText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
@@ -610,6 +612,21 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
                 className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
               />
             </div>
+            {/* GitHub 레포 링크 아래 — 내 아이디를 입력하면 커밋 기여도·트러블슈팅·코드까지 분석 */}
+            {link.source === 'github' && (links[link.key] || '').trim() && (
+              <div className="mt-1.5 animate-fadeIn">
+                <div className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/40 px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200">
+                  <Github size={14} className="flex-shrink-0 text-primary-400" />
+                  <input
+                    value={ghUser}
+                    onChange={e => setGhUser(e.target.value)}
+                    placeholder="GitHub 아이디 — 내 커밋 기여도·코드 분석 (권장)"
+                    className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+                  />
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-bluewood-400">아이디를 입력하면 이 레포에서 내 커밋을 찾아 기여도 · 영향력 · 트러블슈팅 · 코드 근거까지 분석해요.</p>
+              </div>
+            )}
           </div>
         );
       })}
@@ -657,7 +674,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
             ...preset.links.map(l => ({ ...l, url: (links[l.key] || '').trim() })),
             ...extraLinks.map((url, i) => ({ key: `extra-${i}`, label: '산출물 링크', source: 'blog', url: url.trim() })),
           ].filter(l => l.url);
-          onSubmit({ files, links: linkList, text: text.trim() });
+          onSubmit({ files, links: linkList, text: text.trim(), githubUsername: ghUser.trim() });
         }}
         disabled={!hasInput || busy}
         className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
@@ -759,6 +776,8 @@ export default function ExperienceChat() {
   const [sourceText, setSourceText] = useState('');
   const [moments, setMoments] = useState([]);           // 추출된 핵심 경험 (selected 플래그 포함)
   const [reviewedMoments, setReviewedMoments] = useState([]); // 사용자가 확정한 핵심 경험
+
+  const gitRef = useRef(null); // GitHub 커밋 분석 결과(githubStats·gitAnalysis) — 초안·저장에 보존
 
   const [draft, setDraft] = useState(null);
   const [title, setTitle] = useState('');
@@ -871,10 +890,14 @@ export default function ExperienceChat() {
   ).join('\n\n');
 
   /* ── 2) 자료 수집 → 핵심 경험 추출 ── */
-  const collectMaterials = async ({ files, links, text }) => {
+  const collectMaterials = async ({ files, links, text, githubUsername }) => {
+    const ghLink = links.find(l => l.source === 'github' && l.url);
+    const runGitAnalysis = Boolean(ghLink && githubUsername);
+
     const parts = [];
     if (files.length > 0) parts.push(`파일 ${files.length}개`);
     links.forEach(l => parts.push(l.label.replace(/\s*\(선택\)/, '')));
+    if (runGitAnalysis) parts.push(`@${githubUsername} 커밋 분석`);
     if (text) parts.push('직접 입력');
     pushMsg('user', parts.join(' · '));
 
@@ -882,6 +905,7 @@ export default function ExperienceChat() {
     const steps = [];
     if (files.length > 0) steps.push({ label: `${files.length}개 파일 분석`, status: 'pending' });
     links.forEach(l => steps.push({ label: `${l.label.replace(/\s*\(선택\)/, '')} 가져오기`, status: 'pending' }));
+    if (runGitAnalysis) steps.push({ label: '내 커밋 · 기여도 분석 (코드·트러블슈팅)', status: 'pending' });
     steps.push({ label: '핵심 경험 추출', status: 'pending' });
     setBuildSteps(steps);
     const setStep = (idx, status) => setBuildSteps(prev => prev.map((s, i) => i === idx ? { ...s, status } : s));
@@ -910,22 +934,52 @@ export default function ExperienceChat() {
 
       for (const link of links) {
         setStep(stepIdx, 'loading');
-        // URL로 소스 자동 감지 (깃허브/노션은 전용 파서 사용)
+        // URL로 소스 자동 감지. GitHub는 아래 커밋 분석이 별도로 담당하므로 README 내용을 초안 본문에 섞지 않는다.
         const source = /github\.com/i.test(link.url) ? 'github'
           : /notion\.(so|site)/i.test(link.url) ? 'notion'
           : link.source || 'blog';
-        let content = '';
-        try {
-          const data = await importFromUrl(source, link.url, 'experience');
-          content = data?.imported?.content || '';
-        } catch {
-          content = '';
+        if (source !== 'github') {
+          let content = '';
+          try {
+            const data = await importFromUrl(source, link.url, 'experience');
+            content = data?.imported?.content || '';
+          } catch {
+            content = '';
+          }
+          if (content.trim()) {
+            allText += `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
+          } else {
+            allText += `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
+          }
         }
-        if (content.trim()) {
-          allText += `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
-        } else {
-          // 인스타그램·Figma 등 직접 읽기 어려운 채널 — 링크 자체를 산출물/증거 자료로 기록해 AI가 활용하게 한다
-          allText += `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
+        setStep(stepIdx, 'done');
+        stepIdx++;
+      }
+
+      // GitHub 커밋 분석 — 기여도·코드·트러블슈팅은 '문제 해결 과정'으로 별도 보존.
+      // (파일/텍스트 분석과 독립 — git이 초안·개요를 지배하지 않게 함)
+      gitRef.current = null;
+      let gitExpCount = 0;
+      if (runGitAnalysis) {
+        setStep(stepIdx, 'loading');
+        try {
+          const res = await api.post('/experience/analyze-git', {
+            repoUrl: ghLink.url,
+            authorParam: githubUsername,
+          });
+          const gitData = res.data;
+          gitRef.current = {
+            ...(gitData?.contributionStats ? { githubStats: { ...gitData.contributionStats, repoName: gitData.repoName } } : {}),
+            ...(gitData?.experiences?.length ? { gitAnalysis: { repoName: gitData.repoName, experiences: gitData.experiences } } : {}),
+          };
+          gitExpCount = gitData?.experiences?.length || 0;
+        } catch (gitErr) {
+          const msg = gitErr?.response?.data?.error || '';
+          if (msg.includes('찾을 수 없습니다')) {
+            toast.error(`'${githubUsername}' 사용자의 커밋을 찾을 수 없습니다. GitHub 아이디를 확인해주세요.`, { duration: 5000 });
+          } else {
+            toast.error(msg || '커밋 분석에 실패해 건너뛰었어요', { duration: 4000 });
+          }
         }
         setStep(stepIdx, 'done');
         stepIdx++;
@@ -933,7 +987,7 @@ export default function ExperienceChat() {
 
       if (text) allText += `\n\n--- 직접 입력 ---\n${text}`;
 
-      if (!allText.trim()) {
+      if (!allText.trim() && !gitRef.current) {
         setPhase('materials');
         await pushAi('자료에서 내용을 읽지 못했어요. 다른 자료를 올리거나 직접 조금 적어주시겠어요?');
         return;
@@ -944,19 +998,22 @@ export default function ExperienceChat() {
       }
       setSourceText(allText.trim());
 
-      // 핵심 경험 추출 — 실패해도 자료만으로 초안 진행
+      // 핵심 경험 추출 — 파일/텍스트 자료 기반 (git 경험은 문제 해결 과정에서 따로 다뤄짐)
       setStep(stepIdx, 'loading');
       let extracted = [];
-      try {
-        const result = await extractMoments(allText.trim(), '');
-        extracted = result?.moments || [];
-      } catch (err) {
-        console.warn('[ExperienceChat] 핵심 경험 추출 실패 → 자료만으로 초안 진행:', err?.message);
+      if (allText.trim()) {
+        try {
+          const result = await extractMoments(allText.trim(), '');
+          extracted = result?.moments || [];
+        } catch (err) {
+          console.warn('[ExperienceChat] 핵심 경험 추출 실패 → 자료만으로 초안 진행:', err?.message);
+        }
       }
       setStep(stepIdx, 'done');
 
+      const gitNote = gitExpCount > 0 ? `\n(GitHub 커밋에서 찾은 개발 경험 ${gitExpCount}개는 ‘문제 해결 과정’으로 따로 정리했어요)` : '';
       if (extracted.length === 0) {
-        await pushAi('자료에서 핵심 경험을 따로 추출하지 못했어요. 자료 내용만으로 초안을 만들게요.');
+        await pushAi(`자료에서 핵심 경험을 따로 추출하지 못했어요. 자료 내용으로 초안을 만들게요.${gitNote}`);
         await generateDraft(allText.trim(), []);
         return;
       }
@@ -964,7 +1021,8 @@ export default function ExperienceChat() {
       const withFlags = extracted.map((m, i) => ({ ...m, id: m.id || `moment-${Date.now()}-${i}`, selected: true }));
       setMoments(withFlags);
       setPhase('moments');
-      await pushAi(`자료를 꼼꼼히 읽었어요. 핵심 경험 ${withFlags.length}개를 찾았습니다!\n오른쪽 화면에서 포트폴리오에 담을 경험만 남기고 버튼을 눌러주세요. 선택한 경험을 중심으로 초안을 만들게요.`);
+      await pushAi(`자료를 꼼꼼히 읽었어요. 핵심 경험 ${withFlags.length}개를 찾았습니다!${gitNote}
+오른쪽 화면에서 포트폴리오에 담을 경험만 남기고 확인을 눌러주세요. 선택한 경험을 중심으로 초안을 만들게요.`);
     } catch (err) {
       console.error('자료 수집 실패:', err);
       setPhase('materials');
@@ -995,8 +1053,14 @@ export default function ExperienceChat() {
       let analysis;
       try {
         const cleaned = cleanRawText(allText) || allText;
+        // 초안(개요·README)은 파일/텍스트 자료 + 핵심경험으로만 생성 —
+        // git 커밋 상세는 개요를 지배하지 않도록 주입하지 않고 '문제 해결 과정'에서 별도 표시.
+        // (기술스택 힌트만, 아키텍처 다이어그램 폴백용으로 가볍게 전달)
+        const draftContent = { 자료: cleaned, ...(momentsText ? { 핵심경험: momentsText } : {}) };
+        const techStacks = (gitRef.current?.gitAnalysis?.experiences || []).map(e => e.core_tech_stack).filter(Boolean);
+        if (techStacks.length) draftContent.기술스택 = [...new Set(techStacks.join(', ').split(/,\s*/))].filter(Boolean).join(', ');
         analysis = await draftAnalyze({
-          content: { 자료: cleaned, ...(momentsText ? { 핵심경험: momentsText } : {}) },
+          content: draftContent,
           jobCategory: jobCategory || 'common',
         });
       } catch (draftErr) {
@@ -1008,6 +1072,20 @@ export default function ExperienceChat() {
           collectedText: allText,
           content: { rawInput: allText },
         });
+      }
+      // 서비스 설명(product)·아키텍처/흐름이 비면 전용 경량 추출로 보강 — 전체 초안 실패/누락 대비
+      const needProduct = !asText(analysis?.product?.problem) && !asText(analysis?.product?.solution);
+      const needArch = !(analysis?.architectureDiagram?.nodes?.length);
+      if ((needProduct || needArch) && allText.trim()) {
+        try {
+          const pr = await api.post('/experience/extract-product', { material: allText.trim() });
+          const d = pr.data || {};
+          if (needProduct && d.product) analysis = { ...analysis, product: d.product };
+          if (needArch && d.architectureDiagram?.nodes?.length) analysis = { ...analysis, architectureDiagram: d.architectureDiagram };
+          if (!(analysis?.flowDiagram?.nodes?.length) && d.flowDiagram?.nodes?.length) analysis = { ...analysis, flowDiagram: d.flowDiagram };
+        } catch (e) {
+          console.warn('[ExperienceChat] product/다이어그램 전용 추출 실패(무시):', e?.message);
+        }
       }
       setBuildSteps([{ label: 'AI 초안 생성', status: 'done' }]);
       // 기본 정보 단계에서 받은 기간을 초안에 반영
@@ -1282,6 +1360,8 @@ export default function ExperienceChat() {
         momentsText ? `=== AI 추출 핵심 경험 ===\n${momentsText}` : '',
         transcript ? `=== AI 채팅 보완 ===\n${transcript}` : '',
       ].filter(Boolean).join('\n\n');
+      // GitHub 기여 통계 + 분석 원본(코드·트러블슈팅)을 structuredResult에 보존 → 케이스 스터디·개발자 포트폴리오에서 렌더
+      const draftWithGit = { ...draft, ...(gitRef.current || {}) };
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',
@@ -1291,15 +1371,16 @@ export default function ExperienceChat() {
         content: { rawInput: finalText },
         momentsCount: reviewedMoments.length || 3,
         ...(reviewedMoments.length > 0 ? { reviewedMoments } : {}),
-        structuredResult: draft,
+        structuredResult: draftWithGit,
         keywords: draft.keywords || [],
         analysisMode: 'draft',
       });
       toast.success('빠른 초안이 저장되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
       navigate(`/app/experience/result/${experienceId}`, {
         state: {
-          analysis: draft,
+          analysis: draftWithGit,
           title: title.trim(),
+          jobCategory: jobCategory || 'common',
           framework: 'STRUCTURED',
           content: { rawInput: finalText },
           showFeedback: true,
