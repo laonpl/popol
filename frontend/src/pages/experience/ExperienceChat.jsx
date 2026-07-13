@@ -76,9 +76,9 @@ const MATERIAL_PRESETS = {
     ],
   },
   pm: {
-    intro: '기획 경험은 기획서·PRD·회고 문서에 가장 잘 남아 있어요. 문서 파일이나 Notion 링크를 올려주세요.',
+    intro: '기획 경험은 기획서·PRD·회고 문서에 가장 잘 남아 있어요. 목표 지표(KPI·MSC)나 우선순위 결정 근거가 담긴 자료일수록 의사결정·MSC 달성·로드맵 중심으로 깊게 분석해드려요.',
     accept: '.pdf,.doc,.docx,.md,.txt,image/*',
-    filesHint: '기획서 · PRD · 회고 문서 (PDF / DOCX)',
+    filesHint: '기획서 · PRD · 회고/지표 리포트 (PDF / DOCX)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
       { key: 'blog', label: '서비스/기타 링크 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
@@ -687,14 +687,13 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
 }
 
 /* ── 핵심 경험 검토 — 추출된 경험을 선택/해제 후 확정 (우측 분할 패널에서 사용) ── */
-function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false }) {
+function MomentsWidget({ moments, onToggle, readOnly = false }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const toggleExpand = (id) => setExpanded(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
-  const selectedCount = moments.filter(m => m.selected).length;
 
   return (
     <div className="space-y-2.5">
@@ -748,15 +747,6 @@ function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false }) {
           </div>
         );
       })}
-      {!readOnly && (
-        <button
-          onClick={onConfirm}
-          disabled={selectedCount === 0}
-          className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
-        >
-          <Sparkles size={15} /> 선택한 경험 {selectedCount}개로 초안 만들기
-        </button>
-      )}
     </div>
   );
 }
@@ -1731,16 +1721,28 @@ export default function ExperienceChat() {
                 {moments.filter(m => m.selected).length} / {moments.length} 선택
               </span>
             </div>
-            <div className="px-5 py-5 max-h-[calc(100dvh-240px)] overflow-y-auto">
+            <div className="px-5 py-5 max-h-[calc(100dvh-320px)] overflow-y-auto">
               <p className="mb-3 text-[12.5px] text-bluewood-400 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
                 자료에서 추출한 핵심 경험이에요. 포트폴리오에 담을 경험만 남겨주세요.
               </p>
               <MomentsWidget
                 moments={moments}
                 onToggle={(id) => setMoments(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m))}
-                onConfirm={confirmMoments}
                 readOnly={phase === 'building'}
               />
+            </div>
+            {/* 확정 버튼 — 리스트 스크롤과 무관하게 패널 하단에 항상 고정 노출 */}
+            <div className="border-t border-surface-100 bg-white/95 px-5 py-3.5 backdrop-blur">
+              <button
+                onClick={confirmMoments}
+                disabled={phase === 'building' || moments.filter(m => m.selected).length === 0}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
+              >
+                <Sparkles size={15} />
+                {phase === 'building'
+                  ? '초안을 만드는 중...'
+                  : `선택한 경험 ${moments.filter(m => m.selected).length}개로 초안 만들기`}
+              </button>
             </div>
           </div>
         )}

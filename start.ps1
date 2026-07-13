@@ -19,7 +19,7 @@ foreach ($port in $portsToKill) {
 }
 
 # 백엔드 시작 (새 창)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; Write-Host 'Backend 서버 시작 중...' -ForegroundColor Green; npm run dev" -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; Write-Host 'Backend 서버 시작 중...' -ForegroundColor Green; npm.cmd run dev" -WindowStyle Normal
 
 # 백엔드가 실제로 응답할 때까지 대기 (최대 30초)
 Write-Host "백엔드 서버 준비 대기 중..." -ForegroundColor Yellow
@@ -46,7 +46,7 @@ if (-not $backendReady) {
 }
 
 # 프론트엔드 시작 (새 창)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\frontend'; Write-Host 'Frontend 서버 시작 중...' -ForegroundColor Blue; npm run dev" -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\frontend'; Write-Host 'Frontend 서버 시작 중...' -ForegroundColor Blue; npm.cmd run dev" -WindowStyle Normal
 
 Write-Host "두 서버가 시작되었습니다." -ForegroundColor Green
 Write-Host "  백엔드: http://localhost:5000" -ForegroundColor Yellow

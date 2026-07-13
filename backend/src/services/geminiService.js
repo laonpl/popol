@@ -880,6 +880,102 @@ function normalizeProduct(raw) {
   return (out.problem || out.solution || features.length || outcomes.length || out.name || out.tagline) ? out : null;
 }
 
+function extractionMaterialToText(material) {
+  if (typeof material === 'string') return compactFallbackText(material, 14000);
+  return compactFallbackText(draftValueToText(material), 14000);
+}
+
+export async function extractProduct(material) {
+  const materialText = extractionMaterialToText(material);
+  if (!materialText) return null;
+
+  const prompt = `당신은 발표자료·기획서·문서에서 "서비스(제품) 자체"를 정리하는 전문가입니다.
+아래 자료에서 이 서비스가 무엇이고, 어떤 문제를 어떻게 푸는지, 성과와 핵심 기능을 추출하세요.
+순수 JSON만 반환하세요. 자료에 없는 사실·수치·제품명·성과는 지어내지 마세요. 근거가 없으면 빈 문자열/빈 배열로 두세요.
+
+[언어]
+- 자료가 한국어면 모든 값(name·tagline·problem·solution·features·outcomes)을 반드시 한국어로 작성하세요. 자료의 언어를 그대로 따르세요.
+
+[추출 규칙]
+- problem: 서비스가 겨냥한 사용자/시장의 문제(누가 어떤 상황에서 어떤 불편·비효율을 겪는지). 개발 과정·베타테스트·PMF 검증 서사가 아니라 "서비스 관점"으로.
+- solution: 그 문제를 서비스가 어떤 방식으로 푸는지(제품·개념 관점).
+- features: 서비스 핵심 기능 4~6개. 각 { "name": 기능명, "desc": 사용자에게 주는 가치 한 줄 }. 자료에 근거가 있는 만큼 충분히 뽑으세요.
+- outcomes: 자료에 등장하는 정량 지표·성과 수치를 "하나도 빠짐없이" 모두 넣으세요. 각 { "label": 지표명, "value": 값 }. (예: { "label": "누적 가입자", "value": "367명" }, { "label": "재사용률(2회차 이상)", "value": "27.3%" }) 표·그래프의 수치가 여러 개면 전부 담으세요. 자료에 수치가 전혀 없을 때만 빈 배열.
+
+JSON schema:
+{
+  "product": {
+    "name": "",
+    "tagline": "",
+    "problem": "",
+    "solution": "",
+    "features": [{ "name": "", "desc": "" }],
+    "outcomes": [{ "label": "", "value": "" }]
+  }
+}
+
+자료:
+${materialText}`;
+
+  // flash 우선(lite 폴백) — 성과 표·수치 추출과 한국어 서술 품질이 flash-lite 단독보다 확연히 낫다.
+  const text = await withTimeout(
+    generateWithRetry(prompt, {
+      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+      retries: 2,
+      delayMs: 1200,
+      rateLimitDelayMs: 4000,
+      callTimeoutMs: 45000,
+    }),
+    60000,
+    'ExtractProduct'
+  );
+  const parsed = parseJSON(text, /\{[\s\S]*\}/);
+  return normalizeProduct(parsed.product || parsed);
+}
+
+export async function extractDiagrams(material) {
+  const materialText = extractionMaterialToText(material);
+  if (!materialText) {
+    return { architectureDiagram: null, flowDiagram: null };
+  }
+
+  const prompt = `당신은 개발 포트폴리오 자료에서 경량 다이어그램 2개를 추출합니다.
+순수 JSON만 반환하세요. 자료가 뒷받침하는 기술·컴포넌트·사용자 단계·관계만 사용하세요. 근거가 없으면 nodes/edges를 빈 배열로 두세요.
+
+[언어 — 중요]
+- 자료가 한국어면 label·tech·edges의 label을 모두 반드시 한국어로 작성하세요. (예: label "사용자 브라우저"·"백엔드 API"·"AI 구조화 엔진", edge label "구조화 결과 반환"·"입력 처리"·"검증 데이터 저장") 자료의 언어를 그대로 따르세요.
+- 단, node의 id만 짧은 영문 식별자로 두세요(예: client, server, ai).
+
+[규칙]
+- architectureDiagram: 기술 시스템·데이터 파이프라인·인프라 구조.
+- flowDiagram: 사용자의 제품 여정·서비스 흐름(구현 세부가 아니라).
+- 모든 edge의 from/to는 존재하는 node id여야 합니다.
+- tier는 0~6 정수. 각 다이어그램 노드 3~8개 권장.
+- edges의 label은 8자 내외로 짧게(길면 화면에서 잘립니다).
+
+JSON schema:
+{
+  "architectureDiagram": {
+    "nodes": [{ "id": "client", "label": "", "tech": "", "tier": 0 }],
+    "edges": [{ "from": "client", "to": "server", "label": "" }]
+  },
+  "flowDiagram": {
+    "nodes": [{ "id": "entry", "label": "", "tech": "", "tier": 0 }],
+    "edges": [{ "from": "entry", "to": "result", "label": "" }]
+  }
+}
+
+자료:
+${materialText}`;
+
+  const text = await withTimeout(callFastLite(prompt, 'ExtractDiagrams'), 60000, 'ExtractDiagrams');
+  const parsed = parseJSON(text, /\{[\s\S]*\}/);
+  return {
+    architectureDiagram: normalizeArchitectureDiagram(parsed.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(parsed.flowDiagram),
+  };
+}
+
 function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common', contentText = '' }) {
   const fallback = buildFallbackExperienceAnalysis(content, 3, null, jobCategory);
   const fallbackKeyExperiences = fallback.keyExperiences || [];
@@ -951,6 +1047,7 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
     flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
     portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
+    leanCanvas: json.leanCanvas && typeof json.leanCanvas === 'object' && !Array.isArray(json.leanCanvas) ? json.leanCanvas : null,
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -1371,6 +1468,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     architectureDiagram: normalizeArchitectureDiagram(overviewJson.architectureDiagram),
     flowDiagram: normalizeArchitectureDiagram(overviewJson.flowDiagram),
     portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
+    leanCanvas: overviewJson.leanCanvas && typeof overviewJson.leanCanvas === 'object' && !Array.isArray(overviewJson.leanCanvas) ? overviewJson.leanCanvas : null,
     keywords: resultKeywords,
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],
