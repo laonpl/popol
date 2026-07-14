@@ -1,4 +1,15 @@
 const VALID_JOB_CATEGORIES = new Set(['common', 'dev', 'aiml', 'da', 'devops', 'pm', 'designer', 'marketer', 'hr', 'sales']);
+const JOB_CATEGORY_ALIASES = {
+  developer: 'dev', frontend: 'dev', backend: 'dev', engineer: 'dev', '개발': 'dev', '개발자': 'dev',
+  ai: 'aiml', ml: 'aiml', 'ai/ml': 'aiml', '인공지능': 'aiml',
+  data: 'da', analyst: 'da', '데이터': 'da', '데이터분석': 'da',
+  infra: 'devops', infrastructure: 'devops', '인프라': 'devops',
+  planner: 'pm', planning: 'pm', product: 'pm', '기획': 'pm', '기획자': 'pm',
+  design: 'designer', '디자인': 'designer', '디자이너': 'designer',
+  marketing: 'marketer', '마케팅': 'marketer', '마케터': 'marketer',
+  recruit: 'hr', recruiting: 'hr', '인사': 'hr', '채용': 'hr',
+  business: 'sales', bd: 'sales', '사업개발': 'sales', '영업': 'sales',
+};
 
 const JOB_SPECIFIC_KEYS = {
   dev: ['techStack', 'architecture', 'troubleshooting', 'optimization'],
@@ -14,20 +25,51 @@ const JOB_SPECIFIC_KEYS = {
 
 const text = (value) => String(value ?? '').trim();
 const first = (...values) => values.find(value => text(value)) ?? '';
+const normalizeCategory = (value) => {
+  const raw = text(value).toLowerCase();
+  if (VALID_JOB_CATEGORIES.has(raw)) return raw;
+  if (JOB_CATEGORY_ALIASES[raw]) return JOB_CATEGORY_ALIASES[raw];
+  if (/개발|front.?end|back.?end|software/.test(raw)) return 'dev';
+  if (/ai\s*[/·&]?\s*ml|머신러닝|인공지능/.test(raw)) return 'aiml';
+  if (/데이터.*(분석|애널)|data.*analy/.test(raw)) return 'da';
+  if (/devops|인프라/.test(raw)) return 'devops';
+  if (/기획|product\s*manager|\bpm\b/.test(raw)) return 'pm';
+  if (/디자인|designer/.test(raw)) return 'designer';
+  if (/마케팅|마케터|market/.test(raw)) return 'marketer';
+  if (/인사|채용|recruit|human resource/.test(raw)) return 'hr';
+  if (/세일즈|영업|사업.?개발|sales|business development/.test(raw)) return 'sales';
+  return '';
+};
+
+function inferCategoryFromContent(sr = {}) {
+  const jobSpecific = sr.jobSpecific || {};
+  const bySections = Object.entries(JOB_SPECIFIC_KEYS)
+    .map(([category, keys]) => ({ category, score: keys.filter(key => text(jobSpecific[key])).length }))
+    .sort((a, b) => b.score - a.score)[0];
+  if (bySections?.score > 0) return bySections.category;
+  if (sr.marketerKit) return 'marketer';
+  if (sr.gitAnalysis || sr.githubStats) return 'dev';
+  const jobDataKeys = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
+    .flatMap(experience => Object.keys(experience?.jobData || {}));
+  if (jobDataKeys.some(key => ['decision', 'alternatives', 'stakeholders', 'impact', 'effort'].includes(key))) return 'pm';
+  if (jobDataKeys.some(key => ['channels', 'creative', 'kpis'].includes(key))) return 'marketer';
+  if (jobDataKeys.some(key => ['method', 'finding', 'businessAction', 'significance'].includes(key))) return 'da';
+  if (jobDataKeys.some(key => ['painPoint', 'designDecision', 'testResult'].includes(key))) return 'designer';
+  return '';
+}
 
 export function resolveExperienceJobCategory(data = {}) {
   const sr = data.structuredResult || {};
-  const explicit = [data.jobCategory, sr.jobCategory, data.content?.jobCategory, data.jobType]
-    .map(value => text(value).toLowerCase())
-    .find(value => VALID_JOB_CATEGORIES.has(value));
-  if (explicit) return explicit;
-  if (sr.marketerKit) return 'marketer';
-  if (sr.gitAnalysis || sr.githubStats) return 'dev';
-  const jobSpecific = sr.jobSpecific || {};
-  const inferred = Object.entries(JOB_SPECIFIC_KEYS)
-    .map(([category, keys]) => ({ category, score: keys.filter(key => text(jobSpecific[key])).length }))
-    .sort((a, b) => b.score - a.score)[0];
-  return inferred?.score > 0 ? inferred.category : 'common';
+  const explicitCategories = [data.jobCategory, sr.jobCategory, data.content?.jobCategory, data.jobType]
+    .map(normalizeCategory)
+    .filter(Boolean);
+  // 과거 최상위 값이 common이어도, 내부에 저장된 구체 직군은 우선 보존한다.
+  const explicitJob = explicitCategories.find(category => category !== 'common');
+  if (explicitJob) return explicitJob;
+  // GitHub·직군 특화 필드는 과거 common 기본값보다 강한 근거다.
+  const inferred = inferCategoryFromContent(sr);
+  if (inferred) return inferred;
+  return explicitCategories.includes('common') ? 'common' : 'common';
 }
 
 function legacyJobData(category, experience = {}) {

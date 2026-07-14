@@ -211,10 +211,28 @@ function deriveCompetencies(sr, fallbackSkills = []) {
 /* 개발 언어·프레임워크·DB·인프라처럼 구현에 직접 쓰인 기술명만 허용한다. */
 const CODING_TECH_RE = /(?:^|[\s.(])(?:c\+\+|c#|\.net|java|kotlin|scala|groovy|python|django|flask|fastapi|ruby|rails|php|laravel|go(?:lang)?|rust|swift|objective-c|dart|flutter|javascript|typescript|node(?:\.js)?|deno|bun|react|next(?:\.js)?|vue|nuxt|angular|svelte|solid(?:js)?|remix|astro|vite|webpack|rollup|babel|tailwind(?:css)?|sass|scss|less|html5?|css3?|jquery|redux|zustand|recoil|mobx|express|nestjs|spring(?:\s*boot)?|hibernate|jpa|mybatis|gradle|maven|graphql|rest(?:ful)?|grpc|websocket|socket\.io|mysql|mariadb|postgres(?:ql)?|sqlite|oracle|mongodb|redis|elasticsearch|opensearch|dynamodb|firestore|firebase|supabase|prisma|sequelize|typeorm|docker|kubernetes|k8s|helm|terraform|ansible|jenkins|github actions|gitlab ci|circleci|travis ci|aws|amazon web services|ec2|s3|lambda|cloudfront|rds|ecs|eks|gcp|google cloud|azure|vercel|netlify|render|cloudflare|nginx|apache|linux|git|github|gitlab|bitbucket|jest|vitest|mocha|cypress|playwright|selenium|storybook|junit|pytest|pytorch|tensorflow|keras|scikit-learn|pandas|numpy|opencv|hugging face|langchain|llamaindex|openai api|gemini api|jupyter|unity|unreal engine|electron|react native|android|ios|xcode|android studio)(?:$|[\s)./\d-])/i;
 const NON_CODING_TECH_RE = /가설|검증|kpi|지표|설계|기획|전략|분석|리서치|협업|커뮤니케이션|문제\s*해결|성과|인사이트|figma|notion|slack|jira|confluence|trello|ga4|google analytics|amplitude|mixpanel/i;
+const RAW_CODE_TECH_PATTERNS = [
+  ['TensorFlow Lite', /\b(?:tensorflow\s*lite|tflite)\b/i], ['TensorFlow', /\btensorflow\b/i],
+  ['PyTorch', /\bpytorch\b/i], ['OpenCV', /\bopencv\b/i], ['ONNX', /\bonnx\b/i],
+  ['Python', /\bpython\b/i], ['Kotlin', /\bkotlin\b/i], ['Java', /\bjava\b/i],
+  ['C++', /c\+\+/i], ['C#', /c#/i], ['Swift', /\bswift\b/i], ['Dart', /\bdart\b/i],
+  ['TypeScript', /\btypescript\b/i], ['JavaScript', /\bjavascript\b/i],
+  ['React Native', /\breact\s*native\b/i], ['React', /\breact\b/i], ['Next.js', /\bnext\.?js\b/i],
+  ['Node.js', /\bnode\.?js\b/i], ['Spring Boot', /\bspring\s*boot\b/i], ['FastAPI', /\bfastapi\b/i],
+  ['Django', /\bdjango\b/i], ['Flask', /\bflask\b/i], ['Flutter', /\bflutter\b/i],
+  ['Android', /\bandroid\b/i], ['iOS', /\bios\b/i], ['Firebase', /\bfirebase\b/i],
+  ['Firestore', /\bfirestore\b/i], ['MySQL', /\bmysql\b/i], ['PostgreSQL', /\bpostgres(?:ql)?\b/i],
+  ['MongoDB', /\bmongodb\b/i], ['Redis', /\bredis\b/i], ['Docker', /\bdocker\b/i],
+  ['Kubernetes', /\bkubernetes\b|\bk8s\b/i], ['AWS', /\baws\b|amazon web services/i],
+];
 
 function isCodingTechName(value) {
   const tech = String(value || '').trim();
-  if (!tech || NON_CODING_TECH_RE.test(tech)) return false;
+  // 예전 분석 결과의 "[작성 필요] (예: Python...)"는 기술명이 포함되어 있어도
+  // 실제 사용 기술이 아니므로 기술 스택에 노출하지 않는다.
+  if (!tech || isDraft(tech) || NON_CODING_TECH_RE.test(tech)) return false;
+  // 기술 설명 문장 전체가 하나의 태그가 되는 것도 방지한다.
+  if (tech.length > 60 || /[가-힣]/.test(tech)) return false;
   return CODING_TECH_RE.test(tech);
 }
 
@@ -224,14 +242,19 @@ function deriveDevTechStack(exp, fallbackTech = []) {
   const overviewTech = Array.isArray(sr.projectOverview?.techStack) ? sr.projectOverview.techStack : [];
   const gitExperiences = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
   const languages = Array.isArray(sr.githubStats?.languages) ? sr.githubStats.languages : [];
+  const fallbackTechList = Array.isArray(fallbackTech) ? fallbackTech : String(fallbackTech || '').split(/[,|\n]/);
+  const jobSpecificTech = Array.isArray(sr.jobSpecific?.techStack)
+    ? sr.jobSpecific.techStack
+    : String(sr.jobSpecific?.techStack || '').split(/[,|\n]/);
   const candidates = [
     ...overviewTech.map(t => ({ name: typeof t === 'string' ? t : t?.name || '', verifiedLanguage: false })),
-    ...fallbackTech.map(t => ({ name: t, verifiedLanguage: false })),
+    ...jobSpecificTech.map(t => ({ name: typeof t === 'string' ? t : t?.name || '', verifiedLanguage: false })),
+    ...fallbackTechList.map(t => ({ name: t, verifiedLanguage: false })),
     ...gitExperiences.flatMap(item => String(item?.core_tech_stack || '').split(/[,|]/).map(name => ({ name, verifiedLanguage: false }))),
     ...languages.map(language => ({ name: typeof language === 'string' ? language : language?.name || '', verifiedLanguage: true })),
   ];
   const seen = new Set();
-  return candidates
+  const explicitTech = candidates
     .map(({ name, verifiedLanguage }) => ({ tech: String(name || '').trim(), verifiedLanguage }))
     .filter(({ tech, verifiedLanguage }) => {
       const key = tech.toLowerCase();
@@ -240,6 +263,14 @@ function deriveDevTechStack(exp, fallbackTech = []) {
       return true;
     })
     .map(({ tech }) => tech);
+  if (explicitTech.length) return explicitTech;
+
+  // 과거 완료본의 기술 스택 칸이 예시값뿐이면 원본에서 코드 기술명만 제한적으로 복구한다.
+  const raw = getRawMaterialText(exp)
+    .split(/(?:^|\n)===\s*AI\s*추출\s*핵심\s*경험\s*===/)[0];
+  if (!raw) return [];
+  const detected = RAW_CODE_TECH_PATTERNS.filter(([, pattern]) => pattern.test(raw)).map(([name]) => name);
+  return detected.filter(name => name !== 'TensorFlow' || !detected.includes('TensorFlow Lite'));
 }
 
 /* structuredResult → 편집 가능한 케이스 스터디 초안 도출 */
@@ -1154,7 +1185,7 @@ function extractNumberedPmHypotheses(exp) {
 function extractReadmeLikeMarkdown(exp) {
   const sr = exp?.structuredResult || {};
   const direct = String(sr.readme || '').trim();
-  if (direct) return direct;
+  if (direct) return isNoisyLegacyDocumentText(direct) ? '' : direct;
   const raw = getRawMaterialText(exp);
   if (!raw) return '';
   const cleaned = raw
@@ -1173,7 +1204,9 @@ function extractReadmeLikeMarkdown(exp) {
   }
   parts.push({ label: lastLabel, text: cleaned.slice(lastIdx).trim() });
 
-  const isReadme = (t) => /(^|\n)#{1,2}\s+\S/.test(t) && /(문제\s*정의|해결\s*방법|핵심\s*기능|주요\s*기능)/.test(t);
+  const isReadme = (t) => !isNoisyLegacyDocumentText(t)
+    && /(^|\n)#{1,2}\s+\S/.test(t)
+    && /(문제\s*정의|해결\s*방법|핵심\s*기능|주요\s*기능)/.test(t);
   const isGithub = (label) => /github|깃허브|리포지토리|repo/i.test(label);
   // 1순위: 업로드한 서비스 파일 README, 2순위: GitHub 레포 README, 3순위: 전체
   // (내 깃허브 README는 개발 README라 서비스 설명 파일보다 뒤로)
@@ -1238,6 +1271,20 @@ function collectCaseSegmentText(value) {
   return value.map(seg => clean(seg?.content || '')).filter(Boolean).join(' ');
 }
 
+/* 과거 업로드 PDF/설계서 전체가 README로 오인된 문서인지 판별한다. */
+function isNoisyLegacyDocumentText(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return false;
+  const signals = [
+    /\b\d+\s+of\s+\d+\b/i,
+    /팀번호\s*[:：]?/,
+    /(?:^|\n)\s*팀원\s*[•·:：]/m,
+    /학번\s*[:：]?/,
+    /(?:졸업작품|프로젝트)\s*설계서/,
+  ].filter(re => re.test(text)).length;
+  return text.length > 12000 || signals >= 2 || (text.length > 2500 && signals >= 1);
+}
+
 function shouldUseReadmeSeed(exp, savedOverviewDoc) {
   const readme = extractReadmeLikeMarkdown(exp);
   if (!readme) return false;
@@ -1269,23 +1316,36 @@ function stripReadmeSections(md, headings) {
 
 /* 프로젝트 소개 초안 — 서사(제목·소개·문제정의·해결방법)만. 핵심기능·성과는 ProductFacts 표로 분리.
  * 우선순위: ① 원본 README 흐름 → ② 사업(아이템) 관점 문제정의 → (없으면) 개발 관점. */
-function buildOverviewSeedSegs(exp) {
+function buildOverviewSeedSegs(exp, caseStudy) {
   const sr = exp?.structuredResult || {};
   const ov = sr.projectOverview || {};
   const product = sr.product && typeof sr.product === 'object' ? sr.product : {};
+  const completedCaseStudy = caseStudy || exp?.caseStudy || {};
+  const completedExperience = (Array.isArray(completedCaseStudy.keyExps) ? completedCaseStudy.keyExps : [])
+    .find(item => clean(item?.problem || item?.action || item?.result));
+  const legacyExperience = completedExperience || (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
+    .find(item => clean(item?.context || item?.situation || item?.action || item?.result));
   const oneLine = (v) => clean(v).replace(/\n+/g, ' ').trim();
   const norm = (v) => clean(v).replace(/\s+/g, '').slice(0, 80);
 
   // 최우선: AI가 뽑은 서비스(아이템) 설명(product) — 개발 서사보다 앞선다.
-  const title = oneLine(product.name) || oneLine(sr.projectName || sr.title || ov.name || exp?.title);
-  const tagline = oneLine(product.tagline) || oneLine(sr.intro) || oneLine(ov.summary) || oneLine(ov.goal);
-  const problem = clean(product.problem) || clean(ov.background) || clean(ov.goal) || clean(sr.problem) || clean(sr.overview);
-  let solution = clean(product.solution) || clean(ov.solution) || clean(ov.summary) || clean(sr.solution) || clean(sr.intro);
+  const title = oneLine(product.name) || oneLine(completedCaseStudy.title) || oneLine(sr.projectName || sr.title || ov.name || exp?.title);
+  const tagline = oneLine(product.tagline) || oneLine(completedCaseStudy.summary) || oneLine(sr.intro) || oneLine(ov.summary) || oneLine(ov.goal);
+  const problem = clean(product.problem) || clean(completedExperience?.problem)
+    || clean(ov.background) || clean(ov.goal) || clean(sr.problem) || clean(sr.overview)
+    || clean(legacyExperience?.context || legacyExperience?.situation);
+  let solution = clean(product.solution) || clean(completedExperience?.action)
+    || clean(ov.solution) || clean(ov.summary) || clean(sr.solution) || clean(sr.intro)
+    || clean(legacyExperience?.action);
 
-  // product가 없을 때만 원본 README 서사로 폴백(핵심기능·성과 섹션만 제거)
-  if (!clean(product.problem) && !clean(product.solution)) {
+  // 구조화된 기존 경험도 없을 때만 README로 폴백한다. 예전 PDF 원문 전체가
+  // 프로젝트 소개로 들어가던 문제를 막고, 완료된 핵심 경험을 우선 재사용한다.
+  const hasStructuredNarrative = Boolean(problem || solution || tagline || legacyExperience);
+  if (!clean(product.problem) && !clean(product.solution) && !hasStructuredNarrative) {
     const readmeLike = extractReadmeLikeMarkdown(exp);
-    if (readmeLike) return markdownToSegs(stripReadmeSections(readmeLike, ['핵심기능', '주요기능', '성과', '주요성과']));
+    if (readmeLike && !isNoisyLegacyDocumentText(readmeLike)) {
+      return markdownToSegs(stripReadmeSections(readmeLike, ['핵심기능', '주요기능', '성과', '주요성과']));
+    }
   }
 
   // 문제·해결·소개가 같은 문장으로 3중 중복되는 것 방지
@@ -1394,6 +1454,75 @@ function buildFallbackFlow(sr) {
   return { nodes, edges };
 }
 
+/* 기존 핵심 경험(CARL)을 새 개발자 문제 해결 과정 형식으로 비파괴 변환한다. */
+function deriveLegacyDevProblemSolving(sr, caseStudy) {
+  const ov = sr?.projectOverview || {};
+  const jobSpecific = sr?.jobSpecific || {};
+  const compact = (value, max = 1200) => {
+    const normalized = clean(value).replace(/\s+/g, ' ').trim();
+    return normalized.length > max ? `${normalized.slice(0, max - 1).trimEnd()}…` : normalized;
+  };
+  const list = (...values) => [...new Set(values.map(value => compact(value)).filter(Boolean))];
+  const caseTech = Array.isArray(caseStudy?.tech) ? caseStudy.tech : [];
+  const techStack = deriveDevTechStack(
+    { structuredResult: { ...sr, gitAnalysis: null } },
+    [...caseTech, ...(Array.isArray(sr?.keywords) ? sr.keywords : [])],
+  );
+  const period = compact(caseStudy?.meta?.duration || ov.duration, 120);
+  const projectName = compact(caseStudy?.title || sr?.projectName || sr?.title || ov.name, 160);
+  const structuredExperiences = Array.isArray(sr?.keyExperiences) ? sr.keyExperiences : [];
+  const completedExperiences = Array.isArray(caseStudy?.keyExps) ? caseStudy.keyExps : [];
+  const keyExperiences = completedExperiences.length ? completedExperiences : structuredExperiences;
+
+  const mapped = keyExperiences.map((experience, index) => {
+    const structured = structuredExperiences[index] || {};
+    const jobData = structured?.jobData || experience?.jobData || {};
+    const obstacle = compact(jobData.obstacle || structured?.obstacle || experience?.obstacle);
+    const resolution = compact(jobData.resolution || structured?.resolution || experience?.resolution);
+    const troubleshooting = list(
+      obstacle && resolution ? `${obstacle} → ${resolution}` : obstacle || resolution,
+      index === 0 ? jobSpecific.troubleshooting : '',
+    );
+    return {
+      project_name: compact(experience?.title || structured?.title, 180) || projectName || `문제 해결 ${index + 1}`,
+      period,
+      core_tech_stack: techStack.join(', '),
+      problem_definition: list(experience?.problem || experience?.context || experience?.situation || structured?.context || structured?.situation),
+      action_and_solution: list(experience?.action || structured?.action),
+      core_impact: compact(
+        experience?.afterMetric || experience?.metric || experience?.result
+        || structured?.afterMetric || structured?.metric || structured?.result,
+      ),
+      code_changes: list(index === 0 ? jobSpecific.optimization : ''),
+      code_snippets: [],
+      troubleshooting,
+      troubleshooting_snippets: [],
+      learning: list(experience?.learning || structured?.learning),
+    };
+  }).filter(item => (
+    item.problem_definition.length || item.action_and_solution.length || item.core_impact
+    || item.troubleshooting.length || item.learning.length
+  ));
+
+  if (mapped.length) return mapped;
+
+  const fallback = {
+    project_name: projectName || '개발 프로젝트',
+    period,
+    core_tech_stack: techStack.join(', '),
+    problem_definition: list(sr?.overview || ov.background || ov.goal),
+    action_and_solution: list(sr?.task, sr?.process),
+    core_impact: compact(sr?.output),
+    code_changes: list(jobSpecific.optimization),
+    code_snippets: [],
+    troubleshooting: list(jobSpecific.troubleshooting),
+    troubleshooting_snippets: [],
+    learning: list(sr?.growth),
+  };
+  return fallback.problem_definition.length || fallback.action_and_solution.length || fallback.core_impact
+    || fallback.troubleshooting.length || fallback.learning.length ? [fallback] : [];
+}
+
 /* ── 프로젝트 소개 — 일반 글 형식 문서 (내용 섹션과 같은 편집기: 클릭 편집 + 우클릭 서식) ── */
 function OverviewDoc({ value, seed, onChange }) {
   const doc = useMemo(() => (
@@ -1471,7 +1600,7 @@ function ContextMenuHost() {
 }
 
 /* ── 개발 임팩트 — 케이스 스터디의 개발 직군 구조: README → 아키텍처 → 문제 해결 (기여도 통계는 좌측 사이드바로 이동) ── */
-function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
+function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
   const [connectOpen, setConnectOpen] = useState(false);
   const [openProjects, setOpenProjects] = useState([0]); // 첫 항목은 펼친 상태로
 
@@ -1485,8 +1614,13 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
   const ov = sr.projectOverview || {};
   const stats = sr.githubStats || null;
   const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
-  const hasGit = Boolean(stats || gitExps.length > 0);
   const repoName = sr.gitAnalysis?.repoName || stats?.repoName || '';
+  const hasGit = Boolean(stats || repoName || (gitExps.length > 0 && sr.gitAnalysis?.source !== 'legacy'));
+  const legacyDevExps = useMemo(() => deriveLegacyDevProblemSolving(sr, caseStudy), [sr, caseStudy]);
+  // 저장된 Git 분석이 없으면 예전에 완료한 핵심 경험을 새 문제 해결 형식으로 보여준다.
+  // 한 번 편집한 레거시 항목은 gitAnalysis.source='legacy'로 보존해 삭제도 유지한다.
+  const useLegacyExps = gitExps.length === 0 && sr.gitAnalysis?.source !== 'legacy';
+  const displayDevExps = useLegacyExps ? legacyDevExps : gitExps;
 
   // 아키텍처 1) 개발 구조 — AI가 만든 다이어그램 우선, 없으면 실제 기술스택 기반 폴백
   // (키워드는 사업/예시 단어가 섞여 무관한 박스를 만들어 제외 — 실제 기술만)
@@ -1494,9 +1628,9 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
     ? sr.architectureDiagram : null;
   const techs = [
     ...(Array.isArray(ov.techStack) ? ov.techStack : []).map(t => (typeof t === 'string' ? t : t?.name || '')),
-    ...gitExps.flatMap(e => String(e.core_tech_stack || '').split(/,\s*/)),
+    ...displayDevExps.flatMap(e => String(e.core_tech_stack || '').split(/,\s*/)),
     ...(Array.isArray(stats?.languages) ? stats.languages.map(l => l.name) : []),
-  ];
+  ].filter(isCodingTechName);
   const systemDiagram = savedSystem || buildFallbackDiagram(techs);
 
   // 아키텍처 2) 프로젝트 흐름 — AI가 만든 서비스 흐름 우선, 없으면 핵심 경험 단계로 폴백
@@ -1507,25 +1641,41 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
   const isFlow = archTab === 'flow';
 
   // 프로젝트 소개 초안 — product(서비스 설명) 최우선, 없으면 README 원본
-  const overviewSeed = useMemo(() => buildOverviewSeedSegs(exp), [exp]);
+  const overviewSeed = useMemo(() => buildOverviewSeedSegs(exp, caseStudy), [exp, caseStudy]);
   const overviewDocValue = useMemo(() => {
     const saved = sr.overviewDoc;
-    const savedText = (isYooptaDoc(saved) ? collectYooptaText(saved) : collectCaseSegmentText(saved)).replace(/\s+/g, '');
+    const rawSavedText = isYooptaDoc(saved) ? collectYooptaText(saved) : collectCaseSegmentText(saved);
+    if (isNoisyLegacyDocumentText(rawSavedText)) return null;
+    const savedText = rawSavedText.replace(/\s+/g, '');
     // product(서비스 설명)가 있는데 저장 문서가 그 문제정의를 아직 반영 안 했으면 시드(product)로 재구성
     const prob = clean(sr.product?.problem).replace(/\s+/g, '').slice(0, 20);
     if (prob && savedText && !savedText.includes(prob)) return null;
     return shouldUseReadmeSeed(exp, saved) ? null : saved;
   }, [exp, sr.overviewDoc, sr.product]);
 
-  // git 경험 편집 — structuredResult.gitAnalysis.experiences에 반영 (상단 '저장'으로 일괄 저장)
+  // git 경험 편집 — 레거시 변환 항목도 첫 편집 시 동일 구조로 저장한다 (상단 '저장'으로 일괄 저장)
   const patchGitExp = (i, changes) => {
-    const experiences = gitExps.map((e, ei) => (ei === i ? { ...e, ...changes } : e));
-    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+    const experiences = displayDevExps.map((e, ei) => (ei === i ? { ...e, ...changes } : e));
+    onPatchSr({
+      ...sr,
+      gitAnalysis: {
+        ...(sr.gitAnalysis || {}),
+        ...(useLegacyExps ? { source: 'legacy' } : {}),
+        experiences,
+      },
+    });
   };
   const deleteGitExp = (i) => {
     if (!window.confirm('이 문제 해결 항목을 삭제할까요?')) return;
-    const experiences = gitExps.filter((_, ei) => ei !== i);
-    onPatchSr({ ...sr, gitAnalysis: { ...(sr.gitAnalysis || {}), experiences } });
+    const experiences = displayDevExps.filter((_, ei) => ei !== i);
+    onPatchSr({
+      ...sr,
+      gitAnalysis: {
+        ...(sr.gitAnalysis || {}),
+        ...(useLegacyExps ? { source: 'legacy' } : {}),
+        experiences,
+      },
+    });
     setOpenProjects(prev => prev.filter(x => x !== i).map(x => (x > i ? x - 1 : x)));
   };
 
@@ -1607,7 +1757,9 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
             <Github size={12} className="flex-shrink-0" /><span className="truncate">{repoName}</span><span className="flex-shrink-0">· 다시 분석</span>
           </button>
         ) : (
-          <span className="text-[11.5px] font-semibold text-bluewood-300">GitHub 커밋 근거 기반</span>
+          <span className="text-[11.5px] font-semibold text-bluewood-300">
+            {displayDevExps.length ? '기존 경험 변환 · GitHub 연결 가능' : 'GitHub 커밋 근거 기반'}
+          </span>
         )}
       </div>
 
@@ -1695,14 +1847,14 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
               </div>
             )}
 
-            {gitExps.length > 0 && (
+            {displayDevExps.length > 0 && (
               <div>
                 <div className="mb-1.5 flex items-baseline justify-between gap-2">
                   <h3 className={MICRO_LABEL}>문제 해결 과정</h3>
-                  <span className="text-[11.5px] font-semibold text-bluewood-300">{gitExps.length}건 · 눌러서 펼치기 · 눌러서 편집</span>
+                  <span className="text-[11.5px] font-semibold text-bluewood-300">{displayDevExps.length}건 · 눌러서 펼치기 · 눌러서 편집</span>
                 </div>
                 <div className="border-t border-surface-200">
-                  {gitExps.map((e, i) => (
+                  {displayDevExps.map((e, i) => (
                     <GitProjectRow
                       key={i}
                       exp={e}
@@ -2619,6 +2771,7 @@ function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
 
 /* 핵심 경험과 분리해 직접 설계·편집할 수 있는 PM 가설 검증표 */
 function PmValidationDashboard({ cs, sr, srKE, materialHypotheses, onPatchSr }) {
+  const compactCell = (value) => clean(value).replace(/\s+/g, ' ').trim();
   // 각 행은 해당 경험 자체에서만 뽑아 정확하게 채운다 (goals/kpis 인덱스 짝맞춤은 어긋나므로 사용하지 않음)
   const fallbackRows = cs.keyExps.map((experience, index) => {
     const src = srKE[index] || {};
@@ -2659,16 +2812,16 @@ function PmValidationDashboard({ cs, sr, srKE, materialHypotheses, onPatchSr }) 
           : [{ hypothesis: '', kpi: '', kpiRationale: '', target: '', achievement: '', note: '' }];
   const rows = sourceRows.slice(0, 12).map(row => {
     // 달성은 짧은 수치만 — 실수로 긴 서술이 들어와 있으면 비고로 옮겨 표를 깔끔하게 유지
-    const rawAchievement = clean(row?.achievement) || clean(row?.actual);
+    const rawAchievement = compactCell(row?.achievement) || compactCell(row?.actual);
     const achievementIsProse = rawAchievement.length > 30;
-    const rawNote = clean(row?.note) || clean(row?.failureReason);
+    const rawNote = compactCell(row?.note) || compactCell(row?.failureReason);
     return {
-      hypothesis: clean(row?.hypothesis),
-      kpi: clean(row?.kpi),
-      kpiRationale: clean(row?.kpiRationale),
-      target: clean(row?.target),
+      hypothesis: compactCell(row?.hypothesis),
+      kpi: compactCell(row?.kpi),
+      kpiRationale: compactCell(row?.kpiRationale),
+      target: compactCell(row?.target),
       achievement: achievementIsProse ? '' : rawAchievement,
-      note: rawNote || (achievementIsProse ? rawAchievement : ''),
+      note: compactCell(rawNote || (achievementIsProse ? rawAchievement : '')),
     };
   });
 
@@ -3094,6 +3247,10 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
   const visuals = normalizePortfolioVisuals(sr, { keyExperiences: srKE, jobSections: PM_METRIC_SECTIONS });
   const goals = visuals.goals || [];
   const kpis = visuals.kpis || [];
+  const hasLeanCanvasContent = [
+    product.problem, product.solution, canvas.existingAlternatives, canvas.uvp,
+    canvas.customers, canvas.earlyAdopters, canvas.channels, canvas.costStructure, canvas.revenueStreams,
+  ].some(value => clean(value)) || goals.length > 0 || kpis.length > 0;
 
   // 차트 편집기 시드 — 저장된 portfolioVisuals.kpis가 비어 있으면 자동 추출한 KPI를 미리 채워 보여준다.
   const seededVisuals = useMemo(() => {
@@ -3163,15 +3320,17 @@ function PmDoc({ exp, cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKey
       )}
 
       {/* ── 기획 캔버스 — 한 장 요약 (표준 9블록 린 캔버스) ── */}
-      <LeanCanvas
-        product={product}
-        patchProduct={patchProduct}
-        canvas={canvas}
-        patchCanvas={patchCanvas}
-        goals={goals}
-        kpis={kpis}
-        onOpenData={() => setEditData(true)}
-      />
+      {hasLeanCanvasContent && (
+        <LeanCanvas
+          product={product}
+          patchProduct={patchProduct}
+          canvas={canvas}
+          patchCanvas={patchCanvas}
+          goals={goals}
+          kpis={kpis}
+          onOpenData={() => setEditData(true)}
+        />
+      )}
 
       <PmServiceTimeline cs={cs} sr={sr} onPatchSr={onPatchSr} />
 
@@ -4892,6 +5051,7 @@ export default function ExperienceResult() {
               <DevImpactSection
                 expId={id}
                 exp={exp}
+                caseStudy={cs}
                 onApplied={(nextSr) => setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }))}
                 onPatchSr={(nextSr) => {
                   setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
@@ -5051,11 +5211,6 @@ export default function ExperienceResult() {
             <button type="button" onClick={addKeyExp} className="mt-4 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[12.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600 transition-colors">＋ 핵심 경험 추가</button>
             </>)}
 
-            {/* 내용 — 자유 편집(부가 설명) */}
-            <div className="mt-8 border-t border-surface-200 pt-7">
-              <h2 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400 mb-2">내용</h2>
-              <CaseBody body={cs.body} onChange={(next) => setField('body', next)} />
-            </div>
           </section>
         </div>
         )}

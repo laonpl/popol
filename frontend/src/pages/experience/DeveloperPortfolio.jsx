@@ -5,6 +5,7 @@ import { db } from '../../config/firebase';
 import toast from 'react-hot-toast';
 import { JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import { computeDevDiagnostic, devSectionFilled, getJobPortfolioMeta, normalizePortfolioVisuals } from '../../utils/devPortfolio';
+import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
 import { KpiTileRow, FunnelChart, DumbbellCompare, MixBar, GoalBoard, ProcessFlow, SectionShell } from '../../components/portfolio/JobVisuals';
 import JobHero from '../../components/portfolio/JobHero';
 import JobExperienceCard, { hasJobExperienceCard } from '../../components/portfolio/JobExperienceCards';
@@ -68,7 +69,7 @@ export default function DeveloperPortfolio() {
   const navigate = useNavigate();
   const { state } = useLocation();
   // 생성 직후 진입 시 Firestore 전파 지연 대비 — 네비게이션 state를 초기값으로 사용
-  const [data, setData] = useState(state?.structuredResult ? { id, ...state } : null);
+  const [data, setData] = useState(state?.structuredResult ? normalizeExperienceForCurrentJob({ id, ...state }) : null);
   const [loading, setLoading] = useState(!state?.structuredResult);
 
   // 아키텍처 다이어그램 편집 상태
@@ -87,7 +88,7 @@ export default function DeveloperPortfolio() {
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'experiences', id));
-        if (snap.exists()) setData({ id: snap.id, ...snap.data() });
+        if (snap.exists()) setData(normalizeExperienceForCurrentJob({ id: snap.id, ...snap.data() }));
       } catch (err) {
         console.error('개발자 포트폴리오 로딩 실패:', err);
       }
