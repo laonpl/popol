@@ -13,6 +13,7 @@ import KeyExperienceSlider from '../../components/KeyExperienceSlider';
 import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
+import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
 import { analyzeJobUrl } from '../../services/jobAI';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
@@ -1464,12 +1465,19 @@ export default function StructuredResult() {
 
   useEffect(() => {
     if (navState?.analysis) {
-      const structured = navState.analysis;
+      const normalizedNavExperience = normalizeExperienceForCurrentJob({
+        title: navState.title,
+        jobCategory: navState.jobCategory,
+        structuredResult: navState.analysis,
+        content: navState.content,
+      });
+      const structured = normalizedNavExperience.structuredResult;
       setExperience({
         id,
         title: navState.title,
         framework: navState.framework,
         content: navState.content,
+        jobCategory: normalizedNavExperience.jobCategory,
         structuredResult: structured,
         keywords: structured.keywords || [],
       });
@@ -1533,7 +1541,7 @@ export default function StructuredResult() {
     try {
       const docSnap = await getDoc(doc(db, 'experiences', id));
       if (docSnap.exists()) {
-        const data = { id: docSnap.id, ...docSnap.data() };
+        const data = normalizeExperienceForCurrentJob({ id: docSnap.id, ...docSnap.data() });
         setExperience(data);
         setJobAnalysis(data.jobAnalysis || null);
         const imgs = data.images || [];

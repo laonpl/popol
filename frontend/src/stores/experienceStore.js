@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from '../services/api';
+import { normalizeExperienceForCurrentJob } from '../utils/experienceCompatibility';
 
 function omitUndefined(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
@@ -125,6 +126,7 @@ const useExperienceStore = create((set, get) => ({
     try {
       const { data } = await api.get('/experience/list');
       const experiences = (Array.isArray(data) ? data : [])
+        .map(normalizeExperienceForCurrentJob)
         .sort((a, b) => {
           // sortOrder가 있으면 우선, 없으면 createdAt 역순
           if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
