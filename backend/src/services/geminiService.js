@@ -885,11 +885,21 @@ function normalizeProduct(raw) {
  * ⚠ 아키텍처/개발 지시를 절대 섞지 말 것 — 개발 프레이밍이 problem 추출을 오염시켜
  * "베타 테스트·PMF 검증" 같은 개발 서사가 문제정의로 나온다(2026-07-09 회귀). 다이어그램은 extractDiagrams로 분리.
  */
-export async function extractProduct(materialText) {
-  const text = String(materialText || '').replace(/\r\n/g, '\n').trim().slice(0, 9000);
-  if (!text) return null;
+function extractionMaterialToText(material) {
+  if (typeof material === 'string') return compactFallbackText(material, 14000);
+  return compactFallbackText(draftValueToText(material), 14000);
+}
+
+export async function extractProduct(material) {
+  const materialText = extractionMaterialToText(material);
+  if (!materialText) return null;
+
   const prompt = `당신은 발표자료·기획서·문서에서 "서비스(제품) 자체"를 정리하는 전문가입니다.
-아래 자료에서 이 서비스가 무엇이고, 어떤 사용자/시장 문제를 어떻게 푸는지를 추출하세요.
+아래 자료에서 이 서비스가 무엇이고, 어떤 사용자/시장 문제를 어떻게 푸는지, 성과와 핵심 기능을 추출하세요.
+순수 JSON만 반환하세요. 자료에 없는 사실·수치·제품명·성과는 지어내지 말고, 근거가 없으면 빈 문자열/빈 배열로 두세요.
+
+[언어]
+- 자료가 한국어면 name·tagline·problem·solution·features·outcomes의 모든 값을 반드시 한국어로 작성하세요. 그 외에는 자료의 언어를 그대로 따르세요.
 
 [규칙]
 - ⛔ 개발 과정·베타 테스트·PMF 검증·코드·기술스택 이야기가 아니라 "서비스/사업 관점"으로 뽑으세요.
@@ -897,71 +907,68 @@ export async function extractProduct(materialText) {
   ✅ 좋은 예: "취준생이 포트폴리오 제작에 평균 40시간 이상 쓰고, 기업별로 5.2개를 재작성하며, ATS 서류에서 62%가 형식·키워드 미달로 탈락한다"
   ❌ 나쁜 예(절대 금지): "84명 가입자로 2주 베타 테스트를 분석했다", "TTV 측정을 위해 베타 테스트를 기획했다", "Sean Ellis Test로 PMF를 검증했다", "React/Zustand로 상태관리를 최적화했다"
 - solution: 그 문제를 서비스가 어떤 방식으로 푸는지(제품·개념 관점). 테스트 방법·개발 이야기 금지.
-- features: 서비스 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
-- outcomes: 정량 성과 { "label": 지표명, "value": 값 }. 자료에 있는 수치만.
+- features: 서비스 핵심 기능 4~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 가치 한 줄 }. 자료에 근거가 있는 만큼 충분히 뽑으세요.
+- outcomes: 자료에 등장하는 정량 지표·성과 수치를 빠짐없이 모두 넣으세요. 각 { "label": 지표명, "value": 값 }. 표·그래프의 수치가 여러 개면 전부 담고, 수치가 전혀 없을 때만 빈 배열로 두세요.
 - "Problem"·"문제"·통계·pain point가 담긴 부분을 반드시 problem에 반영하세요. 서비스 단서가 정말 없을 때만 빈 값. 지어내기 금지.
 
 자료:
-${text}
+${materialText}
 
 아래 JSON만 출력 (설명·마크다운·코드블록 금지):
-{ "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] }`;
-  const raw = await withTimeout(
+{ "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] } }`;
+  const text = await withTimeout(
     generateWithRetry(prompt, {
       models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
       retries: 2,
-      delayMs: 1000,
+      delayMs: 1200,
       rateLimitDelayMs: 4000,
-      callTimeoutMs: 40000,
+      callTimeoutMs: 45000,
     }),
-    50000,
-    'ExtractProduct',
+    60000,
+    'ExtractProduct'
   );
-  return normalizeProduct(parseJSON(raw));
+  const parsed = parseJSON(text, /\{[\s\S]*\}/) || {};
+  return normalizeProduct(parsed.product || parsed);
 }
 
 /**
  * 아키텍처(개발 구조) + 흐름 다이어그램만 뽑는 경량 프롬프트.
  * product 추출과 분리해 개발 프레이밍이 서비스 문제정의를 오염시키지 않게 한다.
  */
-export async function extractDiagrams(materialText) {
-  const text = String(materialText || '').replace(/\r\n/g, '\n').trim().slice(0, 9000);
-  if (!text) return { architectureDiagram: null, flowDiagram: null };
-  const prompt = `아래 자료를 바탕으로 이 서비스/시스템의 두 다이어그램을 박스(nodes)와 연결선(edges)으로 그리세요.
+export async function extractDiagrams(material) {
+  const materialText = extractionMaterialToText(material);
+  if (!materialText) return { architectureDiagram: null, flowDiagram: null };
+
+  const prompt = `당신은 개발 포트폴리오 자료에서 경량 다이어그램 2개를 추출합니다.
+아래 자료를 바탕으로 이 서비스/시스템의 두 다이어그램을 박스(nodes)와 연결선(edges)으로 그리세요.
+순수 JSON만 반환하세요. 자료가 뒷받침하는 기술·컴포넌트·사용자 단계·관계만 사용하고, 근거가 없으면 nodes/edges를 빈 배열로 두세요.
+
+[언어]
+- 자료가 한국어면 label·tech·edges의 label을 모두 반드시 한국어로 작성하세요. 단, node의 id만 짧은 영문 식별자로 두세요.
 
 [architectureDiagram] 시스템 개발 구조.
 - 노드 5~7개: 클라이언트, 서버/API, AI·핵심 엔진, 저장소(DB), (있으면)외부 API/생성 모듈 등으로 분리.
 - 각 노드 tech에 실제 기술명(예: React·JSX, Node.js·Express, Firebase Firestore, Google Gemini API). tier는 위→아래 0부터.
-- edges label에 관계/흐름(예: API 요청, 데이터 저장/조회). from/to는 존재하는 node id.
+- edges label에 관계/흐름(예: API 요청, 데이터 저장/조회)을 8자 내외로 짧게 작성하세요. from/to는 존재하는 node id여야 합니다.
 
 [flowDiagram] 기술이 아니라 "사용자·데이터가 서비스를 어떻게 지나가는지"를 단계 박스로.
 - 노드 5~7단계(예: 원본 입력 → 처리/변환 → 검증 → 저장 → 산출/활용). tier는 흐름 순서대로 0부터. label은 단계명, tech에는 그 단계에서 일어나는 일.
 
-id는 영문 고유값. 단서가 전혀 없으면 해당 nodes/edges를 빈 배열로.
+id는 영문 고유값이고 tier는 0~6 정수로 작성하세요.
 
 자료:
-${text}
+${materialText}
 
 아래 JSON만 출력 (설명·마크다운·코드블록 금지):
 {
   "architectureDiagram": { "nodes": [ { "id": "", "label": "", "tech": "", "tier": 0 } ], "edges": [ { "from": "", "to": "", "label": "" } ] },
   "flowDiagram": { "nodes": [ { "id": "", "label": "", "tech": "", "tier": 0 } ], "edges": [ { "from": "", "to": "", "label": "" } ] }
 }`;
-  const raw = await withTimeout(
-    generateWithRetry(prompt, {
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-      retries: 2,
-      delayMs: 1000,
-      rateLimitDelayMs: 4000,
-      callTimeoutMs: 40000,
-    }),
-    50000,
-    'ExtractDiagrams',
-  );
-  const json = parseJSON(raw) || {};
+  const text = await withTimeout(callFastLite(prompt, 'ExtractDiagrams'), 60000, 'ExtractDiagrams');
+  const parsed = parseJSON(text, /\{[\s\S]*\}/) || {};
   return {
-    architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
-    flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
+    architectureDiagram: normalizeArchitectureDiagram(parsed.architectureDiagram),
+    flowDiagram: normalizeArchitectureDiagram(parsed.flowDiagram),
   };
 }
 
@@ -1036,6 +1043,7 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     architectureDiagram: normalizeArchitectureDiagram(json.architectureDiagram),
     flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
     portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
+    leanCanvas: json.leanCanvas && typeof json.leanCanvas === 'object' && !Array.isArray(json.leanCanvas) ? json.leanCanvas : null,
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -1456,6 +1464,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     architectureDiagram: normalizeArchitectureDiagram(overviewJson.architectureDiagram),
     flowDiagram: normalizeArchitectureDiagram(overviewJson.flowDiagram),
     portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
+    leanCanvas: overviewJson.leanCanvas && typeof overviewJson.leanCanvas === 'object' && !Array.isArray(overviewJson.leanCanvas) ? overviewJson.leanCanvas : null,
     keywords: resultKeywords,
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],

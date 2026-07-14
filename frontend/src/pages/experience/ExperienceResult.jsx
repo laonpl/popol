@@ -1,14 +1,32 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Github, Loader2, Sparkles } from 'lucide-react';
+import { Github, Loader2, Sparkles, Search, Lightbulb, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  BarChart as ReBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  LineChart as ReLineChart,
+  Line,
+} from 'recharts';
 import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
+import { uploadDocumentFile } from '../../services/uploadImage';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
 import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
 import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
+import { PriorityMatrix } from '../../components/portfolio/JobSignature';
+import VisualDataEditor from '../../components/portfolio/VisualDataEditor';
+import { normalizePortfolioVisuals } from '../../utils/devPortfolio';
 import useExperienceStore from '../../stores/experienceStore';
 import { DEMO_MARKETER_EXPERIENCE } from './demoExperience';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
@@ -261,7 +279,7 @@ function normalizeCaseStudy(cs) {
 }
 
 /* ── 자동 높이 조절 + 자동 줄바꿈 인라인 텍스트 (글자 잘림 방지) ── */
-function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false, dense = false }) {
+function AutoText({ value, onChange, placeholder, className = '', dark = false, prose = false, dense = false, autoFocus = false, onBlur }) {
   const ref = useRef(null);
   const resize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; } };
   // 값이 바뀔 때마다 페인트 전에 높이를 글자량에 맞춘다.
@@ -298,6 +316,9 @@ function AutoText({ value, onChange, placeholder, className = '', dark = false, 
       rows={1}
       value={value}
       placeholder={placeholder}
+      // eslint-disable-next-line jsx-a11y/no-autofocus
+      autoFocus={autoFocus}
+      onBlur={onBlur}
       onChange={(e) => { onChange(e.target.value); resize(e.target); }}
       className={`w-full resize-none whitespace-pre-wrap break-words rounded-md -ml-2 px-2 ${dense ? 'py-0.5' : 'py-1'} outline-none transition-colors duration-150 cursor-text ${tone} ${className}`}
       style={{ overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}
@@ -481,7 +502,7 @@ function CaseBody({ body, onChange }) {
         </div>
       ))}
 
-      <div className="mt-3 flex items-center gap-2 pt-1">
+      <div className="mt-3 flex items-center gap-2 pt-1 print:hidden">
         <button type="button" onClick={() => insertAfter(body.length - 1, textSeg('', 'paragraph'))} className="rounded-lg border border-surface-200 px-3 py-1.5 text-[12.5px] font-semibold text-bluewood-500 hover:border-primary-300 hover:text-primary-600">＋ 텍스트 추가</button>
         <button type="button" onClick={() => addImage(body.length - 1)} className="rounded-lg border border-surface-200 px-3 py-1.5 text-[12.5px] font-semibold text-bluewood-500 hover:border-primary-300 hover:text-primary-600">＋ 사진 추가</button>
       </div>
@@ -1705,6 +1726,1416 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   기획/PM 전용 — "프로덕트 스펙 문서" 렌더링
+   (개발자=GitHub 딥다이브, 마케터=캠페인 한 장 문서에 대응하는 PM 시그니처.
+    공용 케이스 스터디 그리드를 쓰지 않고 문서 전체를 대체한다)
+   레이아웃: 번호 섹션 문서(본문) + 우측 스펙 패널(Notion/Linear 속성 패널 문법)
+   01 문제 정의 → 02 전략 → 03 의사결정 로그(채택/기각 비교 타임라인 + Impact×Effort)
+   → 04 가설 및 검증 → 05 검증 스코어보드(PASS/MISS 도장) → 06 성과와 배움
+   데이터: cs.keyExps(CARL) + sr.keyExperiences[i].jobData(가설·결정·대안·설득·검증·임팩트·리소스)
+         + sr.jobSpecific(strategy·msc·businessImpact) + sr.product(problem·solution)
+         + sr.portfolioVisuals(goals·kpis)
+   ══════════════════════════════════════════════════════════ */
+
+/* 문서 섹션 헤더 — 한글 제목 · 영문 라벨 · 헤어라인 + 리드 문장(desc: 이 섹션이 무엇을 증명하는지) */
+function PmDocHeader({ en, ko, desc, right }) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline gap-3">
+        <h2 className="flex-shrink-0 text-[16px] font-extrabold tracking-tight text-bluewood-900">{ko}</h2>
+        <span className="hidden flex-shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-[0.22em] text-bluewood-300 sm:inline">{en}</span>
+        <div className="h-px min-w-4 flex-1 self-center bg-surface-200" />
+        {right}
+      </div>
+      {desc && <p className="mt-1.5 text-[12px] leading-[1.6] text-bluewood-400">{desc}</p>}
+    </div>
+  );
+}
+
+/* 원형 링 게이지 — MSC 달성률 */
+function RingGauge({ pct, size = 92, label }) {
+  const safe = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
+  const sw = size < 72 ? 7 : 9;
+  const R = (size - sw - 3) / 2;
+  const C = 2 * Math.PI * R;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke="#eef1f5" strokeWidth={sw} />
+        <circle
+          cx={size / 2} cy={size / 2} r={R} fill="none" stroke={ACCENT} strokeWidth={sw} strokeLinecap="round"
+          strokeDasharray={`${(safe / 100) * C} ${C}`} transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-black leading-none text-bluewood-900" style={{ fontSize: size < 72 ? 14 : 19 }}>{Math.round(safe)}%</span>
+        {label && size >= 72 && <span className="mt-0.5 font-mono text-[8.5px] font-bold uppercase tracking-[0.18em] text-bluewood-400">{label}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* Impact×Effort 사분면 라벨 — PriorityMatrix의 midpoint(3)와 동일 규칙 */
+const quadrantOf = (impact, effort) => {
+  if (!(impact >= 1 && effort >= 1)) return null;
+  if (impact >= 3 && effort <= 3) return 'QUICK WIN';
+  if (impact >= 3) return '전략 과제';
+  if (effort <= 3) return '점진 개선';
+  return '재검토';
+};
+
+/* PM 지표 추출용 섹션 키 — extractMetricTiles가 jobSpecific 본문에서 수치 구절을 뽑을 때 사용 */
+const PM_METRIC_SECTIONS = [
+  { key: 'strategy', label: '전략' },
+  { key: 'msc', label: 'MSC' },
+  { key: 'businessImpact', label: '임팩트' },
+];
+
+/* 긴 문단을 캔버스 불릿으로 정리한다.
+   쉼표·가운뎃점·세미콜론은 문장 중간의 연결 표현일 수 있으므로 절대 자르지 않고,
+   실제 줄바꿈 또는 문장 종결부호에서만 나눈다. 소수점(5.2)은 마침표로 오인하지 않는다. */
+const CANVAS_META_TEXT = /(?:자소서|면접\s*(?:답변|질문).*재사용|사실\s*[·,/와과및]*\s*추정|추정\s*(?:여부|구분|표시)|기여\s*근거\s*검증|작성\s*(?:가이드|규칙|원칙)|경험정리\s*(?:방법|기준)|포트폴리오\s*문장\s*작성|검증\s*필요|확인\s*필요)/i;
+const CANVAS_GENERIC_FRAGMENT = /^(?:성과|사실|수치|추정|검증|키워드|재사용|구조화|자동화|고도화|기타)$/;
+
+function toBullets(text, max = 4) {
+  const raw = clean(text);
+  if (!raw) return [];
+  const parts = raw.split(/\n+/).flatMap((line) => {
+    const guarded = line.trim().replace(/(\d)\.(\d)/g, '$1￿$2');
+    const sentences = guarded.match(/[^.!?。]+(?:[.!?。]+|$)/g) || [guarded];
+    return sentences.map(s => s.replace(/￿/g, '.').trim().replace(/^[-–—•·]\s*/, '')).filter(Boolean);
+  });
+  const readable = parts.filter(s => s.length >= 3);
+  const relevant = readable.filter((s) => {
+    const normalized = s.replace(/[.!?。]$/, '').trim();
+    if (CANVAS_GENERIC_FRAGMENT.test(normalized)) return false;
+    // 긴 서비스 설명 안에 '자소서' 같은 단어가 포함됐다는 이유로 문장 전체를 없애지 않는다.
+    // 메타 안내 자체가 독립된 짧은 항목으로 들어온 경우에만 제외한다.
+    return !(s.length <= 70 && CANVAS_META_TEXT.test(s));
+  });
+  // 필터가 모든 내용을 제거해 캔버스가 비는 상황을 방지한다.
+  return (relevant.length > 0 ? relevant : readable).slice(0, max);
+}
+
+/* ── 캔버스 셀 본문 — 평소엔 짧은 불릿으로 깔끔하게, 클릭하면 원문 그대로 편집.
+   긴 문제/솔루션 문단도 캔버스에선 핵심 항목들로 정리돼 한눈에 읽힌다(데이터는 그대로 보존). ── */
+function CanvasField({ value, onChange, placeholder, className = '', max = 4 }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return (
+      <AutoText dense autoFocus value={value} onChange={onChange} onBlur={() => setEditing(false)} placeholder={placeholder} className={className} />
+    );
+  }
+  const bullets = toBullets(value, max);
+  const openEdit = () => setEditing(true);
+
+  if (bullets.length === 0) {
+    return (
+      <div role="button" tabIndex={0} onClick={openEdit} onFocus={openEdit} className={`-ml-2 cursor-text rounded-md px-2 py-0.5 transition-colors hover:bg-surface-100/60 ${className}`}>
+        <span className="text-bluewood-300">{placeholder}</span>
+      </div>
+    );
+  }
+  if (bullets.length === 1) {
+    return (
+      <div
+        role="button" tabIndex={0} onClick={openEdit} onFocus={openEdit} title={bullets[0]}
+        className={`-ml-2 cursor-text rounded-md px-2 py-0.5 transition-colors hover:bg-surface-100/60 ${className}`}
+        style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+      >
+        {bullets[0]}
+      </div>
+    );
+  }
+  return (
+    <ul role="button" tabIndex={0} onClick={openEdit} onFocus={openEdit} className={`-ml-2 cursor-text space-y-1 rounded-md px-2 py-0.5 transition-colors hover:bg-surface-100/60 ${className}`}>
+      {bullets.map((b, i) => (
+        <li key={i} className="flex gap-1.5" title={b}>
+          <span className="mt-[6px] h-1 w-1 flex-shrink-0 rounded-full" style={{ backgroundColor: ACCENT, opacity: 0.55 }} />
+          <span className="min-w-0 flex-1 whitespace-pre-wrap" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{b}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* ── 린 캔버스 셀 — 라벨(한글+영문) + 편집 본문. 격자선은 부모 그리드의 gap-px 배경으로 그려짐 ── */
+function CanvasCell({ label, en, className = '', children }) {
+  return (
+    <div className={`flex min-w-0 flex-col bg-[#fefefe] p-4 ${className}`}>
+      <div className="mb-3 text-center">
+        <p className="text-[13px] font-black tracking-tight text-[#3d5262]">{label}</p>
+        {en && <span className="mt-0.5 block font-mono text-[7.5px] font-bold uppercase tracking-[0.12em] text-[#91a0ab]">{en}</span>}
+      </div>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/* ── 리너 캔버스 — 문제·가치·고객을 3열로 압축하고 핵심지표를 검증 데이터와 연결한다. ── */
+function LeanCanvas({ product, patchProduct, canvas, patchCanvas, goals, kpis, onOpenData }) {
+  const metricItems = [
+    ...kpis.map(k => ({ label: clean(k.label), value: clean(k.value) })),
+    ...goals.map(g => ({ label: clean(g.label), value: clean(g.actual) || clean(g.target) })),
+  ].filter(m => m.label || m.value).filter((m, i, arr) => arr.findIndex(x => `${x.label}|${x.value}` === `${m.label}|${m.value}`) === i).slice(0, 3);
+  const existingSolutions = clean(canvas.existingAlternatives) || clean(product.solution);
+  const cellText = 'text-[12px] leading-[1.65] text-bluewood-600';
+  return (
+    <section>
+      <div className="mb-4 bg-[#3d5262] px-5 py-3.5 text-center text-white">
+        <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1">
+          <h2 className="text-[21px] font-bold tracking-tight sm:text-[24px]">리너 캔버스</h2>
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-white/60">Leaner Canvas</span>
+        </div>
+        <p className="mt-1 text-[10.5px] leading-[1.5] text-white/65">문제, 차별화된 가치, 핵심 고객과 검증 지표를 한 장에 압축했습니다.</p>
+      </div>
+      <div className="grid border-[4px] border-[#3d5262] bg-[#3d5262] gap-[4px] sm:grid-cols-3">
+        <div className="grid gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">
+          <CanvasCell label="문제" en="Problem" className="min-h-[150px] sm:min-h-0">
+            <CanvasField value={clean(product.problem)} onChange={(v) => patchProduct('problem', v)} placeholder="핵심 고객이 반복해서 겪는 문제" max={4} className={`${cellText} font-medium text-bluewood-800`} />
+          </CanvasCell>
+          <CanvasCell label="기존 솔루션" en="Existing Alternatives" className="min-h-[110px] sm:min-h-0">
+            <CanvasField value={existingSolutions} onChange={(v) => patchCanvas('existingAlternatives', v)} placeholder="고객이 현재 문제를 해결하는 방식" max={3} className={cellText} />
+          </CanvasCell>
+        </div>
+
+        <div className="grid gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">
+          <CanvasCell label="고유 가치 제안" en="Unique Value Proposition" className="min-h-[150px] sm:min-h-0">
+            <CanvasField value={clean(canvas.uvp)} onChange={(v) => patchCanvas('uvp', v)} placeholder="고객이 이 제품을 선택해야 하는 한 줄 이유" max={4} className={`${cellText} font-medium text-bluewood-800`} />
+          </CanvasCell>
+          <CanvasCell label="핵심지표" en="Key Metrics" className="min-h-[110px] sm:min-h-0">
+            {metricItems.length > 0 ? (
+              <ul className="space-y-1.5">
+                {metricItems.map((m, i) => (
+                  <li key={`${m.label}-${i}`} className="flex items-start justify-between gap-3 text-[11.5px] leading-[1.55]">
+                    <span className="min-w-0 text-bluewood-500">{m.label || '검증 지표'}</span>
+                    <span className="flex-shrink-0 font-black" style={{ color: ACCENT }}>{m.value || '—'}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <button type="button" onClick={onOpenData} className="text-[11.5px] font-semibold text-primary-500 transition-colors hover:text-primary-700">＋ 지표 입력</button>
+            )}
+          </CanvasCell>
+        </div>
+
+        <div className="grid gap-[4px] bg-[#3d5262] sm:grid-rows-[minmax(190px,auto)_minmax(130px,auto)]">
+          <CanvasCell label="고객 세그먼트" en="Customer Segments" className="min-h-[150px] sm:min-h-0">
+            <CanvasField value={clean(canvas.customers)} onChange={(v) => patchCanvas('customers', v)} placeholder="가장 먼저 해결해야 할 핵심 고객군" max={4} className={cellText} />
+          </CanvasCell>
+          <CanvasCell label="얼리어답터" en="Early Adopters" className="min-h-[110px] sm:min-h-0">
+            <CanvasField value={clean(canvas.earlyAdopters)} onChange={(v) => patchCanvas('earlyAdopters', v)} placeholder="문제가 가장 절실해 먼저 사용할 고객" max={3} className={cellText} />
+          </CanvasCell>
+        </div>
+      </div>
+      <p className="mt-2 text-[10.5px] text-bluewood-300 print:hidden">칸을 눌러 내용을 편집할 수 있으며, 핵심지표는 검증 데이터와 자동 연결됩니다.</p>
+    </section>
+  );
+}
+
+/* 타임라인 문장 — 평소에는 3줄로 정돈하고, 클릭할 때만 전체 편집창을 연다. */
+function TimelineEditableText({ value, onChange, placeholder, className = '' }) {
+  const [editing, setEditing] = useState(false);
+  const display = clean(value);
+  const firstSentence = toBullets(display || placeholder, 1)[0] || display || placeholder;
+  if (editing) {
+    return (
+      <div className="relative z-20 mt-1.5 w-[230px] rounded-lg border border-primary-200 bg-white p-2 shadow-[0_12px_28px_rgba(0,30,70,0.18)]">
+        <AutoText
+          dense
+          autoFocus
+          value={value || ''}
+          onChange={onChange}
+          onBlur={() => setEditing(false)}
+          placeholder={placeholder}
+          className="text-[10.5px] leading-[1.55] text-bluewood-600"
+        />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="클릭해서 편집"
+      className={`group relative mt-1.5 block w-full rounded-md text-left outline-none transition-colors hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-primary-200 ${className}`}
+    >
+      <span
+        className={`block whitespace-normal break-words px-1 py-0.5 text-[9.5px] leading-[1.5] ${display ? 'text-bluewood-500' : 'text-bluewood-300'}`}
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+      >{firstSentence}</span>
+      <span className="absolute right-1 top-0 hidden text-[8px] font-bold text-primary-400 group-hover:inline print:hidden">편집</span>
+    </button>
+  );
+}
+
+const TIMELINE_ICONS = { search: Search, lightbulb: Lightbulb, flask: FlaskConical, branch: GitBranch, scale: Scale, wrench: Wrench, chart: BarChart3, target: Target };
+const TIMELINE_ICON_OPTIONS = [
+  ['search', '탐색'], ['lightbulb', '인사이트'], ['flask', '가설'], ['branch', '우선순위'],
+  ['scale', '판단'], ['wrench', '실행'], ['chart', '검증'], ['target', '목표'],
+];
+
+/* ── 서비스 타임라인 — 내용뿐 아니라 단계·순서·아이콘·색상까지 편집한다. ── */
+function PmServiceTimeline({ cs, sr, onPatchSr }) {
+  const [editingLayout, setEditingLayout] = useState(false);
+  const srKE = Array.isArray(sr?.keyExperiences) ? sr.keyExperiences : [];
+  const jobData = srKE.map(k => k?.jobData || {});
+  const product = sr?.product || {};
+  const js = sr?.jobSpecific || {};
+  const canvas = sr?.leanCanvas || {};
+  const firstOf = (values) => values.map(clean).find(Boolean) || '';
+  const learning = firstOf(cs.keyExps.map(k => k.learning));
+  const defaults = [
+    { phase: 'Discover', label: '문제 발견', iconKey: 'search', color: ACCENT, value: clean(product.problem), fallback: '반복되는 핵심 문제를 발견합니다.' },
+    { phase: 'Insight', label: '고객 인사이트', iconKey: 'lightbulb', color: ACCENT, value: clean(canvas.customers) || firstOf(cs.keyExps.map(k => k.problem)), fallback: '문제가 가장 절실한 고객을 좁힙니다.' },
+    { phase: 'Hypothesize', label: '가설 설정', iconKey: 'flask', color: ACCENT, value: firstOf(jobData.map(j => j.hypothesis)) || clean(product.solution), fallback: '검증 가능한 제품 가설을 세웁니다.' },
+    { phase: 'Decide', label: '방향 결정', iconKey: 'scale', color: ACCENT, value: firstOf(jobData.map(j => j.decision)) || clean(js.strategy), fallback: '대안을 비교해 실행 방향을 정합니다.' },
+    { phase: 'Validate', label: '검증', iconKey: 'chart', color: ACCENT, value: firstOf(jobData.map(j => j.validation)), fallback: '사용자 반응과 데이터로 확인합니다.' },
+    { phase: 'Evolve', label: '결과와 배움', iconKey: 'target', color: ACCENT, value: firstOf(cs.keyExps.map(k => k.result)) || clean(js.businessImpact) || learning, fallback: '결과를 다음 제품 판단으로 연결합니다.' },
+  ];
+  const storedItems = Array.isArray(sr?.pmTimeline?.items) && sr.pmTimeline.items.length ? sr.pmTimeline.items : null;
+  const items = (storedItems || defaults).slice(0, 8).map((item) => ({
+    phase: String(item.phase || 'Stage'),
+    label: String(item.label || '새 단계'),
+    iconKey: TIMELINE_ICONS[item.iconKey] ? item.iconKey : 'target',
+    color: /^#[0-9a-f]{6}$/i.test(item.color || '') ? item.color : ACCENT,
+    value: String(item.value || ''),
+    fallback: String(item.fallback || '이 단계의 핵심 내용을 입력해 주세요.'),
+  }));
+  const timelineTitle = String(sr?.pmTimeline?.title || '서비스 타임라인');
+  const timelineDescription = String(sr?.pmTimeline?.description || '문제 발견부터 검증과 배움까지, 제품이 발전한 핵심 흐름입니다.');
+  const serializableItems = (next) => next.map(({ phase, label, iconKey, color, value, fallback }) => ({ phase, label, iconKey, color, value, fallback }));
+  const persist = (changes = {}) => onPatchSr({
+    ...sr,
+    pmTimeline: {
+      title: timelineTitle,
+      description: timelineDescription,
+      items: serializableItems(items),
+      ...changes,
+    },
+  });
+  const persistItems = (next) => persist({ items: serializableItems(next) });
+  const patchItem = (index, changes) => persistItems(items.map((item, i) => i === index ? { ...item, ...changes } : item));
+  const moveItem = (index, direction) => {
+    const to = index + direction;
+    if (to < 0 || to >= items.length) return;
+    const next = [...items];
+    [next[index], next[to]] = [next[to], next[index]];
+    persistItems(next);
+  };
+  const addItem = () => {
+    if (items.length >= 8) return;
+    persistItems([...items, { phase: 'New stage', label: '새 단계', iconKey: 'target', color: ACCENT, value: '', fallback: '이 단계의 핵심 내용을 입력해 주세요.' }]);
+  };
+  const resetTimeline = () => {
+    const next = { ...sr };
+    delete next.pmTimeline;
+    onPatchSr(next);
+  };
+  const positions = [
+    { left: '7%', nodeTop: 150, cardLeft: '2%', cardTop: 172 },
+    { left: '25%', nodeTop: 80, cardLeft: '18%', cardTop: 102 },
+    { left: '50%', nodeTop: 80, cardLeft: '43%', cardTop: 102 },
+    { left: '75%', nodeTop: 80, cardLeft: '68%', cardTop: 102 },
+    { left: '75%', nodeTop: 250, cardLeft: '68%', cardTop: 272 },
+    { left: '50%', nodeTop: 250, cardLeft: '43%', cardTop: 272 },
+    { left: '25%', nodeTop: 250, cardLeft: '18%', cardTop: 272 },
+    { left: '10%', nodeTop: 250, cardLeft: '3%', cardTop: 272 },
+  ];
+  const slotSets = {
+    1: [0], 2: [0, 4], 3: [0, 2, 5], 4: [0, 1, 3, 5],
+    5: [0, 1, 2, 4, 6], 6: [0, 1, 2, 3, 4, 6], 7: [0, 1, 2, 3, 4, 5, 6], 8: [0, 1, 2, 3, 4, 5, 6, 7],
+  };
+  const activePositions = slotSets[items.length] || slotSets[8];
+  const maxSummaryLength = Math.max(0, ...items.map((item) => {
+    const summary = toBullets(clean(item.value) || item.fallback, 1)[0] || '';
+    return summary.length;
+  }));
+  const desktopTimelineHeight = Math.max(400, 330 + Math.ceil(maxSummaryLength / 18) * 14);
+
+  return (
+    <section>
+      <PmDocHeader
+        en="Product Journey"
+        ko="제품 여정"
+        desc={timelineDescription}
+        right={(
+          <button
+            type="button"
+            onClick={() => setEditingLayout(v => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold transition-colors print:hidden ${editingLayout ? 'bg-primary-600 text-white' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}
+          >
+            <SlidersHorizontal size={12} />{editingLayout ? '편집 닫기' : '전체 편집'}
+          </button>
+        )}
+      />
+
+      {editingLayout && (
+        <div className="mb-4 rounded-2xl border border-primary-100 bg-primary-50/35 p-4 print:hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[180px_minmax(0,1fr)]">
+              <input
+                value={timelineTitle}
+                onChange={e => persist({ title: e.target.value })}
+                placeholder="타임라인 제목"
+                className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-[12px] font-bold text-bluewood-800 outline-none focus:border-primary-300"
+              />
+              <AutoText
+                dense
+                value={timelineDescription}
+                onChange={v => persist({ description: v })}
+                placeholder="타임라인 설명"
+                className="rounded-lg bg-white text-[11.5px] leading-[1.5] text-bluewood-500"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              <button type="button" onClick={resetTimeline} className="inline-flex items-center gap-1 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-[10px] font-bold text-bluewood-400 hover:text-bluewood-700"><RotateCcw size={11} />자동 구성</button>
+              <button type="button" onClick={addItem} disabled={items.length >= 8} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-[10px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: ACCENT }}><Plus size={11} />단계 추가</button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2">
+            {items.map((item, i) => (
+              <div key={`editor-${i}`} className="grid items-start gap-2 rounded-xl border border-surface-200 bg-white p-2.5 lg:grid-cols-[32px_105px_125px_minmax(180px,1fr)_72px]">
+                <input type="color" value={item.color} onChange={e => patchItem(i, { color: e.target.value })} title="포인트 색상" className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
+                <select value={item.iconKey} onChange={e => patchItem(i, { iconKey: e.target.value })} className="h-8 rounded-md border border-surface-200 bg-white px-2 text-[10.5px] font-semibold text-bluewood-500 outline-none focus:border-primary-300">
+                  {TIMELINE_ICON_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+                <div className="grid gap-1">
+                  <input value={item.phase} onChange={e => patchItem(i, { phase: e.target.value })} placeholder="영문 라벨" className="rounded-md border border-surface-200 px-2 py-1 text-[9.5px] font-mono text-bluewood-400 outline-none focus:border-primary-300" />
+                  <input value={item.label} onChange={e => patchItem(i, { label: e.target.value })} placeholder="단계 제목" className="rounded-md border border-surface-200 px-2 py-1 text-[11px] font-bold text-bluewood-800 outline-none focus:border-primary-300" />
+                </div>
+                <AutoText dense value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} className="text-[11px] leading-[1.5] text-bluewood-600" />
+                <div className="flex justify-end gap-1">
+                  <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0} title="앞으로" className="rounded-md p-1.5 text-bluewood-400 hover:bg-surface-100 disabled:opacity-25"><ChevronUp size={13} /></button>
+                  <button type="button" onClick={() => moveItem(i, 1)} disabled={i === items.length - 1} title="뒤로" className="rounded-md p-1.5 text-bluewood-400 hover:bg-surface-100 disabled:opacity-25"><ChevronDown size={13} /></button>
+                  <button type="button" onClick={() => persistItems(items.filter((_, idx) => idx !== i))} disabled={items.length <= 1} title="삭제" className="rounded-md p-1.5 text-bluewood-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-25"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="relative hidden overflow-hidden rounded-2xl border border-[#d8e4f0] bg-white xl:block" style={{ height: `${desktopTimelineHeight}px` }}>
+        <svg className="absolute left-0 top-0 h-[400px] w-full" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M 70 150 C 70 108, 105 80, 155 80 H 845 C 892 80, 915 108, 915 165 C 915 220, 886 250, 840 250 H 95" fill="none" stroke="#91a9c0" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+
+        {items.map((item, i) => {
+          const pos = positions[activePositions[i]];
+          const Icon = TIMELINE_ICONS[item.iconKey] || Target;
+          const number = String(i).padStart(2, '0');
+          return (
+            <div key={`${item.phase}-${i}`}>
+              <span
+                className={`absolute z-[2] flex items-center justify-center rounded-full text-[7.5px] font-black text-white ${i === 0 ? 'h-[22px] w-[42px] rounded-[11px]' : 'h-[22px] w-[22px]'}`}
+                style={{ left: pos.left, top: pos.nodeTop, transform: 'translate(-50%, -50%)', backgroundColor: item.color }}
+              >
+                {number}
+              </span>
+              <div
+                className="absolute z-[1] w-[190px]"
+                style={{ left: pos.cardLeft, top: pos.cardTop }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon size={11} strokeWidth={1.7} style={{ color: item.color }} />
+                  <p className="font-mono text-[7.5px] font-bold uppercase tracking-[0.1em] text-bluewood-300">{item.phase}</p>
+                </div>
+                <p className="mt-0.5 text-[10.5px] font-black leading-tight text-bluewood-900">{item.label}</p>
+                <TimelineEditableText value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <ol className="relative space-y-0 overflow-hidden rounded-2xl border border-[#d8e4f0] bg-white px-4 py-3 xl:hidden">
+        <span className="absolute bottom-9 left-[27px] top-9 w-px bg-[#91a9c0]" />
+        {items.map((item, i) => (
+          <li key={`${item.phase}-${i}`} className="relative flex gap-3 py-3">
+            <span className="relative z-[1] mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[7.5px] font-black text-white" style={{ backgroundColor: item.color }}>
+              {String(i).padStart(2, '0')}
+            </span>
+            <div className="min-w-0">
+              <p className="font-mono text-[8px] font-bold uppercase tracking-[0.12em] text-bluewood-300">{item.phase}</p>
+              <p className="text-[12px] font-extrabold text-bluewood-900">{item.label}</p>
+              <TimelineEditableText value={item.value} onChange={v => patchItem(i, { value: v })} placeholder={item.fallback} className="max-w-xl" />
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/* 스티키 노트 — 화이트보드에 붙인 포스트잇 느낌 (AS-IS/TO-BE 항목) */
+const STICKY_COLORS = ['#c4b5fd', '#5eead4', '#fca5a5', '#fde047', '#86efac', '#f9a8d4', '#93c5fd', '#fdba74'];
+const STICKY_ROT = [-3, 2.2, -1.6, 3, -2.4, 1.4, -2.8, 2];
+function StickyNote({ text, idx = 0, colorIdx }) {
+  // colorIdx로 AS-IS↔TO-BE 짝 색을 맞추고, 회전은 idx로 달리해 복제처럼 보이지 않게 함
+  const color = STICKY_COLORS[(colorIdx ?? idx) % STICKY_COLORS.length];
+  const rot = STICKY_ROT[idx % STICKY_ROT.length];
+  return (
+    <div
+      className="flex min-h-[104px] min-w-[150px] max-w-[260px] items-center justify-center rounded-[2px] px-4 py-4 shadow-[0_6px_14px_-5px_rgba(15,40,80,0.3)] transition-transform hover:z-[2] hover:scale-[1.03]"
+      style={{ backgroundColor: color, transform: `rotate(${rot}deg)` }}
+    >
+      <p
+        className="text-center text-[12.5px] font-bold leading-[1.55] text-[#1f2937]"
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
+/* AS-IS → PM 개입 → TO-BE — 기능 나열보다 문제를 어떤 상태 변화로 설계했는지 보여준다. */
+function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = [], goals = [], kpis = [] }) {
+  const asIs = toBullets(product?.problem, 3);
+  const toBe = toBullets(product?.solution, 3);
+  const decision = clean(strategy) || keyExperiences.map(k => clean(k?.jobData?.decision)).find(Boolean) || '';
+  const matchingCase = (value) => caseExperiences.find(k => clean(k.metric) && clean(value) && clean(k.metric).includes(clean(value))) || {};
+  const rawImpacts = [
+    ...kpis.map(k => { const matched = matchingCase(k.value); return { label: clean(k.label), actual: clean(k.value), before: clean(matched.beforeMetric), target: clean(k.target) }; }),
+    ...goals.map(g => { const matched = matchingCase(g.actual); return { label: clean(g.label), actual: clean(g.actual), before: clean(matched.beforeMetric), target: clean(g.target), achieved: g.achieved }; }),
+    ...caseExperiences.map(k => ({ label: clean(k.title) || '핵심 변화', actual: clean(k.metric), before: clean(k.beforeMetric), target: '' })),
+  ].filter(m => m.label && m.actual && parseMetricNum(m.actual) != null);
+  const seenImpact = new Set();
+  const impacts = rawImpacts.filter((m) => {
+    const key = m.actual.replace(/[\s,()]/g, '');
+    if (seenImpact.has(key)) return false;
+    seenImpact.add(key);
+    return true;
+  }).slice(0, 3);
+  if (!asIs.length && !toBe.length && !impacts.length) return null;
+  const hasPanels = asIs.length > 0 || toBe.length > 0;
+  const asRows = asIs.length ? asIs : ['현재 상태·문제를 입력해 주세요'];
+  const toRows = toBe.length ? toBe : ['개선된 목표 상태를 입력해 주세요'];
+  return (
+    <section>
+      <PmDocHeader en="Transformation" ko="AS-IS → TO-BE" desc="문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다." />
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
+        {hasPanels && (
+          <div className="relative p-4 sm:p-6">
+            {/* 헤더 — 좌 AS-IS / 우 TO-BE */}
+            <div className="grid grid-cols-2">
+              <div className="pr-3 text-center sm:pr-8">
+                <p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p>
+                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p>
+              </div>
+              <div className="pl-3 text-center sm:pl-8">
+                <p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p>
+                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p>
+              </div>
+            </div>
+            {/* 화이트보드 — 상단 가로선 + 가운데 세로 구분선 + 컬러 스티키 노트 스캐터 */}
+            <div className="relative mt-3 grid grid-cols-2 gap-x-2 border-t-2 border-bluewood-200 pt-6 sm:gap-x-6">
+              <span className="pointer-events-none absolute -top-[2px] bottom-2 left-1/2 w-[2px] -translate-x-1/2 rounded bg-bluewood-200" />
+              <div className="flex flex-wrap content-start justify-center gap-x-3 gap-y-4 pr-1 sm:pr-4">
+                {asRows.map((t, i) => <StickyNote key={i} text={t} idx={i} />)}
+              </div>
+              <div className="flex flex-wrap content-start justify-center gap-x-3 gap-y-4 pl-1 sm:pl-4">
+                {toRows.map((t, i) => <StickyNote key={i} text={t} idx={i + 3} colorIdx={i} />)}
+              </div>
+            </div>
+            {decision && (
+              <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center">
+                <span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span>
+                <p className="text-[11px] font-semibold leading-[1.55] text-primary-800">{decision}</p>
+              </div>
+            )}
+          </div>
+        )}
+        {impacts.length > 0 && (
+          <div className="border-t border-surface-200 bg-surface-50/45 px-5 py-4 sm:px-6">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h3 className="text-[12.5px] font-extrabold text-bluewood-900">변화를 증명한 핵심 수치</h3>
+              <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Measured impact</span>
+            </div>
+            <div className={`grid overflow-hidden rounded-xl border border-surface-200 bg-white ${impacts.length === 1 ? 'sm:grid-cols-1' : impacts.length === 2 ? 'sm:grid-cols-2 sm:divide-x' : 'sm:grid-cols-3 sm:divide-x'} divide-surface-200`}>
+            {impacts.map((m, i) => {
+              const split = splitMetricValue(m.actual);
+              const actual = parseMetricNum(m.actual);
+              const before = parseMetricNum(m.before);
+              const target = parseMetricNum(m.target);
+              const compareMax = Math.max(Math.abs(before || 0), Math.abs(actual || 0), Math.abs(target || 0), 1);
+              const displayValue = split ? `${Number(split.value).toLocaleString()}${split.unit}` : m.actual;
+              const actualWidth = target != null
+                ? Math.min(100, Math.max(4, (Math.abs(actual) / Math.max(Math.abs(actual), Math.abs(target), 1)) * 100))
+                : split?.unit === '%' ? Math.min(100, Math.max(4, Math.abs(actual))) : 100;
+              return (
+                <div key={`${m.label}-${i}`} className={`min-w-0 px-4 py-3.5 ${i > 0 ? 'border-t border-surface-200 sm:border-t-0' : ''}`}>
+                  <p className="truncate text-[10.5px] font-bold text-bluewood-400" title={m.label}>{m.label}</p>
+                  <p className="mt-1 text-[22px] font-black leading-none tracking-tight text-bluewood-900">{displayValue}</p>
+                  {before != null && before !== actual ? (
+                    <div className="mt-3 space-y-2">
+                      {[
+                        { label: '이전', value: before, text: m.before, color: '#cbd5e1' },
+                        { label: '이후', value: actual, text: displayValue, color: ACCENT },
+                      ].map(row => (
+                        <div key={row.label}>
+                          <div className="mb-1 flex justify-between text-[8.5px] font-bold text-bluewood-300">
+                            <span>{row.label}</span><span className="text-bluewood-500">{row.text}</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-surface-100"><span className="block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(row.value) / compareMax) * 100)}%`, backgroundColor: row.color }} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-surface-100">
+                        <span className="block h-full rounded-full" style={{ width: `${actualWidth}%`, backgroundColor: ACCENT }} />
+                      </div>
+                      <div className="mt-1.5 flex justify-between text-[8.5px] font-semibold text-bluewood-300">
+                        <span>관측 결과</span><span>{m.target ? `목표 ${m.target}` : '실제 데이터'}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ── 검증 스코어보드 — MSC 기준별 목표→실제 진행 바 + PASS/MISS 도장 ── */
+function MscScoreboard({ goals }) {
+  if (!goals?.length) return null;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-surface-200">
+      {goals.map((g, i) => {
+        const t = parseMetricNum(g.target);
+        const a = parseMetricNum(g.actual);
+        const pct = t != null && t !== 0 && a != null ? Math.round((a / Math.abs(t)) * 100) : null;
+        const tone = g.achieved ? '#047857' : '#be123c';
+        return (
+          <div key={i} className={`flex items-center gap-4 px-5 py-3.5 ${i > 0 ? 'border-t border-surface-100' : ''}`}>
+            <span className="w-7 flex-shrink-0 font-mono text-[15px] font-black" style={{ color: g.achieved ? ACCENT : '#cbd5e1' }}>{String(i + 1).padStart(2, '0')}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-bold leading-snug text-bluewood-900">{g.label}</p>
+              {(g.target || g.actual) && (
+                <p className="mt-0.5 text-[11.5px] text-bluewood-400">
+                  목표 <span className="font-semibold text-bluewood-600">{g.target || '—'}</span>
+                  <span className="mx-1.5 text-bluewood-300">→</span>
+                  실제 <span className="font-black" style={{ color: tone }}>{g.actual || '—'}</span>
+                  {pct != null && <span className="ml-2 text-bluewood-300">달성률 {pct}%</span>}
+                </p>
+              )}
+              {pct != null && (
+                <div className="mt-1.5 h-1.5 w-full max-w-[280px] overflow-hidden rounded-full bg-surface-100">
+                  <div className="h-full rounded-full" style={{ width: `${Math.max(3, Math.min(100, pct))}%`, backgroundColor: tone }} />
+                </div>
+              )}
+            </div>
+            <span
+              className="flex-shrink-0 rounded border-2 px-2 py-0.5 font-mono text-[10.5px] font-black tracking-[0.14em]"
+              style={{ transform: 'rotate(-6deg)', borderColor: tone, color: tone }}
+            >{g.achieved ? 'PASS' : 'MISS'}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* PM 검증 지표 — 데이터 형태에 따라 전후 비교·목표 대비·비율 게이지·단일 관측 플롯을 자동 선택 */
+function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
+  if (!kpis.length) return null;
+  const items = kpis.slice(0, 6).map((k) => {
+    const split = splitMetricValue(k.value);
+    const actual = parseMetricNum(k.value);
+    const matched = keyExperiences.find((ke) => {
+      const metric = clean(ke.metric);
+      return metric && (metric.includes(clean(k.value)) || metric.includes(clean(k.label)));
+    }) || {};
+    const beforeText = clean(matched.beforeMetric);
+    const before = parseMetricNum(beforeText);
+    const target = parseMetricNum(k.target);
+    return { ...k, split, actual, before, beforeText, target, unit: split?.unit || '' };
+  });
+  const unitMax = items.reduce((acc, item) => {
+    if (item.actual == null) return acc;
+    const key = item.unit || 'number';
+    acc[key] = Math.max(acc[key] || 0, Math.abs(item.actual));
+    return acc;
+  }, {});
+  const unitCounts = items.reduce((acc, item) => {
+    const key = item.unit || 'number';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const lineGroups = Object.entries(items.reduce((acc, item) => {
+    if (item.actual == null || !item.unit) return acc;
+    (acc[item.unit] ||= []).push(item);
+    return acc;
+  }, {})).filter(([, group]) => group.length >= 2);
+
+  return (
+    <div>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-extrabold text-bluewood-800">검증 지표</p>
+          <p className="mt-0.5 text-[10.5px] text-bluewood-300">가설을 채택하거나 수정할 때 사용한 실제 관측값</p>
+        </div>
+        <span className="flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-bluewood-300">Evidence metrics</span>
+      </div>
+      <div className={`grid gap-4 ${items.length === 1 ? 'grid-cols-1 sm:grid-cols-2' : items.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
+        {items.map((item, i) => {
+          const isPercent = item.unit === '%' && item.actual != null && item.actual >= 0 && item.actual <= 100 && !/증가|감소|상승|하락|개선/.test(String(item.value));
+          const hasBefore = item.before != null && item.actual != null && item.before !== item.actual;
+          const hasTarget = !hasBefore && item.target != null && item.actual != null;
+          const chartMax = hasTarget ? (Math.max(Math.abs(item.target), Math.abs(item.actual)) || 1) : (unitMax[item.unit || 'number'] || 1);
+          const comparable = unitCounts[item.unit || 'number'] > 1;
+          return (
+            <div key={`${item.label}-${i}`} className="print-break-avoid relative min-h-[245px] overflow-hidden rounded-2xl border border-surface-200 bg-white p-5 shadow-[0_10px_30px_rgba(0,47,108,0.08)]">
+              <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: ACCENT }} />
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 text-[13px] font-extrabold leading-snug text-bluewood-800">{item.label}</p>
+                <span className="flex-shrink-0 rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase text-bluewood-300">{hasBefore ? 'Before / After' : hasTarget ? 'Target / Actual' : isPercent ? 'Rate' : 'Observed'}</span>
+              </div>
+
+              {hasBefore || hasTarget ? (
+                <div className="mt-4 h-[150px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ReBarChart
+                      layout="vertical"
+                      data={hasBefore ? [
+                        { name: '이전', value: Math.abs(item.before), display: item.beforeText, fill: ACCENT_LIGHT },
+                        { name: '이후', value: Math.abs(item.actual), display: item.value, fill: ACCENT },
+                      ] : [
+                        { name: '목표', value: Math.abs(item.target), display: item.target != null ? String(item.target) : '', fill: '#cbd5e1' },
+                        { name: '관측', value: Math.abs(item.actual), display: item.value, fill: ACCENT },
+                      ]}
+                      margin={{ top: 8, right: 16, left: 0, bottom: 2 }}
+                      barCategoryGap="30%"
+                    >
+                      <CartesianGrid stroke="#eef2f7" horizontal={false} />
+                      <XAxis type="number" domain={[0, chartMax]} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" width={34} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: 'rgba(0,47,108,0.04)' }} formatter={(_, __, ctx) => [ctx.payload.display, item.label]} />
+                      <Bar dataKey="value" radius={[0, 7, 7, 0]}>
+                        {(hasBefore ? [ACCENT_LIGHT, ACCENT] : ['#cbd5e1', ACCENT]).map((fill, ci) => <Cell key={ci} fill={fill} />)}
+                      </Bar>
+                    </ReBarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : isPercent ? (
+                <div className="relative mt-2 h-[170px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RePieChart>
+                      <Pie data={[{ value: item.actual }, { value: Math.max(0, 100 - item.actual) }]} dataKey="value" cx="50%" cy="50%" innerRadius={48} outerRadius={68} startAngle={90} endAngle={-270} stroke="none">
+                        <Cell fill={ACCENT} /><Cell fill="#e9eef5" />
+                      </Pie>
+                    </RePieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-[28px] font-black leading-none tracking-tight" style={{ color: ACCENT }}>{item.split.value}<span className="text-[14px]">%</span></p>
+                    <p className="mt-1 font-mono text-[8.5px] font-bold uppercase tracking-wider text-bluewood-300">Observed rate</p>
+                  </div>
+                </div>
+              ) : item.split && item.actual != null ? (
+                <div className="mt-4">
+                  <p className="text-[30px] font-black leading-none tracking-tight text-bluewood-900">
+                    {Number(item.split.value).toLocaleString()}<span className="ml-0.5 text-[13px] font-bold text-bluewood-400">{item.unit}</span>
+                  </p>
+                  <div className="mt-2 h-[120px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ReBarChart data={[{ name: item.label, value: Math.abs(item.actual) }]} margin={{ top: 8, right: 20, left: 6, bottom: 0 }}>
+                        <CartesianGrid stroke="#eef2f7" vertical={false} strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={false} axisLine={{ stroke: '#dbe3ed' }} tickLine={false} />
+                        <YAxis domain={[0, chartMax]} width={34} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <Tooltip formatter={() => [item.value, item.label]} />
+                        <Bar dataKey="value" fill={ACCENT} radius={[8, 8, 0, 0]} maxBarSize={72} />
+                      </ReBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="-mt-1 text-center font-mono text-[8.5px] font-bold uppercase tracking-wider text-bluewood-300">{comparable ? '동일 단위 기준' : '0부터 관측값까지'}</p>
+                </div>
+              ) : (
+                <p className="mt-4 text-[14px] font-bold leading-snug text-bluewood-800">{item.value}</p>
+              )}
+              {item.note && <p className="mt-3 border-t border-surface-100 pt-2 text-[10.5px] leading-[1.5] text-bluewood-400">{item.note}</p>}
+            </div>
+          );
+        })}
+      </div>
+      {lineGroups.map(([unit, group]) => (
+        <div key={unit} className="print-break-avoid mt-4 overflow-hidden rounded-2xl border border-surface-200 bg-gradient-to-br from-white to-surface-50 p-5 shadow-[0_12px_34px_rgba(0,47,108,0.08)]">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[13px] font-extrabold text-bluewood-800">동일 단위 지표 비교</p>
+              <p className="mt-0.5 text-[10.5px] text-bluewood-300">{unit} 단위의 검증 신호를 한 축에서 비교합니다.</p>
+            </div>
+            <span className="font-mono text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>Signal line</span>
+          </div>
+          <div className="mt-3 h-[220px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ReLineChart data={group.map(g => ({ name: g.label, value: g.actual, display: g.value }))} margin={{ top: 14, right: 24, left: 0, bottom: 20 }}>
+                <CartesianGrid stroke="#e7edf4" strokeDasharray="4 4" />
+                <XAxis dataKey="name" interval={0} tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis width={42} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(_, __, ctx) => [ctx.payload.display, ctx.payload.name]} />
+                <Line type="monotone" dataKey="value" stroke={ACCENT} strokeWidth={4} dot={{ r: 6, fill: '#fff', stroke: ACCENT, strokeWidth: 3 }} activeDot={{ r: 8 }} />
+              </ReLineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* 핵심 경험과 분리해 직접 설계·편집할 수 있는 PM 가설 검증표 */
+function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
+  // 각 행은 해당 경험 자체에서만 뽑아 정확하게 채운다 (goals/kpis 인덱스 짝맞춤은 어긋나므로 사용하지 않음)
+  const fallbackRows = cs.keyExps.map((experience, index) => {
+    const src = srKE[index] || {};
+    const jobData = src.jobData || {};
+    // 지표 라벨이 "이름 (목표 수치)" 형태면 KPI 이름과 목표를 분리 — 목표 수치는 목표 열로 보낸다
+    const kpiRaw = clean(src.metricLabel);
+    const kpiMatch = kpiRaw.match(/^(.+?)\s*[（(]\s*(.+?)\s*[）)]\s*$/);
+    return {
+      // 가설 = 실제 가설 문장 우선 (없으면 경험 제목)
+      hypothesis: clean(jobData.hypothesis) || clean(experience.title),
+      // 핵심 KPI = 지표 이름만 (목표 수치는 목표 열로)
+      kpi: kpiMatch ? kpiMatch[1].trim() : kpiRaw,
+      // 설정 근거 = 이 KPI를 왜/어떻게 판단 기준으로 삼았는지 (검증 방법·기준)
+      kpiRationale: clean(jobData.validation),
+      // 목표 = KPI 라벨 괄호 안 목표 수치 (예: CSAT 4점+)
+      target: kpiMatch ? kpiMatch[2].trim() : '',
+      // 달성 = 이 경험의 실제 달성 수치만 (긴 서술 금지)
+      achievement: clean(experience.metric) || clean(src.afterMetric),
+      note: clean(jobData.note) || clean(jobData.failureReason),
+    };
+  }).filter(row => row.hypothesis || row.kpi || row.kpiRationale || row.target || row.achievement || row.note);
+
+  const hasStoredRows = Array.isArray(sr?.pmHypotheses);
+  const sourceRows = hasStoredRows
+    ? sr.pmHypotheses
+    : fallbackRows.length
+      ? fallbackRows
+      : [{ hypothesis: '', kpi: '', kpiRationale: '', target: '', achievement: '', note: '' }];
+  const rows = sourceRows.slice(0, 12).map(row => {
+    // 달성은 짧은 수치만 — 실수로 긴 서술이 들어와 있으면 비고로 옮겨 표를 깔끔하게 유지
+    const rawAchievement = clean(row?.achievement) || clean(row?.actual);
+    const achievementIsProse = rawAchievement.length > 30;
+    const rawNote = clean(row?.note) || clean(row?.failureReason);
+    return {
+      hypothesis: clean(row?.hypothesis),
+      kpi: clean(row?.kpi),
+      kpiRationale: clean(row?.kpiRationale),
+      target: clean(row?.target),
+      achievement: achievementIsProse ? '' : rawAchievement,
+      note: rawNote || (achievementIsProse ? rawAchievement : ''),
+    };
+  });
+
+  const persistRows = (nextRows) => onPatchSr({ ...sr, pmHypotheses: nextRows });
+  const patchRow = (index, key, value) => {
+    const nextRows = rows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row);
+    persistRows(nextRows);
+  };
+  const addRow = () => {
+    if (rows.length >= 12) return;
+    persistRows([...rows, { hypothesis: '', kpi: '', kpiRationale: '', target: '', achievement: '', note: '' }]);
+  };
+  const removeRow = (index) => {
+    if (rows.length <= 1) return;
+    persistRows(rows.filter((_, rowIndex) => rowIndex !== index));
+  };
+  return (
+    <div>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-primary-50 px-2 py-1 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-600">Hypothesis Design</span>
+          <p className="text-[12px] font-extrabold text-bluewood-900">가설 검증 설계</p>
+        </div>
+        <button
+          type="button"
+          onClick={addRow}
+          disabled={rows.length >= 12}
+          className="flex items-center gap-1 rounded-lg border border-primary-100 bg-white px-2.5 py-1.5 text-[10.5px] font-bold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 print:hidden"
+        >
+          <Plus size={13} /> 가설 추가
+        </button>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-surface-200 bg-white shadow-[0_3px_10px_rgba(0,47,108,0.05)]">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <thead className="text-white" style={{ backgroundColor: '#0e1526' }}>
+            <tr>
+              <th className="w-12 px-4 py-3.5 font-mono text-[11px] font-black">#</th>
+              <th className="px-4 py-3.5 text-[12px] font-bold">가설</th>
+              <th className="w-[28%] px-4 py-3.5 text-[12px] font-bold">핵심 KPI / 설정 근거</th>
+              <th className="w-[13%] px-4 py-3.5 text-right text-[12px] font-bold">목표</th>
+              <th className="w-[12%] px-4 py-3.5 text-right text-[12px] font-bold">달성</th>
+              <th className="w-[22%] px-4 py-3.5 text-[12px] font-bold">비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`hypothesis-${index}`} className="group/hy align-middle odd:bg-white even:bg-[#f6f8fb]">
+                <td className="px-4 py-3.5 font-mono text-[13px] font-black text-emerald-500">H{index + 1}</td>
+                <td className="px-4 py-2.5">
+                  <AutoText
+                    dense
+                    value={row.hypothesis}
+                    onChange={(value) => patchRow(index, 'hypothesis', value)}
+                    placeholder="검증할 가설을 입력하세요"
+                    className="text-[13px] font-bold leading-[1.5] text-bluewood-900"
+                  />
+                </td>
+                <td className="px-4 py-2.5">
+                  <AutoText
+                    dense
+                    value={row.kpi}
+                    onChange={(value) => patchRow(index, 'kpi', value)}
+                    placeholder="판단에 사용할 핵심 KPI"
+                    className="text-[12px] font-bold leading-[1.5] text-bluewood-700"
+                  />
+                  <AutoText
+                    dense
+                    value={row.kpiRationale}
+                    onChange={(value) => patchRow(index, 'kpiRationale', value)}
+                    placeholder="설정 근거 — 이 KPI로 판단한 이유"
+                    className="mt-0.5 text-[11.5px] leading-[1.5] text-bluewood-500"
+                  />
+                </td>
+                <td className="px-4 py-2.5">
+                  <AutoText
+                    dense
+                    value={row.target}
+                    onChange={(value) => patchRow(index, 'target', value)}
+                    placeholder="≥ 60%"
+                    className="text-right text-[12.5px] font-black leading-[1.5] text-bluewood-900"
+                  />
+                </td>
+                <td className="px-4 py-2.5">
+                  <AutoText
+                    dense
+                    value={row.achievement}
+                    onChange={(value) => patchRow(index, 'achievement', value)}
+                    placeholder="—"
+                    className="text-right text-[12.5px] font-black leading-[1.5] text-primary-700"
+                  />
+                </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-start gap-1.5">
+                    <AutoText
+                      dense
+                      value={row.note}
+                      onChange={(value) => patchRow(index, 'note', value)}
+                      placeholder="성공 및 실패 해설"
+                      className="min-w-0 flex-1 text-[11.5px] leading-[1.5] text-bluewood-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      disabled={rows.length <= 1}
+                      className="mt-0.5 rounded-md p-1 text-bluewood-200 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover/hy:opacity-100 disabled:cursor-not-allowed disabled:opacity-0 print:hidden"
+                      aria-label={`가설 H${index + 1} 삭제`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* 의사결정 카드의 단계 행 — 좌측 번호+라벨, 우측 내용 (체계적 기록 느낌). 모듈 레벨이라 자식 입력 포커스가 끊기지 않음 */
+function DecisionStage({ no, label, tone, children }) {
+  const c = tone === 'amber' ? '#b45309' : ACCENT;
+  return (
+    <div className="flex gap-3.5 py-3.5 first:pt-1 last:pb-1">
+      <div className="w-[54px] flex-shrink-0 pt-0.5">
+        <p className="font-mono text-[12px] font-black leading-none" style={{ color: c }}>{no}</p>
+        <p className="mt-1 text-[10.5px] font-bold leading-[1.3] text-bluewood-400">{label}</p>
+      </div>
+      <div className="min-w-0 flex-1 pt-0.5">{children}</div>
+    </div>
+  );
+}
+/* ── 의사결정 노드 — 번호 단계 기록: 01 상황 → 02 의사결정(채택/기각) → 03 어려움 돌파 → 04 결과 ── */
+function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
+  const quad = quadrantOf(Number(jd.impact), Number(jd.effort));
+  return (
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
+        <div className="flex items-start gap-2.5 px-5 pt-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: ACCENT }}>Decision {String(index + 1).padStart(2, '0')}</p>
+              {quad && (
+                <span className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide" style={{ backgroundColor: quad === 'QUICK WIN' ? 'rgba(4,120,87,0.1)' : 'rgba(0,47,108,0.07)', color: quad === 'QUICK WIN' ? '#047857' : ACCENT }}>{quad}</span>
+              )}
+            </div>
+            <AutoText
+              prose
+              value={k.title}
+              onChange={(v) => onCarl('title', v)}
+              placeholder={`의사결정 ${index + 1} — 무엇을 하기로 했는지`}
+              className="text-[15px] sm:text-[16px] font-extrabold leading-snug text-bluewood-900"
+            />
+          </div>
+          <div className="w-28 flex-shrink-0 pt-4">
+            <AutoText dense value={k.metric} onChange={(v) => onCarl('metric', v)} placeholder="성과 수치" className="text-right text-[12px] font-bold text-caribbean-700" />
+          </div>
+          <button type="button" onClick={onDelete} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500 print:hidden">삭제</button>
+        </div>
+
+        <div className="px-5 py-3">
+          <div className="divide-y divide-surface-100">
+            {/* 01 상황 */}
+            <DecisionStage no="01" label="상황">
+              <AutoText dense value={k.problem} onChange={(v) => onCarl('problem', v)} placeholder="어떤 문제 앞에서 판단이 필요했는지" className="text-[12.5px] leading-[1.65] text-bluewood-600" />
+            </DecisionStage>
+
+            {/* 02 의사결정 — 채택 vs 기각 (대안 비교가 곧 PM 판단력의 증거) */}
+            <DecisionStage no="02" label="의사결정">
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'rgba(0,47,108,0.05)', borderLeft: `2px solid ${ACCENT}` }}>
+                  <p className="text-[9px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
+                  <AutoText dense value={jd.decision || ''} onChange={(v) => onJobData({ decision: v })} placeholder="선택한 방향과 판단 기준" className="mt-0.5 text-[12.5px] font-bold leading-[1.6] text-bluewood-900" />
+                </div>
+                <div className="rounded-lg bg-surface-50 px-3 py-2.5">
+                  <p className="text-[9px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
+                  <AutoText dense value={jd.alternatives || ''} onChange={(v) => onJobData({ alternatives: v })} placeholder="검토한 대안과 기각 이유" className="mt-0.5 text-[12px] leading-[1.6] text-bluewood-500" />
+                </div>
+              </div>
+            </DecisionStage>
+
+            {/* 03 어려움 돌파 — 난관과 돌파 방법 (PM의 문제해결력) */}
+            <DecisionStage no="03" label="어려움 돌파" tone="amber">
+              <div className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+                <div>
+                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
+                  <AutoText dense value={jd.obstacle || ''} onChange={(v) => onJobData({ obstacle: v })} placeholder="가장 막혔던 지점·제약" className="text-[12px] leading-[1.6] text-bluewood-600" />
+                </div>
+                <div>
+                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
+                  <AutoText dense value={jd.resolution || ''} onChange={(v) => onJobData({ resolution: v })} placeholder="어떻게 풀어냈는지" className="text-[12px] font-semibold leading-[1.6] text-bluewood-800" />
+                </div>
+              </div>
+            </DecisionStage>
+
+            {/* 04 결과 */}
+            <DecisionStage no="04" label="결과">
+              <AutoText dense value={k.result} onChange={(v) => onCarl('result', v)} placeholder="결정이 만든 지표·비즈니스 변화" className="text-[12.5px] font-semibold leading-[1.6] text-bluewood-900" />
+            </DecisionStage>
+          </div>
+        </div>
+      </div>
+  );
+}
+
+/* 산출물 파일·링크 아이콘 — 랜딩페이지와 동일한 브랜드 SVG를 재사용 */
+const fileExtOf = (name) => String(name || '').split('.').pop().toLowerCase();
+const DELIVERABLE_TYPES = {
+  pdf: { label: 'PDF', icon: '/brand-icons/pdf.svg' },
+  ppt: { label: 'PowerPoint', icon: '/brand-icons/powerpoint.svg?v=2' },
+  pptx: { label: 'PowerPoint', icon: '/brand-icons/powerpoint.svg?v=2' },
+  key: { label: 'Keynote', short: 'K', color: '#7c3aed' },
+  hwp: { label: '한글', icon: '/brand-icons/hwp.svg' },
+  hwpx: { label: '한글', icon: '/brand-icons/hwp.svg' },
+  doc: { label: 'Word', icon: '/brand-icons/word.svg' },
+  docx: { label: 'Word', icon: '/brand-icons/word.svg' },
+  xls: { label: 'Excel', icon: '/brand-icons/excel.svg' },
+  xlsx: { label: 'Excel', icon: '/brand-icons/excel.svg' },
+  txt: { label: 'Text', short: 'TXT', color: '#64748b' },
+  zip: { label: 'ZIP', short: 'ZIP', color: '#475569' },
+};
+const DELIVERABLE_LINK_TYPES = [
+  { label: 'KakaoTalk', icon: '/brand-icons/kakaotalk.svg', test: /(^|\.)kakao\.com$|(^|\.)kakaocorp\.com$/i },
+  { label: 'Notion', icon: '/brand-icons/notion.svg', test: /(^|\.)notion\.so$|(^|\.)notion\.site$/i },
+  { label: 'Google Docs', icon: '/brand-icons/google-docs.svg', test: /(^|\.)docs\.google\.com$/i },
+  { label: 'Google Drive', icon: '/brand-icons/google-drive.svg', test: /(^|\.)drive\.google\.com$/i },
+  { label: 'Gmail', icon: '/brand-icons/gmail.svg', test: /(^|\.)gmail\.com$|(^|\.)mail\.google\.com$/i },
+  { label: 'Slack', icon: '/brand-icons/slack.svg', test: /(^|\.)slack\.com$/i },
+  { label: 'Discord', icon: '/brand-icons/discord.svg', bg: '#5865F2', test: /(^|\.)discord\.com$|(^|\.)discord\.gg$/i },
+  { label: 'Figma', icon: '/brand-icons/figma.svg', test: /(^|\.)figma\.com$/i },
+  { label: 'GitHub', icon: '/brand-icons/github.svg', bg: '#181717', test: /(^|\.)github\.com$/i },
+];
+
+const deliverableVisual = (item) => {
+  const ext = item?.ext || fileExtOf(item?.name);
+  if (DELIVERABLE_TYPES[ext]) return DELIVERABLE_TYPES[ext];
+  try {
+    const parsed = new URL(item?.url || '');
+    const matched = DELIVERABLE_LINK_TYPES.find(type => type.test.test(parsed.hostname));
+    if (matched) return matched;
+    const urlExt = fileExtOf(parsed.pathname);
+    if (DELIVERABLE_TYPES[urlExt]) return DELIVERABLE_TYPES[urlExt];
+    return { label: parsed.hostname.replace(/^www\./, '') || '링크', isLink: true };
+  } catch {
+    return { label: '파일', short: 'FILE', color: '#546e7a' };
+  }
+};
+
+const normalizeDeliverableUrl = (value) => {
+  const trimmed = String(value || '').trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+/* ── 프로젝트 산출물 — 실제 제작 파일(PDF·PPT·HWP)을 올리면 인사담당자가 클릭해 열람 ── */
+function PmDeliverables({ files, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [linkInput, setLinkInput] = useState('');
+  const inputRef = useRef(null);
+  const list = Array.isArray(files) ? files : [];
+
+  const onPick = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!picked.length) return;
+    setUploading(true);
+    const added = [];
+    for (const f of picked) {
+      try {
+        const { url, name, size } = await uploadDocumentFile(f);
+        added.push({ id: uid(), kind: 'file', name, url, ext: fileExtOf(name), size });
+      } catch (err) {
+        toast.error(err?.response?.data?.error || `'${f.name}' 업로드에 실패했어요`);
+      }
+    }
+    if (added.length) onChange([...list, ...added]);
+    setUploading(false);
+  };
+  const remove = (id) => onChange(list.filter(f => f.id !== id));
+  const addLink = (e) => {
+    e.preventDefault();
+    const url = normalizeDeliverableUrl(linkInput);
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid protocol');
+      const visual = deliverableVisual({ url });
+      onChange([...list, {
+        id: uid(),
+        kind: 'link',
+        name: visual.label || parsed.hostname.replace(/^www\./, ''),
+        url,
+      }]);
+      setLinkInput('');
+    } catch {
+      toast.error('올바른 웹 링크를 입력해 주세요');
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t border-surface-200 pt-4">
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-bluewood-400">프로젝트 산출물</p>
+        {list.length > 0 && <span className="text-[10.5px] text-bluewood-300">눌러서 열기</span>}
+      </div>
+      <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.key,.txt,.zip" className="hidden" onChange={onPick} />
+
+      {list.length > 0 && (
+        <div className="mb-3 grid grid-cols-3 gap-x-2.5 gap-y-4">
+          {list.map(f => {
+            const visual = deliverableVisual(f);
+            return (
+              <div key={f.id} className="group/f relative flex min-w-0 flex-col items-center gap-1.5">
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-[90px] w-[90px] items-center justify-center overflow-hidden rounded-[22px] border border-surface-200 bg-white shadow-[0_5px_15px_rgba(0,47,108,0.11)] transition-all hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md"
+                  style={visual.bg ? { backgroundColor: visual.bg } : undefined}
+                  title={`${f.name || visual.label} 열기`}
+                >
+                  {visual.icon ? (
+                    <img src={visual.icon} alt={visual.label} className="h-[54px] w-[54px] object-contain" loading="lazy" decoding="async" />
+                  ) : visual.isLink ? (
+                    <Link2 size={38} className="text-primary-600" />
+                  ) : (
+                    <span className="flex h-[60px] w-[60px] items-center justify-center rounded-2xl text-white" style={{ backgroundColor: visual.color }}>
+                      <span className={`font-black tracking-tight ${visual.short?.length > 1 ? 'text-[12px]' : 'text-[24px]'}`}>{visual.short}</span>
+                    </span>
+                  )}
+                  <span className="sr-only">{f.name || visual.label}</span>
+                </a>
+                <span className="block w-full truncate text-center text-[10px] font-semibold leading-tight text-bluewood-500" title={f.name || visual.label}>
+                  {f.name || visual.label}
+                </span>
+                <button type="button" onClick={() => remove(f.id)} className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-300 opacity-0 shadow-sm transition hover:text-red-500 group-hover/f:opacity-100 print:hidden" aria-label="삭제">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-300 py-2.5 text-[12px] font-semibold text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 print:hidden"
+      >
+        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}
+        {uploading ? '올리는 중…' : '파일 추가'}
+      </button>
+
+      <form onSubmit={addLink} className="mt-2 flex items-center gap-1.5 print:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-2.5 focus-within:border-primary-300">
+          <Link2 size={13} className="flex-shrink-0 text-bluewood-300" />
+          <input
+            type="text"
+            value={linkInput}
+            onChange={(e) => setLinkInput(e.target.value)}
+            placeholder="Notion · Figma · Drive 링크"
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-[11px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!linkInput.trim()}
+          className="flex-shrink-0 rounded-xl bg-primary-600 px-3 py-2.5 text-[10.5px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          추가
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* ── 좌측 레일 — 제목 · 요약 · 역할/기간/팀 + 프로젝트 산출물 파일 ── */
+function PmHeroRail({ cs, sr, setField, setMeta, onPatchSr }) {
+  return (
+    <div className="lg:pr-2">
+      <AutoText
+        prose
+        value={cs.title}
+        onChange={(v) => setField('title', v)}
+        placeholder="프로덕트/기획 케이스 제목"
+        className="text-[22px] sm:text-[26px] font-black leading-[1.22] tracking-tight text-bluewood-900"
+      />
+      <AutoText
+        prose
+        value={cs.summary}
+        onChange={(v) => setField('summary', v)}
+        placeholder="이 프로젝트를 한 문장으로"
+        className="mt-2 text-[13.5px] leading-[1.55] text-bluewood-500"
+      />
+
+      {/* 메타 — 역할·기간·팀 */}
+      <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
+        {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
+          <div key={m.k} className="min-w-0">
+            <p className="mb-0.5 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">{m.label}</p>
+            <AutoText value={cs.meta[m.k]} onChange={(v) => setMeta(m.k, v)} placeholder="—" className="text-[12.5px] font-semibold text-bluewood-700" />
+          </div>
+        ))}
+      </div>
+
+      {/* 프로젝트 산출물 — 인사담당자가 원하면 열어보는 실제 제작 파일 */}
+      <PmDeliverables files={sr?.pmFiles} onChange={(next) => onPatchSr({ ...sr, pmFiles: next })} />
+    </div>
+  );
+}
+
+/* ── PM 기획 문서 본문 — 좌측 제품 판단 프로필 + 우측(린 캔버스 · 의사결정 · 가설 및 검증) ── */
+function PmDoc({ cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, onPatchSr }) {
+  const [editData, setEditData] = useState(false);
+  const [activeDecision, setActiveDecision] = useState(0); // 의사결정 로그: 번호 탭으로 한 건씩 전환
+
+  const srKE = Array.isArray(sr?.keyExperiences) ? sr.keyExperiences : [];
+  const js = sr?.jobSpecific || {};
+  const product = sr?.product || {};
+  const canvas = sr?.leanCanvas || {};
+  // 핵심 경험 지표·jobSpecific 본문에서 KPI를 자동 추출(폴백) — 원본에 내용이 있으면 그래프가 채워진다.
+  const visuals = normalizePortfolioVisuals(sr, { keyExperiences: srKE, jobSections: PM_METRIC_SECTIONS });
+  const goals = visuals.goals || [];
+  const kpis = visuals.kpis || [];
+
+  // 차트 편집기 시드 — 저장된 portfolioVisuals.kpis가 비어 있으면 자동 추출한 KPI를 미리 채워 보여준다.
+  const seededVisuals = useMemo(() => {
+    const pv = { ...(sr?.portfolioVisuals || {}) };
+    if (!(Array.isArray(pv.kpis) && pv.kpis.length) && kpis.length) {
+      pv.kpis = kpis.map(k => ({ label: k.label, value: k.value, target: k.target || '' }));
+    }
+    return pv;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sr?.portfolioVisuals, JSON.stringify(kpis)]);
+
+  const patchJobSpecific = (key, v) => onPatchSr({ ...sr, jobSpecific: { ...(sr?.jobSpecific || {}), [key]: v } });
+  const patchProduct = (key, v) => onPatchSr({ ...sr, product: { ...(sr?.product || {}), [key]: v } });
+  // 린 캔버스 전용 블록(고유가치·경쟁우위·채널·고객군·비용·수익)은 sr.leanCanvas에 저장
+  const patchCanvas = (key, v) => onPatchSr({ ...sr, leanCanvas: { ...(sr?.leanCanvas || {}), [key]: v } });
+  // 의사결정 전용 필드(decision·alternatives·stakeholders·validation·impact·effort)는
+  // structuredResult.keyExperiences[i].jobData에 저장 — cs.keyExps와 순서(index) 기준 대응 (저장 merge와 동일 규칙)
+  const patchJobData = (i, changes) => {
+    const ke = [...srKE];
+    ke[i] = { ...(ke[i] || {}), jobData: { ...(ke[i]?.jobData || {}), ...changes } };
+    onPatchSr({ ...sr, keyExperiences: ke });
+  };
+  const removeDecision = (i, keId) => {
+    if (!window.confirm('이 의사결정을 삭제할까요?')) return;
+    removeKeyExp(keId);
+    if (srKE.length > i) onPatchSr({ ...sr, keyExperiences: srKE.filter((_, ei) => ei !== i) });
+    setActiveDecision(a => Math.max(0, Math.min(a, cs.keyExps.length - 2)));
+  };
+  // 새 의사결정 추가 후 그 탭으로 이동 (추가 전 길이 = 새 항목의 인덱스)
+  const addDecision = () => { setActiveDecision(cs.keyExps.length); addKeyExp(); };
+  const activeIdx = cs.keyExps.length ? Math.min(activeDecision, cs.keyExps.length - 1) : 0;
+
+  // Impact × Effort 좌표가 있는 의사결정만 매트릭스에 배치
+  const matrixItems = cs.keyExps.map((k, i) => {
+    const jd = srKE[i]?.jobData || {};
+    const impact = Number(jd.impact), effort = Number(jd.effort);
+    if (!(impact >= 1 && impact <= 5 && effort >= 1 && effort <= 5)) return null;
+    return { n: i + 1, label: clean(k.title) || `의사결정 ${i + 1}`, impact, effort };
+  }).filter(Boolean);
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
+      {/* ════ 좌측 — PM의 문제 프레이밍·판단 원칙·근거·오너십을 보여주는 제품 판단 프로필 ════ */}
+      <PmHeroRail cs={cs} sr={sr} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} />
+
+      {/* ════ 우측 — 린 캔버스 · 의사결정 로그 · 가설 및 검증 ════ */}
+      <div className="min-w-0 space-y-9">
+      {/* 기획 사이클 스트립 — 이 문서의 읽는 순서이자 일하는 방식 */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-surface-100 pb-3">
+        {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단']].map(([en2, ko2], i) => (
+          <span key={en2} className="flex items-center gap-1.5">
+            {i > 0 && <span className="text-[10px] text-bluewood-200">→</span>}
+            <span className="font-mono text-[9.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en2}</span>
+            <span className="text-[10.5px] font-semibold text-bluewood-400">{ko2}</span>
+          </span>
+        ))}
+      </div>
+      {editData && (
+        <div className="print:hidden">
+          <VisualDataEditor
+            jobCategory="pm"
+            value={seededVisuals}
+            accent={ACCENT}
+            onChange={(pv) => onPatchSr({ ...sr, portfolioVisuals: pv })}
+          />
+        </div>
+      )}
+
+      {/* ── 기획 캔버스 — 한 장 요약 (표준 9블록 린 캔버스) ── */}
+      <LeanCanvas
+        product={product}
+        patchProduct={patchProduct}
+        canvas={canvas}
+        patchCanvas={patchCanvas}
+        goals={goals}
+        kpis={kpis}
+        onOpenData={() => setEditData(true)}
+      />
+
+      <PmServiceTimeline cs={cs} sr={sr} onPatchSr={onPatchSr} />
+
+      <PmAsIsToBe product={product} strategy={js.strategy} keyExperiences={srKE} caseExperiences={cs.keyExps} goals={goals} kpis={kpis} />
+
+      {/* ── 의사결정 & 어려움 해결 — 화면: 번호 탭으로 한 건씩 / 인쇄: 전건 펼침 ── */}
+      <section className={cs.keyExps.length === 0 ? 'print:hidden' : ''}>
+        <PmDocHeader
+          en="Decision & Problem-Solving" ko="의사결정 & 어려움 해결"
+          desc="무엇을 채택하고 어떤 대안을 왜 버렸는지, 그리고 실행 중 부딪힌 난관을 어떻게 돌파했는지까지 한 흐름으로 담습니다."
+          right={cs.keyExps.length > 0 ? <span className="flex-shrink-0 text-[11.5px] font-semibold text-bluewood-300">{cs.keyExps.length}건</span> : null}
+        />
+        {matrixItems.length > 0 && <div className="mb-3"><PriorityMatrix items={matrixItems} accent={ACCENT} /></div>}
+
+        {cs.keyExps.length > 0 ? (
+          <>
+            {/* 번호 탭 — 누르면 해당 의사결정으로 전환 (아래로 쌓이지 않음, 인쇄 시 숨김) */}
+            <div className="mb-3 flex flex-wrap items-center gap-1.5 print:hidden">
+              {cs.keyExps.map((k, i) => {
+                const jd = srKE[i]?.jobData || {};
+                const q = quadrantOf(Number(jd.impact), Number(jd.effort));
+                const on = i === activeIdx;
+                return (
+                  <button
+                    key={k.id}
+                    type="button"
+                    onClick={() => setActiveDecision(i)}
+                    title={clean(k.title) || `의사결정 ${i + 1}`}
+                    className={`flex h-8 min-w-[32px] items-center justify-center gap-1 rounded-lg px-2 text-[12.5px] font-black transition-colors ${on ? 'text-white shadow-sm' : 'bg-surface-100 text-bluewood-500 hover:bg-surface-200'}`}
+                    style={on ? { backgroundColor: ACCENT } : undefined}
+                  >
+                    {i + 1}
+                    {q === 'QUICK WIN' && <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-white/80' : ''}`} style={on ? undefined : { backgroundColor: '#047857' }} />}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={addDecision} className="flex h-8 items-center gap-1 rounded-lg border border-dashed border-surface-300 px-2.5 text-[12px] font-semibold text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600">＋ 추가</button>
+            </div>
+
+            {/* 화면에선 활성 카드 한 건만, PDF/인쇄에선 전건 펼침 */}
+            <div className="print:space-y-5">
+              {cs.keyExps.map((k, i) => (
+                <div key={k.id} className={i === activeIdx ? '' : 'hidden print:block'}>
+                  <DecisionNode
+                    k={k}
+                    jd={srKE[i]?.jobData || {}}
+                    index={i}
+                    onCarl={(key, v) => setKeyExp(k.id, key, v)}
+                    onJobData={(changes) => patchJobData(i, changes)}
+                    onDelete={() => removeDecision(i, k.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <button type="button" onClick={addDecision} className="flex w-full flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-surface-300 bg-surface-50/40 py-8 text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600 print:hidden">
+            <span className="text-[13px] font-bold">＋ 첫 의사결정 기록하기</span>
+            <span className="text-[11.5px]">채택/기각 대안과 임팩트·리소스를 남기면 우선순위 매트릭스가 그려져요</span>
+          </button>
+        )}
+      </section>
+
+      {/* ── 가설 및 검증 — 문제에서 배움까지 PM의 사고 과정을 포트폴리오로 제시 ── */}
+      <section>
+        <PmDocHeader
+          en="Hypothesis & Validation" ko="가설 및 검증"
+          desc="가설별 핵심 KPI·설정 근거·목표·달성·비고를 한 장의 표로 설계합니다."
+        />
+        <div className="space-y-3">
+          <PmValidationDashboard
+            cs={cs}
+            sr={sr}
+            srKE={srKE}
+            goals={goals}
+            kpis={kpis}
+            onPatchSr={onPatchSr}
+          />
+          {(clean(js.msc) || clean(js.businessImpact)) && (
+            <details className="rounded-xl border border-surface-200 bg-surface-50/50 print:hidden">
+              <summary className="cursor-pointer px-4 py-2.5 text-[10.5px] font-bold text-bluewood-400">검증 해석 메모 보기</summary>
+              <div className="grid gap-3 border-t border-surface-100 p-3 sm:grid-cols-2">
+                <AutoText dense value={clean(js.msc)} onChange={(v) => patchJobSpecific('msc', v)} placeholder="성공 기준과 미달 원인" className="text-[11px] leading-[1.5] text-bluewood-600" />
+                <AutoText dense value={clean(js.businessImpact)} onChange={(v) => patchJobSpecific('businessImpact', v)} placeholder="지표 변화와 다음 판단" className="text-[11px] leading-[1.5] text-bluewood-600" />
+              </div>
+            </details>
+          )}
+        </div>
+      </section>
+
+      {/* ── 첨부 — 자유 본문/사진 (내용 없으면 인쇄에서 제외) ── */}
+      <section className={`border-t border-surface-200 pt-7 ${cs.body.some(s => (s.type === 'image' ? s.content : String(s.content || '').trim())) ? '' : 'print:hidden'}`}>
+        <PmDocHeader en="Appendix" ko="첨부 · 부가 설명" desc="화면 캡처·기획서 발췌 등 이 케이스를 뒷받침하는 증거 자료입니다." />
+        <CaseBody body={cs.body} onChange={(next) => setField('body', next)} />
+      </section>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    마케터 전용 — 포트폴리오 한 페이지(문서/PDF) 형태 렌더링
    레퍼런스: 키커(영문 라벨) + 헤드라인 + 서브카피 + 세로 라인 카드 + 그래프
    ══════════════════════════════════════════════════════════ */
@@ -2922,10 +4353,13 @@ export default function ExperienceResult() {
 
   useEffect(() => {
     if (!id || !isDraftResult || loading || !cs) return undefined;
+    // 기획/PM은 초안이 곧 린 캔버스로 한눈에 보이므로 별도 안내 모달을 띄우지 않는다.
+    const jc = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+    if (jc === 'pm') return undefined;
     if (window.localStorage.getItem(draftGuideKey) === '1') return undefined;
     const timer = window.setTimeout(() => setDraftGuideOpen(true), 1200);
     return () => window.clearTimeout(timer);
-  }, [id, isDraftResult, loading, cs, draftGuideKey]);
+  }, [id, isDraftResult, loading, cs, draftGuideKey, exp?.jobCategory, exp?.structuredResult?.jobCategory]);
 
   const closeFeedback = () => {
     if (id) window.localStorage.setItem(feedbackPromptKey, '1');
@@ -3121,9 +4555,10 @@ export default function ExperienceResult() {
     { key: 'learning', label: '배운 점' },
   ];
 
-  // 직군별 케이스 스터디 구조 분기 — 개발 직군은 GitHub 기반 개발 임팩트를 보여준다.
+  // 직군별 케이스 스터디 구조 분기 — 개발 직군은 GitHub 기반 개발 임팩트, 기획/PM은 의사결정 딥다이브를 보여준다.
   const jobCategory = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
   const isDevJob = DEV_GIT_JOBS.includes(jobCategory);
+  const isPmJob = jobCategory === 'pm';
   const devStats = exp?.structuredResult?.githubStats || null;
   const devGitExps = Array.isArray(exp?.structuredResult?.gitAnalysis?.experiences) ? exp.structuredResult.gitAnalysis.experiences : [];
   const devRole = devStats ? inferDevRole(devStats, devGitExps) : null;
@@ -3179,7 +4614,7 @@ export default function ExperienceResult() {
         </div>
       </div>
 
-      <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+      <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
         {isMarketer ? (
           <MarketerDoc
             cs={cs}
@@ -3196,6 +4631,20 @@ export default function ExperienceResult() {
             updateKit={updateKit}
             onAiResearch={handleAiResearch}
             researching={researching}
+          />
+        ) : isPmJob ? (
+          <PmDoc
+            cs={cs}
+            sr={exp?.structuredResult || {}}
+            setField={setField}
+            setMeta={setMeta}
+            setKeyExp={setKeyExp}
+            addKeyExp={addKeyExp}
+            removeKeyExp={removeKeyExp}
+            onPatchSr={(nextSr) => {
+              setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
+              setDirty(true);
+            }}
           />
         ) : (
         <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
@@ -3279,7 +4728,7 @@ export default function ExperienceResult() {
             })()}
           </div>
 
-          {/* ════ 오른쪽 — 직군별 구조: 개발 직군은 GitHub 기반 개발 임팩트, 그 외엔 핵심 경험 리포트 ════ */}
+          {/* ════ 오른쪽 — 직군별 구조: 개발 직군은 GitHub 기반 개발 임팩트, 기획/PM은 의사결정 딥다이브, 그 외엔 핵심 경험 리포트 ════ */}
           <section className="min-w-0">
             {isDevJob ? (
               <DevImpactSection

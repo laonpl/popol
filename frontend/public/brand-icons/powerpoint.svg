@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="#C43E1C"/><text x="24" y="31" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="24" fill="#FFFFFF" text-anchor="middle">P</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Microsoft PowerPoint</title>
+  <path d="M26 9.5h28.5a5.5 5.5 0 0 1 5.5 5.5v36a5.5 5.5 0 0 1-5.5 5.5H26z" fill="#fff" stroke="#c43e2f" stroke-width="4"/>
+  <path d="M40 18v13h13A13 13 0 0 0 40 18Z" fill="#c43e2f"/>
+  <path d="M37 34h16M37 41h16M37 48h12" fill="none" stroke="#c43e2f" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M4 8.5 31 4v56L4 55.5Z" fill="#c43e2f"/>
+  <path d="M13.2 20.5h7.9c6 0 9.6 3.2 9.6 8.5 0 5.6-3.9 9-10.1 9h-2.7v8.2h-4.7zm4.7 4v9.6h2.5c3.5 0 5.4-1.7 5.4-4.9 0-3-1.9-4.7-5.2-4.7z" fill="#fff"/>
+</svg>

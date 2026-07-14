@@ -68,3 +68,15 @@ export async function uploadImageDataUrl(dataUrl, maxPx = 1200, quality = 0.8) {
   const file = new File([blob], `legacy-image.${extension}`, { type: blob.type || 'image/jpeg' });
   return uploadImageUrl(file, maxPx, quality);
 }
+
+// 프로젝트 산출물 문서(PDF·PPT·HWP·DOC 등) 업로드 → { url, filename, name, size }
+export async function uploadDocumentFile(file) {
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  const { data } = await api.post('/upload/document', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  // 브라우저 File.name은 항상 올바른 UTF-8 — 서버 originalName(깨질 수 있음)보다 우선
+  return { url: data.url, filename: data.filename, name: file.name, size: data.size || file.size };
+}

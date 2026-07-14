@@ -54,6 +54,53 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res) =>
   }
 });
 
+// 프로젝트 산출물 문서(PDF·PPT·HWP·DOC 등) 업로드용 — 이미지 외 파일 허용
+const DOC_EXT = /\.(pdf|ppt|pptx|hwp|hwpx|doc|docx|key|xls|xlsx|txt|zip)$/i;
+const uploadDoc = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  fileFilter: (req, file, cb) => {
+    if (DOC_EXT.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('PDF·PPT·HWP·DOC 등 문서 파일만 업로드할 수 있습니다'));
+  },
+});
+
+// POST /api/upload/document — 산출물 문서 파일을 Storage에 올리고 공개 URL 반환
+router.post('/document', authMiddleware, uploadDoc.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
+
+    // multipart 파일명은 latin1로 디코딩돼 한글이 깨진다 → UTF-8로 복원
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const ext = path.extname(originalName).toLowerCase() || '';
+    const storagePath = `uploads/docs/${Date.now()}_${randomUUID()}${ext}`;
+
+    const bucket = adminStorage.bucket();
+    const fileRef = bucket.file(storagePath);
+    const downloadToken = randomUUID();
+    await fileRef.save(req.file.buffer, {
+      resumable: false,
+      metadata: {
+        contentType: req.file.mimetype || 'application/octet-stream',
+        // 새 탭에서 바로 열람 (다운로드 강제 대신 인라인)
+        contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`,
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
+    });
+
+    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+    res.json({ url, filename: storagePath, originalName, size: req.file.size });
+  } catch (error) {
+    console.error('[Upload] 문서 업로드 실패:', error);
+    const notFound = /bucket does not exist/i.test(error.message || '');
+    res.status(notFound ? 503 : 500).json({
+      error: notFound
+        ? 'Firebase Storage가 활성화되지 않았습니다. Firebase 콘솔에서 Storage를 시작해주세요.'
+        : (error.message || '업로드에 실패했습니다'),
+    });
+  }
+});
+
 // DELETE /api/upload/image
 router.delete('/image', authMiddleware, async (req, res) => {
   try {

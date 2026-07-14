@@ -43,6 +43,12 @@ const PRODUCT_EXTRACTION_GUIDE = `
 - features: 서비스의 핵심 기능 3~6개. 각 { "name": 기능명, "desc": 사용자에게 제공하는 것 한 줄 }.
 - outcomes: 정량 성과를 지표/값 쌍으로. 각 { "label": 지표명, "value": 값 }. 원본에 있는 수치만.
 
+★ 관련성·분량 제한:
+- problem은 핵심 사용자 문제 2~4개, solution은 그 문제에 직접 대응하는 핵심 해결 방식 2~3개만 줄바꿈으로 작성하세요.
+- 원본에 여러 내용이 있어도 제품의 핵심 가치와 직접 연결되지 않으면 과감히 제외하세요. 모든 내용을 넣는 것이 목표가 아닙니다.
+- 자소서·면접 답변 재사용, 사실/추정 구분, 수치 기입 안내, 기여 근거 검증, 경험정리 작성법 같은 "포트폴리오 작성·검수 메타 문구"는 product.problem/solution에 절대 넣지 마세요.
+- "성과", "사실", "수치", "검증", "키워드" 같은 맥락 없는 단어 조각을 독립 항목으로 출력하지 마세요.
+
 ⚠ 규칙:
 - 개발·테스트·코드·아키텍처·기술스택 이야기는 절대 product.problem/solution에 넣지 마세요. (그건 다른 섹션에서 다룸)
 - 자료 어딘가에 서비스/시장 문제 단서가 조금이라도 있으면(특히 "Problem"·"문제 정의"·통계·pain point 슬라이드) 반드시 그것을 problem에 쓰세요. 개발 이야기밖에 없을 때만 빈 값.
@@ -170,6 +176,27 @@ const MARKETER_RULES = `
 `;
 
 // ============================================================
+// 기획자/PM 특별 규칙 — 의사결정 중심 경험정리
+//   개발자가 커밋에서 코드·트러블슈팅을 추출하듯, PM은 "의사결정"을 추출한다.
+//   프론트 PM 화면의 제품 판단 프로필·의사결정 로그·가설 검증 카드가 이 데이터로 그려진다.
+// ============================================================
+const PM_RULES = `
+[🎯 기획자/PM 경험정리 특별 규칙 — 반드시 준수]
+당신은 단순 글정리 도우미가 아니라 PM 커리어 자료를 설계하는 AI 프로덕트 전략가입니다.
+"이 경험이 어떤 프로덕트 판단력을 증명하는가?"를 찾아내는 것이 최우선 목표입니다.
+
+1. 구조: 경험을 "업무 나열"이 아니라 문제 프레이밍 → 검증 가능한 가설 → 성공·반증 기준 → 트레이드오프 → 실행 → 근거 수집 → 판단 업데이트 구조로 재구성하세요.
+2. 의사결정 단위: keyExperiences는 반드시 "의사결정" 단위로 추출하세요. 무엇을 하기로 했고(decision), 어떤 대안을 왜 기각했으며(alternatives), 누구를 어떤 근거로 설득했고(stakeholders), 어떻게 검증했는지(validation)가 각각 드러나야 합니다. learning에는 검증 전 믿음과 달라진 점을 적으세요.
+3. impact/effort: 각 의사결정의 비즈니스 임팩트(1~5)와 투입 리소스·난이도(1~5)를 원본 근거로 추정해 반드시 정수로 채우세요. (우선순위 매트릭스 좌표로 사용됨 — 근거가 전혀 없을 때만 비움)
+4. 성공 신호: 원본에 목표·성공·반증 기준 단서가 있으면 portfolioVisuals.goals에 목표(label)/목표치(target)/실제(actual)/달성 여부(achieved)를 채우세요. 목표치·실제 수치는 원본에 있는 것만 사용하고, 달성 여부는 원본 서술로 판단하세요.
+5. 수치: DAU·전환율·매출·리텐션은 원본에 없으면 절대 창작 금지 — "[확인 필요]"로 표기하고, 대체 근거(사용자 인터뷰, 사용성 테스트, VOC 패턴, 이해관계자 합의 등)를 제안하세요.
+6. 직무 번역: 단순 활동을 PM 직무 언어로 번역하세요. (예: "회의를 진행했다" → "개발·디자인 리소스 제약 안에서 우선순위 기준을 합의시키는 의사결정 회의를 리드했다")
+7. 역할 구분: 팀의 결정과 "내가 주도한 결정"을 반드시 구분하고, 내 오너십 범위(단독 결정/제안 후 합의/실행 담당)를 명시하세요.
+8. 판단의 변화: 좋은 PM 경험은 가설이 맞았다는 자랑만 하지 않습니다. 예상과 달랐던 신호, 버린 가설, 그 결과 다음 결정 원칙이 어떻게 바뀌었는지를 반드시 찾으세요.
+9. 금지: "소통했습니다", "조율했습니다", "참여했습니다"로 끝나는 문장과 근거 없는 역량 태그 나열 금지 — 무엇을 어떤 기준과 근거로 결정해 무엇이 바뀌었는지까지 쓰세요.
+`;
+
+// ============================================================
 // 직군별 특화 섹션 정의 (ex.md 기반)
 // ============================================================
 const JOB_META = {
@@ -213,11 +240,11 @@ const JOB_META = {
   },
   pm: {
     label: '기획자 / PM',
-    emphasis: '문제 정의와 해결 전략의 논리, MSC 달성 여부, 비즈니스 임팩트 데이터에 집중하세요.',
+    emphasis: '사용자 문제를 바라본 관점, 검증 가능한 제품 가설, 대안을 포기한 기준, 판단에 사용한 근거, 실제 오너십의 경계, 검증 후 달라진 생각에 집중하세요.',
     sections: [
-      { key: 'strategy',       label: '해결 전략 및 기획 의도',  guide: '문제 정의, 핵심 기능 선정 기준(우선순위화 방법), 유저 플로우 설계, 이해관계자 설득 과정.' },
-      { key: 'msc',            label: 'MSC (최소 성공 기준)',   guide: '처음 설정한 최소 성공 기준(지표·수치 기준), 중간 점검 과정, 최종 달성 여부와 차이가 있었다면 원인 분석.' },
-      { key: 'businessImpact', label: '비즈니스 임팩트',        guide: '런칭 후 DAU·전환율·매출 등 유저 데이터 변화, 타 부서(개발·디자인·마케팅) 협업·설득 커뮤니케이션 사례.' },
+      { key: 'strategy',       label: '제품 판단 원칙',          guide: '사용자 가치·비즈니스 가치·리소스 제약 사이에서 우선순위를 가른 일관된 기준과 의도적으로 포기한 선택.' },
+      { key: 'msc',            label: '성공 신호 및 검증 기준',  guide: '실행 전에 성공으로 정의한 최소 기준, 가설을 반증할 조건, 관찰한 정량·정성 근거와 판단.' },
+      { key: 'businessImpact', label: '판단 결과와 관점의 변화', guide: '결정이 만든 사용자·비즈니스 변화, 예상과 달랐던 결과, 검증 후 수정한 믿음과 다음 의사결정 원칙.' },
     ],
   },
   designer: {
@@ -372,8 +399,8 @@ const JOB_KEYEXP_META = {
   },
   pm: {
     unit: '의사결정',
-    guide: '각 핵심 경험을 하나의 프로덕트 의사결정 단위로 추출: 무엇을 하기로 결정했고, 어떤 대안을 왜 기각했으며, 누구를 어떻게 설득했고, 결과를 어떻게 검증했는지.',
-    schema: '{ "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "validation": "결정 검증 방법과 결과 (데이터·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
+    guide: '각 핵심 경험을 하나의 프로덕트 의사결정 단위로 추출: 사용자·비즈니스 문제에서 어떤 가설을 세웠고, 무엇을 하기로 결정했으며, 어떤 대안을 왜 기각했고, 실행 중 어떤 난관에 부딪혀 어떻게 돌파했으며, 가설을 어떤 데이터·인터뷰·실험으로 검증해 무엇을 판단했는지가 드러나야 합니다. hypothesis는 기대한 변화와 관찰할 사용자 행동·성과가 연결된 검증 가능한 문장으로 작성하세요. obstacle에는 실행 중 가장 막혔던 지점(리소스·이해관계·기술 제약)을, resolution에는 그것을 돌파한 구체적 방법을 적으세요. learning에는 단순 소감이 아니라 검증 전 믿음과 달라진 점, 다음 결정에서 바꿀 원칙을 작성하세요. impact/effort는 원본 근거로 1~5 정수를 반드시 추정해 채우세요(우선순위 매트릭스 좌표로 그려짐) — 근거가 전혀 없을 때만 비웁니다.',
+    schema: '{ "hypothesis": "문제에서 도출한 검증 가능한 가설 1문장 (변화→예상 행동·성과)", "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "obstacle": "실행 중 부딪힌 가장 큰 난관·제약 1문장", "resolution": "그 난관을 돌파한 구체적 방법 1문장", "validation": "가설 검증 방법·기준·근거 (데이터·인터뷰·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
   },
   designer: {
     unit: '개선 반복',
@@ -436,7 +463,7 @@ const JOB_VISUAL_GUIDES = {
   aiml:     { blocks: ['kpis', 'compare', 'process'], hint: 'kpis=Accuracy·F1·AUC 등 평가 지표, compare=경량화·추론속도 최적화 전후, process=데이터수집→전처리→학습→평가→서빙 실제 수행 단계' },
   da:       { blocks: ['compare', 'kpis', 'funnel'],  hint: 'compare=A/B 실험 지표 전후, kpis=핵심 분석 지표, funnel=사용자 여정 단계별 전환(원본에 단계 수치가 있을 때만)' },
   devops:   { blocks: ['gauges', 'process', 'compare', 'kpis'], hint: 'gauges=가용성·SLA 달성률·MTTR 등 "목표 대비 현재" 게이지 지표(가용성은 %, 목표치 있으면 target), process=CI/CD 파이프라인 단계(빌드→테스트→배포 등 실제 구성), compare=비용·배포 리드타임 전후, kpis=배포 빈도 등 운영 지표' },
-  pm:       { blocks: ['goals', 'timeline', 'kpis', 'process'],   hint: 'goals=MSC(최소 성공 기준) 목표별 target/actual/achieved, timeline=프로젝트 로드맵 단계별 start/span(원본에 기간·순서 단서가 있을 때만, 상대 단위 주·월), kpis=DAU·전환율·매출 등 임팩트, process=문제정의→가설→실행→검증 흐름' },
+  pm:       { blocks: ['goals', 'kpis'],   hint: 'goals=실행 전에 정의한 가설별 성공·반증 기준과 실제 관찰값(target/actual/achieved), kpis=판단 근거가 된 사용자 행동·비즈니스 지표. 숫자가 없으면 인터뷰·사용성 테스트 등 정성 근거를 수치처럼 창작하지 말 것' },
   designer: { blocks: ['process', 'compare', 'kpis'], hint: 'process=실제 수행한 디자인 프로세스(리서치→정의→프로토타입→테스트 등), compare=사용성 테스트 전후 지표, kpis=과업성공률·만족도 등' },
   marketer: { blocks: ['kpis', 'funnel', 'mix', 'compare'], hint: 'kpis=ROAS·CVR·CTR·CPA(목표치 있으면 target), funnel=노출→클릭→전환 수치, mix=채널별 예산/성과 비중(%), compare=최적화 전후' },
   hr:       { blocks: ['funnel', 'funnelCompare', 'kpis', 'compare'],  hint: 'funnel=지원→서류→면접→최종합격 인원, funnelCompare=프로세스 개선 전후의 단계별 전환율·인원(전후 수치가 모두 원본에 있을 때만, 증가 방향 지표 위주), kpis=채용 리드타임·리텐션, compare=프로세스 개선 전후(리드타임 등)' },
@@ -470,6 +497,7 @@ function diagramSectionOf(sections) {
 export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
   const jobInfo = JOB_META[jobCategory] || JOB_META.common;
   const isMarketer = jobCategory === 'marketer';
+  const isPm = jobCategory === 'pm';
   const jobSecs = jobInfo.sections || [];
   const diagSec = diagramSectionOf(jobSecs);
   const jobSpecificSchema = jobSecs.length
@@ -477,11 +505,16 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
     : '';
   const archSchema = diagSec
     ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름(예: REST, 학습 데이터, 배포)" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
+    : isPm
+      ? ',\n  "leanCanvas": { "existingAlternatives": "기존 솔루션 — 고객이 현재 문제를 해결하는 방식", "uvp": "고유 가치 제안 — 이 제품만의 한 줄 가치", "customers": "고객 세그먼트 — 핵심 타깃 고객군", "earlyAdopters": "얼리어답터 — 문제가 가장 절실해 먼저 사용할 고객" }'
+      : '';
+  const pmFlowGuide = isPm
+    ? '\n[leanCanvas — 리너 캔버스 (문제·가치·고객 요약)] existingAlternatives, uvp, customers, earlyAdopters는 포트폴리오의 3열 캔버스에 그대로 들어갑니다. ★한눈에 스캔되도록 아주 짧게★ — 완결 문장이 아니라 핵심 키워드·명사구로, 항목당 25자 이내, 칸당 최대 3항목, 여러 항목은 줄바꿈(\\n)으로 구분하세요. (예: customers="취준생\\n주니어 직장인", earlyAdopters="포트폴리오가 급한 취준생") 문제는 product.problem에, 제안한 목표 솔루션은 product.solution에 작성하고, existingAlternatives에는 고객이 현재 쓰는 대안만 적으세요. 핵심지표는 portfolioVisuals의 검증 데이터로 구성하므로 leanCanvas에 중복 작성하지 마세요. 근거가 없는 필드는 빈 문자열로 두고, 경험정리 방법론·작성 가이드·산출물 안내는 어떤 칸에도 넣지 마세요.'
     : '';
   const visual = buildVisualPrompt(jobCategory);
   const keyExpAddon = buildKeyExpJobAddon(jobCategory);
   const jobGuide = jobSecs.length
-    ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 상세히 구조화하세요. 노드 5~9개로 충분히 디테일하게 — 클라이언트/서버뿐 아니라 인증·외부 API·저장소·핵심 도메인 모듈 등 구성요소를 분리하고, 각 노드 tech에는 실제 기술명(예: React, Node.js·Express, Firestore, Google Gemini API)을 적으세요. id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 label에는 관계/흐름(예: API 요청, 조회/저장, 연동)을 적고 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → QR 교환 → 카드 수집 → 가챠 → 리포트 전달). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가, label은 단계 이름, tech에는 그 단계에서 일어나는 일을 짧게. 자료에 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${visual.guide}`
+    ? `\n[직군 특화 섹션 — jobSpecific (면접관이 가장 먼저 보는 핵심)]\n${jobSecs.map(s => `- ${s.key}: ${s.guide}`).join('\n')}\n원본에 단서가 있으면 2~4문장으로 채우고, 전혀 없으면 빈 문자열로 두세요. (정성적 재구성은 권장, 사실 창작은 금지)${diagSec ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 상세히 구조화하세요. 노드 5~9개로 충분히 디테일하게 — 클라이언트/서버뿐 아니라 인증·외부 API·저장소·핵심 도메인 모듈 등 구성요소를 분리하고, 각 노드 tech에는 실제 기술명(예: React, Node.js·Express, Firestore, Google Gemini API)을 적으세요. id는 영문 고유값, tier는 위→아래 0부터(예: ${diagSec.tierHint}). edges의 label에는 관계/흐름(예: API 요청, 조회/저장, 연동)을 적고 from/to는 반드시 존재하는 노드 id여야 합니다. 추론할 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → QR 교환 → 카드 수집 → 가챠 → 리포트 전달). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가, label은 단계 이름, tech에는 그 단계에서 일어나는 일을 짧게. 자료에 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.` : ''}${pmFlowGuide}${visual.guide}`
     : '';
   return `당신은 포트폴리오 작성을 돕는 커리어 코치입니다.
 아래는 지원자의 경험 자료와 인터뷰 답변입니다. 이를 바탕으로 포트폴리오 "초안"을 빠르게 작성하세요.
@@ -491,7 +524,7 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
 ${NO_HALLUCINATION_RULES}
 
 ${WRITING_QUALITY_RULES}
-${isMarketer ? MARKETER_RULES : ''}
+${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
 
 [초안 작성 규칙]
 - 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 섹션에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
@@ -547,6 +580,7 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
   const jobInfo = JOB_META[jobCategory] || JOB_META.common;
   const hasJobSections = jobInfo.sections.length > 0;
   const isMarketer = jobCategory === 'marketer';
+  const isPm = jobCategory === 'pm';
 
   // 직군 특화 섹션 지시문 생성
   const jobSectionGuides = hasJobSections
@@ -564,10 +598,14 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
   const diagSec = diagramSectionOf(jobInfo.sections);
   const archSchema = diagSec
     ? ',\n  "architectureDiagram": { "nodes": [ { "id": "영문고유id", "label": "컴포넌트/단계명", "tech": "기술·역할", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "관계/흐름" } ] },\n  "flowDiagram": { "nodes": [ { "id": "영문고유id", "label": "흐름 단계명", "tech": "이 단계에서 일어나는 일", "tier": 0 } ], "edges": [ { "from": "노드id", "to": "노드id", "label": "전환 행동/조건" } ] }'
-    : '';
+    : isPm
+      ? ',\n  "leanCanvas": { "existingAlternatives": "기존 솔루션 — 고객이 현재 문제를 해결하는 방식", "uvp": "고유 가치 제안 — 이 제품만의 한 줄 가치", "customers": "고객 세그먼트 — 핵심 타깃 고객군", "earlyAdopters": "얼리어답터 — 문제가 가장 절실해 먼저 사용할 고객" }'
+      : '';
   const archGuide = diagSec
     ? `\n[architectureDiagram] ${diagSec.struct} 구조를 박스(nodes)와 연결선(edges)으로 구조화하세요. 노드 3~8개, id는 영문 고유값, tier는 위→아래 0부터(${diagSec.tierHint}). edges의 from/to는 반드시 존재하는 노드 id여야 합니다. 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n[flowDiagram] 기술 컴포넌트가 아니라 "이 서비스(아이템)가 사용자 관점에서 어떻게 흘러가는지"를 단계 박스로 그리세요 (예: 사용자 진입 → 핵심 행동 → 보상/결과 → 재방문). 노드 3~7개, tier는 흐름 순서대로 0부터 1씩 증가. 서비스 흐름 단서가 전혀 없으면 nodes/edges를 빈 배열로 두세요.\n`
-    : '';
+    : isPm
+      ? '\n[leanCanvas — 리너 캔버스 (문제·가치·고객 요약)] existingAlternatives, uvp, customers, earlyAdopters는 포트폴리오의 3열 캔버스에 그대로 들어갑니다. ★한눈에 스캔되도록 아주 짧게★ — 완결 문장이 아니라 핵심 키워드·명사구로, 항목당 25자 이내, 칸당 최대 3항목, 여러 항목은 줄바꿈(\\n)으로 구분하세요. (예: customers="취준생\\n주니어 직장인", earlyAdopters="포트폴리오가 급한 취준생") 문제는 product.problem에, 제안한 목표 솔루션은 product.solution에 작성하고, existingAlternatives에는 고객이 현재 쓰는 대안만 적으세요. 핵심지표는 portfolioVisuals의 검증 데이터로 구성하므로 leanCanvas에 중복 작성하지 마세요. 근거가 없는 필드는 빈 문자열로 두고, 경험정리 방법론·작성 가이드·산출물 안내는 어떤 칸에도 넣지 마세요.\n'
+      : '';
   const visual = buildVisualPrompt(jobCategory);
 
   const jobEmphasis = hasJobSections
@@ -625,7 +663,7 @@ ${MARKET_RESEARCH_RULES}
 ${SLIDE_PORTFOLIO_RULES}
 ${WRITING_QUALITY_RULES}
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
-${isMarketer ? MARKETER_RULES : ''}
+${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
 ${jobEmphasis}
 ${section7Guide}
 ${PRODUCT_EXTRACTION_GUIDE}
