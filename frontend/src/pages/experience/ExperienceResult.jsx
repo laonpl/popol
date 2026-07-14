@@ -32,6 +32,7 @@ import { DEMO_MARKETER_EXPERIENCE } from './demoExperience';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 import YooptaMiniEditor from '../../components/YooptaMiniEditor';
 import { blocksToYooptaValue } from '../../utils/projectSections';
+import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
 const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
@@ -4421,7 +4422,7 @@ export default function ExperienceResult() {
   const { id } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
-  const [exp, setExp] = useState(state?.analysis ? { structuredResult: state.analysis, title: state.title, jobCategory: state.jobCategory } : null);
+  const [exp, setExp] = useState(state?.analysis ? normalizeExperienceForCurrentJob({ structuredResult: state.analysis, title: state.title, jobCategory: state.jobCategory }) : null);
   const [cs, setCs] = useState(null);
   const [kit, setKit] = useState(null); // 마케터 전용 산출물(marketerKit) 편집 상태
   const [loading, setLoading] = useState(!state?.analysis);
@@ -4456,7 +4457,7 @@ export default function ExperienceResult() {
         const snap = await getDoc(doc(db, 'experiences', id));
         if (snap.exists()) {
           const data = snap.data();
-          const full = { title: data.title, jobCategory: data.jobCategory || data.structuredResult?.jobCategory || 'common', structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null };
+          const full = normalizeExperienceForCurrentJob({ title: data.title, jobCategory: data.jobCategory, structuredResult: data.structuredResult || {}, keywords: data.keywords || [], caseStudy: data.caseStudy || null, content: data.content || null });
           setExp(full);
           initCaseStudy(full);
           setKit(normalizeKit(full.structuredResult?.marketerKit));
