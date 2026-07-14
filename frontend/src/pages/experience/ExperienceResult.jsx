@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Github, Loader2, Sparkles, Search, Lightbulb, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Github, Loader2, Sparkles, Search, Lightbulb, FlaskConical, GitBranch, Scale, Wrench, BarChart3, Target, ChevronUp, ChevronDown, Trash2, Plus, RotateCcw, SlidersHorizontal, Link2 } from 'lucide-react';
 import {
   ResponsiveContainer,
   PieChart as RePieChart,
@@ -20,6 +20,7 @@ import { doc, getDoc, updateDoc } from '../../services/firestoreProxy';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import api from '../../services/api';
+import { uploadDocumentFile } from '../../services/uploadImage';
 import { mergeCaseStudyIntoStructured } from '../../utils/caseStudySync';
 import { CodeSnippet, toLines } from '../../components/portfolio/GitInsights';
 import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
@@ -2168,6 +2169,28 @@ function PmServiceTimeline({ cs, sr, onPatchSr }) {
   );
 }
 
+/* 스티키 노트 — 화이트보드에 붙인 포스트잇 느낌 (AS-IS/TO-BE 항목) */
+const STICKY_COLORS = ['#c4b5fd', '#5eead4', '#fca5a5', '#fde047', '#86efac', '#f9a8d4', '#93c5fd', '#fdba74'];
+const STICKY_ROT = [-3, 2.2, -1.6, 3, -2.4, 1.4, -2.8, 2];
+function StickyNote({ text, idx = 0, colorIdx }) {
+  // colorIdx로 AS-IS↔TO-BE 짝 색을 맞추고, 회전은 idx로 달리해 복제처럼 보이지 않게 함
+  const color = STICKY_COLORS[(colorIdx ?? idx) % STICKY_COLORS.length];
+  const rot = STICKY_ROT[idx % STICKY_ROT.length];
+  return (
+    <div
+      className="flex min-h-[104px] min-w-[150px] max-w-[260px] items-center justify-center rounded-[2px] px-4 py-4 shadow-[0_6px_14px_-5px_rgba(15,40,80,0.3)] transition-transform hover:z-[2] hover:scale-[1.03]"
+      style={{ backgroundColor: color, transform: `rotate(${rot}deg)` }}
+    >
+      <p
+        className="text-center text-[12.5px] font-bold leading-[1.55] text-[#1f2937]"
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
 /* AS-IS → PM 개입 → TO-BE — 기능 나열보다 문제를 어떤 상태 변화로 설계했는지 보여준다. */
 function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = [], goals = [], kpis = [] }) {
   const asIs = toBullets(product?.problem, 3);
@@ -2186,39 +2209,45 @@ function PmAsIsToBe({ product, strategy, keyExperiences = [], caseExperiences = 
     seenImpact.add(key);
     return true;
   }).slice(0, 3);
-  if (!asIs.length && !toBe.length && !decision && !impacts.length) return null;
-  const changeRows = Array.from({ length: Math.min(3, Math.max(asIs.length, toBe.length, 1)) }, (_, i) => ({
-    before: asIs[i] || '변화 전 문제 상태를 입력해 주세요.',
-    after: toBe[i] || '설계한 목표 상태를 입력해 주세요.',
-  }));
+  if (!asIs.length && !toBe.length && !impacts.length) return null;
+  const hasPanels = asIs.length > 0 || toBe.length > 0;
+  const asRows = asIs.length ? asIs : ['현재 상태·문제를 입력해 주세요'];
+  const toRows = toBe.length ? toBe : ['개선된 목표 상태를 입력해 주세요'];
   return (
     <section>
       <PmDocHeader en="Transformation" ko="AS-IS → TO-BE" desc="문제를 어떤 상태 변화로 설계했고, 실제로 어떤 결과를 만들었는지 보여줍니다." />
       <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white">
-        <div className="px-4 py-5 sm:px-7 sm:py-6">
-          <div className="mb-2.5 hidden grid-cols-2 sm:grid">
-            <p className="text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] text-bluewood-300">AS-IS</p>
-            <p className="text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] text-primary-600">TO-BE</p>
-          </div>
-          <div className="space-y-3">
-            {changeRows.map((row, i) => (
-              <div key={i} className="grid items-stretch sm:grid-cols-2">
-                <div className="flex min-h-[54px] items-center justify-center rounded-full border border-surface-200 bg-white px-5 py-3 text-center text-[11.5px] font-medium leading-[1.5] text-[#111827] shadow-[0_2px_7px_rgba(0,47,108,0.06)] sm:pr-9">
-                  <span className="mr-2 font-mono text-[8px] font-black text-bluewood-200 sm:hidden">AS-IS</span>{row.before}
-                </div>
-                <div className="relative z-[1] -mt-1 flex min-h-[54px] items-center justify-center rounded-full border border-primary-300 bg-primary-50/80 px-5 py-3 text-center text-[11.5px] font-bold leading-[1.5] text-primary-700 shadow-[0_3px_10px_rgba(0,47,108,0.08)] sm:-ml-7 sm:mt-0 sm:pl-9">
-                  <span className="mr-2 font-mono text-[8px] font-black text-primary-400 sm:hidden">TO-BE</span>{row.after}
-                </div>
+        {hasPanels && (
+          <div className="relative p-4 sm:p-6">
+            {/* 헤더 — 좌 AS-IS / 우 TO-BE */}
+            <div className="grid grid-cols-2">
+              <div className="pr-3 text-center sm:pr-8">
+                <p className="text-[19px] font-black tracking-tight text-bluewood-500 sm:text-[22px]">AS-IS</p>
+                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">현재 · 문제 상태</p>
               </div>
-            ))}
-          </div>
-          {decision && (
-            <div className="mx-auto mt-4 flex max-w-2xl items-start justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center">
-              <span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span>
-              <p className="text-[10.5px] font-semibold leading-[1.55] text-primary-800">{decision}</p>
+              <div className="pl-3 text-center sm:pl-8">
+                <p className="text-[19px] font-black tracking-tight sm:text-[22px]" style={{ color: ACCENT }}>TO-BE</p>
+                <p className="mt-0.5 text-[10.5px] font-semibold text-bluewood-300">개선 · 목표 상태</p>
+              </div>
             </div>
-          )}
-        </div>
+            {/* 화이트보드 — 상단 가로선 + 가운데 세로 구분선 + 컬러 스티키 노트 스캐터 */}
+            <div className="relative mt-3 grid grid-cols-2 gap-x-2 border-t-2 border-bluewood-200 pt-6 sm:gap-x-6">
+              <span className="pointer-events-none absolute -top-[2px] bottom-2 left-1/2 w-[2px] -translate-x-1/2 rounded bg-bluewood-200" />
+              <div className="flex flex-wrap content-start justify-center gap-x-3 gap-y-4 pr-1 sm:pr-4">
+                {asRows.map((t, i) => <StickyNote key={i} text={t} idx={i} />)}
+              </div>
+              <div className="flex flex-wrap content-start justify-center gap-x-3 gap-y-4 pl-1 sm:pl-4">
+                {toRows.map((t, i) => <StickyNote key={i} text={t} idx={i + 3} colorIdx={i} />)}
+              </div>
+            </div>
+            {decision && (
+              <div className="mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 rounded-xl bg-primary-50/70 px-4 py-2.5 text-center">
+                <span className="flex-shrink-0 font-mono text-[8.5px] font-black uppercase tracking-[0.12em] text-primary-400">PM 판단</span>
+                <p className="text-[11px] font-semibold leading-[1.55] text-primary-800">{decision}</p>
+              </div>
+            )}
+          </div>
+        )}
         {impacts.length > 0 && (
           <div className="border-t border-surface-200 bg-surface-50/45 px-5 py-4 sm:px-6">
             <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -2464,32 +2493,48 @@ function PmEvidenceMetrics({ kpis = [], keyExperiences = [] }) {
 
 /* 핵심 경험과 분리해 직접 설계·편집할 수 있는 PM 가설 검증표 */
 function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
+  // 각 행은 해당 경험 자체에서만 뽑아 정확하게 채운다 (goals/kpis 인덱스 짝맞춤은 어긋나므로 사용하지 않음)
   const fallbackRows = cs.keyExps.map((experience, index) => {
-    const jobData = srKE[index]?.jobData || {};
-    const goal = goals[index] || {};
-    const kpi = kpis[index] || {};
+    const src = srKE[index] || {};
+    const jobData = src.jobData || {};
+    // 지표 라벨이 "이름 (목표 수치)" 형태면 KPI 이름과 목표를 분리 — 목표 수치는 목표 열로 보낸다
+    const kpiRaw = clean(src.metricLabel);
+    const kpiMatch = kpiRaw.match(/^(.+?)\s*[（(]\s*(.+?)\s*[）)]\s*$/);
     return {
+      // 가설 = 실제 가설 문장 우선 (없으면 경험 제목)
       hypothesis: clean(jobData.hypothesis) || clean(experience.title),
-      kpi: clean(goal.label) || clean(kpi.label) || clean(experience.metric),
-      target: clean(goal.target) || clean(kpi.target),
-      achievement: clean(goal.actual) || clean(kpi.value) || clean(experience.result),
-      failureReason: clean(jobData.failureReason),
+      // 핵심 KPI = 지표 이름만 (목표 수치는 목표 열로)
+      kpi: kpiMatch ? kpiMatch[1].trim() : kpiRaw,
+      // 설정 근거 = 이 KPI를 왜/어떻게 판단 기준으로 삼았는지 (검증 방법·기준)
+      kpiRationale: clean(jobData.validation),
+      // 목표 = KPI 라벨 괄호 안 목표 수치 (예: CSAT 4점+)
+      target: kpiMatch ? kpiMatch[2].trim() : '',
+      // 달성 = 이 경험의 실제 달성 수치만 (긴 서술 금지)
+      achievement: clean(experience.metric) || clean(src.afterMetric),
+      note: clean(jobData.note) || clean(jobData.failureReason),
     };
-  }).filter(row => row.hypothesis || row.kpi || row.target || row.achievement || row.failureReason);
+  }).filter(row => row.hypothesis || row.kpi || row.kpiRationale || row.target || row.achievement || row.note);
 
   const hasStoredRows = Array.isArray(sr?.pmHypotheses);
   const sourceRows = hasStoredRows
     ? sr.pmHypotheses
     : fallbackRows.length
       ? fallbackRows
-      : [{ hypothesis: '', kpi: '', target: '', achievement: '', failureReason: '' }];
-  const rows = sourceRows.slice(0, 12).map(row => ({
-    hypothesis: clean(row?.hypothesis),
-    kpi: clean(row?.kpi),
-    target: clean(row?.target),
-    achievement: clean(row?.achievement) || clean(row?.actual),
-    failureReason: clean(row?.failureReason),
-  }));
+      : [{ hypothesis: '', kpi: '', kpiRationale: '', target: '', achievement: '', note: '' }];
+  const rows = sourceRows.slice(0, 12).map(row => {
+    // 달성은 짧은 수치만 — 실수로 긴 서술이 들어와 있으면 비고로 옮겨 표를 깔끔하게 유지
+    const rawAchievement = clean(row?.achievement) || clean(row?.actual);
+    const achievementIsProse = rawAchievement.length > 30;
+    const rawNote = clean(row?.note) || clean(row?.failureReason);
+    return {
+      hypothesis: clean(row?.hypothesis),
+      kpi: clean(row?.kpi),
+      kpiRationale: clean(row?.kpiRationale),
+      target: clean(row?.target),
+      achievement: achievementIsProse ? '' : rawAchievement,
+      note: rawNote || (achievementIsProse ? rawAchievement : ''),
+    };
+  });
 
   const persistRows = (nextRows) => onPatchSr({ ...sr, pmHypotheses: nextRows });
   const patchRow = (index, key, value) => {
@@ -2498,7 +2543,7 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
   };
   const addRow = () => {
     if (rows.length >= 12) return;
-    persistRows([...rows, { hypothesis: '', kpi: '', target: '', achievement: '', failureReason: '' }]);
+    persistRows([...rows, { hypothesis: '', kpi: '', kpiRationale: '', target: '', achievement: '', note: '' }]);
   };
   const removeRow = (index) => {
     if (rows.length <= 1) return;
@@ -2522,28 +2567,28 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-surface-200 bg-white shadow-[0_3px_10px_rgba(0,47,108,0.05)]">
-        <table className="w-full min-w-[1040px] table-fixed border-collapse text-left">
-          <thead className="bg-bluewood-950 text-white">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <thead className="text-white" style={{ backgroundColor: '#0e1526' }}>
             <tr>
-              <th className="w-14 px-4 py-3 font-mono text-[10px] font-black">#</th>
-              <th className="px-4 py-3 text-[11px] font-bold">가설</th>
-              <th className="w-[23%] px-4 py-3 text-[11px] font-bold">핵심 KPI</th>
-              <th className="w-[14%] px-4 py-3 text-[11px] font-bold">목표</th>
-              <th className="w-[15%] px-4 py-3 text-[11px] font-bold">달성 정도</th>
-              <th className="w-[24%] px-4 py-3 text-[11px] font-bold">실패 원인</th>
+              <th className="w-12 px-4 py-3.5 font-mono text-[11px] font-black">#</th>
+              <th className="px-4 py-3.5 text-[12px] font-bold">가설</th>
+              <th className="w-[28%] px-4 py-3.5 text-[12px] font-bold">핵심 KPI / 설정 근거</th>
+              <th className="w-[13%] px-4 py-3.5 text-right text-[12px] font-bold">목표</th>
+              <th className="w-[12%] px-4 py-3.5 text-right text-[12px] font-bold">달성</th>
+              <th className="w-[22%] px-4 py-3.5 text-[12px] font-bold">비고</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={`hypothesis-${index}`} className="align-middle odd:bg-white even:bg-[#f6f8fb]">
-                <td className="px-4 py-3 font-mono text-[12px] font-black text-emerald-500">H{index + 1}</td>
+              <tr key={`hypothesis-${index}`} className="group/hy align-middle odd:bg-white even:bg-[#f6f8fb]">
+                <td className="px-4 py-3.5 font-mono text-[13px] font-black text-emerald-500">H{index + 1}</td>
                 <td className="px-4 py-2.5">
                   <AutoText
                     dense
                     value={row.hypothesis}
                     onChange={(value) => patchRow(index, 'hypothesis', value)}
                     placeholder="검증할 가설을 입력하세요"
-                    className="text-[12px] font-bold leading-[1.5] text-bluewood-900"
+                    className="text-[13px] font-bold leading-[1.5] text-bluewood-900"
                   />
                 </td>
                 <td className="px-4 py-2.5">
@@ -2552,7 +2597,14 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
                     value={row.kpi}
                     onChange={(value) => patchRow(index, 'kpi', value)}
                     placeholder="판단에 사용할 핵심 KPI"
-                    className="text-[11.5px] font-semibold leading-[1.5] text-bluewood-600"
+                    className="text-[12px] font-bold leading-[1.5] text-bluewood-700"
+                  />
+                  <AutoText
+                    dense
+                    value={row.kpiRationale}
+                    onChange={(value) => patchRow(index, 'kpiRationale', value)}
+                    placeholder="설정 근거 — 이 KPI로 판단한 이유"
+                    className="mt-0.5 text-[11.5px] leading-[1.5] text-bluewood-500"
                   />
                 </td>
                 <td className="px-4 py-2.5">
@@ -2560,8 +2612,8 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
                     dense
                     value={row.target}
                     onChange={(value) => patchRow(index, 'target', value)}
-                    placeholder="예: ≥ 60%"
-                    className="text-[11.5px] font-black leading-[1.5] text-bluewood-900"
+                    placeholder="≥ 60%"
+                    className="text-right text-[12.5px] font-black leading-[1.5] text-bluewood-900"
                   />
                 </td>
                 <td className="px-4 py-2.5">
@@ -2569,27 +2621,27 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
                     dense
                     value={row.achievement}
                     onChange={(value) => patchRow(index, 'achievement', value)}
-                    placeholder="예: 82%"
-                    className="text-[11.5px] font-black leading-[1.5] text-primary-700"
+                    placeholder="—"
+                    className="text-right text-[12.5px] font-black leading-[1.5] text-primary-700"
                   />
                 </td>
                 <td className="px-4 py-2.5">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-1.5">
                     <AutoText
                       dense
-                      value={row.failureReason}
-                      onChange={(value) => patchRow(index, 'failureReason', value)}
-                      placeholder="미달 시 원인을 입력하세요"
-                      className="min-w-0 flex-1 text-[11px] leading-[1.5] text-bluewood-500"
+                      value={row.note}
+                      onChange={(value) => patchRow(index, 'note', value)}
+                      placeholder="성공 및 실패 해설"
+                      className="min-w-0 flex-1 text-[11.5px] leading-[1.5] text-bluewood-500"
                     />
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
                       disabled={rows.length <= 1}
-                      className="rounded-md p-1.5 text-bluewood-200 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-25 print:hidden"
+                      className="mt-0.5 rounded-md p-1 text-bluewood-200 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover/hy:opacity-100 disabled:cursor-not-allowed disabled:opacity-0 print:hidden"
                       aria-label={`가설 H${index + 1} 삭제`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </td>
@@ -2602,28 +2654,20 @@ function PmValidationDashboard({ cs, sr, srKE, goals, kpis, onPatchSr }) {
   );
 }
 
-/* 1~5 스케일 선택 — 우선순위 매트릭스 좌표(임팩트·투입 리소스) 입력 */
-function ScalePicker({ label, value, onChange }) {
-  const v = Number(value);
+/* 의사결정 카드의 단계 행 — 좌측 번호+라벨, 우측 내용 (체계적 기록 느낌). 모듈 레벨이라 자식 입력 포커스가 끊기지 않음 */
+function DecisionStage({ no, label, tone, children }) {
+  const c = tone === 'amber' ? '#b45309' : ACCENT;
   return (
-    <div className="flex items-center gap-2">
-      <span className="flex-shrink-0 text-[11px] font-bold text-bluewood-400">{label}</span>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map(n => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(v === n ? '' : n)}
-            className={`h-6 w-6 rounded-md text-[11px] font-bold transition-colors ${v === n ? 'text-white' : 'bg-surface-100 text-bluewood-400 hover:bg-surface-200'}`}
-            style={v === n ? { backgroundColor: ACCENT } : undefined}
-          >{n}</button>
-        ))}
+    <div className="flex gap-3.5 py-3.5 first:pt-1 last:pb-1">
+      <div className="w-[54px] flex-shrink-0 pt-0.5">
+        <p className="font-mono text-[12px] font-black leading-none" style={{ color: c }}>{no}</p>
+        <p className="mt-1 text-[10.5px] font-bold leading-[1.3] text-bluewood-400">{label}</p>
       </div>
+      <div className="min-w-0 flex-1 pt-0.5">{children}</div>
     </div>
   );
 }
-
-/* ── 의사결정 노드 — 타임라인 위 카드: 상황 → [✓ 채택 | ✕ 기각] 나란히 비교 → 실행·설득·검증 → 결과 ── */
+/* ── 의사결정 노드 — 번호 단계 기록: 01 상황 → 02 의사결정(채택/기각) → 03 어려움 돌파 → 04 결과 ── */
 function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
   const quad = quadrantOf(Number(jd.impact), Number(jd.effort));
   return (
@@ -2650,113 +2694,225 @@ function DecisionNode({ k, jd, index, onCarl, onJobData, onDelete }) {
           <button type="button" onClick={onDelete} className="flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500 print:hidden">삭제</button>
         </div>
 
-        <div className="space-y-3.5 px-5 py-4">
-          <div>
-            <p className="mb-0.5 text-[11px] font-bold text-bluewood-500">상황</p>
-            <AutoText
-              dense
-              value={k.problem}
-              onChange={(v) => onCarl('problem', v)}
-              placeholder="어떤 비즈니스·유저 문제 앞에서 판단이 필요했는지"
-              className="text-[12.5px] leading-[1.65] text-bluewood-600"
-            />
-          </div>
+        <div className="px-5 py-3">
+          <div className="divide-y divide-surface-100">
+            {/* 01 상황 */}
+            <DecisionStage no="01" label="상황">
+              <AutoText dense value={k.problem} onChange={(v) => onCarl('problem', v)} placeholder="어떤 문제 앞에서 판단이 필요했는지" className="text-[12.5px] leading-[1.65] text-bluewood-600" />
+            </DecisionStage>
 
-          {/* 채택 vs 기각 — 대안 비교가 곧 PM 판단력의 증거 */}
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <div className="rounded-xl border-2 p-3.5" style={{ borderColor: ACCENT, backgroundColor: 'rgba(0,47,108,0.03)' }}>
-              <p className="font-mono text-[10px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택한 안</p>
-              <AutoText
-                dense
-                value={jd.decision || ''}
-                onChange={(v) => onJobData({ decision: v })}
-                placeholder="선택한 방향과 그 판단 기준"
-                className="mt-1 text-[13px] font-bold leading-[1.65] text-bluewood-900"
-              />
-            </div>
-            <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-3.5">
-              <p className="font-mono text-[10px] font-black tracking-wide text-bluewood-400">✕ 검토 후 기각</p>
-              <AutoText
-                dense
-                value={jd.alternatives || ''}
-                onChange={(v) => onJobData({ alternatives: v })}
-                placeholder="검토한 대안과 기각한 이유"
-                className="mt-1 text-[12.5px] leading-[1.65] text-bluewood-500"
-              />
-            </div>
-          </div>
+            {/* 02 의사결정 — 채택 vs 기각 (대안 비교가 곧 PM 판단력의 증거) */}
+            <DecisionStage no="02" label="의사결정">
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'rgba(0,47,108,0.05)', borderLeft: `2px solid ${ACCENT}` }}>
+                  <p className="text-[9px] font-black tracking-wide" style={{ color: ACCENT }}>✓ 채택</p>
+                  <AutoText dense value={jd.decision || ''} onChange={(v) => onJobData({ decision: v })} placeholder="선택한 방향과 판단 기준" className="mt-0.5 text-[12.5px] font-bold leading-[1.6] text-bluewood-900" />
+                </div>
+                <div className="rounded-lg bg-surface-50 px-3 py-2.5">
+                  <p className="text-[9px] font-black tracking-wide text-bluewood-400">✕ 기각</p>
+                  <AutoText dense value={jd.alternatives || ''} onChange={(v) => onJobData({ alternatives: v })} placeholder="검토한 대안과 기각 이유" className="mt-0.5 text-[12px] leading-[1.6] text-bluewood-500" />
+                </div>
+              </div>
+            </DecisionStage>
 
-          <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
-            <div>
-              <p className="mb-0.5 text-[11px] font-bold text-bluewood-500">실행</p>
-              <AutoText dense value={k.action} onChange={(v) => onCarl('action', v)} placeholder="결정을 어떻게 실행에 옮겼는지" className="text-[12.5px] leading-[1.6] text-bluewood-600" />
-            </div>
-            <div>
-              <p className="mb-0.5 text-[11px] font-bold text-bluewood-500">이해관계자 설득</p>
-              <AutoText dense value={jd.stakeholders || ''} onChange={(v) => onJobData({ stakeholders: v })} placeholder="누구를 어떤 근거로 설득·조율했는지" className="text-[12.5px] leading-[1.6] text-bluewood-600" />
-            </div>
-            <div>
-              <p className="mb-0.5 text-[11px] font-bold text-bluewood-500">검증</p>
-              <AutoText dense value={jd.validation || ''} onChange={(v) => onJobData({ validation: v })} placeholder="어떤 데이터·실험으로 검증했는지" className="text-[12.5px] leading-[1.6] text-bluewood-600" />
-            </div>
-            <div>
-              <p className="mb-0.5 text-[11px] font-bold text-emerald-700">결과</p>
+            {/* 03 어려움 돌파 — 난관과 돌파 방법 (PM의 문제해결력) */}
+            <DecisionStage no="03" label="어려움 돌파" tone="amber">
+              <div className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+                <div>
+                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">부딪힌 난관</p>
+                  <AutoText dense value={jd.obstacle || ''} onChange={(v) => onJobData({ obstacle: v })} placeholder="가장 막혔던 지점·제약" className="text-[12px] leading-[1.6] text-bluewood-600" />
+                </div>
+                <div>
+                  <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: ACCENT }}>돌파 방법</p>
+                  <AutoText dense value={jd.resolution || ''} onChange={(v) => onJobData({ resolution: v })} placeholder="어떻게 풀어냈는지" className="text-[12px] font-semibold leading-[1.6] text-bluewood-800" />
+                </div>
+              </div>
+            </DecisionStage>
+
+            {/* 04 결과 */}
+            <DecisionStage no="04" label="결과">
               <AutoText dense value={k.result} onChange={(v) => onCarl('result', v)} placeholder="결정이 만든 지표·비즈니스 변화" className="text-[12.5px] font-semibold leading-[1.6] text-bluewood-900" />
-            </div>
-          </div>
-
-          {/* 우선순위 좌표 — 위 매트릭스에 그려짐 (편집 전용, 인쇄 시 숨김 — 결과는 사분면 뱃지로 표시) */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-surface-100 pt-3 print:hidden">
-            <ScalePicker label="임팩트" value={jd.impact} onChange={(v) => onJobData({ impact: v })} />
-            <ScalePicker label="투입 리소스" value={jd.effort} onChange={(v) => onJobData({ effort: v })} />
-            <span className="text-[10.5px] text-bluewood-300">좌표를 고르면 우선순위 매트릭스에 배치돼요</span>
+            </DecisionStage>
           </div>
         </div>
       </div>
   );
 }
 
-/* 레일 섹션 — 헤어라인 + 소제목 + 내용 */
-function PmRailSection({ label, children }) {
+/* 산출물 파일·링크 아이콘 — 랜딩페이지와 동일한 브랜드 SVG를 재사용 */
+const fileExtOf = (name) => String(name || '').split('.').pop().toLowerCase();
+const DELIVERABLE_TYPES = {
+  pdf: { label: 'PDF', icon: '/brand-icons/pdf.svg' },
+  ppt: { label: 'PowerPoint', icon: '/brand-icons/powerpoint.svg?v=2' },
+  pptx: { label: 'PowerPoint', icon: '/brand-icons/powerpoint.svg?v=2' },
+  key: { label: 'Keynote', short: 'K', color: '#7c3aed' },
+  hwp: { label: '한글', icon: '/brand-icons/hwp.svg' },
+  hwpx: { label: '한글', icon: '/brand-icons/hwp.svg' },
+  doc: { label: 'Word', icon: '/brand-icons/word.svg' },
+  docx: { label: 'Word', icon: '/brand-icons/word.svg' },
+  xls: { label: 'Excel', icon: '/brand-icons/excel.svg' },
+  xlsx: { label: 'Excel', icon: '/brand-icons/excel.svg' },
+  txt: { label: 'Text', short: 'TXT', color: '#64748b' },
+  zip: { label: 'ZIP', short: 'ZIP', color: '#475569' },
+};
+const DELIVERABLE_LINK_TYPES = [
+  { label: 'KakaoTalk', icon: '/brand-icons/kakaotalk.svg', test: /(^|\.)kakao\.com$|(^|\.)kakaocorp\.com$/i },
+  { label: 'Notion', icon: '/brand-icons/notion.svg', test: /(^|\.)notion\.so$|(^|\.)notion\.site$/i },
+  { label: 'Google Docs', icon: '/brand-icons/google-docs.svg', test: /(^|\.)docs\.google\.com$/i },
+  { label: 'Google Drive', icon: '/brand-icons/google-drive.svg', test: /(^|\.)drive\.google\.com$/i },
+  { label: 'Gmail', icon: '/brand-icons/gmail.svg', test: /(^|\.)gmail\.com$|(^|\.)mail\.google\.com$/i },
+  { label: 'Slack', icon: '/brand-icons/slack.svg', test: /(^|\.)slack\.com$/i },
+  { label: 'Discord', icon: '/brand-icons/discord.svg', bg: '#5865F2', test: /(^|\.)discord\.com$|(^|\.)discord\.gg$/i },
+  { label: 'Figma', icon: '/brand-icons/figma.svg', test: /(^|\.)figma\.com$/i },
+  { label: 'GitHub', icon: '/brand-icons/github.svg', bg: '#181717', test: /(^|\.)github\.com$/i },
+];
+
+const deliverableVisual = (item) => {
+  const ext = item?.ext || fileExtOf(item?.name);
+  if (DELIVERABLE_TYPES[ext]) return DELIVERABLE_TYPES[ext];
+  try {
+    const parsed = new URL(item?.url || '');
+    const matched = DELIVERABLE_LINK_TYPES.find(type => type.test.test(parsed.hostname));
+    if (matched) return matched;
+    const urlExt = fileExtOf(parsed.pathname);
+    if (DELIVERABLE_TYPES[urlExt]) return DELIVERABLE_TYPES[urlExt];
+    return { label: parsed.hostname.replace(/^www\./, '') || '링크', isLink: true };
+  } catch {
+    return { label: '파일', short: 'FILE', color: '#546e7a' };
+  }
+};
+
+const normalizeDeliverableUrl = (value) => {
+  const trimmed = String(value || '').trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+/* ── 프로젝트 산출물 — 실제 제작 파일(PDF·PPT·HWP)을 올리면 인사담당자가 클릭해 열람 ── */
+function PmDeliverables({ files, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [linkInput, setLinkInput] = useState('');
+  const inputRef = useRef(null);
+  const list = Array.isArray(files) ? files : [];
+
+  const onPick = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!picked.length) return;
+    setUploading(true);
+    const added = [];
+    for (const f of picked) {
+      try {
+        const { url, name, size } = await uploadDocumentFile(f);
+        added.push({ id: uid(), kind: 'file', name, url, ext: fileExtOf(name), size });
+      } catch (err) {
+        toast.error(err?.response?.data?.error || `'${f.name}' 업로드에 실패했어요`);
+      }
+    }
+    if (added.length) onChange([...list, ...added]);
+    setUploading(false);
+  };
+  const remove = (id) => onChange(list.filter(f => f.id !== id));
+  const addLink = (e) => {
+    e.preventDefault();
+    const url = normalizeDeliverableUrl(linkInput);
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid protocol');
+      const visual = deliverableVisual({ url });
+      onChange([...list, {
+        id: uid(),
+        kind: 'link',
+        name: visual.label || parsed.hostname.replace(/^www\./, ''),
+        url,
+      }]);
+      setLinkInput('');
+    } catch {
+      toast.error('올바른 웹 링크를 입력해 주세요');
+    }
+  };
+
   return (
     <div className="mt-4 border-t border-surface-200 pt-4">
-      <p className="mb-2.5 text-[10.5px] font-black uppercase tracking-[0.14em] text-bluewood-400">{label}</p>
-      {children}
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-bluewood-400">프로젝트 산출물</p>
+        {list.length > 0 && <span className="text-[10.5px] text-bluewood-300">눌러서 열기</span>}
+      </div>
+      <input ref={inputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.key,.txt,.zip" className="hidden" onChange={onPick} />
+
+      {list.length > 0 && (
+        <div className="mb-3 grid grid-cols-3 gap-x-2.5 gap-y-4">
+          {list.map(f => {
+            const visual = deliverableVisual(f);
+            return (
+              <div key={f.id} className="group/f relative flex min-w-0 flex-col items-center gap-1.5">
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-[90px] w-[90px] items-center justify-center overflow-hidden rounded-[22px] border border-surface-200 bg-white shadow-[0_5px_15px_rgba(0,47,108,0.11)] transition-all hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md"
+                  style={visual.bg ? { backgroundColor: visual.bg } : undefined}
+                  title={`${f.name || visual.label} 열기`}
+                >
+                  {visual.icon ? (
+                    <img src={visual.icon} alt={visual.label} className="h-[54px] w-[54px] object-contain" loading="lazy" decoding="async" />
+                  ) : visual.isLink ? (
+                    <Link2 size={38} className="text-primary-600" />
+                  ) : (
+                    <span className="flex h-[60px] w-[60px] items-center justify-center rounded-2xl text-white" style={{ backgroundColor: visual.color }}>
+                      <span className={`font-black tracking-tight ${visual.short?.length > 1 ? 'text-[12px]' : 'text-[24px]'}`}>{visual.short}</span>
+                    </span>
+                  )}
+                  <span className="sr-only">{f.name || visual.label}</span>
+                </a>
+                <span className="block w-full truncate text-center text-[10px] font-semibold leading-tight text-bluewood-500" title={f.name || visual.label}>
+                  {f.name || visual.label}
+                </span>
+                <button type="button" onClick={() => remove(f.id)} className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full border border-surface-200 bg-white text-bluewood-300 opacity-0 shadow-sm transition hover:text-red-500 group-hover/f:opacity-100 print:hidden" aria-label="삭제">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-300 py-2.5 text-[12px] font-semibold text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 print:hidden"
+      >
+        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}
+        {uploading ? '올리는 중…' : '파일 추가'}
+      </button>
+
+      <form onSubmit={addLink} className="mt-2 flex items-center gap-1.5 print:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-2.5 focus-within:border-primary-300">
+          <Link2 size={13} className="flex-shrink-0 text-bluewood-300" />
+          <input
+            type="text"
+            value={linkInput}
+            onChange={(e) => setLinkInput(e.target.value)}
+            placeholder="Notion · Figma · Drive 링크"
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-[11px] text-bluewood-700 outline-none placeholder:text-bluewood-200"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!linkInput.trim()}
+          className="flex-shrink-0 rounded-xl bg-primary-600 px-3 py-2.5 text-[10.5px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          추가
+        </button>
+      </form>
     </div>
   );
 }
 
-/* ── 좌측 제품 판단 프로필 — 결과 요약이 아니라 PM이 문제를 보고 판단한 방식을 압축한다. */
-function PmHeroRail({ cs, sr, setField, setMeta }) {
-  const srKE = Array.isArray(sr?.keyExperiences) ? sr.keyExperiences : [];
-  const js = sr?.jobSpecific || {};
-  const visuals = normalizePortfolioVisuals(sr, { keyExperiences: srKE, jobSections: PM_METRIC_SECTIONS });
-  const goals = visuals.goals || [];
-  const kpis = visuals.kpis || [];
-  const jobData = srKE.map(k => k?.jobData || {});
-  const firstOf = (values) => values.map(clean).find(Boolean) || '';
-  const alternative = firstOf(jobData.map(j => j.alternatives));
-  const validation = firstOf(jobData.map(j => j.validation));
-  const stakeholders = firstOf(jobData.map(j => j.stakeholders));
-  const learning = firstOf(cs.keyExps.map(k => k.learning));
-  const successSignals = [
-    ...goals.slice(0, 2).map(g => `${g.label}${g.target ? ` · 목표 ${g.target}` : ''}`),
-    ...kpis.slice(0, 2).map(k => `${k.label} · ${k.value}`),
-  ].filter(Boolean).slice(0, 3);
-
-  const ProfileBlock = ({ index, label, value, fallback, accent = false }) => (
-    <div className="relative pl-7">
-      <span className="absolute left-0 top-0.5 font-mono text-[10px] font-black tabular-nums" style={{ color: accent ? ACCENT : '#94a3b8' }}>{String(index).padStart(2, '0')}</span>
-      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.13em] text-bluewood-400">{label}</p>
-      <p className={`text-[12.5px] leading-[1.65] ${value ? (accent ? 'font-bold text-bluewood-900' : 'text-bluewood-600') : 'text-bluewood-300'}`}>{value || fallback}</p>
-    </div>
-  );
-
+/* ── 좌측 레일 — 제목 · 요약 · 역할/기간/팀 + 프로젝트 산출물 파일 ── */
+function PmHeroRail({ cs, sr, setField, setMeta, onPatchSr }) {
   return (
     <div className="lg:pr-2">
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="text-[11.5px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>Product Thinking Profile</p>
-      </div>
       <AutoText
         prose
         value={cs.title}
@@ -2768,11 +2924,11 @@ function PmHeroRail({ cs, sr, setField, setMeta }) {
         prose
         value={cs.summary}
         onChange={(v) => setField('summary', v)}
-        placeholder="이 프로젝트에서 내가 증명한 제품 판단을 한 문장으로"
+        placeholder="이 프로젝트를 한 문장으로"
         className="mt-2 text-[13.5px] leading-[1.55] text-bluewood-500"
       />
 
-      {/* 메타 — 역할·기간·팀 (담당 범위) */}
+      {/* 메타 — 역할·기간·팀 */}
       <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-surface-200 pt-4">
         {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
           <div key={m.k} className="min-w-0">
@@ -2782,47 +2938,8 @@ function PmHeroRail({ cs, sr, setField, setMeta }) {
         ))}
       </div>
 
-      {/* 성공을 무엇으로 정의했는지 — 결과 숫자가 아니라 사전에 세운 판단 기준 */}
-      <PmRailSection label="성공을 판단한 신호">
-        {successSignals.length > 0 ? (
-          <ul className="space-y-2">
-            {successSignals.map((signal, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] leading-[1.55] text-bluewood-600">
-                <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: ACCENT }} />
-                <span>{signal}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[12px] leading-relaxed text-bluewood-300">결과가 아니라, 결정을 내리기 전에 성공으로 볼 기준을 먼저 정의해 주세요.</p>
-        )}
-      </PmRailSection>
-
-      {/* PM의 판단 품질 — 원칙, 포기한 선택, 검증 근거가 한 세트로 보인다. */}
-      <PmRailSection label="Decision Quality">
-        <div className="space-y-4">
-          <ProfileBlock index={1} label="의사결정 원칙" value={clean(js.strategy)} fallback="우선순위를 가른 일관된 기준을 작성해 주세요." accent />
-          <ProfileBlock index={2} label="의도적으로 포기한 선택" value={alternative} fallback="선택하지 않은 대안과 그 이유를 남겨 주세요." />
-          <ProfileBlock index={3} label="판단에 사용한 근거" value={validation} fallback="인터뷰·행동 데이터·실험 등 실제 검증 근거를 남겨 주세요." />
-        </div>
-      </PmRailSection>
-
-      {/* 직책명이 아니라 실제로 책임진 판단과 설득의 경계를 보여준다. */}
-      <PmRailSection label="Ownership Boundary">
-        <div className="rounded-xl border border-surface-200 bg-surface-50/50 p-3.5">
-          <p className="text-[12.5px] font-bold leading-[1.55] text-bluewood-800">{clean(cs.meta.role) || '담당한 판단 범위를 역할에 적어 주세요.'}</p>
-          <p className="mt-1.5 text-[11.5px] leading-[1.6] text-bluewood-500">{stakeholders || '누구와 합의하고 누구를 설득했는지 작성해 주세요.'}</p>
-        </div>
-      </PmRailSection>
-
-      {/* 결과보다 더 PM다운 신호: 검증 후 기존 믿음을 어떻게 수정했는가 */}
-      <PmRailSection label="Belief Update">
-        <div className="border-l-2 pl-3.5" style={{ borderColor: ACCENT }}>
-          <p className={`text-[12.5px] leading-[1.7] ${learning ? 'font-medium text-bluewood-700' : 'text-bluewood-300'}`}>
-            {learning || '검증 전의 생각과 달라진 점, 다음 결정에서 바꿀 원칙을 남겨 주세요.'}
-          </p>
-        </div>
-      </PmRailSection>
+      {/* 프로젝트 산출물 — 인사담당자가 원하면 열어보는 실제 제작 파일 */}
+      <PmDeliverables files={sr?.pmFiles} onChange={(next) => onPatchSr({ ...sr, pmFiles: next })} />
     </div>
   );
 }
@@ -2883,13 +3000,13 @@ function PmDoc({ cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, 
   return (
     <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
       {/* ════ 좌측 — PM의 문제 프레이밍·판단 원칙·근거·오너십을 보여주는 제품 판단 프로필 ════ */}
-      <PmHeroRail cs={cs} sr={sr} setField={setField} setMeta={setMeta} />
+      <PmHeroRail cs={cs} sr={sr} setField={setField} setMeta={setMeta} onPatchSr={onPatchSr} />
 
       {/* ════ 우측 — 린 캔버스 · 의사결정 로그 · 가설 및 검증 ════ */}
       <div className="min-w-0 space-y-9">
       {/* 기획 사이클 스트립 — 이 문서의 읽는 순서이자 일하는 방식 */}
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-surface-100 pb-3">
-        {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단'], ['Learn', '회고']].map(([en2, ko2], i) => (
+        {[['Define', '문제 정의'], ['Hypothesize', '가설 수립'], ['Test', '검증'], ['Decide', '판단']].map(([en2, ko2], i) => (
           <span key={en2} className="flex items-center gap-1.5">
             {i > 0 && <span className="text-[10px] text-bluewood-200">→</span>}
             <span className="font-mono text-[9.5px] font-black uppercase tracking-[0.14em]" style={{ color: ACCENT }}>{en2}</span>
@@ -2923,25 +3040,14 @@ function PmDoc({ cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, 
 
       <PmAsIsToBe product={product} strategy={js.strategy} keyExperiences={srKE} caseExperiences={cs.keyExps} goals={goals} kpis={kpis} />
 
-      {/* ── 의사결정 로그 — 화면: 번호 탭으로 한 건씩 / 인쇄: 전건 펼침 ── */}
+      {/* ── 의사결정 & 어려움 해결 — 화면: 번호 탭으로 한 건씩 / 인쇄: 전건 펼침 ── */}
       <section className={cs.keyExps.length === 0 ? 'print:hidden' : ''}>
         <PmDocHeader
-          en="Decision Log" ko="의사결정 로그"
-          desc="무엇을 채택했고, 어떤 대안을 왜 버렸는지 — 이 프로젝트에서 내린 판단의 기준을 그대로 공개합니다."
+          en="Decision & Problem-Solving" ko="의사결정 & 어려움 해결"
+          desc="무엇을 채택하고 어떤 대안을 왜 버렸는지, 그리고 실행 중 부딪힌 난관을 어떻게 돌파했는지까지 한 흐름으로 담습니다."
           right={cs.keyExps.length > 0 ? <span className="flex-shrink-0 text-[11.5px] font-semibold text-bluewood-300">{cs.keyExps.length}건</span> : null}
         />
-        {/* 판단 기준 — 우선순위를 정한 원칙 (기획 전략) */}
-        <div className="mb-4 border-l-2 pl-3.5" style={{ borderColor: ACCENT }}>
-          <p className="mb-0.5 text-[10.5px] font-bold uppercase tracking-wide text-bluewood-300">판단 기준</p>
-          <AutoText
-            dense
-            value={clean(js.strategy)}
-            onChange={(v) => patchJobSpecific('strategy', v)}
-            placeholder="이 프로젝트에서 어떤 기준으로 우선순위를 정하고 결정을 내렸는지 (기획 전략)"
-            className="text-[13px] leading-[1.75] text-bluewood-600"
-          />
-        </div>
-        {matrixItems.length > 0 && <div className="-mt-5 mb-3"><PriorityMatrix items={matrixItems} accent={ACCENT} /></div>}
+        {matrixItems.length > 0 && <div className="mb-3"><PriorityMatrix items={matrixItems} accent={ACCENT} /></div>}
 
         {cs.keyExps.length > 0 ? (
           <>
@@ -2996,7 +3102,7 @@ function PmDoc({ cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, 
       <section>
         <PmDocHeader
           en="Hypothesis & Validation" ko="가설 및 검증"
-          desc="가설별 KPI와 목표, 달성 정도를 비교하고 미달 원인까지 한눈에 정리합니다."
+          desc="가설별 핵심 KPI·설정 근거·목표·달성·비고를 한 장의 표로 설계합니다."
         />
         <div className="space-y-3">
           <PmValidationDashboard
@@ -3018,27 +3124,6 @@ function PmDoc({ cs, sr, setField, setMeta, setKeyExp, addKeyExp, removeKeyExp, 
           )}
         </div>
       </section>
-
-      {/* ── 회고 — 배운 점을 한 줄씩 담백하게 ── */}
-      {cs.keyExps.some(k => clean(k.learning)) && (
-        <section>
-          <PmDocHeader en="Retrospective" ko="회고" desc="이 프로젝트가 남긴 판단 기준 — 다음 기획에서 다르게 결정할 지점들입니다." />
-          <ul className="divide-y divide-surface-100 overflow-hidden rounded-2xl border border-surface-200">
-            {cs.keyExps.map((k, i) => clean(k.learning) && (
-              <li key={k.id} className="flex items-start gap-3 px-4 py-3">
-                <span className="mt-px flex-shrink-0 font-mono text-[12px] font-black tabular-nums" style={{ color: ACCENT }}>{String(i + 1).padStart(2, '0')}</span>
-                <AutoText
-                  dense
-                  value={k.learning}
-                  onChange={(v) => setKeyExp(k.id, 'learning', v)}
-                  placeholder="이 결정에서 배운 점"
-                  className="text-[12.5px] leading-[1.65] text-bluewood-600"
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {/* ── 첨부 — 자유 본문/사진 (내용 없으면 인쇄에서 제외) ── */}
       <section className={`border-t border-surface-200 pt-7 ${cs.body.some(s => (s.type === 'image' ? s.content : String(s.content || '').trim())) ? '' : 'print:hidden'}`}>

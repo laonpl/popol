@@ -140,6 +140,8 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
         analysis.product = analysis.product || data.structuredResult?.product || null;
         analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
         analysis.leanCanvas = data.structuredResult?.leanCanvas || analysis.leanCanvas || null;
+        analysis.pmHypotheses = data.structuredResult?.pmHypotheses || analysis.pmHypotheses || null;
+        analysis.pmFiles = data.structuredResult?.pmFiles || analysis.pmFiles || null;
         await docRef.update({
           structuredResult: analysis,
           keywords: analysis.keywords || [],
@@ -180,6 +182,8 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     analysis.product = analysis.product || data.structuredResult?.product || null;
     analysis.portfolioVisuals = analysis.portfolioVisuals || data.structuredResult?.portfolioVisuals || null;
     analysis.leanCanvas = data.structuredResult?.leanCanvas || analysis.leanCanvas || null;
+    analysis.pmHypotheses = data.structuredResult?.pmHypotheses || analysis.pmHypotheses || null;
+    analysis.pmFiles = data.structuredResult?.pmFiles || analysis.pmFiles || null;
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
