@@ -5,6 +5,10 @@ import {
   Sparkles, Save, Pencil, TrendingUp, ShieldCheck,
   ArrowLeft, ArrowRight, ChevronRight, CheckCircle2,
 } from 'lucide-react';
+import { BuildingsIcon } from '@phosphor-icons/react/dist/csr/Buildings';
+import { BracketsCurlyIcon } from '@phosphor-icons/react/dist/csr/BracketsCurly';
+import { ChartLineUpIcon } from '@phosphor-icons/react/dist/csr/ChartLineUp';
+import { KanbanIcon } from '@phosphor-icons/react/dist/csr/Kanban';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
@@ -145,9 +149,13 @@ const SECTION_DEFS = [
   { key: 'competency', label: '나의 역량', q: '이 경험에서 드러난 본인의 역량은 무엇이라고 생각하나요?' },
 ];
 
-const JOB_LABELS = Object.fromEntries(
-  JOB_CATEGORIES.flatMap(g => g.items.map(it => [it.value, it.label]))
-);
+const JOB_LABELS = {
+  ...Object.fromEntries(JOB_CATEGORIES.flatMap(g => g.items.map(it => [it.value, it.label]))),
+  common: '공통',
+  dev: '개발자',
+  marketer: '마케팅',
+  pm: '기획 / PM',
+};
 
 /* 마케터 캠페인 스토리 단계 (ma.md: 문제→목표→타깃→전략→실행→성과→인사이트) */
 const FUNNEL_STEPS = [
@@ -237,56 +245,59 @@ const MARKETER_FIELDS = [
 
 const EXPERIENCE_OPTION_META = {
   common: {
-    helper: '직군을 딱 잘라 말하기 어렵거나 여러 역할이 섞인 경험',
-    examples: '동아리 프로젝트 · 공모전 · 팀 활동',
-    keywords: '상황 · 역할 · 결과',
+    helper: '특정 태그가 없거나 여러 역할이 섞인 경험을 기본 구조로 정리해요.',
+    examples: '디자인 · 데이터/AI · 인사 · 영업 · 운영 · 기타 직군 포함',
+    keywords: '상황 · 역할 · 실행 · 결과',
   },
   dev: {
     helper: '기술 선택, 구현 과정, 트러블슈팅, 성능 개선을 보여줄 경험',
     examples: '웹 서비스 개발 · API 설계 · 성능 최적화',
     keywords: '문제 해결 · 기술 선택 · 성능',
   },
-  aiml: {
-    helper: '데이터셋, 모델링, 실험, 평가 지표를 설명할 수 있는 경험',
-    examples: '모델 학습 · 추천 시스템 · 실험 리포트',
-    keywords: '데이터 · 모델 · 평가',
-  },
-  da: {
-    helper: '데이터로 문제를 정의하고 인사이트나 액션을 만든 경험',
-    examples: '대시보드 · A/B 테스트 · 지표 분석',
-    keywords: '가설 · 분석 · 인사이트',
-  },
-  devops: {
-    helper: '배포, 인프라, 자동화, 비용이나 안정성 개선을 다룬 경험',
-    examples: 'CI/CD · 클라우드 인프라 · 모니터링',
-    keywords: '자동화 · 안정성 · 비용',
-  },
   pm: {
     helper: '문제 정의, 사용자 흐름, 우선순위와 출시 판단을 보여줄 경험',
     examples: 'PRD · 기능 기획 · 런칭 회고',
     keywords: '문제 정의 · 우선순위 · 출시',
-  },
-  designer: {
-    helper: '리서치, 프로토타입, 사용성 개선, 디자인 시스템을 다룬 경험',
-    examples: 'UX 리서치 · 프로토타입 · UI 개선',
-    keywords: '리서치 · 개선 · 사용성',
   },
   marketer: {
     helper: '타깃, 메시지, 채널, 성과 지표를 중심으로 정리할 경험',
     examples: 'SNS 캠페인 · 콘텐츠 운영 · 퍼포먼스 개선',
     keywords: '타깃 · 메시지 · 성과',
   },
-  hr: {
-    helper: '채용, 온보딩, 조직문화, 구성원 경험을 개선한 경험',
-    examples: '채용 퍼널 · 온보딩 · 리텐션 프로그램',
-    keywords: '프로세스 · 구성원 경험 · 전환',
-  },
-  sales: {
-    helper: '리드 발굴, 제안, 협상, 계약 성과를 보여줄 경험',
-    examples: 'B2B 제안 · 리드 제너레이션 · 계약 전환',
-    keywords: '리드 · 제안 · 계약',
-  },
 };
+
+// 새 경험 만들기의 첫 선택지는 실제 전용 결과 화면이 있는 네 가지 흐름만 노출한다.
+// 나머지 직군은 기존 데이터 호환성을 유지하되, 새 경험에서는 공통 구조로 통합한다.
+const PRIMARY_EXPERIENCE_OPTIONS = [
+  {
+    value: 'common',
+    label: '공통 경험',
+    description: '직군 태그 없이 역할과 성과를 중심으로 정리합니다.',
+    icon: BuildingsIcon,
+    premiumIcon: true,
+  },
+  {
+    value: 'dev',
+    label: '개발자',
+    description: '기술적 문제 해결과 구현 임팩트를 정리합니다.',
+    icon: BracketsCurlyIcon,
+    premiumIcon: true,
+  },
+  {
+    value: 'marketer',
+    label: '마케팅',
+    description: '타깃과 채널, 캠페인 성과를 정리합니다.',
+    icon: ChartLineUpIcon,
+    premiumIcon: true,
+  },
+  {
+    value: 'pm',
+    label: '기획 / PM',
+    description: '문제 정의와 우선순위, 의사결정을 정리합니다.',
+    icon: KanbanIcon,
+    premiumIcon: true,
+  },
+];
 
 const MARKETER_OPTION_META = {
   contentPlan: {
@@ -343,12 +354,19 @@ function BotFace({ size = 22 }) {
   );
 }
 
+/* 작은 영역에서는 크롭된 로고 대신 내부 챗봇 심볼을 사용한다. */
+function FitPolyChatbotMark({ className = '' }) {
+  return (
+    <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center ${className}`} aria-hidden="true">
+      <BotFace size={30} />
+    </span>
+  );
+}
+
 /* AI 아바타 — 챗봇 캐릭터, 대화 내내 숨쉬듯 떠 있는 모션 */
 function AiAvatar() {
   return (
-    <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-primary-100 bg-primary-50 text-[13px] font-black text-primary-700">
-      F
-    </span>
+    <FitPolyChatbotMark className="mt-0.5" />
   );
 }
 
@@ -566,9 +584,7 @@ function FocusHeader({ phase }) {
 function FitPolyGuidePanel({ children }) {
   return (
     <section className="flex gap-3 rounded-[14px] bg-[#F1F5FF] px-4 py-4 text-left sm:px-[18px]" aria-label="FitPoly 경험 가이드">
-      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] font-black text-primary-700 shadow-[0_1px_3px_rgba(16,24,40,0.06)]" aria-hidden="true">
-        F
-      </span>
+      <FitPolyChatbotMark className="mt-0.5" />
       <div>
         <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
         <p className="mt-1 text-[15px] leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
@@ -579,40 +595,46 @@ function FitPolyGuidePanel({ children }) {
   );
 }
 
-function SelectionOption({ option, selected = false, onSelect, meta }) {
+function SelectionOption({ option, selected = false, onSelect, meta, compact = false }) {
   const helper = meta?.helper || option.description;
   const examples = meta?.examples || option.description;
   const keywords = meta?.keywords;
+  const Icon = option.icon || FileText;
   return (
     <button
       type="button"
       role="radio"
       aria-checked={selected}
       onClick={() => onSelect(option)}
-      className={`group flex min-h-[104px] w-full items-start justify-between gap-4 rounded-[14px] border bg-white px-5 py-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${
+      className={`group relative flex w-full items-start justify-between gap-4 overflow-hidden rounded-[16px] border bg-white text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${compact ? 'min-h-[170px] px-5 py-5' : 'min-h-[104px] px-5 py-4'} ${
         selected
-          ? 'border-primary-500 ring-1 ring-primary-100'
-          : 'border-surface-200 hover:-translate-y-0.5 hover:border-primary-200'
+          ? 'border-primary-500 -translate-y-0.5 ring-2 ring-primary-100 shadow-[0_8px_24px_rgba(49,65,87,0.08)]'
+          : 'border-surface-200 shadow-[0_1px_2px_rgba(16,24,40,0.03)] hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-[0_8px_24px_rgba(49,65,87,0.07)]'
       }`}
     >
       <span className="min-w-0">
-        <span className="flex items-center gap-2 text-[16px] font-bold leading-snug text-bluewood-900">
-          {option.label}
-          {selected && <span className="text-[12px] font-bold text-primary-700">선택됨</span>}
+        <span className="mb-3 flex h-9 items-center text-[#111111]" aria-hidden="true">
+          {option.premiumIcon
+            ? <Icon size={30} weight="regular" />
+            : <Icon size={20} strokeWidth={1.9} />}
         </span>
-        <span className="mt-1.5 block text-[14px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+        <span className="flex items-center gap-2 text-[17px] font-extrabold leading-snug text-bluewood-900">
+          {option.label}
+          {selected && <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700">선택됨</span>}
+        </span>
+        <span className="mt-1.5 block text-[13.5px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
           {helper}
         </span>
-        <span className="mt-2 block text-[13px] font-semibold leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>
+        <span className="mt-2 block text-[12px] font-semibold leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>
           {examples}
         </span>
-        {keywords && (
+        {keywords && !compact && (
           <span className="mt-3 inline-flex rounded-lg bg-surface-50 px-2.5 py-1 text-[12px] font-bold text-bluewood-500">
-            질문 키워드: {keywords}
+            질문 키워드 · {keywords}
           </span>
         )}
       </span>
-      <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+      <span className={`absolute right-4 top-4 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
         selected ? 'bg-primary-600 text-white' : 'bg-surface-50 text-bluewood-300 group-hover:bg-primary-50 group-hover:text-primary-700'
       }`}>
         {selected ? <Check size={16} aria-hidden="true" /> : <ChevronRight size={17} aria-hidden="true" />}
@@ -672,23 +694,23 @@ function ExperienceSelectionWorkspace({
         description: item.desc,
         raw: item,
       }))
-    : JOB_CATEGORIES.flatMap(group => group.items.map(item => ({ ...item, group: group.group })));
+    : PRIMARY_EXPERIENCE_OPTIONS;
   const selectedValue = selectedOption?.value || (isMarketerStep ? marketerField?.key : jobCategory);
   const context = isMarketerStep ? '경험 정리 · 마케터' : '경험 정리';
   const question = isMarketerStep ? '어떤 마케팅 경험부터 정리해볼까요?' : '어떤 분야의 경험부터 정리해볼까요?';
   const guide = isMarketerStep
     ? '선택한 경험을 바탕으로 역할, 과정, 성과를 차근차근 질문할게요. 정확히 맞지 않아도 괜찮고, 결과가 완성되기 전까지 언제든 수정할 수 있습니다.'
-    : '먼저 경험의 큰 분야를 정해볼게요. 가장 가까운 항목을 고르면 이후 질문과 자료 입력 방식이 그 분야에 맞춰 정리됩니다.';
+    : '전용 정리 방식이 있는 분야만 간단히 모았어요. 디자인·데이터·AI·인사·영업 등 나머지 경험은 공통을 선택하면 역할과 성과 중심으로 정리됩니다.';
 
   return (
     <div className="min-h-full bg-[#F7F9FC]">
       <FocusHeader phase={phase} />
-      <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+      <main className="mx-auto w-full max-w-[1040px] px-4 pb-16 pt-5 sm:px-6 sm:pt-7 lg:px-8">
         <ExperienceBackLink />
-        <div className="mt-8">
+        <div className="mt-4">
           <FlowStepper phase={phase} />
         </div>
-        <section className="mt-10">
+        <section className="mt-7">
           <p className="text-[13px] font-bold text-primary-700">{context}</p>
           <h1 className="mt-2 max-w-[760px] text-[28px] font-extrabold leading-[1.35] text-bluewood-900 sm:text-[32px]" style={{ wordBreak: 'keep-all' }}>
             {question}
@@ -697,14 +719,14 @@ function ExperienceSelectionWorkspace({
             완벽하게 기억하지 않아도 괜찮아요. 가장 가까운 항목을 하나 선택해주세요.
           </p>
         </section>
-        <div className="mt-6">
+        <div className="mt-4">
           <FitPolyGuidePanel>{guide}</FitPolyGuidePanel>
         </div>
-        <section className="mt-8" aria-labelledby="experience-type-heading">
+        <section className="mt-5" aria-labelledby="experience-type-heading">
           <h2 id="experience-type-heading" className="sr-only">
             경험 유형 선택
           </h2>
-          <div role="radiogroup" aria-label={question} className="space-y-3">
+          <div role="radiogroup" aria-label={question} className={isMarketerStep ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>
             {options.map(option => {
               const actualOption = option.raw || option;
               const meta = isMarketerStep ? MARKETER_OPTION_META[option.value] : EXPERIENCE_OPTION_META[option.value];
@@ -718,6 +740,7 @@ function ExperienceSelectionWorkspace({
                     setSelectedOption(option);
                   }}
                   meta={meta}
+                  compact={!isMarketerStep}
                 />
               );
             })}
@@ -744,7 +767,7 @@ function ExperienceSelectionWorkspace({
             )}
           </div>
         )}
-        <div className="mt-8 flex flex-col gap-4 border-t border-surface-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-4 border-t border-surface-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1 text-[13.5px] leading-relaxed text-bluewood-500">
             <p className="inline-flex items-center gap-2">
               <CheckCircle2 size={16} className="text-caribbean-600" aria-hidden="true" />
