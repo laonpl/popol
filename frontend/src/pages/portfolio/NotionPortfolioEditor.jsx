@@ -16,6 +16,7 @@ import useAuthStore from '../../stores/authStore';
 import usePortfolioStore from '../../stores/portfolioStore';
 import useExperienceStore, { FRAMEWORKS } from '../../stores/experienceStore';
 import JobLinkInput, { JobAnalysisBadge, buildDisplayPortfolioRequirements } from '../../components/JobLinkInput';
+import JobAnalysisDockPanel, { JOB_DOCK_WIDTH } from '../../components/JobAnalysisDockPanel';
 import api from '../../services/api';
 import { uploadImageUrl } from '../../services/uploadImage';
 import toast from 'react-hot-toast';
@@ -1036,7 +1037,8 @@ export default function NotionPortfolioEditor() {
   const [editMode, setEditMode] = useState(
     new URLSearchParams(location.search).get('mode') === 'form' ? 'form' : 'visual'
   );
-  const [analysisMode, setAnalysisMode] = useState(true);
+  const [analysisOpen, setAnalysisOpen] = useState(false); // 기업분석 도킹 패널 — 기업 연결 시 로드 후 자동 열림
+  const [sectionPanelOpen, setSectionPanelOpen] = useState(false); // 툴바 '섹션' 드롭다운
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useUnsavedChanges(hasUnsavedChanges && !saving);
@@ -1107,6 +1109,7 @@ export default function NotionPortfolioEditor() {
         if (!merged.skillLevels) merged.skillLevels = {};
         setPortfolio(merged);
         setCurrentPortfolio(merged);
+        setAnalysisOpen(!!merged.jobAnalysis); // 기업이 연결돼 있으면 패널 기본 열림
       }
       await useExperienceStore.getState().fetchExperiences(user.uid);
       setUserExperiences(useExperienceStore.getState().experiences);
@@ -1422,7 +1425,7 @@ export default function NotionPortfolioEditor() {
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (goPreview = false) => {
     setSaving(true);
     try {
       flushEmbeddedEditors();
@@ -1432,7 +1435,7 @@ export default function NotionPortfolioEditor() {
       setCurrentPortfolio(snapshot);
       setHasUnsavedChanges(false);
       toast.success('저장되었습니다');
-      navigate(`/app/portfolio/preview/${id}`);
+      if (goPreview) navigate(`/app/portfolio/preview/${id}`);
     } catch (error) {
       toast.error('저장에 실패했습니다');
     }
@@ -1455,48 +1458,67 @@ export default function NotionPortfolioEditor() {
   }
 
   return (
-    <div className="animate-fadeIn w-full max-w-[1280px] mx-auto">
-      {/* Top bar — 경험 정리(자세히 보기) 헤더와 같은 톤 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link to="/app/portfolio" className="inline-flex items-center gap-2 text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
-            <ArrowLeft size={15} /> 포트폴리오 목록으로
-          </Link>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1 text-[12px] font-bold text-primary-600 ring-1 ring-primary-100">
-            편집 중
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {hasUnsavedChanges && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[12px] font-bold text-bluewood-500 ring-1 ring-surface-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
-              저장되지 않음
+    <div className="animate-fadeIn w-full">
+      {/* ── 상단 툴바 — 웹 에디터와 동일 스타일 (스티키, 풀블리드) ── */}
+      <div className="sticky top-0 z-[60] -mx-8 -mt-8 mb-6 bg-white/95 backdrop-blur border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 md:px-6 h-14">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/app/portfolio" className="flex items-center gap-1.5 text-[13px] font-bold text-gray-400 hover:text-gray-700 transition-colors shrink-0">
+              <ArrowLeft size={15} /> 목록
+            </Link>
+            <span className="w-px h-4 bg-gray-200" />
+            <p className="text-[14px] font-black text-gray-800 truncate">{portfolio.title || portfolio.headline || '포트폴리오'}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:flex items-center gap-1.5 text-[12px] font-bold text-gray-400 mr-1">
+              {saving ? <><Loader2 size={12} className="animate-spin" /> 저장 중</>
+                : hasUnsavedChanges ? <>변경 사항 있음</>
+                : <><Check size={13} className="text-emerald-500" /> 저장됨</>}
             </span>
-          )}
-          <button
-            onClick={() => setAnalysisMode(prev => !prev)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all border ${
-              analysisMode
-                ? 'bg-primary-50 text-primary-700 border-primary-200'
-                : 'bg-white text-bluewood-600 border-surface-200 hover:border-bluewood-300 hover:bg-surface-50'
-            }`}
-          >
-            기업 분석
-          </button>
-          <button
-            onClick={handleReview}
-            title="채용공고 요건 기준으로 포트폴리오를 점검합니다"
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-surface-200 text-bluewood-600 rounded-lg text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all"
-          >
-            검토하기
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-50 transition-all"
-          >
-            {saving ? '저장 중...' : '저장하기'}
-          </button>
+            <div className="relative">
+              <button type="button" onClick={() => setSectionPanelOpen(v => !v)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-bold transition-colors ${sectionPanelOpen ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>
+                <Columns size={14} />
+                <span className="hidden sm:inline">섹션</span>
+              </button>
+              {sectionPanelOpen && (
+                <div className="absolute right-0 top-full mt-2 z-[70] w-[640px] max-w-[86vw] max-h-[70vh] overflow-y-auto rounded-2xl shadow-2xl">
+                  <SectionWorkspacePanel
+                    templateId={portfolio?.templateId}
+                    sections={visibleSections}
+                    hiddenSections={removableHiddenSections}
+                    hiddenSectionKeys={portfolio?.hiddenSections || []}
+                    sectionOrder={portfolio?.sectionOrder || []}
+                    labels={portfolio?.customSectionLabels || {}}
+                    update={update}
+                  />
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleReview}
+              title="채용공고 요건 기준으로 포트폴리오를 점검합니다"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-600 hover:border-gray-400 transition-colors"
+            >
+              검토하기
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-600 hover:border-gray-400 transition-colors"
+            >
+              <Eye size={14} /> <span className="hidden sm:inline">미리보기</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(false)}
+              disabled={saving}
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              <Save size={14} /> {saving ? '저장 중...' : '저장하기'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1556,32 +1578,72 @@ export default function NotionPortfolioEditor() {
         </div>
       )}
 
-      {/* ── Visual Mode: 대시보드 편집 (자세히보기와 동일 레이아웃) ── */}
-      <SectionWorkspacePanel
-        templateId={portfolio?.templateId}
-        sections={visibleSections}
-        hiddenSections={removableHiddenSections}
-        hiddenSectionKeys={portfolio?.hiddenSections || []}
-        sectionOrder={portfolio?.sectionOrder || []}
-        labels={portfolio?.customSectionLabels || {}}
-        update={update}
-      />
+      {/* ── Visual Mode: 대시보드 편집 (섹션 관리는 툴바 '섹션' 드롭다운으로 이동) ── */}
+      {/* 기업분석 패널이 열리면 캔버스만 옆으로 밀어 나란히 본다 (툴바는 풀폭 유지) */}
+      <div className="transition-[margin] duration-300" style={{ marginRight: analysisOpen ? `calc(min(${JOB_DOCK_WIDTH}px, 100vw) - 2rem)` : 0 }}>
+        <VisualEditor
+          portfolio={portfolio}
+          update={update}
+          updateMany={updateMany}
+          updateNested={updateNested}
+          addToArray={addToArray}
+          removeFromArray={removeFromArray}
+          updateArrayItem={updateArrayItem}
+          userId={user.uid}
+          portfolioId={id}
+          templateId={portfolio?.templateId}
+          userExperiences={userExperiences}
+          importExperience={importExperience}
+        />
+      </div>
 
-      <VisualEditor
-        portfolio={portfolio}
-        update={update}
-        updateMany={updateMany}
-        updateNested={updateNested}
-        addToArray={addToArray}
-        removeFromArray={removeFromArray}
-        updateArrayItem={updateArrayItem}
-        userId={user.uid}
-        portfolioId={id}
-        templateId={portfolio?.templateId}
-        userExperiences={userExperiences}
-        importExperience={importExperience}
-        analysisMode={analysisMode}
-        onCloseAnalysis={() => setAnalysisMode(prev => !prev)}
+      {/* ── 우측 도킹 기업분석 · AI 첨삭 패널 (가장자리 화살표로 열고 닫음) ── */}
+      <JobAnalysisDockPanel
+        open={analysisOpen}
+        onToggle={setAnalysisOpen}
+        analysis={portfolio.jobAnalysis || null}
+        onAnalysis={(analysis) => {
+          update('jobAnalysis', analysis);
+          if (analysis?.company) update('targetCompany', analysis.company);
+          if (analysis?.position) update('targetPosition', analysis.position);
+          if (analysis) toast.success('기업 분석이 완료되었습니다');
+        }}
+        collectSections={() => {
+          const p = portfolioRef.current || portfolio;
+          const sections = [];
+          const push = (key, title, raw) => {
+            const content = String(raw || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (content) sections.push({ key, title, content });
+          };
+          push('headline', '한 줄 소개', p.headline);
+          (p.experiences || []).forEach((exp, idx) => {
+            push(`exp-${idx}`, exp.title || `경험 ${idx + 1}`, exp.description);
+          });
+          return sections;
+        }}
+        onApplySection={async (key, content) => {
+          // 로컬 상태 반영 + 해당 필드만 즉시 서버 저장 (노션 에디터는 자동 저장이 없어 첨삭이 휘발되지 않게)
+          const hadUnsaved = hasUnsavedChanges;
+          let patch;
+          if (key.startsWith('exp-')) {
+            const idx = Number(key.slice(4));
+            const exps = [...(portfolioRef.current?.experiences || [])];
+            if (!exps[idx]) { toast.error('해당 경험을 찾을 수 없습니다'); return; }
+            exps[idx] = { ...exps[idx], description: content };
+            updateArrayItem('experiences', idx, { description: content });
+            patch = { experiences: exps };
+          } else {
+            update(key, content);
+            patch = { [key]: content };
+          }
+          try {
+            await updatePortfolio(id, patch);
+            if (!hadUnsaved) setHasUnsavedChanges(false); // 첨삭 외 변경이 없었으면 저장됨 상태 유지
+          } catch {
+            toast.error('첨삭 내용을 서버에 저장하지 못했습니다. 저장하기를 눌러주세요.');
+          }
+        }}
+        topOffset={120} // 앱 헤더(64) + 에디터 툴바(56) 아래에서 시작
       />
     </div>
   );
@@ -1756,203 +1818,6 @@ function SkillAddInput({ category, onAdd }) {
         className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-xs hover:bg-green-100 transition-colors border border-green-200">
         <Plus size={11} />
       </button>
-    </div>
-  );
-}
-
-/* ── 공용: 우측 기업분석 인라인 사이드패널 (Visual / Ashley / Academic 공유) ── */
-function JobAnalysisSidebar({ portfolio, update, updateArrayItem, analysisMode, onClose }) {
-  const [jobUrl, setJobUrl] = useState('');
-  const [jobText, setJobText] = useState('');
-  const [jobInputMode, setJobInputMode] = useState('url');
-  const [analyzingJob, setAnalyzingJob] = useState(false);
-  const [jobError, setJobError] = useState(null);
-  const [showJobInput, setShowJobInput] = useState(false);
-
-  const resetJobInput = () => {
-    setShowJobInput(false);
-    setJobUrl('');
-    setJobText('');
-    setJobError(null);
-  };
-
-  const handleJobAnalysisComplete = (analysis) => {
-    update('jobAnalysis', analysis);
-    if (analysis?.company) update('targetCompany', analysis.company);
-    if (analysis?.position) update('targetPosition', analysis.position);
-    resetJobInput();
-    toast.success('기업 분석이 완료되었습니다');
-  };
-
-  const handleJobAnalyze = async () => {
-    const trimmedUrl = jobUrl.trim();
-    const trimmedText = jobText.trim();
-    const payload = jobInputMode === 'text'
-      ? { text: trimmedText }
-      : { url: trimmedUrl };
-
-    if (jobInputMode === 'text' ? trimmedText.length < 100 : !trimmedUrl) return;
-
-    setAnalyzingJob(true);
-    setJobError(null);
-    try {
-      const { data: respData } = await api.post('/job/analyze', payload);
-      handleJobAnalysisComplete(respData.analysis);
-    } catch (err) {
-      setJobError(err.response?.data?.error || '분석에 실패했습니다');
-    } finally {
-      setAnalyzingJob(false);
-    }
-  };
-
-  const p = portfolio;
-
-  if (!analysisMode) return null;
-
-  return (
-    <div className="w-[300px] flex-shrink-0 sticky top-[76px] self-start max-h-[calc(100vh-96px)] overflow-y-auto pl-5">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-4 px-1">
-        <span className="text-[11px] font-bold text-bluewood-400 uppercase tracking-[0.1em]">기업 분석 · 첨삭</span>
-        <button onClick={onClose} className="p-1 rounded-md hover:bg-surface-100 text-bluewood-300 hover:text-bluewood-500 transition-colors">
-          <X size={13} />
-        </button>
-      </div>
-
-      {/* 본문 */}
-      <div className="space-y-3">
-        {p.jobAnalysis ? (
-          <>
-            <JobAnalysisBadge
-              analysis={p.jobAnalysis}
-              onRemove={() => update('jobAnalysis', null)}
-              experiences={p.experiences || []}
-              onTailorApply={(expIdx, sectionKey, content) => {
-                const updated = { ...p.experiences[expIdx] };
-                updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
-                updateArrayItem('experiences', expIdx, updated);
-              }}
-            />
-            {!showJobInput ? (
-              <button onClick={() => setShowJobInput(true)}
-                className="w-full py-2 text-[11px] font-bold text-primary-600 border border-primary-200 rounded-lg bg-transparent hover:bg-primary-50 transition-colors tracking-wide uppercase">
-                다른 공고로 변경
-              </button>
-            ) : (
-              <div className="bg-surface-50 border border-surface-200 rounded-lg p-3 space-y-2.5">
-                <p className="text-[10px] font-bold text-primary-600 uppercase tracking-[0.08em]">새 채용공고로 변경</p>
-                <JobPostingInput
-                  mode={jobInputMode}
-                  onModeChange={setJobInputMode}
-                  jobUrl={jobUrl}
-                  onJobUrlChange={setJobUrl}
-                  jobText={jobText}
-                  onJobTextChange={setJobText}
-                  onSubmit={handleJobAnalyze}
-                />
-                {jobError && <p className="text-[11px] text-red-500">{jobError}</p>}
-                <div className="flex gap-2">
-                  <button onClick={handleJobAnalyze} disabled={analyzingJob || (jobInputMode === 'text' ? jobText.trim().length < 100 : !jobUrl.trim())}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
-                    {analyzingJob ? <><Loader2 size={12} className="animate-spin" />분석 중...</> : <>분석하기</>}
-                  </button>
-                  <button onClick={resetJobInput}
-                    className="px-3 py-2 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
-                </div>
-                <div className="border-t border-surface-200 pt-3">
-                  <p className="mb-2 text-[10px] font-bold text-bluewood-400 uppercase tracking-[0.08em]">또는 기업 정보 직접 입력</p>
-                  <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
-                </div>
-              </div>
-            )}
-          </>
-        ) : !showJobInput ? (
-          <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
-            <p className="text-[13px] font-bold text-primary-600 tracking-[-0.01em]">채용공고 분석</p>
-            <p className="text-[12px] text-bluewood-400 leading-relaxed">
-              채용공고 URL이나 본문을 붙여넣거나, 기업명과 모집분야를 직접 입력하면 기업 분석, 직무 분석, 지원 전략, 산업 트렌드를 자동 정리합니다.
-            </p>
-            <button onClick={() => setShowJobInput(true)}
-              className="w-full py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-sm shadow-primary-100 tracking-wide">
-              채용공고 분석하기
-            </button>
-          </div>
-        ) : (
-          <div className="bg-surface-50 border border-surface-200 rounded-lg p-4 space-y-2.5">
-            <p className="text-[11px] font-bold text-primary-600 uppercase tracking-[0.1em]">채용공고 입력</p>
-            <JobPostingInput
-              mode={jobInputMode}
-              onModeChange={setJobInputMode}
-              jobUrl={jobUrl}
-              onJobUrlChange={setJobUrl}
-              jobText={jobText}
-              onJobTextChange={setJobText}
-              onSubmit={handleJobAnalyze}
-            />
-            {jobError && <p className="text-[12px] text-red-500">{jobError}</p>}
-            <div className="flex gap-2">
-              <button onClick={handleJobAnalyze} disabled={analyzingJob || (jobInputMode === 'text' ? jobText.trim().length < 100 : !jobUrl.trim())}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white text-[12px] font-bold rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors shadow-sm">
-                {analyzingJob ? <><Loader2 size={13} className="animate-spin" />분석 중...</> : <>분석하기</>}
-              </button>
-              <button onClick={resetJobInput}
-                className="px-3 py-2.5 text-[12px] text-bluewood-400 border border-surface-200 rounded-lg bg-white hover:bg-surface-50 transition-colors">취소</button>
-            </div>
-            <div className="border-t border-surface-200 pt-3">
-              <p className="mb-2 text-[10px] font-bold text-bluewood-400 uppercase tracking-[0.08em]">또는 기업 정보 직접 입력</p>
-              <JobLinkInput compact onAnalysisComplete={handleJobAnalysisComplete} />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function JobPostingInput({ mode, onModeChange, jobUrl, onJobUrlChange, jobText, onJobTextChange, onSubmit }) {
-  return (
-    <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-white border border-surface-200 p-1">
-        {[
-          ['url', 'URL'],
-          ['text', '텍스트'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onModeChange(value)}
-            className={`py-1.5 rounded-md text-[11px] font-bold transition-colors ${
-              mode === value
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-bluewood-400 hover:bg-surface-50'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {mode === 'text' ? (
-        <>
-          <textarea
-            value={jobText}
-            onChange={e => onJobTextChange(e.target.value)}
-            placeholder="채용공고 본문을 붙여넣으세요"
-            rows={7}
-            className="w-full px-3 py-2.5 text-[12px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white resize-none leading-relaxed"
-          />
-          <p className="text-[10px] text-bluewood-300">{Math.min(jobText.trim().length, 100)}/100자</p>
-        </>
-      ) : (
-        <input
-          type="url"
-          value={jobUrl}
-          onChange={e => onJobUrlChange(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onSubmit()}
-          placeholder="https:// 채용공고 링크"
-          className="w-full px-3 py-2.5 text-[13px] border border-surface-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 text-bluewood-800 placeholder:text-bluewood-300 bg-white"
-        />
-      )}
     </div>
   );
 }
@@ -2186,7 +2051,7 @@ function ExpDetailModal({ exp, onUpdate, onClose, resizeToBase64, jobAnalysis, g
 }
 
 /* ── Visual Inline Editor — 템플릿 자체에서 인라인 편집 ── */
-function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience }) {
   const p = portfolio;
   const [showExpPicker, setShowExpPicker] = useState(false);
   const [selectedExpDetail, setSelectedExpDetail] = useState(null); // { exp, idx }
@@ -2271,7 +2136,7 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
   return (
     <div className="flex gap-4 items-start">
       {/* ── 메인 영역 ── */}
-      <div className="flex-1 min-w-0 max-w-[1100px]">
+      <div className="flex-1 min-w-0">
         {/* 실제 템플릿 (edit mode) */}
         <div className="border border-surface-200 rounded-2xl overflow-hidden">
           <VisualPortfolioRenderer portfolio={p} ec={ec} />
@@ -2279,7 +2144,6 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
       </div>
 
       {/* ── 우측 기업 분석 Drawer (portal 렌더링) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
       {showExpPicker && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40 backdrop-blur-sm" onClick={() => setShowExpPicker(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -2325,7 +2189,6 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
           onClose={() => setSelectedExpDetail(null)}
           resizeToBase64={resizeToBase64Global}
           jobAnalysis={p?.jobAnalysis}
-          analysisMode={analysisMode}
           onTailorApply={(sectionKey, content) => {
             const updated = { ...selectedExpDetail.exp };
             updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -2338,7 +2201,7 @@ function VisualInlineEditor({ portfolio, update, updateMany, updateNested, addTo
 }
 
 /* ── Visual Template Editor Wrapper ── */
-function VisualTemplateEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function VisualTemplateEditor({ portfolio, update, updateMany, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience }) {
   return (
     <VisualInlineEditor
       portfolio={portfolio}
@@ -2353,8 +2216,6 @@ function VisualTemplateEditor({ portfolio, update, updateMany, updateNested, add
       templateId={templateId}
       userExperiences={userExperiences}
       importExperience={importExperience}
-      analysisMode={analysisMode}
-      onCloseAnalysis={onCloseAnalysis}
     />
   );
 }
@@ -2697,7 +2558,7 @@ function RichContentEditor({ value, onChange, placeholder, textRows = 4, textCla
 }
 
 /* ── Ashley Visual Editor ── */
-function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -2816,7 +2677,7 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
 
   return (
     <div className="flex gap-4 items-start">
-    <div className="flex-1 min-w-0 max-w-[1100px]">
+    <div className="flex-1 min-w-0">
       <div className="bg-[#f7f5f0] rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         {/* Hero */}
         <div className="px-10 pt-10 pb-8">
@@ -3503,7 +3364,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
               onClose={() => setExpDetailIdx(null)}
               resizeToBase64={resizeToBase64}
               jobAnalysis={portfolio.jobAnalysis}
-              analysisMode={analysisMode}
               onTailorApply={(sectionKey, content) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, structuredResult: { ...(c.structuredResult || {}), [sectionKey]: content } } : c);
                 const b = [...(p.customBlocks || [])]; b[blockIdx] = { ...b[blockIdx], content: newCards };
@@ -3521,7 +3381,6 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
             jobAnalysis={portfolio.jobAnalysis}
-            analysisMode={analysisMode}
             onTailorApply={(sectionKey, content) => {
               const updated = { ...p.experiences[expDetailIdx] };
               updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -3533,12 +3392,11 @@ function AshleyVisualEditor({ portfolio, update, updateNested, addToArray, remov
     </div>{/* end max-w */}
 
       {/* ── 우측 기업 분석 사이드바 (공용) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
 
     </div>
   );
 }
-function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -3771,7 +3629,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
       </div>
       )}{/* end 사이드바 왼쪽 */}
 
-    <div className="flex-1 min-w-0 max-w-[1100px]">
+    <div className="flex-1 min-w-0">
     <div className="w-full">
       <div className="relative rounded-t-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'}} />
@@ -4302,7 +4160,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     </div>{/* end portfolio col */}
 
       {/* ── 우측 기업 분석 사이드바 (공용) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
 
       {/* ── 경험 상세 모달 (Academic) ── */}
       {expDetailIdx !== null && (() => {
@@ -4323,7 +4180,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
               onClose={() => setExpDetailIdx(null)}
               resizeToBase64={resizeToBase64}
               jobAnalysis={portfolio.jobAnalysis}
-              analysisMode={analysisMode}
               onTailorApply={(sectionKey, content) => {
                 const newCards = cards.map((c, j) => j === cardIdx ? { ...c, structuredResult: { ...(c.structuredResult || {}), [sectionKey]: content } } : c);
                 const b = [...(p.customBlocks || [])]; b[blockIdx] = { ...b[blockIdx], content: newCards };
@@ -4341,7 +4197,6 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
             onClose={() => setExpDetailIdx(null)}
             resizeToBase64={resizeToBase64}
             jobAnalysis={portfolio.jobAnalysis}
-            analysisMode={analysisMode}
             onTailorApply={(sectionKey, content) => {
               const updated = { ...p.experiences[expDetailIdx] };
               updated.structuredResult = { ...(updated.structuredResult || {}), [sectionKey]: content };
@@ -4353,7 +4208,7 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     </div>
   );
 }
-function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userExperiences, importExperience }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -4402,7 +4257,7 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
 
   return (
     <div className="flex gap-4 items-start">
-      <div className="flex-1 min-w-0 max-w-[1100px] min-h-screen border border-surface-200 rounded-2xl overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-screen border border-surface-200 rounded-2xl overflow-hidden">
       {/* ── Dark Header with Calendar ── */}
       <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] rounded-t-2xl px-10 pt-10 pb-8">
         <div className="flex items-center gap-5 mb-8">
@@ -4656,7 +4511,6 @@ function TimelineVisualEditor({ portfolio, update, updateNested, addToArray, rem
         </div>
       </div>
       </div>
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
     </div>
   );
 }
@@ -5335,7 +5189,7 @@ function ContextMenuHost() {
   );
 }
 
-function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience, analysisMode, onCloseAnalysis }) {
+function NotionVisualEditor({ portfolio, update, updateNested, addToArray, removeFromArray, updateArrayItem, userId, portfolioId, templateId, userExperiences, importExperience }) {
   const p = portfolio;
   const contact = p.contact || {};
   const skills = p.skills || {};
@@ -6704,8 +6558,6 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
       </div>
       </div>{/* end 포트폴리오 카드 */}
 
-      {/* ── 우측 기업 분석 사이드바 (공용 JobAnalysisSidebar) ── */}
-      <JobAnalysisSidebar portfolio={p} update={update} updateArrayItem={updateArrayItem} analysisMode={analysisMode} onClose={() => onCloseAnalysis?.()} />
 
     </div>
     </NotionEditorCtx.Provider>

@@ -413,6 +413,7 @@ function CloverIcon() {
 function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, onSelect }) {
   const { id, title, targetCompany, targetPosition, status, templateType, isFavorite } = portfolio;
   const { updatePortfolio } = usePortfolioStore();
+  const isWebTemplate = typeof templateType === 'string' && templateType.startsWith('web-');
   const isTemplate = ['notion', 'ashley', 'academic', 'timeline'].includes(templateType) || (typeof templateType === 'string' && templateType.startsWith('visual-'));
 
   const displayTitle = title || '제목 없음';
@@ -438,7 +439,8 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
 
   const handleOpen = () => {
     if (exportMode) return onSelect();
-    if (isTemplate) window.location.href = `/app/portfolio/preview/${id}`;
+    if (isWebTemplate) window.location.href = `/app/portfolio/web-edit/${id}`;
+    else if (isTemplate) window.location.href = `/app/portfolio/preview/${id}`;
     else onDetail();
   };
 

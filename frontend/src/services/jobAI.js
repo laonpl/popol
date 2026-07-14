@@ -68,3 +68,9 @@ export async function recommendSection(jobAnalysis, sectionType) {
   const { data } = await api.post('/job/recommend-section', { jobAnalysis, sectionType });
   return data;
 }
+
+/** 웹 템플릿에 어울리는 테마 색조합(배경/글자/포인트) 추천. jobAnalysis는 선택. */
+export async function recommendWebTheme({ templateId, currentTheme, jobAnalysis }) {
+  const { data } = await api.post('/job/recommend-theme', { templateId, currentTheme, jobAnalysis }, { timeout: 60000 });
+  return data; // { palettes: [{ name, bg, ink, accent, reason }] }
+}

@@ -31,6 +31,75 @@ function withDefaultProjectLogos(portfolio) {
   };
 }
 
+/** 미리보기 상단 툴바 — 웹 에디터와 동일 스타일 (스티키 풀블리드, 기존 기능 전부 유지) */
+function PreviewAdminBar({
+  title, hasUnsavedChanges, previewTutorialHref, onEdit, onPpt, onResume, onLink,
+  isPublic, togglingPublic, onTogglePublic, publicUrl, linkCopied, onCopyLink,
+}) {
+  const ghostBtn = 'flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-600 hover:border-gray-400 transition-colors';
+  return (
+    <div className="sticky top-0 z-[60] -mx-8 -mt-8 mb-6 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 md:px-6 h-14">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link to="/app/portfolio" className="flex items-center gap-1.5 text-[13px] font-bold text-gray-400 hover:text-gray-700 transition-colors shrink-0">
+            <ArrowLeft size={15} /> 목록
+          </Link>
+          <span className="w-px h-4 bg-gray-200" />
+          <p className="text-[14px] font-black text-gray-800 truncate">{title}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasUnsavedChanges && (
+            <span className="hidden sm:flex items-center gap-1.5 text-[12px] font-bold text-amber-500 mr-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> 저장 안 됨
+            </span>
+          )}
+          <Link to={previewTutorialHref} className={ghostBtn}>
+            튜토리얼 보기
+          </Link>
+          <button type="button" data-tour="portfolio-edit" onClick={onEdit} className={ghostBtn}>
+            <Edit size={14} /> <span className="hidden sm:inline">편집</span>
+          </button>
+          <button type="button" data-tour="portfolio-ppt" onClick={onPpt} className={ghostBtn}>
+            <Download size={14} /> <span className="hidden md:inline">PPT 내보내기</span><span className="md:hidden">PPT</span>
+          </button>
+          <button type="button" onClick={onResume} className={ghostBtn}>
+            <FileText size={14} /> <span className="hidden md:inline">이력서 내보내기</span><span className="md:hidden">이력서</span>
+          </button>
+          <button type="button" data-tour="portfolio-link" onClick={onLink}
+            className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-primary-700 transition-colors">
+            <Link2 size={14} /> 링크 내보내기
+          </button>
+        </div>
+      </div>
+      {/* 공개 링크 토글 — 툴바 하단 슬림 행 */}
+      <div className="flex items-center gap-2.5 px-4 md:px-6 pb-2 -mt-1">
+        <Share2 size={13} className="shrink-0 text-gray-400" />
+        <span className="text-[12px] font-bold text-gray-500">공개 링크</span>
+        <button
+          type="button"
+          onClick={onTogglePublic}
+          disabled={togglingPublic}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-600' : 'bg-gray-300'} ${togglingPublic ? 'opacity-50' : ''}`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </button>
+        {isPublic && (
+          <>
+            <p className="min-w-0 truncate text-[12px] text-gray-400">{publicUrl}</p>
+            <button
+              type="button"
+              onClick={onCopyLink}
+              className="flex shrink-0 items-center gap-1 rounded-md bg-primary-50 px-2 py-1 text-[11.5px] font-bold text-primary-600 hover:bg-primary-100 transition-colors"
+            >
+              {linkCopied ? <Check size={11} /> : <Copy size={11} />} {linkCopied ? '복사됨' : '링크 복사'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const PREVIEW_REORDERABLE_SECTION_MAP = {
   ashley: ['profile', 'education', 'awards', 'experiences', 'interviews', 'books', 'lectures', 'skills', 'goals', 'values', 'funfacts', 'contact'],
   academic: ['profile', 'education', 'awards', 'experiences', 'curricular', 'extracurricular', 'skills', 'goals', 'values', 'contact'],
@@ -261,6 +330,44 @@ export default function NotionPortfolioPreview() {
   const pptTemplateQuery = pptLayoutIds.includes(portfolio?.templateId) ? `?template=${portfolio.templateId}` : '';
   const pptExportUrl = `/app/portfolio/ai-ppt/${id}${pptTemplateQuery}`;
 
+  const handlePublicToggle = async () => {
+    setTogglingPublic(true);
+    const newVal = !isPublic;
+    try {
+      await updatePortfolio(id, { isPublic: newVal });
+      setIsPublic(newVal);
+      setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
+      toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
+    } catch { toast.error('공개 설정 변경 실패'); }
+    setTogglingPublic(false);
+  };
+  const handleCopyPublicLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/p/${activeSlug}`);
+    setLinkCopied(true);
+    toast.success('링크가 복사되었습니다!');
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+  const adminBar = (
+    <PreviewAdminBar
+      title={portfolio?.title || portfolio?.headline || '포트폴리오'}
+      hasUnsavedChanges={hasUnsavedChanges}
+      previewTutorialHref={`/app/portfolio/preview/${id}?tutorial=1`}
+      onEdit={() => navigate(`/app/portfolio/edit-notion/${id}`)}
+      onPpt={() => navigate(pptExportUrl)}
+      onResume={() => setShowResumeModal(true)}
+      onLink={() => {
+        setShowExportModal(true);
+        if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
+      }}
+      isPublic={isPublic}
+      togglingPublic={togglingPublic}
+      onTogglePublic={handlePublicToggle}
+      publicUrl={`${window.location.origin}/p/${activeSlug}`}
+      linkCopied={linkCopied}
+      onCopyLink={handleCopyPublicLink}
+    />
+  );
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-primary-600" /></div>;
   if (!portfolio) return <p className="text-center py-20 text-gray-400">포트폴리오를 찾을 수 없습니다</p>;
 
@@ -276,88 +383,7 @@ export default function NotionPortfolioPreview() {
           onNeverShow={() => closePreviewTutorial(true)}
           onStepChange={setPreviewTutorialCurrentStep}
         />
-        {/* Admin bar */}
-        <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
-          <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
-            <ArrowLeft size={14} /> 목록으로
-          </Link>
-          <div className="flex items-center gap-2">
-            {hasUnsavedChanges && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                저장 안 됨
-              </span>
-            )}
-            <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
-              className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
-              튜토리얼 보기
-            </Link>
-            <button data-tour="portfolio-edit" onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-              className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
-              편집
-            </button>
-            <button data-tour="portfolio-ppt" onClick={() => navigate(pptExportUrl)}
-              className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
-              PPT 내보내기
-            </button>
-            <button onClick={() => setShowResumeModal(true)}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[13px] font-semibold hover:bg-emerald-700 transition-all">
-              이력서 내보내기
-            </button>
-            <button data-tour="portfolio-link" onClick={() => {
-              setShowExportModal(true);
-              if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
-            }}
-              className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
-              링크 내보내기
-            </button>
-          </div>
-        </div>
-
-        {/* 공유 링크 */}
-        <div className="max-w-[1100px] mx-auto mb-4">
-          <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
-            <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold text-bluewood-700">공개 링크</span>
-                <button
-                  onClick={async () => {
-                    setTogglingPublic(true);
-                    const newVal = !isPublic;
-                    try {
-                      await updatePortfolio(id, { isPublic: newVal });
-                      setIsPublic(newVal);
-                      setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
-                      toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
-                    } catch { toast.error('공개 설정 변경 실패'); }
-                    setTogglingPublic(false);
-                  }}
-                  disabled={togglingPublic}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-600' : 'bg-surface-300'} ${togglingPublic ? 'opacity-50' : ''}`}
-                >
-                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
-              {isPublic && (
-                <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${activeSlug}`}</p>
-              )}
-            </div>
-            {isPublic && (
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/p/${activeSlug}`);
-                  setLinkCopied(true);
-                  toast.success('링크가 복사되었습니다!');
-                  setTimeout(() => setLinkCopied(false), 2000);
-                }}
-                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-all flex-shrink-0"
-              >
-                {linkCopied ? '복사됨' : '링크 복사'}
-              </button>
-            )}
-          </div>
-        </div>
+        {adminBar}
 
         <div data-tour="portfolio-preview-surface" className="w-[1100px] mx-auto border border-surface-200 rounded-2xl overflow-visible">
           <VisualPortfolioRenderer portfolio={portfolio} onOpenExpDetail={openExperienceDetail} />
@@ -418,88 +444,7 @@ export default function NotionPortfolioPreview() {
         onNeverShow={() => closePreviewTutorial(true)}
         onStepChange={setPreviewTutorialCurrentStep}
       />
-      {/* Admin bar */}
-      <div className="flex items-center justify-between mb-4 max-w-[1100px] mx-auto">
-        <Link to="/app/portfolio" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-bluewood-400 hover:text-primary-600 transition-colors">
-          <ArrowLeft size={14} /> 목록으로
-        </Link>
-        <div className="flex items-center gap-2">
-          {hasUnsavedChanges && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-bold text-amber-600 ring-1 ring-amber-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              저장 안 됨
-            </span>
-          )}
-          <Link to={`/app/portfolio/preview/${id}?tutorial=1`}
-            className="px-4 py-2 bg-white border border-surface-200 text-bluewood-500 rounded-xl text-[13px] font-medium hover:border-primary-200 hover:text-primary-600 hover:bg-surface-50 transition-all">
-            튜토리얼 보기
-          </Link>
-          <button data-tour="portfolio-edit" onClick={() => navigate(`/app/portfolio/edit-notion/${id}`)}
-            className="px-4 py-2 bg-white border border-surface-200 text-bluewood-600 rounded-xl text-[13px] font-medium hover:border-bluewood-300 hover:bg-surface-50 transition-all">
-            편집
-          </button>
-          <button data-tour="portfolio-ppt" onClick={() => navigate(pptExportUrl)}
-            className="px-4 py-2 bg-bluewood-700 text-white rounded-xl text-[13px] font-semibold hover:bg-bluewood-800 transition-all">
-            PPT 내보내기
-          </button>
-          <button onClick={() => setShowResumeModal(true)}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[13px] font-semibold hover:bg-emerald-700 transition-all">
-            이력서 내보내기
-          </button>
-          <button data-tour="portfolio-link" onClick={() => {
-            setShowExportModal(true);
-            if (previewTutorialVisible && previewTutorialCurrentStep === 1) previewTutorialRef.current?.next();
-          }}
-            className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[13px] font-semibold hover:bg-primary-700 transition-all shadow-sm shadow-primary-100">
-            링크 내보내기
-          </button>
-        </div>
-      </div>
-
-      {/* 공유 링크 */}
-      <div className="max-w-[1100px] mx-auto mb-4">
-        <div className="flex items-center gap-4 bg-white rounded-xl border border-surface-200 px-5 py-3">
-          <Share2 size={15} className="text-bluewood-400 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-semibold text-bluewood-700">공개 링크</span>
-              <button
-                onClick={async () => {
-                  setTogglingPublic(true);
-                  const newVal = !isPublic;
-                  try {
-                    await updatePortfolio(id, { isPublic: newVal });
-                    setIsPublic(newVal);
-                    setPortfolio(prev => prev ? { ...prev, isPublic: newVal } : prev);
-                    toast.success(newVal ? '포트폴리오가 공개되었습니다' : '공개가 해제되었습니다');
-                  } catch { toast.error('공개 설정 변경 실패'); }
-                  setTogglingPublic(false);
-                }}
-                disabled={togglingPublic}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isPublic ? 'bg-primary-600' : 'bg-surface-300'} ${togglingPublic ? 'opacity-50' : ''}`}
-              >
-                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            {isPublic && (
-              <p className="text-[12px] text-bluewood-400 mt-0.5 truncate">{`${window.location.origin}/p/${activeSlug}`}</p>
-            )}
-          </div>
-          {isPublic && (
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/p/${activeSlug}`);
-                setLinkCopied(true);
-                toast.success('링크가 복사되었습니다!');
-                setTimeout(() => setLinkCopied(false), 2000);
-              }}
-              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[12px] font-semibold hover:bg-primary-700 transition-all flex-shrink-0"
-            >
-              {linkCopied ? '복사됨' : '링크 복사'}
-            </button>
-          )}
-        </div>
-      </div>
+      {adminBar}
 
       {/* ── Template Layouts ── */}
       {(!p.templateId || p.templateId === 'notion') ? (

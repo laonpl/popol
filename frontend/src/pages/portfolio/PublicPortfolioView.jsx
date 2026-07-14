@@ -7,6 +7,7 @@ import {
 import { doc, getDoc, collection, query, where, getDocs } from '../../services/firestoreProxy';
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
+import WebPortfolioRenderer, { WEB_TEMPLATE_IDS } from './WebPortfolioTemplates';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
@@ -191,6 +192,18 @@ export default function PublicPortfolioView() {
   // 비주얼 템플릿이면 해당 렌더러로 바로 표시
   if (VISUAL_TEMPLATE_IDS.includes(p.templateId)) {
     return <VisualPortfolioRenderer portfolio={p} />;
+  }
+
+  // 웹사이트형 템플릿 — 로고 폴백 썸네일은 그라디언트 플레이스홀더로 대체해 렌더
+  if (WEB_TEMPLATE_IDS.includes(p.templateId)) {
+    const raw = {
+      ...p,
+      experiences: (p.experiences || []).map(exp => ({
+        ...exp,
+        thumbnailUrl: exp.thumbnailUrl === DEFAULT_PROJECT_LOGO ? '' : exp.thumbnailUrl,
+      })),
+    };
+    return <WebPortfolioRenderer portfolio={raw} />;
   }
 
   return (

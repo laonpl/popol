@@ -77,6 +77,361 @@ const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   );
 };
 
+/* ── 웹 포트폴리오 쇼케이스 (핵심 기능 02) ─────────────────────────────
+   실제 WebPortfolioTemplates 4종의 무드를 미니 브라우저 목업으로 재현해
+   자동 순환. 별도 컴포넌트로 분리해 인터벌 리렌더가 Landing 전체에
+   번지지 않게 하고, IntersectionObserver로 화면 밖에서는 정지한다. */
+
+const WEB_SHOWCASE_INTERVAL = 4200;
+
+const WEB_SHOWCASE_TEMPLATES = [
+  { id: 'bold',      name: 'Bold One-Page',   desc: '초대형 타이포 원페이지', bg: '#f4f1ea', accent: '#ff4d00' },
+  { id: 'bento',     name: 'Bento Grid',      desc: '타일형 대시보드',        bg: '#eef0f4', accent: '#002a61' },
+  { id: 'editorial', name: 'Editorial Finder', desc: '아카이브형 에디토리얼', bg: '#f5f5f2', accent: '#b7ff22' },
+  { id: 'impact',    name: 'Impact Grid',     desc: '임팩트 중심 쇼케이스',   bg: '#ffffff', accent: '#00bd66' },
+];
+
+/** live일 때만 스태거 리빌 애니메이션을 적용하는 래퍼 */
+function Rv({ live, delay = 0, className = '', style, children }) {
+  return (
+    <div
+      className={`${className} ${live ? 'wp-reveal' : ''}`}
+      style={{ ...style, animationDelay: live ? `${delay}ms` : undefined }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function BoldPreview({ live }) {
+  const t = { bg: '#f4f1ea', ink: '#141414', accent: '#ff4d00' };
+  const skills = ['FIGMA', 'UX RESEARCH', 'PROTOTYPING', 'DESIGN SYSTEM', 'DATA ANALYSIS'];
+  return (
+    <div className="w-full h-full flex flex-col" style={{ background: t.bg, color: t.ink }}>
+      <Rv live={live} delay={0} className="flex items-center justify-between px-5 pt-3.5">
+        <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em' }}>SEOYEON.KIM</span>
+        <div className="flex items-center gap-3" style={{ fontSize: '8.5px', fontWeight: 700, color: 'rgba(20,20,20,0.55)' }}>
+          <span>WORK</span><span>ABOUT</span>
+          <span style={{ background: t.ink, color: t.bg, padding: '3px 9px', borderRadius: '999px' }}>CONTACT</span>
+        </div>
+      </Rv>
+      <div className="px-5 mt-4">
+        <Rv live={live} delay={90}>
+          <p style={{ fontSize: '9px', fontWeight: 800, color: t.accent, letterSpacing: '0.14em', marginBottom: '7px' }}>PRODUCT DESIGNER — SEOUL</p>
+        </Rv>
+        <Rv live={live} delay={160}>
+          <p style={{ fontSize: '40px', fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.03em' }}>DESIGN<span style={{ color: t.accent }}>*</span></p>
+        </Rv>
+        <Rv live={live} delay={230} className="flex items-center gap-2.5">
+          <span style={{ display: 'inline-block', width: '52px', height: '24px', borderRadius: '999px', background: t.accent }} />
+          <p style={{ fontSize: '40px', fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.03em' }}>PORTFOLIO</p>
+        </Rv>
+        <Rv live={live} delay={320} className="mt-3.5 flex items-end justify-between gap-4">
+          <p style={{ fontSize: '9px', color: 'rgba(20,20,20,0.6)', fontWeight: 600, maxWidth: '230px', lineHeight: 1.55 }}>
+            데이터로 문제를 정의하고, 검증으로 끝맺는 프로덕트 디자이너입니다.
+          </p>
+          <span style={{ fontSize: '8.5px', fontWeight: 800, border: '1px solid rgba(20,20,20,0.6)', borderRadius: '999px', padding: '4px 10px', whiteSpace: 'nowrap' }}>SCROLL ↓</span>
+        </Rv>
+      </div>
+      <div className="mt-auto overflow-hidden py-2" style={{ borderTop: '1px solid rgba(20,20,20,0.14)', borderBottom: '1px solid rgba(20,20,20,0.14)' }}>
+        <div className="flex whitespace-nowrap w-max" style={{ animation: 'wpMarquee 16s linear infinite', animationPlayState: live ? 'running' : 'paused', willChange: 'transform' }}>
+          {[0, 1].map((d) => (
+            <div key={d} className="flex shrink-0">
+              {skills.map((s, i) => (
+                <span key={i} className="flex items-center" style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', padding: '0 13px', gap: '13px' }}>
+                  {s}<span style={{ color: t.accent }}>✦</span>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="px-5 py-3 space-y-2">
+        {[
+          ['01', '결제 전환율 18% 개선 프로젝트', '2025'],
+          ['02', 'AI 챗봇으로 CS 응대 40% 단축', '2025'],
+        ].map(([n, title, y], i) => (
+          <Rv key={n} live={live} delay={430 + i * 90} className="flex items-center justify-between"
+            style={{ paddingBottom: i === 0 ? '8px' : 0, borderBottom: i === 0 ? '1px solid rgba(20,20,20,0.1)' : 'none' }}>
+            <div className="flex items-center gap-3">
+              <span style={{ fontSize: '9px', fontWeight: 800, color: t.accent }}>{n}</span>
+              <span style={{ fontSize: '11px', fontWeight: 800 }}>{title}</span>
+            </div>
+            <span className="flex items-center gap-2" style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(20,20,20,0.45)' }}>{y} <span style={{ fontSize: '11px' }}>↗</span></span>
+          </Rv>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BentoPreview({ live }) {
+  const t = { bg: '#eef0f4', ink: '#0f172a', accent: '#002a61' };
+  const tile = 'bg-white rounded-xl shadow-[0_1px_6px_rgb(15,23,42,0.06)]';
+  return (
+    <div className="w-full h-full p-3" style={{ background: t.bg, color: t.ink }}>
+      <div className="grid grid-cols-4 gap-2 h-full" style={{ gridTemplateRows: 'repeat(3, 1fr)' }}>
+        <Rv live={live} delay={0} className={`${tile} col-span-2 row-span-2 p-3 flex flex-col`}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{ background: t.accent }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#fff' }}>SK</span>
+          </div>
+          <p style={{ fontSize: '14px', fontWeight: 900 }}>김서연</p>
+          <p style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Product Designer</p>
+          <p style={{ fontSize: '8.5px', color: '#64748b', lineHeight: 1.55 }}>
+            데이터 기반 문제 정의로 6개의 프로젝트를 이끌었습니다.
+          </p>
+          <div className="flex flex-wrap gap-1 mt-auto">
+            {['UX 리서치', '기획', 'A/B 테스트'].map((s, i) => (
+              <span key={i} style={{ fontSize: '7.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: '#eef0f4', color: '#475569' }}>{s}</span>
+            ))}
+          </div>
+        </Rv>
+        <Rv live={live} delay={80} className={`${tile} p-2.5 flex flex-col justify-between`}>
+          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>전환율 개선</p>
+          <p style={{ fontSize: '17px', fontWeight: 900, color: t.accent }}>+18%</p>
+        </Rv>
+        <Rv live={live} delay={140} className={`${tile} p-2.5 flex flex-col justify-between`}>
+          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>프로젝트</p>
+          <p style={{ fontSize: '17px', fontWeight: 900 }}>6</p>
+        </Rv>
+        <Rv live={live} delay={200} className={`${tile} col-span-2 p-2.5 flex flex-col justify-between`}>
+          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>SKILLS</p>
+          <div className="flex flex-wrap gap-1">
+            {['Figma', 'SQL', 'GA4', 'Python'].map((s, i) => (
+              <span key={i} style={{ fontSize: '8px', fontWeight: 800, padding: '2.5px 7px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>{s}</span>
+            ))}
+          </div>
+        </Rv>
+        <Rv live={live} delay={260} className={`${tile} col-span-2 p-2.5 flex flex-col justify-between`}>
+          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>FEATURED</p>
+          <p style={{ fontSize: '10px', fontWeight: 800 }}>AI 챗봇 CS 자동화</p>
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: '#eef0f4' }}>
+            <div className="h-full rounded-full" style={{ width: '72%', background: t.accent }} />
+          </div>
+        </Rv>
+        <Rv live={live} delay={320} className="rounded-xl p-2.5 flex flex-col justify-between" style={{ background: t.accent }}>
+          <p style={{ fontSize: '8px', fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>CONTACT</p>
+          <p style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Say hi ↗</p>
+        </Rv>
+        <Rv live={live} delay={380} className={`${tile} p-2.5 flex flex-col justify-between`}>
+          <span style={{ fontSize: '12px' }}>🏆</span>
+          <p style={{ fontSize: '8.5px', fontWeight: 800, lineHeight: 1.3 }}>해커톤 대상</p>
+        </Rv>
+      </div>
+    </div>
+  );
+}
+
+function EditorialPreview({ live }) {
+  const t = { bg: '#f5f5f2', ink: '#090909', accent: '#b7ff22' };
+  return (
+    <div className="w-full h-full flex flex-col px-5 py-4" style={{ background: t.bg, color: t.ink }}>
+      <Rv live={live} delay={0} className="flex items-center justify-between" style={{ fontSize: '8.5px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(9,9,9,0.55)' }}>
+        <span>PORTFOLIO ARCHIVE — 2026</span>
+        <span>SEOUL, KR</span>
+      </Rv>
+      <Rv live={live} delay={110}>
+        <p style={{ fontSize: '38px', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.05, margin: '10px 0 12px' }}>
+          <span style={{ background: t.accent, padding: '0 6px' }}>KIM</span> SEOYEON<sup style={{ fontSize: '14px' }}>®</sup>
+        </p>
+      </Rv>
+      <Rv live={live} delay={220} className="flex items-center gap-2 rounded-lg px-3 py-2 mb-3" style={{ border: '1.5px solid #090909', background: '#fff' }}>
+        <Search size={11} />
+        <span style={{ fontSize: '10px', fontWeight: 700 }}>UX 리서치</span>
+        <span className="wp-caret" style={{ width: '1.5px', height: '12px', background: t.ink }} />
+        <span className="ml-auto" style={{ fontSize: '8px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: '#f1f1ee', color: '#6b7280' }}>⌘K</span>
+      </Rv>
+      <div className="flex-1 flex flex-col justify-start">
+        {[
+          { n: '001', title: '설문 84명 기반 문제 정의', tag: 'RESEARCH', y: '2023', hot: true },
+          { n: '002', title: '결제 전환율 18% 개선', tag: 'PRODUCT', y: '2025', hot: false },
+          { n: '003', title: '공지 누락률 32% 감소', tag: 'SERVICE', y: '2024', hot: false },
+        ].map((row, i) => (
+          <Rv key={row.n} live={live} delay={330 + i * 90} className="flex items-center gap-3 px-2 py-2 rounded-md"
+            style={{ background: row.hot ? t.accent : 'transparent', borderBottom: row.hot ? 'none' : '1px solid rgba(9,9,9,0.1)' }}>
+            <span style={{ fontSize: '8px', fontWeight: 800, color: row.hot ? t.ink : 'rgba(9,9,9,0.4)' }}>{row.n}</span>
+            <span style={{ fontSize: '10.5px', fontWeight: 800, flex: 1 }}>{row.title}</span>
+            <span style={{ fontSize: '7.5px', fontWeight: 800, letterSpacing: '0.08em', padding: '2px 6px', borderRadius: '999px', border: '1px solid rgba(9,9,9,0.35)' }}>{row.tag}</span>
+            <span style={{ fontSize: '8.5px', fontWeight: 700, color: 'rgba(9,9,9,0.5)' }}>{row.y}</span>
+            <span style={{ fontSize: '11px' }}>↗</span>
+          </Rv>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ImpactPreview({ live }) {
+  const t = { bg: '#ffffff', ink: '#111111', accent: '#00bd66' };
+  return (
+    <div className="w-full h-full flex flex-col px-5 py-4 overflow-hidden" style={{ background: t.bg, color: t.ink }}>
+      <Rv live={live} delay={0} className="flex items-center justify-between">
+        <span style={{ fontSize: '12px', fontWeight: 900 }}>S<span style={{ color: t.accent }}>.</span></span>
+        <div className="flex items-center gap-3" style={{ fontSize: '8.5px', fontWeight: 700, color: '#6b7280' }}>
+          <span>Projects</span><span>Impact</span>
+          <span style={{ background: t.accent, color: '#fff', padding: '3px 9px', borderRadius: '999px', fontWeight: 800 }}>Resume</span>
+        </div>
+      </Rv>
+      <Rv live={live} delay={110}>
+        <p style={{ fontSize: '20px', fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.02em', margin: '14px 0 10px', wordBreak: 'keep-all' }}>
+          사용자의 문제를<br />
+          <span style={{ boxShadow: `inset 0 -9px 0 ${t.accent}55` }}>데이터로 해결</span>합니다
+        </p>
+      </Rv>
+      <Rv live={live} delay={210} className="flex flex-wrap gap-1.5 mb-3.5">
+        {['CS 응대 40%↓', '전환율 18%↑', '공지 누락 32%↓'].map((s, i) => (
+          <span key={i} style={{ fontSize: '8.5px', fontWeight: 800, padding: '3px 8px', borderRadius: '999px', background: `${t.accent}14`, color: '#00794a', border: `1px solid ${t.accent}44` }}>{s}</span>
+        ))}
+      </Rv>
+      <Rv live={live} delay={300} className="flex-1 min-h-0">
+        <div className="flex gap-2 h-full" style={{ animation: 'wpRail 10s ease-in-out infinite alternate', animationPlayState: live ? 'running' : 'paused', willChange: 'transform' }}>
+          {[
+            { title: 'AI 챗봇 CS 자동화', metric: '응대 40% 단축', emoji: '🤖' },
+            { title: '결제 플로우 재설계', metric: '전환율 18% 향상', emoji: '💳' },
+            { title: '공지 통합 서비스', metric: '누락률 32% 감소', emoji: '📌' },
+            { title: 'VOC 리포트 자동화', metric: '주 4시간 절감', emoji: '📊' },
+          ].map((c, i) => (
+            <div key={i} className="shrink-0 rounded-xl p-2.5 flex flex-col justify-between" style={{ width: '150px', background: '#f7faf8', border: '1px solid #e6efe9' }}>
+              <span style={{ fontSize: '15px' }}>{c.emoji}</span>
+              <div>
+                <p style={{ fontSize: '10px', fontWeight: 800, lineHeight: 1.35 }}>{c.title}</p>
+                <p style={{ fontSize: '8.5px', fontWeight: 800, color: t.accent, marginTop: '3px' }}>{c.metric}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Rv>
+    </div>
+  );
+}
+
+const WEB_PREVIEW_COMPONENTS = {
+  bold: BoldPreview,
+  bento: BentoPreview,
+  editorial: EditorialPreview,
+  impact: ImpactPreview,
+};
+
+function WebPortfolioShowcase() {
+  const [active, setActive] = useState(0);
+  const [tick, setTick] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.2 }
+    );
+    if (rootRef.current) observer.observe(rootRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const id = setInterval(() => setActive((a) => (a + 1) % WEB_SHOWCASE_TEMPLATES.length), WEB_SHOWCASE_INTERVAL);
+    return () => clearInterval(id);
+  }, [visible, tick]);
+
+  const select = (i) => { setActive(i); setTick((v) => v + 1); };
+
+  return (
+    <div ref={rootRef} className="w-full">
+      <style>{`
+        .wp-frame {
+          transition: opacity 0.65s cubic-bezier(0.22,1,0.36,1), transform 0.65s cubic-bezier(0.22,1,0.36,1);
+          will-change: opacity, transform;
+        }
+        @keyframes wpReveal {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .wp-reveal { opacity: 0; animation: wpReveal 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+        @keyframes wpMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes wpProgress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        @keyframes wpRail {
+          0%, 18%  { transform: translateX(0); }
+          44%, 60% { transform: translateX(-158px); }
+          88%, 100%{ transform: translateX(-316px); }
+        }
+        @keyframes wpCaretBlink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+        .wp-caret { display: inline-block; animation: wpCaretBlink 1s step-end infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .wp-reveal { animation: none; opacity: 1; }
+        }
+      `}</style>
+
+      {/* 브라우저 프레임 스테이지 */}
+      <div className="relative" style={{ height: '410px' }}>
+        {WEB_SHOWCASE_TEMPLATES.map((t, i) => {
+          const isActive = i === active;
+          const Preview = WEB_PREVIEW_COMPONENTS[t.id];
+          return (
+            <div
+              key={t.id}
+              className="wp-frame absolute inset-0 rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-[0_16px_48px_rgb(0,0,0,0.1)]"
+              style={{
+                opacity: isActive ? 1 : 0,
+                transform: isActive ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.975)',
+                pointerEvents: isActive ? 'auto' : 'none',
+                zIndex: isActive ? 2 : 1,
+              }}
+            >
+              {/* 브라우저 크롬 */}
+              <div className="flex items-center gap-2 px-3.5" style={{ height: '34px', background: '#f5f6f8', borderBottom: '1px solid #e5e7eb' }}>
+                <div className="flex gap-1.5 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <div className="flex items-center gap-1.5 bg-white rounded-full px-3.5 py-1 border border-gray-200" style={{ fontSize: '9px', color: '#6b7280', fontWeight: 600 }}>
+                    <span style={{ fontSize: '8px' }}>🔒</span> fitpoly.kr/p/seoyeon
+                  </div>
+                </div>
+                <span className="shrink-0" style={{ fontSize: '9px', fontWeight: 700, color: '#9ca3af' }}>{t.name}</span>
+              </div>
+              {/* 활성화될 때마다 key 교체로 스태거 리빌 재생 */}
+              <div key={isActive ? `live-${tick}-${active}` : 'idle'} style={{ height: 'calc(100% - 34px)' }}>
+                <Preview live={isActive && visible} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 템플릿 선택 레일 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-4">
+        {WEB_SHOWCASE_TEMPLATES.map((t, i) => (
+          <button
+            key={t.id}
+            onClick={() => select(i)}
+            className="relative text-left rounded-xl border bg-white p-3 pb-4 overflow-hidden transition-colors duration-300 hover:border-gray-400"
+            style={{ borderColor: i === active ? '#1B264F' : '#e5e7eb' }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-3.5 h-3.5 rounded-[5px] border border-black/10 flex items-center justify-center shrink-0" style={{ background: t.bg }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: t.accent }} />
+              </span>
+              <span className={`text-[12px] font-extrabold truncate ${i === active ? 'text-gray-900' : 'text-gray-500'}`}>{t.name}</span>
+            </div>
+            <p className="text-[11px] text-gray-400 font-medium truncate">{t.desc}</p>
+            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gray-100">
+              {i === active && (
+                <div
+                  key={`${active}-${tick}`}
+                  className="h-full origin-left bg-[#1B264F]"
+                  style={{ animation: visible ? `wpProgress ${WEB_SHOWCASE_INTERVAL}ms linear both` : 'none' }}
+                />
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const MOCK_UPLOAD_FILES = [
   { name: '프로젝트_회고록.hwp', size: '245 KB', color: 'bg-blue-500' },
   { name: '포트폴리오_v3.pdf', size: '1.2 MB', color: 'bg-red-500' },
@@ -103,6 +458,8 @@ export default function Landing() {
   const [panelAnim, setPanelAnim] = useState(0);
   const [panelAnimKey, setPanelAnimKey] = useState(0);
   const panelTimers = useRef([]);
+  const uploadMockRef = useRef(null);
+  const [uploadMockVisible, setUploadMockVisible] = useState(false);
 
   const statsRef = useRef(null);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -114,7 +471,21 @@ export default function Landing() {
 
   useEffect(() => { setHeroVisible(true); }, []);
 
+  // 업로드 목업이 화면에 보일 때만 애니메이션 루프 실행 (백그라운드 타이머 낭비 방지)
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setUploadMockVisible(entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+    if (uploadMockRef.current) observer.observe(uploadMockRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!uploadMockVisible) {
+      panelTimers.current.forEach(clearTimeout);
+      return;
+    }
     const run = (k) => {
       panelTimers.current.forEach(clearTimeout);
       setPanelAnimKey(k);
@@ -130,7 +501,7 @@ export default function Landing() {
     };
     run(0);
     return () => panelTimers.current.forEach(clearTimeout);
-  }, []);
+  }, [uploadMockVisible]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -141,26 +512,21 @@ export default function Landing() {
     return () => observer.disconnect();
   }, []);
 
+  // 카운트업: setInterval 3개 → rAF 1개 (프레임 동기화 + ease-out으로 더 부드럽게)
   useEffect(() => {
     if (!statsVisible) return;
-    let step1 = 0, step2 = 0, step3 = 0;
-    const STEPS = 50;
-    const t1 = setInterval(() => {
-      step1++;
-      setCount1(parseFloat(((13.4 / STEPS) * step1).toFixed(1)));
-      if (step1 >= STEPS) clearInterval(t1);
-    }, 1400 / STEPS);
-    const t2 = setInterval(() => {
-      step2++;
-      setCount2(parseFloat(((19.4 / STEPS) * step2).toFixed(1)));
-      if (step2 >= STEPS) clearInterval(t2);
-    }, 1600 / STEPS);
-    const t3 = setInterval(() => {
-      step3++;
-      setCount3(parseFloat(((84.5 / STEPS) * step3).toFixed(1)));
-      if (step3 >= STEPS) clearInterval(t3);
-    }, 1800 / STEPS);
-    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); };
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    let raf;
+    const start = performance.now();
+    const frame = (now) => {
+      const elapsed = now - start;
+      setCount1(parseFloat((13.4 * easeOut(Math.min(elapsed / 1400, 1))).toFixed(1)));
+      setCount2(parseFloat((19.4 * easeOut(Math.min(elapsed / 1600, 1))).toFixed(1)));
+      setCount3(parseFloat((84.5 * easeOut(Math.min(elapsed / 1800, 1))).toFixed(1)));
+      if (elapsed < 1800) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
   }, [statsVisible]);
 
   return (
@@ -446,7 +812,7 @@ export default function Landing() {
           </div>
 
           {/* 파일 업로드 */}
-          <div className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
+          <div ref={uploadMockRef} className="bg-[#f8f9fc] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mb-6 sm:mb-8">
             <style>{`
               @keyframes exportBubble {
                 0%   { transform: translateX(0) scale(1); opacity: 1; }
@@ -1248,6 +1614,34 @@ export default function Landing() {
                 </div>
               </div>
             </div>
+            </ResponsiveScaleWrapper>
+          </div>
+
+          {/* 웹 포트폴리오 쇼케이스 */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mt-6 sm:mt-8">
+            <ResponsiveScaleWrapper minWidth={1000}>
+              <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
+                <div className="w-[380px] shrink-0">
+                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">웹 포트폴리오</span>
+                  <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
+                    문서로 끝나지 않고,<br />
+                    <span className="text-primary-500">나만의 웹사이트로<br />공유됩니다</span>
+                  </h3>
+                  <p className="text-[14px] sm:text-[15px] text-bluewood-500 leading-relaxed mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
+                    원하는 무드의 웹사이트형 템플릿을 고르면, 정리된 경험이 그대로 채워집니다.
+                    색상 테마까지 커스텀해 <strong className="text-primary-600">링크 하나로 바로 공유</strong>하세요.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {['웹사이트형 템플릿', '테마 커스텀', '링크 공유'].map((t, i) => (
+                      <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex-1 w-full min-w-0">
+                  <WebPortfolioShowcase />
+                </div>
+              </div>
             </ResponsiveScaleWrapper>
           </div>
         </div>

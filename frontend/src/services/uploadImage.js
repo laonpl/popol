@@ -57,3 +57,14 @@ export async function uploadImageUrl(file, maxPx = 1200, quality = 0.8) {
   const { url } = await uploadImageFile(file, maxPx, quality);
   return url;
 }
+
+// 레거시 포트폴리오/경험에 남아 있는 data:image Base64도 같은 업로드 경로로 이전한다.
+export async function uploadImageDataUrl(dataUrl, maxPx = 1200, quality = 0.8) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return dataUrl || '';
+  const response = await fetch(dataUrl);
+  if (!response.ok) throw new Error('기존 이미지 데이터를 읽지 못했습니다');
+  const blob = await response.blob();
+  const extension = blob.type?.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  const file = new File([blob], `legacy-image.${extension}`, { type: blob.type || 'image/jpeg' });
+  return uploadImageUrl(file, maxPx, quality);
+}

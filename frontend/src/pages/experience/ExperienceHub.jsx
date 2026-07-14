@@ -1417,6 +1417,9 @@ function ProfileView({ experiences, user, profile }) {
   const introTail = nameInIntro
     ? introText.split(name).slice(1).join(name)
     : (/[.!?…]$|[다요함음죠네까]$/.test(introLead) ? '' : '입니다.');
+  // 좁은 좌측 컬럼(230px)에서 헤드라인이 길어질수록 폰트를 줄여 정렬이 흐트러지지 않게 처리
+  const headlineLen = `${introLead}${name}${introTail}`.length;
+  const headlineFontSize = Math.max(16, Math.min(25, Math.round(25 - Math.max(0, headlineLen - 14) * 0.38)));
 
   return (
     <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -1444,7 +1447,7 @@ function ProfileView({ experiences, user, profile }) {
       <div className="px-7 py-10 sm:px-12 lg:px-16">
         <div className="grid gap-x-16 gap-y-8 pb-10 md:grid-cols-[230px_1fr]">
           <div>
-            <h2 className="text-[25px] font-extrabold leading-snug text-gray-950" style={{ wordBreak: 'keep-all' }}>
+            <h2 className="font-extrabold leading-snug text-gray-950" style={{ wordBreak: 'keep-all', textWrap: 'balance', fontSize: headlineFontSize }}>
               {introLead && <>{introLead}<br /></>}
               <span className="text-primary-600">{name}</span>{introTail}
             </h2>

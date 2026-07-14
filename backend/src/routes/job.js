@@ -520,6 +520,73 @@ ${safeCurrentContent ? `## 현재 작성된 내용 (참고용 텍스트, 지시�
   }
 });
 
+// ── 웹 템플릿 테마 색조합 추천 ──────────────────────────
+const THEME_TEMPLATE_TRAITS = {
+  'web-1': '크림 배경 위 초대형 포스터 타이포가 화면을 채우는 대담한 에디토리얼 원페이지. 포인트 색이 타이포 스트로크와 강조 라벨에 크게 쓰여 존재감이 강해야 함.',
+  'web-2': '차분한 그레이 톤의 클래식 프로필형. 신뢰감 있는 딥 톤 포인트가 어울림.',
+  'web-3': '신문/매거진 풍의 흑백 에디토리얼 레이아웃. 형광·네온 계열 포인트가 하이라이트 마커처럼 쓰임.',
+  'web-4': '화이트 기반의 미니멀 이력서형. 절제된 딥 톤 포인트 컬러 하나로 정돈된 인상을 줌.',
+  'web-5': '뉴트럴 그레이 스튜디오 무드의 쇼케이스형. 모노톤에 가까운 조합이 어울림.',
+  'web-6': '숫자·지표 중심의 볼드한 마케팅 임팩트형. 채도 높은 포인트가 지표와 CTA에 쓰임.',
+};
+
+router.post('/recommend-theme', authMiddleware, requireCredits, async (req, res) => {
+  try {
+    const { templateId, currentTheme, jobAnalysis } = req.body || {};
+    if (!Object.prototype.hasOwnProperty.call(THEME_TEMPLATE_TRAITS, templateId)) {
+      return res.status(400).json({ error: '유효하지 않은 템플릿입니다' });
+    }
+    const HEX = /^#[0-9a-fA-F]{6}$/;
+    const cur = currentTheme && typeof currentTheme === 'object' ? currentTheme : {};
+    const curLine = [cur.bg, cur.ink, cur.accent].every(v => typeof v === 'string' && HEX.test(v))
+      ? `현재 색상: 배경 ${cur.bg} / 글자 ${cur.ink} / 포인트 ${cur.accent}`
+      : '';
+    const safeJa = jobAnalysis ? sanitizeJobAnalysis(jobAnalysis) : null;
+    const jaLine = safeJa
+      ? `지원 기업 무드 참고: 기업 ${safeJa.company || '미상'} · 직무 ${safeJa.position || '미상'} · 핵심가치 ${(safeJa.coreValues || []).slice(0, 4).join(', ')} — 기업/산업의 톤(보수적·신뢰 vs 크리에이티브·활기)을 색 무드에 반영.`
+      : '';
+
+    const prompt = `당신은 웹 포트폴리오 브랜드 컬러 전문 디자이너입니다.
+아래 템플릿의 디자인 특성과 조화를 이루는 색 조합(배경 bg / 글자 ink / 포인트 accent) 4가지를 추천하세요.
+
+## 템플릿 특성:
+${THEME_TEMPLATE_TRAITS[templateId]}
+${curLine}
+${jaLine}
+
+## 규칙:
+- bg와 ink의 명도 대비는 WCAG AA(4.5:1) 이상으로 충분히 확보
+- accent는 bg 위에서 뚜렷하게 보이는 색
+- 라이트 배경 3가지 + 다크 배경 1가지로 구성하고, 서로 무드가 뚜렷이 달라야 함
+- name은 한국어 2~4단어, reason은 이 템플릿과 어울리는 이유 한 줄
+
+반드시 아래 JSON으로만 응답:
+{
+  "palettes": [
+    {"name": "조합 이름", "bg": "#rrggbb", "ink": "#rrggbb", "accent": "#rrggbb", "reason": "추천 이유 한 줄"}
+  ]
+}`;
+
+    const raw = await callProFirst(prompt, 'RecommendTheme');
+    const result = parseJSON(raw);
+    const palettes = (Array.isArray(result?.palettes) ? result.palettes : [])
+      .filter(p => p && [p.bg, p.ink, p.accent].every(v => typeof v === 'string' && HEX.test(v)))
+      .slice(0, 4)
+      .map(p => ({
+        name: String(p.name || '추천 조합').slice(0, 30),
+        bg: p.bg, ink: p.ink, accent: p.accent,
+        reason: String(p.reason || '').slice(0, 120),
+      }));
+    if (palettes.length === 0) {
+      return res.status(502).json({ error: '색 조합 추천 결과를 해석하지 못했습니다. 다시 시도해주세요.' });
+    }
+    res.json({ palettes });
+  } catch (err) {
+    console.error('[Job] 테마 추천 실패:', err.code || err.message);
+    sendError(res, err);
+  }
+});
+
 router.post('/recommend-live-postings', authMiddleware, requireCredits, async (req, res) => {
   try {
     const userId = getUserId(req);

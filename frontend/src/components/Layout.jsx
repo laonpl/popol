@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { useEffect, useRef, useState } from 'react';
 import { Settings, X, Gift } from 'lucide-react';
@@ -15,6 +15,7 @@ export default function Layout() {
   const { user, profile, signOut } = useAuthStore();
   const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [creditPanelOpen, setCreditPanelOpen] = useState(false);
@@ -37,6 +38,7 @@ export default function Layout() {
   // 크레딧을 다 쓰고 아직 피드백 보상을 못 받은 사용자에게만 유도 안내를 보여준다.
   const rewardEligible = creditBalance === 0 && !!wallet && !wallet.feedbackRewardGranted && !rewardPromptDismissed;
   const creditModalKey = user?.uid ? `fitpoly-credit-zero-modal:${user.uid}` : '';
+  const isWebPortfolioSurface = /^\/app\/portfolio\/web-(?:edit|preview)\//.test(location.pathname);
 
   const showCreditModal = () => {
     if (!creditModalKey) return;
@@ -118,7 +120,7 @@ export default function Layout() {
         }}
       />
       {/* 상단 네비게이션 */}
-      <header className="bg-white border-b border-surface-200">
+      <header className="relative z-[80] flex-shrink-0 bg-white border-b border-surface-200">
         <div className="relative px-6 flex items-center h-16">
           {/* 로고 */}
           <button onClick={() => navigate('/app')} className="flex items-center gap-2">
@@ -265,7 +267,7 @@ export default function Layout() {
 
       {/* 메인 콘텐츠 */}
       <main className="flex-1 overflow-auto">
-        <div className="w-full p-8">
+        <div className={`w-full ${isWebPortfolioSurface ? 'p-0' : 'p-8'}`}>
           <Outlet />
         </div>
       </main>

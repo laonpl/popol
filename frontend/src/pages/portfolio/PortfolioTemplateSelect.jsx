@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VisualPortfolioRenderer from './VisualPortfolioTemplates';
+import WebPortfolioRenderer, { WEB_SAMPLE_PORTFOLIO } from './WebPortfolioTemplates';
 import { ArrowLeft, Loader2, Check, ArrowRight, Building2, BookOpen, Sparkles, User, GraduationCap, MapPin, Calendar, Mail, Phone, Globe, Briefcase, Star, Code, Target, MessageSquare, Award, Eye, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
@@ -22,7 +23,47 @@ const TEMPLATE_CATEGORIES = [
   { id: 'backend', label: '백엔드' },
 ];
 
+const FEATURED_WEB_TEMPLATES = [
+  {
+    id: 'web-1',
+    name: '웹사이트 A (빅 타이포 랜딩)',
+    description: '풀스크린 히어로와 초대형 타이포, 흐르는 스킬 티커로 구성된 어워즈형 원페이지 웹사이트입니다.',
+    tags: ['웹사이트', '원페이지', '커스텀 컬러', '임팩트'],
+    category: 'common',
+    isWeb: true,
+    previewBg: 'bg-[#f4f1ea]',
+  },
+  {
+    id: 'web-3',
+    name: '웹사이트 B (에디토리얼 파인더)',
+    description: '초대형 검색형 타이포와 넓은 여백, 선명한 구획선으로 프로젝트를 시원하게 보여주는 에디토리얼 사이트입니다.',
+    tags: ['웹사이트', '에디토리얼', '프로젝트 중심', '커스텀 컬러'],
+    category: 'common',
+    isWeb: true,
+    previewBg: 'bg-[#f5f5f2]',
+  },
+  {
+    id: 'web-4',
+    name: '웹사이트 C (블루 티켓)',
+    description: '여행 티켓 콘셉트의 그래픽 포트폴리오. 콜라주 워드마크와 티켓 카드, 스탬프 장식으로 개성을 드러냅니다.',
+    tags: ['웹사이트', '그래픽', '티켓 콘셉트', '커스텀 컬러'],
+    category: 'designer',
+    isWeb: true,
+    previewBg: 'bg-white',
+  },
+  {
+    id: 'web-6',
+    name: '웹사이트 D (임팩트 카드)',
+    description: '미션 문구와 가로 프로젝트 카드, 최근 경험과 임팩트 지표를 풍부하게 구성한 브랜드형 포트폴리오 사이트입니다.',
+    tags: ['웹사이트', '카드 갤러리', '브랜드형', '커스텀 컬러'],
+    category: 'common',
+    isWeb: true,
+    previewBg: 'bg-white',
+  },
+];
+
 const PORTFOLIO_TEMPLATES = [
+  ...FEATURED_WEB_TEMPLATES,
   {
     id: 'notion',
     name: '템플릿 1',
@@ -124,7 +165,6 @@ const PORTFOLIO_TEMPLATES = [
     isNotion: true,
     previewBg: 'bg-white',
   },
-
 ];
 
 // ── 미리보기 컴포넌트들 ──
@@ -529,6 +569,10 @@ const SAMPLE_PORTFOLIO = {
 function VisualFullPreview({ templateId }) {
   const portfolio = { ...SAMPLE_PORTFOLIO, templateId };
   return <VisualPortfolioRenderer portfolio={portfolio} />;
+}
+
+function WebFullPreview({ templateId }) {
+  return <WebPortfolioRenderer portfolio={{ ...WEB_SAMPLE_PORTFOLIO, templateId }} embedded enableProjectModal={false} />;
 }
 
 // ── 모달용 확대 미리보기 컴포넌트들 ──
@@ -1065,7 +1109,8 @@ export default function PortfolioTemplateSelect() {
 
       const id = await createPortfolio(user.uid, data);
 
-      navigate(`/app/portfolio/edit-notion/${id}`);
+      // 웹사이트형 템플릿은 전용 에디터로
+      navigate(template.isWeb ? `/app/portfolio/web-edit/${id}` : `/app/portfolio/edit-notion/${id}`);
       toast.success('포트폴리오가 생성되었습니다!');
     } catch (error) {
       toast.error('포트폴리오 생성에 실패했습니다');
@@ -1168,6 +1213,7 @@ export default function PortfolioTemplateSelect() {
                       {template.id === 'notion' && <NotionFullPreview />}
                       {template.id === 'academic' && <AcademicFullPreview />}
                       {template.id?.startsWith('visual-') && <VisualFullPreview templateId={template.id} />}
+                      {template.id?.startsWith('web-') && <WebFullPreview templateId={template.id} />}
                     </div>
                   </div>
 
@@ -1290,6 +1336,7 @@ export default function PortfolioTemplateSelect() {
                 {previewTemplate === 'academic' && <AcademicFullPreview />}
                 {previewTemplate === 'timeline' && <TimelineFullPreview />}
                 {previewTemplate?.startsWith('visual-') && <VisualFullPreview templateId={previewTemplate} />}
+                {previewTemplate?.startsWith('web-') && <WebFullPreview templateId={previewTemplate} />}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-surface-200 bg-surface-50/60 flex items-center justify-between gap-3">

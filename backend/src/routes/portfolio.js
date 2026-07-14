@@ -540,7 +540,9 @@ router.patch('/:id', authMiddleware, async (req, res, next) => {
     const update = { ...cleanBody, userId: req.user.uid, updatedAt: now() };
     delete update.id;
     delete update.createdAt;
-    if (exceedsFirestoreLimit(update, res)) return;
+    // PATCH 본문만이 아니라 기존 문서와 병합된 최종 크기를 검사해야
+    // 작은 변경이 기존 대용량 문서를 한도 밖으로 밀어내는 경우도 정확히 차단된다.
+    if (exceedsFirestoreLimit({ ...data, ...update }, res)) return;
     await ref.update(update);
     res.json({ id: req.params.id, ...data, ...update });
   } catch (error) {

@@ -653,18 +653,28 @@ function RichInline({ value, onChange, placeholder = '클릭하여 편집', clas
   const savedRange = useRef(null);
   const lastValueRef = useRef(value ?? '');
 
+  const syncEmptyState = (el = ref.current) => {
+    if (!el) return true;
+    const text = String(el.textContent || '').replace(/[\u200B\u00A0]/g, '').trim();
+    const hasVisualContent = !!el.querySelector('img, video, svg, iframe');
+    const empty = !text && !hasVisualContent;
+    el.dataset.empty = empty ? 'true' : 'false';
+    return empty;
+  };
+
   // 마운트 1회 + 외부 값 변경(undo/redo·다른 항목 전환) 시, 포커스가 없을 때만 DOM에 반영.
   useEffect(() => {
     const el = ref.current;
     if (!el || focusedRef.current) return;
     const next = value || '';
     if (el.innerHTML !== next) el.innerHTML = next;
+    syncEmptyState(el);
     lastValueRef.current = next;
   }, [value]);
 
   const emit = () => {
     if (!ref.current) return;
-    const html = sanitizeInlineHtml(ref.current.innerHTML);
+    const html = syncEmptyState(ref.current) ? '' : sanitizeInlineHtml(ref.current.innerHTML);
     if (html === lastValueRef.current) return;
     lastValueRef.current = html;
     onChange(html);
@@ -749,8 +759,9 @@ function RichInline({ value, onChange, placeholder = '클릭하여 편집', clas
       ref={ref}
       contentEditable
       suppressContentEditableWarning
-      onFocus={() => { focusedRef.current = true; }}
+      onFocus={() => { focusedRef.current = true; syncEmptyState(); }}
       onBlur={() => { focusedRef.current = false; emit(); }}
+      onInput={() => syncEmptyState()}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       onContextMenu={openMenu}
@@ -4071,8 +4082,894 @@ export const VisualTemplate9 = ({ portfolio, ec, onOpenExpDetail }) => {
   );
 };
 
+// ── 템플릿 10: 대시보드형 (서비스 커리어 대시보드 디자인) ──
+// 앱 홈의 커리어 대시보드 화면과 동일한 디자인 언어: 화이트 카드 + 네이비 KPI + 대문자 트래킹 라벨.
+const T10SectionHead = ({ ec, portfolio, gp, sectionKey, title, sub, icon, recommendKey }) => (
+  <div className="flex items-start justify-between gap-3 mb-6">
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="h-4 w-1 rounded-full bg-primary-600 inline-block shrink-0" />
+        <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey={sectionKey} fallback={icon} className="w-[17px] h-[17px] text-primary-600" />
+        <h2 className="text-[18px] font-extrabold text-bluewood-800"><EH ec={ec} value={title} sectionKey={sectionKey} /></h2>
+      </div>
+      {sub && <p className="mt-1 ml-3 text-[13px] font-medium text-gray-400" style={{ wordBreak: 'keep-all' }}>{sub}</p>}
+    </div>
+    <div className="flex items-center gap-1 shrink-0">
+      {ec?.jobAnalysis && <VisualSectionRecommend sectionType={recommendKey || sectionKey} jobAnalysis={ec.jobAnalysis} />}
+      {ec && <span {...gp(sectionKey)}><GripVertical size={14} /></span>}
+      <SectionDeleteBtn ec={ec} sectionKey={sectionKey} />
+    </div>
+  </div>
+);
+
+export const VisualTemplate10 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = portfolio.experiences || [];
+  const projList = ec ? (portfolio.experiences || []) : data.projects;
+  const eduList = ec ? (portfolio.education || []) : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
+  const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, github: data.social?.github, website: data.social?.blog };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['experiences', 'projects', 'skills', 'education', 'awards', 'contact']);
+  const hidden10 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden10 = (key) => hidden10.includes(key);
+
+  const topSkillNames = (skillList || []).map(s => (typeof s === 'string' ? s : s?.name)).filter(Boolean);
+  const hasAbout = ec || richValueHasContent(portfolio.aboutBlocks) || data.about;
+  const card = 'rounded-2xl border border-gray-200 bg-white px-6 md:px-8 py-7 shadow-sm';
+
+  return (
+    <div className="min-h-screen bg-[#f4f6f8] text-gray-900 font-sans selection:bg-primary-100">
+      <div className="max-w-5xl mx-auto px-4 md:px-8 py-10 pb-32 space-y-5">
+        {/* 헤더 카드 */}
+        <div className={card}>
+          <div className="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-6">
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-primary-400">Portfolio Dashboard</p>
+              <h1 className="mt-1.5 text-[32px] font-extrabold leading-tight text-gray-900">
+                {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-[32px] font-extrabold" /> : <VHtml value={data.name} />}
+              </h1>
+              <p className="mt-2 text-[17px] font-semibold text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+                {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개 — 예: 데이터로 문제를 해결하는 프로덕트 매니저" className="text-[17px] font-semibold text-bluewood-600" /> : <VHtml value={data.title} />}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] font-semibold text-gray-400">
+                {contact.email && <span className="inline-flex items-center gap-1.5"><Mail size={13} />{contact.email}</span>}
+                {contact.phone && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{contact.phone}</span>}
+                {(portfolio.location || data.location) && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{portfolio.location || data.location}</span>}
+              </div>
+            </div>
+            <ImageUploadSlot
+              src={portfolio.profileImageUrl}
+              onUpload={ec?.onUploadProfileImage}
+              className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-gray-100 shadow-sm"
+              imgClassName="w-full h-full object-cover"
+              rounded="rounded-2xl"
+            >
+              <div className="w-24 h-24 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center"><UserCircle2 className="w-12 h-12 text-gray-300" /></div>
+            </ImageUploadSlot>
+          </div>
+
+          {/* KPI 카드 3종 */}
+          <div className="mt-7 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-xl bg-primary-600 px-6 py-5 text-white">
+              <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-white/60">대표 역량</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-tight" style={{ wordBreak: 'keep-all' }}>
+                {topSkillNames.length ? topSkillNames.slice(0, 2).join(' · ') : '스킬 추가 필요'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {topSkillNames.slice(2, 6).map(name => (
+                  <span key={name} className="rounded-md bg-white/15 px-2.5 py-1 text-[12px] font-bold text-white">{name}</span>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 px-6 py-5">
+              <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-gray-400">경험 · 프로젝트</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-tight text-gray-900">{expList.length}개</p>
+              <p className="mt-3 text-[13px] font-semibold text-gray-400">아래 섹션에서 상세 내용을 확인하세요</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 px-6 py-5">
+              <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-gray-400">수상 · 자격</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-tight text-gray-900">{awardList.length}건</p>
+              {eduList[0] && <p className="mt-3 text-[13px] font-semibold text-gray-400" style={{ wordBreak: 'keep-all' }}>{eduList[0].name || eduList[0].school}</p>}
+            </div>
+          </div>
+
+          {/* About */}
+          {hasAbout && (
+            <div className="mt-6 rounded-xl border border-gray-100 bg-gray-50/70 px-6 py-5">
+              <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-gray-400 mb-2">About</p>
+              <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
+                viewClassName="text-[15px] leading-relaxed text-bluewood-700"
+                placeholder="자기소개를 입력하세요. 핵심 성과를 숫자와 함께 정리하면 대시보드다워져요." />
+            </div>
+          )}
+        </div>
+
+        {/* 정렬 가능한 섹션 카드들 */}
+        <div className="flex flex-col gap-5">
+          {/* Experience */}
+          {!isHidden10('experiences') && (
+            <div {...dp('experiences')} id="t10-experiences" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="experiences" title="경험 타임라인" sub="시간순으로 정리한 주요 경험" icon={Briefcase} />
+              <div className="divide-y divide-gray-100">
+                {expList.map((exp, idx) => (
+                  <div key={idx} className="py-5 first:pt-0 last:pb-0 relative group">
+                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[11.5px] font-bold text-primary-700">
+                        {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="text-[11.5px] font-bold text-primary-700" /> : <VHtml value={exp.period || '기간 미입력'} />}
+                      </span>
+                      <span className="text-[12px] font-semibold text-gray-400">
+                        {ec ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} placeholder="역할" className="text-[12px] font-semibold text-gray-400" /> : <VHtml value={exp.role || exp.subtitle || ''} />}
+                      </span>
+                    </div>
+                    <h3 className="mt-1.5 text-[19px] font-extrabold leading-snug text-gray-900" style={{ wordBreak: 'keep-all' }}>
+                      {ec ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="경험/프로젝트명" className="text-[19px] font-extrabold" /> : <VHtml value={exp.company || exp.title || ''} />}
+                    </h3>
+                    <div className="mt-2">
+                      <ExperienceRichText ec={ec} exp={exp} idx={idx} className="text-[14px] text-bluewood-700" viewClassName="text-[14px] leading-relaxed text-bluewood-700" />
+                      {!ec && !richValueHasContent(exp.descriptionBlocks) && !(exp.description || exp.desc) && (exp.bullets || []).length > 0 && (
+                        <ul className="space-y-1.5">
+                          {exp.bullets.map((b, bi) => (
+                            <li key={bi} className="flex gap-2 text-[14px] font-medium leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
+                              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-caribbean-500" />
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {ec && <ExpDetailBtn exp={exp} idx={idx} ec={ec} />}
+                  </div>
+                ))}
+              </div>
+              {ec && <ExpControls ec={ec} />}
+            </div>
+          )}
+
+          {/* Projects */}
+          {!isHidden10('projects') && (
+            <div {...dp('projects')} id="t10-projects" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" title="프로젝트 리포트" sub="카드를 클릭하면 상세 내용을 볼 수 있어요" icon={Folder} recommendKey="projects" />
+              <div className="grid gap-4 md:grid-cols-2">
+                {projList.map((proj, idx) => (
+                  <div key={idx}
+                    onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)}
+                    className="group cursor-pointer rounded-xl border border-gray-100 bg-gray-50/70 overflow-hidden hover:shadow-card-hover hover:border-primary-100 transition-all relative">
+                    <ProjectCardActions ec={ec} idx={idx} />
+                    <div className="aspect-video bg-white overflow-hidden relative border-b border-gray-100">
+                      <ImageUploadSlot
+                        src={projectImageSrc(proj)}
+                        onUpload={null}
+                        className="aspect-video overflow-hidden"
+                        imgClassName="w-full h-full object-cover"
+                        rounded=""
+                      >
+                        <div className="aspect-video flex items-center justify-center bg-primary-50/60">
+                          <Folder className="w-8 h-8 text-primary-200" />
+                        </div>
+                      </ImageUploadSlot>
+                      <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                    </div>
+                    <div className="px-5 py-4">
+                      <span className="rounded-md bg-primary-50 px-2 py-0.5 text-[11.5px] font-bold text-primary-700">{proj.tag || 'Project'}</span>
+                      <h3 className="mt-2 text-[17px] font-extrabold leading-snug text-gray-900" style={{ wordBreak: 'keep-all' }}>
+                        {ec
+                          ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" className="text-[17px] font-extrabold" />
+                          : <VHtml value={proj.name} />}
+                      </h3>
+                      <ExperienceRichText ec={ec} exp={proj} idx={idx} className="text-[13px] text-gray-500 mt-1" viewClassName="text-[13px] leading-relaxed text-gray-500 mt-1 line-clamp-2" />
+                      {((proj.techStack || proj.skills || []).length > 0) && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {(proj.techStack || proj.skills || []).slice(0, 4).map((t, ti) => (
+                            <span key={ti} className="rounded-md bg-white border border-gray-100 px-2 py-0.5 text-[11.5px] font-bold text-bluewood-500">{typeof t === 'string' ? t : t?.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ec && <ExpControls ec={ec} />}
+            </div>
+          )}
+
+          {/* Skills */}
+          {!isHidden10('skills') && (skillList.length > 0 || ec) && (
+            <div {...dp('skills')} id="t10-skills" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" title="역량 지표" sub="스킬 숙련도를 지표로 표시합니다" icon={Code} />
+              <div className="grid gap-x-10 gap-y-4 md:grid-cols-2">
+                {skillList.map((skill, idx) => {
+                  const pct = parseInt(skill.percent) || 70;
+                  return (
+                    <div key={idx} className="relative group flex items-center gap-3">
+                      {ec && <RemoveBtn onClick={() => {
+                        const cat = skill.category || 'tools';
+                        const arr = [...(portfolio.skills?.[cat] || [])];
+                        const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
+                        ec.update('skills', { ...portfolio.skills, [cat]: arr });
+                      }} />}
+                      <span className="w-28 shrink-0 truncate text-[14px] font-bold text-gray-900" title={skill.name}>{skill.name}</span>
+                      <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <SkillLevelBadge skill={skill} ec={ec} />
+                    </div>
+                  );
+                })}
+              </div>
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+            </div>
+          )}
+
+          {/* Education */}
+          {!isHidden10('education') && (eduList.length > 0 || ec) && (
+            <div {...dp('education')} id="t10-education" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="education" title="학력" icon={GraduationCap} />
+              <div className="divide-y divide-gray-100">
+                {eduList.map((edu, idx) => (
+                  <div key={idx} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 relative group">
+                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
+                    <span className="rounded-md bg-gray-50 border border-gray-100 px-2 py-0.5 text-[12px] font-bold text-bluewood-500 sm:w-44 shrink-0 text-center">
+                      {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="text-[12px] font-bold text-bluewood-500" /> : <VHtml value={edu.period || '기간 미입력'} />}
+                    </span>
+                    <div className="min-w-0">
+                      {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="text-[15px] font-extrabold text-gray-900 block" placeholder="학교명" /> : <VHtml as="h3" className="text-[15px] font-extrabold text-gray-900" value={edu.school} />}
+                      {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-[13px] font-semibold text-gray-400 block" placeholder="전공/학위" /> : <VHtml as="p" className="text-[13px] font-semibold text-gray-400" value={edu.major} />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors mt-3"><Plus size={12} /> 학력 추가</button>}
+            </div>
+          )}
+
+          {/* Awards */}
+          {!isHidden10('awards') && (awardList.length > 0 || ec) && (
+            <div {...dp('awards')} id="t10-awards" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="awards" title="수상 · 자격" icon={Award} />
+              <div className="grid gap-3 md:grid-cols-2">
+                {awardList.map((award, idx) => (
+                  <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 relative group">
+                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
+                    <p className="text-[12px] font-bold text-gray-400">
+                      {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-[12px] font-bold text-gray-400" /> : <VHtml value={award.date} />}
+                    </p>
+                    <p className="mt-1 text-[15px] font-extrabold text-bluewood-800" style={{ wordBreak: 'keep-all' }}>
+                      {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} placeholder="수상명/자격증" className="text-[15px] font-extrabold text-bluewood-800" /> : <VHtml value={award.title} />}
+                    </p>
+                    {ec && <EditText value={award.org || ''} onChange={v => ec.updateArrayItem('awards', idx, { org: v })} className="text-[13px] font-semibold text-gray-400 block mt-0.5" placeholder="수여 기관" />}
+                  </div>
+                ))}
+              </div>
+              {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors mt-3"><Plus size={12} /> 수상/자격 추가</button>}
+            </div>
+          )}
+
+          {/* Contact */}
+          {!isHidden10('contact') && (data.email || data.phone || ec) && (
+            <div {...dp('contact')} id="t10-contact" className={`${card} group/section`}>
+              <T10SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="contact" title="연락처" icon={Mail} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ec ? (
+                  <>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"><Mail className="w-4 h-4 text-primary-500 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] font-semibold border-b border-dashed border-gray-200 focus:border-primary-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"><Phone className="w-4 h-4 text-primary-500 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] font-semibold border-b border-dashed border-gray-200 focus:border-primary-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"><Globe className="w-4 h-4 text-primary-500 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] font-semibold border-b border-dashed border-gray-200 focus:border-primary-400 py-0.5" /></div>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"><ExternalLink className="w-4 h-4 text-primary-500 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn/블로그" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] font-semibold border-b border-dashed border-gray-200 focus:border-primary-400 py-0.5" /></div>
+                  </>
+                ) : (
+                  <>
+                    {data.email && <p className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] font-semibold text-bluewood-700"><Mail className="w-4 h-4 text-primary-500" /> {data.email}</p>}
+                    {data.phone && <p className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] font-semibold text-bluewood-700"><Phone className="w-4 h-4 text-primary-500" /> {data.phone}</p>}
+                    {contact.github && <p className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] font-semibold text-bluewood-700"><Globe className="w-4 h-4 text-primary-500" /> {contact.github}</p>}
+                    {contact.website && <p className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] font-semibold text-bluewood-700"><ExternalLink className="w-4 h-4 text-primary-500" /> {contact.website}</p>}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+        {ec && (ec.hiddenSections || []).length > 0 && (
+          <div className="border border-dashed border-gray-200 rounded-xl p-4 bg-white">
+            <p className="text-xs text-gray-400 mb-3">숨긴 섹션 복원</p>
+            <div className="flex flex-wrap gap-2">
+              {(ec.hiddenSections || []).map(key => (
+                <button key={key} type="button" onClick={() => ec.showSection(key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-gray-50 text-gray-500 border border-gray-200 hover:border-primary-400 hover:text-primary-600 transition-colors">
+                  <Plus size={11} /> {key}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
+// ── 템플릿 11: 크리에이터 랜딩형 (개인 홈페이지 스타일) ──
+const T11SectionHead = ({ ec, portfolio, gp, sectionKey, title, sub, icon, recommendKey }) => (
+  <div className="flex items-start justify-between gap-3 mb-7">
+    <div className="flex items-center gap-3 min-w-0">
+      <span className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+        <EditableSectionIcon ec={ec} portfolio={portfolio} sectionKey={sectionKey} fallback={icon} className="w-[18px] h-[18px]" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-[22px] font-extrabold tracking-tight text-neutral-900"><EH ec={ec} value={title} sectionKey={sectionKey} /></h2>
+        {sub && <p className="text-[13px] font-medium text-neutral-400" style={{ wordBreak: 'keep-all' }}>{sub}</p>}
+      </div>
+    </div>
+    <div className="flex items-center gap-1 shrink-0">
+      {ec?.jobAnalysis && <VisualSectionRecommend sectionType={recommendKey || sectionKey} jobAnalysis={ec.jobAnalysis} />}
+      {ec && <span {...gp(sectionKey)}><GripVertical size={14} /></span>}
+      <SectionDeleteBtn ec={ec} sectionKey={sectionKey} />
+    </div>
+  </div>
+);
+
+export const VisualTemplate11 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = ec ? (portfolio.experiences || []) : data.experience;
+  const projList = ec ? (portfolio.experiences || []) : data.projects;
+  const eduList = ec ? (portfolio.education || []) : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
+  const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, github: data.social?.github, website: data.social?.blog };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards']);
+  const hidden11 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden11 = (key) => hidden11.includes(key);
+  const displayName = ec ? (portfolio.userName || '') : data.name;
+
+  return (
+    <div className="min-h-screen bg-[#fdfcfa] text-neutral-900 font-sans selection:bg-amber-200">
+      <div className="max-w-4xl mx-auto px-5 md:px-8 pb-24">
+        {/* 상단 네비게이션 */}
+        <nav className="flex items-center justify-between py-5 border-b border-neutral-100">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ImageUploadSlot
+              src={portfolio.profileImageUrl}
+              onUpload={ec?.onUploadProfileImage}
+              className="w-8 h-8 rounded-full overflow-hidden shrink-0"
+              imgClassName="w-full h-full object-cover"
+              rounded="rounded-full"
+            >
+              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-[13px] font-extrabold">{(inlineHtmlToPlainText(displayName) || 'P').slice(0, 1)}</div>
+            </ImageUploadSlot>
+            <span className="text-[15px] font-extrabold truncate">
+              {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="text-[15px] font-extrabold" /> : <VHtml value={data.name} />}
+            </span>
+          </div>
+          <div className="flex items-center gap-5">
+            <a href="#t11-projects" className="hidden sm:inline text-[13px] font-semibold text-neutral-400 hover:text-neutral-900 transition-colors">Projects</a>
+            <a href="#t11-experiences" className="hidden sm:inline text-[13px] font-semibold text-neutral-400 hover:text-neutral-900 transition-colors">Experience</a>
+            <a href="#t11-contact" className="inline-flex items-center rounded-full bg-neutral-900 text-white px-4 py-1.5 text-[13px] font-bold hover:bg-neutral-700 transition-colors">Contact me</a>
+          </div>
+        </nav>
+
+        {/* 히어로 */}
+        <div className="grid md:grid-cols-[1fr,260px] gap-10 items-center py-14 md:py-20">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-[12px] font-bold mb-5">👋 Welcome to my portfolio</span>
+            <h1 className="text-[34px] md:text-[42px] font-extrabold leading-[1.15] tracking-tight" style={{ wordBreak: 'keep-all' }}>
+              {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개 — 예: 기록을 좋아하는 프로덕트 디자이너" className="text-[34px] md:text-[42px] font-extrabold" /> : <VHtml value={data.title} />}
+            </h1>
+            <div className="mt-5 max-w-xl">
+              <RichBody ec={ec} portfolio={portfolio} field="about" plainValue={data.about}
+                viewClassName="text-[15px] leading-[1.8] text-neutral-500"
+                placeholder="자기소개를 입력하세요. 어떤 사람이고 무엇을 만들어왔는지 홈페이지 인사말처럼 적어보세요." />
+            </div>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <a href="#t11-projects" className="inline-flex items-center gap-2 rounded-full bg-neutral-900 text-white px-5 py-2.5 text-[14px] font-bold hover:bg-neutral-700 transition-colors">프로젝트 보기 <ChevronRight size={15} /></a>
+              <a href="#t11-contact" className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-5 py-2.5 text-[14px] font-bold text-neutral-700 hover:border-neutral-400 transition-colors">연락하기</a>
+            </div>
+          </div>
+          <div className="relative w-52 h-52 md:w-60 md:h-60 mx-auto shrink-0">
+            <div className="absolute -inset-3 bg-amber-100 rounded-[42%_58%_55%_45%/48%_44%_56%_52%]" />
+            <ImageUploadSlot
+              src={portfolio.profileImageUrl}
+              onUpload={ec?.onUploadProfileImage}
+              className="relative w-full h-full rounded-[2.5rem] overflow-hidden shadow-lg z-10"
+              imgClassName="w-full h-full object-cover"
+              rounded="rounded-[2.5rem]"
+            >
+              <div className="relative w-full h-full rounded-[2.5rem] bg-white border border-amber-100 flex items-center justify-center z-10"><UserCircle2 className="w-20 h-20 text-amber-200" /></div>
+            </ImageUploadSlot>
+          </div>
+        </div>
+
+        {/* 정렬 가능한 섹션들 */}
+        <div className="flex flex-col">
+          {/* Projects */}
+          {!isHidden11('projects') && (
+            <section {...dp('projects')} id="t11-projects" className="py-10 border-t border-neutral-100 group/section">
+              <T11SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" title="Featured Projects" sub="가장 보여주고 싶은 작업들" icon={Folder} recommendKey="projects" />
+              <div className="grid sm:grid-cols-2 gap-6">
+                {projList.map((proj, idx) => (
+                  <div key={idx}
+                    onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)}
+                    className="group cursor-pointer rounded-3xl border border-neutral-100 bg-white overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all relative">
+                    <ProjectCardActions ec={ec} idx={idx} />
+                    <div className="aspect-[4/3] bg-neutral-50 overflow-hidden relative">
+                      <ImageUploadSlot
+                        src={projectImageSrc(proj)}
+                        onUpload={null}
+                        className="aspect-[4/3] overflow-hidden"
+                        imgClassName="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                        rounded=""
+                      >
+                        <div className="aspect-[4/3] flex items-center justify-center bg-amber-50"><Star className="w-8 h-8 text-amber-200" /></div>
+                      </ImageUploadSlot>
+                      <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                    </div>
+                    <div className="px-5 py-4">
+                      <span className="inline-flex rounded-full bg-neutral-100 text-neutral-500 px-2.5 py-0.5 text-[11px] font-bold">{proj.tag || 'Project'}</span>
+                      <h3 className="mt-2 text-[17px] font-extrabold leading-snug" style={{ wordBreak: 'keep-all' }}>
+                        {ec
+                          ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" className="text-[17px] font-extrabold" />
+                          : <span className="inline-flex items-center gap-1"><VHtml value={proj.name} /><ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" /></span>}
+                      </h3>
+                      <ExperienceRichText ec={ec} exp={proj} idx={idx} className="text-[13px] text-neutral-500 mt-1" viewClassName="text-[13px] leading-relaxed text-neutral-500 mt-1 line-clamp-2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ec && <ExpControls ec={ec} />}
+            </section>
+          )}
+
+          {/* Experience */}
+          {!isHidden11('experiences') && (
+            <section {...dp('experiences')} id="t11-experiences" className="py-10 border-t border-neutral-100 group/section">
+              <T11SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="experiences" title="Experience" sub="걸어온 길" icon={Briefcase} />
+              <ExperienceTimeline expList={expList} ec={ec} accentDot="bg-neutral-900" />
+              {ec && <ExpControls ec={ec} />}
+            </section>
+          )}
+
+          {/* Skills */}
+          {!isHidden11('skills') && (skillList.length > 0 || ec) && (
+            <section {...dp('skills')} id="t11-skills" className="py-10 border-t border-neutral-100 group/section">
+              <T11SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" title="Skills & Tools" sub="자주 쓰는 도구와 기술" icon={Code} />
+              <div className="flex flex-wrap gap-2">
+                {skillList.map((skill, idx) => (
+                  <div key={idx} className="relative group">
+                    {ec && <RemoveBtn onClick={() => {
+                      const cat = skill.category || 'tools';
+                      const arr = [...(portfolio.skills?.[cat] || [])];
+                      const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
+                      ec.update('skills', { ...portfolio.skills, [cat]: arr });
+                    }} />}
+                    <SkillTooltipBadge skill={skill} ec={ec} levelMode="blocks" badgeClassName="bg-white border border-neutral-200 text-neutral-700 rounded-full shadow-sm" />
+                  </div>
+                ))}
+              </div>
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+            </section>
+          )}
+
+          {/* Education & Awards */}
+          {(!isHidden11('education') || !isHidden11('awards')) && (
+            <div className="grid md:grid-cols-2 gap-6 py-10 border-t border-neutral-100">
+              {!isHidden11('education') && (eduList.length > 0 || ec) && (
+                <section {...dp('education')} id="t11-education" className="rounded-3xl bg-white border border-neutral-100 p-6 group/section">
+                  <T11SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="education" title="Education" icon={GraduationCap} />
+                  <div className="space-y-4">
+                    {eduList.map((edu, idx) => (
+                      <div key={idx} className="relative group">
+                        {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
+                        {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="text-[15px] font-extrabold block" placeholder="학교명" /> : <VHtml as="h3" className="text-[15px] font-extrabold" value={edu.school} />}
+                        {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-[13px] text-neutral-500 block" placeholder="전공/학위" /> : <VHtml as="p" className="text-[13px] text-neutral-500" value={edu.major} />}
+                        <p className="text-[12px] text-neutral-400 mt-0.5">
+                          {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="text-[12px] text-neutral-400" /> : <VHtml value={edu.period} />}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-neutral-200 rounded-full text-xs text-neutral-500 hover:border-neutral-400 transition-colors mt-4"><Plus size={12} /> 학력 추가</button>}
+                </section>
+              )}
+              {!isHidden11('awards') && (awardList.length > 0 || ec) && (
+                <section {...dp('awards')} id="t11-awards" className="rounded-3xl bg-white border border-neutral-100 p-6 group/section">
+                  <T11SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="awards" title="Awards" icon={Award} />
+                  <div className="space-y-4">
+                    {awardList.map((award, idx) => (
+                      <div key={idx} className="relative group">
+                        {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
+                        {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-[15px] font-extrabold block" placeholder="수상명/자격증" /> : <VHtml as="h3" className="text-[15px] font-extrabold" value={award.title} />}
+                        <p className="text-[12px] text-neutral-400 mt-0.5">
+                          {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="text-[12px] text-neutral-400" /> : <VHtml value={award.date} />}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-neutral-200 rounded-full text-xs text-neutral-500 hover:border-neutral-400 transition-colors mt-4"><Plus size={12} /> 수상/자격 추가</button>}
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+        {/* Contact 푸터 */}
+        <div id="t11-contact" className="mt-6 rounded-[2.5rem] bg-neutral-900 text-white px-8 py-14 text-center">
+          <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/40">Contact</p>
+          <h2 className="mt-3 text-[28px] md:text-[32px] font-extrabold leading-tight" style={{ wordBreak: 'keep-all' }}>함께 일하고 싶으신가요?</h2>
+          {ec ? (
+            <div className="mt-7 max-w-sm mx-auto space-y-2.5 text-left">
+              <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-white/50 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] text-white placeholder:text-white/30 border-b border-dashed border-white/20 focus:border-amber-300 py-1" /></div>
+              <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-white/50 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] text-white placeholder:text-white/30 border-b border-dashed border-white/20 focus:border-amber-300 py-1" /></div>
+              <div className="flex items-center gap-3"><Globe className="w-4 h-4 text-white/50 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] text-white placeholder:text-white/30 border-b border-dashed border-white/20 focus:border-amber-300 py-1" /></div>
+              <div className="flex items-center gap-3"><ExternalLink className="w-4 h-4 text-white/50 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn/블로그" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] text-white placeholder:text-white/30 border-b border-dashed border-white/20 focus:border-amber-300 py-1" /></div>
+            </div>
+          ) : (
+            <>
+              {data.email && (
+                <a href={`mailto:${data.email}`} className="mt-7 inline-flex items-center gap-2 rounded-full bg-white text-neutral-900 px-6 py-3 text-[15px] font-extrabold hover:bg-amber-100 transition-colors"><Mail size={16} /> {data.email}</a>
+              )}
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] font-semibold text-white/50">
+                {data.phone && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{data.phone}</span>}
+                {contact.github && <span className="inline-flex items-center gap-1.5"><Globe size={13} />{contact.github}</span>}
+                {contact.website && <span className="inline-flex items-center gap-1.5"><ExternalLink size={13} />{contact.website}</span>}
+              </div>
+            </>
+          )}
+        </div>
+
+        {ec && (ec.hiddenSections || []).length > 0 && (
+          <div className="mt-8 border border-dashed border-neutral-200 rounded-xl p-4">
+            <p className="text-xs text-neutral-400 mb-3">숨긴 섹션 복원</p>
+            <div className="flex flex-wrap gap-2">
+              {(ec.hiddenSections || []).map(key => (
+                <button key={key} type="button" onClick={() => ec.showSection(key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-neutral-50 text-neutral-500 border border-neutral-200 hover:border-neutral-400 transition-colors">
+                  <Plus size={11} /> {key}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
+// ── 템플릿 12: 매거진 에디토리얼형 (세리프 헤드라인 + 피처 기사 레이아웃) ──
+const T12Kicker = ({ children }) => (
+  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-red-700">{children}</p>
+);
+
+const T12SectionHead = ({ ec, portfolio, gp, sectionKey, kicker, title, recommendKey }) => (
+  <div className="flex items-end justify-between gap-3 mb-8">
+    <div className="min-w-0">
+      <T12Kicker>{kicker}</T12Kicker>
+      <h2 className="mt-1.5 font-serif text-[30px] md:text-[34px] font-bold leading-tight tracking-tight text-neutral-900">
+        <EH ec={ec} value={title} sectionKey={sectionKey} />
+      </h2>
+    </div>
+    <div className="flex items-center gap-1 shrink-0 pb-1.5">
+      {ec?.jobAnalysis && <VisualSectionRecommend sectionType={recommendKey || sectionKey} jobAnalysis={ec.jobAnalysis} />}
+      {ec && <span {...gp(sectionKey)}><GripVertical size={14} /></span>}
+      <SectionDeleteBtn ec={ec} sectionKey={sectionKey} />
+    </div>
+  </div>
+);
+
+export const VisualTemplate12 = ({ portfolio, ec, onOpenExpDetail }) => {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const data = mapPortfolioToTemplateData(portfolio);
+  const expList = portfolio.experiences || [];
+  const projList = ec ? (portfolio.experiences || []) : data.projects;
+  const eduList = ec ? (portfolio.education || []) : data.education;
+  const awardList = ec ? (portfolio.awards || []) : data.awards;
+  const skillList = ec ? buildEditSkillList(portfolio) : data.skills;
+  const contact = ec ? (portfolio.contact || {}) : { email: data.email, phone: data.phone, github: data.social?.github, website: data.social?.blog };
+  const { dragProps: dp, gripProps: gp } = makeSectionOrderUtils(portfolio, ec, ['projects', 'experiences', 'skills', 'education', 'awards']);
+  const hidden12 = ec ? (ec.hiddenSections || []) : (portfolio.hiddenSections || []);
+  const isHidden12 = (key) => hidden12.includes(key);
+  const hasAbout = ec || richValueHasContent(portfolio.aboutBlocks) || data.about;
+  const year = new Date().getFullYear();
+
+  return (
+    <div className="min-h-screen bg-white text-neutral-900 font-sans selection:bg-red-100">
+      <div className="max-w-4xl mx-auto px-5 md:px-10 pb-24">
+        {/* 매스트헤드 */}
+        <header className="pt-10">
+          <div className="border-t-[3px] border-neutral-900 pt-1">
+            <div className="border-t border-neutral-900 pt-8 text-center">
+              <T12Kicker>Portfolio · {year} Edition</T12Kicker>
+              <h1 className="mt-4 font-serif text-[52px] md:text-[68px] font-bold leading-none tracking-tight">
+                {ec ? <EditText value={portfolio.userName} onChange={v => ec.update('userName', v)} placeholder="이름" className="font-serif text-[52px] md:text-[68px] font-bold" /> : <VHtml value={data.name} />}
+              </h1>
+              <p className="mt-4 font-serif italic text-[17px] md:text-[19px] text-neutral-500" style={{ wordBreak: 'keep-all' }}>
+                {ec ? <EditText value={portfolio.headline} onChange={v => ec.update('headline', v)} placeholder="한 줄 소개 — 표지 부제처럼" className="font-serif italic text-[17px] md:text-[19px] text-neutral-500" /> : <VHtml value={data.title} />}
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400 border-t border-b border-neutral-200 py-2.5">
+                {(portfolio.location || data.location) && <span>{portfolio.location || data.location}</span>}
+                {contact.email && <span>{contact.email}</span>}
+                <span>Since {year}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* 커버 사진 */}
+        {(portfolio.coverImageUrl || ec) && (
+          <div className="mt-8">
+            <ImageUploadSlot
+              src={portfolio.coverImageUrl}
+              onUpload={ec?.onUploadCoverImage}
+              className="w-full aspect-[21/9] overflow-hidden"
+              imgClassName="w-full h-full object-cover grayscale-[35%]"
+              rounded=""
+            >
+              <div className="w-full aspect-[21/9] bg-neutral-100 flex items-center justify-center">
+                <span className="font-serif italic text-neutral-400 text-sm">Cover Photograph</span>
+              </div>
+            </ImageUploadSlot>
+            <p className="mt-2 text-right text-[11px] uppercase tracking-[0.18em] text-neutral-300">Fig 01. — The Cover</p>
+          </div>
+        )}
+
+        {/* 에디터스 노트 (About) */}
+        {hasAbout && (
+          <section className="mt-14">
+            <div className="flex items-center gap-6 mb-6">
+              <T12Kicker>Editor's Note</T12Kicker>
+              <span className="flex-1 h-px bg-neutral-200" />
+            </div>
+            <div className="grid md:grid-cols-[180px,1fr] gap-8 items-start">
+              <ImageUploadSlot
+                src={portfolio.profileImageUrl}
+                onUpload={ec?.onUploadProfileImage}
+                className="w-[180px] aspect-[3/4] overflow-hidden hidden md:block"
+                imgClassName="w-full h-full object-cover grayscale-[35%]"
+                rounded=""
+              >
+                <div className="w-[180px] aspect-[3/4] bg-neutral-100 hidden md:flex items-center justify-center"><UserCircle2 className="w-12 h-12 text-neutral-300" /></div>
+              </ImageUploadSlot>
+              {ec ? (
+                <RichBody ec={ec} portfolio={portfolio} field="about"
+                  placeholder="자기소개를 입력하세요. 잡지 서문처럼 이야기하듯 풀어내면 좋아요." />
+              ) : (
+                <div className="text-[15px] leading-[1.95] text-neutral-700 md:columns-2 md:gap-10 first-letter:float-left first-letter:font-serif first-letter:font-bold first-letter:text-[54px] first-letter:leading-[0.82] first-letter:pr-2.5 first-letter:pt-1.5">
+                  <RichBody portfolio={portfolio} field="about" plainValue={data.about} viewClassName="" />
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* 풀 인용구 */}
+        {(data.title || ec) && (
+          <div className="my-16 border-y border-neutral-900 py-10 text-center">
+            <span className="font-serif text-[54px] leading-none text-red-700 block">“</span>
+            <p className="font-serif italic text-[22px] md:text-[26px] leading-snug text-neutral-800 -mt-4 max-w-2xl mx-auto" style={{ wordBreak: 'keep-all' }}>
+              <VHtml value={ec ? (portfolio.headline || '나를 한 문장으로 표현해 보세요') : data.title} />
+            </p>
+          </div>
+        )}
+
+        {/* 정렬 가능한 섹션들 */}
+        <div className="flex flex-col">
+          {/* Featured Works */}
+          {!isHidden12('projects') && (
+            <section {...dp('projects')} id="t12-projects" className="py-6 group/section">
+              <T12SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="projects" kicker="Featured Stories" title="Works" recommendKey="projects" />
+              <div>
+                {projList.map((proj, idx) => (
+                  <div key={idx}
+                    onClick={() => ec?.onOpenExpDetail ? ec.onOpenExpDetail(proj, idx) : onOpenExpDetail ? onOpenExpDetail(proj, idx) : setSelectedProject(proj)}
+                    className="group cursor-pointer grid md:grid-cols-12 gap-6 md:gap-10 py-10 border-t border-neutral-200 relative">
+                    <ProjectCardActions ec={ec} idx={idx} />
+                    <div className={`md:col-span-5 ${idx % 2 === 1 ? 'md:order-2' : ''}`}>
+                      <div className="aspect-[4/3] bg-neutral-100 overflow-hidden relative">
+                        <ImageUploadSlot
+                          src={projectImageSrc(proj)}
+                          onUpload={null}
+                          className="aspect-[4/3] overflow-hidden"
+                          imgClassName="w-full h-full object-cover grayscale-[35%] group-hover:grayscale-0 transition-all duration-500"
+                          rounded=""
+                        >
+                          <div className="aspect-[4/3] flex items-center justify-center bg-neutral-100">
+                            <span className="font-serif italic text-neutral-300 text-sm">No.{String(idx + 1).padStart(2, '0')}</span>
+                          </div>
+                        </ImageUploadSlot>
+                        <CameraUploadBtn onUpload={ec ? f => ec.onUploadExpImage(f, idx) : null} />
+                      </div>
+                    </div>
+                    <div className={`md:col-span-7 min-w-0 ${idx % 2 === 1 ? 'md:order-1' : ''}`}>
+                      <div className="flex items-baseline gap-4">
+                        <span className="font-serif text-[44px] leading-none text-neutral-200 font-bold shrink-0">{String(idx + 1).padStart(2, '0')}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-[0.24em] text-red-700">{proj.tag || 'Project'}</span>
+                      </div>
+                      <h3 className="mt-3 font-serif text-[24px] md:text-[28px] font-bold leading-tight" style={{ wordBreak: 'keep-all' }}>
+                        {ec
+                          ? <EditText value={proj.company || proj.title || proj.name || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" className="font-serif text-[24px] md:text-[28px] font-bold" />
+                          : <VHtml value={proj.name} />}
+                      </h3>
+                      <p className="mt-1 text-[12px] font-bold uppercase tracking-[0.14em] text-neutral-400">
+                        {ec ? <EditText value={proj.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="text-[12px] font-bold uppercase tracking-[0.14em] text-neutral-400" /> : <VHtml value={proj.period} />}
+                      </p>
+                      <div className="mt-3">
+                        <ExperienceRichText ec={ec} exp={proj} idx={idx} className="text-[14px] text-neutral-600" viewClassName="text-[14px] leading-[1.85] text-neutral-600 line-clamp-4" />
+                      </div>
+                      {((proj.techStack || proj.skills || []).length > 0) && (
+                        <div className="mt-4 flex flex-wrap gap-1.5">
+                          {(proj.techStack || proj.skills || []).slice(0, 5).map((t, ti) => (
+                            <span key={ti} className="border border-neutral-900 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.12em]">{typeof t === 'string' ? t : t?.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ec && <ExpControls ec={ec} />}
+            </section>
+          )}
+
+          {/* Career Timeline */}
+          {!isHidden12('experiences') && (
+            <section {...dp('experiences')} id="t12-experiences" className="py-6 group/section">
+              <T12SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="experiences" kicker="Chronicle" title="Career" />
+              <div className="border-t-2 border-neutral-900">
+                {expList.map((exp, idx) => (
+                  <div key={idx} className="flex flex-col sm:flex-row gap-1 sm:gap-8 py-4 border-b border-neutral-200 relative group">
+                    {ec && <RemoveBtn onClick={() => ec.removeFromArray('experiences', idx)} />}
+                    <div className="sm:w-44 shrink-0 font-serif italic text-[14px] text-neutral-400 pt-0.5">
+                      {ec ? <EditText value={exp.period || ''} onChange={v => ec.updateArrayItem('experiences', idx, { period: v })} placeholder="기간" className="font-serif italic text-[14px] text-neutral-400" /> : <VHtml value={exp.period || '—'} />}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-extrabold uppercase tracking-[0.06em]">
+                        {ec ? <EditText value={exp.company || exp.title || ''} onChange={v => ec.updateArrayItem('experiences', idx, { company: v, title: v })} placeholder="회사/프로젝트명" className="text-[15px] font-extrabold uppercase tracking-[0.06em]" /> : <VHtml value={exp.company || exp.title || ''} />}
+                      </h3>
+                      <p className="text-[13px] text-neutral-500 mt-0.5">
+                        {ec ? <EditText value={exp.role || exp.subtitle || ''} onChange={v => ec.updateArrayItem('experiences', idx, { role: v })} placeholder="역할" className="text-[13px] text-neutral-500" /> : <VHtml value={exp.role || exp.subtitle || ''} />}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ec && <ExpControls ec={ec} />}
+            </section>
+          )}
+
+          {/* Expertise */}
+          {!isHidden12('skills') && (skillList.length > 0 || ec) && (
+            <section {...dp('skills')} id="t12-skills" className="py-6 group/section">
+              <T12SectionHead ec={ec} portfolio={portfolio} gp={gp} sectionKey="skills" kicker="Index" title="Expertise" />
+              <div className="flex flex-wrap gap-2">
+                {skillList.map((skill, idx) => (
+                  <div key={idx} className="relative group">
+                    {ec && <RemoveBtn onClick={() => {
+                      const cat = skill.category || 'tools';
+                      const arr = [...(portfolio.skills?.[cat] || [])];
+                      const ni = arr.indexOf(skill.name); if (ni > -1) arr.splice(ni, 1);
+                      ec.update('skills', { ...portfolio.skills, [cat]: arr });
+                    }} />}
+                    <SkillTooltipBadge skill={skill} ec={ec} levelMode="bar" badgeClassName="border border-neutral-900 bg-transparent text-neutral-900 rounded-none px-3 py-1 text-[12px] font-bold uppercase tracking-[0.1em]" />
+                  </div>
+                ))}
+              </div>
+              <SkillsEditorPanel portfolio={portfolio} ec={ec} />
+            </section>
+          )}
+
+          {/* Colophon: Education & Awards */}
+          {(!isHidden12('education') || !isHidden12('awards')) && ((eduList.length + awardList.length > 0) || ec) && (
+            <section className="py-6">
+              <div className="border-2 border-neutral-900 p-7 md:p-9 grid md:grid-cols-2 gap-8">
+                {!isHidden12('education') && (eduList.length > 0 || ec) && (
+                  <div {...dp('education')} id="t12-education" className="group/section">
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.24em] flex items-center gap-2"><span className="w-2 h-2 bg-red-700 inline-block" /><EH ec={ec} value="Education" sectionKey="education" /></p>
+                      <div className="flex items-center gap-1">
+                        {ec && <span {...gp('education')}><GripVertical size={13} /></span>}
+                        <SectionDeleteBtn ec={ec} sectionKey="education" />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      {eduList.map((edu, idx) => (
+                        <div key={idx} className="relative group">
+                          {ec && <RemoveBtn onClick={() => ec.removeFromArray('education', idx)} />}
+                          {ec ? <EditText value={edu.name || edu.school || ''} onChange={v => ec.updateArrayItem('education', idx, { name: v })} className="text-[14px] font-extrabold block" placeholder="학교명" /> : <VHtml as="h3" className="text-[14px] font-extrabold" value={edu.school} />}
+                          {ec ? <EditText value={edu.degree || edu.major || ''} onChange={v => ec.updateArrayItem('education', idx, { degree: v })} className="text-[13px] text-neutral-500 block" placeholder="전공/학위" /> : <VHtml as="p" className="text-[13px] text-neutral-500" value={edu.major} />}
+                          <p className="font-serif italic text-[12px] text-neutral-400 mt-0.5">
+                            {ec ? <EditText value={edu.period || ''} onChange={v => ec.updateArrayItem('education', idx, { period: v })} placeholder="기간" className="font-serif italic text-[12px] text-neutral-400" /> : <VHtml value={edu.period} />}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {ec && <button type="button" onClick={() => ec.addToArray('education', { name: '', degree: '', period: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-neutral-900 transition-colors mt-4"><Plus size={12} /> 학력 추가</button>}
+                  </div>
+                )}
+                {!isHidden12('awards') && (awardList.length > 0 || ec) && (
+                  <div {...dp('awards')} id="t12-awards" className="group/section">
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.24em] flex items-center gap-2"><span className="w-2 h-2 bg-red-700 inline-block" /><EH ec={ec} value="Awards" sectionKey="awards" /></p>
+                      <div className="flex items-center gap-1">
+                        {ec && <span {...gp('awards')}><GripVertical size={13} /></span>}
+                        <SectionDeleteBtn ec={ec} sectionKey="awards" />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      {awardList.map((award, idx) => (
+                        <div key={idx} className="relative group">
+                          {ec && <RemoveBtn onClick={() => ec.removeFromArray('awards', idx)} />}
+                          {ec ? <EditText value={award.title || ''} onChange={v => ec.updateArrayItem('awards', idx, { title: v })} className="text-[14px] font-extrabold block" placeholder="수상명/자격증" /> : <VHtml as="h3" className="text-[14px] font-extrabold" value={award.title} />}
+                          <p className="font-serif italic text-[12px] text-neutral-400 mt-0.5">
+                            {ec ? <EditText value={award.date || ''} onChange={v => ec.updateArrayItem('awards', idx, { date: v })} placeholder="날짜" className="font-serif italic text-[12px] text-neutral-400" /> : <VHtml value={award.date} />}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {ec && <button type="button" onClick={() => ec.addToArray('awards', { title: '', date: '' })} className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-neutral-300 text-xs text-neutral-500 hover:border-neutral-900 transition-colors mt-4"><Plus size={12} /> 수상/자격 추가</button>}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <VisualCustomBlocks portfolio={portfolio} ec={ec} />
+
+        {/* Contact 매스트헤드 푸터 */}
+        <footer className="mt-14 text-center">
+          <T12Kicker>Get in Touch</T12Kicker>
+          {ec ? (
+            <div className="mt-6 max-w-sm mx-auto space-y-2.5 text-left">
+              <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-neutral-400 shrink-0" /><input value={contact.email || ''} onChange={e => ec.updateNested('contact','email',e.target.value)} placeholder="이메일" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] border-b border-dashed border-neutral-200 focus:border-red-700 py-1" /></div>
+              <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-neutral-400 shrink-0" /><input value={contact.phone || ''} onChange={e => ec.updateNested('contact','phone',e.target.value)} placeholder="전화번호" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] border-b border-dashed border-neutral-200 focus:border-red-700 py-1" /></div>
+              <div className="flex items-center gap-3"><Globe className="w-4 h-4 text-neutral-400 shrink-0" /><input value={contact.github || ''} onChange={e => ec.updateNested('contact','github',e.target.value)} placeholder="GitHub URL" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] border-b border-dashed border-neutral-200 focus:border-red-700 py-1" /></div>
+              <div className="flex items-center gap-3"><ExternalLink className="w-4 h-4 text-neutral-400 shrink-0" /><input value={contact.website || ''} onChange={e => ec.updateNested('contact','website',e.target.value)} placeholder="웹사이트/LinkedIn/블로그" className="flex-1 min-w-0 outline-none bg-transparent text-[14px] border-b border-dashed border-neutral-200 focus:border-red-700 py-1" /></div>
+            </div>
+          ) : (
+            <>
+              {data.email && <p className="mt-4 font-serif text-[26px] md:text-[30px] font-bold">{data.email}</p>}
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400">
+                {data.phone && <span>{data.phone}</span>}
+                {contact.github && <span>{contact.github}</span>}
+                {contact.website && <span>{contact.website}</span>}
+              </div>
+            </>
+          )}
+          <div className="mt-10 border-t border-neutral-900 pt-1">
+            <div className="border-t-[3px] border-neutral-900 pt-3 pb-2 flex items-center justify-center">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-neutral-400">© {year} <VHtml value={ec ? portfolio.userName : data.name} /> — All Rights Reserved</p>
+            </div>
+          </div>
+        </footer>
+
+        {ec && (ec.hiddenSections || []).length > 0 && (
+          <div className="mt-8 border border-dashed border-neutral-200 p-4">
+            <p className="text-xs text-neutral-400 mb-3">숨긴 섹션 복원</p>
+            <div className="flex flex-wrap gap-2">
+              {(ec.hiddenSections || []).map(key => (
+                <button key={key} type="button" onClick={() => ec.showSection(key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-neutral-50 text-neutral-500 border border-neutral-200 hover:border-neutral-900 transition-colors">
+                  <Plus size={11} /> {key}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+    </div>
+  );
+};
+
 // ── 템플릿 라우터 ──
-export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8','visual-9'];
+export const VISUAL_TEMPLATE_IDS = ['visual-1','visual-2','visual-3','visual-4','visual-5','visual-6','visual-7','visual-8','visual-9','visual-10','visual-11','visual-12'];
 
 export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail }) {
   const templateId = portfolio?.templateId;
@@ -4086,6 +4983,9 @@ export default function VisualPortfolioRenderer({ portfolio, ec, onOpenExpDetail
   if (templateId === 'visual-7') return <VisualTemplate7 {...props} />;
   if (templateId === 'visual-8') return <VisualTemplate8 {...props} />;
   if (templateId === 'visual-9') return <VisualTemplate9 {...props} />;
+  if (templateId === 'visual-10') return <VisualTemplate10 {...props} />;
+  if (templateId === 'visual-11') return <VisualTemplate11 {...props} />;
+  if (templateId === 'visual-12') return <VisualTemplate12 {...props} />;
   return null;
 }
 

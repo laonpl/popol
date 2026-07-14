@@ -37,6 +37,9 @@ const AiPptExport           = lazy(() => import('./pages/portfolio/AiPptExport')
 const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
 const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
+const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')); // 웹사이트형 템플릿 검토용
+const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
+const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioPreview'));
 
 function PageLoader() {
   return (
@@ -86,6 +89,7 @@ const router = createBrowserRouter(
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
+      <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />
       <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
@@ -108,6 +112,8 @@ const router = createBrowserRouter(
         <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
         <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
+        <Route path="portfolio/web-edit/:id" element={<WebPortfolioEditor />} />
+        <Route path="portfolio/web-preview/:id" element={<WebPortfolioPreview />} />
         <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
         <Route path="settings/credits" element={<CreditSettings />} />
       </Route>

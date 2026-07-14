@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Send, Check, FileText, Link2, Github, Paperclip,
   Sparkles, Save, Pencil, TrendingUp, ShieldCheck,
+  ArrowLeft, ArrowRight, ChevronRight, CheckCircle2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
@@ -181,9 +182,19 @@ const STARTERS = [
   { label: '+ 어려웠던 점', text: '가장 어려웠던 건 ' },
 ];
 
-/* 진행 단계 표시 (챗 헤더 스테퍼) */
-const FLOW_STEPS = ['분야 선택', '기본 정보', '자료 입력', '핵심 경험', '초안 생성', '대화로 완성'];
-const PHASE_STEP = { field: 0, mkField: 0, basics: 1, materials: 2, extracting: 3, moments: 3, building: 4, fill: 5, saving: 5 };
+/* 사용자가 인지하는 진행 단계 (내부 phase는 그대로 유지하고 UI만 묶어서 보여준다) */
+const FLOW_STEPS = ['경험 선택', '자료 입력', 'AI 인터뷰', '결과 완성'];
+const PHASE_STEP = {
+  field: 0,
+  mkField: 0,
+  basics: 0,
+  materials: 1,
+  extracting: 1,
+  moments: 1,
+  building: 2,
+  fill: 2,
+  saving: 3,
+};
 
 /* ── 마케터 세부 분야 — 분야별 핵심 목표·역량·평가 지표를 챗봇이 짚어준 뒤 정리 시작 ── */
 const MARKETER_FIELDS = [
@@ -224,6 +235,93 @@ const MARKETER_FIELDS = [
   },
 ];
 
+const EXPERIENCE_OPTION_META = {
+  common: {
+    helper: '직군을 딱 잘라 말하기 어렵거나 여러 역할이 섞인 경험',
+    examples: '동아리 프로젝트 · 공모전 · 팀 활동',
+    keywords: '상황 · 역할 · 결과',
+  },
+  dev: {
+    helper: '기술 선택, 구현 과정, 트러블슈팅, 성능 개선을 보여줄 경험',
+    examples: '웹 서비스 개발 · API 설계 · 성능 최적화',
+    keywords: '문제 해결 · 기술 선택 · 성능',
+  },
+  aiml: {
+    helper: '데이터셋, 모델링, 실험, 평가 지표를 설명할 수 있는 경험',
+    examples: '모델 학습 · 추천 시스템 · 실험 리포트',
+    keywords: '데이터 · 모델 · 평가',
+  },
+  da: {
+    helper: '데이터로 문제를 정의하고 인사이트나 액션을 만든 경험',
+    examples: '대시보드 · A/B 테스트 · 지표 분석',
+    keywords: '가설 · 분석 · 인사이트',
+  },
+  devops: {
+    helper: '배포, 인프라, 자동화, 비용이나 안정성 개선을 다룬 경험',
+    examples: 'CI/CD · 클라우드 인프라 · 모니터링',
+    keywords: '자동화 · 안정성 · 비용',
+  },
+  pm: {
+    helper: '문제 정의, 사용자 흐름, 우선순위와 출시 판단을 보여줄 경험',
+    examples: 'PRD · 기능 기획 · 런칭 회고',
+    keywords: '문제 정의 · 우선순위 · 출시',
+  },
+  designer: {
+    helper: '리서치, 프로토타입, 사용성 개선, 디자인 시스템을 다룬 경험',
+    examples: 'UX 리서치 · 프로토타입 · UI 개선',
+    keywords: '리서치 · 개선 · 사용성',
+  },
+  marketer: {
+    helper: '타깃, 메시지, 채널, 성과 지표를 중심으로 정리할 경험',
+    examples: 'SNS 캠페인 · 콘텐츠 운영 · 퍼포먼스 개선',
+    keywords: '타깃 · 메시지 · 성과',
+  },
+  hr: {
+    helper: '채용, 온보딩, 조직문화, 구성원 경험을 개선한 경험',
+    examples: '채용 퍼널 · 온보딩 · 리텐션 프로그램',
+    keywords: '프로세스 · 구성원 경험 · 전환',
+  },
+  sales: {
+    helper: '리드 발굴, 제안, 협상, 계약 성과를 보여줄 경험',
+    examples: 'B2B 제안 · 리드 제너레이션 · 계약 전환',
+    keywords: '리드 · 제안 · 계약',
+  },
+};
+
+const MARKETER_OPTION_META = {
+  contentPlan: {
+    helper: '캠페인 주제, 타깃, 메시지와 일정을 설계한 경험',
+    examples: 'SNS 캠페인 · 뉴스레터 · 프로모션',
+    keywords: '타깃 · 목표 · 기획 의도',
+  },
+  contentMake: {
+    helper: '카피, 카드뉴스, 영상 등 실제 콘텐츠를 제작한 경험',
+    examples: '상세페이지 · 숏폼 영상 · 광고 소재',
+    keywords: '제작 과정 · 표현 방식 · 기여 범위',
+  },
+  channelOps: {
+    helper: '브랜드 채널을 직접 운영하고 콘텐츠를 발행한 경험',
+    examples: '블로그 · 인스타그램 · 유튜브',
+    keywords: '운영 방식 · 발행 주기 · 반응 변화',
+  },
+  analytics: {
+    helper: '데이터를 분석하고 다음 콘텐츠나 캠페인을 개선한 경험',
+    examples: '조회수 분석 · 클릭률 개선 · 전환율 분석',
+    keywords: '지표 · 원인 분석 · 개선 결과',
+  },
+  trend: {
+    helper: '시장, 경쟁사, 고객 반응을 조사해 아이디어를 발굴한 경험',
+    examples: '경쟁사 분석 · 트렌드 조사 · 고객 인터뷰',
+    keywords: '조사 방법 · 발견점 · 실제 반영',
+  },
+};
+
+const getJobContextLabel = (jobCategory, marketerField) => {
+  const job = JOB_LABELS[jobCategory] || '경험';
+  if (marketerField?.label) return `${job.replace(/\s*\(.+\)/, '')} · ${marketerField.label}`;
+  return `경험 정리 · ${job}`;
+};
+
 function Spinner({ light = false, size = 16 }) {
   return (
     <span
@@ -248,8 +346,8 @@ function BotFace({ size = 22 }) {
 /* AI 아바타 — 챗봇 캐릭터, 대화 내내 숨쉬듯 떠 있는 모션 */
 function AiAvatar() {
   return (
-    <span className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-[10px] bg-white border border-surface-200 shadow-sm mt-0.5 animate-bot-idle">
-      <BotFace size={23} />
+    <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-primary-100 bg-primary-50 text-[13px] font-black text-primary-700">
+      F
     </span>
   );
 }
@@ -345,25 +443,34 @@ function TypewriterText({ text, startIndex = 0, className, style }) {
 
 /* AI 말풍선 */
 function AiBubble({ children }) {
+  const text = asText(children);
+  const [headline, ...rest] = text.split('\n').filter(Boolean);
   return (
-    <div className="flex items-start gap-3 animate-fadeIn">
+    <article className="flex items-start gap-3 animate-fadeIn" aria-label="FitPoly 질문">
       <AiAvatar />
-      <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-surface-100/70 px-4 py-3 text-[14px] text-bluewood-800 leading-relaxed whitespace-pre-wrap" style={{ wordBreak: 'keep-all' }}>
-        {children}
+      <div className="max-w-[760px] rounded-[16px] border border-primary-100 bg-[#F6F8FF] px-5 py-4">
+        <p className="text-[12px] font-bold text-primary-700">FitPoly 경험 가이드</p>
+        <p className="mt-2 text-[18px] font-bold leading-snug text-bluewood-900 whitespace-pre-wrap" style={{ wordBreak: 'keep-all' }}>
+          {headline || text}
+        </p>
+        {rest.length > 0 && (
+          <p className="mt-2 text-[14.5px] leading-relaxed text-bluewood-600 whitespace-pre-wrap" style={{ wordBreak: 'keep-all' }}>
+            {rest.join('\n')}
+          </p>
+        )}
       </div>
-    </div>
+    </article>
   );
 }
 
 /* AI 입력 중 인디케이터 */
 function TypingBubble() {
   return (
-    <div className="flex items-start gap-3 animate-fadeIn">
+    <div className="flex items-start gap-3 animate-fadeIn" aria-live="polite">
       <AiAvatar />
-      <div className="flex items-center gap-1 rounded-2xl rounded-tl-md bg-surface-100/70 px-4 py-[15px]">
-        {[0, 1, 2].map(i => (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-bluewood-300 animate-chat-typing" style={{ animationDelay: `${i * 0.15}s` }} />
-        ))}
+      <div className="flex items-center gap-2 rounded-[14px] border border-primary-100 bg-white px-4 py-3 text-[13px] font-semibold text-bluewood-500">
+        <span className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" aria-hidden="true" />
+        답변을 경험 노트에 반영하고 있어요
       </div>
     </div>
   );
@@ -372,8 +479,8 @@ function TypingBubble() {
 /* 사용자 말풍선 */
 function UserBubble({ children }) {
   return (
-    <div className="flex justify-end animate-fadeIn">
-      <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-primary-600 text-white px-4 py-3 text-[13.5px] leading-relaxed whitespace-pre-wrap shadow-sm shadow-primary-600/20">
+    <div className="flex justify-end animate-fadeIn" aria-label="사용자 답변">
+      <div className="max-w-[82%] rounded-[16px] border border-primary-100 bg-primary-50 px-4 py-3 text-[14.5px] leading-relaxed text-bluewood-800 whitespace-pre-wrap">
         {children}
       </div>
     </div>
@@ -383,31 +490,575 @@ function UserBubble({ children }) {
 /* 진행 단계 스테퍼 — 지금 어디쯤인지 한눈에 */
 function FlowStepper({ phase }) {
   const current = PHASE_STEP[phase] ?? 0;
+  const percent = ((current + 1) / FLOW_STEPS.length) * 100;
   return (
-    /* ring이 잘리지 않도록 스크롤 영역에 여유 패딩 확보 */
-    <div className="flex items-center gap-1 overflow-x-auto -mx-1 px-1 py-1">
-      {FLOW_STEPS.map((label, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <div key={label} className="flex items-center gap-1 flex-shrink-0">
-            {i > 0 && <span className={`h-px w-4 sm:w-6 ${done || active ? 'bg-primary-300' : 'bg-surface-200'}`} />}
-            <div className="flex items-center gap-1.5">
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black transition-all ${
-                done ? 'bg-primary-600 text-white' :
-                active ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/40' :
-                'bg-surface-100 text-bluewood-300'
-              }`}>
-                {done ? <Check size={11} /> : i + 1}
-              </span>
-              <span className={`text-[11.5px] font-semibold whitespace-nowrap ${active ? 'text-primary-700' : done ? 'text-bluewood-500' : 'text-bluewood-300'} hidden sm:inline`}>
+    <nav aria-label="경험 정리 진행 단계" className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] font-bold text-primary-700">
+          {current + 1} / {FLOW_STEPS.length} 단계 · {FLOW_STEPS[current]}
+        </p>
+        <ol className="hidden sm:flex items-center gap-2 text-[12px] font-semibold">
+          {FLOW_STEPS.map((label, i) => {
+            const done = i < current;
+            const active = i === current;
+            return (
+              <li
+                key={label}
+                aria-current={active ? 'step' : undefined}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  active ? 'text-primary-700' : done ? 'text-bluewood-600' : 'text-bluewood-300'
+                }`}
+              >
+                {done ? <Check size={13} aria-hidden="true" /> : <span className="text-[11px]">{i + 1}</span>}
                 {label}
-              </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200" aria-hidden="true">
+        <div
+          className="h-full rounded-full bg-primary-600 transition-[width] duration-300"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </nav>
+  );
+}
+
+function ExperienceBackLink({ className = '' }) {
+  return (
+    <Link
+      to="/app/experience"
+      className={`inline-flex min-h-[44px] items-center gap-2 text-[14px] font-semibold text-bluewood-500 transition-colors hover:text-bluewood-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${className}`}
+    >
+      <ArrowLeft size={16} aria-hidden="true" />
+      경험 목록으로
+    </Link>
+  );
+}
+
+function FocusHeader({ phase }) {
+  const saving = phase === 'saving';
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-200/70 bg-white/70 px-4 py-3 backdrop-blur sm:px-6">
+      <div className="flex items-center gap-3">
+        <img src="/logo.png" alt="FitPoly" className="h-7 w-auto" />
+        <span className="h-4 w-px bg-surface-200" aria-hidden="true" />
+        <span className="text-[13px] font-bold text-bluewood-700">경험 정리</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-bluewood-500" aria-live="polite">
+          {saving ? <BarsLoader height={12} /> : <ShieldCheck size={14} className="text-caribbean-600" aria-hidden="true" />}
+          {saving ? '저장 중...' : '저장 전까지 자유롭게 수정 가능'}
+        </span>
+        <Link
+          to="/app/experience"
+          className="inline-flex min-h-[38px] items-center rounded-lg border border-surface-200 bg-white px-3 text-[13px] font-bold text-bluewood-600 transition-colors hover:border-primary-200 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200"
+        >
+          나가기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function FitPolyGuidePanel({ children }) {
+  return (
+    <section className="flex gap-3 rounded-[14px] bg-[#F1F5FF] px-4 py-4 text-left sm:px-[18px]" aria-label="FitPoly 경험 가이드">
+      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] font-black text-primary-700 shadow-[0_1px_3px_rgba(16,24,40,0.06)]" aria-hidden="true">
+        F
+      </span>
+      <div>
+        <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
+        <p className="mt-1 text-[15px] leading-relaxed text-bluewood-700" style={{ wordBreak: 'keep-all' }}>
+          {children}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function SelectionOption({ option, selected = false, onSelect, meta }) {
+  const helper = meta?.helper || option.description;
+  const examples = meta?.examples || option.description;
+  const keywords = meta?.keywords;
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={() => onSelect(option)}
+      className={`group flex min-h-[104px] w-full items-start justify-between gap-4 rounded-[14px] border bg-white px-5 py-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${
+        selected
+          ? 'border-primary-500 ring-1 ring-primary-100'
+          : 'border-surface-200 hover:-translate-y-0.5 hover:border-primary-200'
+      }`}
+    >
+      <span className="min-w-0">
+        <span className="flex items-center gap-2 text-[16px] font-bold leading-snug text-bluewood-900">
+          {option.label}
+          {selected && <span className="text-[12px] font-bold text-primary-700">선택됨</span>}
+        </span>
+        <span className="mt-1.5 block text-[14px] leading-relaxed text-bluewood-600" style={{ wordBreak: 'keep-all' }}>
+          {helper}
+        </span>
+        <span className="mt-2 block text-[13px] font-semibold leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>
+          {examples}
+        </span>
+        {keywords && (
+          <span className="mt-3 inline-flex rounded-lg bg-surface-50 px-2.5 py-1 text-[12px] font-bold text-bluewood-500">
+            질문 키워드: {keywords}
+          </span>
+        )}
+      </span>
+      <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+        selected ? 'bg-primary-600 text-white' : 'bg-surface-50 text-bluewood-300 group-hover:bg-primary-50 group-hover:text-primary-700'
+      }`}>
+        {selected ? <Check size={16} aria-hidden="true" /> : <ChevronRight size={17} aria-hidden="true" />}
+      </span>
+    </button>
+  );
+}
+
+function CustomMarketerInput({ value, onChange, onSubmit, disabled }) {
+  return (
+    <div className="rounded-[14px] border border-dashed border-surface-300 bg-white px-5 py-4 animate-fadeIn">
+      <label htmlFor="custom-marketer-field" className="block text-[15px] font-bold text-bluewood-800">
+        원하는 항목이 없나요?
+      </label>
+      <p className="mt-1 text-[13.5px] leading-relaxed text-bluewood-500">
+        기존 마케터 흐름은 유지하고, 입력한 이름만 경험 유형으로 기록해요.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          id="custom-marketer-field"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="예: 브랜드 콜라보 캠페인"
+          className="min-h-[44px] flex-1 rounded-xl border border-surface-200 bg-white px-3.5 text-[14px] text-bluewood-800 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
+        />
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={disabled || !value.trim()}
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-bluewood-900 px-4 text-[14px] font-bold text-white transition-colors hover:bg-bluewood-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          직접 작성으로 시작
+          <ArrowRight size={15} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ExperienceSelectionWorkspace({
+  phase,
+  jobCategory,
+  marketerField,
+  onSelectField,
+  onSelectMarketerField,
+  customMarketerValue,
+  onCustomMarketerChange,
+  onCustomMarketerSubmit,
+}) {
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const isMarketerStep = phase === 'mkField';
+  const options = isMarketerStep
+    ? MARKETER_FIELDS.map(item => ({
+        value: item.key,
+        label: item.label,
+        description: item.desc,
+        raw: item,
+      }))
+    : JOB_CATEGORIES.flatMap(group => group.items.map(item => ({ ...item, group: group.group })));
+  const selectedValue = selectedOption?.value || (isMarketerStep ? marketerField?.key : jobCategory);
+  const context = isMarketerStep ? '경험 정리 · 마케터' : '경험 정리';
+  const question = isMarketerStep ? '어떤 마케팅 경험부터 정리해볼까요?' : '어떤 분야의 경험부터 정리해볼까요?';
+  const guide = isMarketerStep
+    ? '선택한 경험을 바탕으로 역할, 과정, 성과를 차근차근 질문할게요. 정확히 맞지 않아도 괜찮고, 결과가 완성되기 전까지 언제든 수정할 수 있습니다.'
+    : '먼저 경험의 큰 분야를 정해볼게요. 가장 가까운 항목을 고르면 이후 질문과 자료 입력 방식이 그 분야에 맞춰 정리됩니다.';
+
+  return (
+    <div className="min-h-full bg-[#F7F9FC]">
+      <FocusHeader phase={phase} />
+      <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+        <ExperienceBackLink />
+        <div className="mt-8">
+          <FlowStepper phase={phase} />
+        </div>
+        <section className="mt-10">
+          <p className="text-[13px] font-bold text-primary-700">{context}</p>
+          <h1 className="mt-2 max-w-[760px] text-[28px] font-extrabold leading-[1.35] text-bluewood-900 sm:text-[32px]" style={{ wordBreak: 'keep-all' }}>
+            {question}
+          </h1>
+          <p className="mt-3 max-w-[680px] text-[15.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+            완벽하게 기억하지 않아도 괜찮아요. 가장 가까운 항목을 하나 선택해주세요.
+          </p>
+        </section>
+        <div className="mt-6">
+          <FitPolyGuidePanel>{guide}</FitPolyGuidePanel>
+        </div>
+        <section className="mt-8" aria-labelledby="experience-type-heading">
+          <h2 id="experience-type-heading" className="sr-only">
+            경험 유형 선택
+          </h2>
+          <div role="radiogroup" aria-label={question} className="space-y-3">
+            {options.map(option => {
+              const actualOption = option.raw || option;
+              const meta = isMarketerStep ? MARKETER_OPTION_META[option.value] : EXPERIENCE_OPTION_META[option.value];
+              return (
+                <SelectionOption
+                  key={option.value}
+                  option={actualOption}
+                  selected={selectedValue === option.value}
+                  onSelect={() => {
+                    setCustomOpen(false);
+                    setSelectedOption(option);
+                  }}
+                  meta={meta}
+                />
+              );
+            })}
+          </div>
+        </section>
+        {isMarketerStep && (
+          <div className="mt-5 space-y-3">
+            {!customOpen ? (
+              <button
+                type="button"
+                onClick={() => { setSelectedOption(null); setCustomOpen(true); }}
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl text-[14px] font-bold text-bluewood-600 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200"
+              >
+                목록에 없는 경험인가요? 직접 작성하기
+                <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            ) : (
+              <CustomMarketerInput
+                value={customMarketerValue}
+                onChange={onCustomMarketerChange}
+                onSubmit={onCustomMarketerSubmit}
+                disabled={false}
+              />
+            )}
+          </div>
+        )}
+        <div className="mt-8 flex flex-col gap-4 border-t border-surface-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1 text-[13.5px] leading-relaxed text-bluewood-500">
+            <p className="inline-flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-caribbean-600" aria-hidden="true" />
+              선택한 내용은 다음 단계에서 바꿀 수 있어요.
+            </p>
+            <p>예상 소요 시간은 약 7~10분입니다.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!selectedOption) return;
+              const actualOption = selectedOption.raw || selectedOption;
+              (isMarketerStep ? onSelectMarketerField : onSelectField)(actualOption);
+            }}
+            disabled={!selectedOption || customOpen}
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-[15px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-bluewood-400"
+          >
+            {selectedOption ? '이 경험으로 시작하기' : '경험을 선택해주세요'}
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function ExperienceBasicsWorkspace({
+  phase,
+  jobCategory,
+  marketerField,
+  title,
+  onTitleChange,
+  startMonth,
+  onStartMonthChange,
+  endMonth,
+  onEndMonthChange,
+  onSubmit,
+  onBack,
+}) {
+  const jobContext = getJobContextLabel(jobCategory, marketerField);
+  const titlePlaceholder = jobCategory === 'marketer'
+    ? '예: 인스타그램 릴스 운영으로 팔로워 3배 성장'
+    : '예: 이미지 무단학습 방지 시스템 개발';
+  const periodReady = (!startMonth && !endMonth) || (startMonth && endMonth && endMonth >= startMonth);
+  const canSubmit = title.trim() && periodReady;
+
+  return (
+    <div className="min-h-full bg-[#F7F9FC]">
+      <FocusHeader phase={phase} />
+      <main className="mx-auto w-full max-w-[880px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-semibold text-bluewood-500 transition-colors hover:text-bluewood-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          경험 유형 다시 선택
+        </button>
+        <div className="mt-8">
+          <FlowStepper phase={phase} />
+        </div>
+
+        <section className="mt-10">
+          <p className="text-[13px] font-bold text-primary-700">{jobContext}</p>
+          <h1 className="mt-2 text-[28px] font-extrabold leading-[1.35] text-bluewood-900 sm:text-[32px]" style={{ wordBreak: 'keep-all' }}>
+            인터뷰 전에 기본 정보를 먼저 정해둘게요.
+          </h1>
+          <p className="mt-3 max-w-[680px] text-[15.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+            제목과 기간을 한 번에 입력하면 이후 질문이 더 자연스럽게 이어집니다. 정확하지 않으면 대략적인 이름과 기간으로 시작해도 괜찮아요.
+          </p>
+        </section>
+
+        <section className="mt-8 rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:px-6 sm:py-6" aria-labelledby="basics-heading">
+          <h2 id="basics-heading" className="text-[18px] font-bold text-bluewood-900">경험 기본 정보</h2>
+          <div className="mt-5 space-y-5">
+            <div>
+              <label htmlFor="experience-title" className="block text-[13px] font-bold text-bluewood-700">
+                경험 제목
+              </label>
+              <input
+                id="experience-title"
+                value={title}
+                onChange={e => onTitleChange(e.target.value)}
+                placeholder={titlePlaceholder}
+                className="mt-2 min-h-[52px] w-full rounded-xl border border-surface-200 bg-white px-4 text-[15px] font-semibold text-bluewood-900 outline-none transition placeholder:font-normal placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
+              />
+            </div>
+
+            <fieldset>
+              <legend className="text-[13px] font-bold text-bluewood-700">진행 기간</legend>
+              <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                <label className="block">
+                  <span className="sr-only">시작 월</span>
+                  <input
+                    type="month"
+                    value={startMonth}
+                    onChange={e => onStartMonthChange(e.target.value)}
+                    className="min-h-[52px] w-full rounded-xl border border-surface-200 bg-white px-4 text-[15px] text-bluewood-800 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
+                  />
+                </label>
+                <span className="hidden text-bluewood-300 sm:block">~</span>
+                <label className="block">
+                  <span className="sr-only">종료 월</span>
+                  <input
+                    type="month"
+                    value={endMonth}
+                    onChange={e => onEndMonthChange(e.target.value)}
+                    className="min-h-[52px] w-full rounded-xl border border-surface-200 bg-white px-4 text-[15px] text-bluewood-800 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
+                  />
+                </label>
+              </div>
+              {!periodReady && (
+                <p className="mt-2 text-[13px] font-semibold text-amber-700" role="alert">
+                  시작 월과 종료 월을 모두 입력하거나 둘 다 비워주세요. 종료 월은 시작 월보다 빠를 수 없어요.
+                </p>
+              )}
+              <p className="mt-2 text-[13px] leading-relaxed text-bluewood-400">
+                기간이 기억나지 않으면 비워두고 넘어가도 됩니다. 나중에 결과 화면에서 수정할 수 있어요.
+              </p>
+            </fieldset>
+          </div>
+        </section>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13.5px] leading-relaxed text-bluewood-500">
+            다음 단계에서 파일, 링크, 메모를 올리면 FitPoly가 핵심 경험을 추출합니다.
+          </p>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-[15px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-bluewood-400"
+          >
+            자료 입력으로 넘어가기
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function MaterialsPrepWorkspace({ phase, jobCategory, marketerField, preset, onSubmit, onBack }) {
+  return (
+    <div className="min-h-full bg-[#F7F9FC]">
+      <FocusHeader phase={phase} />
+      <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex min-h-[44px] items-center gap-2 text-[14px] font-semibold text-bluewood-500 transition-colors hover:text-bluewood-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          기본 정보 수정
+        </button>
+        <div className="mt-8">
+          <FlowStepper phase={phase} />
+        </div>
+        <section className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+          <div>
+            <p className="text-[13px] font-bold text-primary-700">{getJobContextLabel(jobCategory, marketerField)}</p>
+            <h1 className="mt-2 text-[28px] font-extrabold leading-[1.35] text-bluewood-900 sm:text-[32px]" style={{ wordBreak: 'keep-all' }}>
+              자료를 올리면 경험 조각을 먼저 정리해볼게요.
+            </h1>
+            <p className="mt-3 text-[15.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+              파일, 링크, 짧은 메모 중 편한 방식으로 넣어주세요. 다음 단계에서 추출된 핵심 경험만 골라 초안을 만듭니다.
+            </p>
+            <div className="mt-6">
+              <FitPolyGuidePanel>{preset.intro}</FitPolyGuidePanel>
             </div>
           </div>
-        );
-      })}
+          <aside className="rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+            <h2 className="text-[17px] font-bold text-bluewood-900">자료 입력</h2>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-bluewood-500">
+              완벽한 문서가 아니어도 괜찮아요. 가지고 있는 단서만으로 시작할 수 있습니다.
+            </p>
+            <div className="mt-4">
+              <MaterialsWidget bare preset={preset} onSubmit={onSubmit} busy={false} />
+            </div>
+          </aside>
+        </section>
+      </main>
     </div>
+  );
+}
+
+function ProcessingWorkspace({ phase, buildSteps }) {
+  const label = phase === 'building' ? '경험 초안을 만드는 중' : '자료에서 경험 조각을 찾는 중';
+  return (
+    <div className="min-h-full bg-[#F7F9FC]">
+      <FocusHeader phase={phase} />
+      <main className="mx-auto w-full max-w-[760px] px-4 pb-20 pt-14 sm:px-6">
+        <FlowStepper phase={phase} />
+        <section className="mt-10 rounded-[18px] border border-surface-200 bg-white px-6 py-6 shadow-[0_1px_3px_rgba(16,24,40,0.06)]" aria-busy="true">
+          <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
+          <h1 className="mt-2 text-[26px] font-extrabold text-bluewood-900">{label}</h1>
+          <div className="mt-6 space-y-3">
+            {buildSteps.map((s, i) => (
+              <div key={`${s.label}-${i}`} className="flex items-center gap-3 rounded-xl bg-surface-50 px-4 py-3 text-[14px]">
+                <span className="flex h-6 w-6 items-center justify-center">
+                  {s.status === 'done'
+                    ? <Check size={16} className="text-caribbean-700" aria-hidden="true" />
+                    : s.status === 'loading'
+                      ? <BarsLoader height={14} />
+                      : <span className="h-2 w-2 rounded-full bg-surface-300" aria-hidden="true" />}
+                </span>
+                <span className={s.status === 'pending' ? 'text-bluewood-400' : 'font-semibold text-bluewood-800'}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function MomentsReviewWorkspace({ phase, moments, onToggle, onConfirm }) {
+  const selectedCount = moments.filter(m => m.selected).length;
+  return (
+    <div className="min-h-full bg-[#F7F9FC]">
+      <FocusHeader phase={phase} />
+      <main className="mx-auto w-full max-w-[960px] px-4 pb-20 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+        <FlowStepper phase={phase} />
+        <section className="mt-10">
+          <p className="text-[13px] font-bold text-primary-700">핵심 경험 검토</p>
+          <h1 className="mt-2 text-[28px] font-extrabold leading-[1.35] text-bluewood-900 sm:text-[32px]" style={{ wordBreak: 'keep-all' }}>
+            포트폴리오에 담을 경험만 남겨주세요.
+          </h1>
+          <p className="mt-3 max-w-[680px] text-[15.5px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+            자료에서 찾은 경험 조각입니다. 선택한 항목을 중심으로 초안을 만들고, 이후 인터뷰에서 부족한 정보를 보완합니다.
+          </p>
+        </section>
+        <div className="mt-8 rounded-[16px] border border-surface-200 bg-white px-5 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <span className="text-[14px] font-bold text-bluewood-700">{selectedCount} / {moments.length} 선택</span>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={selectedCount === 0 || phase === 'building'}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-[14px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-bluewood-400"
+            >
+              선택한 경험으로 초안 만들기
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </div>
+          <MomentsWidget
+            moments={moments}
+            onToggle={onToggle}
+            onConfirm={onConfirm}
+            readOnly={phase === 'building'}
+            showConfirm={false}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function InterviewProgressRail({ phase, draft, title, startMonth, endMonth, currentQ, completeness }) {
+  const railSteps = [
+    { key: 'select', label: '경험 선택', done: true },
+    { key: 'background', label: '상황과 배경', done: !!title.trim() && (!!draft?.overview && !isWeak(draft.overview)) },
+    { key: 'problem', label: '문제와 목표', done: !isWeak(draft?.task) || !isWeak(draft?.overview) },
+    { key: 'role', label: '나의 역할', done: !isWeak(draft?.projectOverview?.role) },
+    { key: 'process', label: '실행 과정', done: !isWeak(draft?.process) },
+    { key: 'result', label: '성과와 변화', done: !isWeak(draft?.output) || (Array.isArray(draft?.keyExperiences) && draft.keyExperiences.some(ke => asText(ke.metric || ke.afterMetric))) },
+    { key: 'growth', label: '배운 점', done: !isWeak(draft?.growth) },
+    { key: 'finish', label: '최종 정리', done: phase === 'saving' },
+  ];
+  const currentKey = currentQ?.key === 'role' ? 'role'
+    : currentQ?.key === 'process' ? 'process'
+    : currentQ?.key === 'output' || currentQ?.widget === 'metric' ? 'result'
+    : currentQ?.key === 'growth' ? 'growth'
+    : currentQ ? 'background'
+    : phase === 'saving' ? 'finish'
+    : railSteps.find(step => !step.done)?.key || 'finish';
+
+  return (
+    <aside className="hidden xl:block">
+      <div className="sticky top-6 rounded-[16px] border border-surface-200 bg-white px-4 py-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+        <p className="text-[12px] font-bold text-primary-700">인터뷰 진행</p>
+        <ol className="mt-4 space-y-3" aria-label="인터뷰 진행 레일">
+          {railSteps.map((step, index) => {
+            const active = step.key === currentKey;
+            return (
+              <li
+                key={step.key}
+                aria-current={active ? 'step' : undefined}
+                className={`flex items-center gap-2 text-[13px] font-semibold ${
+                  active ? 'text-primary-700' : step.done ? 'text-bluewood-700' : 'text-bluewood-300'
+                }`}
+              >
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+                  step.done ? 'bg-primary-600 text-white' : active ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200' : 'bg-surface-100 text-bluewood-300'
+                }`}>
+                  {step.done ? <Check size={13} aria-hidden="true" /> : index + 1}
+                </span>
+                {step.label}
+              </li>
+            );
+          })}
+        </ol>
+        <div className="mt-5 border-t border-surface-100 pt-4">
+          <p className="text-[12px] font-bold text-bluewood-500">경험 완성도</p>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-200">
+            <span className="block h-full rounded-full bg-primary-600" style={{ width: `${completeness}%` }} />
+          </div>
+          <p className="mt-2 text-[12px] font-semibold text-bluewood-500">{completeness}% · 약간만 더 채우면 좋아요</p>
+          {(startMonth && endMonth) && (
+            <p className="mt-3 text-[12px] text-bluewood-400">{startMonth} ~ {endMonth}</p>
+          )}
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -687,7 +1338,7 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
 }
 
 /* ── 핵심 경험 검토 — 추출된 경험을 선택/해제 후 확정 (우측 분할 패널에서 사용) ── */
-function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false }) {
+function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false, showConfirm = true }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const toggleExpand = (id) => setExpanded(prev => {
     const next = new Set(prev);
@@ -748,7 +1399,7 @@ function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false }) {
           </div>
         );
       })}
-      {!readOnly && (
+      {showConfirm && !readOnly && (
         <button
           onClick={onConfirm}
           disabled={selectedCount === 0}
@@ -768,6 +1419,7 @@ export default function ExperienceChat() {
 
   const [phase, setPhase] = useState('field'); // field(히어로) | mkField(마케터 세부분야) | basics(제목·기간) | materials | extracting | moments | building | fill | saving
   const [marketerField, setMarketerField] = useState(null); // 마케터 세부 분야 (MARKETER_FIELDS 항목)
+  const [customMarketerField, setCustomMarketerField] = useState('');
   const [messages, setMessages] = useState([]);
   const [aiTyping, setAiTyping] = useState(false);
   const [fillDone, setFillDone] = useState(false);
@@ -842,31 +1494,50 @@ export default function ExperienceChat() {
   /* ── 1) 분야 선택 (히어로) → 기본 정보(제목·기간) ── */
   const selectField = async (item) => {
     setJobCategory(item.value);
-    pushMsg('user', item.label);
     // 마케터는 세부 분야를 먼저 고르고, 분야의 목표·역량·지표를 짚은 뒤 정리 시작
     if (item.value === 'marketer') {
       setPhase('mkField');
-      await pushAi('좋아요, 마케터 경험이군요! 😊\n마케팅은 분야마다 증명해야 할 역량과 평가 지표가 달라요.\n어떤 분야의 경험을 정리할까요?');
       return;
     }
     setPhase('basics');
-    await pushAi(`좋아요, ${item.label} 경험이군요! 😊\n먼저 이 경험의 이름(제목)을 뭐라고 부를까요?`);
-    setCurrentQ({ key: 'title', label: '제목', question: '경험 제목', placeholder: '예: 이미지 무단학습 방지 시스템 개발' });
+    setCurrentQ(null);
   };
 
   /* 마케터 세부 분야 선택 → 분야 브리핑(목표·역량·지표) → 제목 질문 */
   const selectMarketerField = async (f) => {
     setMarketerField(f);
-    pushMsg('user', f.label);
     setPhase('basics');
-    await pushAi(
-      `${f.label} — 좋은 선택이에요! 정리를 시작하기 전에 이 분야를 짧게 짚어볼게요 💡\n\n` +
-      `🎯 핵심 목표\n${f.goal}\n\n` +
-      `💪 핵심 역량\n${f.skills}\n\n` +
-      `📊 주요 지표·평가 방식\n${f.metrics}\n\n` +
-      `이 관점을 염두에 두면 경험이 훨씬 설득력 있게 정리돼요.\n그럼, 이 경험의 이름(제목)을 뭐라고 부를까요?`
-    );
-    setCurrentQ({ key: 'title', label: '제목', question: '경험 제목', placeholder: '예: 인스타그램 릴스 운영으로 팔로워 3배 성장' });
+    setCurrentQ(null);
+  };
+
+  const startCustomMarketerField = () => {
+    const label = customMarketerField.trim();
+    if (!label) return;
+    selectMarketerField({
+      key: 'custom',
+      label,
+      desc: '직접 입력한 마케팅 경험 유형',
+      goal: '선택한 경험의 역할, 과정, 성과를 포트폴리오에서 설명할 수 있게 정리하는 것',
+      skills: '문제 정의 · 실행 과정 설명 · 성과 근거 정리 · 배운 점 도출',
+      metrics: '성과 수치, 반응 지표, 전환 지표, 운영 기간, 산출물 등 확보 가능한 근거',
+    });
+  };
+
+  const submitBasicsInfo = () => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) {
+      toast.error('경험 제목을 입력해주세요');
+      return;
+    }
+    if ((startMonth && !endMonth) || (!startMonth && endMonth)) {
+      toast.error('기간은 시작 월과 종료 월을 모두 입력하거나 둘 다 비워주세요');
+      return;
+    }
+    if (startMonth && endMonth && endMonth < startMonth) {
+      toast.error('종료 월이 시작 월보다 빠를 수 없어요');
+      return;
+    }
+    goMaterials();
   };
 
   /* 기본 정보 — 기간 질문 */
@@ -880,8 +1551,6 @@ export default function ExperienceChat() {
   const goMaterials = async () => {
     setCurrentQ(null);
     setPhase('materials');
-    const p = MATERIAL_PRESETS[jobCategory] || MATERIAL_PRESETS.common;
-    await pushAi(`${p.intro}\n\n👉 오른쪽 자료 패널(화면이 좁으면 아래)에 파일·링크를 넣고, 준비되면 버튼을 눌러주세요.`);
   };
 
   /* 핵심 경험 목록 → rawInput/AI 프롬프트용 텍스트 */
@@ -1140,6 +1809,8 @@ export default function ExperienceChat() {
         });
       }
 
+      setMessages([]);
+      msgId.current = 1;
       setFillDone(false);
       setPhase('fill');
       await pushAi('초안이 완성됐어요! 오른쪽에 초안이 나타났어요. ✨');
@@ -1250,6 +1921,7 @@ export default function ExperienceChat() {
     if (aiTyping) return;
     setJobCategory('');
     setMarketerField(null);
+    setCustomMarketerField('');
     setCurrentQ(null);
     setChatInput('');
     setPhase('field');
@@ -1419,72 +2091,109 @@ export default function ExperienceChat() {
     return Math.round((filled / total) * 100);
   }, [draft, title, startMonth, endMonth]);
 
-  const canType = !!currentQ && !currentQ.widget && (phase === 'fill' || phase === 'basics');
+  const canType = !!currentQ && !currentQ.widget && phase === 'fill';
 
-  /* ── 첫 화면: 가벼운 웰컴 히어로 — 분야를 고르면 대화가 시작된다 ── */
-  if (phase === 'field') {
+  /* ── 선택 단계: 채팅 입력창을 숨기고 질문 중심 워크스페이스로 시작한다 ── */
+  if (phase === 'field' || phase === 'mkField') {
     return (
-      <div className="animate-fadeIn max-w-[1320px] mx-auto px-4 sm:px-6 py-6">
-        <Link to="/app/experience" className="inline-block text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors">
-          ← 경험 목록으로
-        </Link>
-        <div className="relative min-h-[72vh] flex flex-col items-center justify-center text-center px-4">
-          {/* 은은한 배경 광원 */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-72 w-full max-w-[560px] rounded-full bg-primary-100/50 blur-3xl" />
-          <div className="relative w-full">
-            <HeroBot />
-            <h1 className="text-[24px] sm:text-[30px] font-extrabold text-bluewood-900 tracking-[-0.02em] mb-2.5" style={{ wordBreak: 'keep-all' }}>
-              <span className="italic font-serif">FitPoly</span>와 함께, 경험을 가볍게 정리해보아요
-            </h1>
-            <p className="text-[15px] text-bluewood-400 mb-9" style={{ wordBreak: 'keep-all' }}>
-              어떤 분야의 경험인가요? 골라주시면 바로 시작할게요.
-            </p>
-            <div className="space-y-5 max-w-[600px] mx-auto">
-              {JOB_CATEGORIES.map(group => (
-                <div key={group.group}>
-                  <p className="text-[11px] font-bold text-bluewood-300 uppercase tracking-wider mb-2">{group.group}</p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {group.items.map(it => (
-                      <button
-                        key={it.value}
-                        onClick={() => selectField(it)}
-                        title={it.description}
-                        className="px-4 py-2 rounded-full border border-surface-200 bg-white text-[13.5px] font-semibold text-bluewood-700 shadow-sm hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 hover:shadow transition-all active:scale-95"
-                      >
-                        {it.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      <ExperienceSelectionWorkspace
+        phase={phase}
+        jobCategory={jobCategory}
+        marketerField={marketerField}
+        onSelectField={selectField}
+        onSelectMarketerField={selectMarketerField}
+        customMarketerValue={customMarketerField}
+        onCustomMarketerChange={setCustomMarketerField}
+        onCustomMarketerSubmit={startCustomMarketerField}
+      />
+    );
+  }
+
+  if (phase === 'basics') {
+    return (
+      <ExperienceBasicsWorkspace
+        phase={phase}
+        jobCategory={jobCategory}
+        marketerField={marketerField}
+        title={title}
+        onTitleChange={setTitle}
+        startMonth={startMonth}
+        onStartMonthChange={setStartMonth}
+        endMonth={endMonth}
+        onEndMonthChange={setEndMonth}
+        onSubmit={submitBasicsInfo}
+        onBack={changeField}
+      />
+    );
+  }
+
+  if (phase === 'materials' && !draft) {
+    return (
+      <MaterialsPrepWorkspace
+        phase={phase}
+        jobCategory={jobCategory}
+        marketerField={marketerField}
+        preset={preset}
+        onSubmit={collectMaterials}
+        onBack={() => {
+          setCurrentQ(null);
+          setPhase('basics');
+        }}
+      />
+    );
+  }
+
+  if ((phase === 'extracting' || phase === 'building') && !draft) {
+    return <ProcessingWorkspace phase={phase} buildSteps={buildSteps} />;
+  }
+
+  if (!draft && moments.length > 0 && phase === 'moments') {
+    return (
+      <MomentsReviewWorkspace
+        phase={phase}
+        moments={moments}
+        onToggle={(id) => setMoments(prev => prev.map(m => m.id === id ? { ...m, selected: !m.selected } : m))}
+        onConfirm={confirmMoments}
+      />
     );
   }
 
   return (
-    <div className="animate-fadeIn max-w-[1320px] mx-auto px-4 sm:px-6 py-6 pb-16">
-      <Link to="/app/experience" className="inline-block text-[13px] font-medium text-bluewood-400 hover:text-bluewood-700 transition-colors mb-4">
-        ← 경험 목록으로
-      </Link>
+    <div className="animate-fadeIn min-h-full bg-[#F7F9FC] px-4 py-6 pb-16 sm:px-6">
+      <div className="mx-auto max-w-[1520px]">
+      <FocusHeader phase={phase} />
+      <ExperienceBackLink className="mt-4 mb-4" />
 
-      <div className={(draft || phase === 'materials' || (moments.length > 0 && (phase === 'moments' || phase === 'building')))
-        ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start'
+      <div className={draft
+        ? 'grid grid-cols-1 gap-5 items-start lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[180px_minmax(0,1fr)_360px]'
         : 'max-w-[960px] mx-auto'
       }>
+        {draft && (
+          <InterviewProgressRail
+            phase={phase}
+            draft={draft}
+            title={title}
+            startMonth={startMonth}
+            endMonth={endMonth}
+            currentQ={currentQ}
+            completeness={completeness}
+          />
+        )}
         {/* ═══ 좌측: AI 채팅 ═══ */}
-        <div className="rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)] flex flex-col h-[calc(100dvh-170px)] min-h-[520px]">
-          <div className="h-1 w-full bg-primary-600" />
+        <div className="rounded-[14px] border border-surface-200 bg-white overflow-hidden shadow-[0_1px_3px_rgba(16,24,40,0.06)] flex flex-col h-[calc(100dvh-190px)] min-h-[520px]">
           <div className="px-6 pt-5 pb-4 border-b border-surface-100">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h1 className="text-[17px] font-extrabold text-bluewood-900">AI와 함께 경험 정리</h1>
-                <p className="text-[12.5px] text-bluewood-400 mt-0.5">분야를 고르고 자료를 올리면, 대화하면서 초안을 완성해요.</p>
+                <p className="text-[13px] font-bold text-primary-700">{getJobContextLabel(jobCategory, marketerField)}</p>
+                <h1 className="mt-1 text-[24px] font-extrabold leading-snug text-bluewood-900" style={{ wordBreak: 'keep-all' }}>
+                  경험의 역할, 과정, 성과를 함께 채워볼게요.
+                </h1>
+                <p className="text-[14px] text-bluewood-500 mt-1.5" style={{ wordBreak: 'keep-all' }}>
+                  자료를 올리고 부족한 부분만 질문으로 보완해 포트폴리오 초안을 만듭니다.
+                </p>
               </div>
               {jobCategory && (
-                <span className="flex-shrink-0 px-2.5 py-1 rounded-md bg-primary-50 border border-primary-100 text-[12px] font-bold text-primary-600 animate-pop-in">
+                <span className="hidden sm:inline-flex flex-shrink-0 px-2.5 py-1 rounded-md bg-primary-50 border border-primary-100 text-[12px] font-bold text-primary-600 animate-pop-in">
                   {JOB_LABELS[jobCategory]}
                 </span>
               )}
@@ -1493,7 +2202,13 @@ export default function ExperienceChat() {
           </div>
 
           {/* 대화 영역 */}
-          <div ref={scrollRef} className="flex-1 min-h-0 px-5 sm:px-6 py-6 overflow-y-auto space-y-5">
+          <div
+            ref={scrollRef}
+            role="log"
+            aria-live="polite"
+            aria-label="AI 인터뷰 대화"
+            className="flex-1 min-h-0 px-5 sm:px-6 py-6 overflow-y-auto space-y-5"
+          >
             {messages.map((m, idx) => (
               <div key={m.id} ref={idx === messages.length - 1 ? lastMsgRef : null}>
                 {m.role === 'ai'
@@ -1597,7 +2312,8 @@ export default function ExperienceChat() {
             )}
           </div>
 
-          {/* 채팅 입력 — 채우기 단계에서만 활성화 */}
+          {/* 채팅 입력 — 기본 정보와 AI 인터뷰 단계에서만 표시 */}
+          {(phase === 'fill' || phase === 'basics') && (
           <div className="px-5 sm:px-6 py-4 border-t border-surface-100">
             {/* 빠른 답변 칩 — 선택지 또는 문장 시작 도우미 */}
             {phase === 'fill' && currentQ && !currentQ.widget && !aiTyping && (
@@ -1664,6 +2380,7 @@ export default function ExperienceChat() {
                 disabled={!canType || !chatInput.trim()}
                 className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-30 transition-all active:scale-95"
                 title="보내기"
+                aria-label="답변 보내기"
               >
                 <Send size={15} className="-ml-0.5" />
               </button>
@@ -1701,6 +2418,7 @@ export default function ExperienceChat() {
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* ═══ 우측: 핵심 경험 검토 — 추출되면 화면이 나뉘며 슬라이드 인 ═══ */}
@@ -1745,13 +2463,13 @@ export default function ExperienceChat() {
           </div>
         )}
 
-        {/* ═══ 우측: 초안 미리보기 — 초안이 생기면 부드럽게 슬라이드 인 ═══ */}
+        {/* ═══ 우측: 실시간 경험 노트 — 대화에서 확인된 내용을 정리한다 ═══ */}
         {draft && (
-        <div className="lg:sticky lg:top-6 rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)] animate-panel-in">
-          <div className="px-5 py-4 border-b border-surface-100 bg-gray-50/50 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="h-3.5 w-1 rounded-full bg-primary-600" />
-              <span className="text-[14px] font-bold text-bluewood-800">경험 초안</span>
+        <div className="lg:sticky lg:top-6 rounded-[16px] border border-surface-200 bg-[#F9FAFC] overflow-hidden shadow-[0_1px_3px_rgba(16,24,40,0.06)] animate-panel-in">
+          <div className="px-5 py-4 border-b border-surface-200/70 bg-white/70 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[16px] font-extrabold text-bluewood-900">실시간 경험 노트</p>
+              <p className="mt-0.5 text-[12.5px] text-bluewood-400">대화에서 확인된 내용만 반영돼요</p>
             </div>
             <div className="flex items-center gap-3">
               {draft && <ProgressRing percent={completeness} />}
@@ -2110,6 +2828,7 @@ export default function ExperienceChat() {
           </div>
         </div>
         )}
+      </div>
       </div>
     </div>
   );
