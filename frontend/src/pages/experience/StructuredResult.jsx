@@ -2965,7 +2965,7 @@ export default function StructuredResult() {
         {!navState?.isTutorialDemo && (
           <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
             <Link to={`/app/experience/result/${id}`} onClick={handleGuardedLinkClick} className="rounded-lg px-3 sm:px-3.5 py-1.5 text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">
-              핵심 경험
+              {jobCategory === 'common' ? '케이스 스터디' : '핵심 경험'}
             </Link>
             <span className="rounded-lg bg-white px-3 sm:px-3.5 py-1.5 text-[13px] font-bold text-bluewood-900 shadow-sm">자세히 보기</span>
           </div>

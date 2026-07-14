@@ -1726,6 +1726,130 @@ function DevImpactSection({ expId, exp, onApplied, onPatchSr }) {
   );
 }
 
+/* 2026-06-22 공통 직군 결과 화면 — 이후 추가된 직군별 문서와 분리해 당시 CASE STUDY 구성을 유지 */
+function CommonLegacyDoc({
+  id, exp, cs, KE_ROWS, saving, dirty,
+  setField, setMeta, setKeyExp, addKeyExp, removeKeyExp,
+  addKeyExpImage, setKeyExpImage, deleteKeyExpImage,
+  handleSave, guardedNav,
+}) {
+  return (
+    <>
+      <div className="max-w-3xl">
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-[12px] font-black uppercase tracking-[0.22em]" style={{ color: ACCENT }}>CASE STUDY</p>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400">
+            <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            회색으로 표시된 영역을 눌러 바로 편집할 수 있어요
+          </span>
+        </div>
+        <AutoText prose value={cs.title} onChange={(v) => setField('title', v)} placeholder="경험 제목을 입력하세요" className="text-[30px] sm:text-[40px] font-black leading-[1.18] text-bluewood-900 tracking-tight" />
+        <AutoText prose value={cs.summary} onChange={(v) => setField('summary', v)} placeholder="한 줄 요약 — 이 경험이 무엇이고 왜 중요한지" className="mt-4 text-[17px] sm:text-[19px] leading-[1.6] text-bluewood-500" />
+        <div className="mt-7 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
+          {[{ k: 'role', label: '역할' }, { k: 'duration', label: '기간' }, { k: 'team', label: '팀 구성' }].map(m => (
+            <div key={m.k} className="min-w-0">
+              <p className="mb-0.5 text-[12px] font-bold text-bluewood-300">{m.label}</p>
+              <AutoText value={cs.meta[m.k]} onChange={(v) => setMeta(m.k, v)} placeholder="—" className="text-[15px] font-semibold text-bluewood-700" />
+            </div>
+          ))}
+        </div>
+        {cs.tech.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {cs.tech.map((t, i) => <span key={i} className="rounded-md bg-surface-100 px-2.5 py-1 text-[12px] font-semibold text-bluewood-600">{t}</span>)}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-10 grid grid-cols-1 items-start gap-x-10 gap-y-12 border-t border-surface-200 pt-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:gap-x-16">
+        <div className="min-w-0">
+          <section>
+            <h2 className="mb-3 text-[12.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">내용</h2>
+            <CaseBody body={cs.body} onChange={(next) => setField('body', next)} />
+          </section>
+          {(() => {
+            const groups = deriveCompetencies(exp?.structuredResult, cs.skills);
+            const active = COMP_GROUPS.filter(g => groups[g.key].length > 0);
+            if (active.length === 0) return null;
+            return (
+              <section className="mt-10 border-t border-surface-200 pt-8">
+                <h2 className="mb-5 text-[12.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">핵심 역량</h2>
+                <div className="space-y-5">
+                  {active.map(g => (
+                    <div key={g.key}>
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: g.color }} />
+                        <span className="text-[13.5px] font-bold text-bluewood-800">{g.label}</span>
+                        <span className="text-[12px] text-bluewood-300">{g.desc}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {groups[g.key].map((s, i) => <span key={i} className="rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold" style={{ backgroundColor: `${g.color}14`, color: g.color }}>{s}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
+        </div>
+
+        <aside className="order-first min-w-0 lg:order-none lg:border-l lg:border-surface-200 lg:pl-10 xl:pl-14">
+          <div className="mb-5 flex items-baseline justify-between">
+            <h2 className="text-[16px] font-extrabold text-bluewood-900">핵심 경험</h2>
+            {cs.keyExps.length > 0 && <span className="text-[12px] font-semibold text-bluewood-300">{cs.keyExps.length}건</span>}
+          </div>
+          <div className="divide-y divide-surface-100">
+            {cs.keyExps.map((k, i) => (
+              <div key={k.id} className="py-7 first:pt-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                    <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-black text-white" style={{ backgroundColor: ACCENT }}>{i + 1}</span>
+                    <AutoText prose value={k.title} onChange={(v) => setKeyExp(k.id, 'title', v)} placeholder={`핵심 경험 ${i + 1}`} className="text-[20px] sm:text-[22px] font-extrabold leading-snug text-bluewood-900" />
+                  </div>
+                  <button type="button" onClick={() => removeKeyExp(k.id)} className="mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-bluewood-300 hover:bg-red-50 hover:text-red-500">삭제</button>
+                </div>
+                <div className="mt-3 flex items-baseline gap-3">
+                  <span className="w-[56px] flex-shrink-0 pt-1.5 text-[13px] font-bold" style={{ color: ACCENT }}>성과</span>
+                  <AutoText value={k.metric} onChange={(v) => setKeyExp(k.id, 'metric', v)} placeholder="성과·수치 (예: 누락률 32% 감소)" className="text-[16px] font-bold text-bluewood-900" />
+                </div>
+                <div className="mt-2 space-y-2.5">
+                  {KE_ROWS.map(r => (
+                    <div key={r.key} className="flex items-baseline gap-3">
+                      <span className="w-[56px] flex-shrink-0 pt-1.5 text-[13px] font-bold text-bluewood-400">{r.label}</span>
+                      <AutoText value={k[r.key]} onChange={(v) => setKeyExp(k.id, r.key, v)} placeholder={`${r.label} 입력`} className={`text-[15.5px] leading-[1.8] ${r.strong ? 'font-semibold text-bluewood-900' : 'text-bluewood-600'}`} />
+                    </div>
+                  ))}
+                </div>
+                {k.images.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-3">
+                    {k.images.map(im => (
+                      <ResizableFigure
+                        key={im.id} src={im.url} width={im.width}
+                        onWidth={(w) => setKeyExpImage(k.id, im.id, { width: w })}
+                        onReplace={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { setKeyExpImage(k.id, im.id, { url: await resizeToBase64(f) }); } catch { toast.error('사진 처리에 실패했어요.'); } }}
+                        onDelete={() => deleteKeyExpImage(k.id, im.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <button type="button" onClick={() => addKeyExpImage(k.id)} className="mt-3 rounded-md border border-surface-200 px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400 hover:border-primary-300 hover:text-primary-600">＋ 사진</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addKeyExp} className="mt-5 w-full rounded-lg border border-dashed border-surface-300 py-2.5 text-[13px] font-semibold text-bluewood-400 transition-colors hover:border-primary-300 hover:text-primary-600">＋ 핵심 경험 추가</button>
+        </aside>
+      </div>
+
+      <div className="mt-12 flex flex-wrap gap-3 border-t border-surface-200 pt-8">
+        <button onClick={handleSave} disabled={saving || !dirty} className="rounded-xl bg-primary-600 px-5 py-3 text-[14px] font-bold text-white shadow-sm shadow-primary-600/20 transition-colors hover:bg-primary-700 disabled:opacity-40">{saving ? '저장 중…' : '저장하기'}</button>
+        <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="inline-flex items-center gap-1.5 rounded-xl border border-surface-200 bg-white px-5 py-3 text-[14px] font-bold text-bluewood-700 transition-colors hover:border-surface-300 hover:bg-surface-50">
+          자세히 보기로 전환
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+        </button>
+      </div>
+    </>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════
    기획/PM 전용 — "프로덕트 스펙 문서" 렌더링
    (개발자=GitHub 딥다이브, 마케터=캠페인 한 장 문서에 대응하는 PM 시그니처.
@@ -4568,6 +4692,7 @@ export default function ExperienceResult() {
 
   // 직군별 케이스 스터디 구조 분기 — 개발 직군은 GitHub 기반 개발 임팩트, 기획/PM은 의사결정 딥다이브를 보여준다.
   const jobCategory = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+  const isCommonJob = jobCategory === 'common';
   const isDevJob = DEV_GIT_JOBS.includes(jobCategory);
   const isPmJob = jobCategory === 'pm';
   const devStats = exp?.structuredResult?.githubStats || null;
@@ -4598,7 +4723,7 @@ export default function ExperienceResult() {
 
             {/* 보기 전환 — 핵심 경험 ↔ 자세히 보기 */}
             <div className="inline-flex items-center gap-0.5 rounded-xl bg-surface-100 p-1">
-              <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">핵심 경험</span>
+              <span className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-white text-[13px] font-bold text-bluewood-900 shadow-sm">{isCommonJob ? '케이스 스터디' : '핵심 경험'}</span>
               <button onClick={() => guardedNav(`/app/experience/structured/${id}`)} className="px-3 sm:px-3.5 py-1.5 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:text-bluewood-700 transition-colors">자세히 보기</button>
             </div>
           </div>
@@ -4626,7 +4751,7 @@ export default function ExperienceResult() {
         </div>
       </div>
 
-      <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+      <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
         {isMarketer ? (
           <MarketerDoc
             cs={cs}
@@ -4658,6 +4783,25 @@ export default function ExperienceResult() {
               setExp(prev => ({ ...(prev || {}), structuredResult: nextSr }));
               setDirty(true);
             }}
+          />
+        ) : isCommonJob ? (
+          <CommonLegacyDoc
+            id={id}
+            exp={exp}
+            cs={cs}
+            KE_ROWS={KE_ROWS}
+            saving={saving}
+            dirty={dirty}
+            setField={setField}
+            setMeta={setMeta}
+            setKeyExp={setKeyExp}
+            addKeyExp={addKeyExp}
+            removeKeyExp={removeKeyExp}
+            addKeyExpImage={addKeyExpImage}
+            setKeyExpImage={setKeyExpImage}
+            deleteKeyExpImage={deleteKeyExpImage}
+            handleSave={handleSave}
+            guardedNav={guardedNav}
           />
         ) : (
         <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-10">
