@@ -55,13 +55,13 @@ router.post('/image', authMiddleware, upload.single('file'), async (req, res) =>
 });
 
 // 프로젝트 산출물 문서(PDF·PPT·HWP·DOC 등) 업로드용 — 이미지 외 파일 허용
-const DOC_EXT = /\.(pdf|ppt|pptx|hwp|hwpx|doc|docx|key|xls|xlsx|txt|zip)$/i;
+const DOC_EXT = /\.(pdf|ppt|pptx|hwp|hwpx|doc|docx|key|xls|xlsx|txt|md|zip|jpg|jpeg|png|webp)$/i;
 const uploadDoc = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
   fileFilter: (req, file, cb) => {
     if (DOC_EXT.test(file.originalname || '')) cb(null, true);
-    else cb(new Error('PDF·PPT·HWP·DOC 등 문서 파일만 업로드할 수 있습니다'));
+    else cb(new Error('PDF·PPT·HWP·DOC·이미지 등 산출물 파일만 업로드할 수 있습니다'));
   },
 });
 

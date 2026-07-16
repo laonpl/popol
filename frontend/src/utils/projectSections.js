@@ -7,6 +7,7 @@
  */
 import { generateId } from '@yoopta/editor';
 import { FRAMEWORKS, JOB_SPECIFIC_FIELDS } from '../stores/experienceStore';
+import { contentBearingCoreSections } from './coreExperienceSections';
 
 export const EXP_SECTION_META = {
   intro:      { num: '01', label: '프로젝트 소개' },
@@ -73,6 +74,7 @@ function normSection(section = {}) {
 /**
  * 경험 객체에서 렌더링 가능한 상세 섹션 목록을 만든다.
  * 우선순위: exportConfig.sections → exp.sections(레거시) → jobSpecific + 기본 7섹션
+ * (직군 핵심 경험 파트는 JobCoreShowcase가 디자인으로 렌더링하므로 여기서 텍스트로 중복시키지 않는다)
  */
 export function buildRenderableSections(exp) {
   const structured = exp?.structuredResult || {};
@@ -197,6 +199,9 @@ export function sectionPaletteBlocks(exp, key, label) {
   if (rendered && (rendered.content?.trim() || rendered.blocks?.length > 0)) {
     return sectionToBlocks(rendered);
   }
+  // 직군 핵심 경험 섹션 — 저장된 내보내기 구성(exportConfig)에 없어도 원본 데이터에서 채운다
+  const core = key ? contentBearingCoreSections(exp).find(section => section.key === key) : null;
+  if (core) return sectionToBlocks(normSection(core));
   const content = key ? sectionContentForKey(exp, key) : '';
   if (content) return [headingBlock(label || '새 섹션', 'HeadingTwo'), ...textToParagraphs(content)];
   return sectionTemplateToBlocks(label);

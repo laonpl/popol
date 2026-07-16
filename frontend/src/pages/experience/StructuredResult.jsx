@@ -14,6 +14,7 @@ import ProjectDetailModal from '../../components/ProjectDetailModal';
 import { JobAnalysisBadge } from '../../components/JobLinkInput';
 import { mergeStructuredIntoCaseStudy } from '../../utils/caseStudySync';
 import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
+import { buildCoreExperienceSections } from '../../utils/coreExperienceSections';
 import { analyzeJobUrl } from '../../services/jobAI';
 import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal';
 import useUnsavedChanges from '../../hooks/useUnsavedChanges';
@@ -257,6 +258,7 @@ function moveSlidesToStandaloneSection(sections = []) {
   // 이제는 섹션 순서를 사용자가 마음대로 이동할 수 있도록 원본을 그대로 반환합니다.
   return sections.map(normalizeExportSection);
 }
+
 
 function clampPercent(value) {
   const n = numberOrNull(value);
@@ -1601,7 +1603,16 @@ export default function StructuredResult() {
                 content, blocks: content ? [makeTextBlock(content)] : [], enabled: !!content.trim(),
               });
             });
-          const mergedSections = missingJobSections.length ? [...savedSections, ...missingJobSections] : savedSections;
+          // 직군별 핵심 경험 페이지 섹션(개발 임팩트·린 캔버스·캠페인 등)도 같은 방식으로 병합
+          const missingCoreSections = buildCoreExperienceSections({
+            jobCategory: jc,
+            sr,
+            caseStudy: data.caseStudy || null,
+            keyExperiences: Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [],
+            keyExpImages: data.keyExpImages || {},
+          }).filter(section => !existingKeys.has(section.key));
+          const extraSections = [...missingJobSections, ...missingCoreSections];
+          const mergedSections = extraSections.length ? [...savedSections, ...extraSections] : savedSections;
           setExportCustomSections(mergedSections);
           setActiveExportSectionKey(mergedSections.find(section => !isSlideDeckSection(section))?.key || mergedSections[0]?.key || null);
         }
@@ -2299,6 +2310,7 @@ export default function StructuredResult() {
 
   const buildDefaultExportSections = () => {
     const metaLines = [
+      editedOverview.summary && `요약: ${editedOverview.summary}`,
       editedOverview.duration && `기간: ${editedOverview.duration}`,
       editedOverview.role && `역할: ${editedOverview.role}`,
       editedOverview.team && `팀 구성: ${editedOverview.team}`,
@@ -2307,14 +2319,6 @@ export default function StructuredResult() {
       editedKeywords.length > 0 && `키워드: ${editedKeywords.map(kw => typeof kw === 'string' ? kw : kw?.name || kw?.keyword || '').filter(Boolean).join(', ')}`,
       editedOverview.goal && `목표: ${editedOverview.goal}`,
     ].filter(Boolean).join('\n');
-    const keyExperienceText = editedKeyExperiences.map((item, index) => [
-      `${index + 1}. ${item.title || '핵심 경험'}`,
-      item.metric || item.afterMetric ? `성과: ${item.afterMetric || item.metric}` : '',
-      item.context ? `상황: ${item.context}` : '',
-      item.action ? `행동: ${item.action}` : '',
-      item.result ? `결과: ${item.result}` : '',
-      item.learning ? `학습: ${item.learning}` : '',
-    ].filter(Boolean).join('\n')).join('\n\n');
     const researchText = [
       editedResearch.marketOverview,
       ...(editedResearch.decisionMetrics || []).map(item => [
@@ -2330,6 +2334,15 @@ export default function StructuredResult() {
       ...(researchInfographic.cards.length > 0 ? [makeInfographicBlock(researchInfographic)] : []),
       ...(researchText.trim() ? [makeTextBlock(researchText)] : []),
     ];
+    const researchSection = { key: 'market-research', label: '시장/지표 리서치', type: 'research', content: researchText, blocks: researchBlocks, enabled: !!researchText.trim() || researchInfographic.cards.length > 0 };
+    // 직군별 핵심 경험 페이지 파트 — 내보내기 기본 틀 (핵심 경험 & 성과 + 직군 전용 섹션)
+    const coreSections = buildCoreExperienceSections({
+      jobCategory,
+      sr: experience?.structuredResult || {},
+      caseStudy: experience?.caseStudy || null,
+      keyExperiences: editedKeyExperiences,
+      keyExpImages,
+    });
     const jobSections = (JOB_SPECIFIC_FIELDS[jobCategory] || []).map(field => ({
       key: `job-${field.key}`,
       sourceKey: field.key,
@@ -2346,10 +2359,14 @@ export default function StructuredResult() {
       content: editedContent[key] || '',
       enabled: true,
     }));
+    // 기본 틀 = 직군별 핵심 경험 페이지 순서, 이어서 자세히 보기(리서치·직군 특화·7섹션) 파트
+    // 마케터 페이지는 리서치 스토리보드가 핵심 경험보다 먼저 온다.
+    const isMarketerJob = jobCategory === 'marketer';
     return [
       { key: 'project-meta', label: '프로젝트 정보', type: 'meta', content: metaLines, enabled: true },
-      { key: 'key-experiences', label: '핵심 경험 & 성과', type: 'summary', content: keyExperienceText, enabled: editedKeyExperiences.length > 0 },
-      { key: 'market-research', label: '시장/지표 리서치', type: 'research', content: researchText, blocks: researchBlocks, enabled: !!researchText.trim() || researchInfographic.cards.length > 0 },
+      ...(isMarketerJob ? [researchSection] : []),
+      ...coreSections,
+      ...(isMarketerJob ? [] : [researchSection]),
       ...jobSections,
       ...baseSections,
     ].map(section => normalizeExportSection({ ...section, blocks: section.blocks || (section.content ? [makeTextBlock(section.content)] : []) }));
@@ -2434,6 +2451,22 @@ export default function StructuredResult() {
 
     const nextStructured = changes.structuredResult;
     if (nextStructured) {
+      // 미리보기의 직군 핵심 경험 편집은 product·githubStats·gitAnalysis·leanCanvas·
+      // pmHypotheses·marketerKit 등 직군마다 서로 다른 필드를 갱신한다.
+      // 알려진 공통 필드만 골라 보관하면 입력 직후 값이 되돌아가므로 구조 전체를 비파괴 병합한다.
+      setExperience(prev => prev ? {
+        ...prev,
+        structuredResult: {
+          ...(prev.structuredResult || {}),
+          ...nextStructured,
+          ...(nextStructured.exportConfig ? {
+            exportConfig: {
+              ...(prev.structuredResult?.exportConfig || {}),
+              ...nextStructured.exportConfig,
+            },
+          } : {}),
+        },
+      } : prev);
       if (nextStructured.projectOverview) {
         setEditedOverview(prev => ({
           ...prev,
@@ -2665,7 +2698,7 @@ export default function StructuredResult() {
         return defaults;
       });
     }
-  }, [jobCategory, experience?.id, experience?.structuredResult?.exportConfig, editedContent, editedOverview, editedKeyExperiences, editedResearch, editedJobSpecific, editedKeywords]);
+  }, [jobCategory, experience?.id, experience?.structuredResult, experience?.caseStudy, keyExpImages, editedContent, editedOverview, editedKeyExperiences, editedResearch, editedJobSpecific, editedKeywords]);
 
   /* 포트폴리오 내보내기 핸들러 */
   const handleExportToPortfolio = () => {
@@ -4362,8 +4395,8 @@ export default function StructuredResult() {
                                 onClick={() => addKnownSection(s.key)}
                                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-bluewood-700 hover:bg-surface-50 transition-colors"
                               >
-                                <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold ${s.type === 'job' ? 'bg-caribbean-50 text-caribbean-700' : s.type === 'base' ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-500'}`}>
-                                  {s.type === 'job' ? '직군' : s.type === 'base' ? '본문' : s.type === 'summary' ? '경험' : s.type === 'research' ? '리서치' : s.type === 'meta' ? '정보' : '섹션'}
+                                <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold ${s.type === 'job' ? 'bg-caribbean-50 text-caribbean-700' : s.type === 'core' ? 'bg-primary-100 text-primary-700' : s.type === 'base' ? 'bg-primary-50 text-primary-600' : 'bg-surface-100 text-bluewood-500'}`}>
+                                  {s.type === 'job' ? '직군' : s.type === 'core' ? '핵심' : s.type === 'base' ? '본문' : s.type === 'summary' ? '경험' : s.type === 'research' ? '리서치' : s.type === 'meta' ? '정보' : '섹션'}
                                 </span>
                                 <span className="truncate font-semibold">{s.label}</span>
                               </button>
@@ -4383,8 +4416,8 @@ export default function StructuredResult() {
                     const slideDeck = isSlideDeckSection(normalizedSection);
                     const isDragging = exportDragKey === section.key;
                     const isOver = exportOverKey === section.key && !isDragging;
-                    const typeColor = slideDeck ? 'text-primary-500' : section.type === 'custom' ? 'text-amber-600' : section.type === 'job' ? 'text-caribbean-600' : 'text-bluewood-300';
-                    const typeLabel = slideDeck ? '슬라이드' : section.type === 'custom' ? '직접' : section.type === 'job' ? '직군' : '경험';
+                    const typeColor = slideDeck ? 'text-primary-500' : section.type === 'custom' ? 'text-amber-600' : section.type === 'job' ? 'text-caribbean-600' : section.type === 'core' ? 'text-primary-600' : 'text-bluewood-300';
+                    const typeLabel = slideDeck ? '슬라이드' : section.type === 'custom' ? '직접' : section.type === 'job' ? '직군' : section.type === 'core' ? '핵심' : '경험';
                     return (
                       <div
                         key={section.key}

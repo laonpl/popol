@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
+import { uploadDocumentFile } from '../../services/uploadImage';
 import api from '../../services/api';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 import { stripMd } from '../../utils/textUtils';
@@ -1462,6 +1463,7 @@ export default function ExperienceChat() {
   const [reviewedMoments, setReviewedMoments] = useState([]); // 사용자가 확정한 핵심 경험
 
   const gitRef = useRef(null); // GitHub 커밋 분석 결과(githubStats·gitAnalysis) — 초안·저장에 보존
+  const materialDeliverablesRef = useRef([]); // 경험 정리에서 올린 파일·링크 — 내보내기 사이드바까지 보존
 
   const [draft, setDraft] = useState(null);
   const [title, setTitle] = useState('');
@@ -1594,6 +1596,13 @@ export default function ExperienceChat() {
   const collectMaterials = async ({ files, links, text, githubUsername }) => {
     const ghLink = links.find(l => l.source === 'github' && l.url);
     const runGitAnalysis = Boolean(ghLink && githubUsername);
+    const collectedDeliverables = links.map((link, index) => ({
+      id: `source-link-${Date.now()}-${index}`,
+      kind: 'link',
+      name: link.label?.replace(/\s*\(선택\)/, '') || '산출물 링크',
+      url: link.url,
+      source: link.source || 'link',
+    }));
 
     const parts = [];
     if (files.length > 0) parts.push(`파일 ${files.length}개`);
@@ -1621,17 +1630,32 @@ export default function ExperienceChat() {
       const fileTask = files.length > 0 ? (async () => {
         setStep(fileStepIdx, 'loading');
         const parts = await Promise.all(files.map(async (file) => {
+          let extractedText = '';
           try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('targetType', 'experience');
             const data = await importFileUpload(formData);
             const content = data?.imported?.content || '';
-            return content.trim() ? `\n\n--- ${file.name} ---\n${content.trim()}` : '';
+            extractedText = content.trim() ? `\n\n--- ${file.name} ---\n${content.trim()}` : '';
           } catch {
             toast.error(`${file.name} 분석에 실패해 건너뛰었어요`);
-            return '';
           }
+          try {
+            const uploaded = await uploadDocumentFile(file);
+            collectedDeliverables.push({
+              id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
+              kind: 'file',
+              name: uploaded.name || file.name,
+              url: uploaded.url,
+              filename: uploaded.filename,
+              size: uploaded.size || file.size,
+              ext: String(file.name || '').split('.').pop().toLowerCase(),
+            });
+          } catch (uploadError) {
+            toast.error(`'${file.name}' 파일은 분석했지만 산출물 저장에 실패했어요`);
+          }
+          return extractedText;
         }));
         setStep(fileStepIdx, 'done');
         return parts.join('');
@@ -1695,6 +1719,7 @@ export default function ExperienceChat() {
       let allText = fileText + linkTexts.join('');
 
       if (text) allText += `\n\n--- 직접 입력 ---\n${text}`;
+      materialDeliverablesRef.current = collectedDeliverables;
 
       if (!allText.trim() && !gitRef.current) {
         setPhase('materials');
@@ -2097,7 +2122,11 @@ export default function ExperienceChat() {
         transcript ? `=== AI 채팅 보완 ===\n${transcript}` : '',
       ].filter(Boolean).join('\n\n');
       // GitHub 기여 통계 + 분석 원본(코드·트러블슈팅)을 structuredResult에 보존 → 케이스 스터디·개발자 포트폴리오에서 렌더
-      const draftWithGit = { ...draft, ...(gitRef.current || {}) };
+      const draftWithGit = {
+        ...draft,
+        ...(gitRef.current || {}),
+        deliverables: materialDeliverablesRef.current,
+      };
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
         framework: 'STRUCTURED',

@@ -41,6 +41,7 @@ const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')
 const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
 const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioPreview'));
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
+const Demo                  = lazy(() => import('./pages/Demo'));
 
 function PageLoader() {
   return (
@@ -90,6 +91,7 @@ const router = createBrowserRouter(
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/eng" element={<DeveloperPitchDemo />} />
+      <Route path="/demo" element={<Demo />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
