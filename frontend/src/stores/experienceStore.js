@@ -246,6 +246,14 @@ const useExperienceStore = create((set, get) => ({
     return data; // { moments: [...] }
   },
 
+  /** 인터뷰 답변 가드레일 — 무의미 답변 판정 + FitPoly 톤 가공. 실패 시 호출부에서 원문 사용. */
+  refineAnswer: async ({ question, answer, sectionLabel, jobCategory }) => {
+    const { data } = await api.post('/experience/refine-answer', {
+      question, answer, sectionLabel, jobCategory,
+    }, { timeout: 20000 });
+    return data; // { usable, refined }
+  },
+
   /** 자유 텍스트 기반 핵심 경험 보강 */
   refineKeyExperience: async (currentExp, freeFormText) => {
     const { data } = await api.post('/experience/refine-key-experience', {

@@ -15,6 +15,7 @@ import {
   buildSingleKeyExperiencePrompt,
   buildMetaPrompt,
   buildRefineKeyExperiencePrompt,
+  buildRefineAnswerPrompt,
   buildMetricsResearchPrompt,
   buildInterviewQuestionsPrompt,
   buildDraftAnalysisPrompt,
@@ -928,7 +929,9 @@ ${materialText}
     'ExtractProduct'
   );
   const parsed = parseJSON(text, /\{[\s\S]*\}/) || {};
-  return normalizeProduct(parsed.product || parsed);
+  const product = normalizeProduct(parsed.product || parsed);
+  // 성과 수치 검증 라인 — 자료에 없는 수치가 주요 성과(outcomes)로 들어가지 않게
+  return product ? groundAnalysisMetrics({ product }, materialText).product : product;
 }
 
 /**
@@ -1153,10 +1156,12 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
+  // 자료(파일·링크 원문)가 3천 자에서 잘리면 스토리 섹션이 앞부분(목차·인트로)만 보고 만들어진다.
+  // flash 컨텍스트는 충분히 크므로 본문 서사가 담기도록 잘림 한도를 넉넉히 잡는다.
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${draftValueToText(val).substring(0, 3000)}`)
+    .map(([key, val]) => `[${key}]: ${draftValueToText(val).substring(0, 9000)}`)
     .join('\n');
-  if (contentText.length > 12000) contentText = contentText.substring(0, 12000);
+  if (contentText.length > 24000) contentText = contentText.substring(0, 24000);
 
   const prompt = buildDraftAnalysisPrompt(contentText, jobCategory);
   const text = await withTimeout(
@@ -1171,7 +1176,8 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
     'DraftAnalysis'
   );
   const json = parseJSON(text);
-  return hydrateDraftAnalysis({ json, content, jobCategory, contentText });
+  const hydrated = hydrateDraftAnalysis({ json, content, jobCategory, contentText });
+  return groundAnalysisMetrics(hydrated, contentText);
 }
 
 /**
@@ -1280,10 +1286,11 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
   }
 
+  // 자료 원문이 일찍 잘리면 7섹션·핵심경험이 자료 앞부분만 반영한다 — 본문 서사까지 담기게 한도 상향
   let contentText = entries
-    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 2500)}`)
+    .map(([key, val]) => `[${key}]: ${String(val).substring(0, 6000)}`)
     .join('\n');
-  if (contentText.length > 10000) contentText = contentText.substring(0, 10000);
+  if (contentText.length > 18000) contentText = contentText.substring(0, 18000);
 
   const hasReviewed = Array.isArray(reviewedMoments) && reviewedMoments.length > 0;
   const lockedCount = hasReviewed ? reviewedMoments.length : null;
@@ -1473,12 +1480,30 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   };
 
   console.log(`[경험분석] ✓ 완료: keyExperiences ${keyExperiences.length}개`);
-  return result;
+  return groundAnalysisMetrics(result, contentText);
 }
 
 /**
  * 사용자 자유 보강 메모 기반 핵심 경험 보강 (B 방식)
  */
+/**
+ * 인터뷰 답변 가드레일 — 무의미한 답변 판정 + FitPoly 톤으로 가공.
+ * 실패 시 원문을 그대로 통과시켜 인터뷰 흐름을 막지 않는다.
+ */
+export async function refineInterviewAnswer({ question, answer, sectionLabel, jobCategory }) {
+  try {
+    const prompt = buildRefineAnswerPrompt({ question, answer, sectionLabel, jobCategory });
+    const text = await callFastLite(prompt, 'RefineAnswer', { callTimeoutMs: 15000 });
+    const parsed = parseJSON(text) || {};
+    const usable = parsed.usable !== false;
+    const refined = String(parsed.refined || '').trim();
+    return { usable, refined: usable ? (refined || answer) : '' };
+  } catch (err) {
+    console.warn('[RefineAnswer] 판정/가공 실패 → 원문 통과:', err.message);
+    return { usable: true, refined: answer, _fallback: true };
+  }
+}
+
 export async function refineKeyExperience(currentExp, freeFormText) {
   if (!freeFormText || freeFormText.trim().length === 0) {
     return currentExp;
@@ -1712,7 +1737,7 @@ export async function extractMoments(rawText, title) {
 
     if (moments.length > 0) {
       console.log(`[ExtractMoments] ✓ ${moments.length}개 추출 완료`);
-      return moments;
+      return groundMomentMetrics(moments, rawText);
     }
 
     console.warn('[ExtractMoments] AI returned no moments. Using deterministic fallback.');
@@ -1873,6 +1898,24 @@ function normalizeBlocks(value) {
 
 /** 텍스트에서 정량 지표(수치+단위/기호) 한두 개를 뽑아낸다. 합격자 PPT의 'key_result' 톤. */
 const METRIC_PATTERN = /(?:^|[^A-Za-z0-9])(?:[+\-±↑↓]?\s*\d{1,3}(?:[,.\d]*)\s*(?:%|배|번|회|건|명|분|시간|일|주|개월|년|만원?|억원?|원|km|kg|MAU|DAU|위|위권|↑|↓|%p|x|×|배|TPS|RPS|p95|p99))/gi;
+
+// 성과 문맥 판정 — 수치 주변에 "무엇이 얼마나 변했는지"를 말하는 단서가 있어야 성과로 인정.
+// (문서의 진행률·화면 비율·버전·목차 번호 같은 수치가 주요 성과로 둔갑하는 것을 막는 검증 라인)
+const METRIC_CONTEXT_RE = /(개선|단축|증가|감소|절감|절약|향상|상승|성장|달성|확대|축소|최적화|해결|완료율|성공률|정확도|도달|유지율|재방문|이탈|클릭|전환|전환율|CTR|CVR|CPA|ROAS|매출|비용|시간|속도|응답|처리량?|성능|오류|에러|장애|사용자|가입|방문|조회수?|참여|팔로워|구독|만족|평점|모집|판매|계약|리드|기여|→|~>|에서\s*\d)/i;
+function hasMetricContext(text, matchIndex, matchLength) {
+  const s = String(text);
+  // 같은 문장 안에서만 성과 단서를 찾는다 — 옆 문장의 "단축/개선"이 무관한 수치를 통과시키지 않게
+  let start = Math.max(0, matchIndex - 90);
+  let end = Math.min(s.length, matchIndex + matchLength + 90);
+  const before = s.slice(start, matchIndex);
+  const boundaryBefore = Math.max(before.lastIndexOf('\n'), before.lastIndexOf('.'), before.lastIndexOf('!'), before.lastIndexOf('?'), before.lastIndexOf('。'));
+  if (boundaryBefore >= 0) start += boundaryBefore + 1;
+  const after = s.slice(matchIndex + matchLength, end);
+  const stops = ['\n', '.', '!', '?', '。'].map(ch => after.indexOf(ch)).filter(i => i >= 0);
+  if (stops.length > 0) end = matchIndex + matchLength + Math.min(...stops);
+  return METRIC_CONTEXT_RE.test(s.slice(start, end));
+}
+
 function extractMetricsFromText(text) {
   if (!text) return [];
   const seen = new Set();
@@ -1881,11 +1924,82 @@ function extractMetricsFromText(text) {
     // 앞뒤 공백/구두점 + 캡쳐 시작의 비단어 1글자 제거
     const cleaned = m[0].replace(/^[^\w+\-±↑↓]+/, '').trim();
     if (!cleaned || seen.has(cleaned)) continue;
+    // 성과 문맥 없는 수치(진행률·비율 표기·번호 등)는 지표 후보에서 제외
+    if (!hasMetricContext(text, m.index ?? 0, m[0].length)) continue;
     seen.add(cleaned);
     out.push(cleaned);
     if (out.length >= 4) break;
   }
   return out;
+}
+
+// ── 수치 그라운딩 — AI가 만든 metric/성과 수치가 원본 자료에 실제로 존재하는지 검증 ──
+const numTokensOf = (v) => String(v ?? '').replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || [];
+
+function buildSourceNumSet(sourceText) {
+  return new Set(numTokensOf(sourceText));
+}
+
+/** 수치 값이 원본에 근거하는지 — 2자리 이상 수치 토큰이 모두 원본에 있어야 통과 (한 자리 수는 노이즈라 관대하게) */
+function metricGroundedIn(value, srcNums) {
+  const tokens = numTokensOf(value);
+  if (tokens.length === 0) return false; // 숫자 없는 metric은 지표가 아님
+  return tokens.filter(t => t.replace('.', '').length >= 2).every(t => srcNums.has(t));
+}
+
+/**
+ * 분석 결과의 성과 수치 검증 라인 (모든 경험 추출 공통).
+ * - keyExperiences[].metric/beforeMetric/afterMetric: 원본에 없는 수치면 비움
+ * - product.outcomes[]: 원본에 없는 수치가 담긴 항목 제거
+ * 원본 텍스트가 없으면 그대로 반환 (검증 불가 시 데이터 파괴 금지).
+ */
+export function groundAnalysisMetrics(analysis, sourceText) {
+  if (!analysis || typeof analysis !== 'object' || !String(sourceText || '').trim()) return analysis;
+  const srcNums = buildSourceNumSet(sourceText);
+  const scrub = (v) => (String(v || '').trim() && !metricGroundedIn(v, srcNums) ? '' : v);
+
+  const out = { ...analysis };
+  if (Array.isArray(out.keyExperiences)) {
+    out.keyExperiences = out.keyExperiences.map(ke => {
+      if (!ke || typeof ke !== 'object') return ke;
+      const metric = scrub(ke.metric);
+      const beforeMetric = scrub(ke.beforeMetric);
+      const afterMetric = scrub(ke.afterMetric);
+      const dropped = (ke.metric && !metric) || (ke.beforeMetric && !beforeMetric) || (ke.afterMetric && !afterMetric);
+      if (dropped) console.warn(`[MetricGuard] 원본에 없는 수치 제거: "${ke.metric || ke.afterMetric}" (${ke.title || 'untitled'})`);
+      return { ...ke, metric, beforeMetric, afterMetric, metricLabel: metric || afterMetric ? ke.metricLabel : '' };
+    });
+  }
+  if (out.product && Array.isArray(out.product.outcomes)) {
+    const kept = out.product.outcomes.filter(o => {
+      const v = String(o?.value || '');
+      if (!numTokensOf(v).length) return true; // 정성 성과는 유지
+      return metricGroundedIn(v, srcNums);
+    });
+    if (kept.length !== out.product.outcomes.length) {
+      console.warn(`[MetricGuard] product.outcomes ${out.product.outcomes.length - kept.length}건 제거 (원본 미확인 수치)`);
+    }
+    out.product = { ...out.product, outcomes: kept };
+  }
+  return out;
+}
+
+/** 추출된 핵심 경험(moments)의 수치 검증 — extractMoments 공통 적용 */
+export function groundMomentMetrics(moments, sourceText) {
+  if (!Array.isArray(moments) || !String(sourceText || '').trim()) return moments;
+  const srcNums = buildSourceNumSet(sourceText);
+  const scrub = (v) => (String(v || '').trim() && !metricGroundedIn(v, srcNums) ? '' : v);
+  return moments.map(m => {
+    if (!m || typeof m !== 'object') return m;
+    const metric = scrub(m.metric);
+    return {
+      ...m,
+      metric,
+      beforeMetric: scrub(m.beforeMetric),
+      afterMetric: scrub(m.afterMetric),
+      metricLabel: metric ? m.metricLabel : '',
+    };
+  });
 }
 
 /** 정규화된 블록들 → 텍스트 라인 + 헤딩 기준 섹션/메트릭. AI 입력용. */

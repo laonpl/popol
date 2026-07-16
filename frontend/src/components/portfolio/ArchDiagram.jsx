@@ -181,10 +181,13 @@ export function ArchitectureDiagram({ diagram, editable = false, canvas = null, 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
+  // 언마운트 시에만 리스너 정리 — 의존성 없이 매 렌더 정리하면 드래그 중 상태 갱신마다
+  // 리스너가 끊겨 박스가 한 틱씩만 움직인다 (이동/리사이즈가 부드럽게 이어지지 않는 원인)
   useEffect(() => () => {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
-  }); // 언마운트 시 리스너 정리
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (nodes.length === 0) return null;
   const topTier = Math.min(...nodes.map(n => Number(n.tier) || 0));
@@ -349,12 +352,15 @@ export function ArchitectureEditorCanvas({ nodes, edges, canvas, onMoveNode, onR
     window.addEventListener('pointerup', onConnectUp);
   };
 
+  // 언마운트 시에만 리스너 정리 — 매 렌더 정리하면 드래그(이동·리사이즈·연결) 중
+  // 첫 상태 갱신에서 리스너가 제거돼 한 틱씩만 움직이는 문제가 생긴다
   useEffect(() => () => {
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointermove', onConnectMove);
     window.removeEventListener('pointerup', onConnectUp);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const CORNERS = [
     { k: 'nw', cls: 'left-[-5px] top-[-5px] cursor-nwse-resize' },

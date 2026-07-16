@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Send, Check, FileText, Link2, Github, Paperclip,
+  Send, Check, FileText, Link2, Github,
   Sparkles, Save, Pencil, TrendingUp, ShieldCheck,
   ArrowLeft, ArrowRight, ChevronRight, CheckCircle2,
 } from 'lucide-react';
@@ -181,6 +181,12 @@ function parseMetricNum(value) {
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/* 채팅 답변 최대 길이 — 초안 섹션에 들어가기 적당한 분량으로 제한 */
+const MAX_ANSWER_LEN = 600;
+
+/* 가드레일(판정+톤 가공)을 거치는 질문 — 초안 본문 섹션에 그대로 들어가는 답변만 */
+const REFINE_KEYS = new Set([...SECTION_DEFS.map(d => d.key), 'mkTarget']);
 
 /* 답변 시작을 도와주는 빠른 문구 (탭하면 입력창에 삽입) */
 const STARTERS = [
@@ -964,17 +970,25 @@ function ProcessingWorkspace({ phase, buildSteps }) {
         <section className="mt-10 rounded-[18px] border border-surface-200 bg-white px-6 py-6 shadow-[0_1px_3px_rgba(16,24,40,0.06)]" aria-busy="true">
           <p className="text-[13px] font-bold text-primary-700">FitPoly 경험 가이드</p>
           <h1 className="mt-2 text-[26px] font-extrabold text-bluewood-900">{label}</h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-bluewood-400" style={{ wordBreak: 'keep-all' }}>
+            보통 1~2분 정도 걸려요. 이 화면을 벗어나면 분석이 중단되니 잠시만 기다려주세요.
+          </p>
           <div className="mt-6 space-y-3">
             {buildSteps.map((s, i) => (
-              <div key={`${s.label}-${i}`} className="flex items-center gap-3 rounded-xl bg-surface-50 px-4 py-3 text-[14px]">
-                <span className="flex h-6 w-6 items-center justify-center">
+              <div key={`${s.label}-${i}`} className="flex items-start gap-3 rounded-xl bg-surface-50 px-4 py-3 text-[14px]">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
                   {s.status === 'done'
                     ? <Check size={16} className="text-caribbean-700" aria-hidden="true" />
                     : s.status === 'loading'
                       ? <BarsLoader height={14} />
                       : <span className="h-2 w-2 rounded-full bg-surface-300" aria-hidden="true" />}
                 </span>
-                <span className={s.status === 'pending' ? 'text-bluewood-400' : 'font-semibold text-bluewood-800'}>{s.label}</span>
+                <div className="min-w-0">
+                  <span className={s.status === 'pending' ? 'text-bluewood-400' : 'font-semibold text-bluewood-800'}>{s.label}</span>
+                  {s.status === 'loading' && s.desc && (
+                    <p className="mt-0.5 text-[12.5px] leading-snug text-bluewood-300" style={{ wordBreak: 'keep-all' }}>{s.desc}</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -1114,7 +1128,7 @@ function ProgressRing({ percent }) {
 const METRIC_SUGGESTIONS = ['응답 속도 40% 개선', '작업 시간 3일 → 반나절 단축', '사용자 1,200명 달성', '비용 300만원 절감'];
 const METRIC_UNITS = ['%', '배', 'ms', '초', '건', '명', '만원'];
 
-function MetricWidget({ target, onSubmit, onSkip }) {
+function MetricWidget({ target, onSubmit, onSkip, bare = false }) {
   const [mode, setMode] = useState('guided'); // guided | free
   const [beforeVal, setBeforeVal] = useState('');
   const [afterVal, setAfterVal] = useState('');
@@ -1129,7 +1143,7 @@ function MetricWidget({ target, onSubmit, onSkip }) {
   const targetSnippet = displayText(target?.result || target?.context || target?.action);
 
   return (
-    <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn">
+    <div className={bare ? 'space-y-3 animate-fadeIn' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn'}>
       {/* 어떤 핵심 경험을 채우는지 명확하게 보여주는 대상 카드 */}
       {targetTitle && (
         <div className="rounded-xl bg-white border-l-4 border border-primary-200 border-l-primary-600 px-3.5 py-2.5">
@@ -1237,34 +1251,35 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
   const hasInput = files.length > 0 || text.trim() || Object.values(links).some(v => v?.trim()) || extraLinks.some(v => v.trim());
 
   return (
-    <div className={bare ? 'space-y-3' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-3 animate-fadeIn'}>
+    <div className={bare ? 'space-y-5' : 'mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 space-y-5 animate-fadeIn'}>
       {/* 파일 */}
-      <div
-        onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
-        onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(Array.from(e.dataTransfer.files || [])); }}
-        onClick={() => fileInputRef.current?.click()}
-        className={`rounded-xl border border-dashed px-4 py-3.5 cursor-pointer transition-colors ${
-          isDragging ? 'border-primary-400 bg-primary-50' : 'border-surface-300 bg-white hover:bg-surface-50'
-        }`}
-      >
-        <input
-          ref={fileInputRef} type="file" multiple accept={preset.accept}
-          onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = ''; }}
-          className="hidden"
-        />
-        <div className="flex items-center gap-2.5">
-          <Paperclip size={15} className="text-primary-600 flex-shrink-0" />
-          <span className="text-[12.5px] text-bluewood-500">
-            {isDragging ? '여기에 놓으세요' : preset.filesHint}
-          </span>
+      <div>
+        <label className="block text-[13px] font-bold text-bluewood-700">자료 파일</label>
+        <div
+          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+          onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(Array.from(e.dataTransfer.files || [])); }}
+          onClick={() => fileInputRef.current?.click()}
+          className={`mt-2 cursor-pointer rounded-xl border border-dashed px-4 py-4 text-center transition-colors ${
+            isDragging ? 'border-primary-400 bg-primary-50' : 'border-surface-300 bg-surface-50 hover:border-primary-300'
+          }`}
+        >
+          <input
+            ref={fileInputRef} type="file" multiple accept={preset.accept}
+            onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = ''; }}
+            className="hidden"
+          />
+          <p className="text-[13.5px] font-semibold text-bluewood-700">
+            {isDragging ? '여기에 놓으세요' : '파일을 끌어다 놓거나 클릭해서 선택'}
+          </p>
+          <p className="mt-1 text-[12.5px] leading-snug text-bluewood-400" style={{ wordBreak: 'keep-all' }}>{preset.filesHint}</p>
         </div>
         {files.length > 0 && (
-          <ul className="mt-2.5 space-y-1.5" onClick={e => e.stopPropagation()}>
+          <ul className="mt-2 divide-y divide-surface-100 rounded-xl border border-surface-200 bg-white">
             {files.map((f, i) => (
-              <li key={i} className="flex items-center justify-between rounded-lg bg-white border border-surface-200 px-3 py-1.5 text-[12.5px] text-bluewood-700">
-                <span className="flex items-center gap-1.5 truncate pr-3"><FileText size={12} className="flex-shrink-0 text-bluewood-300" />{f.name}</span>
-                <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))} className="flex-shrink-0 text-[11px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
+              <li key={i} className="flex items-center justify-between px-4 py-2.5 text-[13px] text-bluewood-700">
+                <span className="truncate pr-3">{f.name}</span>
+                <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))} className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
               </li>
             ))}
           </ul>
@@ -1272,52 +1287,42 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
       </div>
 
       {/* 링크 */}
-      {preset.links.map(link => {
-        const Icon = link.icon;
-        return (
-          <div key={link.key}>
-            <label className="block text-[12px] font-bold text-bluewood-600 mb-1">{link.label}</label>
-            <div className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200">
-              <Icon size={14} className="flex-shrink-0 text-bluewood-300" />
+      {preset.links.map(link => (
+        <div key={link.key}>
+          <label className="block text-[13px] font-bold text-bluewood-700">{link.label}</label>
+          <input
+            value={links[link.key] || ''}
+            onChange={e => setLinks(prev => ({ ...prev, [link.key]: e.target.value }))}
+            placeholder={link.placeholder}
+            className="mt-2 min-h-[48px] w-full rounded-xl border border-surface-200 bg-white px-4 text-[14px] text-bluewood-800 outline-none transition placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
+          />
+          {/* GitHub 레포 링크 아래 — 내 아이디를 입력하면 커밋 기여도·트러블슈팅·코드까지 분석 */}
+          {link.source === 'github' && (links[link.key] || '').trim() && (
+            <div className="mt-2 animate-fadeIn">
               <input
-                value={links[link.key] || ''}
-                onChange={e => setLinks(prev => ({ ...prev, [link.key]: e.target.value }))}
-                placeholder={link.placeholder}
-                className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+                value={ghUser}
+                onChange={e => setGhUser(e.target.value)}
+                placeholder="GitHub 아이디 (권장)"
+                className="min-h-[48px] w-full rounded-xl border border-surface-200 bg-white px-4 text-[14px] text-bluewood-800 outline-none transition placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
               />
+              <p className="mt-1.5 text-[12px] leading-snug text-bluewood-400" style={{ wordBreak: 'keep-all' }}>아이디를 입력하면 이 레포에서 내 커밋을 찾아 기여도 · 영향력 · 트러블슈팅 · 코드 근거까지 분석해요.</p>
             </div>
-            {/* GitHub 레포 링크 아래 — 내 아이디를 입력하면 커밋 기여도·트러블슈팅·코드까지 분석 */}
-            {link.source === 'github' && (links[link.key] || '').trim() && (
-              <div className="mt-1.5 animate-fadeIn">
-                <div className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/40 px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200">
-                  <Github size={14} className="flex-shrink-0 text-primary-400" />
-                  <input
-                    value={ghUser}
-                    onChange={e => setGhUser(e.target.value)}
-                    placeholder="GitHub 아이디 — 내 커밋 기여도·코드 분석 (권장)"
-                    className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
-                  />
-                </div>
-                <p className="mt-1 text-[11px] leading-snug text-bluewood-400">아이디를 입력하면 이 레포에서 내 커밋을 찾아 기여도 · 영향력 · 트러블슈팅 · 코드 근거까지 분석해요.</p>
-              </div>
-            )}
-          </div>
-        );
-      })}
+          )}
+        </div>
+      ))}
 
       {/* 추가 링크 — 채널이 많은 직군(마케터 등) */}
       {preset.extraLinks && (
         <div className="space-y-2">
           {extraLinks.map((v, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-primary-200">
-              <Link2 size={14} className="flex-shrink-0 text-bluewood-300" />
+            <div key={i} className="flex items-center gap-2">
               <input
                 value={v}
                 onChange={e => setExtraLinks(prev => prev.map((x, xi) => xi === i ? e.target.value : x))}
                 placeholder="https://... (추가 산출물 링크)"
-                className="flex-1 text-[13px] text-bluewood-800 outline-none placeholder:text-bluewood-300 bg-transparent"
+                className="min-h-[48px] flex-1 rounded-xl border border-surface-200 bg-white px-4 text-[14px] text-bluewood-800 outline-none transition placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
               />
-              <button onClick={() => setExtraLinks(prev => prev.filter((_, xi) => xi !== i))} className="flex-shrink-0 text-[11px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
+              <button onClick={() => setExtraLinks(prev => prev.filter((_, xi) => xi !== i))} className="flex-shrink-0 text-[12px] font-semibold text-bluewood-400 hover:text-red-500 transition-colors">삭제</button>
             </div>
           ))}
           <button
@@ -1332,13 +1337,13 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
 
       {/* 직접 입력 */}
       <div>
-        <label className="block text-[12px] font-bold text-bluewood-600 mb-1">또는 직접 적어주세요 <span className="text-bluewood-300 font-medium">(두서없어도 괜찮아요)</span></label>
+        <label className="block text-[13px] font-bold text-bluewood-700">또는 직접 적어주세요 <span className="font-medium text-bluewood-400">(두서없어도 괜찮아요)</span></label>
         <textarea
           value={text}
           onChange={e => setText(e.target.value)}
-          rows={3}
+          rows={4}
           placeholder="무슨 프로젝트였고, 어떤 문제를 어떻게 해결했는지 기억나는 대로 적어주세요."
-          className="w-full resize-y rounded-xl border border-surface-200 bg-white px-3.5 py-2.5 text-[13.5px] leading-relaxed text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300"
+          className="mt-2 w-full resize-y rounded-xl border border-surface-200 bg-white px-4 py-3 text-[14px] leading-relaxed text-bluewood-800 outline-none transition placeholder:text-bluewood-300 focus:border-primary-300 focus:ring-4 focus:ring-primary-50"
         />
       </div>
 
@@ -1351,11 +1356,13 @@ function MaterialsWidget({ preset, onSubmit, busy, bare = false }) {
           onSubmit({ files, links: linkList, text: text.trim(), githubUsername: ghUser.trim() });
         }}
         disabled={!hasInput || busy}
-        className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-[14px] font-bold hover:bg-primary-700 disabled:opacity-40 transition-colors shadow-sm shadow-primary-600/20"
+        className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-[15px] font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-bluewood-400"
       >
-        {busy ? <Spinner light /> : <Sparkles size={15} />}
+        {busy && <Spinner light />}
         {busy ? '초안을 만드는 중...' : '이 자료로 초안 만들기'}
+        {!busy && <ArrowRight size={16} aria-hidden="true" />}
       </button>
+      <p className="text-center text-[12.5px] text-bluewood-400">자료 분석은 보통 1~2분이면 끝나요</p>
     </div>
   );
 }
@@ -1439,13 +1446,14 @@ function MomentsWidget({ moments, onToggle, onConfirm, readOnly = false, showCon
 export default function ExperienceChat() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
-  const { createExperience, draftAnalyze, extractMoments } = useExperienceStore();
+  const { createExperience, draftAnalyze, extractMoments, refineAnswer } = useExperienceStore();
 
   const [phase, setPhase] = useState('field'); // field(히어로) | mkField(마케터 세부분야) | basics(제목·기간) | materials | extracting | moments | building | fill | saving
   const [marketerField, setMarketerField] = useState(null); // 마케터 세부 분야 (MARKETER_FIELDS 항목)
   const [customMarketerField, setCustomMarketerField] = useState('');
   const [messages, setMessages] = useState([]);
   const [aiTyping, setAiTyping] = useState(false);
+  const [refining, setRefining] = useState(false); // 답변 판정·가공 중 (입력 잠금)
   const [fillDone, setFillDone] = useState(false);
   const [jobCategory, setJobCategory] = useState('');
   const [buildSteps, setBuildSteps] = useState([]);
@@ -1481,7 +1489,7 @@ export default function ExperienceChat() {
   /* AI 메시지 — 타이핑 인디케이터를 잠깐 보여준 뒤 출력 (신뢰감 있는 대화 리듬) */
   const pushAi = async (text) => {
     setAiTyping(true);
-    await sleep(Math.min(1300, 400 + text.length * 5));
+    await sleep(Math.min(700, 250 + text.length * 3));
     setAiTyping(false);
     pushMsg('ai', text);
   };
@@ -1596,41 +1604,47 @@ export default function ExperienceChat() {
 
     setPhase('extracting');
     const steps = [];
-    if (files.length > 0) steps.push({ label: `${files.length}개 파일 분석`, status: 'pending' });
-    links.forEach(l => steps.push({ label: `${l.label.replace(/\s*\(선택\)/, '')} 가져오기`, status: 'pending' }));
-    if (runGitAnalysis) steps.push({ label: '내 커밋 · 기여도 분석 (코드·트러블슈팅)', status: 'pending' });
-    steps.push({ label: '핵심 경험 추출', status: 'pending' });
+    if (files.length > 0) steps.push({ label: `${files.length}개 파일 분석`, desc: '문서를 읽고 텍스트를 추출하고 있어요', status: 'pending' });
+    links.forEach(l => steps.push({ label: `${l.label.replace(/\s*\(선택\)/, '')} 가져오기`, desc: '페이지 내용을 읽어오는 중이에요', status: 'pending' }));
+    if (runGitAnalysis) steps.push({ label: '내 커밋 · 기여도 분석 (코드·트러블슈팅)', desc: '커밋 이력에서 내 기여와 트러블슈팅을 찾고 있어요', status: 'pending' });
+    steps.push({ label: '핵심 경험 추출', desc: '자료에서 포트폴리오에 담을 경험 조각을 고르고 있어요', status: 'pending' });
     setBuildSteps(steps);
     const setStep = (idx, status) => setBuildSteps(prev => prev.map((s, i) => i === idx ? { ...s, status } : s));
 
     try {
-      let allText = '';
-      let stepIdx = 0;
+      // 파일·링크·커밋 분석을 동시에 진행해 대기 시간을 줄인다 (결과 텍스트는 기존 순서대로 조립)
+      const fileStepIdx = files.length > 0 ? 0 : -1;
+      const linkStepBase = files.length > 0 ? 1 : 0;
+      const gitStepIdx = runGitAnalysis ? linkStepBase + links.length : -1;
+      const extractStepIdx = linkStepBase + links.length + (runGitAnalysis ? 1 : 0);
 
-      if (files.length > 0) {
-        setStep(stepIdx, 'loading');
-        for (const file of files) {
+      const fileTask = files.length > 0 ? (async () => {
+        setStep(fileStepIdx, 'loading');
+        const parts = await Promise.all(files.map(async (file) => {
           try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('targetType', 'experience');
             const data = await importFileUpload(formData);
             const content = data?.imported?.content || '';
-            if (content.trim()) allText += `\n\n--- ${file.name} ---\n${content.trim()}`;
+            return content.trim() ? `\n\n--- ${file.name} ---\n${content.trim()}` : '';
           } catch {
             toast.error(`${file.name} 분석에 실패해 건너뛰었어요`);
+            return '';
           }
-        }
-        setStep(stepIdx, 'done');
-        stepIdx++;
-      }
+        }));
+        setStep(fileStepIdx, 'done');
+        return parts.join('');
+      })() : Promise.resolve('');
 
-      for (const link of links) {
-        setStep(stepIdx, 'loading');
-        // URL로 소스 자동 감지. GitHub는 아래 커밋 분석이 별도로 담당하므로 README 내용을 초안 본문에 섞지 않는다.
+      const linkTasks = links.map((link, i) => (async () => {
+        const idx = linkStepBase + i;
+        setStep(idx, 'loading');
+        // URL로 소스 자동 감지. GitHub는 커밋 분석이 별도로 담당하므로 README 내용을 초안 본문에 섞지 않는다.
         const source = /github\.com/i.test(link.url) ? 'github'
           : /notion\.(so|site)/i.test(link.url) ? 'notion'
           : link.source || 'blog';
+        let piece = '';
         if (source !== 'github') {
           let content = '';
           try {
@@ -1640,21 +1654,21 @@ export default function ExperienceChat() {
             content = '';
           }
           if (content.trim()) {
-            allText += `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
+            piece = `\n\n--- ${link.label}: ${link.url} ---\n${content.trim()}`;
           } else {
-            allText += `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
+            piece = `\n\n--- 산출물 링크 (${link.label}): ${link.url} ---\n(페이지 내용을 직접 읽지 못했습니다. 이 링크는 지원자의 실제 산출물이므로 증거 자료 목록과 실행 내용에 반영하세요.)`;
           }
         }
-        setStep(stepIdx, 'done');
-        stepIdx++;
-      }
+        setStep(idx, 'done');
+        return piece;
+      })());
 
       // GitHub 커밋 분석 — 기여도·코드·트러블슈팅은 '문제 해결 과정'으로 별도 보존.
       // (파일/텍스트 분석과 독립 — git이 초안·개요를 지배하지 않게 함)
       gitRef.current = null;
       let gitExpCount = 0;
-      if (runGitAnalysis) {
-        setStep(stepIdx, 'loading');
+      const gitTask = runGitAnalysis ? (async () => {
+        setStep(gitStepIdx, 'loading');
         try {
           const res = await api.post('/experience/analyze-git', {
             repoUrl: ghLink.url,
@@ -1674,9 +1688,11 @@ export default function ExperienceChat() {
             toast.error(msg || '커밋 분석에 실패해 건너뛰었어요', { duration: 4000 });
           }
         }
-        setStep(stepIdx, 'done');
-        stepIdx++;
-      }
+        setStep(gitStepIdx, 'done');
+      })() : Promise.resolve();
+
+      const [fileText, linkTexts] = await Promise.all([fileTask, Promise.all(linkTasks), gitTask]);
+      let allText = fileText + linkTexts.join('');
 
       if (text) allText += `\n\n--- 직접 입력 ---\n${text}`;
 
@@ -1692,7 +1708,7 @@ export default function ExperienceChat() {
       setSourceText(allText.trim());
 
       // 핵심 경험 추출 — 파일/텍스트 자료 기반 (git 경험은 문제 해결 과정에서 따로 다뤄짐)
-      setStep(stepIdx, 'loading');
+      setStep(extractStepIdx, 'loading');
       let extracted = [];
       if (allText.trim()) {
         try {
@@ -1702,7 +1718,7 @@ export default function ExperienceChat() {
           console.warn('[ExperienceChat] 핵심 경험 추출 실패 → 자료만으로 초안 진행:', err?.message);
         }
       }
-      setStep(stepIdx, 'done');
+      setStep(extractStepIdx, 'done');
 
       const gitNote = gitExpCount > 0 ? `\n(GitHub 커밋에서 찾은 개발 경험 ${gitExpCount}개는 ‘문제 해결 과정’으로 따로 정리했어요)` : '';
       if (extracted.length === 0) {
@@ -1738,7 +1754,7 @@ export default function ExperienceChat() {
 
   const generateDraft = async (allText, selectedMoments) => {
     setPhase('building');
-    setBuildSteps([{ label: 'AI 초안 생성', status: 'loading' }]);
+    setBuildSteps([{ label: 'AI 초안 생성', desc: '선택한 경험을 포트폴리오 초안 구조에 맞게 정리하고 있어요', status: 'loading' }]);
 
     try {
       // AI 빠른 초안 — 실패 시 로컬 초안 폴백 (기존 플로우와 동일한 전략)
@@ -1965,9 +1981,9 @@ export default function ExperienceChat() {
     }
   };
 
-  const submitAnswer = () => {
+  const submitAnswer = async () => {
     const a = chatInput.trim();
-    if (!a || !currentQ) return;
+    if (!a || !currentQ || refining) return;
     // 기본 정보 단계 — 제목 입력 후 기간 질문으로
     if (phase === 'basics') {
       pushMsg('user', a);
@@ -1976,10 +1992,34 @@ export default function ExperienceChat() {
       askPeriod();
       return;
     }
-    pushHistory(currentQ);
     pushMsg('user', a);
-    applyAnswer(currentQ, a);
     setChatInput('');
+    // 가드레일 — 초안 본문에 들어가는 답변은 판정 후 FitPoly 톤으로 가공해 반영.
+    // 무의미한 답변이면 초안에 넣지 않고 다시 쓰기/건너뛰기를 유도한다. 실패 시 원문 그대로.
+    let finalAnswer = a;
+    if (REFINE_KEYS.has(currentQ.key)) {
+      setRefining(true);
+      setAiTyping(true);
+      try {
+        const res = await refineAnswer({
+          question: currentQ.question,
+          answer: a,
+          sectionLabel: currentQ.label,
+          jobCategory: jobCategory || 'common',
+        });
+        if (res?.usable === false) {
+          setAiTyping(false);
+          setRefining(false);
+          await pushAi('음, 방금 답변은 초안에 그대로 싣기 어려울 것 같아요. 경험과 관련된 내용으로 조금만 다시 적어주시겠어요?\n마땅한 내용이 없다면 아래 \'이 질문 건너뛰기\'로 넘어가도 괜찮아요.');
+          return;
+        }
+        if (res?.refined?.trim()) finalAnswer = res.refined.trim();
+      } catch { /* 가공 실패 → 원문 반영 */ }
+      setAiTyping(false);
+      setRefining(false);
+    }
+    pushHistory(currentQ);
+    applyAnswer(currentQ, finalAnswer);
     advance();
   };
 
@@ -2115,7 +2155,7 @@ export default function ExperienceChat() {
     return Math.round((filled / total) * 100);
   }, [draft, title, startMonth, endMonth]);
 
-  const canType = !!currentQ && !currentQ.widget && phase === 'fill';
+  const canType = !!currentQ && !currentQ.widget && phase === 'fill' && !refining;
 
   /* ── 선택 단계: 채팅 입력창을 숨기고 질문 중심 워크스페이스로 시작한다 ── */
   if (phase === 'field' || phase === 'mkField') {
@@ -2213,7 +2253,7 @@ export default function ExperienceChat() {
                   경험의 역할, 과정, 성과를 함께 채워볼게요.
                 </h1>
                 <p className="text-[14px] text-bluewood-500 mt-1.5" style={{ wordBreak: 'keep-all' }}>
-                  자료를 올리고 부족한 부분만 질문으로 보완해 포트폴리오 초안을 만듭니다.
+                  자료를 올리고 부족한 부분만 질문으로 보완해 포트폴리오 초안을 만듭니다. 약 3~5분이면 충분해요.
                 </p>
               </div>
               {jobCategory && (
@@ -2264,47 +2304,23 @@ export default function ExperienceChat() {
             {(phase === 'extracting' || phase === 'building') && (
               <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 px-4 py-3.5 space-y-2">
                 {buildSteps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-[13px]">
-                    <span className="flex h-5 w-5 items-center justify-center">
+                  <div key={i} className="flex items-start gap-2.5 text-[13px]">
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
                       {s.status === 'done'
                         ? <Check size={14} className="text-primary-600" />
                         : s.status === 'loading'
                           ? <BarsLoader height={12} />
                           : <span className="h-1.5 w-1.5 rounded-full bg-surface-300" />}
                     </span>
-                    <span className={s.status === 'pending' ? 'text-bluewood-300' : 'font-semibold text-bluewood-700'}>{s.label}</span>
+                    <div className="min-w-0">
+                      <span className={s.status === 'pending' ? 'text-bluewood-300' : 'font-semibold text-bluewood-700'}>{s.label}</span>
+                      {s.status === 'loading' && s.desc && (
+                        <p className="mt-0.5 text-[11.5px] leading-snug text-bluewood-300" style={{ wordBreak: 'keep-all' }}>{s.desc}</p>
+                      )}
+                    </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* 성과 수치 가이드 위젯 */}
-            {phase === 'fill' && currentQ?.widget === 'metric' && !aiTyping && (
-              <MetricWidget
-                target={currentQ.keIndex != null ? draft?.keyExperiences?.[currentQ.keIndex] : null}
-                onSubmit={submitMetric}
-                onSkip={skipCurrent}
-              />
-            )}
-
-            {/* 기간 입력 위젯 */}
-            {(phase === 'fill' || phase === 'basics') && currentQ?.widget === 'period' && !aiTyping && (
-              <div className="mt-2 rounded-xl border border-surface-200 bg-surface-50/50 p-4 animate-fadeIn">
-                <div className="flex items-center gap-2 mb-3">
-                  <input
-                    type="month" value={startMonth} onChange={e => setStartMonth(e.target.value)}
-                    className="flex-1 rounded-xl border border-surface-200 bg-white px-3 py-2 text-[13.5px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
-                  />
-                  <span className="text-bluewood-300">~</span>
-                  <input
-                    type="month" value={endMonth} onChange={e => setEndMonth(e.target.value)}
-                    className="flex-1 rounded-xl border border-surface-200 bg-white px-3 py-2 text-[13.5px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button onClick={skipCurrent} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">건너뛰기</button>
-                  <button onClick={submitPeriod} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors">확인</button>
-                </div>
+                <p className="pt-1 text-[11.5px] text-bluewood-300">보통 1~2분 정도 걸려요 · 화면을 벗어나지 말아주세요</p>
               </div>
             )}
 
@@ -2336,9 +2352,37 @@ export default function ExperienceChat() {
             )}
           </div>
 
-          {/* 채팅 입력 — 기본 정보와 AI 인터뷰 단계에서만 표시 */}
+          {/* 채팅 입력 — 기본 정보와 AI 인터뷰 단계에서만 표시.
+              위젯 질문(수치·기간)일 때는 대화창 대신 전용 입력 위젯으로 교체해 입력 동선을 줄인다. */}
           {(phase === 'fill' || phase === 'basics') && (
           <div className="px-5 sm:px-6 py-4 border-t border-surface-100">
+            {currentQ?.widget === 'metric' && !aiTyping ? (
+              <MetricWidget
+                bare
+                target={currentQ.keIndex != null ? draft?.keyExperiences?.[currentQ.keIndex] : null}
+                onSubmit={submitMetric}
+                onSkip={skipCurrent}
+              />
+            ) : currentQ?.widget === 'period' && !aiTyping ? (
+              <div className="animate-fadeIn">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="month" value={startMonth} onChange={e => setStartMonth(e.target.value)}
+                    className="flex-1 rounded-xl border border-surface-200 bg-white px-3 py-2 text-[13.5px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                  <span className="text-bluewood-300">~</span>
+                  <input
+                    type="month" value={endMonth} onChange={e => setEndMonth(e.target.value)}
+                    className="flex-1 rounded-xl border border-surface-200 bg-white px-3 py-2 text-[13.5px] text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={skipCurrent} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-bluewood-400 hover:bg-surface-100 transition-colors">건너뛰기</button>
+                  <button onClick={submitPeriod} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-[13px] font-bold hover:bg-primary-700 transition-colors">확인</button>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* 빠른 답변 칩 — 선택지 또는 문장 시작 도우미 */}
             {phase === 'fill' && currentQ && !currentQ.widget && !aiTyping && (
               <div className="mb-2.5 flex flex-wrap gap-1.5 animate-fadeIn">
@@ -2360,7 +2404,7 @@ export default function ExperienceChat() {
                         onClick={() => {
                           setChatInput(prev => {
                             const sep = prev && !prev.endsWith('\n') && !prev.endsWith(' ') ? '\n' : '';
-                            return prev + sep + s.text;
+                            return (prev + sep + s.text).slice(0, MAX_ANSWER_LEN);
                           });
                           inputRef.current?.focus();
                         }}
@@ -2379,7 +2423,7 @@ export default function ExperienceChat() {
               <textarea
                 ref={inputRef}
                 value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
+                onChange={e => setChatInput(e.target.value.slice(0, MAX_ANSWER_LEN))}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
@@ -2387,15 +2431,18 @@ export default function ExperienceChat() {
                   }
                 }}
                 rows={1}
+                maxLength={MAX_ANSWER_LEN}
                 disabled={!canType}
                 placeholder={
-                  canType
-                    ? (currentQ.placeholder || '키워드만 적어도 괜찮아요')
-                    : (phase === 'fill' || phase === 'basics')
-                      ? '위 버튼으로 진행해주세요'
-                      : phase === 'moments'
-                        ? '오른쪽 화면에서 핵심 경험을 확인하고 선택해주세요'
-                        : '초안이 만들어지면 대화로 채울 수 있어요'
+                  refining
+                    ? '답변을 FitPoly 톤으로 다듬고 있어요...'
+                    : canType
+                      ? (currentQ.placeholder || '키워드만 적어도 괜찮아요')
+                      : (phase === 'fill' || phase === 'basics')
+                        ? '위 버튼으로 진행해주세요'
+                        : phase === 'moments'
+                          ? '오른쪽 화면에서 핵심 경험을 확인하고 선택해주세요'
+                          : '초안이 만들어지면 대화로 채울 수 있어요'
                 }
                 className="flex-1 resize-none bg-transparent text-[14px] leading-relaxed text-bluewood-800 outline-none placeholder:text-bluewood-300 disabled:cursor-not-allowed max-h-32"
               />
@@ -2411,7 +2458,14 @@ export default function ExperienceChat() {
             </div>
             {canType ? (
               <div className="mt-2 flex items-center justify-between">
-                <p className="text-[12px] text-bluewood-300">Enter로 전송 · Shift+Enter 줄바꿈</p>
+                <p className="text-[12px] text-bluewood-300">
+                  Enter로 전송 · Shift+Enter 줄바꿈
+                  {chatInput.length >= MAX_ANSWER_LEN * 0.75 && (
+                    <span className={`ml-2 tabular-nums ${chatInput.length >= MAX_ANSWER_LEN ? 'font-semibold text-amber-600' : ''}`}>
+                      {chatInput.length} / {MAX_ANSWER_LEN}
+                    </span>
+                  )}
+                </p>
                 <div className="flex items-center gap-3">
                   {phase === 'basics' && (
                     <button onClick={changeField} className="text-[12px] font-semibold text-bluewood-400 hover:text-primary-600 transition-colors">
@@ -2440,6 +2494,8 @@ export default function ExperienceChat() {
                   </button>
                 )}
               </div>
+            )}
+            </>
             )}
           </div>
           )}

@@ -72,13 +72,36 @@ function parseCarl(text = '') {
   };
 }
 
+/* 성과 문맥 판정 — 수치 주변에 개선/달성 같은 단서가 있어야 성과 수치로 인정
+   (문서의 진행률·비율 표기·번호 같은 수치가 주요 성과로 들어가는 것을 막는다) */
+const METRIC_CONTEXT_RE = /(개선|단축|증가|감소|절감|절약|향상|상승|성장|달성|확대|축소|최적화|해결|완료율|성공률|정확도|도달|유지율|재방문|이탈|클릭|전환|CTR|CVR|CPA|ROAS|매출|비용|시간|속도|응답|처리|성능|오류|에러|장애|사용자|가입|방문|조회|참여|팔로워|구독|만족|평점|모집|판매|계약|리드|기여|→|->)/i;
+
 function extractMetrics(text = '', limit = 4) {
   const source = asText(text);
   const patterns = [
     /\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위|줄|라인)/g,
     /\d[\d,.]*\s*(?:->|→|에서)\s*\d[\d,.]*\s*(?:%|배|ms|초|분|시간|일|주|개월|년|개|건|명|원|만원|억|회|점|위|줄|라인)?/g,
   ];
-  return unique(patterns.flatMap(pattern => source.match(pattern) || []), limit);
+  // 같은 문장 안에서만 성과 단서를 찾는다 — 옆 문장의 "단축/개선"이 무관한 수치를 통과시키지 않게
+  const sentenceAround = (idx, len) => {
+    let start = Math.max(0, idx - 90);
+    let end = Math.min(source.length, idx + len + 90);
+    const before = source.slice(start, idx);
+    const b = Math.max(before.lastIndexOf('\n'), before.lastIndexOf('.'), before.lastIndexOf('!'), before.lastIndexOf('?'));
+    if (b >= 0) start += b + 1;
+    const after = source.slice(idx + len, end);
+    const stops = ['\n', '.', '!', '?'].map(ch => after.indexOf(ch)).filter(i => i >= 0);
+    if (stops.length > 0) end = idx + len + Math.min(...stops);
+    return source.slice(start, end);
+  };
+  const candidates = patterns.flatMap(pattern => {
+    const out = [];
+    for (const m of source.matchAll(pattern)) {
+      if (METRIC_CONTEXT_RE.test(sentenceAround(m.index, m[0].length))) out.push(m[0]);
+    }
+    return out;
+  });
+  return unique(candidates, limit);
 }
 
 function classifyInterviewAnswer(question = '') {

@@ -12,6 +12,7 @@ import {
   buildFallbackExperienceAnalysis,
   extractMoments,
   refineKeyExperience,
+  refineInterviewAnswer,
   researchMarketMetrics,
   generateInterviewQuestions,
   judgeEvidenceLabels,
@@ -381,6 +382,27 @@ router.post('/extract-moments', authMiddleware, requireCredits, aiRateLimiter, a
     }
     const moments = await extractMoments(rawText, title);
     res.json({ moments });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/refine-answer - 인터뷰 답변 판정 + FitPoly 톤 가공 (경험 채우기 채팅)
+router.post('/refine-answer', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
+  try {
+    const { question, answer, sectionLabel, jobCategory } = req.body;
+    const q = String(question || '').trim();
+    const a = String(answer || '').trim();
+    if (!q || !a) {
+      return res.status(400).json({ error: 'question과 answer가 필요합니다' });
+    }
+    const result = await refineInterviewAnswer({
+      question: q,
+      answer: a.slice(0, 1000),
+      sectionLabel: String(sectionLabel || '').slice(0, 50),
+      jobCategory: String(jobCategory || 'common'),
+    });
+    res.json(result);
   } catch (error) {
     next(error);
   }

@@ -237,7 +237,148 @@ export function allKeyExperiencePaletteBlocks(exp) {
   return blocks;
 }
 
-/** 경험 정리 전체 → 초안 블록 (제목 + 속성 + 작성된 섹션 + 핵심경험) */
+// ── 직군 산출물 → 초안 블록 ─────────────────────────────────────
+// 경험 정리에서 이미 만들어진 산출물(서비스 개요·GitHub 기여/코드 근거·마케팅 KPI·린 캔버스)을
+// 초안 만들기에 함께 배치한다. 데이터가 있는 산출물만 들어간다.
+
+/** 문자열/배열/객체 값 → 한 줄 텍스트 */
+function plainText(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map(plainText).filter(Boolean).join('\n');
+  if (typeof v === 'object') return Object.values(v).filter(x => typeof x === 'string').map(s => s.trim()).filter(Boolean).join(' ');
+  return String(v).trim();
+}
+const usableText = (v) => {
+  const t = sanitizeText(plainText(v)).trim();
+  return t && !isPlaceholderText(t) ? t : '';
+};
+
+/** 서비스 개요 — product(문제·해결·핵심 기능·주요 성과), 전 직군 공통 */
+function productDraftBlocks(sr) {
+  const p = sr.product && typeof sr.product === 'object' ? sr.product : {};
+  const tagline = usableText(p.tagline);
+  const problem = usableText(p.problem);
+  const solution = usableText(p.solution);
+  const features = (Array.isArray(p.features) ? p.features : [])
+    .map(f => ({ name: usableText(f?.name), desc: usableText(f?.desc) })).filter(f => f.name);
+  const outcomes = (Array.isArray(p.outcomes) ? p.outcomes : [])
+    .map(o => ({ label: usableText(o?.label), value: usableText(o?.value) })).filter(o => o.label || o.value);
+  if (!problem && !solution && features.length === 0 && outcomes.length === 0) return [];
+  const blocks = [headingBlock('서비스 개요', 'HeadingTwo')];
+  if (tagline) blocks.push(paragraphBlock(tagline));
+  if (problem) blocks.push(headingBlock('문제', 'HeadingThree'), ...textToParagraphs(problem));
+  if (solution) blocks.push(headingBlock('해결 방식', 'HeadingThree'), ...textToParagraphs(solution));
+  if (features.length > 0) {
+    blocks.push(headingBlock('핵심 기능', 'HeadingThree'));
+    features.slice(0, 8).forEach(f => blocks.push(paragraphBlock(f.desc ? `${f.name} — ${f.desc}` : f.name)));
+  }
+  if (outcomes.length > 0) {
+    blocks.push(headingBlock('주요 성과', 'HeadingThree'));
+    outcomes.slice(0, 8).forEach(o => blocks.push(paragraphBlock(`${o.label || '성과'} · ${o.value}`)));
+  }
+  return blocks;
+}
+
+/** 개발자 — GitHub 기여 요약(잔디·기여율·언어) + 커밋 근거 문제 해결(코드 리뷰) */
+function githubDraftBlocks(sr) {
+  const blocks = [];
+  const stats = sr.githubStats && typeof sr.githubStats === 'object' ? sr.githubStats : null;
+  if (stats) {
+    const lines = [];
+    if (stats.repoName) lines.push(`리포지토리 · ${stats.repoName}`);
+    if (Number(stats.contributionPct) > 0) lines.push(`커밋 기여 비중 · ${stats.contributionPct}% (내 커밋 ${stats.myCommits ?? '—'} / 전체 ${stats.totalCommits ?? '—'})`);
+    else if (stats.myCommits) lines.push(`내 커밋 · ${stats.myCommits}건`);
+    const langs = (Array.isArray(stats.languages) ? stats.languages : []).filter(l => l?.name);
+    if (langs.length > 0) lines.push(`주요 언어 · ${langs.slice(0, 5).map(l => (l.pct != null ? `${l.name} ${l.pct}%` : l.name)).join(', ')}`);
+    const days = Array.isArray(stats.dailyActivity) ? stats.dailyActivity : [];
+    if (days.length > 0) {
+      const activeDays = days.filter(d => (d?.count || 0) > 0).length;
+      const totalCommits = days.reduce((s, d) => s + (d?.count || 0), 0);
+      const period = stats.activePeriod ? ` (${stats.activePeriod.first} ~ ${stats.activePeriod.last})` : '';
+      lines.push(`커밋 활동 · ${activeDays}일 활동, 커밋 ${totalCommits}건${period}`);
+    } else if (stats.activePeriod) {
+      lines.push(`활동 기간 · ${stats.activePeriod.first} ~ ${stats.activePeriod.last}`);
+    }
+    if (lines.length > 0) {
+      blocks.push(headingBlock('GitHub 기여 요약', 'HeadingTwo'));
+      lines.forEach(l => blocks.push(paragraphBlock(sanitizeText(l))));
+    }
+  }
+  const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences.filter(Boolean) : [];
+  if (gitExps.length > 0) {
+    blocks.push(headingBlock('코드로 보는 문제 해결', 'HeadingTwo'));
+    gitExps.slice(0, 4).forEach((e, i) => {
+      blocks.push(headingBlock(usableText(e.project_name) || `문제 해결 ${i + 1}`, 'HeadingThree'));
+      const lines = [
+        usableText(e.core_tech_stack) && `기술 · ${usableText(e.core_tech_stack)}`,
+        usableText(e.core_impact) && `임팩트 · ${usableText(e.core_impact)}`,
+        usableText(e.problem_definition) && `문제 · ${usableText(e.problem_definition)}`,
+        usableText(e.action_and_solution) && `해결 · ${usableText(e.action_and_solution)}`,
+        usableText(e.troubleshooting) && `트러블슈팅 · ${usableText(e.troubleshooting)}`,
+        usableText(e.learning) && `배운 점 · ${usableText(e.learning)}`,
+      ].filter(Boolean);
+      lines.forEach(l => blocks.push(...textToParagraphs(l)));
+      // 코드 리뷰 근거 — 어떤 파일의 어떤 변경이 왜 필요했는지
+      (Array.isArray(e.code_snippets) ? e.code_snippets : []).slice(0, 2).forEach(s => {
+        const why = usableText(s?.why);
+        if (why) blocks.push(paragraphBlock(`코드 리뷰 · ${s.file ? `${s.file} — ` : ''}${why}`));
+      });
+    });
+  }
+  return blocks;
+}
+
+/** 마케터 — 캠페인 스토리(퍼널)·이력서 bullet·KPI 증거 자료 */
+const FUNNEL_DRAFT_LABELS = [
+  ['problem', '문제'], ['goal', '목표/KPI'], ['target', '타깃'], ['strategy', '전략'],
+  ['execution', '실행'], ['result', '성과'], ['insight', '인사이트'],
+];
+function marketerDraftBlocks(sr) {
+  const kit = sr.marketerKit && typeof sr.marketerKit === 'object' ? sr.marketerKit : null;
+  if (!kit) return [];
+  const blocks = [];
+  const funnel = kit.funnel && typeof kit.funnel === 'object' ? kit.funnel : {};
+  const funnelLines = FUNNEL_DRAFT_LABELS
+    .map(([key, label]) => { const v = usableText(funnel[key]); return v ? `${label} · ${v}` : ''; })
+    .filter(Boolean);
+  if (funnelLines.length > 0) {
+    blocks.push(headingBlock('캠페인 스토리', 'HeadingTwo'));
+    funnelLines.forEach(l => blocks.push(...textToParagraphs(l)));
+  }
+  const bullets = (Array.isArray(kit.resumeVariants) && kit.resumeVariants.length > 0
+    ? kit.resumeVariants.map(r => r?.sentence || r?.text)
+    : (Array.isArray(kit.resumeBullets) ? kit.resumeBullets : [])
+  ).map(usableText).filter(Boolean);
+  if (bullets.length > 0) {
+    blocks.push(headingBlock('이력서 한 줄 성과', 'HeadingThree'));
+    bullets.slice(0, 5).forEach(b => blocks.push(paragraphBlock(b)));
+  }
+  const evidence = (Array.isArray(kit.evidenceChecklist) ? kit.evidenceChecklist : []).map(usableText).filter(Boolean);
+  if (evidence.length > 0) {
+    blocks.push(headingBlock('KPI 증거 자료', 'HeadingThree'));
+    evidence.slice(0, 6).forEach(v => blocks.push(paragraphBlock(v)));
+  }
+  return blocks;
+}
+
+/** 기획/PM — 린 캔버스 요약 */
+function leanCanvasDraftBlocks(sr) {
+  const lc = sr.leanCanvas && typeof sr.leanCanvas === 'object' ? sr.leanCanvas : null;
+  if (!lc) return [];
+  const lines = [
+    ['existingAlternatives', '기존 대안'], ['uvp', '고유 가치 제안'],
+    ['customers', '고객 세그먼트'], ['earlyAdopters', '얼리어답터'],
+  ].map(([key, label]) => { const v = usableText(lc[key]); return v ? `${label} · ${v}` : ''; }).filter(Boolean);
+  if (lines.length === 0) return [];
+  return [headingBlock('린 캔버스 요약', 'HeadingTwo'), ...lines.map(l => paragraphBlock(l))];
+}
+
+/** 직군 특화 텍스트 섹션 라벨 (jobSpecific 보충용) */
+const JOB_FIELD_LABELS = Object.fromEntries(
+  Object.values(JOB_SPECIFIC_FIELDS).flat().map(f => [f.key, f.label])
+);
+
+/** 경험 정리 전체 → 초안 블록 (제목 + 속성 + 서비스 개요 + 작성된 섹션 + 핵심경험 + 직군 산출물) */
 export function experienceDraftBlocks(exp, imageData = {}) {
   const sr = exp?.structuredResult || {};
   const overview = sr.projectOverview || {};
@@ -251,13 +392,29 @@ export function experienceDraftBlocks(exp, imageData = {}) {
   ].filter(Boolean).filter(line => !isPlaceholderText(line));
   props.forEach(line => blocks.push(paragraphBlock(sanitizeText(line))));
 
-  buildRenderableSections(exp).forEach(section => { blocks.push(...sectionToBlocks(section, imageData)); });
+  // 서비스 개요(product) — 소개 최상단에 배치
+  blocks.push(...productDraftBlocks(sr));
+
+  const rendered = buildRenderableSections(exp);
+  rendered.forEach(section => { blocks.push(...sectionToBlocks(section, imageData)); });
+
+  // 직군 특화 텍스트 섹션이 렌더 목록에 빠졌으면 보충 (예: exportConfig.sections가 7섹션만 담고 있을 때)
+  const renderedKeys = new Set(rendered.map(s => s.key));
+  Object.entries(sr.jobSpecific || {}).forEach(([key, value]) => {
+    if (renderedKeys.has(key)) return;
+    const content = usableText(value);
+    if (!content) return;
+    blocks.push(headingBlock(JOB_FIELD_LABELS[key] || key, 'HeadingTwo'), ...textToParagraphs(content));
+  });
 
   const keyExps = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : []).filter(Boolean);
   if (keyExps.length > 0) {
     blocks.push(headingBlock('핵심 경험', 'HeadingTwo'));
     keyExps.forEach((ke, i) => blocks.push(...keyExperienceToBlocks(ke, i)));
   }
+
+  // 직군 산출물 — GitHub 기여/코드 근거(개발), 캠페인 KPI(마케팅), 린 캔버스(기획/PM)
+  blocks.push(...githubDraftBlocks(sr), ...marketerDraftBlocks(sr), ...leanCanvasDraftBlocks(sr));
 
   if (blocks.length <= 1) blocks.push(paragraphBlock(''));
   return blocks;
