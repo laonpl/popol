@@ -36,6 +36,8 @@ import {
   extractHeadingsFromDoc,
   emptyNotionDoc,
 } from '../utils/projectSections';
+import { contentBearingCoreSections } from '../utils/coreExperienceSections';
+import JobCoreShowcase, { hasJobCoreContent } from './portfolio/JobCoreShowcase';
 import { stripMd } from '../utils/textUtils';
 
 function slatePlainText(node) {
@@ -215,7 +217,7 @@ export default function ProjectDetailModal({
   const docValueRef = useRef(initialDoc);
   const [headings, setHeadings] = useState([]);
   const [activeHeadingId, setActiveHeadingId] = useState(null);
-  const [paletteOpen, setPaletteOpen] = useState({ sections: true, keyexp: true });
+  const [paletteOpen, setPaletteOpen] = useState({ core: true, sections: true, keyexp: true });
   const [docIsEmpty, setDocIsEmpty] = useState(true);
   useEffect(() => {
     if (!initialDoc) return;
@@ -230,11 +232,34 @@ export default function ProjectDetailModal({
   const tutorialRef = useRef(null);
   const tutorial = useOnboarding(!readOnly ? 'project_detail_canvas' : null);
 
+  // ── 직군 핵심 경험 시각화 — 새로 만드는 구성(저장 문서 없음)은 기본 표시, 기존 저장본은 기존 모습 유지 ──
+  const [showJobCore, setShowJobCore] = useState(() => {
+    const flag = structured.exportConfig?.jobCoreShowcase;
+    return flag != null ? flag !== false : !hasSavedDoc;
+  });
+  const setJobCoreVisible = (visible) => {
+    setShowJobCore(visible);
+    onUpdate?.({
+      structuredResult: {
+        ...structured,
+        exportConfig: { ...(structured.exportConfig || {}), jobCoreShowcase: visible },
+      },
+    });
+  };
+
   const handleDocChange = (nextDoc) => {
     docValueRef.current = nextDoc;
     setHeadings(extractHeadingsFromDoc(nextDoc));
     setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
-    onUpdate?.({ notionDoc: nextDoc });
+    const changes = { notionDoc: nextDoc };
+    // 표시 여부가 아직 저장된 적 없으면 첫 편집 때 현재 상태를 함께 저장 — 다음에 열어도 유지
+    if (structured.exportConfig?.jobCoreShowcase == null) {
+      changes.structuredResult = {
+        ...structured,
+        exportConfig: { ...(structured.exportConfig || {}), jobCoreShowcase: showJobCore },
+      };
+    }
+    onUpdate?.(changes);
   };
 
   const replaceCanvasWithDraft = () => {
@@ -418,6 +443,8 @@ export default function ProjectDetailModal({
   const sectionTemplates = getSectionTemplates(exp?.jobCategory || structured.exportConfig?.jobCategory);
   const renderedSections = buildRenderableSections(exp);
   const sectionContentMap = new Map(renderedSections.map(section => [section.key, section]));
+  // 직군별 핵심 경험 페이지 파트 — 핵심 경험은 아래 전용 그룹이 있어 제외
+  const coreSections = contentBearingCoreSections(exp).filter(section => section.key !== 'key-experiences');
   const tutorialSteps = [
     {
       selector: '[data-tour="project-detail-palette"]',
@@ -513,6 +540,34 @@ export default function ProjectDetailModal({
                   도움말
                 </button>
               </div>
+
+              {coreSections.length > 0 && (
+                <div className="mb-4">
+                  <PaletteGroup
+                    title="직군 핵심 경험"
+                    icon={<Wand2 size={13} />}
+                    open={paletteOpen.core}
+                    onToggle={() => togglePalette('core')}
+                  >
+                    {coreSections.map(section => (
+                      <div
+                        key={section.key}
+                        draggable
+                        onDragStart={e => {
+                          setPaletteDragPayload(e, { kind: 'section', key: section.key, label: section.label });
+                        }}
+                        onDoubleClick={() => insertPalettePayload({ kind: 'section', key: section.key, label: section.label })}
+                        title="드래그하거나 더블클릭해 추가"
+                        className="group flex items-center gap-1.5 rounded-md border border-primary-200 bg-white px-2 py-1.5 text-[13px] text-gray-700 cursor-grab active:cursor-grabbing hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
+                      >
+                        <GripVertical size={12} className="text-primary-200 group-hover:text-primary-400" />
+                        <span className="min-w-0 flex-1 truncate">{section.label}</span>
+                        <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-black text-primary-600">핵심</span>
+                      </div>
+                    ))}
+                  </PaletteGroup>
+                </div>
+              )}
 
               <PaletteGroup
                 title="섹션"
@@ -740,6 +795,40 @@ export default function ProjectDetailModal({
               {description && (
                 <p className="text-sm text-gray-600 leading-relaxed bg-surface-50 rounded-xl p-4 mb-6">{description}</p>
               )}
+
+              {/* 직군 핵심 경험 — 핵심 경험 페이지의 디자인 그대로 (새 구성은 기본 표시) */}
+              {!genericMode && hasJobCoreContent(exp) && (showJobCore ? (
+                <div className="mb-8">
+                  <div className="flex items-center justify-between gap-3 border-b border-surface-100 pb-2 mb-4">
+                    <h4 className="text-[14px] font-bold uppercase tracking-widest text-gray-400">직군 핵심 경험</h4>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setJobCoreVisible(false)}
+                        className="rounded-md px-2 py-1 text-[11px] font-bold text-bluewood-300 hover:bg-surface-100 hover:text-bluewood-600 transition-colors"
+                      >
+                        숨기기
+                      </button>
+                    )}
+                  </div>
+                  <JobCoreShowcase
+                    exp={exp}
+                    readOnly={readOnly}
+                    onChange={readOnly ? undefined : (nextStructuredResult) => onUpdate?.({
+                      structuredResult: nextStructuredResult,
+                    })}
+                    onExperienceChange={readOnly ? undefined : (changes => onUpdate?.(changes))}
+                  />
+                </div>
+              ) : (!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setJobCoreVisible(true)}
+                  className="mb-8 w-full rounded-xl border border-dashed border-primary-200 bg-primary-50/40 py-3 text-[12.5px] font-bold text-primary-600 hover:bg-primary-50 transition-colors"
+                >
+                  ＋ 직군 핵심 경험 화면 표시 (기여도·문제 해결 등 디자인 그대로)
+                </button>
+              )))}
 
               {/* 핵심 경험 */}
               {keyExps.length > 0 && (

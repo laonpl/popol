@@ -785,7 +785,7 @@ function inferDevRole(stats, gitExps) {
 }
 
 /* ── 기여도 · 영향력 — 문서 톤 스탯 블록 (기여 바 · 언어 바 · 월별 활동 · 커밋 유형 · 핵심 역할) ── */
-function GitHeroCard({ stats, role, rolePoints = [] }) {
+function GitHeroCard({ stats, role, rolePoints = [], onChange }) {
   const pct = Number(stats.contributionPct) || 0;
   const langs = Array.isArray(stats.languages) ? stats.languages : [];
   const types = Array.isArray(stats.commitTypes) ? stats.commitTypes.slice(0, 5) : [];
@@ -889,6 +889,28 @@ function GitHeroCard({ stats, role, rolePoints = [] }) {
             ))}
           </ul>
         </div>
+      )}
+      {onChange && (
+        <details className="mt-6 rounded-xl border border-primary-100 bg-primary-50/35 print:hidden">
+          <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-primary-600">기여도·언어·커밋 유형 전체 편집</summary>
+          <div className="space-y-4 border-t border-primary-100 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['myCommits', '내 커밋'], ['totalCommits', '전체 커밋'], ['contributionPct', '기여 비중(%)'], ['rank', '기여 순위'],
+              ].map(([key, label]) => <label key={key} className="text-[10.5px] font-bold text-bluewood-400">{label}<input type="number" value={stats[key] || 0} onChange={e => onChange({ ...stats, [key]: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>)}
+              <label className="text-[10.5px] font-bold text-bluewood-400">활동 시작일<input value={stats.activePeriod?.first || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), first: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
+              <label className="text-[10.5px] font-bold text-bluewood-400">활동 종료일<input value={stats.activePeriod?.last || ''} onChange={e => onChange({ ...stats, activePeriod: { ...(stats.activePeriod || {}), last: e.target.value } })} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-2 py-1.5 text-[12px] text-bluewood-700 outline-none focus:border-primary-300" /></label>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between"><span className="text-[10.5px] font-bold text-bluewood-400">언어 구성</span><button type="button" onClick={() => onChange({ ...stats, languages: [...langs, { name: '', pct: 0 }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-1.5">{langs.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.name || ''} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, name: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><input type="number" value={item.pct || 0} onChange={e => onChange({ ...stats, languages: langs.map((row, i) => i === index ? { ...row, pct: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><button type="button" onClick={() => onChange({ ...stats, languages: langs.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between"><span className="text-[10.5px] font-bold text-bluewood-400">커밋 유형</span><button type="button" onClick={() => onChange({ ...stats, commitTypes: [...types, { type: '', count: 0 }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-1.5">{types.map((item, index) => <div key={index} className="grid grid-cols-[1fr_70px_auto] gap-1.5"><input value={item.type || ''} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, type: e.target.value } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><input type="number" value={item.count || 0} onChange={e => onChange({ ...stats, commitTypes: types.map((row, i) => i === index ? { ...row, count: Number(e.target.value) } : row) })} className="rounded border border-surface-200 px-2 py-1 text-[11px]" /><button type="button" onClick={() => onChange({ ...stats, commitTypes: types.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+            </div>
+          </div>
+        </details>
       )}
     </div>
   );
@@ -1377,7 +1399,7 @@ function parseMetricPair(s) {
 }
 
 /* ── 주요 성과 · 핵심 기능 — 서사 문서와 분리한 깔끔한 표 (product 우선) ── */
-function ProductFacts({ exp }) {
+function ProductFacts({ exp, onChange }) {
   const sr = exp?.structuredResult || {};
   const ov = sr.projectOverview || {};
   const product = sr.product && typeof sr.product === 'object' ? sr.product : {};
@@ -1409,7 +1431,7 @@ function ProductFacts({ exp }) {
   }
   outcomes = outcomes.map(o => ({ label: clip(o.label || '성과', 60), value: clip(o.value || '', 200) })).slice(0, 8);
 
-  if (!rows.length && !outcomes.length) return null;
+  if (!onChange && !rows.length && !outcomes.length) return null;
 
   const Table = ({ label, rowsData }) => (
     <div>
@@ -1433,6 +1455,21 @@ function ProductFacts({ exp }) {
     <>
       {outcomes.length > 0 && <Table label="주요 성과" rowsData={outcomes.map(o => ({ name: o.label, desc: o.value }))} />}
       {rows.length > 0 && <Table label="핵심 기능" rowsData={rows} />}
+      {onChange && (
+        <details className="rounded-xl border border-primary-100 bg-primary-50/35 print:hidden">
+          <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-primary-600">주요 성과·핵심 기능 전체 편집</summary>
+          <div className="space-y-4 border-t border-primary-100 p-3">
+            <div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[10.5px] font-bold text-bluewood-500">주요 성과</p><button type="button" onClick={() => onChange({ ...product, outcomes: [...(product.outcomes || []), { label: '', value: '' }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(product.outcomes || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><AutoText dense value={item.label || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, label: value } : row) })} placeholder="성과명" className="text-[11.5px]" /><AutoText dense value={item.value || ''} onChange={value => onChange({ ...product, outcomes: product.outcomes.map((row, i) => i === index ? { ...row, value } : row) })} placeholder="결과·수치" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, outcomes: product.outcomes.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between"><p className="text-[10.5px] font-bold text-bluewood-500">핵심 기능</p><button type="button" onClick={() => onChange({ ...product, features: [...(product.features || []), { name: '', desc: '' }] })} className="text-[10.5px] font-bold text-primary-600">＋ 추가</button></div>
+              <div className="space-y-2">{(product.features || []).map((item, index) => <div key={index} className="grid gap-2 sm:grid-cols-[0.8fr_1.5fr_auto]"><AutoText dense value={item.name || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, name: value } : row) })} placeholder="기능명" className="text-[11.5px]" /><AutoText dense value={item.desc || ''} onChange={value => onChange({ ...product, features: product.features.map((row, i) => i === index ? { ...row, desc: value } : row) })} placeholder="기능 설명" className="text-[11.5px]" /><button type="button" onClick={() => onChange({ ...product, features: product.features.filter((_, i) => i !== index) })} className="text-[10px] font-bold text-red-400">삭제</button></div>)}</div>
+            </div>
+          </div>
+        </details>
+      )}
     </>
   );
 }
@@ -1779,7 +1816,10 @@ function DevImpactSection({ expId, exp, caseStudy, onApplied, onPatchSr }) {
             </div>
 
             {/* 주요 성과 · 핵심 기능 — 깔끔한 표/칩 (서사와 분리) */}
-            <ProductFacts exp={exp} />
+            <ProductFacts
+              exp={exp}
+              onChange={(nextProduct) => onPatchSr({ ...sr, product: nextProduct })}
+            />
 
             {(systemDiagram || flowDiagram || hasGit) && (
               <div>
@@ -4134,6 +4174,13 @@ function MarketerDoc({
     else if (card.sourceId && key === 'execution') setKeyExp(card.sourceId, 'action', value);
     else if (card.sourceId && key === 'results') setKeyExp(card.sourceId, 'result', value);
   };
+  const setCardField = (card, index, key, value) => {
+    if (hasKitCards) setArrayItem(['experienceCards'], index, key, value);
+    else if (card.sourceId) {
+      const map = { title: 'title', problem: 'problem', oneLineSummary: 'context', goal: 'context' };
+      if (map[key]) setKeyExp(card.sourceId, map[key], value);
+    }
+  };
   // 성과 KPI 한 항목의 수치 텍스트만 교체 (그 외 서술은 편집 불가 — 표시 전용)
   const setCardResult = (card, cardIndex, resultIndex, value) => {
     const arr = [...(card.results || [])];
@@ -4184,6 +4231,30 @@ function MarketerDoc({
         )}
         <VisualMetricStrip cards={cards} kpis={kit.kpis} />
       </header>
+
+      <details className="mt-6 rounded-2xl border border-primary-100 bg-primary-50/30 print:hidden">
+        <summary className="cursor-pointer px-4 py-3 text-[12px] font-black text-primary-600">마케터 핵심 경험 전체 편집</summary>
+        <div className="space-y-6 border-t border-primary-100 p-4">
+          <div>
+            <p className="mb-2 text-[11px] font-black text-bluewood-600">포지셔닝 진단</p>
+            <AutoText dense value={report.recommendation || ''} onChange={value => setKitValue(['positioningReport', 'recommendation'], value)} placeholder="추천 포지셔닝 문장" className="text-[12px]" />
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {[
+                ['strengths', '핵심 강점'], ['weaknesses', '보완 필요점'], ['priorityFixes', '우선 액션 플랜'],
+              ].map(([key, label]) => <div key={key}><p className="mb-1 text-[10.5px] font-bold text-bluewood-400">{label}</p><AutoText dense value={(report[key] || []).join('\n')} onChange={value => setKitValue(['positioningReport', key], value.split('\n').map(line => line.trim()).filter(Boolean))} placeholder="한 줄에 하나씩 입력" className="text-[11.5px]" /></div>)}
+            </div>
+            <div className="mt-3 space-y-2">
+              {(report.recommendedPositions || []).map((position, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_80px_1.5fr]"><AutoText dense value={position.name || ''} onChange={value => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, name: value } : row))} placeholder="추천 직무" className="text-[11.5px]" /><input type="number" value={position.score || 0} onChange={event => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, score: Number(event.target.value) } : row))} className="rounded-lg border border-surface-200 bg-white px-2 text-[11.5px]" /><AutoText dense value={position.reason || ''} onChange={value => setKitValue(['positioningReport', 'recommendedPositions'], report.recommendedPositions.map((row, i) => i === index ? { ...row, reason: value } : row))} placeholder="추천 근거" className="text-[11.5px]" /></div>)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-[11px] font-black text-bluewood-600">경험정리 카드</p>
+            <div className="space-y-3">
+              {cards.map((card, index) => <div key={card.id || index} className="rounded-xl border border-surface-200 bg-white p-3"><div className="grid gap-2 sm:grid-cols-2"><AutoText dense value={card.title || ''} onChange={value => setCardField(card, index, 'title', value)} placeholder="카드 제목" className="text-[12px] font-bold" /><AutoText dense value={card.oneLineSummary || ''} onChange={value => setCardField(card, index, 'oneLineSummary', value)} placeholder="한 줄 요약" className="text-[11.5px]" /><AutoText dense value={card.problem || ''} onChange={value => setCardField(card, index, 'problem', value)} placeholder="문제" className="text-[11.5px]" /><AutoText dense value={card.goal || ''} onChange={value => setCardField(card, index, 'goal', value)} placeholder="목표" className="text-[11.5px]" /><AutoText dense value={(card.execution || []).join('\n')} onChange={value => updateCardList(card, index, 'execution', value)} placeholder="실행 — 한 줄에 하나" className="text-[11.5px]" /><AutoText dense value={(card.results || []).join('\n')} onChange={value => updateCardList(card, index, 'results', value)} placeholder="성과 — 한 줄에 하나" className="text-[11.5px]" /></div></div>)}
+            </div>
+          </div>
+        </div>
+      </details>
 
       <section className="mt-8">
         <RuleHeader>1. 마케터 포지셔닝 진단 리포트</RuleHeader>
@@ -4985,7 +5056,18 @@ export default function ExperienceResult() {
             {isDevJob ? (
               devStats ? (
                 <div className="mt-4 border-t border-surface-200 pt-4">
-                  <GitHeroCard stats={devStats} role={devRole} rolePoints={rolePoints} />
+                  <GitHeroCard
+                    stats={devStats}
+                    role={devRole}
+                    rolePoints={rolePoints}
+                    onChange={(nextStats) => {
+                      setExp(prev => ({
+                        ...(prev || {}),
+                        structuredResult: { ...(prev?.structuredResult || {}), githubStats: nextStats },
+                      }));
+                      setDirty(true);
+                    }}
+                  />
                 </div>
               ) : (
                 <p className="mt-3 text-[13px] leading-[1.6] text-bluewood-400">오른쪽 <span className="font-semibold text-bluewood-500">개발 임팩트</span>에서 GitHub을 연결하면 기여도·커밋 활동이 여기 표시됩니다.</p>

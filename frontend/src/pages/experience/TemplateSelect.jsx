@@ -9,6 +9,7 @@ import {
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
+import { uploadDocumentFile } from '../../services/uploadImage';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useOnboarding } from '../../components/OnboardingOverlay';
@@ -493,6 +494,7 @@ export default function TemplateSelect() {
   const [githubUsername, setGithubUsername] = useState('');
   const [gitStats, setGitStats] = useState(null); // GitHub 커밋 기여 비중 통계
   const [gitAnalysis, setGitAnalysis] = useState(null); // GitHub 분석 원본(코드변경·트러블슈팅 등) 보존
+  const [sourceDeliverables, setSourceDeliverables] = useState([]); // 업로드 파일·입력 링크 보존
   const [blogUrl, setBlogUrl] = useState('');
   const [linkInputs, setLinkInputs] = useState([]);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -747,6 +749,12 @@ export default function TemplateSelect() {
     try {
       let allText = '';
       let stepIdx = 0;
+      const collectedDeliverables = [
+        ...(notionUrl.trim() ? [{ id: `source-notion-${Date.now()}`, kind: 'link', name: 'Notion 페이지', url: notionUrl.trim(), source: 'notion' }] : []),
+        ...(githubUrl.trim() ? [{ id: `source-github-${Date.now()}`, kind: 'link', name: 'GitHub 리포지토리', url: githubUrl.trim(), source: 'github' }] : []),
+        ...(blogUrl.trim() ? [{ id: `source-blog-${Date.now()}`, kind: 'link', name: '블로그·외부 링크', url: blogUrl.trim(), source: 'blog' }] : []),
+        ...linkInputs.map((url, index) => ({ id: `source-link-${Date.now()}-${index}`, kind: 'link', name: `산출물 링크 ${index + 1}`, url: url.trim(), source: 'link' })).filter(item => item.url),
+      ];
 
       // 1) 파일 업로드
       if (files.length > 0) {
@@ -764,10 +772,25 @@ export default function TemplateSelect() {
             console.error(`${file.name} 임포트 실패:`, err);
             toast.error(`${file.name} 처리 실패`);
           }
+          try {
+            const uploaded = await uploadDocumentFile(file);
+            collectedDeliverables.push({
+              id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
+              kind: 'file',
+              name: uploaded.name || file.name,
+              url: uploaded.url,
+              filename: uploaded.filename,
+              size: uploaded.size || file.size,
+              ext: String(file.name || '').split('.').pop().toLowerCase(),
+            });
+          } catch (uploadError) {
+            toast.error(`'${file.name}' 파일은 분석했지만 산출물 저장에 실패했어요`);
+          }
         }
         updateLoadingStep(stepIdx, 'done');
         stepIdx++;
       }
+      setSourceDeliverables(collectedDeliverables);
 
       // 2) 텍스트
       if (textInput.trim()) {
@@ -1080,6 +1103,7 @@ export default function TemplateSelect() {
         ...draftAnalysis,
         ...(gitStats ? { githubStats: gitStats } : {}),
         ...(gitAnalysis?.experiences?.length ? { gitAnalysis } : {}),
+        deliverables: sourceDeliverables,
       };
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
