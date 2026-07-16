@@ -80,7 +80,7 @@ const DEMO_STEPS = [
     label: '근거 분석',
     short: 'AI 분석',
     duration: 6200,
-    caption: '문서, 커밋, Pull Request, 코드 변경점을 빠르게 교차 분석해 실제 기여와 임팩트를 찾습니다.',
+    caption: '문서, 커밋, 코드 변경점을 빠르게 교차 분석해 실제 기여와 구현 이유를 찾습니다.',
     guide: 'AI가 지어내지 않고 확인 가능한 기록을 근거 단위로 정리합니다.',
   },
   {
@@ -101,11 +101,11 @@ const DEMO_STEPS = [
   },
   {
     key: 'review',
-    label: '코드리뷰 근거',
-    short: '코드리뷰',
+    label: '코드 선택 근거',
+    short: '코드 근거',
     duration: 4600,
-    caption: '리뷰 코멘트와 수정 이력을 통해 협업 방식, 설계 판단, 품질 기준까지 포트폴리오에 담습니다.',
-    guide: '코드리뷰는 협업 역량과 기술적 의사결정을 보여주는 강한 근거입니다.',
+    caption: '코드만 보여주는 것이 아니라 이 코드를 왜 썼는지와 어떤 문제를 해결했는지까지 경험으로 정리합니다.',
+    guide: '핵심 로직과 구현 이유·효과를 함께 보여줘 개발 판단을 설명합니다.',
   },
   {
     key: 'architecture',
@@ -120,8 +120,8 @@ const DEMO_STEPS = [
     label: '개발자 포트폴리오 완성',
     short: '완성',
     duration: 5200,
-    caption: '한 번 정리한 경험은 포트폴리오, 자기소개서, 면접 답변으로 계속 재사용할 수 있습니다.',
-    guide: '이제 같은 경험을 채용 과정의 모든 결과물로 변환할 수 있습니다.',
+    caption: '흩어진 개발 기록이 5분 만에 하나의 경험정리로 완성됩니다.',
+    guide: 'GitHub와 문서를 연결하면 설명 가능한 개발 경험이 빠르게 완성됩니다.',
   },
 ];
 
@@ -134,9 +134,9 @@ const REEL_CAPTIONS = {
   pipeline: ['커밋 127개를 훑더니', '근거까지 싹 다 털었습니다'],
   overview: ['결과물은 실제 핵심 경험 화면 그대로', '프로젝트 서사까지 한 화면에'],
   commits: ['내 커밋 179개가', '기여도 51.9%로 증명됩니다'],
-  review: ['그리고 중요한 코드리뷰까지', '협업과 설계 판단의 근거가 됩니다'],
+  review: ['이 코드를 왜 썼는지까지', '개발 판단의 근거로 정리됩니다'],
   architecture: ['복잡한 저장소 구조도', '한 장으로 끝냅니다'],
-  complete: ['결국 경험 하나로', '채용 결과물 4개 완성'],
+  complete: ['흩어진 개발 기록이', '경험정리 5분 만에 완성'],
 };
 
 const DEMO_GIT_PROJECTS = [
@@ -247,7 +247,7 @@ const PIPELINE_ITEMS = [
   { label: '회고 문서 구조화', detail: '역할 · 문제 · 행동 · 결과 분리', Icon: FileText },
   { label: 'Git 저장소 연결', detail: '127 commits · 14 PRs 확인', Icon: Github },
   { label: '기여 코드 추적', detail: '핵심 변경 파일 23개 식별', Icon: FileCode2 },
-  { label: '코드리뷰 근거화', detail: '설계 판단과 협업 신호 추출', Icon: MessageSquare },
+  { label: '코드 선택 근거화', detail: '핵심 로직의 선택 이유와 효과 추출', Icon: MessageSquare },
   { label: '아키텍처 매핑', detail: '서비스 경계와 데이터 흐름 생성', Icon: Network },
 ];
 
@@ -673,26 +673,21 @@ function DemoDevImpactSection() {
   );
 }
 
-function CodeReviewEvidence({ active }) {
+function CodeReasonEvidence({ active }) {
+  const snippet = DEMO_GIT_PROJECTS[0].code_snippets[0];
+
   return (
     <section className={cx('rounded-xl border bg-white transition-all duration-500', active ? 'border-primary-400 ring-4 ring-primary-100 shadow-[0_18px_55px_rgba(0,47,108,0.18)]' : 'border-surface-200')}>
-      <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={15} className="text-primary-700" />
-          <div><h3 className="text-[12px] font-black uppercase tracking-[0.16em] text-bluewood-500">코드 리뷰 근거</h3><p className="mt-0.5 text-[11px] text-bluewood-300">PR #184 · 경험 저장 파이프라인 안정화</p></div>
-        </div>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">Approved · Merged</span>
+      <div className="border-b border-surface-200 px-4 py-3">
+        <p className="text-[11px] font-bold text-bluewood-700">코드 변경</p>
+        <p className="mt-1 text-[13px] font-extrabold text-bluewood-900">경험 구조화·검증 파이프라인 개발</p>
       </div>
-      <div className="grid gap-4 p-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <CodeSnippet file="frontend/src/stores/experienceStore.js" code={"- await saveExperience(payload)\n+ const result = await saveExperience(payload)\n+ await syncCaseStudy(result.id)\n+ return result"} />
-        <div className="space-y-3">
-          <div className="rounded-lg border border-surface-200 bg-surface-50/40 p-3">
-            <div className="flex gap-2.5"><span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-violet-100 text-[9px] font-black text-violet-700">HK</span><div><p className="text-[11.5px] font-semibold leading-[1.6] text-bluewood-700">저장 완료 전에 결과 화면으로 이동하면 데이터 전파가 늦는 경우가 있어요. 저장 결과를 기준으로 동기화 순서를 보장하면 좋겠습니다.</p><p className="mt-2 text-[10px] text-bluewood-300">reviewed 2 hours ago</p></div></div>
-          </div>
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50/55 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-black text-emerald-700"><CheckCircle2 size={13} /> 리뷰 반영 완료</p>
-            <p className="mt-1.5 text-[11.5px] leading-[1.6] text-emerald-900/75">저장 → 케이스 스터디 동기화 → 화면 이동 순서로 수정하고 회귀 테스트를 추가했습니다.</p>
-          </div>
+      <div className="p-4">
+        <CodeSnippet file={snippet.file} code={snippet.code} />
+        <div className="-mt-2 rounded-b-lg border border-t-0 border-surface-200 bg-surface-50/55 px-4 pb-3 pt-5">
+          <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-primary-600">왜 이 코드를 썼는지</p>
+          <p className="mt-2 text-[12.5px] font-semibold leading-[1.75] text-bluewood-700">{snippet.why}</p>
+          <p className="mt-2 text-[11.5px] leading-[1.65] text-bluewood-500">결과 화면으로 먼저 이동하면 저장 전 데이터가 노출될 수 있어, 저장 결과를 단일 기준으로 삼고 케이스 스터디 동기화가 끝난 뒤 결과를 반환하도록 구현했습니다.</p>
         </div>
       </div>
     </section>
@@ -827,7 +822,7 @@ function ResultsScreen({ current }) {
             <section ref={architectureRef} className="min-w-0">
               <DemoDevImpactSection />
               <div ref={reviewRef} className="mt-8">
-                <CodeReviewEvidence active={current === 'review'} />
+                <CodeReasonEvidence active={current === 'review'} />
               </div>
             </section>
           </div>
