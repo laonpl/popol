@@ -1,4 +1,234 @@
-const project = ({ title, role, period, tag, description, bullets, skills, keywords, thumbnailUrl, goal, sections, wordmark, stamp }) => ({
+const DEV_ACCENT = '#002F6C';
+
+const devArtifact = ({ repo, mine, total, rank, file, problem, solution, impact, diff, outcomes }) => ({
+  jobCategory: 'dev',
+  product: { problem, solution, outcomes },
+  githubStats: {
+    repoName: repo,
+    myCommits: mine,
+    totalCommits: total,
+    contributionPct: Math.round((mine / total) * 100),
+    rank,
+    contributorCount: 4,
+    commitTypes: [
+      { type: 'feat', count: Math.max(6, Math.round(mine * 0.46)) },
+      { type: 'fix', count: Math.max(4, Math.round(mine * 0.28)) },
+      { type: 'test/docs', count: Math.max(3, Math.round(mine * 0.18)) },
+    ],
+    languages: [{ name: 'TypeScript', pct: 78 }, { name: 'JavaScript', pct: 14 }, { name: 'CSS', pct: 8 }],
+  },
+  gitAnalysis: {
+    repoName: repo,
+    experiences: [{
+      project_name: repo,
+      core_tech_stack: 'React, TypeScript, Testing',
+      problem_definition: problem,
+      action_and_solution: solution,
+      core_impact: impact,
+      code_snippets: [{ file, code: diff, why: `${impact}를 만든 핵심 변경입니다. 삭제·추가 라인을 함께 보여 주어 실제 기여 범위를 확인할 수 있습니다.` }],
+      learning: '성능·접근성·운영 품질은 구현 이후 점검 항목이 아니라 설계 단계의 완료 조건으로 관리해야 합니다.',
+    }],
+  },
+});
+
+const pmArtifact = ({ problem, solution, uvp, customers, early, metrics, roadmap, hypothesis, decision }) => ({
+  jobCategory: 'pm',
+  product: { problem, solution },
+  leanCanvas: {
+    uvp,
+    customers,
+    earlyAdopters: early,
+    existingAlternatives: '수기 기록\n여러 도구를 오가는 기존 업무\n담당자의 경험에 의존한 처리',
+  },
+  portfolioVisuals: {
+    kpis: metrics.map(metric => ({ label: metric.label, value: metric.value, target: metric.target })),
+    goals: metrics.slice(0, 2).map(metric => ({ label: metric.label, actual: metric.value, target: metric.target, achieved: true })),
+    timeline: roadmap.map((item, index) => ({ label: item.label, start: index + 1, span: 1, desc: item.value })),
+  },
+  pmTimeline: {
+    description: '리서치 근거가 정책과 화면, 검증 지표까지 이어지는 실행 로드맵입니다.',
+    items: roadmap.map((item, index) => ({
+      phase: item.phase,
+      label: item.label,
+      value: item.value,
+      color: index === roadmap.length - 1 ? '#04bd5e' : DEV_ACCENT,
+    })),
+  },
+  pmHypotheses: [{ hypothesis, kpi: metrics[0].label, target: metrics[0].target, achievement: metrics[0].value, note: decision }],
+  keyExperiences: [{
+    title: roadmap[2]?.label || '핵심 기능 검증',
+    metricLabel: metrics[0].label,
+    beforeMetric: metrics[0].before,
+    afterMetric: metrics[0].value,
+    jobData: { hypothesis, decision, alternatives: '전체 개편 대신 핵심 병목만 먼저 검증', impact: metrics[0].value, effort: '2주 MVP' },
+  }],
+  jobSpecific: { strategy: decision },
+});
+
+const marketerArtifact = ({ problem, target, strategy, execution, result, insight, metrics, funnel }) => ({
+  jobCategory: 'marketer',
+  portfolioVisuals: {
+    kpis: metrics.map(metric => ({ label: metric.name, value: metric.value, target: metric.target || '' })),
+    funnel: funnel.map(stage => ({ label: stage.label, value: stage.value, unit: stage.unit || '명' })),
+    compare: metrics.filter(metric => metric.before).slice(0, 2).map(metric => ({ label: metric.name, before: metric.before, after: metric.value })),
+  },
+  marketerKit: {
+    positioning: `${target}의 행동 맥락을 기준으로 메시지와 채널을 연결한 캠페인`,
+    funnel: { problem, goal: result, target, strategy, execution, result, insight },
+    kpis: metrics.map(metric => ({ name: metric.name, value: metric.value, status: metric.status || `목표 ${metric.target || '달성'}` })),
+    resumeBullets: [
+      `${strategy}를 실행해 ${result}`,
+      `${execution} 과정에서 KPI 대시보드를 운영하고 다음 실험 기준을 문서화했습니다.`,
+    ],
+    positioningReport: {
+      strengths: ['가설·소재·성과를 한 화면에서 연결', '허수 지표보다 다음 행동에 가까운 KPI를 관리'],
+      weaknesses: ['장기 LTV와 증분 효과는 후속 검증 필요'],
+      recommendation: insight,
+    },
+  },
+});
+
+const EXAMPLE_ARTIFACTS = {
+  '모아 — 취향 기반 모임 탐색 서비스': devArtifact({
+    repo: 'team-moa/web', mine: 86, total: 191, rank: 1, file: 'src/features/search/useSearchFilters.ts',
+    problem: '필터 변경마다 목록 상태가 초기화되고 중복 요청이 발생해 검색 이탈이 높았습니다.',
+    solution: 'URL을 단일 상태 원천으로 삼고 debounce와 쿼리 캐시를 결합해 뒤로가기·공유·재진입 흐름을 안정화했습니다.',
+    impact: '첫 결과 2.8초 → 1.4초, 상세 진입률 22% → 31%',
+    outcomes: [{ label: '검색 결과 첫 표시', value: '2.8초 → 1.4초' }, { label: '검색 이탈률', value: '-18%' }],
+    diff: "-const [filters, setFilters] = useState(defaultFilters);\n+const filters = parseSearchParams(searchParams);\n+const query = useQuery({ queryKey: ['groups', filters], staleTime: 30_000 });\n+const updateFilter = debounce(next => setSearchParams(serialize(next)), 300);",
+  }),
+  '페이퍼리스 — 전자계약 대시보드': devArtifact({
+    repo: 'doyoon/paperless', mine: 142, total: 142, rank: 1, file: 'src/components/ContractTable.tsx',
+    problem: '1,000건 계약 목록의 전체 DOM 렌더링과 분산된 폼 검증 때문에 화면 지연과 오류 누락이 발생했습니다.',
+    solution: '행 가상화와 Zod 스키마 기반 조건부 검증을 도입하고 키보드 포커스 순서를 함께 테스트했습니다.',
+    impact: '1,000행 렌더링 1.9초 → 0.6초, Lighthouse 접근성 100점',
+    outcomes: [{ label: '1,000행 렌더링', value: '0.6초' }, { label: '유틸 테스트 커버리지', value: '86%' }],
+    diff: "-contracts.map(contract => <ContractRow contract={contract} />)\n+const rowVirtualizer = useVirtualizer({ count: contracts.length, estimateSize: () => 52 });\n+rowVirtualizer.getVirtualItems().map(row => (\n+  <ContractRow contract={contracts[row.index]} style={{ transform: `translateY(${row.start}px)` }} />\n+));",
+  }),
+  '캠퍼스픽 웹 성능 개선': devArtifact({
+    repo: 'campuspick/frontend', mine: 34, total: 112, rank: 2, file: 'src/pages/Home.tsx',
+    problem: '히어로 이미지와 초기 진입에 불필요한 모달 코드가 모바일 LCP와 번들 크기를 키웠습니다.',
+    solution: '반응형 이미지와 lazy import를 적용하고 Lighthouse CI 성능 예산을 PR 차단 조건으로 만들었습니다.',
+    impact: '모바일 LCP 3.6초 → 2.1초, 초기 JavaScript 31% 감소',
+    outcomes: [{ label: '모바일 LCP', value: '3.6초 → 2.1초' }, { label: '초기 JS 번들', value: '-31%' }],
+    diff: "-import EventModal from './EventModal';\n+const EventModal = lazy(() => import('./EventModal'));\n+<picture>\n+  <source srcSet={heroAvif} type=\"image/avif\" />\n+  <img src={heroWebp} fetchPriority=\"high\" alt=\"오늘의 캠퍼스 소식\" />\n+</picture>",
+  }),
+  '오픈UI 접근성 개선 기여': devArtifact({
+    repo: 'open-ui/learning-components', mine: 27, total: 96, rank: 3, file: 'packages/dialog/useFocusTrap.ts',
+    problem: '모달의 포커스가 배경으로 빠지고 닫은 뒤 트리거로 복귀하지 않아 키보드 사용자가 흐름을 잃었습니다.',
+    solution: '공통 포커스 트랩 훅과 복귀 로직을 분리하고 Storybook interaction·axe 검사를 CI에 추가했습니다.',
+    impact: '키보드 핵심 오류 14건 → 2건, 접근성 PR 7건 릴리스 반영',
+    outcomes: [{ label: '반영된 PR', value: '7건' }, { label: '키보드 오류', value: '14건 → 2건' }],
+    diff: "+const previousFocus = document.activeElement as HTMLElement;\n+dialog.addEventListener('keydown', loopFocus);\n+return () => {\n+  dialog.removeEventListener('keydown', loopFocus);\n+  previousFocus?.focus();\n+};",
+  }),
+  'DevLink — 개발 동아리 운영 플랫폼': devArtifact({
+    repo: 'devlink/community', mine: 71, total: 174, rank: 1, file: 'functions/src/reminders.ts',
+    problem: '행사 알림이 수동으로 발송돼 누락됐고 중복 실행 시 같은 알림이 여러 번 전송될 위험이 있었습니다.',
+    solution: '예약 작업에 멱등 키와 재시도 큐를 적용하고 실패 이벤트를 Sentry 운영 대시보드에 연결했습니다.',
+    impact: '주간 운영 3시간 → 50분, 행사 노쇼율 23% → 9%',
+    outcomes: [{ label: '주간 운영 시간', value: '50분' }, { label: '행사 노쇼율', value: '9%' }],
+    diff: "+const idempotencyKey = `${eventId}:${reminderType}`;\n+if (await reminderSent(idempotencyKey)) return;\n+await sendReminder(memberIds, template);\n+await markReminderSent(idempotencyKey);",
+  }),
+
+  '끼니로그 — 1인 가구 식비 관리': pmArtifact({
+    problem: '품목을 직접 입력하는 피로 때문에 1인 가구 사용자가 가계부를 2주 안에 포기했습니다.',
+    solution: '영수증 촬영 → OCR 검수 → 식사 유형 선택의 30초 기록 흐름과 실패 복구 정책을 설계했습니다.',
+    uvp: '사진 한 장으로 끝나는 식비 기록\nOCR가 틀려도 막히지 않는 복구 경험', customers: '식비를 관리하고 싶지만 수기 입력은 포기한 1인 가구', early: '주 3회 이상 카드·영수증으로 식비를 쓰는 20–30대',
+    metrics: [{ label: '기록 완료율', before: '55%', value: '71%', target: '65%' }, { label: '4주 리텐션', value: '27%', target: '25%' }, { label: 'OCR 단계 이탈', before: '34%', value: '18%', target: '20%' }],
+    roadmap: [{ phase: 'DISCOVER', label: '문제 발견', value: '인터뷰 15명·리뷰 240건 분류' }, { phase: 'DEFINE', label: 'MVP 범위', value: '촬영·검수·주간 요약에 집중' }, { phase: 'BUILD', label: '정책·화면 설계', value: 'PRD 24쪽·와이어프레임 32화면' }, { phase: 'VALIDATE', label: '베타 검증', value: '48명·4주 리텐션 측정' }],
+    hypothesis: 'OCR 결과를 단계별로 복구할 수 있으면 기록 완료율이 65%를 넘을 것이다.', decision: '챌린지·통계 기능을 제외하고 기록 성공 경험을 MVP의 최우선 범위로 결정했습니다.',
+  }),
+  '클래스온 수강 이탈 개선': pmArtifact({
+    problem: '신규 수강생의 46%가 결제 후 24시간 안에 첫 강의를 시작하지 않았습니다.',
+    solution: '결제 완료 직후 3단계 체크리스트와 바로 학습 CTA를 노출하는 2주 MVP를 설계했습니다.',
+    uvp: '결제 후 무엇을 해야 할지 10초 안에 이해하는 온보딩', customers: '온라인 클래스를 처음 결제한 모바일 수강생', early: '결제 후 준비물·학습 위치를 찾지 못한 신규 수강생',
+    metrics: [{ label: '첫 강의 시작률', before: '54%', value: '66%', target: '62%' }, { label: '실험 표본', value: '1,842명', target: '1,500명' }, { label: '환불률', value: '변화 없음', target: '비열등' }],
+    roadmap: [{ phase: 'W1', label: '퍼널·VOC 진단', value: 'GA4 퍼널·VOC 312건 태깅' }, { phase: 'W2', label: '우선순위 결정', value: '모바일 진입·준비물 병목 선정' }, { phase: 'W3', label: '2주 MVP 설계', value: '체크리스트·CTA·14개 이벤트 명세' }, { phase: 'W4', label: 'A/B 테스트', value: '1,842명 대상 성과·가드레일 검증' }],
+    hypothesis: '결제 직후 다음 행동을 체크리스트로 제시하면 첫 강의 시작률이 8%p 이상 오른다.', decision: '전면 재설계 대신 개발 2주 안에 검증 가능한 결제 완료 화면만 변경했습니다.',
+  }),
+  '우리동네 안심귀가 서비스': pmArtifact({
+    problem: '야간 귀가자는 최단 경로 외에 CCTV·가로등·24시간 매장을 여러 앱에서 따로 확인했습니다.',
+    solution: '안전 요소의 근거가 보이는 경로 점수와 지인 공유 흐름을 프로토타입으로 검증했습니다.',
+    uvp: '빠른 길보다 안심할 근거가 보이는 귀가 경로', customers: '야간에 혼자 귀가하는 20대 여성', early: '대학가·역세권에서 주 2회 이상 늦게 귀가하는 사용자',
+    metrics: [{ label: '경로 선택 성공률', before: '58%', value: '87%', target: '80%' }, { label: '심층 인터뷰', value: '12명', target: '10명' }, { label: '현장 관찰', value: '3회', target: '3회' }],
+    roadmap: [{ phase: 'DISCOVER', label: '현장 리서치', value: '인터뷰 12명·현장 관찰 3회' }, { phase: 'MODEL', label: '안심 점수 정의', value: 'CCTV·조도·유동 인구 데이터 요구사항' }, { phase: 'PROTOTYPE', label: '경로·공유 설계', value: '와이어프레임 28화면' }, { phase: 'TEST', label: 'Maze 검증', value: '성공률 58% → 87%' }],
+    hypothesis: '숫자 점수보다 안전 요소의 근거를 펼쳐 보이면 경로 선택 성공률이 높아진다.', decision: '안전 점수 단일 숫자를 폐기하고 요소별 근거와 데이터 갱신 시점을 함께 노출했습니다.',
+  }),
+  '캠퍼스 셔틀 예약 경험 개선': pmArtifact({
+    problem: '노선명과 실제 정류장 표기가 달라 좌석 선택 이후 탑승 장소 단계에서 이탈이 집중됐습니다.',
+    solution: '시간 → 정류장 사진 → 좌석 → QR 안내 순으로 예약 흐름과 17개 예외 정책을 재설계했습니다.',
+    uvp: '처음 타도 1분 안에 끝나는 셔틀 예약', customers: '교내 셔틀을 처음 이용하거나 익숙하지 않은 학생', early: '등교 시간대 모바일로 급하게 예약하는 학생',
+    metrics: [{ label: '예약 완료율', before: '63%', value: '81%', target: '75%' }, { label: '평균 예약 시간', before: '134초', value: '58초', target: '60초' }, { label: '일 문의', before: '26건', value: '11건', target: '15건' }],
+    roadmap: [{ phase: 'DATA', label: '퍼널 분석', value: '예약 로그 8,420건·문의 186건' }, { phase: 'FIELD', label: '현장 관찰', value: '정류장 표기·탑승 행동 4회 관찰' }, { phase: 'POLICY', label: '예외 정책 설계', value: '취소·대기·QR 등 17개 상태 정의' }, { phase: 'PILOT', label: '시범 운영', value: '32명 테스트 후 문의 감소 확인' }],
+    hypothesis: '노선을 시간 중심으로 먼저 고르면 예약 완료율이 75% 이상으로 오른다.', decision: '노선 코드보다 사용자가 실제로 보는 출발 시간과 정류장 사진을 정보 위계의 첫 순서로 변경했습니다.',
+  }),
+  '동네상점 재고관리 운영 정책': pmArtifact({
+    problem: '입고 취소·단위 변환·동시 수정에서 재고 불일치가 반복되고 상담 처리 기준도 달랐습니다.',
+    solution: 'VOC 분류, 셀프 진단, 보정 권한, 에스컬레이션 기준을 하나의 운영 정책으로 연결했습니다.',
+    uvp: '오류를 스스로 진단하고 고위험 건만 빠르게 연결하는 재고 운영', customers: '재고 담당자가 따로 없는 소상공인 점주', early: '여러 기기에서 입출고를 동시에 처리하는 상점',
+    metrics: [{ label: '재고 불일치 신고율', before: '18%', value: '7%', target: '10%' }, { label: '첫 응답 시간', before: '9.4시간', value: '3.1시간', target: '4시간' }, { label: '분석 VOC', value: '684건', target: '600건' }],
+    roadmap: [{ phase: 'AUDIT', label: 'VOC 분류', value: '문의 684건·행동 로그 연결' }, { phase: 'RULE', label: '운영 정책', value: '복원·충돌·보정 권한 기준 정의' }, { phase: 'SELF-SERVE', label: '셀프 진단', value: '매크로 23개·도움말 14편' }, { phase: 'MONITOR', label: '운영 대시보드', value: '주간 위험 지표·월간 개선 리포트' }],
+    hypothesis: '반복 문의를 셀프 진단으로 전환하면 첫 응답 시간이 4시간 아래로 줄어든다.', decision: '빈도보다 데이터 복구 필요성과 매출 영향을 기준으로 에스컬레이션 우선순위를 정했습니다.',
+  }),
+
+  '모닝빈 신제품 런칭 캠페인': marketerArtifact({
+    problem: '기존 고객이 40대에 집중돼 저당 신제품의 핵심 타깃 유입이 부족했습니다.', target: '출근 전 간편함과 포만감을 원하는 25–34세 직장인',
+    strategy: '저칼로리 대신 바쁜 아침의 든든한 3분 메시지로 6개 카피를 A/B 테스트', execution: 'Meta 소재 24종·크리에이터 18명·랜딩 메시지를 동일한 사용 장면으로 연결',
+    result: '첫 달 매출 4,860만원, ROAS 405%, 신규 고객 68%를 달성했습니다.', insight: '할인보다 실제 사용 장면을 먼저 보여 준 후기형 세로 영상이 CPA를 31% 낮췄습니다.',
+    metrics: [{ name: 'ROAS', value: '405%', target: '300%', status: '목표 대비 135%' }, { name: '첫 달 매출', value: '4,860만원', target: '3,500만원' }, { name: '신규 고객', value: '68%', target: '55%' }, { name: '랜딩 CVR', value: '3.1%', status: '후기형 소재 최고' }],
+    funnel: [{ label: '노출', value: 1240000 }, { label: '랜딩', value: 41200 }, { label: '장바구니', value: 3860 }, { label: '구매', value: 1277 }],
+  }),
+  '제로웨이스트 위크 CRM 캠페인': marketerArtifact({
+    problem: '90일 미구매 고객 37%에게 동일 쿠폰을 보내 클릭률과 브랜드 반응이 낮았습니다.', target: '첫 구매 품목과 마지막 행동이 다른 5개 휴면 고객 세그먼트',
+    strategy: '관심 콘텐츠 → 장바구니 리마인드 → 혜택의 3단계 자동화 여정 설계', execution: '이메일 6종·카카오 4종의 제목·혜택·발송 시간 실험과 중복 접촉 제외',
+    result: '휴면 재구매율을 4.8%에서 8.1%, 클릭률을 3.6%에서 7.4%로 높였습니다.', insight: '일괄 할인보다 이전 구매 제품의 교체 주기를 알려주는 정보형 메시지가 재구매를 더 만들었습니다.',
+    metrics: [{ name: '재구매율', before: '4.8%', value: '8.1%', target: '7%' }, { name: '메시지 클릭률', before: '3.6%', value: '7.4%', target: '6%' }, { name: '자동화 여정', value: '3단계', status: '5개 세그먼트' }, { name: '메시지 소재', value: '10종' }],
+    funnel: [{ label: '휴면 대상', value: 18600 }, { label: '메시지 오픈', value: 8220 }, { label: '상품 클릭', value: 1376 }, { label: '재구매', value: 1507 }],
+  }),
+  '서울 한입 로컬 콘텐츠 채널': marketerArtifact({
+    problem: '기존 맛집 콘텐츠는 사진과 별점 중심이라 가게의 취향과 방문 이유가 남지 않았습니다.', target: '동네 산책과 새로운 메뉴 발견을 즐기는 20–30대 직장인',
+    strategy: '한 메뉴·만드는 사람·산책 코스의 3개 콘텐츠 기둥과 저장 CTA 포맷 구축', execution: '숏폼 48편의 훅·길이·업로드 시간·내레이션을 한 번에 하나씩 실험',
+    result: '팔로워 1.2만, 누적 조회 186만, 평균 저장률 6.8%를 달성했습니다.', insight: '조회수보다 저장률과 프로필 방문률을 기준으로 편성하자 협업 매장 방문 문의로 이어졌습니다.',
+    metrics: [{ name: '팔로워', value: '1.2만', target: '1만' }, { name: '누적 조회', value: '186만', target: '150만' }, { name: '평균 저장률', value: '6.8%', target: '5%' }, { name: '브랜드 협업', value: '7건' }],
+    funnel: [{ label: '조회', value: 1860000 }, { label: '프로필 방문', value: 82400 }, { label: '저장', value: 126480 }, { label: '팔로우', value: 12000 }],
+  }),
+  '핀데이 앱 설치 캠페인': marketerArtifact({
+    problem: '설치 CPI가 높고 설치 사용자의 절반 이상이 회원가입 중 이탈했습니다.', target: '월급 관리가 처음인 사회초년생 신규 사용자',
+    strategy: '설치가 아닌 첫 예산 등록을 핵심 전환으로 정의하고 채널·소재·온보딩을 연결', execution: '3개 메시지 축의 소재 32종과 랜딩 3종을 AppsFlyer·GA4 대시보드로 비교',
+    result: 'CPI를 4,120원에서 2,760원으로 낮추고 가입 완료율을 46%에서 61%로 높였습니다.', insight: '싼 설치보다 예산 등록률이 높은 월급 관리 소재에 예산을 옮겨 유효 가입당 비용을 29% 절감했습니다.',
+    metrics: [{ name: 'CPI', before: '4,120원', value: '2,760원', target: '3,000원' }, { name: '가입 완료율', before: '46%', value: '61%', target: '58%' }, { name: '유효 가입당 비용', value: '-29%', status: '첫 예산 등록 기준' }, { name: '실험 소재', value: '32종' }],
+    funnel: [{ label: '광고 클릭', value: 48200 }, { label: '설치', value: 11700 }, { label: '가입 완료', value: 7137 }, { label: '예산 등록', value: 4280 }],
+  }),
+  '월요일의 취향 뉴스레터': marketerArtifact({
+    problem: '주말 큐레이션은 정보가 많고 길어 바쁜 직장인이 끝까지 읽거나 다시 찾기 어려웠습니다.', target: '월요일 점심 5분 안에 취향을 발견하고 싶은 25–34세 직장인',
+    strategy: '하나의 테마·세 개의 추천·한 문장의 질문으로 포맷을 고정하고 관심사별 순서를 개인화', execution: '24회 발행하며 제목·발송 시간·첫 추천 위치와 친구 추천 리워드를 순차 실험',
+    result: '구독자 3,420명, 오픈율 47.8%, 클릭률 9.6%, 추천 유입 34%를 만들었습니다.', insight: '한 편의 클릭보다 다음 호 재오픈율이 높은 콘텐츠를 편성한 것이 자발적 추천과 장기 성장을 만들었습니다.',
+    metrics: [{ name: '구독자', value: '3,420명', target: '3,000명' }, { name: '오픈율', value: '47.8%', target: '40%' }, { name: '클릭률', value: '9.6%', target: '8%' }, { name: '추천 유입', value: '34%', target: '25%' }],
+    funnel: [{ label: '발송', value: 3420 }, { label: '오픈', value: 1635 }, { label: '클릭', value: 328 }, { label: '추천 전환', value: 1163 }],
+  }),
+};
+
+const EXAMPLE_ARTIFACT_COVERS = {
+  '모아 — 취향 기반 모임 탐색 서비스': 'code-diff',
+  '페이퍼리스 — 전자계약 대시보드': 'quality-matrix',
+  '캠퍼스픽 웹 성능 개선': 'performance-report',
+  '오픈UI 접근성 개선 기여': 'accessibility-audit',
+  'DevLink — 개발 동아리 운영 플랫폼': 'automation-flow',
+  '끼니로그 — 1인 가구 식비 관리': 'product-roadmap',
+  '클래스온 수강 이탈 개선': 'experiment-board',
+  '우리동네 안심귀가 서비스': 'discovery-map',
+  '캠퍼스 셔틀 예약 경험 개선': 'service-blueprint',
+  '동네상점 재고관리 운영 정책': 'policy-system',
+  '모닝빈 신제품 런칭 캠페인': 'launch-dashboard',
+  '제로웨이스트 위크 CRM 캠페인': 'crm-journey',
+  '서울 한입 로컬 콘텐츠 채널': 'content-scoreboard',
+  '핀데이 앱 설치 캠페인': 'paid-funnel',
+  '월요일의 취향 뉴스레터': 'growth-report',
+};
+
+const project = ({ title, role, period, tag, description, bullets, skills, keywords, thumbnailUrl, goal, sections, wordmark, stamp }) => {
+  const artifact = EXAMPLE_ARTIFACTS[title] || {};
+  return ({
   id: title,
   title,
   company: title,
@@ -13,9 +243,16 @@ const project = ({ title, role, period, tag, description, bullets, skills, keywo
   thumbnailUrl,
   wordmark,
   stamp,
+  jobCategory: artifact.jobCategory,
   structuredResult: {
+    ...artifact,
+    jobCategory: artifact.jobCategory,
     projectOverview: { duration: period, role, goal, techStack: skills, summary: description },
     exportConfig: {
+      jobCategory: artifact.jobCategory,
+      jobCoreShowcase: true,
+      artifactCover: true,
+      artifactCoverVariant: EXAMPLE_ARTIFACT_COVERS[title],
       sections: sections.map(({ title: sectionTitle, content }, index) => ({
         key: `section-${index + 1}`,
         label: sectionTitle,
@@ -25,7 +262,8 @@ const project = ({ title, role, period, tag, description, bullets, skills, keywo
       })),
     },
   },
-});
+  });
+};
 
 export const DEVELOPER_EXAMPLE = {
   templateId: 'web-1',

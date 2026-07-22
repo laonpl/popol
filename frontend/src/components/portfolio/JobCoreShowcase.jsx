@@ -1524,6 +1524,7 @@ export function hasJobCoreContent(exp) {
 export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExperienceChange }) {
   const sr = exp?.structuredResult || {};
   const jobCategory = exp?.jobCategory || sr.jobCategory || 'common';
+  const artifactVariant = sr.exportConfig?.artifactCoverVariant || '';
   const [editing, setEditing] = useState(false);
   const canEdit = !readOnly && typeof onChange === 'function';
   const patchSr = changes => onChange?.({ ...sr, ...changes });
@@ -1532,7 +1533,9 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
     const stats = sr.githubStats || {};
     const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
     const deliverables = collectDeliverables(sr);
-    const hasDevSidebar = Boolean(
+    const useContributionSidebar = !artifactVariant || ['code-diff', 'accessibility-audit', 'automation-flow'].includes(artifactVariant);
+    const showCodeEvidence = !artifactVariant || ['code-diff', 'accessibility-audit'].includes(artifactVariant);
+    const hasDevSidebar = useContributionSidebar && Boolean(
       stats.myCommits
       || Number(stats.contributionPct) > 0
       || deliverables.length > 0
@@ -1562,7 +1565,7 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
           <JobCoreLayout sidebar={devSidebar} lead={devLead}>
             <div className="space-y-8">
               <DevArchitecture sr={sr} />
-              {gitExps.length > 0 && (
+              {showCodeEvidence && gitExps.length > 0 && (
                 <div>
                   <SectionLabel en="Problem Solving">문제 해결 기록</SectionLabel>
                   <div className="space-y-4">
@@ -1582,17 +1585,22 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
 
   if (jobCategory === 'pm') {
     const keyExperiences = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
+    const showLeanCanvas = !artifactVariant || ['product-roadmap', 'discovery-map'].includes(artifactVariant);
+    const showTimeline = !artifactVariant || ['product-roadmap', 'service-blueprint'].includes(artifactVariant);
+    const showTransformation = !artifactVariant || ['product-roadmap', 'experiment-board', 'discovery-map', 'policy-system'].includes(artifactVariant);
+    const showDecisionLog = !artifactVariant || ['product-roadmap', 'service-blueprint', 'policy-system'].includes(artifactVariant);
+    const showValidation = !artifactVariant || ['product-roadmap', 'experiment-board', 'discovery-map'].includes(artifactVariant);
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
         <JobCoreLayout
           sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
-          lead={<div className="space-y-6"><PmCycleStrip /><LeanCanvasCard sr={sr} /></div>}
+          lead={<div className="space-y-6"><PmCycleStrip />{showLeanCanvas && <LeanCanvasCard sr={sr} />}</div>}
         >
           <div className="space-y-6">
-            <PmTimelineStrip sr={sr} />
-            <PmAsIsToBeBoard sr={sr} />
-            <PmDecisionLog keyExperiences={keyExperiences} />
-            <PmValidationTable sr={sr} keyExperiences={keyExperiences} />
+            {showTimeline && <PmTimelineStrip sr={sr} />}
+            {showTransformation && <PmAsIsToBeBoard sr={sr} />}
+            {showDecisionLog && <PmDecisionLog keyExperiences={keyExperiences} />}
+            {showValidation && <PmValidationTable sr={sr} keyExperiences={keyExperiences} />}
             <PmMetricTiles sr={sr} />
             <CaseBodyCard caseStudy={exp?.caseStudy} />
             {editing && <PmFullEditor sr={sr} onChange={onChange} />}
@@ -1604,15 +1612,17 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
   }
 
   if (jobCategory === 'marketer') {
+    const showResearch = !artifactVariant || artifactVariant === 'launch-dashboard';
+    const showPositioning = !artifactVariant || ['launch-dashboard', 'content-scoreboard', 'growth-report'].includes(artifactVariant);
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
         <JobCoreLayout
           sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
-          lead={<MarketerResearchBoard sr={sr} />}
+          lead={showResearch ? <MarketerResearchBoard sr={sr} /> : null}
         >
           <div className="space-y-6">
             <MarketerCampaignCard kit={sr.marketerKit} />
-            <MarketerPositioningReport kit={sr.marketerKit} />
+            {showPositioning && <MarketerPositioningReport kit={sr.marketerKit} />}
             <CaseBodyCard caseStudy={exp?.caseStudy} />
             {editing && <MarketerFullEditor sr={sr} onChange={onChange} />}
           </div>
