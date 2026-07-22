@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#ED503C"/>
+  <g font-family="Malgun Gothic, Apple SD Gothic Neo, Arial, sans-serif">
+    <text x="70" y="88" font-size="23" font-weight="800" letter-spacing="4" fill="#FFF5D8">SEOUL BITE · CONTENT CHANNEL</text>
+
+    <rect x="70" y="138" width="402" height="594" rx="40" fill="#171717"/>
+    <rect x="88" y="156" width="366" height="558" rx="28" fill="#FFD36D"/>
+    <text x="122" y="218" font-size="16" font-weight="800" letter-spacing="2" fill="#593024">LOCAL PICK 24</text>
+    <text x="122" y="275" font-size="31" font-weight="900" letter-spacing="-1" fill="#171717">망원동의 한 그릇</text>
+    <circle cx="271" cy="446" r="125" fill="#FFF3D4"/>
+    <circle cx="271" cy="446" r="87" fill="#D84C2B"/>
+    <path d="M206 410c46 52 88 52 130 0M206 452c46 52 88 52 130 0M206 494c46 52 88 52 130 0" fill="none" stroke="#F4B94C" stroke-width="13" stroke-linecap="round"/>
+    <text x="122" y="648" font-size="18" font-weight="800" fill="#593024">저장하고 싶은 동네 이야기</text>
+
+    <rect x="520" y="138" width="610" height="594" rx="40" fill="#FFF5D8"/>
+    <text x="566" y="202" font-size="16" font-weight="700" letter-spacing="3" fill="#A85A4F">12 MONTH CONTENT LOG</text>
+    <text x="566" y="316" font-size="76" font-weight="900" letter-spacing="-3" fill="#171717">48</text>
+    <text x="570" y="354" font-size="18" font-weight="800" fill="#A85A4F">PUBLISHED POSTS</text>
+    <text x="856" y="316" font-size="76" font-weight="900" letter-spacing="-3" fill="#171717">1.2만</text>
+    <text x="860" y="354" font-size="18" font-weight="800" fill="#A85A4F">FOLLOWERS</text>
+    <line x1="566" y1="420" x2="1084" y2="420" stroke="#ED503C" stroke-opacity=".18"/>
+    <text x="566" y="516" font-size="66" font-weight="900" letter-spacing="-3" fill="#ED503C">186만</text>
+    <text x="570" y="552" font-size="18" font-weight="800" fill="#A85A4F">TOTAL VIEWS</text>
+    <rect x="820" y="474" width="264" height="130" rx="24" fill="#ED503C"/>
+    <text x="852" y="516" font-size="14" font-weight="800" letter-spacing="2" fill="#FFD5CE">SAVE RATE</text>
+    <text x="850" y="575" font-size="49" font-weight="900" fill="#FFFFFF">6.8%</text>
+    <text x="566" y="668" font-size="19" font-weight="700" fill="#7C5A54">광고비 없이 만든 지속 가능한 채널 성장</text>
+  </g>
+</svg>

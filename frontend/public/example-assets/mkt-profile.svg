@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="700" viewBox="0 0 700 700">
+  <rect width="700" height="700" fill="#f2b9a5"/><circle cx="540" cy="120" r="210" fill="#f8d866"/><circle cx="110" cy="640" r="230" fill="#da4f3c"/>
+  <path d="M215 620c12-145 78-205 139-205 66 0 135 67 150 205z" fill="#263224"/>
+  <ellipse cx="354" cy="310" rx="125" ry="148" fill="#f4c7ad"/>
+  <path d="M228 314c-25-140 44-225 139-225 106 0 171 99 132 245-21-77-62-121-131-139-33 58-79 92-140 119z" fill="#332923"/>
+  <path d="M249 322c8 94 47 149 105 149 66 0 109-65 121-158-35 5-77-18-111-65-27 40-66 65-115 74z" fill="#f4c7ad"/>
+  <circle cx="316" cy="330" r="8" fill="#2d2724"/><circle cx="411" cy="330" r="8" fill="#2d2724"/><path d="M334 391c17 14 39 14 57 0" fill="none" stroke="#b85f5b" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="520" cy="520" r="75" fill="#fff" opacity=".94"/><text x="472" y="548" font-family="Arial" font-size="72" font-weight="900" fill="#da4f3c">SM</text>
+</svg>

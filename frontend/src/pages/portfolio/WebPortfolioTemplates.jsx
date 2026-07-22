@@ -186,6 +186,7 @@ function projImg(proj) {
 }
 
 const IMAGE_ASPECT_OPTIONS = [
+  ['3 / 2', '에디토리얼'],
   ['16 / 10', '가로형'],
   ['16 / 9', '와이드'],
   ['4 / 3', '기본'],
@@ -1699,7 +1700,6 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
   const acc = th.accent;
   // Contents 목차용 페이지 번호 (레퍼런스처럼 6p부터 9쪽씩)
   const pageRows = projList.map((p, i) => [edit ? (p.company || p.title || '') : p.name, `${6 + i * 9}-${13 + i * 9}p`]);
-  const stampEmojis = ['🐰', '🍒', '🐻', '⭐', '🌷'];
 
   return (
     <div ref={rootRef} className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ background: th.bg, color: th.ink }}>
@@ -1917,68 +1917,85 @@ export function WebTemplate4({ portfolio, edit, onOpenProject }) {
         const dark = idx % 2 === 1;
         const tech = edit ? (proj.skills || []) : (proj.techStack || []);
         const wordSrc = inlineHtmlToPlainText(proj.tag || '') || `Work ${idx + 1}`;
+        const projectTitle = edit ? (proj.company || proj.title || '') : proj.name;
+        const projectLabel = inlineHtmlToPlainText(proj.wordmark || wordSrc || `Project ${idx + 1}`).slice(0, 24);
+        const hasVisual = !!projImg(proj);
+        const mediaFrame = imageFrameStyle(proj.imageStyle, '3 / 2', 'soft');
         return (
-          <section key={idx} className={`px-7 md:px-14 py-20 relative ${dark ? 'text-white' : ''}`} style={dark ? { background: acc } : {}}>
+          <section key={idx} className={`px-7 py-20 md:px-14 md:py-28 relative ${dark ? 'text-white' : ''}`} style={dark ? { background: acc } : {}}>
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12.8px] border-r-[12.8px] border-t-[14.4px] border-l-transparent border-r-transparent" style={{ borderTopColor: dark ? th.bg : acc }} />
             <div
-              className="max-w-5xl mx-auto grid md:grid-cols-2 gap-14 items-start relative group/proj cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-8"
+              className="max-w-5xl mx-auto grid items-center gap-12 md:grid-cols-[minmax(0,0.88fr)_minmax(360px,1.12fr)] md:gap-16 relative group/proj cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-8"
               style={{ outlineColor: dark ? '#ffffff' : acc }}
-              {...projectCardInteraction(onOpenProject, idx, edit ? (proj.company || proj.title) : proj.name)}
+              {...projectCardInteraction(onOpenProject, idx, projectTitle)}
             >
               {edit && (
                 <button type="button" onClick={() => edit.removeItem('experiences', idx)}
                   className="absolute -top-8 right-0 z-20 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/proj:opacity-100 transition-opacity shadow-sm"><X size={9.6} /></button>
               )}
-              <div data-reveal style={!dark ? { color: acc } : {}}>
-                <W4WordmarkField
-                  edit={edit}
-                  value={(proj.wordmark || wordSrc).slice(0, 18)}
-                  onChange={value => edit?.updateItem('experiences', idx, { wordmark: value })}
-                  size="clamp(32px,5.2vw,73.6px)"
-                  ink={dark ? '#ffffff' : acc}
-                  placeholder="빈 텍스트"
-                />
-                <div className="mt-10">
-                  <div className={`text-[10.4px] font-black tracking-[0.14em] flex items-center gap-2 ${dark ? 'text-white/60' : 'text-neutral-400'}`}>
-                    {String(idx + 1).padStart(2, '0')} —{' '}
-                    <WT edit={edit} value={proj.period || 'PROJECT'} onChange={v => edit?.updateItem('experiences', idx, { period: inlineHtmlToPlainText(v) })} placeholder="기간" />
-                    {edit && (
-                      <span className="ml-2 text-[8.8px] font-bold px-2 py-0.5 rounded-full border border-current opacity-70">
-                        태그: <EditText value={proj.tag || ''} onChange={v => edit.updateItem('experiences', idx, { tag: inlineHtmlToPlainText(v) })} placeholder="Work" />
-                      </span>
-                    )}
+              <div data-reveal className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-black ${dark ? 'border-white/35 text-white' : 'border-current'}`} style={!dark ? { color: acc } : undefined}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span className={`h-px w-9 ${dark ? 'bg-white/35' : 'bg-neutral-300'}`} />
+                  <span className={`min-w-0 truncate text-[10px] font-black uppercase tracking-[0.2em] ${dark ? 'text-white/72' : 'text-neutral-500'}`}>
+                    {edit
+                      ? <EditText value={proj.wordmark || wordSrc} onChange={value => edit.updateItem('experiences', idx, { wordmark: inlineHtmlToPlainText(value) })} placeholder="프로젝트 라벨" />
+                      : projectLabel}
+                  </span>
+                </div>
+
+                <h3 className="mt-7 text-[clamp(28px,3.2vw,42px)] font-black leading-[1.12] tracking-[-0.045em]" style={{ wordBreak: 'keep-all', color: dark ? '#ffffff' : th.ink }}>
+                  <WT edit={edit} value={projectTitle} onChange={v => edit?.updateItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" />
+                </h3>
+
+                <div className={`mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10.5px] font-bold ${dark ? 'text-white/62' : 'text-neutral-500'}`}>
+                  <span><WT edit={edit} value={proj.period || 'PROJECT'} onChange={v => edit?.updateItem('experiences', idx, { period: inlineHtmlToPlainText(v) })} placeholder="기간" /></span>
+                  {(proj.role || edit) && <><span className="opacity-45">/</span><span><WT edit={edit} value={proj.role || ''} onChange={v => edit?.updateItem('experiences', idx, { role: inlineHtmlToPlainText(v) })} placeholder="역할" /></span></>}
+                </div>
+
+                <div className={`mt-6 max-w-[46rem] text-[12.5px] font-medium leading-[1.9] md:text-[13.5px] ${dark ? 'text-white/78' : 'text-neutral-600'}`} style={{ wordBreak: 'keep-all' }}>
+                  <WTArea edit={edit} value={edit ? (proj.description || '') : proj.desc} onChange={v => edit?.updateItem('experiences', idx, { description: v })} placeholder="프로젝트 설명" />
+                </div>
+
+                {(tech.length > 0) && (
+                  <div className="mt-7 flex flex-wrap gap-2">
+                    {tech.slice(0, 5).map((t, ti) => (
+                      <span key={ti} className={`rounded-full border px-3.5 py-1.5 text-[9.5px] font-extrabold ${dark ? 'border-white/28 bg-white/5 text-white/88' : 'border-neutral-300 bg-white/55 text-neutral-600'}`}>{typeof t === 'string' ? t : t?.name}</span>
+                    ))}
                   </div>
-                  <h3 className="mt-2 text-[19.2px] md:text-[22.4px] font-black leading-tight" style={{ wordBreak: 'keep-all', color: dark ? '#ffffff' : th.ink }}>
-                    <WT edit={edit} value={edit ? (proj.company || proj.title || '') : proj.name} onChange={v => edit?.updateItem('experiences', idx, { company: v, title: v })} placeholder="프로젝트명" />
-                  </h3>
-                  <div className={`mt-4 text-[10.8px] leading-[1.9] ${dark ? 'text-white/75' : 'text-neutral-600'}`} style={{ wordBreak: 'keep-all' }}>
-                    <WTArea edit={edit} value={edit ? (proj.description || '') : proj.desc} onChange={v => edit?.updateItem('experiences', idx, { description: v })} placeholder="프로젝트 설명" />
-                  </div>
-                  {(tech.length > 0) && (
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {tech.slice(0, 5).map((t, ti) => (
-                        <span key={ti} className={`px-3 py-1 rounded-full border text-[8.8px] font-bold ${dark ? 'border-white/35 text-white/85' : 'border-neutral-300 text-neutral-600'}`}>{typeof t === 'string' ? t : t?.name}</span>
-                      ))}
-                    </div>
-                  )}
+                )}
+
+                <div className={`mt-9 inline-flex items-center gap-2 border-b pb-1.5 text-[9.5px] font-black uppercase tracking-[0.16em] ${dark ? 'border-white/45 text-white' : 'border-neutral-400 text-neutral-800'}`}>
+                  View case study <ArrowUpRight size={12.8} />
                 </div>
               </div>
-              <div data-reveal className="relative">
-                <div className="overflow-hidden shadow-xl transition-all" style={imageFrameStyle(proj.imageStyle, '4 / 3', 'round')}>
-                  <EditableThumb edit={edit} proj={proj} idx={idx} label={false} defaultAspect="4 / 3" defaultShape="round" />
-                </div>
-                {/* 스탬프 장식 */}
-                <div className="absolute -bottom-6 right-6 flex items-end gap-3 rotate-[-4deg]">
-                  <span className="px-5 py-1.5 border-2 text-[10.4px] font-bold italic rotate-[-10deg] bg-white/90 border-pink-400 text-pink-500" style={{ fontFamily: 'Georgia,serif', borderRadius: '50%/45%' }}>
-                    {(wordSrc || 'work').toLowerCase()}
-                  </span>
-                  <span className="w-16 h-16 rounded-lg bg-red-600 text-white rotate-6 flex items-center justify-center text-[20.8px] shadow-md">
-                    <WT edit={edit} value={proj.stamp || stampEmojis[idx % stampEmojis.length]} onChange={value => edit?.updateItem('experiences', idx, { stamp: inlineHtmlToPlainText(value) })} placeholder="이모지" />
-                  </span>
+
+              <div data-reveal className="min-w-0">
+                <div className="overflow-hidden rounded-[24px] border bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] transition-transform duration-300 group-hover/proj:-translate-y-1" style={{ borderColor: dark ? alphaHex('#ffffff', 0.26) : alphaHex(th.ink, 0.12) }}>
+                  <div className="relative overflow-hidden bg-neutral-100" style={mediaFrame}>
+                    <EditableThumb edit={edit} proj={proj} idx={idx} label={false} defaultAspect="3 / 2" defaultShape="soft" />
+                    {!hasVisual && (
+                      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-7 text-neutral-900 md:p-9">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-[9px] font-black uppercase tracking-[0.22em] opacity-55">Project visual</span>
+                          <span className="text-[11px] font-black opacity-35">{String(idx + 1).padStart(2, '0')}</span>
+                        </div>
+                        <p className="max-w-[82%] text-[clamp(20px,2.6vw,32px)] font-black leading-[1.12] tracking-[-0.04em]" style={{ wordBreak: 'keep-all' }}>{inlineHtmlToPlainText(projectTitle) || `Project ${idx + 1}`}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-5 border-t border-neutral-200 bg-white px-5 py-4 text-neutral-900 md:px-6">
+                    <div className="min-w-0">
+                      <p className="text-[8.5px] font-black uppercase tracking-[0.2em] text-neutral-400">Selected work · {String(idx + 1).padStart(2, '0')}</p>
+                      <p className="mt-1 truncate text-[11.5px] font-extrabold">{inlineHtmlToPlainText(projectLabel)}</p>
+                    </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" style={{ background: acc }}><ArrowUpRight size={14.4} /></span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="max-w-5xl mx-auto mt-16"><div className="w4-barcode h-8 w-56" style={{ color: dark ? alphaHex('#ffffff', 0.85) : alphaHex(th.ink, 0.8) }} /></div>
           </section>
         );
       })}

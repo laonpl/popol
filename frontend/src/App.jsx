@@ -40,6 +40,7 @@ const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
 const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')); // 웹사이트형 템플릿 검토용
 const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
 const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioPreview'));
+const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
 
@@ -93,6 +94,9 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
+      <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
+      <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
+      <Route path="/example3" element={<PortfolioExample exampleId="example3" />} />
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />

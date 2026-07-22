@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#EAF4E8"/>
+  <g font-family="Malgun Gothic, Apple SD Gothic Neo, Arial, sans-serif">
+    <text x="70" y="88" font-size="23" font-weight="800" letter-spacing="4" fill="#17452E">ZERO WEEK · CRM RETENTION</text>
+
+    <rect x="70" y="140" width="660" height="590" rx="36" fill="#17452E"/>
+    <text x="116" y="204" font-size="16" font-weight="700" letter-spacing="3" fill="#AFC8B6">AUTOMATED JOURNEY</text>
+    <text x="116" y="276" font-size="43" font-weight="900" letter-spacing="-2" fill="#FFFFFF">고객 행동에 맞춘</text>
+    <text x="116" y="329" font-size="43" font-weight="900" letter-spacing="-2" fill="#DFF06A">3단계 리텐션</text>
+
+    <line x1="158" y1="416" x2="158" y2="628" stroke="#DFF06A" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="158" cy="425" r="27" fill="#DFF06A"/>
+    <circle cx="158" cy="527" r="27" fill="#DFF06A"/>
+    <circle cx="158" cy="629" r="27" fill="#DFF06A"/>
+    <text x="150" y="434" font-size="20" font-weight="900" fill="#17452E">1</text>
+    <text x="150" y="536" font-size="20" font-weight="900" fill="#17452E">2</text>
+    <text x="150" y="638" font-size="20" font-weight="900" fill="#17452E">3</text>
+    <text x="210" y="432" font-size="24" font-weight="800" fill="#FFFFFF">관심 콘텐츠</text>
+    <text x="210" y="534" font-size="24" font-weight="800" fill="#FFFFFF">장바구니 리마인드</text>
+    <text x="210" y="636" font-size="24" font-weight="800" fill="#FFFFFF">맞춤 혜택</text>
+
+    <rect x="770" y="140" width="360" height="590" rx="36" fill="#FFFFFF"/>
+    <text x="812" y="204" font-size="16" font-weight="700" letter-spacing="3" fill="#7B917F">CAMPAIGN RESULT</text>
+    <text x="812" y="324" font-size="68" font-weight="900" letter-spacing="-3" fill="#17452E">8.1%</text>
+    <text x="816" y="360" font-size="19" font-weight="700" fill="#7B917F">휴면 고객 재구매율</text>
+    <line x1="812" y1="420" x2="1088" y2="420" stroke="#17452E" stroke-opacity=".12"/>
+    <text x="812" y="524" font-size="68" font-weight="900" letter-spacing="-3" fill="#17452E">7.4%</text>
+    <text x="816" y="560" font-size="19" font-weight="700" fill="#7B917F">메시지 클릭률</text>
+    <rect x="812" y="630" width="204" height="42" rx="21" fill="#DFF06A"/>
+    <text x="844" y="658" font-size="15" font-weight="900" letter-spacing="1" fill="#17452E">5 SEGMENTS</text>
+  </g>
+</svg>

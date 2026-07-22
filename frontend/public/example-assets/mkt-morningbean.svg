@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#F4CA4D"/>
+  <g font-family="Malgun Gothic, Apple SD Gothic Neo, Arial, sans-serif">
+    <text x="72" y="88" font-size="23" font-weight="800" letter-spacing="4" fill="#263127">MORNING BEAN · PRODUCT LAUNCH</text>
+
+    <rect x="72" y="142" width="590" height="586" rx="36" fill="#FFF8E8"/>
+    <rect x="112" y="184" width="112" height="36" rx="18" fill="#F2693D"/>
+    <text x="137" y="208" font-size="16" font-weight="800" letter-spacing="2" fill="#FFFFFF">NEW</text>
+    <text x="112" y="302" font-size="71" font-weight="900" letter-spacing="-3" fill="#263127">LOW SUGAR</text>
+    <text x="112" y="366" font-size="54" font-weight="900" letter-spacing="-2" fill="#F2693D">GRANOLA</text>
+    <text x="114" y="410" font-size="21" font-weight="700" fill="#6E715E">바쁜 아침을 위한 든든한 한 끼</text>
+
+    <ellipse cx="368" cy="602" rx="202" ry="77" fill="#E9B83D" opacity=".24"/>
+    <path d="M196 520h344l-34 142H230z" fill="#FFFFFF" stroke="#263127" stroke-width="8" stroke-linejoin="round"/>
+    <circle cx="295" cy="585" r="31" fill="#BB7842"/>
+    <circle cx="368" cy="585" r="31" fill="#E8B93D"/>
+    <circle cx="441" cy="585" r="31" fill="#91542F"/>
+
+    <rect x="706" y="142" width="422" height="586" rx="36" fill="#263127"/>
+    <text x="752" y="206" font-size="16" font-weight="700" letter-spacing="3" fill="#B9C5B4">LAUNCH RESULT</text>
+    <text x="752" y="330" font-size="76" font-weight="900" letter-spacing="-3" fill="#FFFFFF">405%</text>
+    <text x="756" y="366" font-size="20" font-weight="700" fill="#F4CA4D">ROAS</text>
+    <line x1="752" y1="424" x2="1082" y2="424" stroke="#FFFFFF" stroke-opacity=".18"/>
+    <text x="752" y="486" font-size="17" font-weight="700" fill="#B9C5B4">첫 달 매출</text>
+    <text x="752" y="534" font-size="35" font-weight="900" fill="#FFFFFF">4,860만원</text>
+    <text x="752" y="606" font-size="17" font-weight="700" fill="#B9C5B4">신규 고객</text>
+    <text x="752" y="654" font-size="35" font-weight="900" fill="#FFFFFF">68%</text>
+  </g>
+</svg>

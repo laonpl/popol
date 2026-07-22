@@ -70,11 +70,21 @@ function EditFrame({ editing, setEditing, canEdit, children }) {
   );
 }
 
-function JobCoreLayout({ sidebar, children }) {
+function JobCoreLayout({ sidebar, lead, children }) {
+  if (!sidebar) {
+    return (
+      <div className="min-w-0 space-y-7">
+        {lead && <div className="min-w-0">{lead}</div>}
+        {children && <div className="min-w-0">{children}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="grid w-full min-w-0 grid-cols-1 items-start gap-7 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-10">
-      {sidebar}
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">{sidebar}</div>
+      <div className="min-w-0">{lead}</div>
+      {children && <div className="min-w-0 md:col-span-2">{children}</div>}
     </div>
   );
 }
@@ -1521,23 +1531,36 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
   if (DEV_GIT_JOBS.includes(jobCategory)) {
     const stats = sr.githubStats || {};
     const gitExps = Array.isArray(sr.gitAnalysis?.experiences) ? sr.gitAnalysis.experiences : [];
+    const deliverables = collectDeliverables(sr);
+    const hasDevSidebar = Boolean(
+      stats.myCommits
+      || Number(stats.contributionPct) > 0
+      || deliverables.length > 0
+      || editing,
+    );
+    const devSidebar = hasDevSidebar ? (
+      <>
+        {(stats.myCommits || Number(stats.contributionPct) > 0 || editing) && (
+          <DevGitReport exp={exp} stats={stats} gitExps={gitExps} editing={editing} onChange={next => patchSr({ githubStats: next })} />
+        )}
+        {deliverables.length > 0 && <div className="mt-5 border-t border-surface-200 pt-4"><PmDeliverableFiles files={deliverables} compact /></div>}
+        {editing && <DeliverableEditor items={deliverables} onChange={items => onChange?.({ ...sr, deliverables: items, pmFiles: [] })} />}
+      </>
+    ) : null;
+    const devLead = (
+      <>
+        <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2 border-b border-surface-200 pb-3">
+          <h3 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h3>
+          {(sr.gitAnalysis?.repoName || stats.repoName) && <span className="text-[11.5px] font-semibold text-bluewood-300">{sr.gitAnalysis?.repoName || stats.repoName}</span>}
+        </div>
+        <ProductIntroCard product={sr.product || {}} embedded editing={editing} onChange={next => patchSr({ product: next })} />
+      </>
+    );
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
-        <div><div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
-          <div className="min-w-0">
-            {(stats.myCommits || Number(stats.contributionPct) > 0 || editing) && (
-              <DevGitReport exp={exp} stats={stats} gitExps={gitExps} editing={editing} onChange={next => patchSr({ githubStats: next })} />
-            )}
-            {collectDeliverables(sr).length > 0 && <div className="mt-5 border-t border-surface-200 pt-4"><PmDeliverableFiles files={collectDeliverables(sr)} compact /></div>}
-            {editing && <DeliverableEditor items={collectDeliverables(sr)} onChange={items => onChange?.({ ...sr, deliverables: items, pmFiles: [] })} />}
-          </div>
-          <div className="min-w-0">
-            <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2 border-b border-surface-200 pb-3">
-              <h3 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h3>
-              {(sr.gitAnalysis?.repoName || stats.repoName) && <span className="text-[11.5px] font-semibold text-bluewood-300">{sr.gitAnalysis?.repoName || stats.repoName}</span>}
-            </div>
+        <div>
+          <JobCoreLayout sidebar={devSidebar} lead={devLead}>
             <div className="space-y-8">
-              <ProductIntroCard product={sr.product || {}} embedded editing={editing} onChange={next => patchSr({ product: next })} />
               <DevArchitecture sr={sr} />
               {gitExps.length > 0 && (
                 <div>
@@ -1550,8 +1573,9 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
               {editing && <EditableGitProjects items={gitExps} onChange={items => patchSr({ gitAnalysis: { ...(sr.gitAnalysis || {}), experiences: items } })} />}
               <CaseBodyCard caseStudy={exp?.caseStudy} />
             </div>
-          </div>
-        </div>{editing && <CompleteCoreEditor exp={exp} sr={sr} jobCategory={jobCategory} onChange={onChange} onExperienceChange={onExperienceChange} />}</div>
+          </JobCoreLayout>
+          {editing && <CompleteCoreEditor exp={exp} sr={sr} jobCategory={jobCategory} onChange={onChange} onExperienceChange={onExperienceChange} />}
+        </div>
       </EditFrame>
     );
   }
@@ -1560,10 +1584,11 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
     const keyExperiences = Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [];
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
-        <JobCoreLayout sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}>
+        <JobCoreLayout
+          sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
+          lead={<div className="space-y-6"><PmCycleStrip /><LeanCanvasCard sr={sr} /></div>}
+        >
           <div className="space-y-6">
-            <PmCycleStrip />
-            <LeanCanvasCard sr={sr} />
             <PmTimelineStrip sr={sr} />
             <PmAsIsToBeBoard sr={sr} />
             <PmDecisionLog keyExperiences={keyExperiences} />
@@ -1581,9 +1606,11 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
   if (jobCategory === 'marketer') {
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
-        <JobCoreLayout sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}>
+        <JobCoreLayout
+          sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
+          lead={<MarketerResearchBoard sr={sr} />}
+        >
           <div className="space-y-6">
-            <MarketerResearchBoard sr={sr} />
             <MarketerCampaignCard kit={sr.marketerKit} />
             <MarketerPositioningReport kit={sr.marketerKit} />
             <CaseBodyCard caseStudy={exp?.caseStudy} />
@@ -1598,8 +1625,10 @@ export default function JobCoreShowcase({ exp, readOnly = false, onChange, onExp
   if (jobCategory !== 'common') {
     return (
       <EditFrame editing={editing} setEditing={setEditing} canEdit={canEdit}>
-        <JobCoreLayout sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}>
-          <GenericJobCore exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />
+        <JobCoreLayout
+          sidebar={<JobCoreSidebar exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
+          lead={<GenericJobCore exp={exp} sr={sr} jobCategory={jobCategory} editing={editing} onChange={onChange} />}
+        >
           <CaseBodyCard caseStudy={exp?.caseStudy} />
         </JobCoreLayout>
         {editing && <CompleteCoreEditor exp={exp} sr={sr} jobCategory={jobCategory} onChange={onChange} onExperienceChange={onExperienceChange} />}

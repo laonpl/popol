@@ -482,6 +482,7 @@ export default function ProjectDetailModal({
 
   const showPalette = !readOnly;
   const showTailorPanel = !readOnly && tailorOpen;
+  const useWideDocument = !genericMode && showJobCore && hasJobCoreContent(exp);
 
   return (
     <div
@@ -642,8 +643,8 @@ export default function ProjectDetailModal({
           {/* ── 중앙: 속성 헤더 + 캔버스 + Quick Menu ── */}
           <div ref={scrollAreaRef} className="flex-1 min-w-0 overflow-y-auto bg-white">
             <div className="px-5 pb-12 pt-6">
-              <div ref={documentColumnRef} className="relative mx-auto max-w-3xl">
-                <main data-tour="project-detail-canvas" className="min-w-0 flex-1 max-w-3xl">
+              <div ref={documentColumnRef} className={`relative mx-auto w-full ${useWideDocument ? 'max-w-[1180px]' : 'max-w-3xl'}`}>
+                <main data-tour="project-detail-canvas" className="min-w-0 w-full">
                   {(!readOnly || coverImg) && (
                     <div data-tour="project-detail-cover" className={`group relative mb-6 overflow-hidden rounded-lg border border-surface-200 bg-surface-50 ${coverImg ? 'h-40' : 'h-24'}`}>
                       {coverImg ? (

@@ -17,23 +17,22 @@ import {
   Network,
   PanelLeft,
   PenLine,
+  Play,
   Search,
-  Settings,
   Star,
   UploadCloud,
   X,
 } from 'lucide-react';
-import { ArchitectureDiagram } from '../components/portfolio/ArchDiagram';
 import { CodeSnippet } from '../components/portfolio/GitInsights';
 
 const DEMO_STEPS = [
   {
     key: 'attention',
-    label: '개발자들 주목',
-    short: '개발자들 주목',
-    duration: 2600,
-    caption: '개발자들 주목',
-    guide: '개발 경험 정리, 아직도 미루고 있나요?',
+    label: 'GitHub를 채용 언어로',
+    short: '오프닝',
+    duration: 3400,
+    caption: '커밋 345개를 채용 언어로 바꾸는 법',
+    guide: 'GitHub 기록이 포트폴리오의 성과와 기여 근거로 바뀝니다.',
   },
   {
     key: 'github-pain',
@@ -96,8 +95,8 @@ const DEMO_STEPS = [
     label: '커밋 스토리',
     short: 'Git 커밋',
     duration: 4600,
-    caption: '흩어진 커밋은 단순 목록이 아니라 문제 발견부터 개선 결과까지 이어지는 개발 스토리가 됩니다.',
-    guide: '커밋 흐름으로 문제 해결의 과정과 코드 기여를 증명합니다.',
+    caption: '커밋 수만 세지 않습니다. 내가 바꾼 파일과 해결한 문제까지 연결해 실제 기여 범위를 보여줍니다.',
+    guide: '전체 커밋 중 내 변경 비중과 핵심 코드 근거를 함께 보여줍니다.',
   },
   {
     key: 'review',
@@ -125,18 +124,19 @@ const DEMO_STEPS = [
   },
 ];
 
+// 공감형 카피 + 시선이 쏠릴 키워드(hl)만 하이라이트로 강조한다.
 const REEL_CAPTIONS = {
-  'github-pain': ['커밋은 쌓이는데', '이걸 언제 다 정리하지?'],
-  'files-pain': ['회고 파일이 어디 있었지?', '찾다가 또 정리 포기…'],
-  create: ['포트폴리오에 쓸 게 없다고요?', '일단 새 경험부터 만듭니다'],
-  role: ['개발자 경험만 골라서', '분석 기준부터 바꿉니다'],
-  sources: ['회고 PDF 하나, GitHub 하나', '개발 기록 싹 다 끌어옵니다'],
-  pipeline: ['커밋 127개를 훑더니', '근거까지 싹 다 털었습니다'],
-  overview: ['결과물은 실제 핵심 경험 화면 그대로', '프로젝트 서사까지 한 화면에'],
-  commits: ['내 커밋 179개가', '기여도 51.9%로 증명됩니다'],
-  review: ['이 코드를 왜 썼는지까지', '개발 판단의 근거로 정리됩니다'],
-  architecture: ['복잡한 저장소 구조도', '한 장으로 끝냅니다'],
-  complete: ['흩어진 개발 기록이', '경험정리 5분 만에 완성'],
+  'github-pain': [{ t: '커밋은 매일 쌓이는데', hl: '매일' }, { t: '포트폴리오는 아직도 백지', hl: '백지' }],
+  'files-pain': [{ t: '회고·캡처·기획서 다 흩어졌고', hl: '흩어졌고' }, { t: '찾다 지쳐서 또 포기', hl: '포기' }],
+  create: [{ t: '“쓸 만한 경험이 없다”고요?', hl: '경험이 없다' }, { t: '정리를 안 했을 뿐입니다', hl: '정리를 안 했을 뿐' }],
+  role: [{ t: '개발자 직군만 딱 고르면', hl: '개발자' }, { t: '분석 기준이 통째로 바뀝니다', hl: '통째로' }],
+  sources: [{ t: '회고 PDF 하나 + GitHub 하나', hl: 'GitHub' }, { t: '흩어진 기록을 통째로 긁어옵니다', hl: '통째로' }],
+  pipeline: [{ t: '커밋 수백 개를 알아서 훑고', hl: '수백 개' }, { t: '근거까지 싹 정리합니다', hl: '근거까지' }],
+  overview: [{ t: '백지였던 포트폴리오가', hl: '백지' }, { t: '단 한 화면으로 완성', hl: '한 화면' }],
+  commits: [{ t: '전체 345개 중 내 커밋 179개', hl: '179개' }, { t: '기여 비중 51.9% + 핵심 변경까지', hl: '핵심 변경' }],
+  review: [{ t: '“이 코드를 왜 썼는지”까지', hl: '왜 썼는지' }, { t: '그대로 면접 답변이 됩니다', hl: '면접 답변' }],
+  architecture: [{ t: '복잡한 저장소 구조도', hl: '복잡한' }, { t: '설명 가능한 한 장으로', hl: '한 장' }],
+  complete: [{ t: '흩어진 개발 기록이', hl: '흩어진' }, { t: '단 5분 만에 포트폴리오로', hl: '5분' }],
 };
 
 const DEMO_GIT_PROJECTS = [
@@ -289,30 +289,72 @@ const GITHUB_COMMITS = [
   ['1e7ca08', 'feat: add web-vitals dashboard events', 'minseo-dev', 'last month'],
 ];
 
-function GitHubPainScreen({ progress, attention = false }) {
-  if (attention) {
-    return (
-      <div className="relative flex h-full items-center justify-center overflow-hidden bg-[#020713]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(15,88,190,0.32),transparent_42%)]" />
-        <div className="absolute left-1/2 top-1/2 h-[min(72vw,860px)] w-[min(72vw,860px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-300/10" />
-        <div className="absolute left-1/2 top-1/2 h-[min(55vw,650px)] w-[min(55vw,650px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-200/15" />
-        <div className="absolute inset-0">
-          {Array.from({ length: 24 }, (_, index) => (
-            <span
-              key={index}
-              className="absolute left-1/2 top-1/2 h-[2px] w-[clamp(100px,14vw,220px)] origin-left bg-gradient-to-r from-blue-200/90 via-blue-400/45 to-transparent shadow-[0_0_12px_rgba(96,165,250,0.65)]"
-              style={{ transform: `rotate(${index * 15}deg) translateX(clamp(280px, 27vw, 430px))` }}
-            />
-          ))}
-        </div>
-        <div className="absolute left-[8%] top-1/2 h-px w-[18%] bg-gradient-to-r from-transparent to-white/80" />
-        <div className="absolute right-[8%] top-1/2 h-px w-[18%] bg-gradient-to-l from-transparent to-white/80" />
-        <h1 className="relative z-10 whitespace-nowrap text-center text-[66px] font-black leading-none tracking-[-0.075em] text-white drop-shadow-[0_0_28px_rgba(59,130,246,0.7)] sm:text-[104px] lg:text-[142px]">개발자들 주목</h1>
-      </div>
-    );
-  }
+function AttentionScreen() {
+  return (
+    <div className="eng-demo-cover relative flex h-full flex-col overflow-hidden px-7 pb-8 pt-7 text-white">
+      <div className="pointer-events-none absolute -right-28 -top-24 h-80 w-80 rounded-full bg-[#c7ff4a]/[0.12] blur-[90px]" />
+      <div className="pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 rounded-full bg-[#3b82f6]/[0.15] blur-[110px]" />
 
-  const scrollY = attention ? 42 : Math.round(40 + progress * 310);
+      <header className="relative z-10 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-black text-[#0b0f0e]">FP</span>
+          <div>
+            <p className="text-[11px] font-black tracking-[-0.02em]">FitPoly</p>
+            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/[0.45]">for developers</p>
+          </div>
+        </div>
+        <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1.5 text-[8px] font-extrabold uppercase tracking-[0.16em] text-white/[0.65]">GitHub → Portfolio</span>
+      </header>
+
+      <div className="relative z-10 mt-[72px]">
+        <div className="inline-flex items-center gap-2 rounded-full bg-[#c7ff4a] px-3 py-1.5 text-[10px] font-black text-[#10150e]">
+          취준 개발자라면 잠깐
+        </div>
+        <h1 className="mt-5 text-[45px] font-black leading-[1.06] tracking-[-0.065em] sm:text-[51px]">
+          커밋 345개를<br />
+          <span className="text-[#c7ff4a]">채용 언어로</span><br />
+          바꾸는 법
+        </h1>
+        <p className="mt-5 text-[14px] font-semibold leading-[1.65] tracking-[-0.025em] text-white/60">GitHub만 연결하면 내가 한 일과<br />기여 근거가 포트폴리오가 됩니다.</p>
+      </div>
+
+      <div className="relative z-10 mt-8 rounded-[26px] border border-white/10 bg-white/[0.055] p-3.5 shadow-[0_30px_80px_rgba(0,0,0,0.34)] backdrop-blur-sm">
+        <div className="grid grid-cols-[1fr_34px_1fr] items-stretch gap-2">
+          <div className="rounded-[18px] border border-white/[0.08] bg-[#111816] p-4">
+            <div className="flex items-center gap-2 text-[9px] font-extrabold text-white/[0.55]"><Github size={13} /> GITHUB RECORD</div>
+            <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">345</p>
+            <p className="mt-2 text-[9px] font-bold text-white/40">commits · 127 files</p>
+            <div className="mt-5 flex h-8 items-end gap-1">
+              {[40, 72, 48, 88, 58, 100, 70, 92, 50, 78].map((height, index) => <span key={index} className="flex-1 rounded-[2px] bg-white/[0.15]" style={{ height: `${height}%` }} />)}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#c7ff4a]/30 bg-[#c7ff4a]/10 text-[14px] font-black text-[#c7ff4a]">→</span>
+          </div>
+
+          <div className="rounded-[18px] bg-[#f4f7f2] p-4 text-[#121713]">
+            <div className="flex items-center justify-between text-[9px] font-extrabold"><span>FITPOLY RESULT</span><CheckCircle2 size={13} className="text-emerald-600" /></div>
+            <p className="mt-7 text-[30px] font-black leading-none tracking-[-0.05em]">51.9%</p>
+            <p className="mt-2 text-[9px] font-bold text-black/[0.45]">실제 기여 비중</p>
+            <div className="mt-5 space-y-1.5">
+              <span className="block h-1.5 w-full rounded-full bg-black/[0.08]"><span className="block h-full w-[78%] rounded-full bg-[#155eef]" /></span>
+              <div className="flex gap-1.5"><span className="rounded-full bg-[#dce8ff] px-2 py-1 text-[7px] font-black text-[#155eef]">핵심 경험 3</span><span className="rounded-full bg-[#e5f5d1] px-2 py-1 text-[7px] font-black text-[#3e6416]">구조도 완성</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-auto flex items-center justify-between border-t border-white/10 pt-5">
+        <p className="text-[10px] font-bold leading-[1.5] text-white/[0.48]">3초 뒤,<br /><span className="text-white/80">만드는 과정 공개</span></p>
+        <span className="flex items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 text-[10px] font-black text-[#101310] shadow-[0_10px_35px_rgba(0,0,0,0.2)]">과정 보기 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c7ff4a]"><Play size={12} fill="currentColor" /></span></span>
+      </div>
+    </div>
+  );
+}
+
+function GitHubPainScreen({ progress }) {
+  const scrollY = Math.round(40 + progress * 310);
   return (
     <div className="relative h-full overflow-hidden bg-[#d8dee4] p-3 sm:p-5">
       <div className="mx-auto h-full max-w-[1280px] overflow-hidden rounded-xl border border-[#afb8c1] bg-white shadow-[0_24px_70px_rgba(31,35,40,0.28)]">
@@ -352,7 +394,7 @@ function GitHubPainScreen({ progress, attention = false }) {
               ))}
             </div>
           </div>
-          {!attention && <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[10px] font-bold text-white shadow-lg">스크롤 중 · 커밋 127개</div>}
+          <div className="absolute bottom-4 right-4 rounded-full bg-[#24292f]/90 px-3 py-1.5 text-[10px] font-bold text-white shadow-lg">스크롤 중 · 커밋 127개</div>
         </div>
       </div>
     </div>
@@ -417,22 +459,14 @@ function FilesPainScreen({ progress }) {
 
 function ProductHeader() {
   return (
-    <header className="relative z-[80] flex-shrink-0 border-b border-surface-200 bg-white">
-      <div className="relative flex h-16 items-center px-6">
-        <img src="/logo.png" alt="FitPoly" className="h-8 w-auto" />
-        <nav className="absolute left-1/2 flex -translate-x-1/2 items-center rounded-full bg-surface-100 p-1">
-          <span className="rounded-full bg-primary-500 px-6 py-2 text-sm font-semibold text-white shadow-sm">경험 정리</span>
-          <span className="hidden rounded-full px-6 py-2 text-sm font-semibold text-bluewood-500 sm:block">포트폴리오</span>
+    <header className="relative z-[80] h-14 flex-shrink-0 border-b border-surface-200 bg-white">
+      <div className="grid h-full grid-cols-[52px_1fr_52px] items-center px-3">
+        <img src="/logo.png" alt="FitPoly" className="h-7 w-7 object-contain" />
+        <nav className="mx-auto flex items-center rounded-full bg-surface-100 p-0.5 shadow-inner">
+          <span className="whitespace-nowrap rounded-full bg-primary-600 px-4 py-1.5 text-[11px] font-extrabold text-white shadow-sm">경험 정리</span>
+          <span className="whitespace-nowrap px-4 py-1.5 text-[11px] font-bold text-bluewood-400">포트폴리오</span>
         </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700">
-            <span className="text-primary-400">C</span><span>499,025</span>
-          </span>
-          <span className="hidden text-sm font-medium text-bluewood-700 sm:block">최형균</span>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-500 text-sm font-bold text-white ring-2 ring-surface-200">ㅇ</span>
-          <Settings size={16} className="hidden text-bluewood-400 sm:block" />
-          <span className="hidden text-xs text-bluewood-400 lg:block">로그아웃</span>
-        </div>
+        <span className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500 text-[11px] font-black text-white ring-2 ring-surface-100">ㅇ</span>
       </div>
     </header>
   );
@@ -655,7 +689,60 @@ function DemoFactTable({ title, rows }) {
   );
 }
 
-function DemoDevImpactSection() {
+function PitchArchitectureMap() {
+  const Node = ({ eyebrow, title, detail, tone = 'blue', wide = false }) => {
+    const tones = {
+      blue: 'border-primary-300 bg-primary-50 text-primary-800',
+      cyan: 'border-cyan-300 bg-cyan-50 text-cyan-900',
+      violet: 'border-violet-300 bg-violet-50 text-violet-900',
+      slate: 'border-slate-300 bg-white text-bluewood-900',
+    };
+    return (
+      <div className={cx('rounded-xl border-2 px-5 py-3.5 text-center shadow-sm', tones[tone], wide && 'mx-auto w-[76%]')}>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">{eyebrow}</p>
+        <p className="mt-1 text-[18px] font-black leading-tight">{title}</p>
+        <p className="mt-1 text-[11.5px] font-semibold opacity-60">{detail}</p>
+      </div>
+    );
+  };
+
+  return (
+    <div className="rounded-2xl border border-primary-100 bg-[linear-gradient(145deg,#f8fbff_0%,#f1f7ff_55%,#fbfdff_100%)] px-6 py-5">
+      <Node eyebrow="사용자 화면" title="React Client" detail="경험 입력 · 결과 확인" tone="blue" wide />
+      <div className="mx-auto flex h-10 w-px items-center justify-center bg-primary-200"><span className="rounded-full bg-white px-2 py-0.5 text-[12px] font-black text-primary-500 shadow-sm">↓</span></div>
+      <Node eyebrow="API GATEWAY" title="Express API" detail="인증 · 요청 분기 · 데이터 검증" tone="slate" wide />
+      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↙ <span className="mx-5 rounded-full bg-primary-600 px-3 py-1 text-[10px] tracking-wide text-white">AI + GIT 교차 분석</span> ↘</div>
+      <div className="grid grid-cols-2 gap-4">
+        <Node eyebrow="경험 맥락" title="Experience Engine" detail="문서 · 답변 구조화" tone="cyan" />
+        <Node eyebrow="코드 근거" title="GitHub Analyzer" detail="커밋 · 변경 파일 분석" tone="violet" />
+      </div>
+      <div className="mx-auto flex h-10 items-center justify-center text-[12px] font-black text-primary-500">↘ <span className="mx-5 rounded-full bg-white px-3 py-1 text-[10px] tracking-wide text-bluewood-400 shadow-sm">검증된 결과 저장</span> ↙</div>
+      <Node eyebrow="SINGLE SOURCE" title="Firebase" detail="경험 · 근거 · 포트폴리오 데이터" tone="blue" wide />
+    </div>
+  );
+}
+
+function ArchitectureFocusScreen() {
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_85%_5%,#dbeafe_0%,transparent_30%),linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] px-5 pb-24 pt-28">
+      <div className="mx-auto w-full max-w-[500px]">
+        <div className="flex items-center justify-between gap-3">
+          <span className="rounded-full bg-primary-600 px-3 py-1.5 text-[10px] font-black tracking-[0.14em] text-white">REPOSITORY → SYSTEM MAP</span>
+          <span className="text-[10px] font-extrabold text-primary-500">자동 생성 완료 ✓</span>
+        </div>
+        <h1 className="mt-5 text-[30px] font-black leading-[1.08] tracking-[-0.055em] text-bluewood-950">코드 목록이 아니라<br />설명 가능한 구조로.</h1>
+        <p className="mt-3 text-[13px] font-semibold leading-[1.65] text-bluewood-500">호출 관계와 문서 맥락을 함께 분석해<br />면접에서 바로 설명할 수 있는 한 장을 만듭니다.</p>
+
+        <div className="mt-6 rounded-[22px] border-2 border-primary-300 bg-white p-3 shadow-[0_24px_70px_rgba(0,47,108,0.2)] ring-8 ring-white/55">
+          <PitchArchitectureMap />
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function DemoDevImpactSection({ architectureRef, architectureFocus = false }) {
   return (
     <>
       <div className="mb-2 flex items-baseline justify-between gap-3"><h2 className="text-[15px] font-extrabold text-bluewood-900">개발 임팩트</h2><span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-bluewood-300"><Github size={12} /> laonpl/popol · 다시 분석</span></div>
@@ -666,7 +753,17 @@ function DemoDevImpactSection() {
         </div>
         <DemoFactTable title="주요 성과" rows={[["커밋 분석", "345개 중 본인 커밋 179개 식별"], ["기여 비중", "51.9% · 저장소 기여 1위"]]} />
         <DemoFactTable title="핵심 기능" rows={[["경험 구조화", "질문 흐름으로 문제·행동·결과를 추출"], ["GitHub 근거 분석", "커밋·코드 변경·트러블슈팅·기여도를 교차 분석"], ["맞춤 결과물", "기업과 직무에 맞춰 경험을 채용 결과물로 변환"]]} />
-        <div><div className="mb-2.5 flex items-center justify-between"><div className="flex items-center gap-3"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">아키텍처</h3><div className="inline-flex rounded-lg bg-surface-100 p-0.5"><span className="rounded-md bg-white px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-900 shadow-sm">개발 구조</span><span className="px-2.5 py-1 text-[11.5px] font-semibold text-bluewood-400">프로젝트 흐름</span></div></div><span className="text-[11.5px] font-semibold text-bluewood-300">구조 편집</span></div><ArchitectureDiagram diagram={DEMO_ARCHITECTURE} /></div>
+        <div ref={architectureRef} className={cx('transition-all duration-500', architectureFocus && 'rounded-[22px] border-2 border-primary-300 bg-white p-5 shadow-[0_22px_70px_rgba(0,47,108,0.2)] ring-8 ring-primary-50')}>
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-600">SYSTEM MAP · AUTO GENERATED</p>
+              <h3 className="mt-1.5 text-[21px] font-black tracking-[-0.035em] text-bluewood-950">한 장으로 보는 서비스 구조</h3>
+              <p className="mt-1 text-[12px] font-medium text-bluewood-400">저장소의 호출 관계와 경험 문서의 맥락을 함께 분석했습니다.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-bluewood-900 px-3 py-1.5 text-[10.5px] font-black text-white">5 COMPONENTS · 5 FLOWS</span>
+          </div>
+          <PitchArchitectureMap />
+        </div>
         <div><div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[11.5px] font-black uppercase tracking-[0.16em] text-bluewood-400">문제 해결 과정</h3><span className="text-[11.5px] font-semibold text-bluewood-300">1건 · 눌러서 펼치기 · 눌러서 편집</span></div><div className="border-y border-surface-200 py-3"><div className="flex items-start gap-2.5"><span className="mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded bg-primary-700 text-[10.5px] font-black text-white">1</span><div><h4 className="text-[14.5px] font-extrabold text-bluewood-900">경험 구조화·검증 파이프라인 개발</h4><p className="mt-1 text-[11px] text-bluewood-400">2026.04 — 2026.07 · React, Node.js, Firebase, Gemini API</p></div></div><div className="mt-3 space-y-2.5 pl-7"><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-bluewood-700">문제</b>저장 순서가 엇갈리면 GitHub 분석 근거가 결과 화면에서 누락됐습니다.</p><p className="text-[12.5px] leading-[1.65] text-bluewood-600"><b className="mr-2 text-primary-700">해결</b>저장 결과를 단일 소스로 삼고 케이스 스터디 동기화 순서를 보장했습니다.</p><p className="text-[12.5px] font-bold text-bluewood-900"><b className="mr-2 text-primary-700">성과</b>커밋 345개 중 본인 기여 179개를 근거와 함께 자동 변환</p><CodeSnippet file="frontend/src/stores/experienceStore.js" code={"- await saveExperience(payload)\n+ const result = await saveExperience(payload)\n+ await syncCaseStudy(result.id)\n+ return result"} /></div></div></div>
       </div></div>
     </>
@@ -718,9 +815,7 @@ function ResultsScreen({ current }) {
     if (!viewport || !page) return undefined;
 
     let frame;
-    const updateCamera = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
+    const measureCamera = () => {
         const viewportWidth = viewport.clientWidth;
         const viewportHeight = viewport.clientHeight;
         const pageWidth = page.offsetWidth;
@@ -744,28 +839,36 @@ function ResultsScreen({ current }) {
         const target = targets[current]?.current || overviewRef.current;
         if (!target) return;
         const targetHeight = target.offsetHeight;
+        const targetWidth = target.offsetWidth;
         let targetTop = 0;
+        let targetLeft = 0;
         let offsetNode = target;
         while (offsetNode && offsetNode !== page) {
           targetTop += offsetNode.offsetTop;
+          targetLeft += offsetNode.offsetLeft;
           offsetNode = offsetNode.offsetParent;
         }
         const targetCenterY = targetTop + targetHeight / 2;
+        const targetCenterX = targetLeft + targetWidth / 2;
+        const focusScaleLimit = current === 'commits' ? 1.08 : current === 'architecture' ? 0.92 : 1;
         const scale = Math.min(
-          1,
-          (viewportWidth - 64) / pageWidth,
-          (viewportHeight - 54) / Math.max(1, targetHeight + 40),
+          focusScaleLimit,
+          (viewportWidth - 28) / Math.max(1, targetWidth),
+          (viewportHeight - 62) / Math.max(1, targetHeight + 30),
         );
-        setCamera({
-          x: (viewportWidth - pageWidth * scale) / 2,
-          y: viewportHeight / 2 - targetCenterY * scale,
-          scale,
-          ready: true,
-        });
+      setCamera({
+        x: viewportWidth / 2 - targetCenterX * scale,
+        y: viewportHeight / 2 - targetCenterY * scale,
+        scale,
+        ready: true,
       });
     };
+    const updateCamera = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measureCamera);
+    };
 
-    updateCamera();
+    measureCamera();
     const observer = new ResizeObserver(updateCamera);
     observer.observe(viewport);
     observer.observe(page);
@@ -819,8 +922,8 @@ function ResultsScreen({ current }) {
               </div>
             </aside>
 
-            <section ref={architectureRef} className="min-w-0">
-              <DemoDevImpactSection />
+            <section className="min-w-0">
+              <DemoDevImpactSection architectureRef={architectureRef} architectureFocus={current === 'architecture'} />
               <div ref={reviewRef} className="mt-8">
                 <CodeReasonEvidence active={current === 'review'} />
               </div>
@@ -832,6 +935,35 @@ function ResultsScreen({ current }) {
   );
 }
 
+// 캡션 안에서 핵심 단어만 컬러로 구분한다.
+function renderCaption(caption) {
+  if (typeof caption === 'string') return caption;
+  const { t, hl } = caption;
+  if (!hl || !t.includes(hl)) return t;
+  const [before, ...rest] = t.split(hl);
+  return (
+    <>
+      {before}
+      <mark className="eng-demo-hl">{hl}</mark>
+      {rest.join(hl)}
+    </>
+  );
+}
+
+// 숏폼 하단 자막의 위치를 고정해 화면과 시선이 매 장면마다 흔들리지 않게 한다.
+const CAPTION_POS = {
+  'github-pain': 'bottom-[8%]',
+  'files-pain': 'bottom-[8%]',
+  create: 'bottom-[8%]',
+  role: 'bottom-[8%]',
+  sources: 'bottom-[8%]',
+  pipeline: 'bottom-[8%]',
+  overview: 'bottom-[8%]',
+  commits: 'bottom-[8%]',
+  review: 'bottom-[8%]',
+  complete: 'bottom-[8%]',
+};
+
 function DemoSubtitle({ step, progress }) {
   const captions = REEL_CAPTIONS[step.key] || [step.caption];
   const captionIndex = progress < 0.48 ? 0 : Math.min(1, captions.length - 1);
@@ -839,12 +971,39 @@ function DemoSubtitle({ step, progress }) {
 
   return (
     <div className={cx(
-      'pointer-events-none absolute left-1/2 z-50 w-[calc(100%-2rem)] max-w-[1040px] -translate-x-1/2 text-center',
-      step.key === 'review' ? 'top-[7%]' : 'bottom-[16%] sm:bottom-[14%]',
+      'pointer-events-none absolute inset-x-5 z-50 flex justify-center px-1 text-center',
+      CAPTION_POS[step.key] || 'bottom-[14%]',
     )}>
-      <p key={`${step.key}-${captionIndex}`} className="eng-demo-reel-caption text-[27px] font-black leading-[1.24] tracking-[-0.045em] text-white sm:text-[38px] lg:text-[44px]">
-        {caption}
+      <p key={`${step.key}-${captionIndex}`} className="eng-demo-reel-caption max-w-full text-[21px] font-extrabold leading-[1.34] tracking-[-0.04em] text-white sm:text-[24px]">
+        {renderCaption(caption)}
       </p>
+    </div>
+  );
+}
+
+// 모바일 9:16 프레임에 맞춰 데스크톱 설계 씬을 통째로 축소·중앙 정렬한다.
+// Tailwind 반응형(sm/md/lg)은 창 너비 기준이라, 고정 설계 폭(w)에서 렌더한 뒤
+// 프레임 폭에 맞게 scale해야 레이아웃이 안 깨지고 여백도 일정하게 잡힌다.
+function ReelStage({ w = 900, h = 820, children }) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(0.5);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const update = () => setScale(Math.min(el.clientWidth / w, el.clientHeight / h) * 0.96);
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    update();
+    return () => observer.disconnect();
+  }, [w, h]);
+  return (
+    <div ref={ref} className="relative h-full w-full overflow-hidden">
+      <div
+        className="absolute left-1/2 top-1/2 overflow-hidden rounded-[20px] bg-[#f5f5f5] shadow-[0_12px_44px_rgba(15,23,42,0.16)] ring-1 ring-black/5"
+        style={{ width: w, height: h, transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -880,22 +1039,29 @@ export default function DeveloperPitchDemo() {
   }, [stepIndex, step.duration]);
 
   const screen = useMemo(() => {
-    if (step.key === 'attention') return <GitHubPainScreen progress={progress} attention />;
-    if (step.key === 'github-pain') return <GitHubPainScreen progress={progress} />;
-    if (step.key === 'files-pain') return <FilesPainScreen progress={progress} />;
-    if (step.key === 'create') return <EmptyExperienceScreen active />;
-    if (step.key === 'role') return <RoleSelectionScreen active />;
-    if (step.key === 'sources') return <SourceInputScreen active />;
-    if (step.key === 'pipeline') return <PipelineScreen progress={progress} />;
+    if (step.key === 'attention') return <AttentionScreen />;
+    if (step.key === 'github-pain') return <ReelStage><GitHubPainScreen progress={progress} /></ReelStage>;
+    if (step.key === 'files-pain') return <ReelStage><FilesPainScreen progress={progress} /></ReelStage>;
+    if (step.key === 'create') return <ReelStage><EmptyExperienceScreen active /></ReelStage>;
+    if (step.key === 'role') return <ReelStage><RoleSelectionScreen active /></ReelStage>;
+    if (step.key === 'sources') return <ReelStage><SourceInputScreen active /></ReelStage>;
+    if (step.key === 'pipeline') return <ReelStage><PipelineScreen progress={progress} /></ReelStage>;
+    if (step.key === 'architecture') return <ArchitectureFocusScreen />;
     return <ResultsScreen current={step.key} />;
   }, [step.key, progress]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f5f5f5] text-slate-700">
-      {!desktopStep && <ProductHeader />}
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <main key={resultsStep ? 'results' : step.key} className={cx(step.key !== 'attention' && 'eng-demo-screen-enter', 'h-full min-h-0 overflow-hidden bg-[#f5f5f5]')}>{screen}</main>
-        {step.key !== 'attention' && <DemoSubtitle step={step} progress={progress} />}
+    // 인스타 릴스 홍보용 9:16 세로 배율 스테이지. 화면을 이 세로 프레임 영역만 녹화하면 된다.
+    <div className="eng-demo flex h-screen w-screen items-center justify-center overflow-hidden bg-[#07090e]">
+      <div
+        className="relative flex flex-col overflow-hidden bg-[#f5f5f5] text-slate-700 shadow-[0_0_100px_rgba(0,0,0,0.55)]"
+        style={{ height: '100dvh', width: 'min(100vw, calc(100dvh * 9 / 16))' }}
+      >
+        {!desktopStep && !resultsStep && <ProductHeader />}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <main key={resultsStep ? 'results' : step.key} className={cx(step.key !== 'attention' && 'eng-demo-screen-enter', 'h-full min-h-0 overflow-hidden bg-[#f5f5f5]')}>{screen}</main>
+          {!['attention', 'architecture'].includes(step.key) && <DemoSubtitle step={step} progress={progress} />}
+        </div>
       </div>
     </div>
   );
