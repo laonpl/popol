@@ -14,7 +14,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
-import useExperienceStore from '../../stores/experienceStore';
+import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
@@ -31,6 +31,15 @@ import {
 } from '../../constants/competencies';
 import { recommendJobFamilies, recommendByWorkStyle } from '../../constants/jobFamilies';
 import { SKILL_ICONS, matchSkillIcon } from '../../constants/skillIcons';
+
+/* 직무 유형 라벨 — experienceStore의 직군 목록에서 괄호 설명을 뗀 이름 */
+const JOB_CATEGORY_LABELS = Object.fromEntries(
+  JOB_CATEGORIES.flatMap(group => group.items.map(item => [item.value, item.label.replace(/\s*\(.+\)$/, '')])),
+);
+function readJobCategoryLabel(exp) {
+  const key = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+  return JOB_CATEGORY_LABELS[key] || '공통';
+}
 
 /* 경험에서 표준 태그 읽기 (top-level 우선, 없으면 structuredResult) */
 function readCompetencyTags(exp) {
@@ -1049,7 +1058,7 @@ export default function ExperienceHub() {
                                     if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                                   }}
                                 >
-                                  <span className="mb-1 flex items-center">
+                                  <span className="mb-1 flex items-center gap-1.5 min-w-0">
                                     <select
                                       value={readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp)}
                                       onMouseDown={() => setHoveredBar(null)}
@@ -1059,13 +1068,19 @@ export default function ExperienceHub() {
                                       disabled={categorySavingId === exp.id}
                                       aria-label={`${stripMd(exp.title)} 활동 유형 변경`}
                                       title="클릭해서 활동 유형 변경"
-                                      className="max-w-[calc(100%-28px)] cursor-pointer appearance-none truncate rounded border-0 bg-white/90 px-1.5 py-0.5 text-[9px] font-extrabold text-gray-600 outline-none disabled:cursor-wait disabled:opacity-60"
+                                      className="min-w-0 cursor-pointer appearance-none truncate rounded border-0 bg-white/90 px-1.5 py-0.5 text-[9px] font-extrabold text-gray-600 outline-none disabled:cursor-wait disabled:opacity-60"
                                     >
                                       <option value="">{UNCATEGORIZED}</option>
                                       {EXPERIENCE_CATEGORIES.map(category => (
                                         <option key={category} value={category}>{category}</option>
                                       ))}
                                     </select>
+                                    <span
+                                      className="max-w-[45%] shrink-0 truncate rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700"
+                                      title={`직무 · ${readJobCategoryLabel(exp)}`}
+                                    >
+                                      {readJobCategoryLabel(exp)}
+                                    </span>
                                   </span>
                                   <span className={`text-[13px] font-semibold ${theme.barText} truncate block pr-12`}>
                                     {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
