@@ -46,7 +46,6 @@ export async function uploadImageFile(file, maxPx = 1200, quality = 0.8) {
   const fd = new FormData();
   fd.append('file', blob, 'image.jpg');
   const { data } = await api.post('/upload/image', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000,
   });
   return { url: data.url, filename: data.filename, width, height };
@@ -74,7 +73,6 @@ export async function uploadDocumentFile(file) {
   const fd = new FormData();
   fd.append('file', file, file.name);
   const { data } = await api.post('/upload/document', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000,
   });
   // 브라우저 File.name은 항상 올바른 UTF-8 — 서버 originalName(깨질 수 있음)보다 우선

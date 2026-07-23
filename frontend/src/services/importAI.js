@@ -7,12 +7,21 @@ import api from './api';
 
 /** 파일 업로드 → 텍스트 추출. FormData 직접 전달. */
 export async function importFileUpload(formData, options = {}) {
-  const response = await api.post('/import/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000,
-    ...options,
-  });
-  return response.data;
+  try {
+    const response = await api.post('/import/upload', formData, {
+      // PDF OCR·PPT 이미지 분석은 Render 콜드 스타트가 겹치면 2분을 넘길 수 있다.
+      timeout: 300000,
+      ...options,
+    });
+    return response.data;
+  } catch (error) {
+    if (error?.code === 'ECONNABORTED' || /timeout/i.test(error?.message || '')) {
+      const timeoutError = new Error('파일 분석 시간이 초과되었습니다. 파일을 나누거나 잠시 후 다시 시도해주세요.');
+      timeoutError.isImportTimeout = true;
+      throw timeoutError;
+    }
+    throw error;
+  }
 }
 
 /** URL 기반 import — source는 'notion' | 'github' | 'blog' 등. */
