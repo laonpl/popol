@@ -9,6 +9,19 @@
  */
 import api from './api';
 
+let documentUploadSupport;
+
+async function supportsDocumentUpload() {
+  if (typeof documentUploadSupport === 'boolean') return documentUploadSupport;
+  try {
+    const { data } = await api.get('/health', { timeout: 15000 });
+    documentUploadSupport = data?.features?.documentUpload === true;
+  } catch {
+    documentUploadSupport = false;
+  }
+  return documentUploadSupport;
+}
+
 // 파일 → 리사이즈된 JPEG Blob. (긴 변 maxPx 이하로 축소)
 export function resizeImageToBlob(file, maxPx = 1200, quality = 0.8) {
   return new Promise((resolve, reject) => {
@@ -69,7 +82,16 @@ export async function uploadImageDataUrl(dataUrl, maxPx = 1200, quality = 0.8) {
 }
 
 // 프로젝트 산출물 문서(PDF·PPT·HWP·DOC 등) 업로드 → { url, filename, name, size }
-export async function uploadDocumentFile(file) {
+export async function uploadDocumentFile(file, { optional = false } = {}) {
+  // 프론트가 먼저 배포되고 Render가 아직 이전 버전인 동안 404를 만들지 않는다.
+  // 분석 화면에서는 원본 보관만 건너뛰고 텍스트 추출 결과를 계속 사용한다.
+  if (!(await supportsDocumentUpload())) {
+    if (optional) {
+      return { skipped: true, name: file.name, size: file.size };
+    }
+    throw new Error('파일 저장 서버를 업데이트 중입니다. 잠시 후 다시 시도해주세요.');
+  }
+
   const fd = new FormData();
   fd.append('file', file, file.name);
   const { data } = await api.post('/upload/document', fd, {
