@@ -1338,7 +1338,7 @@ function joinProfileParts(parts) {
 
 function ProfileResumeSection({ title, children }) {
   return (
-    <section className="grid gap-5 border-t border-gray-300 py-9 md:grid-cols-[150px_1fr]">
+    <section className="grid min-w-0 gap-5 border-t border-gray-300 py-9 md:grid-cols-[150px_minmax(0,1fr)]">
       <h3 className="text-[20px] font-extrabold text-primary-600">{title}</h3>
       <div className="min-w-0">{children}</div>
     </section>
@@ -1352,13 +1352,107 @@ function ProfileRows({ rows, emptyText = '입력된 내용이 없습니다' }) {
   return (
     <div className="space-y-4">
       {rows.map((row, index) => (
-        <div key={`${row.label || row.date || row.value}-${index}`} className="grid gap-2 sm:grid-cols-[120px_1fr]">
-          <p className="text-[16px] font-extrabold tabular-nums text-gray-900">{row.label || row.date || ''}</p>
-          <p className="text-[16px] font-medium leading-relaxed text-gray-800" style={{ wordBreak: 'keep-all' }}>{row.value}</p>
+        <div key={row.id || `${row.label || row.date || row.value}-${index}`} className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)] sm:gap-5">
+          <p className="min-w-0 whitespace-normal break-words text-[15px] font-extrabold tabular-nums leading-relaxed text-gray-900">{row.label || row.date || ''}</p>
+          <p className="min-w-0 text-[15px] font-medium leading-relaxed text-gray-800" style={{ overflowWrap: 'anywhere', wordBreak: 'keep-all' }}>{row.value}</p>
         </div>
       ))}
     </div>
   );
+}
+
+function EditableProfileRows({
+  rows,
+  onChange,
+  onAdd,
+  onRemove,
+  datePlaceholder = '기간',
+  valuePlaceholder = '내용',
+  addLabel = '항목 추가',
+}) {
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => (
+        <div key={row.id || index} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(170px,210px)_minmax(0,1fr)_32px]">
+          <input
+            value={row.date || ''}
+            onChange={e => onChange(index, 'date', e.target.value)}
+            placeholder={datePlaceholder}
+            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold tabular-nums text-gray-700 outline-none focus:border-primary-300"
+          />
+          <input
+            value={row.value || ''}
+            onChange={e => onChange(index, 'value', e.target.value)}
+            placeholder={valuePlaceholder}
+            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="flex h-9 w-8 items-center justify-center rounded-lg text-gray-300 hover:bg-red-50 hover:text-red-500"
+            aria-label={`${addLabel} 삭제`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-[12px] font-bold text-gray-400 hover:border-primary-300 hover:text-primary-600"
+      >
+        + {addLabel}
+      </button>
+    </div>
+  );
+}
+
+function createProfileRow(prefix = 'row') {
+  return {
+    id: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    date: '',
+    value: '',
+  };
+}
+
+function normalizeProfileRows(rows, prefix) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row, index) => ({
+    id: cleanProfileText(row?.id) || `${prefix}-${index}`,
+    date: cleanProfileText(row?.date),
+    value: cleanProfileText(row?.value),
+  }));
+}
+
+function seedEducationRows(profile) {
+  return (profile?.education || []).map((edu, index) => ({
+    id: `education-${index}`,
+    date: cleanProfileText(edu.period || edu.date),
+    value: joinProfileParts([edu.school || edu.name, edu.major, edu.degree || edu.detail]),
+  })).filter(row => row.date || row.value);
+}
+
+function seedCertificateRows(profile) {
+  return [
+    ...(profile?.languageScores || []).map((item, index) => ({
+      id: `language-${index}`,
+      date: cleanProfileText(item.date),
+      value: joinProfileParts([item.name, item.score]),
+    })),
+    ...(profile?.others || []).map((item, index) => ({
+      id: `certificate-${index}`,
+      date: '',
+      value: cleanProfileText(item),
+    })),
+  ].filter(row => row.date || row.value);
+}
+
+function seedAwardRows(profile) {
+  return (profile?.awards || []).map((item, index) => ({
+    id: `award-${index}`,
+    date: cleanProfileText(item.date),
+    value: joinProfileParts([item.title, item.organization]),
+  })).filter(row => row.date || row.value);
 }
 
 function ProfileView({ experiences, user, profile }) {
@@ -1408,13 +1502,59 @@ function ProfileView({ experiences, user, profile }) {
       oneLiner: saved?.oneLiner ?? (settingsIntro || draft.oneLiner),
       competencies: (saved?.competencies?.length ? saved.competencies : draft.competencies).slice(0, 3),
       hiddenIds: saved?.hiddenExperienceIds ?? [],   // 이력서에서 숨긴 경험
+      basic: {
+        name: saved?.basic?.name ?? (profile?.nameKo || user?.displayName || ''),
+        birthDate: saved?.basic?.birthDate ?? cleanProfileText(profile?.birthDate),
+        location: saved?.basic?.location ?? cleanProfileText(profile?.location),
+      },
+      educationRows: Array.isArray(saved?.educationRows)
+        ? normalizeProfileRows(saved.educationRows, 'education')
+        : seedEducationRows(profile),
+      certificateRows: Array.isArray(saved?.certificateRows)
+        ? normalizeProfileRows(saved.certificateRows, 'certificate')
+        : seedCertificateRows(profile),
+      awardRows: Array.isArray(saved?.awardRows)
+        ? normalizeProfileRows(saved.awardRows, 'award')
+        : seedAwardRows(profile),
+      activityOverrides: saved?.activityOverrides && typeof saved.activityOverrides === 'object'
+        ? saved.activityOverrides
+        : {},
       software: saved?.software ?? draft.skills        // 아이콘 있는 실제 소프트웨어만 시드(거짓·무아이콘 제외)
         .map(s => ({ name: s.name, icon: matchSkillIcon(s.name), level: Math.min(5, Math.max(2, s.count + 1)) }))
         .filter(s => s.icon),
     });
-  }, [loaded, form, saved, draft, settingsIntro]);
+  }, [loaded, form, saved, draft, settingsIntro, profile, user?.displayName]);
 
   const updateOneLiner = (v) => { setForm(f => ({ ...f, oneLiner: v })); setDirty(true); };
+  const updateBasic = (field, value) => {
+    setForm(f => ({ ...f, basic: { ...(f.basic || {}), [field]: value } }));
+    setDirty(true);
+  };
+  const updateProfileRow = (field, index, key, value) => {
+    setForm(f => ({
+      ...f,
+      [field]: (f[field] || []).map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row),
+    }));
+    setDirty(true);
+  };
+  const addProfileRow = (field, prefix) => {
+    setForm(f => ({ ...f, [field]: [...(f[field] || []), createProfileRow(prefix)] }));
+    setDirty(true);
+  };
+  const removeProfileRow = (field, index) => {
+    setForm(f => ({ ...f, [field]: (f[field] || []).filter((_, rowIndex) => rowIndex !== index) }));
+    setDirty(true);
+  };
+  const updateActivityOverride = (id, field, value) => {
+    setForm(f => ({
+      ...f,
+      activityOverrides: {
+        ...(f.activityOverrides || {}),
+        [id]: { ...(f.activityOverrides?.[id] || {}), [field]: value },
+      },
+    }));
+    setDirty(true);
+  };
   const updateComp = (i, field, v) => {
     setForm(f => ({ ...f, competencies: f.competencies.map((c, idx) => idx === i ? { ...c, [field]: v } : c) }));
     setDirty(true);
@@ -1442,7 +1582,21 @@ function ProfileView({ experiences, user, profile }) {
   const setSoftwareIcon = (i, icon) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, icon } : s) })); setDirty(true); setIconPickerFor(null); };
   const setSoftwareLevel = (i, level) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, level } : s) })); setDirty(true); };
   const resetToDraft = () => {
-    setForm({ oneLiner: settingsIntro || draft.oneLiner, competencies: draft.competencies.slice(0, 3), hiddenIds: [], software: seedSoftware() });
+    setForm({
+      oneLiner: settingsIntro || draft.oneLiner,
+      competencies: draft.competencies.slice(0, 3),
+      hiddenIds: [],
+      basic: {
+        name: profile?.nameKo || user?.displayName || '',
+        birthDate: cleanProfileText(profile?.birthDate),
+        location: cleanProfileText(profile?.location),
+      },
+      educationRows: seedEducationRows(profile),
+      certificateRows: seedCertificateRows(profile),
+      awardRows: seedAwardRows(profile),
+      activityOverrides: {},
+      software: seedSoftware(),
+    });
     setDirty(true);
   };
   const save = async () => {
@@ -1453,6 +1607,20 @@ function ProfileView({ experiences, user, profile }) {
         oneLiner: form.oneLiner || '',
         competencies: form.competencies || [],
         hiddenExperienceIds: form.hiddenIds || [],
+        basic: {
+          name: cleanProfileText(form.basic?.name),
+          birthDate: cleanProfileText(form.basic?.birthDate),
+          location: cleanProfileText(form.basic?.location),
+        },
+        educationRows: normalizeProfileRows(form.educationRows, 'education'),
+        certificateRows: normalizeProfileRows(form.certificateRows, 'certificate'),
+        awardRows: normalizeProfileRows(form.awardRows, 'award'),
+        activityOverrides: Object.fromEntries(
+          Object.entries(form.activityOverrides || {}).map(([id, value]) => [id, {
+            date: cleanProfileText(value?.date),
+            value: cleanProfileText(value?.value),
+          }]),
+        ),
         software: form.software || [],
         updatedAt: new Date().toISOString(),
       };
@@ -1477,12 +1645,12 @@ function ProfileView({ experiences, user, profile }) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" /></div>;
   }
 
-  const name = profile?.nameKo || user?.displayName || '이름';
+  const name = cleanProfileText(form.basic?.name) || profile?.nameKo || user?.displayName || '이름';
   const email = user?.email || profile?.email || '';
   const competencies = form.competencies || [];
   const subtitle = competencies.map(c => c.keyword).filter(Boolean).slice(0, 3).join(' · ');
   const hiddenSet = new Set(form.hiddenIds || []);
-  const visibleItems = editing ? careerItems : careerItems.filter(({ exp }) => !hiddenSet.has(exp.id));
+  const visibleItems = careerItems.filter(({ exp }) => !hiddenSet.has(exp.id));
   const contact = profile?.contact || {};
   const primaryContact = [
     { label: 'PHONE', value: profile?.phone },
@@ -1491,34 +1659,26 @@ function ProfileView({ experiences, user, profile }) {
   ].filter(item => cleanProfileText(item.value));
   const basicRows = [
     { label: '이름', value: name },
-    { label: '생년월일', value: profile?.birthDate },
-    { label: '주소', value: profile?.location },
+    { label: '생년월일', value: form.basic?.birthDate },
+    { label: '주소', value: form.basic?.location },
   ].filter(row => cleanProfileText(row.value));
-  const educationRows = (profile?.education || [])
-    .map(edu => ({
-      date: cleanProfileText(edu.period || edu.date),
-      value: joinProfileParts([edu.school || edu.name, edu.major, edu.degree || edu.detail]),
-    }))
-    .filter(row => row.value);
-  const certificateRows = [
-    ...(profile?.languageScores || []).map(item => ({
-      date: cleanProfileText(item.date),
-      value: joinProfileParts([item.name, item.score]),
-    })),
-    ...(profile?.others || []).map(item => ({ date: '', value: cleanProfileText(item) })),
-  ].filter(row => row.value);
+  const educationRows = normalizeProfileRows(form.educationRows, 'education').filter(row => row.date || row.value);
+  const certificateRows = normalizeProfileRows(form.certificateRows, 'certificate').filter(row => row.date || row.value);
+  const experienceActivityRows = visibleItems.slice(0, 4).map(({ exp, start, end }) => {
+    const defaultDate = start.getFullYear() === end.getFullYear()
+      ? `${start.getFullYear()}`
+      : `${start.getFullYear()} - ${end.getFullYear()}`;
+    const override = form.activityOverrides?.[exp.id] || {};
+    return {
+      id: `experience-${exp.id}`,
+      date: override.date ?? defaultDate,
+      value: override.value ?? cleanProfileText(exp.title),
+    };
+  });
   const activityRows = [
-    ...(profile?.awards || []).map(item => ({
-      date: cleanProfileText(item.date),
-      value: joinProfileParts([item.title, item.organization]),
-    })),
-    ...visibleItems.slice(0, 4).map(({ exp, start, end }) => {
-      const yr = start.getFullYear() === end.getFullYear()
-        ? `${start.getFullYear()}`
-        : `${start.getFullYear()} - ${end.getFullYear()}`;
-      return { date: yr, value: cleanProfileText(exp.title) };
-    }),
-  ].filter(row => row.value);
+    ...normalizeProfileRows(form.awardRows, 'award'),
+    ...experienceActivityRows,
+  ].filter(row => row.date || row.value);
   const introText = form.oneLiner || settingsIntro || (subtitle ? `${subtitle}을 중심으로 경험을 쌓아온 ${name}입니다.` : `${name}님의 경험을 바탕으로 정리한 프로필입니다.`);
   const software = form.software || [];
   // 헤드라인 조립 — 이름 포함 여부·문장 종결에 따라 줄바꿈/조사가 깨지지 않게 처리
@@ -1603,39 +1763,127 @@ function ProfileView({ experiences, user, profile }) {
           </div>
         </div>
 
-        <div className="md:pl-[230px]">
+        <div className="lg:pl-[230px]">
           <ProfileResumeSection title="기본 사항">
-            <ProfileRows rows={basicRows} />
+            {editing ? (
+              <div className="space-y-3">
+                {[
+                  { field: 'name', label: '이름', placeholder: '이름' },
+                  { field: 'birthDate', label: '생년월일', placeholder: '예: 2002.05.05' },
+                  { field: 'location', label: '주소', placeholder: '주소' },
+                ].map(item => (
+                  <label key={item.field} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(170px,210px)_minmax(0,1fr)] sm:items-center">
+                    <span className="text-[13px] font-extrabold text-gray-700">{item.label}</span>
+                    <input
+                      value={form.basic?.[item.field] || ''}
+                      onChange={e => updateBasic(item.field, e.target.value)}
+                      placeholder={item.placeholder}
+                      className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <ProfileRows rows={basicRows} />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="학력 사항">
-            <ProfileRows rows={educationRows} emptyText="학력 정보가 없습니다" />
+            {editing ? (
+              <EditableProfileRows
+                rows={form.educationRows || []}
+                onChange={(index, field, value) => updateProfileRow('educationRows', index, field, value)}
+                onAdd={() => addProfileRow('educationRows', 'education')}
+                onRemove={index => removeProfileRow('educationRows', index)}
+                datePlaceholder="재학 기간"
+                valuePlaceholder="학교·전공·학위"
+                addLabel="학력 추가"
+              />
+            ) : (
+              <ProfileRows rows={educationRows} emptyText="학력 정보가 없습니다" />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="자격 사항">
-            <ProfileRows rows={certificateRows} emptyText="자격/어학 정보가 없습니다" />
+            {editing ? (
+              <EditableProfileRows
+                rows={form.certificateRows || []}
+                onChange={(index, field, value) => updateProfileRow('certificateRows', index, field, value)}
+                onAdd={() => addProfileRow('certificateRows', 'certificate')}
+                onRemove={index => removeProfileRow('certificateRows', index)}
+                datePlaceholder="취득일"
+                valuePlaceholder="자격증·어학명과 점수"
+                addLabel="자격 추가"
+              />
+            ) : (
+              <ProfileRows rows={certificateRows} emptyText="자격/어학 정보가 없습니다" />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="활동 및 수상">
-            <ProfileRows rows={activityRows} emptyText="활동 또는 수상 정보가 없습니다" />
-            {editing && (
-              <div className="mt-5 grid gap-2">
-                {visibleItems.slice(0, 8).map(({ exp }) => {
-                  const hidden = hiddenSet.has(exp.id);
-                  return (
-                    <button
-                      key={exp.id}
-                      type="button"
-                      onClick={() => toggleHidden(exp.id)}
-                      className={`rounded-lg border px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
-                        hidden ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500'
-                      }`}
-                    >
-                      {hidden ? '표시하기 · ' : '숨기기 · '}{cleanProfileText(exp.title)}
-                    </button>
-                  );
-                })}
+            {editing ? (
+              <div className="space-y-6">
+                <div>
+                  <p className="mb-2 text-[12px] font-extrabold text-gray-500">직접 입력한 활동·수상</p>
+                  <EditableProfileRows
+                    rows={form.awardRows || []}
+                    onChange={(index, field, value) => updateProfileRow('awardRows', index, field, value)}
+                    onAdd={() => addProfileRow('awardRows', 'award')}
+                    onRemove={index => removeProfileRow('awardRows', index)}
+                    datePlaceholder="활동 기간"
+                    valuePlaceholder="활동·수상 내용"
+                    addLabel="활동·수상 추가"
+                  />
+                </div>
+
+                {careerItems.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[12px] font-extrabold text-gray-500">경험에서 가져온 항목</p>
+                    <div className="space-y-3">
+                    {careerItems.slice(0, 8).map(({ exp, start, end }) => {
+                      const defaultDate = start.getFullYear() === end.getFullYear()
+                        ? `${start.getFullYear()}`
+                        : `${start.getFullYear()} - ${end.getFullYear()}`;
+                      const override = form.activityOverrides?.[exp.id] || {};
+                      const hidden = hiddenSet.has(exp.id);
+                      return (
+                        <div key={exp.id} className={`grid min-w-0 gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto] ${
+                          hidden ? 'border-gray-200 bg-gray-50 opacity-65' : 'border-primary-100 bg-primary-50/30'
+                        }`}>
+                          <input
+                            value={override.date ?? defaultDate}
+                            onChange={e => updateActivityOverride(exp.id, 'date', e.target.value)}
+                            disabled={hidden}
+                            aria-label={`${cleanProfileText(exp.title)} 기간`}
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold tabular-nums text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100"
+                          />
+                          <input
+                            value={override.value ?? cleanProfileText(exp.title)}
+                            onChange={e => updateActivityOverride(exp.id, 'value', e.target.value)}
+                            disabled={hidden}
+                            aria-label={`${cleanProfileText(exp.title)} 내용`}
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleHidden(exp.id)}
+                            className={`rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
+                              hidden
+                                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                                : 'border border-gray-200 bg-white text-gray-500 hover:border-red-200 hover:text-red-500'
+                            }`}
+                          >
+                            {hidden ? '표시' : '숨김'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
+              <ProfileRows rows={activityRows} emptyText="활동 또는 수상 정보가 없습니다" />
             )}
           </ProfileResumeSection>
 
