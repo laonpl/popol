@@ -210,6 +210,8 @@ export default function ExperienceHub() {
   const [editCategory, setEditCategory] = useState(''); // 경험 유형(폴더)
   const [compFilter, setCompFilter] = useState('');  // 목록 직무역량 필터
   const [activeFolder, setActiveFolder] = useState('all'); // 목록 좌측 폴더 선택
+  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState('');
+  const [categorySavingId, setCategorySavingId] = useState(null);
 
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -344,6 +346,31 @@ export default function ExperienceHub() {
     setEditingId(null);
   };
 
+  const updateTimelineCategory = useCallback(async (exp, nextCategory, e) => {
+    e?.stopPropagation();
+    const category = nextCategory || '';
+    const current = readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp);
+    if (category === current || categorySavingId === exp.id) return;
+
+    setHoveredBar(null);
+    setCategorySavingId(exp.id);
+    if (exp.isTutorialDemo) {
+      setTutorialDemoExperience(prev => prev ? { ...prev, category } : prev);
+      setCategorySavingId(null);
+      toast.success(`${category || UNCATEGORIZED}(으)로 분류했어요`);
+      return;
+    }
+    try {
+      await updateExperience(exp.id, { category });
+      toast.success(`${category || UNCATEGORIZED}(으)로 분류했어요`);
+    } catch (error) {
+      console.error('활동 유형 저장 실패:', error);
+      toast.error('활동 유형을 저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setCategorySavingId(null);
+    }
+  }, [categorySavingId, updateExperience]);
+
   /* ── 타임라인 바 삭제 ── */
   const handleTimelineDelete = useCallback(async (exp, e) => {
     e.stopPropagation();
@@ -438,6 +465,29 @@ export default function ExperienceHub() {
     return [...years].sort((a, b) => b - a);
   }, [datedExperiences]);
 
+  const visibleTimelineCategories = useMemo(() => {
+    if (!ganttData) return [];
+    const visible = new Set(ganttData.items.map(({ exp }) => readCategory(exp)));
+    return [...EXPERIENCE_CATEGORIES, UNCATEGORIZED].filter(category => visible.has(category));
+  }, [ganttData]);
+
+  const timelineItems = useMemo(() => {
+    if (!ganttData) return [];
+    if (!timelineCategoryFilter) return ganttData.items;
+    return ganttData.items.filter(({ exp }) => readCategory(exp) === timelineCategoryFilter);
+  }, [ganttData, timelineCategoryFilter]);
+
+  const filteredUndatedExperiences = useMemo(() => {
+    if (!timelineCategoryFilter) return undatedExperiences;
+    return undatedExperiences.filter(exp => readCategory(exp) === timelineCategoryFilter);
+  }, [timelineCategoryFilter, undatedExperiences]);
+
+  useEffect(() => {
+    if (timelineCategoryFilter && !visibleTimelineCategories.includes(timelineCategoryFilter)) {
+      setTimelineCategoryFilter('');
+    }
+  }, [timelineCategoryFilter, visibleTimelineCategories]);
+
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
   const headerSummary = useMemo(() => {
     if (displayExperiences.length === 0) {
@@ -445,7 +495,7 @@ export default function ExperienceHub() {
     }
     if (viewMode === 'timeline') {
       return {
-        count: ganttData?.items.length ?? 0,
+        count: timelineItems.length,
         suffix: `개의 경험이 ${selectedYear}년 타임라인에 표시되어 있어요`,
       };
     }
@@ -459,7 +509,7 @@ export default function ExperienceHub() {
       count: displayExperiences.length,
       suffix: '개의 경험이 목록에 정리되어 있어요',
     };
-  }, [displayExperiences.length, ganttData?.items.length, selectedYear, viewMode]);
+  }, [displayExperiences.length, selectedYear, timelineItems.length, viewMode]);
 
   const experienceTutorialSteps = useMemo(() => [
     {
@@ -823,7 +873,7 @@ export default function ExperienceHub() {
                   <span className="h-3.5 w-1 rounded-full bg-primary-600" />
                   <span className="text-[15px] font-bold text-bluewood-800">경험 타임라인</span>
                   <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
-                    {ganttData.items.length}개
+                    {timelineItems.length}개
                   </span>
                 </div>
                 {/* 팔레트 선택 */}
@@ -848,6 +898,41 @@ export default function ExperienceHub() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-6 py-3">
+                <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-gray-300">활동 유형</span>
+                <button
+                  type="button"
+                  onClick={() => setTimelineCategoryFilter('')}
+                  aria-pressed={!timelineCategoryFilter}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                    !timelineCategoryFilter
+                      ? 'border-primary-300 bg-primary-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-400 hover:border-primary-200 hover:text-primary-600'
+                  }`}
+                >
+                  전체 {ganttData.items.length}
+                </button>
+                {visibleTimelineCategories.map(category => {
+                  const active = timelineCategoryFilter === category;
+                  const count = ganttData.items.filter(({ exp }) => readCategory(exp) === category).length;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setTimelineCategoryFilter(active ? '' : category)}
+                      aria-pressed={active}
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                        active
+                          ? 'border-primary-300 bg-primary-50 text-primary-700 ring-2 ring-primary-100'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-primary-200 hover:text-primary-600'
+                      }`}
+                    >
+                      {category} {count}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* 간트 본체 */}
               <div ref={timelineRef} className="overflow-x-auto">
                 <div style={{ minWidth: '840px' }}>
@@ -862,7 +947,7 @@ export default function ExperienceHub() {
                     </div>
 
                     {/* 바 렌더 영역 */}
-                    <div className="relative" style={{ minHeight: `${ganttData.items.length * 56 + 40}px` }}>
+                    <div className="relative" style={{ minHeight: `${Math.max(timelineItems.length, 1) * 56 + 40}px` }}>
                       {/* 수직 격자선 */}
                       <div className="absolute inset-0 flex pointer-events-none">
                         {ganttData.months.map((m, i) => (
@@ -871,7 +956,7 @@ export default function ExperienceHub() {
                       </div>
 
                       {/* 간트 바 */}
-                      {ganttData.items.map(({ exp, start, end }, idx) => {
+                      {timelineItems.map(({ exp, start, end }, idx) => {
                         const theme = COLOR_PALETTES[colorPalette][idx % 3];
                         const clampedStart = new Date(Math.max(start.getTime(), ganttData.globalStart.getTime()));
                         const clampedEnd = new Date(Math.min(end.getTime(), ganttData.globalEnd.getTime()));
@@ -964,7 +1049,25 @@ export default function ExperienceHub() {
                                     if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                                   }}
                                 >
-                                  <span className={`text-[15px] font-semibold ${theme.barText} truncate block pr-12`}>
+                                  <span className="mb-1 flex items-center">
+                                    <select
+                                      value={readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp)}
+                                      onMouseDown={() => setHoveredBar(null)}
+                                      onClick={e => e.stopPropagation()}
+                                      onDoubleClick={e => e.stopPropagation()}
+                                      onChange={e => updateTimelineCategory(exp, e.target.value, e)}
+                                      disabled={categorySavingId === exp.id}
+                                      aria-label={`${stripMd(exp.title)} 활동 유형 변경`}
+                                      title="클릭해서 활동 유형 변경"
+                                      className="max-w-[calc(100%-28px)] cursor-pointer appearance-none truncate rounded border-0 bg-white/90 px-1.5 py-0.5 text-[9px] font-extrabold text-gray-600 outline-none disabled:cursor-wait disabled:opacity-60"
+                                    >
+                                      <option value="">{UNCATEGORIZED}</option>
+                                      {EXPERIENCE_CATEGORIES.map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                      ))}
+                                    </select>
+                                  </span>
+                                  <span className={`text-[13px] font-semibold ${theme.barText} truncate block pr-12`}>
                                     {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
                                     {stripMd(exp.title)}
                                   </span>
@@ -991,6 +1094,13 @@ export default function ExperienceHub() {
                           </div>
                         );
                       })}
+                      {timelineItems.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <p className="rounded-lg bg-white/90 px-4 py-2 text-[12px] font-semibold text-gray-400">
+                            {timelineCategoryFilter} 유형의 경험이 {selectedYear}년에는 없어요.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -999,18 +1109,18 @@ export default function ExperienceHub() {
           )}
 
           {/* ═══ 날짜 미입력 경험 — 기간 입력 시 타임라인에 자동 편입 ═══ */}
-          {viewMode === 'timeline' && undatedExperiences.length > 0 && (
+          {viewMode === 'timeline' && filteredUndatedExperiences.length > 0 && (
             <div className="mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
               <div className="px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
                 <span className="h-3.5 w-1 rounded-full bg-primary-600" />
                 <span className="text-[15px] font-bold text-bluewood-800">날짜 미입력 경험</span>
                 <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
-                  {undatedExperiences.length}개
+                  {filteredUndatedExperiences.length}개
                 </span>
                 <span className="text-[13px] text-gray-400">기간을 입력하면 타임라인에 자동으로 들어가요</span>
               </div>
               <div className="divide-y divide-gray-100">
-                {undatedExperiences.map(exp => (
+                {filteredUndatedExperiences.map(exp => (
                   <UndatedExperienceCard key={exp.id} exp={exp} onAdd={handleAddPeriod} />
                 ))}
               </div>
