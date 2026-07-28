@@ -43,6 +43,7 @@ const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioP
 const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
+const Resultt               = lazy(() => import('./pages/Resultt'));
 
 function PageLoader() {
   return (
@@ -93,6 +94,7 @@ const router = createBrowserRouter(
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
+      <Route path="/resultt" element={<Resultt />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
