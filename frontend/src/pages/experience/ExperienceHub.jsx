@@ -14,7 +14,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
-import useExperienceStore from '../../stores/experienceStore';
+import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
 import ImportModal from '../../components/ImportModal';
 import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
@@ -31,6 +31,15 @@ import {
 } from '../../constants/competencies';
 import { recommendJobFamilies, recommendByWorkStyle } from '../../constants/jobFamilies';
 import { SKILL_ICONS, matchSkillIcon } from '../../constants/skillIcons';
+
+/* 직무 유형 라벨 — experienceStore의 직군 목록에서 괄호 설명을 뗀 이름 */
+const JOB_CATEGORY_LABELS = Object.fromEntries(
+  JOB_CATEGORIES.flatMap(group => group.items.map(item => [item.value, item.label.replace(/\s*\(.+\)$/, '')])),
+);
+function readJobCategoryLabel(exp) {
+  const key = exp?.jobCategory || exp?.structuredResult?.jobCategory || 'common';
+  return JOB_CATEGORY_LABELS[key] || '공통';
+}
 
 /* 경험에서 표준 태그 읽기 (top-level 우선, 없으면 structuredResult) */
 function readCompetencyTags(exp) {
@@ -210,6 +219,8 @@ export default function ExperienceHub() {
   const [editCategory, setEditCategory] = useState(''); // 경험 유형(폴더)
   const [compFilter, setCompFilter] = useState('');  // 목록 직무역량 필터
   const [activeFolder, setActiveFolder] = useState('all'); // 목록 좌측 폴더 선택
+  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState('');
+  const [categorySavingId, setCategorySavingId] = useState(null);
 
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'table'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -344,6 +355,31 @@ export default function ExperienceHub() {
     setEditingId(null);
   };
 
+  const updateTimelineCategory = useCallback(async (exp, nextCategory, e) => {
+    e?.stopPropagation();
+    const category = nextCategory || '';
+    const current = readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp);
+    if (category === current || categorySavingId === exp.id) return;
+
+    setHoveredBar(null);
+    setCategorySavingId(exp.id);
+    if (exp.isTutorialDemo) {
+      setTutorialDemoExperience(prev => prev ? { ...prev, category } : prev);
+      setCategorySavingId(null);
+      toast.success(`${category || UNCATEGORIZED}(으)로 분류했어요`);
+      return;
+    }
+    try {
+      await updateExperience(exp.id, { category });
+      toast.success(`${category || UNCATEGORIZED}(으)로 분류했어요`);
+    } catch (error) {
+      console.error('활동 유형 저장 실패:', error);
+      toast.error('활동 유형을 저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setCategorySavingId(null);
+    }
+  }, [categorySavingId, updateExperience]);
+
   /* ── 타임라인 바 삭제 ── */
   const handleTimelineDelete = useCallback(async (exp, e) => {
     e.stopPropagation();
@@ -438,6 +474,29 @@ export default function ExperienceHub() {
     return [...years].sort((a, b) => b - a);
   }, [datedExperiences]);
 
+  const visibleTimelineCategories = useMemo(() => {
+    if (!ganttData) return [];
+    const visible = new Set(ganttData.items.map(({ exp }) => readCategory(exp)));
+    return [...EXPERIENCE_CATEGORIES, UNCATEGORIZED].filter(category => visible.has(category));
+  }, [ganttData]);
+
+  const timelineItems = useMemo(() => {
+    if (!ganttData) return [];
+    if (!timelineCategoryFilter) return ganttData.items;
+    return ganttData.items.filter(({ exp }) => readCategory(exp) === timelineCategoryFilter);
+  }, [ganttData, timelineCategoryFilter]);
+
+  const filteredUndatedExperiences = useMemo(() => {
+    if (!timelineCategoryFilter) return undatedExperiences;
+    return undatedExperiences.filter(exp => readCategory(exp) === timelineCategoryFilter);
+  }, [timelineCategoryFilter, undatedExperiences]);
+
+  useEffect(() => {
+    if (timelineCategoryFilter && !visibleTimelineCategories.includes(timelineCategoryFilter)) {
+      setTimelineCategoryFilter('');
+    }
+  }, [timelineCategoryFilter, visibleTimelineCategories]);
+
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || '정렬';
   const headerSummary = useMemo(() => {
     if (displayExperiences.length === 0) {
@@ -445,7 +504,7 @@ export default function ExperienceHub() {
     }
     if (viewMode === 'timeline') {
       return {
-        count: ganttData?.items.length ?? 0,
+        count: timelineItems.length,
         suffix: `개의 경험이 ${selectedYear}년 타임라인에 표시되어 있어요`,
       };
     }
@@ -459,7 +518,7 @@ export default function ExperienceHub() {
       count: displayExperiences.length,
       suffix: '개의 경험이 목록에 정리되어 있어요',
     };
-  }, [displayExperiences.length, ganttData?.items.length, selectedYear, viewMode]);
+  }, [displayExperiences.length, selectedYear, timelineItems.length, viewMode]);
 
   const experienceTutorialSteps = useMemo(() => [
     {
@@ -823,7 +882,7 @@ export default function ExperienceHub() {
                   <span className="h-3.5 w-1 rounded-full bg-primary-600" />
                   <span className="text-[15px] font-bold text-bluewood-800">경험 타임라인</span>
                   <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
-                    {ganttData.items.length}개
+                    {timelineItems.length}개
                   </span>
                 </div>
                 {/* 팔레트 선택 */}
@@ -848,6 +907,41 @@ export default function ExperienceHub() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white px-6 py-3">
+                <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-gray-300">활동 유형</span>
+                <button
+                  type="button"
+                  onClick={() => setTimelineCategoryFilter('')}
+                  aria-pressed={!timelineCategoryFilter}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                    !timelineCategoryFilter
+                      ? 'border-primary-300 bg-primary-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-400 hover:border-primary-200 hover:text-primary-600'
+                  }`}
+                >
+                  전체 {ganttData.items.length}
+                </button>
+                {visibleTimelineCategories.map(category => {
+                  const active = timelineCategoryFilter === category;
+                  const count = ganttData.items.filter(({ exp }) => readCategory(exp) === category).length;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setTimelineCategoryFilter(active ? '' : category)}
+                      aria-pressed={active}
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition ${
+                        active
+                          ? 'border-primary-300 bg-primary-50 text-primary-700 ring-2 ring-primary-100'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-primary-200 hover:text-primary-600'
+                      }`}
+                    >
+                      {category} {count}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* 간트 본체 */}
               <div ref={timelineRef} className="overflow-x-auto">
                 <div style={{ minWidth: '840px' }}>
@@ -862,7 +956,7 @@ export default function ExperienceHub() {
                     </div>
 
                     {/* 바 렌더 영역 */}
-                    <div className="relative" style={{ minHeight: `${ganttData.items.length * 56 + 40}px` }}>
+                    <div className="relative" style={{ minHeight: `${Math.max(timelineItems.length, 1) * 56 + 40}px` }}>
                       {/* 수직 격자선 */}
                       <div className="absolute inset-0 flex pointer-events-none">
                         {ganttData.months.map((m, i) => (
@@ -871,7 +965,7 @@ export default function ExperienceHub() {
                       </div>
 
                       {/* 간트 바 */}
-                      {ganttData.items.map(({ exp, start, end }, idx) => {
+                      {timelineItems.map(({ exp, start, end }, idx) => {
                         const theme = COLOR_PALETTES[colorPalette][idx % 3];
                         const clampedStart = new Date(Math.max(start.getTime(), ganttData.globalStart.getTime()));
                         const clampedEnd = new Date(Math.min(end.getTime(), ganttData.globalEnd.getTime()));
@@ -964,7 +1058,31 @@ export default function ExperienceHub() {
                                     if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                                   }}
                                 >
-                                  <span className={`text-[15px] font-semibold ${theme.barText} truncate block pr-12`}>
+                                  <span className="mb-1 flex items-center gap-1.5 min-w-0">
+                                    <select
+                                      value={readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp)}
+                                      onMouseDown={() => setHoveredBar(null)}
+                                      onClick={e => e.stopPropagation()}
+                                      onDoubleClick={e => e.stopPropagation()}
+                                      onChange={e => updateTimelineCategory(exp, e.target.value, e)}
+                                      disabled={categorySavingId === exp.id}
+                                      aria-label={`${stripMd(exp.title)} 활동 유형 변경`}
+                                      title="클릭해서 활동 유형 변경"
+                                      className="min-w-0 cursor-pointer appearance-none truncate rounded border-0 bg-white/90 px-1.5 py-0.5 text-[9px] font-extrabold text-gray-600 outline-none disabled:cursor-wait disabled:opacity-60"
+                                    >
+                                      <option value="">{UNCATEGORIZED}</option>
+                                      {EXPERIENCE_CATEGORIES.map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                      ))}
+                                    </select>
+                                    <span
+                                      className="max-w-[45%] shrink-0 truncate rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700"
+                                      title={`직무 · ${readJobCategoryLabel(exp)}`}
+                                    >
+                                      {readJobCategoryLabel(exp)}
+                                    </span>
+                                  </span>
+                                  <span className={`text-[13px] font-semibold ${theme.barText} truncate block pr-12`}>
                                     {favorites.has(exp.id) && <Star size={10} className="inline mr-1 fill-current text-yellow-400" />}
                                     {stripMd(exp.title)}
                                   </span>
@@ -991,6 +1109,13 @@ export default function ExperienceHub() {
                           </div>
                         );
                       })}
+                      {timelineItems.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <p className="rounded-lg bg-white/90 px-4 py-2 text-[12px] font-semibold text-gray-400">
+                            {timelineCategoryFilter} 유형의 경험이 {selectedYear}년에는 없어요.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -999,18 +1124,18 @@ export default function ExperienceHub() {
           )}
 
           {/* ═══ 날짜 미입력 경험 — 기간 입력 시 타임라인에 자동 편입 ═══ */}
-          {viewMode === 'timeline' && undatedExperiences.length > 0 && (
+          {viewMode === 'timeline' && filteredUndatedExperiences.length > 0 && (
             <div className="mt-6 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
               <div className="px-6 py-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 bg-gray-50/50">
                 <span className="h-3.5 w-1 rounded-full bg-primary-600" />
                 <span className="text-[15px] font-bold text-bluewood-800">날짜 미입력 경험</span>
                 <span className="text-[12px] font-bold text-bluewood-400 bg-white border border-surface-200 rounded-md px-2 py-1">
-                  {undatedExperiences.length}개
+                  {filteredUndatedExperiences.length}개
                 </span>
                 <span className="text-[13px] text-gray-400">기간을 입력하면 타임라인에 자동으로 들어가요</span>
               </div>
               <div className="divide-y divide-gray-100">
-                {undatedExperiences.map(exp => (
+                {filteredUndatedExperiences.map(exp => (
                   <UndatedExperienceCard key={exp.id} exp={exp} onAdd={handleAddPeriod} />
                 ))}
               </div>
@@ -1228,7 +1353,7 @@ function joinProfileParts(parts) {
 
 function ProfileResumeSection({ title, children }) {
   return (
-    <section className="grid gap-5 border-t border-gray-300 py-9 md:grid-cols-[150px_1fr]">
+    <section className="grid min-w-0 gap-5 border-t border-gray-300 py-9 md:grid-cols-[150px_minmax(0,1fr)]">
       <h3 className="text-[20px] font-extrabold text-primary-600">{title}</h3>
       <div className="min-w-0">{children}</div>
     </section>
@@ -1242,13 +1367,107 @@ function ProfileRows({ rows, emptyText = '입력된 내용이 없습니다' }) {
   return (
     <div className="space-y-4">
       {rows.map((row, index) => (
-        <div key={`${row.label || row.date || row.value}-${index}`} className="grid gap-2 sm:grid-cols-[120px_1fr]">
-          <p className="text-[16px] font-extrabold tabular-nums text-gray-900">{row.label || row.date || ''}</p>
-          <p className="text-[16px] font-medium leading-relaxed text-gray-800" style={{ wordBreak: 'keep-all' }}>{row.value}</p>
+        <div key={row.id || `${row.label || row.date || row.value}-${index}`} className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)] sm:gap-5">
+          <p className="min-w-0 whitespace-normal break-words text-[15px] font-extrabold tabular-nums leading-relaxed text-gray-900">{row.label || row.date || ''}</p>
+          <p className="min-w-0 text-[15px] font-medium leading-relaxed text-gray-800" style={{ overflowWrap: 'anywhere', wordBreak: 'keep-all' }}>{row.value}</p>
         </div>
       ))}
     </div>
   );
+}
+
+function EditableProfileRows({
+  rows,
+  onChange,
+  onAdd,
+  onRemove,
+  datePlaceholder = '기간',
+  valuePlaceholder = '내용',
+  addLabel = '항목 추가',
+}) {
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => (
+        <div key={row.id || index} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(170px,210px)_minmax(0,1fr)_32px]">
+          <input
+            value={row.date || ''}
+            onChange={e => onChange(index, 'date', e.target.value)}
+            placeholder={datePlaceholder}
+            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold tabular-nums text-gray-700 outline-none focus:border-primary-300"
+          />
+          <input
+            value={row.value || ''}
+            onChange={e => onChange(index, 'value', e.target.value)}
+            placeholder={valuePlaceholder}
+            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="flex h-9 w-8 items-center justify-center rounded-lg text-gray-300 hover:bg-red-50 hover:text-red-500"
+            aria-label={`${addLabel} 삭제`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-[12px] font-bold text-gray-400 hover:border-primary-300 hover:text-primary-600"
+      >
+        + {addLabel}
+      </button>
+    </div>
+  );
+}
+
+function createProfileRow(prefix = 'row') {
+  return {
+    id: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    date: '',
+    value: '',
+  };
+}
+
+function normalizeProfileRows(rows, prefix) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row, index) => ({
+    id: cleanProfileText(row?.id) || `${prefix}-${index}`,
+    date: cleanProfileText(row?.date),
+    value: cleanProfileText(row?.value),
+  }));
+}
+
+function seedEducationRows(profile) {
+  return (profile?.education || []).map((edu, index) => ({
+    id: `education-${index}`,
+    date: cleanProfileText(edu.period || edu.date),
+    value: joinProfileParts([edu.school || edu.name, edu.major, edu.degree || edu.detail]),
+  })).filter(row => row.date || row.value);
+}
+
+function seedCertificateRows(profile) {
+  return [
+    ...(profile?.languageScores || []).map((item, index) => ({
+      id: `language-${index}`,
+      date: cleanProfileText(item.date),
+      value: joinProfileParts([item.name, item.score]),
+    })),
+    ...(profile?.others || []).map((item, index) => ({
+      id: `certificate-${index}`,
+      date: '',
+      value: cleanProfileText(item),
+    })),
+  ].filter(row => row.date || row.value);
+}
+
+function seedAwardRows(profile) {
+  return (profile?.awards || []).map((item, index) => ({
+    id: `award-${index}`,
+    date: cleanProfileText(item.date),
+    value: joinProfileParts([item.title, item.organization]),
+  })).filter(row => row.date || row.value);
 }
 
 function ProfileView({ experiences, user, profile }) {
@@ -1298,13 +1517,59 @@ function ProfileView({ experiences, user, profile }) {
       oneLiner: saved?.oneLiner ?? (settingsIntro || draft.oneLiner),
       competencies: (saved?.competencies?.length ? saved.competencies : draft.competencies).slice(0, 3),
       hiddenIds: saved?.hiddenExperienceIds ?? [],   // 이력서에서 숨긴 경험
+      basic: {
+        name: saved?.basic?.name ?? (profile?.nameKo || user?.displayName || ''),
+        birthDate: saved?.basic?.birthDate ?? cleanProfileText(profile?.birthDate),
+        location: saved?.basic?.location ?? cleanProfileText(profile?.location),
+      },
+      educationRows: Array.isArray(saved?.educationRows)
+        ? normalizeProfileRows(saved.educationRows, 'education')
+        : seedEducationRows(profile),
+      certificateRows: Array.isArray(saved?.certificateRows)
+        ? normalizeProfileRows(saved.certificateRows, 'certificate')
+        : seedCertificateRows(profile),
+      awardRows: Array.isArray(saved?.awardRows)
+        ? normalizeProfileRows(saved.awardRows, 'award')
+        : seedAwardRows(profile),
+      activityOverrides: saved?.activityOverrides && typeof saved.activityOverrides === 'object'
+        ? saved.activityOverrides
+        : {},
       software: saved?.software ?? draft.skills        // 아이콘 있는 실제 소프트웨어만 시드(거짓·무아이콘 제외)
         .map(s => ({ name: s.name, icon: matchSkillIcon(s.name), level: Math.min(5, Math.max(2, s.count + 1)) }))
         .filter(s => s.icon),
     });
-  }, [loaded, form, saved, draft, settingsIntro]);
+  }, [loaded, form, saved, draft, settingsIntro, profile, user?.displayName]);
 
   const updateOneLiner = (v) => { setForm(f => ({ ...f, oneLiner: v })); setDirty(true); };
+  const updateBasic = (field, value) => {
+    setForm(f => ({ ...f, basic: { ...(f.basic || {}), [field]: value } }));
+    setDirty(true);
+  };
+  const updateProfileRow = (field, index, key, value) => {
+    setForm(f => ({
+      ...f,
+      [field]: (f[field] || []).map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row),
+    }));
+    setDirty(true);
+  };
+  const addProfileRow = (field, prefix) => {
+    setForm(f => ({ ...f, [field]: [...(f[field] || []), createProfileRow(prefix)] }));
+    setDirty(true);
+  };
+  const removeProfileRow = (field, index) => {
+    setForm(f => ({ ...f, [field]: (f[field] || []).filter((_, rowIndex) => rowIndex !== index) }));
+    setDirty(true);
+  };
+  const updateActivityOverride = (id, field, value) => {
+    setForm(f => ({
+      ...f,
+      activityOverrides: {
+        ...(f.activityOverrides || {}),
+        [id]: { ...(f.activityOverrides?.[id] || {}), [field]: value },
+      },
+    }));
+    setDirty(true);
+  };
   const updateComp = (i, field, v) => {
     setForm(f => ({ ...f, competencies: f.competencies.map((c, idx) => idx === i ? { ...c, [field]: v } : c) }));
     setDirty(true);
@@ -1332,7 +1597,21 @@ function ProfileView({ experiences, user, profile }) {
   const setSoftwareIcon = (i, icon) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, icon } : s) })); setDirty(true); setIconPickerFor(null); };
   const setSoftwareLevel = (i, level) => { setForm(f => ({ ...f, software: f.software.map((s, j) => j === i ? { ...s, level } : s) })); setDirty(true); };
   const resetToDraft = () => {
-    setForm({ oneLiner: settingsIntro || draft.oneLiner, competencies: draft.competencies.slice(0, 3), hiddenIds: [], software: seedSoftware() });
+    setForm({
+      oneLiner: settingsIntro || draft.oneLiner,
+      competencies: draft.competencies.slice(0, 3),
+      hiddenIds: [],
+      basic: {
+        name: profile?.nameKo || user?.displayName || '',
+        birthDate: cleanProfileText(profile?.birthDate),
+        location: cleanProfileText(profile?.location),
+      },
+      educationRows: seedEducationRows(profile),
+      certificateRows: seedCertificateRows(profile),
+      awardRows: seedAwardRows(profile),
+      activityOverrides: {},
+      software: seedSoftware(),
+    });
     setDirty(true);
   };
   const save = async () => {
@@ -1343,6 +1622,20 @@ function ProfileView({ experiences, user, profile }) {
         oneLiner: form.oneLiner || '',
         competencies: form.competencies || [],
         hiddenExperienceIds: form.hiddenIds || [],
+        basic: {
+          name: cleanProfileText(form.basic?.name),
+          birthDate: cleanProfileText(form.basic?.birthDate),
+          location: cleanProfileText(form.basic?.location),
+        },
+        educationRows: normalizeProfileRows(form.educationRows, 'education'),
+        certificateRows: normalizeProfileRows(form.certificateRows, 'certificate'),
+        awardRows: normalizeProfileRows(form.awardRows, 'award'),
+        activityOverrides: Object.fromEntries(
+          Object.entries(form.activityOverrides || {}).map(([id, value]) => [id, {
+            date: cleanProfileText(value?.date),
+            value: cleanProfileText(value?.value),
+          }]),
+        ),
         software: form.software || [],
         updatedAt: new Date().toISOString(),
       };
@@ -1367,12 +1660,12 @@ function ProfileView({ experiences, user, profile }) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" /></div>;
   }
 
-  const name = profile?.nameKo || user?.displayName || '이름';
+  const name = cleanProfileText(form.basic?.name) || profile?.nameKo || user?.displayName || '이름';
   const email = user?.email || profile?.email || '';
   const competencies = form.competencies || [];
   const subtitle = competencies.map(c => c.keyword).filter(Boolean).slice(0, 3).join(' · ');
   const hiddenSet = new Set(form.hiddenIds || []);
-  const visibleItems = editing ? careerItems : careerItems.filter(({ exp }) => !hiddenSet.has(exp.id));
+  const visibleItems = careerItems.filter(({ exp }) => !hiddenSet.has(exp.id));
   const contact = profile?.contact || {};
   const primaryContact = [
     { label: 'PHONE', value: profile?.phone },
@@ -1381,34 +1674,26 @@ function ProfileView({ experiences, user, profile }) {
   ].filter(item => cleanProfileText(item.value));
   const basicRows = [
     { label: '이름', value: name },
-    { label: '생년월일', value: profile?.birthDate },
-    { label: '주소', value: profile?.location },
+    { label: '생년월일', value: form.basic?.birthDate },
+    { label: '주소', value: form.basic?.location },
   ].filter(row => cleanProfileText(row.value));
-  const educationRows = (profile?.education || [])
-    .map(edu => ({
-      date: cleanProfileText(edu.period || edu.date),
-      value: joinProfileParts([edu.school || edu.name, edu.major, edu.degree || edu.detail]),
-    }))
-    .filter(row => row.value);
-  const certificateRows = [
-    ...(profile?.languageScores || []).map(item => ({
-      date: cleanProfileText(item.date),
-      value: joinProfileParts([item.name, item.score]),
-    })),
-    ...(profile?.others || []).map(item => ({ date: '', value: cleanProfileText(item) })),
-  ].filter(row => row.value);
+  const educationRows = normalizeProfileRows(form.educationRows, 'education').filter(row => row.date || row.value);
+  const certificateRows = normalizeProfileRows(form.certificateRows, 'certificate').filter(row => row.date || row.value);
+  const experienceActivityRows = visibleItems.slice(0, 4).map(({ exp, start, end }) => {
+    const defaultDate = start.getFullYear() === end.getFullYear()
+      ? `${start.getFullYear()}`
+      : `${start.getFullYear()} - ${end.getFullYear()}`;
+    const override = form.activityOverrides?.[exp.id] || {};
+    return {
+      id: `experience-${exp.id}`,
+      date: override.date ?? defaultDate,
+      value: override.value ?? cleanProfileText(exp.title),
+    };
+  });
   const activityRows = [
-    ...(profile?.awards || []).map(item => ({
-      date: cleanProfileText(item.date),
-      value: joinProfileParts([item.title, item.organization]),
-    })),
-    ...visibleItems.slice(0, 4).map(({ exp, start, end }) => {
-      const yr = start.getFullYear() === end.getFullYear()
-        ? `${start.getFullYear()}`
-        : `${start.getFullYear()} - ${end.getFullYear()}`;
-      return { date: yr, value: cleanProfileText(exp.title) };
-    }),
-  ].filter(row => row.value);
+    ...normalizeProfileRows(form.awardRows, 'award'),
+    ...experienceActivityRows,
+  ].filter(row => row.date || row.value);
   const introText = form.oneLiner || settingsIntro || (subtitle ? `${subtitle}을 중심으로 경험을 쌓아온 ${name}입니다.` : `${name}님의 경험을 바탕으로 정리한 프로필입니다.`);
   const software = form.software || [];
   // 헤드라인 조립 — 이름 포함 여부·문장 종결에 따라 줄바꿈/조사가 깨지지 않게 처리
@@ -1493,39 +1778,127 @@ function ProfileView({ experiences, user, profile }) {
           </div>
         </div>
 
-        <div className="md:pl-[230px]">
+        <div className="lg:pl-[230px]">
           <ProfileResumeSection title="기본 사항">
-            <ProfileRows rows={basicRows} />
+            {editing ? (
+              <div className="space-y-3">
+                {[
+                  { field: 'name', label: '이름', placeholder: '이름' },
+                  { field: 'birthDate', label: '생년월일', placeholder: '예: 2002.05.05' },
+                  { field: 'location', label: '주소', placeholder: '주소' },
+                ].map(item => (
+                  <label key={item.field} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(170px,210px)_minmax(0,1fr)] sm:items-center">
+                    <span className="text-[13px] font-extrabold text-gray-700">{item.label}</span>
+                    <input
+                      value={form.basic?.[item.field] || ''}
+                      onChange={e => updateBasic(item.field, e.target.value)}
+                      placeholder={item.placeholder}
+                      className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <ProfileRows rows={basicRows} />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="학력 사항">
-            <ProfileRows rows={educationRows} emptyText="학력 정보가 없습니다" />
+            {editing ? (
+              <EditableProfileRows
+                rows={form.educationRows || []}
+                onChange={(index, field, value) => updateProfileRow('educationRows', index, field, value)}
+                onAdd={() => addProfileRow('educationRows', 'education')}
+                onRemove={index => removeProfileRow('educationRows', index)}
+                datePlaceholder="재학 기간"
+                valuePlaceholder="학교·전공·학위"
+                addLabel="학력 추가"
+              />
+            ) : (
+              <ProfileRows rows={educationRows} emptyText="학력 정보가 없습니다" />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="자격 사항">
-            <ProfileRows rows={certificateRows} emptyText="자격/어학 정보가 없습니다" />
+            {editing ? (
+              <EditableProfileRows
+                rows={form.certificateRows || []}
+                onChange={(index, field, value) => updateProfileRow('certificateRows', index, field, value)}
+                onAdd={() => addProfileRow('certificateRows', 'certificate')}
+                onRemove={index => removeProfileRow('certificateRows', index)}
+                datePlaceholder="취득일"
+                valuePlaceholder="자격증·어학명과 점수"
+                addLabel="자격 추가"
+              />
+            ) : (
+              <ProfileRows rows={certificateRows} emptyText="자격/어학 정보가 없습니다" />
+            )}
           </ProfileResumeSection>
 
           <ProfileResumeSection title="활동 및 수상">
-            <ProfileRows rows={activityRows} emptyText="활동 또는 수상 정보가 없습니다" />
-            {editing && (
-              <div className="mt-5 grid gap-2">
-                {visibleItems.slice(0, 8).map(({ exp }) => {
-                  const hidden = hiddenSet.has(exp.id);
-                  return (
-                    <button
-                      key={exp.id}
-                      type="button"
-                      onClick={() => toggleHidden(exp.id)}
-                      className={`rounded-lg border px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
-                        hidden ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500'
-                      }`}
-                    >
-                      {hidden ? '표시하기 · ' : '숨기기 · '}{cleanProfileText(exp.title)}
-                    </button>
-                  );
-                })}
+            {editing ? (
+              <div className="space-y-6">
+                <div>
+                  <p className="mb-2 text-[12px] font-extrabold text-gray-500">직접 입력한 활동·수상</p>
+                  <EditableProfileRows
+                    rows={form.awardRows || []}
+                    onChange={(index, field, value) => updateProfileRow('awardRows', index, field, value)}
+                    onAdd={() => addProfileRow('awardRows', 'award')}
+                    onRemove={index => removeProfileRow('awardRows', index)}
+                    datePlaceholder="활동 기간"
+                    valuePlaceholder="활동·수상 내용"
+                    addLabel="활동·수상 추가"
+                  />
+                </div>
+
+                {careerItems.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[12px] font-extrabold text-gray-500">경험에서 가져온 항목</p>
+                    <div className="space-y-3">
+                    {careerItems.slice(0, 8).map(({ exp, start, end }) => {
+                      const defaultDate = start.getFullYear() === end.getFullYear()
+                        ? `${start.getFullYear()}`
+                        : `${start.getFullYear()} - ${end.getFullYear()}`;
+                      const override = form.activityOverrides?.[exp.id] || {};
+                      const hidden = hiddenSet.has(exp.id);
+                      return (
+                        <div key={exp.id} className={`grid min-w-0 gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(150px,190px)_minmax(0,1fr)_auto] ${
+                          hidden ? 'border-gray-200 bg-gray-50 opacity-65' : 'border-primary-100 bg-primary-50/30'
+                        }`}>
+                          <input
+                            value={override.date ?? defaultDate}
+                            onChange={e => updateActivityOverride(exp.id, 'date', e.target.value)}
+                            disabled={hidden}
+                            aria-label={`${cleanProfileText(exp.title)} 기간`}
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold tabular-nums text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100"
+                          />
+                          <input
+                            value={override.value ?? cleanProfileText(exp.title)}
+                            onChange={e => updateActivityOverride(exp.id, 'value', e.target.value)}
+                            disabled={hidden}
+                            aria-label={`${cleanProfileText(exp.title)} 내용`}
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 outline-none focus:border-primary-300 disabled:bg-gray-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleHidden(exp.id)}
+                            className={`rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
+                              hidden
+                                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                                : 'border border-gray-200 bg-white text-gray-500 hover:border-red-200 hover:text-red-500'
+                            }`}
+                          >
+                            {hidden ? '표시' : '숨김'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
+              <ProfileRows rows={activityRows} emptyText="활동 또는 수상 정보가 없습니다" />
             )}
           </ProfileResumeSection>
 

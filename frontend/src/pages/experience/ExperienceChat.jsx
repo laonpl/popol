@@ -1944,24 +1944,28 @@ export default function ExperienceChat() {
           try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('targetType', 'experience');
+            // 원문 수집 뒤 별도의 핵심 경험 추출을 실행하므로 중복 AI 구조화는 요청하지 않는다.
             const data = await importFileUpload(formData);
             const content = data?.imported?.content || '';
             extractedText = content.trim() ? `\n\n--- ${file.name} ---\n${content.trim()}` : '';
-          } catch {
-            toast.error(`${file.name} 분석에 실패해 건너뛰었어요`);
+          } catch (importError) {
+            toast.error(importError?.isImportTimeout
+              ? `${file.name}: ${importError.message}`
+              : `${file.name} 분석에 실패해 건너뛰었어요`);
           }
           try {
-            const uploaded = await uploadDocumentFile(file);
-            collectedDeliverables.push({
-              id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
-              kind: 'file',
-              name: uploaded.name || file.name,
-              url: uploaded.url,
-              filename: uploaded.filename,
-              size: uploaded.size || file.size,
-              ext: String(file.name || '').split('.').pop().toLowerCase(),
-            });
+            const uploaded = await uploadDocumentFile(file, { optional: true });
+            if (!uploaded.skipped) {
+              collectedDeliverables.push({
+                id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
+                kind: 'file',
+                name: uploaded.name || file.name,
+                url: uploaded.url,
+                filename: uploaded.filename,
+                size: uploaded.size || file.size,
+                ext: String(file.name || '').split('.').pop().toLowerCase(),
+              });
+            }
           } catch (uploadError) {
             toast.error(`'${file.name}' 파일은 분석했지만 산출물 저장에 실패했어요`);
           }

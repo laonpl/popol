@@ -765,26 +765,28 @@ export default function TemplateSelect() {
           try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('targetType', 'experience');
+            // 원문 수집 뒤 별도의 핵심 경험 추출을 실행하므로 중복 AI 구조화는 요청하지 않는다.
             const data = await importFileUpload(formData);
             if (data.imported?.content) {
               allText += `\n\n--- ${file.name} ---\n${data.imported.content}`;
             }
           } catch (err) {
             console.error(`${file.name} 임포트 실패:`, err);
-            toast.error(`${file.name} 처리 실패`);
+            toast.error(err?.isImportTimeout ? `${file.name}: ${err.message}` : `${file.name} 처리 실패`);
           }
           try {
-            const uploaded = await uploadDocumentFile(file);
-            collectedDeliverables.push({
-              id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
-              kind: 'file',
-              name: uploaded.name || file.name,
-              url: uploaded.url,
-              filename: uploaded.filename,
-              size: uploaded.size || file.size,
-              ext: String(file.name || '').split('.').pop().toLowerCase(),
-            });
+            const uploaded = await uploadDocumentFile(file, { optional: true });
+            if (!uploaded.skipped) {
+              collectedDeliverables.push({
+                id: `source-file-${Date.now()}-${collectedDeliverables.length}`,
+                kind: 'file',
+                name: uploaded.name || file.name,
+                url: uploaded.url,
+                filename: uploaded.filename,
+                size: uploaded.size || file.size,
+                ext: String(file.name || '').split('.').pop().toLowerCase(),
+              });
+            }
           } catch (uploadError) {
             toast.error(`'${file.name}' 파일은 분석했지만 산출물 저장에 실패했어요`);
           }

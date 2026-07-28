@@ -66,7 +66,15 @@ const uploadDoc = multer({
 });
 
 // POST /api/upload/document — 산출물 문서 파일을 Storage에 올리고 공개 URL 반환
-router.post('/document', authMiddleware, uploadDoc.single('file'), async (req, res) => {
+router.post('/document', authMiddleware, (req, res, next) => {
+  uploadDoc.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: '파일 크기가 25MB를 초과합니다' });
+    }
+    return res.status(400).json({ error: err.message || '파일 업로드에 실패했습니다' });
+  });
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다' });
 

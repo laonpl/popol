@@ -143,6 +143,9 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    features: {
+      documentUpload: true,
+    },
   });
 });
 
