@@ -1345,6 +1345,76 @@ function SlideImageLayer({ sectionKey, sectionImages, allImages, imageConfig, se
   );
 }
 
+function ArtifactEvidencePanel({ analysis }) {
+  const artifacts = Array.isArray(analysis?.detectedArtifacts) ? analysis.detectedArtifacts : [];
+  const ledger = Array.isArray(analysis?.evidenceLedger) ? analysis.evidenceLedger : [];
+  const candidates = Array.isArray(analysis?.experienceCandidates) ? analysis.experienceCandidates : [];
+  const conflicts = Array.isArray(analysis?.conflicts) ? analysis.conflicts : [];
+  if (!artifacts.length && !ledger.length && !candidates.length) return null;
+
+  const artifactById = Object.fromEntries(artifacts.map(item => [item.id, item]));
+  const clean = value => sanitizeTextValue(value || '').trim();
+
+  return (
+    <section className="mb-7 overflow-hidden rounded-xl border border-surface-200 bg-white">
+      <div className="border-b border-surface-200 bg-surface-50/70 px-5 py-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary-600">Artifact → Evidence → Experience</p>
+            <h2 className="mt-1 text-[17px] font-extrabold text-bluewood-900">자료 판독과 근거 장부</h2>
+          </div>
+          <p className="text-[12px] font-semibold text-bluewood-400">자료 {artifacts.length}개 · 주장 {ledger.length}개 · 경험 후보 {candidates.length}개</p>
+        </div>
+      </div>
+
+      {artifacts.length > 0 && (
+        <div className="border-b border-surface-100 px-5 py-4">
+          <p className="mb-2 text-[11px] font-bold text-bluewood-400">판독된 산출물</p>
+          <div className="flex flex-wrap gap-2">
+            {artifacts.slice(0, 12).map((item, index) => (
+              <div key={item.id || index} className="rounded-lg border border-surface-200 bg-white px-3 py-2">
+                <p className="text-[12.5px] font-bold text-bluewood-800">{clean(item.name) || item.id || `자료 ${index + 1}`}</p>
+                <p className="mt-0.5 text-[10.5px] text-bluewood-400">{[clean(item.kind), clean(item.stage), clean(item.authorRelation)].filter(Boolean).join(' · ')}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ledger.length > 0 && (
+        <div className="divide-y divide-surface-100">
+          {ledger.slice(0, 8).map((row, index) => {
+            const refs = (Array.isArray(row.artifactIds) ? row.artifactIds : [])
+              .map(id => clean(artifactById[id]?.name) || id)
+              .filter(Boolean);
+            return (
+              <div key={`${row.claim}-${index}`} className="grid gap-3 px-5 py-4 sm:grid-cols-[42px_minmax(0,1fr)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary-50 text-[13px] font-black text-primary-700">{clean(row.proofLevel) || '?'}</span>
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-extrabold leading-6 text-bluewood-900">{clean(row.claim)}</p>
+                  {clean(row.directObservation) && <p className="mt-1 text-[12.5px] leading-5 text-bluewood-600">{clean(row.directObservation)}</p>}
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px]">
+                    {refs.map(ref => <span key={ref} className="rounded bg-surface-100 px-2 py-1 font-semibold text-bluewood-500">{ref}</span>)}
+                    {clean(row.location) && <span className="rounded bg-surface-100 px-2 py-1 text-bluewood-400">{clean(row.location)}</span>}
+                    {clean(row.ownership) && <span className="rounded bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">기여: {clean(row.ownership)}</span>}
+                  </div>
+                  {clean(row.gap) && <p className="mt-2 text-[11.5px] text-amber-700">확인 필요 · {clean(row.gap)}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {conflicts.length > 0 && (
+        <div className="border-t border-amber-100 bg-amber-50/60 px-5 py-3 text-[11.5px] text-amber-800">
+          자료 간 불일치 {conflicts.length}건이 있어 최신 버전이나 원본 확인이 필요합니다.
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function StructuredResult() {
   const { id } = useParams();
   const { state: navState } = useLocation();
@@ -3124,6 +3194,8 @@ export default function StructuredResult() {
           })}
         </div>
       )}
+
+      {activeTab === 'story' && <ArtifactEvidencePanel analysis={structured.artifactAnalysis} />}
 
       {activeTab === 'story' && renderDetailSlides()}
 

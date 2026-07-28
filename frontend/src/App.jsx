@@ -38,6 +38,7 @@ const CreditSettings        = lazy(() => import('./pages/CreditSettings'));
 const FeedbackAdmin         = lazy(() => import('./pages/FeedbackAdmin'));
 const AdminCredits          = lazy(() => import('./pages/AdminCredits'));
 const TemplateLab           = lazy(() => import('./pages/portfolio/TemplateLab')); // 웹사이트형 템플릿 검토용
+const SampleOutput          = lazy(() => import('./pages/SampleOutput')); // 개선된 산출물 예시 확인용
 const WebPortfolioEditor    = lazy(() => import('./pages/portfolio/WebPortfolioEditor'));
 const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioPreview'));
 const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
@@ -95,6 +96,7 @@ const router = createBrowserRouter(
       <Route path="/eng" element={<DeveloperPitchDemo />} />
       <Route path="/demo" element={<Demo />} />
       <Route path="/resultt" element={<Resultt />} />
+      <Route path="/sample" element={<SampleOutput />} />
       <Route path="/p/:id" element={<PublicPortfolioView />} />
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />

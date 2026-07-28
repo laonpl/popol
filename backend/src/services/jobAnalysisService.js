@@ -2,6 +2,11 @@ import { generateWithRetry, callProFirst, callProFirstWithSearch, parseJSON } fr
 import {
   buildSingleSectionTailorPrompt,
   buildSingleCoverLetterAnswerPrompt,
+  buildExperienceCompositionPrompt,
+  COMPOSABLE_SOURCES,
+  ARTIFACT_VARIANTS,
+  ARTIFACT_BLOCKS,
+  ARTIFACT_TONES,
 } from '../prompts/portfolioPrompts.js';
 
 export { generateWithRetry };
@@ -1761,3 +1766,124 @@ export async function tailorPortfolioSections(jobAnalysis, sections) {
   };
 }
 
+
+// ============================================================
+// 경험 구성 계획 — 경험/직군/경력단계/기업분석을 종합해 "배치 설계도"를 만든다.
+// 실제 문장 생성이 아니라 어떤 블록을 어떤 순서·제목으로 놓을지만 결정한다.
+// 실패해도 사용자 흐름을 막지 않도록 결정론적 폴백 계획을 돌려준다.
+// ============================================================
+const NARRATIVES = new Set(['problem-first', 'outcome-first', 'decision-first', 'process-first', 'build-first']);
+const SOURCE_KEYS = new Set(COMPOSABLE_SOURCES.map(s => s.key));
+
+/** 직군·경력단계만으로 만드는 폴백 구성 (AI 실패 시에도 고정 7섹션으로 되돌아가지 않게) */
+function fallbackComposition(jobCategory = 'common', careerStage = 'first') {
+  const byJob = {
+    dev: ['product', 'jobSpecific', 'keyExperiences', 'decisionTrace', 'githubStats', 'honestReview'],
+    aiml: ['product', 'jobSpecific', 'keyExperiences', 'decisionTrace', 'honestReview'],
+    da: ['task', 'keyExperiences', 'decisionTrace', 'evidenceBundle', 'honestReview'],
+    devops: ['task', 'keyExperiences', 'decisionTrace', 'portfolioVisuals', 'honestReview'],
+    pm: ['product', 'leanCanvas', 'keyExperiences', 'decisionTrace', 'honestReview'],
+    designer: ['task', 'jobSpecific', 'keyExperiences', 'evidenceBundle', 'honestReview'],
+    marketer: ['task', 'marketerKit', 'keyExperiences', 'portfolioVisuals', 'honestReview'],
+    hr: ['task', 'keyExperiences', 'portfolioVisuals', 'honestReview'],
+    sales: ['output', 'keyExperiences', 'decisionTrace', 'honestReview'],
+    common: ['intro', 'task', 'process', 'output', 'keyExperiences', 'honestReview'],
+  };
+  const order = byJob[jobCategory] || byJob.common;
+  // 경력직은 성과를 앞으로, 첫 취업은 판단 과정을 앞으로
+  const sources = careerStage === 'experienced'
+    ? ['output', ...order.filter(k => k !== 'output')]
+    : order;
+  return {
+    narrative: careerStage === 'experienced' ? 'outcome-first' : 'problem-first',
+    artifactVariant: (ARTIFACT_VARIANTS[jobCategory] || [])[0]?.id || '',
+    artifactRecipe: null,
+    artifactReason: '',
+    narrativeReason: 'AI 구성 실패 — 직군·경력단계 기본 배치를 사용했습니다.',
+    headline: '',
+    sections: sources.map(source => ({ source, title: '', emphasis: 'normal', why: '' })),
+    keyExperienceOrder: [],
+    keyExperienceReason: '',
+    omitted: [],
+    jdAlignment: [],
+    _fallback: true,
+  };
+}
+
+/** 히어로 레시피 정규화 — 모르는 블록 타입·톤은 버린다 (프론트 렌더러가 아는 값만 통과) */
+const BLOCK_TYPES = new Set(ARTIFACT_BLOCKS.map(b => b.type));
+const TONES = new Set(ARTIFACT_TONES);
+function normalizeRecipe(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const seen = new Set();
+  const blocks = (Array.isArray(raw.blocks) ? raw.blocks : [])
+    .filter(b => b && BLOCK_TYPES.has(b.type) && !seen.has(b.type) && seen.add(b.type))
+    .slice(0, 3)
+    .map((b, i) => ({
+      type: b.type,
+      title: String(b.title || '').trim().slice(0, 40),
+      span: i === 0 ? 'main' : (b.span === 'main' ? 'main' : 'side'),
+    }));
+  if (blocks.length === 0) return null;
+  return {
+    kicker: String(raw.kicker || '').trim().slice(0, 40),
+    title: String(raw.title || '').trim().slice(0, 60),
+    badge: String(raw.badge || '').trim().slice(0, 20),
+    tone: TONES.has(raw.tone) ? raw.tone : 'navy',
+    blocks,
+  };
+}
+
+/** AI 응답을 렌더 가능한 형태로 정규화 — 모르는 source·중복은 버린다. */
+function normalizeComposition(raw, jobCategory, careerStage) {
+  if (!raw || typeof raw !== 'object') return fallbackComposition(jobCategory, careerStage);
+  const seen = new Set();
+  const sections = (Array.isArray(raw.sections) ? raw.sections : [])
+    .filter(s => s && SOURCE_KEYS.has(s.source) && !seen.has(s.source) && seen.add(s.source))
+    .slice(0, 8)
+    .map(s => ({
+      source: s.source,
+      title: String(s.title || '').trim().slice(0, 60),
+      emphasis: s.emphasis === 'high' ? 'high' : 'normal',
+      why: String(s.why || '').trim().slice(0, 200),
+    }));
+  if (sections.length === 0) return fallbackComposition(jobCategory, careerStage);
+  const allowedVariants = new Set((ARTIFACT_VARIANTS[jobCategory] || []).map(v => v.id));
+  const artifactVariant = allowedVariants.has(raw.artifactVariant) ? raw.artifactVariant : '';
+  // 전용 변형이 있는 직군은 그 변형을 쓰고, 없는 직군만 데이터 주도 레시피를 사용한다.
+  const artifactRecipe = artifactVariant ? null : normalizeRecipe(raw.artifactRecipe);
+  return {
+    artifactRecipe,
+    narrative: NARRATIVES.has(raw.narrative) ? raw.narrative : 'problem-first',
+    artifactVariant,
+    artifactReason: artifactVariant ? String(raw.artifactReason || '').slice(0, 200) : '',
+    narrativeReason: String(raw.narrativeReason || '').slice(0, 300),
+    headline: String(raw.headline || '').slice(0, 200),
+    sections,
+    keyExperienceOrder: (Array.isArray(raw.keyExperienceOrder) ? raw.keyExperienceOrder : [])
+      .map(Number).filter(n => Number.isInteger(n) && n >= 0).slice(0, 10),
+    keyExperienceReason: String(raw.keyExperienceReason || '').slice(0, 300),
+    omitted: (Array.isArray(raw.omitted) ? raw.omitted : []).slice(0, 8)
+      .map(o => ({ source: String(o?.source || ''), reason: String(o?.reason || '').slice(0, 200) }))
+      .filter(o => o.source),
+    jdAlignment: (Array.isArray(raw.jdAlignment) ? raw.jdAlignment : []).slice(0, 10)
+      .map(a => ({
+        requirement: String(a?.requirement || '').slice(0, 160),
+        coveredBy: String(a?.coveredBy || '').slice(0, 160),
+        strength: ['strong', 'weak', 'missing'].includes(a?.strength) ? a.strength : 'weak',
+        note: String(a?.note || '').slice(0, 200),
+      }))
+      .filter(a => a.requirement),
+  };
+}
+
+export async function composeExperienceLayout({ experience, jobCategory = 'common', careerStage = 'first', jobAnalysis = null }) {
+  const prompt = buildExperienceCompositionPrompt({ experience, jobCategory, careerStage, jobAnalysis });
+  try {
+    const raw = await callProFirst(prompt, 'ComposeExperience');
+    return normalizeComposition(parseJSON(raw, /\{[\s\S]*\}/), jobCategory, careerStage);
+  } catch (err) {
+    console.warn('[ComposeExperience] 구성 생성 실패, 폴백 사용:', err.message);
+    return fallbackComposition(jobCategory, careerStage);
+  }
+}

@@ -28,6 +28,127 @@ function Shell({ kicker, index, title, accent, right, children }) {
   );
 }
 
+/* 전 직군 공통 꼬리말 — 배운 점 + 솔직 회고(막힌 지점·오판·남은 한계·다시 한다면).
+   "결과가 너무 완벽해 사람 냄새가 안 난다"는 인사담당자 피드백에 대응하는 블록으로,
+   면접에서 실제로 파고드는 지점이라 성과 나열보다 신뢰를 만든다. AI가 근거를 못 찾으면 렌더되지 않는다. */
+const REVIEW_ROWS = [
+  { key: 'struggle', label: '막혔던 지점' },
+  { key: 'misjudgment', label: '예상과 달랐던 점' },
+  { key: 'limitation', label: '남은 한계' },
+  { key: 'nextTime', label: '다시 한다면' },
+];
+function CardFootnote({ exp, accent }) {
+  const review = exp.honestReview || {};
+  const rows = REVIEW_ROWS.map(r => ({ ...r, text: s(review[r.key]) })).filter(r => r.text);
+  const learning = s(exp.learning);
+  const trace = exp.decisionTrace || {};
+  const voice = exp.voiceRecord || {};
+  const identity = exp.identitySignal || {};
+  const alternatives = (Array.isArray(trace.alternatives) ? trace.alternatives : [])
+    .map(item => {
+      if (typeof item === 'string') return s(item);
+      const option = s(item?.option);
+      const reason = s(item?.reasonNotChosen) || s(item?.cons) || s(item?.pros);
+      return [option, reason].filter(Boolean).join(' — ');
+    })
+    .filter(Boolean);
+  const criteria = (Array.isArray(trace.decisionCriteria) ? trace.decisionCriteria : [])
+    .map(item => {
+      if (typeof item === 'string') return s(item);
+      return [s(item?.criterion), s(item?.why)].filter(Boolean).join(' — ');
+    })
+    .filter(Boolean);
+  const evidence = (Array.isArray(exp.evidenceBundle) ? exp.evidenceBundle : [])
+    .filter(item => s(item?.claim) || s(item?.sourceRef) || s(item?.whatItProves))
+    .slice(0, 4);
+  const decisionSteps = [
+    { label: '문제 판단', text: s(trace.problemJudgment) || s(trace.situation) },
+    { label: '판단 근거', text: s(trace.problemEvidence) },
+    { label: '선택', text: s(trace.choice) },
+    { label: '바뀐 원칙', text: s(trace.newPrinciple) || s(trace.changedJudgment) },
+  ].filter(item => item.text);
+  const hasDeepRecord = decisionSteps.length > 0 || alternatives.length > 0 || criteria.length > 0
+    || s(voice.originalQuote) || s(voice.aiMeaning) || evidence.length > 0 || s(identity.sentence);
+  if (!learning && rows.length === 0 && !hasDeepRecord) return null;
+  return (
+    <div className="space-y-3 border-t border-dashed border-surface-200 pt-3">
+      {hasDeepRecord && (
+        <details className="group rounded-xl bg-surface-50 px-3.5 py-3">
+          <summary className="cursor-pointer list-none text-[11px] font-black text-bluewood-600">
+            <span style={{ color: accent }}>판단 지도</span>
+            <span className="mx-1.5 text-surface-300">·</span>말투와 증거 보기
+          </summary>
+          <div className="mt-3 space-y-3">
+            {decisionSteps.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {decisionSteps.map((item, index) => (
+                  <div key={`${item.label}-${index}`} className="rounded-lg bg-white p-2.5">
+                    <p className="text-[10px] font-bold" style={{ color: accent }}>{item.label}</p>
+                    <p className="mt-1 text-[12px] leading-[1.6] text-bluewood-600">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(alternatives.length > 0 || criteria.length > 0) && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {alternatives.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-bold text-bluewood-400">검토한 대안</p>
+                    {alternatives.map((text, index) => <p key={index} className="text-[12px] leading-[1.6] text-bluewood-600">· {text}</p>)}
+                  </div>
+                )}
+                {criteria.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-bold text-bluewood-400">선택 기준</p>
+                    {criteria.map((text, index) => <p key={index} className="text-[12px] leading-[1.6] text-bluewood-600">· {text}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            {s(voice.originalQuote) && (
+              <blockquote className="rounded-lg border-l-2 bg-white px-3 py-2.5" style={{ borderColor: accent }}>
+                <p className="text-[12.5px] leading-[1.65] text-bluewood-700">“{s(voice.originalQuote)}”</p>
+                {s(voice.aiMeaning) && <p className="mt-1 text-[10.5px] text-bluewood-400">AI 해석 · {s(voice.aiMeaning)}</p>}
+              </blockquote>
+            )}
+            {evidence.length > 0 && (
+              <div>
+                <p className="mb-1 text-[10px] font-bold text-bluewood-400">연결된 증거</p>
+                <div className="space-y-1">
+                  {evidence.map((item, index) => (
+                    <p key={index} className="text-[11.5px] leading-[1.55] text-bluewood-600">
+                      <span className="font-bold">{s(item.sourceRef) || s(item.type) || `근거 ${index + 1}`}</span>
+                      {(s(item.whatItProves) || s(item.claim)) && ` · ${s(item.whatItProves) || s(item.claim)}`}
+                      {s(item.status) && <span className="ml-1 text-bluewood-300">({s(item.status)})</span>}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+            {s(identity.sentence) && (
+              <p className="rounded-lg px-3 py-2 text-[12px] font-semibold leading-[1.6]" style={{ backgroundColor: tint(accent, 0.94), color: accent }}>
+                나를 보여주는 한 문장 · “{s(identity.sentence)}”
+              </p>
+            )}
+          </div>
+        </details>
+      )}
+      {learning && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{learning}</p>}
+      {rows.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-bluewood-300">Honest Review</p>
+          {rows.map(r => (
+            <p key={r.key} className="text-[12px] leading-[1.65] text-bluewood-500">
+              <span className="font-bold" style={{ color: accent }}>{r.label}</span>
+              <span className="mx-1.5 text-surface-300">·</span>{r.text}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Row({ label, color, children, strong = false }) {
   if (!children) return null;
   return (
@@ -64,7 +185,7 @@ function CampaignCard({ exp, index, accent }) {
         </div>
       )}
       <Row label="성과 해석" color="#047857" strong>{s(exp.result)}</Row>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -88,7 +209,7 @@ function DecisionCard({ exp, index, accent }) {
       {s(jd.stakeholders) && (
         <p className="flex items-start gap-1.5 text-[12px] leading-[1.6] text-bluewood-500"><Users size={13} className="mt-0.5 flex-shrink-0" style={{ color: accent }} /> {s(jd.stakeholders)}</p>
       )}
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -112,7 +233,7 @@ function IterationCard({ exp, index, accent }) {
           </div>
         ))}
       </div>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -146,7 +267,7 @@ function AnalysisCard({ exp, index, accent }) {
           <ArrowRight size={14} className="mt-0.5 flex-shrink-0 text-caribbean-700" /> {s(jd.businessAction)}
         </p>
       )}
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -160,7 +281,7 @@ function ProgramCard({ exp, index, accent }) {
       <Row label="조직 과제" color="#314157">{s(jd.goal) || s(exp.context)}</Row>
       <Row label="설계 · 운영" color={accent}>{s(jd.program) || s(exp.action)}</Row>
       <Row label="변화" color="#047857" strong>{s(jd.funnelChange) || s(exp.result)}</Row>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -184,7 +305,7 @@ function DealCard({ exp, index, accent }) {
       <Row label="접근 · 제안" color={accent}>{s(jd.approach) || s(exp.action)}</Row>
       {s(jd.negotiation) && <Row label="협상 돌파" color="#b45309">{s(jd.negotiation)}</Row>}
       <Row label="결과" color="#047857" strong>{s(exp.result)}</Row>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -220,7 +341,7 @@ function ExperimentCard({ exp, index, accent }) {
         </div>
       )}
       <Row label="결과 해석" color="#047857" strong>{s(exp.result)}</Row>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }
@@ -249,7 +370,7 @@ function OpsCard({ exp, index, accent }) {
           </div>
         ))}
       </div>
-      {s(exp.learning) && <p className="text-[12px] italic leading-[1.6] text-bluewood-400">{s(exp.learning)}</p>}
+      <CardFootnote exp={exp} accent={accent} />
     </Shell>
   );
 }

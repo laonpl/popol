@@ -4659,7 +4659,15 @@ export default function ExperienceResult() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [researching, setResearching] = useState(false); // AI 시장조사 진행 상태
-  const { researchMarketMetrics } = useExperienceStore();
+  const [findingIdentityPatterns, setFindingIdentityPatterns] = useState(false);
+  const [identityPatternCandidates, setIdentityPatternCandidates] = useState([]);
+  const [approvingPatternId, setApprovingPatternId] = useState('');
+  const {
+    researchMarketMetrics,
+    suggestIdentityPatterns,
+    approveIdentityPattern,
+    dismissIdentityPattern,
+  } = useExperienceStore();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [draftGuideOpen, setDraftGuideOpen] = useState(false);
   const keyExpFileRef = useRef(null);
@@ -4740,6 +4748,50 @@ export default function ExperienceResult() {
   const goEnhanceDraft = () => {
     closeDraftGuide();
     guardedNav(`/app/experience/structured/${id}`);
+  };
+
+  const findIdentityPatterns = async () => {
+    if (id === 'demo' || findingIdentityPatterns) return;
+    setFindingIdentityPatterns(true);
+    try {
+      const result = await suggestIdentityPatterns();
+      const candidates = Array.isArray(result?.candidates) ? result.candidates : [];
+      setIdentityPatternCandidates(candidates);
+      if (candidates.length === 0) {
+        toast(result?.reason || '아직 서로 다른 경험에서 반복된 패턴이 충분히 확인되지 않았어요.');
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.error || '반복 패턴을 찾지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setFindingIdentityPatterns(false);
+    }
+  };
+
+  const approvePattern = async (candidate) => {
+    if (!candidate?.id || approvingPatternId) return;
+    setApprovingPatternId(candidate.id);
+    try {
+      await approveIdentityPattern(candidate.id);
+      setIdentityPatternCandidates(prev => prev.filter(item => item.id !== candidate.id));
+      toast.success('이 업무 방식을 나의 대표 패턴으로 저장했어요.');
+    } catch (error) {
+      toast.error(error?.response?.data?.error || '패턴 승인에 실패했어요.');
+    } finally {
+      setApprovingPatternId('');
+    }
+  };
+
+  const dismissPattern = async (candidate) => {
+    if (!candidate?.id || approvingPatternId) return;
+    setApprovingPatternId(candidate.id);
+    try {
+      await dismissIdentityPattern(candidate.id);
+      setIdentityPatternCandidates(prev => prev.filter(item => item.id !== candidate.id));
+    } catch (error) {
+      toast.error(error?.response?.data?.error || '패턴 후보를 숨기지 못했어요.');
+    } finally {
+      setApprovingPatternId('');
+    }
   };
 
   const patch = (updater) => { setCs(prev => updater(prev)); setDirty(true); };
@@ -4931,6 +4983,17 @@ export default function ExperienceResult() {
   const devRole = devStats ? inferDevRole(devStats, devGitExps) : null;
   const rolePoints = devGitExps.map(e => clean(e.project_name)).filter(Boolean).slice(0, 5);
   const devTechStack = isDevJob ? deriveDevTechStack(exp, cs.tech) : [];
+  const identityProfile = exp?.structuredResult?.experienceIdentity || {};
+  const identityKeyExperiences = Array.isArray(exp?.structuredResult?.keyExperiences) ? exp.structuredResult.keyExperiences : [];
+  const identityLine = clean(identityProfile.oneLiner)
+    || identityKeyExperiences.map(item => clean(item?.identitySignal?.sentence)).find(Boolean)
+    || '';
+  const identityProofs = (Array.isArray(identityProfile.proofExperienceTitles)
+    ? identityProfile.proofExperienceTitles
+    : identityKeyExperiences.map(item => item?.title))
+    .map(clean)
+    .filter(Boolean)
+    .slice(0, 3);
 
   return (
     <>
@@ -4983,6 +5046,79 @@ export default function ExperienceResult() {
       </div>
 
       <article className={isMarketer ? 'mx-auto max-w-[1080px] px-5 py-9 sm:px-10 print:max-w-none print:p-0' : isPmJob ? 'px-4 sm:px-6 xl:px-8 py-7 sm:py-9' : isCommonJob ? 'mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12' : 'max-w-6xl mx-auto px-5 sm:px-8 py-7 sm:py-9'}>
+        {identityLine && (
+          <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-primary-100 bg-primary-50/50 px-5 py-4 sm:px-6">
+            <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-primary-500">이 경험이 보여주는 나의 방식</p>
+            <p className="mt-1.5 text-[17px] font-extrabold leading-[1.55] text-bluewood-900">“{identityLine}”</p>
+            {identityProofs.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {identityProofs.map((proof, index) => (
+                  <span key={`${proof}-${index}`} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[10.5px] font-semibold text-primary-700">{proof}</span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {id !== 'demo' && (
+          <section className="mx-auto mb-7 max-w-4xl rounded-2xl border border-surface-200 bg-white px-5 py-4 shadow-sm print:hidden sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[12px] font-black text-bluewood-800">여러 경험에서 반복된 나의 방식</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-400">
+                  서로 다른 경험 2개 이상에서 같은 판단·행동이 반복될 때만 후보를 제안합니다. 승인 전에는 프로필에 저장되지 않아요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={findIdentityPatterns}
+                disabled={findingIdentityPatterns}
+                className="inline-flex min-h-[40px] flex-shrink-0 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3.5 text-[12.5px] font-bold text-primary-700 transition hover:bg-primary-100 disabled:opacity-50"
+              >
+                {findingIdentityPatterns ? <Loader2 size={14} className="animate-spin" /> : <Lightbulb size={14} />}
+                {findingIdentityPatterns ? '패턴 찾는 중' : '반복 패턴 찾기'}
+              </button>
+            </div>
+            {identityPatternCandidates.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {identityPatternCandidates.map(candidate => (
+                  <article key={candidate.id} className="rounded-xl border border-primary-100 bg-primary-50/40 p-4">
+                    <p className="text-[11px] font-bold text-primary-600">AI가 찾은 후보 · 아직 미승인</p>
+                    <p className="mt-1 text-[15px] font-extrabold leading-relaxed text-bluewood-900">“{candidate.sentence}”</p>
+                    {candidate.meaning && (
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">{candidate.meaning}</p>
+                    )}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {(candidate.proofs || []).map(proof => (
+                        <span key={`${candidate.id}-${proof.experienceId}`} title={proof.evidence} className="rounded-full border border-primary-100 bg-white px-2.5 py-1 text-[10.5px] font-semibold text-primary-700">
+                          {proof.title || '근거 경험'}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => dismissPattern(candidate)}
+                        disabled={!!approvingPatternId}
+                        className="rounded-lg px-3 py-2 text-[12px] font-semibold text-bluewood-400 hover:bg-white"
+                      >
+                        지금은 사용하지 않기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => approvePattern(candidate)}
+                        disabled={!!approvingPatternId}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {approvingPatternId === candidate.id && <Loader2 size={13} className="animate-spin" />}
+                        내 대표 방식으로 승인
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
         {isMarketer ? (
           <MarketerDoc
             cs={cs}

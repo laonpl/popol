@@ -15,6 +15,7 @@ import {
   refineInterviewAnswer,
   researchMarketMetrics,
   generateInterviewQuestions,
+  generateIdentityPatternCandidates,
   judgeEvidenceLabels,
   generateExperienceTags,
 } from '../services/geminiService.js';
@@ -115,7 +116,7 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
 
     let analysis;
     try {
-      analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common');
+      analysis = await analyzeExperience(data.content || {}, count, moments, data.jobCategory || 'common', data.careerStage || 'first');
     } catch (aiError) {
       const errMsg = aiError.message || '';
       const hasFallbackInput = (moments && moments.length > 0)
@@ -143,6 +144,9 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
         analysis.leanCanvas = data.structuredResult?.leanCanvas || analysis.leanCanvas || null;
         analysis.pmHypotheses = data.structuredResult?.pmHypotheses || analysis.pmHypotheses || null;
         analysis.pmFiles = data.structuredResult?.pmFiles || analysis.pmFiles || null;
+        analysis.interviewPlan = data.structuredResult?.interviewPlan || analysis.interviewPlan || null;
+        analysis.interviewSession = data.structuredResult?.interviewSession || analysis.interviewSession || null;
+        analysis.deliverables = data.structuredResult?.deliverables || analysis.deliverables || [];
         await docRef.update({
           structuredResult: analysis,
           keywords: analysis.keywords || [],
@@ -185,6 +189,9 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
     analysis.leanCanvas = data.structuredResult?.leanCanvas || analysis.leanCanvas || null;
     analysis.pmHypotheses = data.structuredResult?.pmHypotheses || analysis.pmHypotheses || null;
     analysis.pmFiles = data.structuredResult?.pmFiles || analysis.pmFiles || null;
+    analysis.interviewPlan = data.structuredResult?.interviewPlan || analysis.interviewPlan || null;
+    analysis.interviewSession = data.structuredResult?.interviewSession || analysis.interviewSession || null;
+    analysis.deliverables = data.structuredResult?.deliverables || analysis.deliverables || [];
 
     // 분석 결과를 Firestore에 저장
     await docRef.update({
@@ -205,11 +212,16 @@ router.post('/analyze', authMiddleware, requireCredits, aiRateLimiter, async (re
 // 실패 시 502 → 프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
 router.post('/draft', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
-    const { content, jobCategory } = req.body;
+    const { content, jobCategory, careerStage, interviewMode } = req.body;
     if (!content || typeof content !== 'object' || Object.keys(content).length === 0) {
       return res.status(400).json({ error: 'content가 필요합니다' });
     }
-    const analysis = await generateDraftAnalysis(content, jobCategory || 'common');
+    const analysis = await generateDraftAnalysis(
+      content,
+      jobCategory || 'common',
+      careerStage || 'first',
+      interviewMode || 'basic',
+    );
     res.json(analysis);
   } catch (error) {
     const msg = error.message || '';
@@ -276,15 +288,129 @@ router.post('/boost-draft', authMiddleware, requireCredits, aiRateLimiter, async
   }
 });
 
+// POST /api/experience/identity-patterns/suggest
+// 서로 다른 경험 2개 이상에서 반복된 행동만 후보로 만들며, 아직 사용자 정체성으로 확정하지 않는다.
+router.post('/identity-patterns/suggest', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
+  try {
+    const snapshot = await adminDb.collection('experiences')
+      .where('userId', '==', req.user.uid)
+      .get();
+    const experiences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (experiences.length < 2) {
+      return res.json({
+        candidates: [],
+        reason: '서로 다른 경험이 2개 이상 쌓이면 반복 패턴을 찾을 수 있어요.',
+      });
+    }
+    const profileRef = adminDb.collection('profiles').doc(req.user.uid);
+    const profileSnap = await profileRef.get();
+    const identityProfile = profileSnap.data()?.experienceIdentityProfile || {};
+    const approvedIds = new Set((identityProfile.approvedPatterns || []).map(item => item?.id).filter(Boolean));
+    const dismissedIds = new Set((identityProfile.dismissedPatternIds || []).filter(Boolean));
+    const candidates = (await generateIdentityPatternCandidates(experiences))
+      .filter(candidate => !approvedIds.has(candidate.id) && !dismissedIds.has(candidate.id));
+    await profileRef.set({
+      experienceIdentityProfile: {
+        ...identityProfile,
+        pendingPatterns: candidates,
+        lastSuggestedAt: new Date(),
+      },
+    }, { merge: true });
+    res.json({
+      candidates,
+      approvedPatterns: identityProfile.approvedPatterns || [],
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/identity-patterns/dismiss', authMiddleware, async (req, res, next) => {
+  try {
+    const candidateId = String(req.body?.candidateId || '').trim();
+    if (!candidateId) return res.status(400).json({ error: 'candidateId가 필요합니다' });
+    const profileRef = adminDb.collection('profiles').doc(req.user.uid);
+    await adminDb.runTransaction(async transaction => {
+      const snap = await transaction.get(profileRef);
+      const data = snap.data() || {};
+      const identityProfile = data.experienceIdentityProfile || {};
+      const pending = Array.isArray(identityProfile.pendingPatterns) ? identityProfile.pendingPatterns : [];
+      const dismissed = Array.isArray(identityProfile.dismissedPatternIds)
+        ? identityProfile.dismissedPatternIds
+        : [];
+      transaction.set(profileRef, {
+        experienceIdentityProfile: {
+          ...identityProfile,
+          dismissedPatternIds: [...new Set([...dismissed, candidateId])],
+          pendingPatterns: pending.filter(item => item?.id !== candidateId),
+          updatedAt: new Date(),
+        },
+      }, { merge: true });
+    });
+    res.json({ dismissed: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/experience/identity-patterns/approve
+// AI 후보는 사용자가 명시적으로 승인한 뒤에만 개인 정체성으로 저장한다.
+router.post('/identity-patterns/approve', authMiddleware, async (req, res, next) => {
+  try {
+    const candidateId = String(req.body?.candidateId || '').trim();
+    if (!candidateId) return res.status(400).json({ error: 'candidateId가 필요합니다' });
+    const profileRef = adminDb.collection('profiles').doc(req.user.uid);
+    let approvedPattern = null;
+    await adminDb.runTransaction(async transaction => {
+      const snap = await transaction.get(profileRef);
+      const data = snap.data() || {};
+      const identityProfile = data.experienceIdentityProfile || {};
+      const pending = Array.isArray(identityProfile.pendingPatterns) ? identityProfile.pendingPatterns : [];
+      const candidate = pending.find(item => item?.id === candidateId);
+      if (!candidate) {
+        const error = new Error('승인할 패턴 후보를 찾을 수 없습니다.');
+        error.status = 404;
+        throw error;
+      }
+      const approved = Array.isArray(identityProfile.approvedPatterns)
+        ? identityProfile.approvedPatterns
+        : [];
+      approvedPattern = {
+        ...candidate,
+        approvedAt: new Date(),
+        approvedByUser: true,
+      };
+      transaction.set(profileRef, {
+        experienceIdentityProfile: {
+          ...identityProfile,
+          approvedPatterns: [
+            ...approved.filter(item => item?.id !== candidateId),
+            approvedPattern,
+          ],
+          pendingPatterns: pending.filter(item => item?.id !== candidateId),
+          updatedAt: new Date(),
+        },
+      }, { merge: true });
+    });
+    res.json({ approved: true, pattern: approvedPattern });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/experience/interview-questions - 대화형 추출 인터뷰 질문 생성
 router.post('/interview-questions', authMiddleware, requireCredits, aiRateLimiter, async (req, res, next) => {
   try {
-    const { braindump, jobCategory } = req.body;
+    const { braindump, jobCategory, interviewMode } = req.body;
     if (!braindump || !String(braindump).trim()) {
       return res.status(400).json({ error: '경험 초안이 필요합니다' });
     }
-    const questions = await generateInterviewQuestions(String(braindump), jobCategory || 'common');
-    res.json({ questions });
+    const plan = await generateInterviewQuestions(
+      String(braindump),
+      jobCategory || 'common',
+      interviewMode || 'basic',
+    );
+    res.json({ plan, questions: plan.questions || [] });
   } catch (error) {
     const msg = error.message || '';
     if (msg.includes('요청 한도') || msg.includes('429') || msg.includes('quota')) {
@@ -328,7 +454,7 @@ router.post('/enrich-interview', authMiddleware, requireCredits, aiRateLimiter, 
 
     let analysis;
     try {
-      analysis = await analyzeExperience(augmentedContent, count, moments, data.jobCategory || 'common');
+      analysis = await analyzeExperience(augmentedContent, count, moments, data.jobCategory || 'common', data.careerStage || 'first');
     } catch (aiError) {
       const errMsg = aiError.message || '';
       const hasFallbackInput = (moments && moments.length > 0)
@@ -534,6 +660,7 @@ router.post('/', authMiddleware, async (req, res, next) => {
       title: body.title || '',
       framework: body.framework || 'STRUCTURED',
       jobCategory: body.jobCategory || 'common',
+      careerStage: body.careerStage || 'first',
       content: body.content || {},
       images: body.images || [],
       keywords: body.keywords || [],

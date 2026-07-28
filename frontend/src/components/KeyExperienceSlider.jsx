@@ -51,6 +51,86 @@ const THEMES = Array.from({ length: 6 }, (_, i) => ({
 
 const PRIMARY = '#002F6C';
 
+function DecisionRecordRead({ exp, accent = PRIMARY }) {
+  const clean = (v) => (v && !isHint(v) && String(v).trim()) ? stripMd(v) : '';
+  const trace = exp?.decisionTrace || {};
+  const voice = exp?.voiceRecord || {};
+  const identity = exp?.identitySignal || {};
+  const evidence = (Array.isArray(exp?.evidenceBundle) ? exp.evidenceBundle : [])
+    .filter(item => clean(item?.sourceRef) || clean(item?.whatItProves) || clean(item?.claim))
+    .slice(0, 4);
+  const alternatives = (Array.isArray(trace.alternatives) ? trace.alternatives : [])
+    .map(item => typeof item === 'string'
+      ? clean(item)
+      : [clean(item?.option), clean(item?.reasonNotChosen) || clean(item?.cons)].filter(Boolean).join(' — '))
+    .filter(Boolean);
+  const criteria = (Array.isArray(trace.decisionCriteria) ? trace.decisionCriteria : [])
+    .map(item => typeof item === 'string'
+      ? clean(item)
+      : [clean(item?.criterion), clean(item?.why)].filter(Boolean).join(' — '))
+    .filter(Boolean);
+  const steps = [
+    ['문제 판단', clean(trace.problemJudgment) || clean(trace.situation)],
+    ['판단 근거', clean(trace.problemEvidence)],
+    ['최종 선택', clean(trace.choice)],
+    ['바뀐 판단', clean(trace.changedJudgment)],
+    ['다음 원칙', clean(trace.newPrinciple)],
+  ].filter(([, value]) => value);
+  const hasContent = steps.length || alternatives.length || criteria.length || evidence.length
+    || clean(voice.originalQuote) || clean(voice.aiMeaning) || clean(identity.sentence);
+  if (!hasContent) return null;
+
+  return (
+    <details className="mb-4 rounded-xl border border-surface-200 bg-surface-50/70 px-4 py-3">
+      <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: accent }}>
+        판단 지도 · 실제 말 · 증거
+      </summary>
+      <div className="mt-3 space-y-3">
+        {steps.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {steps.map(([label, value]) => (
+              <div key={label} className="rounded-lg bg-white p-3">
+                <p className="text-[10px] font-black text-bluewood-400">{label}</p>
+                <p className="mt-1 text-[12.5px] leading-[1.65] text-bluewood-600">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {(alternatives.length > 0 || criteria.length > 0) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {alternatives.length > 0 && <div><p className="mb-1 text-[10px] font-black text-bluewood-400">검토한 대안</p>{alternatives.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
+            {criteria.length > 0 && <div><p className="mb-1 text-[10px] font-black text-bluewood-400">선택 기준</p>{criteria.map((v, i) => <p key={i} className="text-[12px] leading-[1.6] text-bluewood-600">· {v}</p>)}</div>}
+          </div>
+        )}
+        {clean(voice.originalQuote) && (
+          <blockquote className="rounded-lg border-l-[3px] bg-white px-3.5 py-3" style={{ borderColor: accent }}>
+            <p className="text-[13px] leading-[1.65] text-bluewood-700">“{clean(voice.originalQuote)}”</p>
+            {clean(voice.polished) && clean(voice.polished) !== clean(voice.originalQuote) && <p className="mt-1.5 text-[11.5px] text-bluewood-500">최소 교정 · {clean(voice.polished)}</p>}
+            {clean(voice.aiMeaning) && <p className="mt-1 text-[11px] text-bluewood-400">AI 해석 · {clean(voice.aiMeaning)}</p>}
+          </blockquote>
+        )}
+        {evidence.length > 0 && (
+          <div>
+            <p className="mb-1 text-[10px] font-black text-bluewood-400">연결된 증거</p>
+            {evidence.map((item, index) => (
+              <p key={index} className="text-[11.5px] leading-[1.6] text-bluewood-600">
+                <span className="font-bold">{clean(item.sourceRef) || clean(item.type) || `근거 ${index + 1}`}</span>
+                {(clean(item.whatItProves) || clean(item.claim)) && ` · ${clean(item.whatItProves) || clean(item.claim)}`}
+                {clean(item.ownership) && ` · 기여: ${clean(item.ownership)}`}
+              </p>
+            ))}
+          </div>
+        )}
+        {clean(identity.sentence) && (
+          <p className="rounded-lg px-3 py-2.5 text-[12.5px] font-bold leading-[1.6]" style={{ backgroundColor: `${accent}0d`, color: accent }}>
+            나를 보여주는 한 문장 · “{clean(identity.sentence)}”
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════
    공용 읽기 카드 — 상세 모달 / 공유 링크 / 미리보기 공통 사용
    ─ C/A/R/L 4분할 대신 "핵심 성과 → 맥락 → 배운 점 → 보유 스킬" 순으로
@@ -129,6 +209,8 @@ function ExperienceReadCard({ exp, accent = PRIMARY, label }) {
           ))}
         </div>
       )}
+
+      <DecisionRecordRead exp={exp} accent={accent} />
 
       {/* 배운 점 + 보유 스킬 */}
       <div className="flex flex-col gap-3">

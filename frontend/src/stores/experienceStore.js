@@ -47,19 +47,51 @@ export const JOB_CATEGORIES = [
       { value: 'aiml', label: 'AI / ML 엔지니어', description: '데이터셋·아키텍처, 학습·평가, 최적화·서빙' },
       { value: 'da', label: '데이터 애널리스트', description: 'EDA·파이프라인, 가설 검증, 비즈니스 인사이트' },
       { value: 'devops', label: '인프라 / 데브옵스', description: '시스템 아키텍처, CI/CD 파이프라인, 비용·트래픽 최적화' },
+      { value: 'security', label: '정보보안', description: '위협·위험 판단, 취약점 검증, 완화와 잔여 위험' },
+      { value: 'qa', label: 'QA / 테스트', description: '품질 위험, 테스트 추적성, 결함·릴리스 판단' },
+      { value: 'engineering', label: '하드웨어 / 제조 R&D', description: '요구조건, 설계 대안, 시험·실패·재설계' },
     ],
   },
   {
-    group: '기획, 디자인 & 비즈니스',
+    group: '제품, 프로젝트 & 크리에이티브',
     items: [
       { value: 'pm', label: '기획자 / PM', description: '해결 전략·기획 의도, MSC, 비즈니스 임팩트' },
+      { value: 'project', label: '프로젝트 / 프로그램 관리', description: '목표·범위, 리스크·변경, 인수·회고' },
       { value: 'designer', label: '프로덕트 디자이너', description: '리서치·문제 접근, 프로토타이핑·개선, 디자인 시스템' },
       { value: 'marketer', label: '마케터 (콘텐츠/퍼포먼스)', description: '매체 전략·타겟팅, KPI (ROAS/CVR/CTR)' },
+      { value: 'content', label: '콘텐츠 / 미디어', description: '독자·포맷 판단, 제작·수정, 배포 반응' },
+    ],
+  },
+  {
+    group: '비즈니스 & 경영지원',
+    items: [
       { value: 'hr', label: '인사 / 채용 담당자', description: '채용 파이프라인 기획, 퍼널 데이터, 조직 문화·리텐션' },
       { value: 'sales', label: 'B2B 세일즈 / 사업개발', description: '리드 제너레이션, 세일즈 퍼널 데이터, 계약 성과' },
+      { value: 'customer_success', label: '고객 성공 / 서비스 운영', description: '고객 문제 진단, 해결·예방, 채택·유지' },
+      { value: 'finance', label: '재무 / 회계 / 투자', description: '가정·모델, 시나리오·통제, 재무 의사결정' },
+      { value: 'strategy', label: '전략 / 컨설팅 / 사업기획', description: '문제 구조, 가설·대안 분석, 실행 가능한 권고' },
+      { value: 'operations', label: '운영 / 공급망 / 생산', description: '기준선·근본 원인, 파일럿, 표준화·통제' },
+    ],
+  },
+  {
+    group: '연구, 교육 & 공공 전문직',
+    items: [
+      { value: 'research', label: '연구 / R&D', description: '연구 질문·방법, 검증·재현, 정확한 기여 역할' },
+      { value: 'education', label: '교육 / 교수설계', description: '학습자 진단, 목표-활동-평가, 수업 재설계' },
+      { value: 'policy', label: '공공 / 정책 / 행정', description: '정책 대안, 논리모형, 평가·형평성·책무성' },
+      { value: 'legal', label: '법무 / 컴플라이언스', description: '사실·쟁점·근거, 위험 기반 권고와 통제' },
+      { value: 'healthcare', label: '보건의료 / 헬스케어', description: '안전·근거·사람 중심 품질 개선' },
     ],
   },
 ];
+
+const fieldCard = (key, label, subtitle, color = 'bg-slate-50 border-slate-200') => ({
+  key,
+  label,
+  subtitle,
+  placeholder: `${label}에 해당하는 상황, 판단 근거, 직접 실행과 증거를 설명해주세요`,
+  color,
+});
 
 // 직군별 특화 추가 섹션 (필수 7개 섹션 이후에 렌더링)
 export const JOB_SPECIFIC_FIELDS = {
@@ -112,6 +144,76 @@ export const JOB_SPECIFIC_FIELDS = {
     { key: 'salesFunnel',    label: '세일즈 퍼널 데이터',  subtitle: '초기 미팅부터 최종 클로징까지의 전환율',                         placeholder: '세일즈 단계별 전환율과 성과를 설명해주세요',                   color: 'bg-emerald-50 border-emerald-200' },
     { key: 'contractResult', label: '계약 성과',           subtitle: '체결 규모(ARR/MRR) 및 기존 고객 업셀링 성과',                    placeholder: '계약 규모와 ARR/MRR 성과를 설명해주세요',                     color: 'bg-emerald-50 border-emerald-200' },
   ],
+  security: [
+    fieldCard('threatAssessment', '위협·위험 판단', '보호 자산, 공격 경로, 영향·가능성 근거와 우선순위'),
+    fieldCard('verification', '검증과 완화', '재현·테스트, 적용한 통제와 수정 후 재검증'),
+    fieldCard('securityOwnership', '운영·책임 범위', '권한, 에스컬레이션, 잔여 위험과 공개 범위'),
+  ],
+  qa: [
+    fieldCard('qualityStrategy', '품질 위험과 전략', '테스트 근거, 위험 기반 범위·우선순위·종료 기준'),
+    fieldCard('testEvidence', '테스트 설계와 증거', '요구사항 추적, 테스트 데이터, 결함 재현과 결과'),
+    fieldCard('releaseImpact', '릴리스 판단과 개선', '릴리스 기여, 자동화 효과, 놓친 결함과 통제'),
+  ],
+  engineering: [
+    fieldCard('requirementsDesign', '요구조건과 설계 판단', '성능·원가·안전 제약, 대안과 trade-off'),
+    fieldCard('prototypeTest', '시제품과 검증', '시험 조건·장비·판정 기준과 결과'),
+    fieldCard('failureRedesign', '실패 분석과 재설계', '예상 밖 결과, 원인 근거와 변경 사항'),
+  ],
+  project: [
+    fieldCard('planControl', '목표·범위·통제', '베이스라인, 일정·예산·품질 통제'),
+    fieldCard('riskDecision', '리스크·변경 판단', '의존성, 대응안 비교, 변경 기준과 승인'),
+    fieldCard('deliveryLearning', '인수와 회고', '완료 근거, 편차, 다음 통제 원칙'),
+  ],
+  content: [
+    fieldCard('editorialStrategy', '독자·콘텐츠 전략', '대상·목적, 포맷·채널·톤의 선택 근거'),
+    fieldCard('productionRevision', '제작과 수정', '초안-피드백-최종본의 핵심 변화와 기여'),
+    fieldCard('distributionLearning', '배포 결과와 다음 판단', '채널 반응, 귀인 한계와 다음 포맷'),
+  ],
+  customer_success: [
+    fieldCard('customerDiagnosis', '고객 문제 진단', '고객 목표, VOC·사용 신호와 반복 원인'),
+    fieldCard('serviceIntervention', '해결·운영 판단', '대응안, 에스컬레이션, 예방·셀프서비스'),
+    fieldCard('customerOutcome', '가치·유지 결과', '채택·만족·갱신 근거와 한계'),
+  ],
+  finance: [
+    fieldCard('financialLogic', '가정·모델·분석', '의사결정 질문, 출처, 가정과 계산 방법'),
+    fieldCard('riskControl', '시나리오·위험·통제', '민감도, 검산·승인·통제와 윤리 판단'),
+    fieldCard('decisionImpact', '권고와 결과', '의사결정 반영, 편차와 수정한 가정'),
+  ],
+  strategy: [
+    fieldCard('problemStructure', '문제 구조와 가설', '핵심 질문, 이슈 구조와 우선 검증 가설'),
+    fieldCard('optionAnalysis', '대안 분석과 권고', '근거 출처, 평가 기준, 반론·위험'),
+    fieldCard('implementationImpact', '실행과 결과', '실행 조건, 의사결정 반영과 예측 편차'),
+  ],
+  operations: [
+    fieldCard('processBaseline', '프로세스·기준선', '고객 요구, 범위, 기준선과 측정 신뢰도'),
+    fieldCard('rootCausePilot', '원인·대안·파일럿', '근본 원인, 대안 비교와 시험 적용'),
+    fieldCard('controlOutcome', '결과·표준화·통제', '전후 결과, SOP·통제 계획과 부작용'),
+  ],
+  research: [
+    fieldCard('researchQuestion', '질문·가설·방법', '문헌 공백, 연구 질문, 방법 선택 근거'),
+    fieldCard('validationFinding', '검증과 발견', '데이터 품질, 재현, 발견과 부정적 결과'),
+    fieldCard('researchContribution', '기여·한계·후속 연구', '역할별 본인 기여, 한계와 다음 연구'),
+  ],
+  education: [
+    fieldCard('learningDesign', '학습자·목표·설계', '학습자 진단, 목표와 활동 설계 근거'),
+    fieldCard('assessmentEvidence', '평가와 학습 증거', '루브릭, 학습자 결과, 포용성·접근성'),
+    fieldCard('teachingIteration', '재설계와 전이', '피드백 후 변화와 실제 적용'),
+  ],
+  policy: [
+    fieldCard('policyDesign', '문제·대상·정책 대안', '대상, 이해관계자, 자료 근거와 선택 기준'),
+    fieldCard('resultsFramework', '논리모형과 실행', '투입-활동-산출-성과-영향과 위험'),
+    fieldCard('evaluationEquity', '평가·형평성·책무성', '모니터링과 평가, 형평성·부작용'),
+  ],
+  legal: [
+    fieldCard('issueAuthority', '사실·쟁점·근거', '사실관계, 적용 근거와 불확실성'),
+    fieldCard('riskRecommendation', '대안·위험·권고', '선택지별 법률·사업 위험과 승인'),
+    fieldCard('complianceOutcome', '통제·시정·결과', '정책·계약 통제, 시정 추적과 잔여 위험'),
+  ],
+  healthcare: [
+    fieldCard('careQuality', '문제·근거·안전 기준', '품질 문제, 지침, 안전·형평성 기준'),
+    fieldCard('interventionTeam', '중재와 팀 협업', '대안, 역할·에스컬레이션, 개인정보 보호'),
+    fieldCard('qualityOutcome', '품질 결과와 한계', '지표 품질, 부작용과 사람 중심 결과'),
+  ],
 };
 
 const useExperienceStore = create((set, get) => ({
@@ -148,6 +250,7 @@ const useExperienceStore = create((set, get) => ({
       title: data.title || '',
       framework: data.framework || 'STRUCTURED',
       jobCategory: data.jobCategory || 'common',
+      careerStage: data.careerStage || 'first',
       content: data.content || {},
       images: data.images || [],
       keywords: data.keywords || [],
@@ -227,8 +330,10 @@ const useExperienceStore = create((set, get) => ({
   },
 
   /** 빠른 초안 생성 (flash 1회, 검색 없음). 경험 생성 전 호출. 실패 시 throw → 호출부에서 로컬 폴백. */
-  draftAnalyze: async ({ content, jobCategory }) => {
-    const { data } = await api.post('/experience/draft', { content, jobCategory }, { timeout: 90000 });
+  draftAnalyze: async ({ content, jobCategory, careerStage, interviewMode = 'basic' }) => {
+    const { data } = await api.post('/experience/draft', {
+      content, jobCategory, careerStage, interviewMode,
+    }, { timeout: 90000 });
     return data;
   },
 
@@ -275,9 +380,28 @@ const useExperienceStore = create((set, get) => ({
   },
 
   // 대화형 추출 인터뷰: 초안에서 핵심 정보를 끌어내는 질문 생성
-  generateInterviewQuestions: async (braindump, jobCategory) => {
-    const { data } = await api.post('/experience/interview-questions', { braindump, jobCategory }, { timeout: 120000 });
-    return data.questions || [];
+  generateInterviewQuestions: async (braindump, jobCategory, interviewMode = 'basic') => {
+    const { data } = await api.post('/experience/interview-questions', {
+      braindump, jobCategory, interviewMode,
+    }, { timeout: 120000 });
+    return data.plan || { questions: data.questions || [] };
+  },
+
+  /** 서로 다른 경험에서 반복된 업무 방식 후보 찾기 — 사용자가 눌렀을 때만 실행 */
+  suggestIdentityPatterns: async () => {
+    const { data } = await api.post('/experience/identity-patterns/suggest', {}, { timeout: 90000 });
+    return data;
+  },
+
+  /** AI가 찾은 반복 패턴을 사용자가 승인한 뒤에만 프로필 정체성으로 저장 */
+  approveIdentityPattern: async (candidateId) => {
+    const { data } = await api.post('/experience/identity-patterns/approve', { candidateId });
+    return data;
+  },
+
+  dismissIdentityPattern: async (candidateId) => {
+    const { data } = await api.post('/experience/identity-patterns/dismiss', { candidateId });
+    return data;
   },
 
   // 추출형 인터뷰: 후속 질문 답변을 AI에 되먹여 경험 정리를 보강

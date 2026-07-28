@@ -40,6 +40,28 @@ function buildKeyExperienceExportSection(keyExperiences = [], keyExpImages = {},
   const blocks = [];
   keyExperiences.forEach((item, index) => {
     const jd = item?.jobData || {};
+    const hr = item?.honestReview || {};
+    const trace = item?.decisionTrace || {};
+    const voice = item?.voiceRecord || {};
+    const identity = item?.identitySignal || {};
+    const alternatives = (Array.isArray(trace.alternatives) ? trace.alternatives : [])
+      .map(option => typeof option === 'string'
+        ? coreText(option)
+        : [coreText(option?.option), coreText(option?.reasonNotChosen) || coreText(option?.cons)].filter(Boolean).join(' — '))
+      .filter(Boolean);
+    const criteria = (Array.isArray(trace.decisionCriteria) ? trace.decisionCriteria : [])
+      .map(criterion => typeof criterion === 'string'
+        ? coreText(criterion)
+        : [coreText(criterion?.criterion), coreText(criterion?.why)].filter(Boolean).join(' — '))
+      .filter(Boolean);
+    const evidence = (Array.isArray(item?.evidenceBundle) ? item.evidenceBundle : [])
+      .map(source => {
+        const name = coreText(source?.sourceRef) || coreText(source?.type);
+        const proof = coreText(source?.whatItProves) || coreText(source?.claim);
+        const ownership = coreText(source?.ownership);
+        return [name, proof, ownership && `기여: ${ownership}`].filter(Boolean).join(' · ');
+      })
+      .filter(Boolean);
     const before = coreText(item?.beforeMetric);
     const after = coreText(item?.afterMetric) || coreText(item?.metric);
     const impact = Number(jd.impact), effort = Number(jd.effort);
@@ -57,6 +79,25 @@ function buildKeyExperienceExportSection(keyExperiences = [], keyExpImages = {},
       coreLine(isPm ? '실행·돌파' : '행동', item?.action),
       coreLine('결과', item?.result),
       coreLine('배운 점', item?.learning),
+      coreLine('문제 판단', trace.problemJudgment),
+      coreLine('판단 근거', trace.problemEvidence),
+      alternatives.length ? `검토한 대안:\n${alternatives.map(line => `- ${line}`).join('\n')}` : '',
+      criteria.length ? `선택 기준:\n${criteria.map(line => `- ${line}`).join('\n')}` : '',
+      coreLine('최종 선택', trace.choice),
+      coreLine('직접 실행', trace.execution),
+      coreLine('결과의 근거', trace.outcomeEvidence),
+      coreLine('바뀐 판단', trace.changedJudgment),
+      coreLine('다음 판단 원칙', trace.newPrinciple),
+      coreLine('사용자의 실제 말', voice.originalQuote),
+      coreLine('최소 교정', voice.polished),
+      coreLine('AI 핵심 의미', voice.aiMeaning),
+      evidence.length ? `증거 자료:\n${evidence.map(line => `- ${line}`).join('\n')}` : '',
+      coreLine('나를 보여주는 한 문장', identity.sentence),
+      // 솔직 회고 — 성과만 나열된 결과물이 "너무 완벽해 보인다"는 피드백에 대응하는 블록
+      coreLine('막혔던 지점', hr.struggle),
+      coreLine('예상과 달랐던 점', hr.misjudgment),
+      coreLine('남은 한계', hr.limitation),
+      coreLine('다시 한다면', hr.nextTime),
     ]);
     if (text) blocks.push(makeTextBlock(text));
     (keyExpImages?.[String(index)] || []).forEach(img => {
@@ -177,6 +218,104 @@ function buildPmValidationSection(sr = {}, keyExperiences = []) {
   return { key: 'core-pm-validation', label: '가설 및 검증', type: 'core', content, enabled: !!content };
 }
 
+/* 직군별 시그니처 산출물 — 개발자의 '문제 해결 기록', PM의 '가설 및 검증'처럼
+   나머지 직군도 자기 직무의 언어로 된 고유 산출물을 갖게 한다.
+   AI가 keyExperiences[].jobData에 직무 단위(개선 반복·분석·실험·인시던트·프로그램·딜)로 추출한 값을 그대로 쓴다. */
+const JOB_SIGNATURE = {
+  designer: { key: 'core-design-iterations', label: '디자인 개선 반복 기록', unit: '개선',
+    rows: [['페인포인트', 'painPoint'], ['디자인 결정', 'designDecision'], ['테스트 결과', 'testResult']] },
+  da: { key: 'core-da-analyses', label: '분석 기록', unit: '분석',
+    rows: [['가설', 'hypothesis'], ['분석 방법', 'method'], ['발견', 'finding'], ['비즈니스 액션', 'businessAction'], ['대조군', 'control'], ['실험군', 'variant'], ['통계 유의성', 'significance']] },
+  aiml: { key: 'core-aiml-experiments', label: '실험 기록', unit: '실험',
+    rows: [['데이터셋', 'dataset'], ['모델', 'model'], ['선택 이유', 'whyModel'], ['평가 지표', 'metrics']] },
+  devops: { key: 'core-devops-incidents', label: '인시던트 · 개선 기록', unit: '개선',
+    rows: [['상황', 'incident'], ['원인', 'rootCause'], ['조치', 'actionTaken'], ['지표 개선', 'impact']] },
+  hr: { key: 'core-hr-programs', label: '프로그램 운영 기록', unit: '프로그램',
+    rows: [['조직 과제', 'goal'], ['설계·운영', 'program'], ['퍼널 변화', 'funnelChange']] },
+  sales: { key: 'core-sales-deals', label: '딜 기록', unit: '딜',
+    rows: [['고객', 'client'], ['접근·제안', 'approach'], ['협상 돌파', 'negotiation'], ['계약 규모', 'dealSize'], ['진행 단계', 'stage']] },
+  security: { key: 'core-security-cases', label: '위협 검증 · 완화 기록', unit: '보안 판단',
+    rows: [['보호 자산', 'asset'], ['위협·발견', 'threat'], ['재현', 'reproduction'], ['위험 판단', 'riskAssessment'], ['완화', 'mitigation'], ['재검증', 'verification'], ['잔여 위험', 'residualRisk']] },
+  qa: { key: 'core-qa-cases', label: '품질 위험 · 테스트 기록', unit: '품질 판단',
+    rows: [['품질 위험', 'qualityRisk'], ['테스트 근거', 'testBasis'], ['우선순위', 'prioritization'], ['추적성', 'traceability'], ['결함 근거', 'defectEvidence'], ['릴리스 판단', 'releaseDecision'], ['남은 위험', 'remainingRisk']] },
+  engineering: { key: 'core-engineering-tests', label: '설계 · 시험 · 재설계 기록', unit: '설계 판단',
+    rows: [['요구조건', 'requirement'], ['분석', 'analysis'], ['설계 대안', 'designAlternatives'], ['설계 결정', 'designDecision'], ['시험 방법', 'testMethod'], ['시험 결과', 'testResult'], ['실패·재설계', 'redesign']] },
+  project: { key: 'core-project-decisions', label: '프로젝트 통제 · 변경 기록', unit: '프로젝트 판단',
+    rows: [['목표', 'objective'], ['범위', 'scope'], ['베이스라인', 'baseline'], ['의존성', 'dependencies'], ['리스크', 'risk'], ['변경 결정', 'changeDecision'], ['인수 근거', 'deliveryEvidence'], ['편차·회고', 'retrospective']] },
+  content: { key: 'core-content-decisions', label: '콘텐츠 제작 · 편집 기록', unit: '콘텐츠 판단',
+    rows: [['대상', 'audience'], ['목표', 'contentGoal'], ['조사', 'research'], ['포맷 대안', 'formatOptions'], ['편집 결정', 'editorialDecision'], ['수정 근거', 'revisionEvidence'], ['배포 반응', 'response'], ['다음 포맷', 'nextFormat']] },
+  customer_success: { key: 'core-customer-success', label: '고객 가치 · 운영 개선 기록', unit: '고객 판단',
+    rows: [['고객 목표', 'customerGoal'], ['문제 신호', 'signal'], ['근본 원인', 'rootCause'], ['대응', 'intervention'], ['에스컬레이션', 'escalation'], ['채택 근거', 'adoptionEvidence'], ['유지 근거', 'retentionEvidence'], ['예방', 'prevention']] },
+  finance: { key: 'core-finance-decisions', label: '재무 판단 · 통제 기록', unit: '재무 판단',
+    rows: [['의사결정 질문', 'decisionQuestion'], ['출처', 'dataSources'], ['가정', 'assumptions'], ['모델', 'modelMethod'], ['민감도', 'scenarioSensitivity'], ['통제', 'controls'], ['권고', 'recommendation'], ['실제 활용', 'decisionUse'], ['편차·위험', 'variance']] },
+  strategy: { key: 'core-strategy-cases', label: '가설 · 대안 · 권고 기록', unit: '전략 판단',
+    rows: [['핵심 질문', 'decisionQuestion'], ['문제 구조', 'issueStructure'], ['가설', 'hypotheses'], ['조사 근거', 'researchEvidence'], ['대안', 'options'], ['평가 기준', 'evaluationCriteria'], ['권고', 'recommendation'], ['반론', 'counterarguments'], ['실행·결과', 'outcome']] },
+  operations: { key: 'core-operations-improvements', label: '프로세스 개선 · 통제 기록', unit: '운영 개선',
+    rows: [['프로세스 범위', 'processScope'], ['기준선', 'baseline'], ['측정 품질', 'measurementQuality'], ['근본 원인', 'rootCause'], ['파일럿', 'pilot'], ['개선', 'improvement'], ['통제 계획', 'controlPlan'], ['결과', 'result'], ['부작용', 'unintendedEffect']] },
+  research: { key: 'core-research-cases', label: '연구 질문 · 검증 · 기여 기록', unit: '연구 판단',
+    rows: [['연구 질문', 'researchQuestion'], ['문헌 공백', 'literatureGap'], ['가설', 'hypothesis'], ['방법 대안', 'methodAlternatives'], ['방법', 'method'], ['검증', 'validation'], ['발견', 'finding'], ['한계', 'limitations'], ['기여 역할', 'contributionRoles']] },
+  education: { key: 'core-education-designs', label: '학습 설계 · 평가 기록', unit: '교육 판단',
+    rows: [['학습자 맥락', 'learnerContext'], ['학습 필요', 'learningNeed'], ['학습목표', 'objectives'], ['학습 설계', 'learningDesign'], ['평가', 'assessment'], ['포용성', 'inclusion'], ['학습 증거', 'learnerEvidence'], ['재설계', 'iteration'], ['전이', 'transfer']] },
+  policy: { key: 'core-policy-cases', label: '정책 설계 · 평가 기록', unit: '정책 판단',
+    rows: [['정책 문제', 'policyProblem'], ['대상', 'population'], ['이해관계자', 'stakeholders'], ['근거', 'evidence'], ['대안', 'options'], ['선택 기준', 'criteria'], ['논리모형', 'theoryOfChange'], ['모니터링', 'monitoring'], ['평가', 'evaluation'], ['형평성 위험', 'equityRisk']] },
+  legal: { key: 'core-legal-reviews', label: '쟁점 · 위험 · 통제 기록', unit: '법률 판단',
+    rows: [['사실관계', 'facts'], ['쟁점', 'legalIssues'], ['적용 근거', 'authorities'], ['불확실성', 'uncertainty'], ['대안', 'options'], ['위험 판단', 'riskAssessment'], ['권고', 'recommendation'], ['통제', 'control'], ['결과', 'outcome']] },
+  healthcare: { key: 'core-healthcare-quality', label: '안전 · 품질 개선 기록', unit: '품질 판단',
+    rows: [['진료·서비스 맥락', 'careContext'], ['품질 문제', 'qualityProblem'], ['근거·지침', 'evidenceGuideline'], ['안전 기준', 'safetyCriteria'], ['중재', 'intervention'], ['측정 품질', 'measurementQuality'], ['결과', 'outcome'], ['부작용', 'unintendedEffect'], ['개인정보 경계', 'privacyBoundary']] },
+};
+
+/* jobData 값 → 한 줄 텍스트 (문자열 / 문자열 배열 / {name,value,baseline} 배열 모두 처리) */
+function jobDataValue(value) {
+  if (!Array.isArray(value)) return coreText(value);
+  return value
+    .map(item => (typeof item === 'string'
+      ? coreText(item)
+      : [coreText(item?.name), coreText(item?.value), coreText(item?.baseline) && `(기준 ${coreText(item.baseline)})`].filter(Boolean).join(' ')))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function buildJobSignatureSection(jobCategory, keyExperiences = []) {
+  const meta = JOB_SIGNATURE[jobCategory];
+  if (!meta) return null;
+  const content = keyExperiences
+    .map((item, index) => {
+      const jd = item?.jobData || {};
+      const lines = meta.rows.map(([label, key]) => coreLine(label, jobDataValue(jd[key]))).filter(Boolean);
+      if (lines.length === 0) return '';
+      return joinCoreLines([`${index + 1}. ${coreText(item?.title) || `${meta.unit} ${index + 1}`}`, ...lines]);
+    })
+    .filter(Boolean)
+    .join('\n\n');
+  return { key: meta.key, label: meta.label, type: 'core', content, enabled: !!content };
+}
+
+function buildArtifactEvidenceSection(sr = {}) {
+  const analysis = sr.artifactAnalysis || {};
+  const artifacts = Array.isArray(analysis.detectedArtifacts) ? analysis.detectedArtifacts : [];
+  const byId = Object.fromEntries(artifacts.map(item => [item?.id, item]));
+  const rows = (Array.isArray(analysis.evidenceLedger) ? analysis.evidenceLedger : [])
+    .map(row => {
+      const refs = (Array.isArray(row?.artifactIds) ? row.artifactIds : [])
+        .map(id => coreText(byId[id]?.name) || coreText(id))
+        .filter(Boolean)
+        .join(', ');
+      return joinCoreLines([
+        coreText(row?.claim) ? `주장: ${coreText(row.claim)}` : '',
+        refs ? `근거 자료: ${refs}` : '',
+        coreLine('원본 위치', row?.location),
+        coreLine('직접 확인', row?.directObservation),
+        coreLine('근거 등급', row?.proofLevel),
+        coreLine('본인 기여', row?.ownership),
+        coreLine('확인 필요', row?.gap),
+      ]);
+    })
+    .filter(Boolean)
+    .slice(0, 10);
+  const content = rows.join('\n\n');
+  return { key: 'core-artifact-evidence', label: '자료 판독 · 근거 장부', type: 'core', content, enabled: !!content };
+}
+
 /* 마케터 — marketerKit의 캠페인 스토리(퍼널)와 KPI */
 function buildMarketerCampaignSection(sr = {}) {
   const kit = sr.marketerKit || {};
@@ -258,9 +397,12 @@ export function buildCoreExperienceSections({ jobCategory = 'common', sr = {}, c
     sections = [buildLeanCanvasSection(sr), keyExpSection, buildPmValidationSection(sr, keyExperiences)];
   } else if (jobCategory === 'marketer') {
     sections = [keyExpSection, buildMarketerCampaignSection(sr), buildMarketerResumeSection(sr)];
+  } else if (JOB_SIGNATURE[jobCategory]) {
+    sections = [keyExpSection, buildJobSignatureSection(jobCategory, keyExperiences)];
   } else {
     sections = [keyExpSection];
   }
+  sections.push(buildArtifactEvidenceSection(sr));
   sections.push(buildCaseBodySection(caseStudy, jobCategory));
   return sections.map(finalizeSection).filter(Boolean);
 }

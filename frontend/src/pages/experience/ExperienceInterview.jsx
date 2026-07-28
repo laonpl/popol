@@ -123,7 +123,11 @@ export default function ExperienceInterview() {
 
       // 2) 초안+자료 기반 인터뷰 질문 생성
       setLoadingMsg('AI가 질문을 준비하는 중...');
-      let qs = await generateInterviewQuestions(combined, jobCategory);
+      const plan = await generateInterviewQuestions(combined, jobCategory, 'basic');
+      let qs = (plan?.questions || [])
+        .map(item => typeof item === 'string' ? item : item?.question)
+        .filter(Boolean)
+        .slice(0, 5);
       if (!qs || qs.length === 0) {
         qs = [
           '이 경험에서 가장 핵심적인 성과를 수치로 말한다면? (전/후, %, 시간, 규모 등)',
@@ -305,7 +309,7 @@ export default function ExperienceInterview() {
                 isDragging ? 'border-primary-400 bg-primary-50' : 'border-surface-300 bg-surface-50/50 hover:bg-surface-50'
               }`}
             >
-              <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,.md,.csv,image/*" onChange={onFilesSelected} className="hidden" />
+              <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.pptx,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.sql,.zip,.hwp,.hwpx,image/*" onChange={onFilesSelected} className="hidden" />
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -447,7 +451,7 @@ export default function ExperienceInterview() {
         </div>
       )}
 
-      {/* ── 검토: 건너뛴 답변 한 번에 채우기·수정 ── */}
+      {/* ── 검토: 답한 내용만 확인. 건너뛴 항목은 확인 필요로 보존 ── */}
       {phase === 'review' && (
         <div className="rounded-2xl border border-surface-200 bg-white overflow-hidden shadow-[0_10px_40px_rgba(49,65,87,0.06)]">
           <div className="h-1 w-full bg-primary-600" />
@@ -455,7 +459,7 @@ export default function ExperienceInterview() {
             <h2 className="text-[18px] font-extrabold text-bluewood-900">답변 검토</h2>
             <p className="mt-1 text-[13px] text-bluewood-400 leading-relaxed">
               {unansweredIdx.length > 0
-                ? <>비어 있는 <b className="text-primary-600 font-bold">{unansweredIdx.length}개</b>를 지금 채우면 정리 품질이 확 올라가요. 키워드만 적어도 돼요. (그대로 진행해도 됩니다)</>
+                ? <>건너뛴 <b className="text-primary-600 font-bold">{unansweredIdx.length}개</b>는 지어내지 않고 ‘확인 필요’로 남겨둘게요. 지금 답하고 싶은 것만 수정해도 됩니다.</>
                 : '모든 질문에 답했어요. 바로 정리할 수 있어요!'}
             </p>
           </div>
@@ -467,14 +471,14 @@ export default function ExperienceInterview() {
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-50 text-primary-600 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
                     <p className="flex-1 text-[13.5px] font-semibold text-bluewood-700 leading-snug" style={{ wordBreak: 'keep-all' }}>{q}</p>
-                    {empty && <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-600">비어 있음</span>}
+                    {empty && <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-surface-50 border border-surface-200 text-[11px] font-bold text-bluewood-400">확인 필요</span>}
                   </div>
                   <textarea
                     value={answers[i] || ''}
                     onChange={e => setAnswers(prev => ({ ...prev, [i]: e.target.value }))}
                     rows={2}
-                    placeholder="여기에 채워보세요 — 키워드만 적어도 AI가 다듬어요"
-                    className={`w-full resize-y rounded-xl border px-3.5 py-2.5 text-[13.5px] leading-relaxed text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300 ${empty ? 'border-amber-200 bg-amber-50/30' : 'border-surface-200'}`}
+                    placeholder="선택 사항 · 기억나면 적고 아니면 그대로 진행하세요"
+                    className="w-full resize-y rounded-xl border border-surface-200 px-3.5 py-2.5 text-[13.5px] leading-relaxed text-bluewood-800 outline-none focus:ring-2 focus:ring-primary-200 placeholder:text-bluewood-300"
                   />
                 </div>
               );

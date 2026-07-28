@@ -33,6 +33,136 @@ function isWeak(value) {
   return /보강해 주세요|입력해 주세요|초안을 만들었습니다|초안입니다/.test(t);
 }
 
+const INTERVIEW_MODES = [
+  { key: 'quick', label: '빠른 정리', time: '약 3분', desc: '문제·기여·결과의 핵심만 확인', limit: 3 },
+  { key: 'basic', label: '기본 정리', time: '5~7분', desc: '핵심 판단과 고민 한 장면까지', limit: 5 },
+  { key: 'deep', label: '깊은 정리', time: '10~15분', desc: '판단 변화와 관점까지 깊게', limit: 5 },
+];
+const INTERVIEW_LIMITS = Object.fromEntries(INTERVIEW_MODES.map(mode => [mode.key, mode.limit]));
+const MOMENT_CHOICES = ['AI 추론이 맞아요', '일부만 맞아요', '다른 고민이었어요', '기억나지 않아요', '나중에 답할게요'];
+
+function questionTargetKey(target = '') {
+  if (target === 'role') return 'role';
+  if (target === 'result' || target === 'evidence') return 'output';
+  if (target === 'decision' || target === 'decisionCriteria' || target === 'changedJudgment') return 'process';
+  return 'process';
+}
+
+function hasOutcomeEvidence(analysis) {
+  const bundles = (analysis?.keyExperiences || []).flatMap(item => item?.evidenceBundle || []);
+  return !isWeak(analysis?.output)
+    && (/\d/.test(asText(analysis?.output)) || bundles.some(item => asText(item?.sourceRef || item?.claim)));
+}
+
+function buildLowBurdenQueue(analysis, mode = 'basic') {
+  const limit = INTERVIEW_LIMITS[mode] || 5;
+  const aiQuestions = Array.isArray(analysis?.interviewPlan?.questions)
+    ? analysis.interviewPlan.questions
+    : [];
+  const normalized = aiQuestions.map((item, index) => {
+    if (typeof item === 'string') {
+      return {
+        id: `ai-${index}`,
+        key: 'process',
+        label: '핵심 판단',
+        kind: 'essential',
+        question: item,
+        why: '이 답변으로 행동의 나열이 아니라 판단의 근거를 보여줄 수 있어요.',
+        valueScore: 50,
+      };
+    }
+    const target = asText(item?.target) || 'decision';
+    const quickChoices = Array.isArray(item?.quickChoices) && item.quickChoices.length
+      ? item.quickChoices.slice(0, 5)
+      : item?.kind === 'moment_confirmation' ? MOMENT_CHOICES : [];
+    return {
+      ...item,
+      id: asText(item?.id) || `ai-${index}`,
+      key: questionTargetKey(target),
+      label: target === 'role' ? '개인 기여'
+        : target === 'result' || target === 'evidence' ? '결과와 근거'
+          : '핵심 판단',
+      question: asText(item?.question),
+      why: asText(item?.why) || '이 답변으로 경험의 판단과 근거를 더 분명하게 만들 수 있어요.',
+      target,
+      keIndex: Number.isInteger(Number(item?.targetExperienceIndex)) ? Number(item.targetExperienceIndex) : 0,
+      quickChoices,
+      privacy: ['public', 'ask', 'private'].includes(item?.privacy) ? item.privacy : 'public',
+      valueScore: Number(item?.valueScore) || 50,
+    };
+  }).filter(item => item.question);
+
+  const known = {
+    role: !isWeak(analysis?.projectOverview?.role),
+    decision: !isWeak(analysis?.process)
+      && (
+        (analysis?._userCorrectedFields || []).includes('process')
+        || (analysis?.keyExperiences || []).some(item => asText(item?.decisionTrace?.choice || item?.decisionTrace?.decisionCriteria))
+      ),
+    outcome: hasOutcomeEvidence(analysis),
+  };
+  const filtered = normalized.filter(item => {
+    if (item.target === 'role' && known.role) return false;
+    if ((item.target === 'decision' || item.target === 'decisionCriteria') && item.kind === 'essential' && known.decision) return false;
+    if ((item.target === 'result' || item.target === 'evidence') && known.outcome) return false;
+    return true;
+  });
+
+  const fallback = [];
+  if (!known.role) fallback.push({
+    id: 'ownership', key: 'role', target: 'role', label: '개인 기여', kind: 'essential', valueScore: 100,
+    question: '팀 전체가 아니라 본인이 직접 맡고 결정한 부분은 어디까지였나요?',
+    why: '이 답변이 있으면 팀 성과와 본인의 기여를 분리해 보여줄 수 있어요.',
+    placeholder: '직접 맡은 일과 결정한 범위를 짧게 적어주세요',
+  });
+  if (!known.decision) fallback.push({
+    id: 'judgment', key: 'process', target: 'decision', label: '핵심 판단', kind: 'essential', valueScore: 95,
+    question: '이 프로젝트에서 가장 판단하기 어려웠던 순간은 언제였나요?',
+    why: '이 답변으로 무엇을 했는지보다 어떤 기준으로 움직였는지 보여줄 수 있어요.',
+    placeholder: '고민한 선택지나 판단이 흔들린 순간을 적어주세요',
+  });
+  if (!known.outcome) fallback.push({
+    id: 'outcome', key: 'output', target: 'evidence', label: '결과와 근거', kind: 'evidence', valueScore: 90,
+    question: '실행 전후 달라진 수치나 사용자·팀의 반응, 확인 가능한 산출물이 있나요?',
+    why: '성과 주장을 실제 수치·반응·자료와 바로 연결할 수 있어요.',
+    placeholder: '수치가 없다면 반응, 화면, 문서, 링크도 괜찮아요',
+  });
+
+  if (!normalized.some(item => item.kind === 'moment_confirmation') && mode !== 'quick') {
+    const keIndex = (analysis?.keyExperiences || []).findIndex(item => (
+      asText(item?.decisionTrace?.changedJudgment)
+      || asText(item?.honestReview?.misjudgment)
+      || asText(item?.decisionTrace?.alternatives)
+    ));
+    if (keIndex >= 0) {
+      const ke = analysis.keyExperiences[keIndex];
+      const inference = asText(ke?.decisionTrace?.changedJudgment)
+        || asText(ke?.honestReview?.misjudgment)
+        || asText(ke?.decisionTrace?.choice);
+      fallback.push({
+        id: `moment-${keIndex}`, key: 'process', target: 'decisionCriteria', label: '사람이 드러나는 순간',
+        kind: 'moment_confirmation', valueScore: 88, keIndex,
+        question: `${asText(ke?.title) || '이 경험'}에서 “${displayText(inference).slice(0, 120)}”가 핵심 고민이었던 게 맞나요?`,
+        why: '이 장면을 확인하면 결과만이 아니라 판단이 바뀐 흐름을 보여줄 수 있어요.',
+        quickChoices: MOMENT_CHOICES,
+        followUp: {
+          question: '그 선택을 할 때 끝까지 지키려고 한 기준은 무엇이었나요?',
+          why: '이 답변으로 본인만의 판단 기준을 한 문장으로 남길 수 있어요.',
+          target: 'decisionCriteria',
+        },
+      });
+    }
+  }
+
+  const deduped = [...filtered, ...fallback]
+    .sort((a, b) => (Number(b.valueScore) || 0) - (Number(a.valueScore) || 0))
+    .filter((item, index, list) => list.findIndex(candidate => candidate.id === item.id || candidate.question === item.question) === index);
+  const essential = deduped.filter(item => item.kind === 'essential' || item.kind === 'evidence');
+  const moments = deduped.filter(item => item.kind !== 'essential' && item.kind !== 'evidence');
+  const ordered = mode === 'quick' ? essential : [...essential, ...moments];
+  return ordered.slice(0, limit);
+}
+
 /* 표시용 텍스트 정규화 — 들여쓰기·마크다운·과도한 공백 제거 (채팅/초안 공용) */
 function displayText(value) {
   return stripMd(asText(value))
@@ -44,10 +174,21 @@ function displayText(value) {
 }
 
 /* ── 분야별 자료 수집 프리셋 — 사람들이 경험을 자주 남겨두는 곳에 맞춤 ── */
+const ALL_ARTIFACT_ACCEPT = '.pdf,.doc,.docx,.pptx,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.sql,.zip,.hwp,.hwpx,image/*';
+const fieldMaterialPreset = (intro, filesHint) => ({
+  intro,
+  accept: ALL_ARTIFACT_ACCEPT,
+  filesHint,
+  links: [
+    { key: 'notion', label: 'Notion / 원본 문서', placeholder: 'https://notion.so/... 또는 공개 문서', source: 'notion', icon: Link2 },
+    { key: 'reference', label: '공개 결과물 링크 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
+  ],
+});
+
 const MATERIAL_PRESETS = {
   dev: {
     intro: '개발 경험은 GitHub 리포지토리와 README·기술문서에 가장 잘 남아 있어요. GitHub 아이디를 함께 입력하면 내 커밋 기여도·트러블슈팅·코드까지 분석해드려요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: 'README · 기술문서 · 발표자료 (PDF / DOCX / MD / 이미지)',
     links: [
       { key: 'github', label: 'GitHub 리포지토리', placeholder: 'https://github.com/username/repo', source: 'github', icon: Github },
@@ -56,7 +197,7 @@ const MATERIAL_PRESETS = {
   },
   aiml: {
     intro: 'AI/ML 경험은 코드 저장소와 실험 리포트에 잘 남아 있어요. GitHub 아이디를 함께 입력하면 내 커밋 기여도·코드까지 분석해드려요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '실험 리포트 · 논문/발표자료 (PDF / DOCX / MD / 이미지)',
     links: [
       { key: 'github', label: 'GitHub 리포지토리', placeholder: 'https://github.com/username/repo', source: 'github', icon: Github },
@@ -65,7 +206,7 @@ const MATERIAL_PRESETS = {
   },
   da: {
     intro: '데이터 분석 경험은 분석 리포트나 대시보드 정리 문서에 잘 남아 있어요. 리포트 파일이나 Notion 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '분석 리포트 · 대시보드 캡처 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
@@ -74,7 +215,7 @@ const MATERIAL_PRESETS = {
   },
   devops: {
     intro: '인프라/데브옵스 경험은 GitHub과 구축 문서에 잘 남아 있어요. 아키텍처 문서나 리포지토리 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '아키텍처 문서 · 구축 기록 (PDF / DOCX / 이미지)',
     links: [
       { key: 'github', label: 'GitHub 리포지토리', placeholder: 'https://github.com/username/repo', source: 'github', icon: Github },
@@ -83,7 +224,7 @@ const MATERIAL_PRESETS = {
   },
   pm: {
     intro: '기획 경험은 기획서·PRD·회고 문서에 가장 잘 남아 있어요. 목표 지표(KPI·MSC)나 우선순위 결정 근거가 담긴 자료일수록 의사결정·MSC 달성·로드맵 중심으로 깊게 분석해드려요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '기획서 · PRD · 회고/지표 리포트 (PDF / DOCX)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
@@ -92,7 +233,7 @@ const MATERIAL_PRESETS = {
   },
   designer: {
     intro: '디자인 경험은 포트폴리오 시안과 케이스 스터디에 잘 남아 있어요. 시안 이미지나 PDF, 링크를 올려주세요.',
-    accept: 'image/*,.pdf',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '시안 · 포트폴리오 (이미지 / PDF)',
     links: [
       { key: 'behance', label: 'Behance / 포트폴리오 링크', placeholder: 'https://behance.net/...', source: 'blog', icon: Link2 },
@@ -101,7 +242,7 @@ const MATERIAL_PRESETS = {
   },
   marketer: {
     intro: '마케팅 산출물은 채널 곳곳에 흩어져 있죠. 인스타그램 게시물, Figma 카드뉴스·대시보드, 캠페인 리포트, 블로그·노션 — 어디에 있든 링크와 파일로 올려주세요. 제가 읽고 성과 중심으로 정리할게요.',
-    accept: '.pdf,.doc,.docx,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '캠페인 리포트 · 카드뉴스/대시보드 캡처 (PDF / DOCX / 이미지)',
     links: [
       { key: 'instagram', label: '인스타그램/SNS 게시물·계정', placeholder: 'https://instagram.com/... 게시물 또는 계정', source: 'blog', icon: Link2 },
@@ -112,7 +253,7 @@ const MATERIAL_PRESETS = {
   },
   hr: {
     intro: '인사/채용 경험은 프로세스 문서와 온보딩 자료에 잘 남아 있어요. 문서 파일이나 Notion 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '프로세스 문서 · 온보딩 자료 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
@@ -121,16 +262,72 @@ const MATERIAL_PRESETS = {
   },
   sales: {
     intro: '세일즈/사업개발 경험은 제안서와 성과 정리 문서에 잘 남아 있어요. 문서 파일이나 링크를 올려주세요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '제안서 · 성과 정리 문서 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
       { key: 'blog', label: '기타 링크 (선택)', placeholder: 'https://...', source: 'blog', icon: Link2 },
     ],
   },
+  security: fieldMaterialPreset(
+    '보안 경험은 스캐너 결과보다 위협 모델·재현 근거·완화 후 재검증이 중요합니다. 민감 정보는 비식별화한 자료만 올려주세요.',
+    '위협 모델 · 취약점/감사 리포트 · PoC · 대응 기록 · 재검증 결과',
+  ),
+  qa: fieldMaterialPreset(
+    'QA 경험은 테스트 건수보다 품질 위험과 요구사항 추적, 결함이 릴리스 판단을 어떻게 바꿨는지를 중심으로 읽어요.',
+    '테스트 계획/케이스 · 추적표 · 결함 티켓 · 자동화 코드 · 실행/릴리스 리포트',
+  ),
+  engineering: fieldMaterialPreset(
+    '엔지니어링 경험은 요구조건과 설계 대안, 시험 실패와 재설계가 함께 보이는 자료가 가장 좋습니다.',
+    '요구사항 · 도면/CAD 캡처 · 계산/시뮬레이션 · 시험 결과 · FMEA · 변경 이력',
+  ),
+  project: fieldMaterialPreset(
+    '프로젝트 관리 경험은 일정표만이 아니라 목표·범위·리스크·변경 결정과 인수 근거를 연결해 읽어요.',
+    '프로젝트 헌장 · WBS/일정 · RAID/변경 로그 · 상태 보고 · 인수/회고',
+  ),
+  content: fieldMaterialPreset(
+    '콘텐츠 경험은 완성본과 함께 브리프·초안·피드백·수정본·배포 반응을 올리면 편집 판단까지 복원할 수 있어요.',
+    '콘텐츠 브리프 · 원고/대본 · 스토리보드 · 초안/수정본 · 발행물 · 채널 분석',
+  ),
+  customer_success: fieldMaterialPreset(
+    '고객 성공 경험은 문의 처리보다 고객 목표, 반복 원인, 해결·예방과 채택·유지 변화를 중심으로 읽어요.',
+    'VOC/티켓 · 고객 여정 · 온보딩 계획 · 헬프센터/런북 · 사용/갱신 리포트',
+  ),
+  finance: fieldMaterialPreset(
+    '재무 경험은 숫자만이 아니라 데이터 출처·가정·민감도·검산·통제와 실제 의사결정 연결이 중요합니다.',
+    '재무 모델 · 예산/예측 · 투자 메모 · 감사 조서 · 리스크/통제 · 경영 보고',
+  ),
+  strategy: fieldMaterialPreset(
+    '전략 경험은 프레임워크보다 의사결정 질문, 가설과 자료 근거, 대안별 위험, 실행 가능한 권고를 중심으로 읽어요.',
+    '문제 정의 · 워크플랜 · 시장/고객 리서치 · 분석 모델 · 전략 제안 · 실행 추적',
+  ),
+  operations: fieldMaterialPreset(
+    '운영 경험은 프로세스 기준선, 병목·근본 원인, 파일럿과 개선 후 유지 통제가 보이는 자료가 좋습니다.',
+    '프로세스 맵/SOP · 운영 데이터 · 품질 리포트 · 원인 분석 · 파일럿 · 통제 계획',
+  ),
+  research: fieldMaterialPreset(
+    '연구 경험은 연구 질문·방법 선택·재현·부정적 결과와 본인의 정확한 기여 역할을 분리해 읽어요.',
+    '연구계획/프로토콜 · 랩 노트 · 데이터/코드 · 논문/포스터 · 리뷰 · 재현 자료',
+  ),
+  education: fieldMaterialPreset(
+    '교육 경험은 수업 소개보다 학습자 진단, 목표-활동-평가 정렬과 평가 후 재설계를 중심으로 읽어요.',
+    '요구 분석 · 수업안/교재 · 활동 · 평가 루브릭 · 비식별 학습 결과 · 개선 기록',
+  ),
+  policy: fieldMaterialPreset(
+    '정책 경험은 대상과 이해관계자, 논리모형, 모니터링과 인과 평가, 형평성·책무성을 구분해 읽어요.',
+    '정책 메모 · 법령/공공데이터 · 이해관계자 의견 · 논리모형 · 집행/평가 리포트',
+  ),
+  legal: fieldMaterialPreset(
+    '법무 경험은 사실·쟁점·적용 근거·불확실성, 대안별 위험과 통제를 중심으로 읽어요. 비밀정보는 제거해주세요.',
+    '법률 검토 메모 · 비식별 계약 조항 · 정책/규정 · 실사/점검 · 시정 기록',
+  ),
+  healthcare: fieldMaterialPreset(
+    '보건의료 경험은 안전·효과·사람 중심성·형평성과 지표 품질을 중심으로 읽어요. 개인 식별정보는 절대 올리지 마세요.',
+    '비식별 사례/프로토콜 · 품질지표 · 프로세스 맵 · 개선/안전 기록 · 교육 자료',
+  ),
   common: {
     intro: '가지고 있는 자료(이력서·활동 기록·문서)를 올리거나, 아래에 편하게 적어주세요. 제가 읽고 초안을 만들게요.',
-    accept: '.pdf,.doc,.docx,.md,.txt,image/*',
+    accept: ALL_ARTIFACT_ACCEPT,
     filesHint: '이력서 · 활동 기록 · 문서 (PDF / DOCX / 이미지)',
     links: [
       { key: 'notion', label: 'Notion 페이지 (선택)', placeholder: 'https://notion.so/...', source: 'notion', icon: Link2 },
@@ -811,6 +1008,8 @@ function ExperienceBasicsWorkspace({
   onStartMonthChange,
   endMonth,
   onEndMonthChange,
+  interviewMode,
+  onInterviewModeChange,
   onSubmit,
   onBack,
 }) {
@@ -894,6 +1093,37 @@ function ExperienceBasicsWorkspace({
               <p className="mt-2 text-[13px] leading-relaxed text-bluewood-400">
                 기간이 기억나지 않으면 비워두고 넘어가도 됩니다. 나중에 결과 화면에서 수정할 수 있어요.
               </p>
+            </fieldset>
+
+            <fieldset>
+              <legend className="text-[13px] font-bold text-bluewood-700">정리 깊이</legend>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-400">
+                어떤 모드든 한 세션에 질문은 최대 5개이며, 모르는 내용은 언제든 건너뛸 수 있어요.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {INTERVIEW_MODES.map(mode => {
+                  const selected = interviewMode === mode.key;
+                  return (
+                    <button
+                      key={mode.key}
+                      type="button"
+                      onClick={() => onInterviewModeChange(mode.key)}
+                      aria-pressed={selected}
+                      className={`rounded-xl border px-3.5 py-3 text-left transition ${
+                        selected
+                          ? 'border-primary-400 bg-primary-50 ring-2 ring-primary-100'
+                          : 'border-surface-200 bg-white hover:border-primary-200'
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-[13.5px] font-extrabold text-bluewood-900">{mode.label}</span>
+                        <span className="text-[11px] font-bold text-primary-700">{mode.time}</span>
+                      </span>
+                      <span className="mt-1 block text-[11.5px] leading-snug text-bluewood-400">{mode.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </fieldset>
           </div>
         </section>
@@ -1041,29 +1271,27 @@ function MomentsReviewWorkspace({ phase, moments, onToggle, onConfirm }) {
   );
 }
 
-function InterviewProgressRail({ phase, draft, title, startMonth, endMonth, currentQ, completeness }) {
+function InterviewProgressRail({
+  phase, draft, title, startMonth, endMonth, currentQ, completeness,
+  interviewMode = 'basic', answeredCount = 0,
+}) {
   const railSteps = [
-    { key: 'select', label: '경험 선택', done: true },
-    { key: 'background', label: '상황과 배경', done: !!title.trim() && (!!draft?.overview && !isWeak(draft.overview)) },
-    { key: 'problem', label: '문제와 목표', done: !isWeak(draft?.task) || !isWeak(draft?.overview) },
-    { key: 'role', label: '나의 역할', done: !isWeak(draft?.projectOverview?.role) },
-    { key: 'process', label: '실행 과정', done: !isWeak(draft?.process) },
-    { key: 'result', label: '성과와 변화', done: !isWeak(draft?.output) || (Array.isArray(draft?.keyExperiences) && draft.keyExperiences.some(ke => asText(ke.metric || ke.afterMetric))) },
-    { key: 'growth', label: '배운 점', done: !isWeak(draft?.growth) },
-    { key: 'finish', label: '최종 정리', done: phase === 'saving' },
+    { key: 'draft', label: 'AI 초안 확인', done: phase !== 'reviewDraft' },
+    { key: 'questions', label: '핵심 질문', done: phase === 'fill' && !currentQ },
+    { key: 'polish', label: '선택 보강', done: phase === 'fill' && !currentQ },
+    { key: 'finish', label: '저장', done: phase === 'saving' },
   ];
-  const currentKey = currentQ?.key === 'role' ? 'role'
-    : currentQ?.key === 'process' ? 'process'
-    : currentQ?.key === 'output' || currentQ?.widget === 'metric' ? 'result'
-    : currentQ?.key === 'growth' ? 'growth'
-    : currentQ ? 'background'
+  const currentKey = phase === 'reviewDraft' ? 'draft'
     : phase === 'saving' ? 'finish'
-    : railSteps.find(step => !step.done)?.key || 'finish';
+      : currentQ?.kind === 'moment_confirmation' || currentQ?.kind === 'moment_followup' ? 'polish'
+        : 'questions';
+  const mode = INTERVIEW_MODES.find(item => item.key === interviewMode) || INTERVIEW_MODES[1];
 
   return (
     <aside className="hidden xl:block">
       <div className="sticky top-6 rounded-[16px] border border-surface-200 bg-white px-4 py-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
         <p className="text-[12px] font-bold text-primary-700">인터뷰 진행</p>
+        <p className="mt-1 text-[12px] text-bluewood-400">{mode.label} · {mode.time}</p>
         <ol className="mt-4 space-y-3" aria-label="인터뷰 진행 레일">
           {railSteps.map((step, index) => {
             const active = step.key === currentKey;
@@ -1086,17 +1314,90 @@ function InterviewProgressRail({ phase, draft, title, startMonth, endMonth, curr
           })}
         </ol>
         <div className="mt-5 border-t border-surface-100 pt-4">
-          <p className="text-[12px] font-bold text-bluewood-500">경험 완성도</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[12px] font-bold text-bluewood-500">경험 완성도</p>
+            <span className="text-[11px] font-bold text-primary-700">
+              질문 {Math.min(answeredCount, mode.limit)} / {mode.limit}
+            </span>
+          </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-200">
             <span className="block h-full rounded-full bg-primary-600" style={{ width: `${completeness}%` }} />
           </div>
-          <p className="mt-2 text-[12px] font-semibold text-bluewood-500">{completeness}% · 약간만 더 채우면 좋아요</p>
+          <p className="mt-2 text-[12px] font-semibold text-bluewood-500">{completeness}% · 필요한 빈칸만 확인해요</p>
           {(startMonth && endMonth) && (
             <p className="mt-3 text-[12px] text-bluewood-400">{startMonth} ~ {endMonth}</p>
           )}
         </div>
       </div>
     </aside>
+  );
+}
+
+function DraftUnderstandingCheck({ draft, onPatch, onConfirm }) {
+  const fields = [
+    { key: 'task', label: '문제', value: draft?.task, hint: '무엇을 문제라고 판단했는지' },
+    { key: 'role', label: '내 역할', value: draft?.projectOverview?.role, hint: '직접 맡고 결정한 범위' },
+    { key: 'process', label: '핵심 행동·판단', value: draft?.process, hint: '어떤 기준으로 무엇을 실행했는지' },
+    { key: 'output', label: '결과', value: draft?.output, hint: '달라진 수치·반응·산출물' },
+  ];
+  return (
+    <section className="rounded-2xl border border-primary-200 bg-primary-50/40 p-4 animate-fadeIn">
+      <p className="text-[12px] font-bold text-primary-700">AI가 먼저 이해한 내용</p>
+      <h2 className="mt-1 text-[17px] font-extrabold text-bluewood-900">
+        새로 쓰지 말고, 틀린 부분만 고쳐주세요.
+      </h2>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">
+        비어 있거나 확실하지 않은 내용은 다음 질문에서 필요한 것만 확인합니다.
+      </p>
+      <div className="mt-4 grid gap-3">
+        {fields.map(field => (
+          <label key={field.key} className="block rounded-xl border border-surface-200 bg-white p-3">
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-extrabold text-bluewood-700">{field.label}</span>
+              <span className="text-[10.5px] text-bluewood-300">{field.hint}</span>
+            </span>
+            <textarea
+              value={asText(field.value)}
+              onChange={event => onPatch(field.key, event.target.value)}
+              rows={2}
+              placeholder="자료에서 확인되지 않았어요"
+              className="mt-2 w-full resize-y bg-transparent text-[13px] leading-relaxed text-bluewood-800 outline-none placeholder:text-bluewood-300"
+            />
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-[14px] font-bold text-white transition-colors hover:bg-primary-700"
+      >
+        초안 확인했어요 · 핵심 질문으로
+        <ArrowRight size={15} aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
+function ImprovementPreview({ improvement }) {
+  if (!improvement) return null;
+  return (
+    <section className="rounded-xl border border-caribbean-200 bg-caribbean-50/50 p-4 animate-pop-in">
+      <p className="text-[12px] font-bold text-caribbean-700">이 답변으로 이렇게 달라졌어요</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg bg-white/70 p-3">
+          <p className="text-[10.5px] font-bold text-bluewood-300">답변 전</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-bluewood-500">
+            {improvement.before || '확인되지 않은 내용'}
+          </p>
+        </div>
+        <div className="rounded-lg border border-caribbean-100 bg-white p-3">
+          <p className="text-[10.5px] font-bold text-caribbean-700">답변 후</p>
+          <p className="mt-1 text-[12.5px] font-semibold leading-relaxed text-bluewood-800">
+            {improvement.after}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1156,7 +1457,7 @@ function MetricWidget({ target, onSubmit, onSkip, bare = false }) {
         </div>
       )}
       <div className="flex items-center gap-1.5 text-[12px] font-bold text-primary-600">
-        <TrendingUp size={13} /> 정확하지 않아도 괜찮아요 — 대략적인 수치면 충분해요
+        <TrendingUp size={13} /> 정확히 기억나지 않으면 범위·정성 반응을 적거나 건너뛰어도 괜찮아요
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -1449,7 +1750,7 @@ export default function ExperienceChat() {
   const user = useAuthStore(s => s.user);
   const { createExperience, draftAnalyze, extractMoments, refineAnswer } = useExperienceStore();
 
-  const [phase, setPhase] = useState('field'); // field(히어로) | mkField(마케터 세부분야) | basics(제목·기간) | materials | extracting | moments | building | fill | saving
+  const [phase, setPhase] = useState('field'); // field | mkField | basics | materials | extracting | moments | building | reviewDraft | fill | saving
   const [marketerField, setMarketerField] = useState(null); // 마케터 세부 분야 (MARKETER_FIELDS 항목)
   const [customMarketerField, setCustomMarketerField] = useState('');
   const [messages, setMessages] = useState([]);
@@ -1457,6 +1758,11 @@ export default function ExperienceChat() {
   const [refining, setRefining] = useState(false); // 답변 판정·가공 중 (입력 잠금)
   const [fillDone, setFillDone] = useState(false);
   const [jobCategory, setJobCategory] = useState('');
+  const [interviewMode, setInterviewMode] = useState('basic');
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [skippedQuestions, setSkippedQuestions] = useState([]);
+  const [lastImprovement, setLastImprovement] = useState(null);
+  const [answerVisibility, setAnswerVisibility] = useState('public');
   const [buildSteps, setBuildSteps] = useState([]);
   const [sourceText, setSourceText] = useState('');
   const [moments, setMoments] = useState([]);           // 추출된 핵심 경험 (selected 플래그 포함)
@@ -1522,6 +1828,10 @@ export default function ExperienceChat() {
     const el = panelRefs.current[key];
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [currentQ, phase]);
+
+  useEffect(() => {
+    setAnswerVisibility(currentQ?.privacy === 'private' ? 'private' : 'public');
+  }, [currentQ?.id, currentQ?.privacy]);
 
   const preset = MATERIAL_PRESETS[jobCategory] || MATERIAL_PRESETS.common;
 
@@ -1800,6 +2110,7 @@ export default function ExperienceChat() {
         analysis = await draftAnalyze({
           content: draftContent,
           jobCategory: jobCategory || 'common',
+          interviewMode,
         });
       } catch (draftErr) {
         console.warn('[ExperienceChat] AI 초안 실패 → 로컬 초안 폴백:', draftErr?.message);
@@ -1832,66 +2143,20 @@ export default function ExperienceChat() {
         : analysis;
       setDraft(withPeriod);
 
-      // 채우기 질문 큐 구성 — 제목/기간은 기본 정보에서 이미 받았고, 비어 있는 부분만 묻는다
-      const q = [];
-      if (isWeak(analysis?.projectOverview?.role)) {
-        q.push({
-          key: 'role', label: '역할',
-          question: '이 프로젝트에서 본인의 역할은 무엇이었나요?', placeholder: '예: 프론트엔드 개발 · 팀 리딩',
-          chips: ['프론트엔드 개발', '백엔드 개발', '기획 / PM', '디자이너', '데이터 분석', '마케팅'],
-        });
-      }
-      // 마케터 — 타깃이 비어 있으면 우선 질문 (ma.md: 타깃 없는 마케팅 경험은 설득력이 약함)
-      if (jobCategory === 'marketer' && needsConfirm(analysis?.marketerKit?.funnel?.target)) {
-        q.push({
-          key: 'mkTarget', label: '타깃',
-          question: '이 캠페인/콘텐츠는 누구를 타깃으로 했나요?\n(예: 20대 여성 예비 구매자, 가입 후 미구매 고객)',
-          placeholder: '타깃과 그렇게 정한 이유를 적어주세요',
-        });
-      }
-      SECTION_DEFS.forEach(def => {
-        if (isWeak(analysis?.[def.key])) {
-          q.push({ key: def.key, label: def.label, question: `[${def.label}] 부분이 비어 있어요.\n${def.q}`, placeholder: '키워드만 적어도 괜찮아요' });
-        }
-      });
-      // 핵심 경험별 수치 보강 — 수치가 없는 경험을 골라 가이드 위젯으로 질문 (최대 2개)
-      const kes = Array.isArray(analysis?.keyExperiences) ? analysis.keyExperiences : [];
-      const needMetric = kes
-        .map((ke, i) => ({ ke, i }))
-        .filter(({ ke }) => !asText(ke.metric || ke.afterMetric) && !/\d/.test(asText(ke.result)))
-        .slice(0, 2);
-      needMetric.forEach(({ ke, i }) => {
-        q.push({
-          key: `keMetric-${i}`, label: '성과 수치', widget: 'metric', keIndex: i, keTitle: asText(ke.title),
-          question: `핵심 경험 "${asText(ke.title)}"의 성과를 수치로 보여줄 수 있을까요?\n수치가 있는 경험은 채용 담당자에게 훨씬 강하게 남아요.`,
-        });
-      });
-      if (needMetric.length === 0 && !/\d/.test(asText(analysis?.output))) {
-        q.push({ key: 'metric', label: '성과 수치', widget: 'metric', keIndex: null, question: '결과를 수치로 표현할 수 있나요?\n예를 들면 응답속도 40% 개선, 사용자 1,200명 달성 같은 형태요.' });
-      }
-      // 마케터 — 증거 자료는 마지막에 확인 (포트폴리오 신뢰도의 핵심)
-      if (jobCategory === 'marketer') {
-        q.push({
-          key: 'mkEvidence', label: '증거 자료',
-          question: '마지막으로, 증거로 남아 있는 자료가 있나요? (콘텐츠 캡처, 성과 리포트, 링크 등)\n증거 자료가 있으면 포트폴리오 신뢰도가 크게 올라가요. 없으면 건너뛰어도 괜찮아요.',
-          placeholder: '예: 카드뉴스 캡처 10장, 인스타그램 인사이트 캡처, 캠페인 링크',
-        });
-      }
+      // 이미 자료에서 확인된 내용은 다시 묻지 않고, 정보 가치가 높은 질문만 남긴다.
+      // quick=3개, basic/deep=5개가 세션의 절대 상한이다.
+      const q = buildLowBurdenQueue(withPeriod, interviewMode);
 
       setMessages([]);
       msgId.current = 1;
       setFillDone(false);
-      setPhase('fill');
-      await pushAi('초안이 완성됐어요! 오른쪽에 초안이 나타났어요. ✨');
-      if (q.length === 0) {
-        await pushAi('필요한 내용이 모두 채워져 있네요! 오른쪽 초안을 확인하고 저장해주세요.');
-        setFillDone(true);
-      } else {
-        const [first, ...rest] = q;
-        setQueue(rest);
-        await pushAi(`이제 비어 있는 부분을 몇 가지 질문으로 채워볼게요.\n\n${first.question}`);
-        setCurrentQ(first);
-      }
+      setAnsweredCount(0);
+      setSkippedQuestions([]);
+      setLastImprovement(null);
+      setCurrentQ(null);
+      setQueue(q);
+      setPhase('reviewDraft');
+      await pushAi('제가 이해한 프로젝트를 먼저 정리했어요. 새로 작성하지 말고, 아래 초안에서 틀린 부분만 고쳐주세요.');
     } catch (err) {
       console.error('초안 생성 실패:', err);
       setPhase(moments.length > 0 ? 'moments' : 'materials');
@@ -1905,13 +2170,79 @@ export default function ExperienceChat() {
     setHistory(prev => [...prev, { item, draft, title, startMonth, endMonth }]);
   };
 
+  const patchDraftUnderstanding = (key, value) => {
+    if (key === 'role') {
+      setDraft(prev => ({
+        ...prev,
+        projectOverview: { ...(prev?.projectOverview || {}), role: value },
+        _userCorrectedFields: [...new Set([...(prev?._userCorrectedFields || []), key])],
+      }));
+      return;
+    }
+    setDraft(prev => ({
+      ...prev,
+      [key]: value,
+      _userCorrectedFields: [...new Set([...(prev?._userCorrectedFields || []), key])],
+    }));
+  };
+
+  const confirmDraftUnderstanding = async () => {
+    setPhase('fill');
+    // 사용자가 초안에서 직접 고친 내용은 즉시 "이미 확인됨"으로 다시 판정해 중복 질문을 제거한다.
+    const refreshedQueue = buildLowBurdenQueue(draft, interviewMode);
+    if (refreshedQueue.length === 0) {
+      setQueue([]);
+      await pushAi('자료만으로 필요한 내용이 충분히 확인됐어요. 더 묻지 않고 바로 저장할 수 있습니다.');
+      setFillDone(true);
+      return;
+    }
+    const [first, ...rest] = refreshedQueue;
+    setQueue(rest);
+    await pushAi(`${first.why}\n\n${first.question}`);
+    setCurrentQ(first);
+  };
+
   /* ── 3) 답변을 초안에 반영 ── */
   const applyAnswer = (item, answer) => {
     const a = answer.trim();
+    let before = '';
+    let after = a;
     if (item.key === 'title') {
+      before = title;
       setTitle(a);
     } else if (item.key === 'role') {
+      before = asText(draft?.projectOverview?.role);
       setDraft(prev => ({ ...prev, projectOverview: { ...(prev?.projectOverview || {}), role: a } }));
+    } else if (item.kind === 'moment_followup') {
+      before = asText(draft?.process);
+      const processWasWeak = isWeak(before);
+      after = processWasWeak ? a : `${before}\n\n${a}`;
+      setDraft(prev => {
+        const keyExperiences = [...(prev?.keyExperiences || [])];
+        const index = Number.isInteger(Number(item.keIndex)) ? Number(item.keIndex) : 0;
+        if (keyExperiences[index]) {
+          const trace = { ...(keyExperiences[index].decisionTrace || {}) };
+          if (item.target === 'decisionCriteria') {
+            const existing = Array.isArray(trace.decisionCriteria) ? trace.decisionCriteria : [];
+            trace.decisionCriteria = [...existing, { criterion: a, why: '사용자 확인' }];
+          } else {
+            trace[item.target || 'changedJudgment'] = a;
+          }
+          keyExperiences[index] = {
+            ...keyExperiences[index],
+            decisionTrace: trace,
+            voiceRecord: {
+              ...(keyExperiences[index].voiceRecord || {}),
+              originalQuote: asText(keyExperiences[index]?.voiceRecord?.originalQuote) || a,
+              polished: asText(keyExperiences[index]?.voiceRecord?.polished) || a,
+              aiMeaning: asText(keyExperiences[index]?.voiceRecord?.aiMeaning),
+            },
+          };
+        }
+        return { ...prev, keyExperiences, process: after };
+      });
+      setFlashKey('process');
+      setTypeFx({ key: 'process', from: processWasWeak ? 0 : displayText(before).length });
     } else if (item.key === 'mkTarget') {
       setDraft(prev => ({
         ...prev,
@@ -1930,10 +2261,17 @@ export default function ExperienceChat() {
     } else {
       const cur = asText(draft?.[item.key]);
       const wasWeak = isWeak(cur);
+      before = cur;
+      after = wasWeak ? a : `${cur}\n\n${a}`;
       setDraft(prev => ({ ...prev, [item.key]: wasWeak ? a : `${cur}\n\n${a}` }));
       setFlashKey(item.key);
       setTypeFx({ key: item.key, from: wasWeak ? 0 : displayText(cur).length });
     }
+    setLastImprovement({
+      label: item.label,
+      before: displayText(before).slice(0, 220),
+      after: displayText(after).slice(0, 320),
+    });
     setQaLog(prev => [...prev, { q: item.question.replace(/\n/g, ' '), a }]);
   };
 
@@ -1962,6 +2300,11 @@ export default function ExperienceChat() {
       setFlashKey('output');
     }
     setTypeFx({ key: 'output', from: outWasWeak ? 0 : displayText(curOut).length });
+    setLastImprovement({
+      label: '결과와 근거',
+      before: displayText(curOut).slice(0, 220),
+      after: displayText(outWasWeak ? a : `${curOut}\n\n${item.keTitle ? `${item.keTitle} 성과: ` : '핵심 수치: '}${a}`).slice(0, 320),
+    });
     setQaLog(prev => [...prev, { q: item.question.replace(/\n/g, ' '), a }]);
   };
 
@@ -1975,6 +2318,8 @@ export default function ExperienceChat() {
     setStartMonth(last.startMonth);
     setEndMonth(last.endMonth);
     setQaLog(prev => prev.slice(0, -1));
+    setAnsweredCount(prev => Math.max(0, prev - 1));
+    setLastImprovement(null);
     setTypeFx(null);
     setFillDone(false);
     // 진행 중이던 질문은 큐 앞으로 되돌려두고, 취소한 질문을 다시 진행
@@ -1991,21 +2336,27 @@ export default function ExperienceChat() {
     setJobCategory('');
     setMarketerField(null);
     setCustomMarketerField('');
+    setInterviewMode('basic');
     setCurrentQ(null);
     setChatInput('');
     setPhase('field');
   };
 
   /* 다음 질문으로 이동 — 타이핑 연출 후 질문 출력 */
-  const advance = async () => {
+  const advance = async (processedCount = answeredCount) => {
     setCurrentQ(null);
-    if (queue.length > 0) {
+    const limit = INTERVIEW_LIMITS[interviewMode] || 5;
+    if (processedCount >= limit) {
+      setQueue([]);
+      await pushAi(`이번 세션의 질문 ${limit}개를 모두 확인했어요. 답하지 않은 내용은 ‘확인 필요’로 남겨두고 초안을 저장할 수 있습니다.`);
+      setFillDone(true);
+    } else if (queue.length > 0) {
       const [next, ...rest] = queue;
       setQueue(rest);
-      await pushAi(next.question);
+      await pushAi(`${next.why || '이 답변으로 경험을 더 분명하게 만들 수 있어요.'}\n\n${next.question}`);
       setCurrentQ(next);
     } else {
-      await pushAi('필요한 내용을 모두 채웠어요! 🎉\n오른쪽 초안을 확인하고 저장해주세요. 저장 후에도 "AI로 완성하기"로 더 풍부하게 다듬을 수 있어요.');
+      await pushAi('지금 가치가 큰 빈칸은 모두 확인했어요. 답하지 않은 내용은 지어내지 않고 ‘확인 필요’로 남겨둘게요.');
       setFillDone(true);
     }
   };
@@ -2023,6 +2374,32 @@ export default function ExperienceChat() {
     }
     pushMsg('user', a);
     setChatInput('');
+    if (answerVisibility === 'private') {
+      pushHistory(currentQ);
+      const privateNote = {
+        questionId: currentQ.id || currentQ.key,
+        question: currentQ.question,
+        answer: a,
+        visibility: 'private',
+      };
+      setDraft(prev => ({
+        ...prev,
+        interviewSession: {
+          ...(prev?.interviewSession || {}),
+          privateNotes: [...(prev?.interviewSession?.privateNotes || []), privateNote],
+        },
+      }));
+      setQaLog(prev => [...prev, { q: currentQ.question.replace(/\n/g, ' '), a, visibility: 'private' }]);
+      setLastImprovement({
+        label: currentQ.label,
+        before: '공개 범위 미선택',
+        after: '내부 기록으로만 저장 · 포트폴리오 본문에는 반영하지 않음',
+      });
+      const nextCount = answeredCount + 1;
+      setAnsweredCount(nextCount);
+      advance(nextCount);
+      return;
+    }
     // 가드레일 — 초안 본문에 들어가는 답변은 판정 후 FitPoly 톤으로 가공해 반영.
     // 무의미한 답변이면 초안에 넣지 않고 다시 쓰기/건너뛰기를 유도한다. 실패 시 원문 그대로.
     let finalAnswer = a;
@@ -2049,7 +2426,94 @@ export default function ExperienceChat() {
     }
     pushHistory(currentQ);
     applyAnswer(currentQ, finalAnswer);
-    advance();
+    const nextCount = answeredCount + 1;
+    setAnsweredCount(nextCount);
+    advance(nextCount);
+  };
+
+  const submitQuickChoice = async (choice) => {
+    if (!currentQ || aiTyping || refining) return;
+    const item = currentQ;
+    pushHistory(item);
+    pushMsg('user', choice);
+    const isDeferred = choice === '기억나지 않아요' || choice === '나중에 답할게요';
+    const status = choice === 'AI 추론이 맞아요' ? 'confirmed'
+      : choice === '일부만 맞아요' ? 'partial'
+        : choice === '다른 고민이었어요' ? 'different'
+          : 'unanswered';
+    setDraft(prev => {
+      const keyExperiences = [...(prev?.keyExperiences || [])];
+      const index = Number.isInteger(Number(item.keIndex)) ? Number(item.keIndex) : 0;
+      if (keyExperiences[index]) {
+        keyExperiences[index] = {
+          ...keyExperiences[index],
+          humanMomentConfirmation: {
+            status,
+            response: choice,
+            inference: item.question,
+          },
+        };
+      }
+      return {
+        ...prev,
+        keyExperiences,
+        interviewSession: {
+          ...(prev?.interviewSession || {}),
+          mode: interviewMode,
+          confirmations: [
+            ...(prev?.interviewSession?.confirmations || []),
+            { id: item.id, status, response: choice },
+          ],
+        },
+      };
+    });
+    setQaLog(prev => [...prev, { q: item.question.replace(/\n/g, ' '), a: choice }]);
+    setLastImprovement({
+      label: '핵심 장면 확인',
+      before: 'AI가 자료에서 추론한 장면 · 사용자 확인 전',
+      after: isDeferred ? '확인 필요로 남김' : `사용자 확인: ${choice}`,
+    });
+
+    const nextCount = answeredCount + 1;
+    setAnsweredCount(nextCount);
+    if (isDeferred) {
+      const skipped = {
+        id: item.id || item.key,
+        question: item.question,
+        status: '확인 필요',
+        response: choice,
+      };
+      setSkippedQuestions(prev => [...prev, skipped]);
+      advance(nextCount);
+      return;
+    }
+
+    const follow = item.followUp && asText(item.followUp.question)
+      ? {
+          id: `${item.id || item.key}-followup`,
+          key: questionTargetKey(item.followUp.target),
+          target: item.followUp.target || 'decisionCriteria',
+          label: '판단 기준',
+          kind: 'moment_followup',
+          privacy: item.privacy || 'public',
+          keIndex: item.keIndex,
+          question: choice === '일부만 맞아요'
+            ? '어떤 부분이 맞고, 어떤 부분이 달랐나요?'
+            : choice === '다른 고민이었어요'
+              ? '실제로 가장 크게 고민한 것은 무엇이었나요?'
+              : item.followUp.question,
+          why: item.followUp.why || '이 답변으로 본인만의 판단 기준을 남길 수 있어요.',
+          placeholder: '한두 문장이나 키워드만 적어도 괜찮아요',
+          valueScore: item.valueScore,
+        }
+      : null;
+    if (follow && nextCount < (INTERVIEW_LIMITS[interviewMode] || 5)) {
+      setCurrentQ(null);
+      await pushAi(`${follow.why}\n\n${follow.question}`);
+      setCurrentQ(follow);
+      return;
+    }
+    advance(nextCount);
   };
 
   const skipCurrent = () => {
@@ -2060,7 +2524,24 @@ export default function ExperienceChat() {
       else goMaterials();
       return;
     }
-    advance();
+    const skipped = {
+      id: currentQ.id || currentQ.key,
+      question: currentQ.question,
+      status: '확인 필요',
+      skippedAt: new Date().toISOString(),
+    };
+    setSkippedQuestions(prev => [...prev, skipped]);
+    setDraft(prev => ({
+      ...prev,
+      interviewSession: {
+        ...(prev?.interviewSession || {}),
+        mode: interviewMode,
+        unanswered: [...(prev?.interviewSession?.unanswered || []), skipped],
+      },
+    }));
+    const nextCount = answeredCount + 1;
+    setAnsweredCount(nextCount);
+    advance(nextCount);
   };
 
   /* 수치 위젯 확인 */
@@ -2069,7 +2550,9 @@ export default function ExperienceChat() {
     pushHistory(currentQ);
     pushMsg('user', text);
     applyMetricAnswer(currentQ, text);
-    advance();
+    const nextCount = answeredCount + 1;
+    setAnsweredCount(nextCount);
+    advance(nextCount);
   };
 
   /* 기간 위젯 확인 */
@@ -2085,12 +2568,18 @@ export default function ExperienceChat() {
     pushMsg('user', `${startMonth} ~ ${endMonth}`);
     setDraft(prev => prev ? { ...prev, projectOverview: { ...(prev.projectOverview || {}), duration: `${startMonth} ~ ${endMonth}` } } : prev);
     setQaLog(prev => [...prev, { q: '진행 기간', a: `${startMonth} ~ ${endMonth}` }]);
-    advance();
+    const nextCount = answeredCount + 1;
+    setAnsweredCount(nextCount);
+    advance(nextCount);
   };
 
   /* 우측 패널에서 특정 섹션 채우기 요청 */
   const askSection = async (key) => {
     if (phase !== 'fill') return;
+    if (answeredCount >= (INTERVIEW_LIMITS[interviewMode] || 5)) {
+      toast('이번 세션은 질문을 모두 사용했어요. 초안을 저장한 뒤 필요할 때 이어서 보강할 수 있어요.');
+      return;
+    }
     const def = SECTION_DEFS.find(d => d.key === key);
     if (!def) return;
     if (currentQ?.key === key) { inputRef.current?.focus(); return; }
@@ -2118,7 +2607,10 @@ export default function ExperienceChat() {
     }
     setPhase('saving');
     try {
-      const transcript = qaLog.map(({ q, a }) => `Q. ${q}\n→ ${a}`).join('\n\n');
+      const transcript = qaLog
+        .filter(item => item.visibility !== 'private')
+        .map(({ q, a }) => `Q. ${q}\n→ ${a}`)
+        .join('\n\n');
       const momentsText = reviewedMoments.length > 0 ? buildMomentsText(reviewedMoments) : '';
       const finalText = [
         sourceText,
@@ -2130,6 +2622,14 @@ export default function ExperienceChat() {
         ...draft,
         ...(gitRef.current || {}),
         deliverables: materialDeliverablesRef.current,
+        interviewSession: {
+          ...(draft?.interviewSession || {}),
+          mode: interviewMode,
+          questionLimit: INTERVIEW_LIMITS[interviewMode] || 5,
+          processedCount: answeredCount,
+          unanswered: skippedQuestions,
+          completedAt: new Date().toISOString(),
+        },
       };
       const experienceId = await createExperience(user.uid, {
         title: title.trim(),
@@ -2143,6 +2643,7 @@ export default function ExperienceChat() {
         structuredResult: draftWithGit,
         keywords: draft.keywords || [],
         analysisMode: 'draft',
+        interviewMode,
       });
       toast.success('빠른 초안이 저장되었습니다. AI로 완성하기를 누르면 더 풍부해져요.');
       navigate(`/app/experience/result/${experienceId}`, {
@@ -2218,6 +2719,8 @@ export default function ExperienceChat() {
         onStartMonthChange={setStartMonth}
         endMonth={endMonth}
         onEndMonthChange={setEndMonth}
+        interviewMode={interviewMode}
+        onInterviewModeChange={setInterviewMode}
         onSubmit={submitBasicsInfo}
         onBack={changeField}
       />
@@ -2274,6 +2777,8 @@ export default function ExperienceChat() {
             endMonth={endMonth}
             currentQ={currentQ}
             completeness={completeness}
+            interviewMode={interviewMode}
+            answeredCount={answeredCount}
           />
         )}
         {/* ═══ 좌측: AI 채팅 ═══ */}
@@ -2286,7 +2791,7 @@ export default function ExperienceChat() {
                   경험의 역할, 과정, 성과를 함께 채워볼게요.
                 </h1>
                 <p className="text-[14px] text-bluewood-500 mt-1.5" style={{ wordBreak: 'keep-all' }}>
-                  자료를 올리고 부족한 부분만 질문으로 보완해 포트폴리오 초안을 만듭니다. 약 3~5분이면 충분해요.
+                  AI가 자료를 먼저 이해하고, 가치가 큰 빈칸만 최대 {INTERVIEW_LIMITS[interviewMode] || 5}개 질문으로 확인합니다.
                 </p>
               </div>
               {jobCategory && (
@@ -2313,6 +2818,18 @@ export default function ExperienceChat() {
                   : <UserBubble>{m.text}</UserBubble>}
               </div>
             ))}
+
+            {phase === 'reviewDraft' && !aiTyping && (
+              <DraftUnderstandingCheck
+                draft={draft}
+                onPatch={patchDraftUnderstanding}
+                onConfirm={confirmDraftUnderstanding}
+              />
+            )}
+
+            {phase === 'fill' && lastImprovement && !aiTyping && (
+              <ImprovementPreview improvement={lastImprovement} />
+            )}
 
             {/* AI 입력 중 */}
             {aiTyping && <TypingBubble />}
@@ -2416,15 +2933,43 @@ export default function ExperienceChat() {
               </div>
             ) : (
             <>
+            {phase === 'fill' && currentQ?.privacy === 'ask' && !aiTyping && (
+              <div className="mb-2.5 flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2">
+                <p className="text-[11.5px] font-semibold text-amber-800">갈등·민감 정보 공개 범위</p>
+                <div className="inline-flex rounded-lg bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAnswerVisibility('public')}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${answerVisibility === 'public' ? 'bg-primary-600 text-white' : 'text-bluewood-400'}`}
+                  >
+                    포트폴리오에 반영
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnswerVisibility('private')}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${answerVisibility === 'private' ? 'bg-bluewood-700 text-white' : 'text-bluewood-400'}`}
+                  >
+                    내부 기록만
+                  </button>
+                </div>
+              </div>
+            )}
             {/* 빠른 답변 칩 — 선택지 또는 문장 시작 도우미 */}
             {phase === 'fill' && currentQ && !currentQ.widget && !aiTyping && (
               <div className="mb-2.5 flex flex-wrap gap-1.5 animate-fadeIn">
-                {currentQ.chips
-                  ? currentQ.chips.map(chip => (
+                {(currentQ.quickChoices?.length || currentQ.chips)
+                  ? (currentQ.quickChoices?.length ? currentQ.quickChoices : currentQ.chips).map(chip => (
                       <button
                         key={chip}
                         type="button"
-                        onClick={() => { setChatInput(chip); inputRef.current?.focus(); }}
+                        onClick={() => {
+                          if (currentQ.quickChoices?.length) {
+                            submitQuickChoice(chip);
+                          } else {
+                            setChatInput(chip);
+                            inputRef.current?.focus();
+                          }
+                        }}
                         className="px-3 py-1.5 rounded-full border border-primary-200 bg-primary-50/60 text-[12.5px] font-semibold text-primary-700 hover:bg-primary-100 transition-colors"
                       >
                         {chip}
