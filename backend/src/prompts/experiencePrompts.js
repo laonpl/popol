@@ -6,6 +6,13 @@
  *   각 빌더는 output JSON 구조를 최소화하여 한 번의 응답이 Pro 한도 내에 들어가도록 함.
  */
 
+import {
+  ARTIFACT_ANALYSIS_SCHEMA,
+  buildArtifactIntelligenceGuide,
+  buildFieldKeyExperienceAddon,
+  getCareerFieldProfile,
+} from './careerFieldProfiles.js';
+
 const PR_GUIDELINES = `
 [10가지 성과 공식 — 가장 잘 맞는 유형으로 분류]
 ① 성공형(정량성과): 목표 대비 달성률, 매출·사용자 증가 등 수치 성과
@@ -100,8 +107,10 @@ const WRITING_QUALITY_RULES = `
 - "저는", "안녕하세요", "본 프로젝트는" 으로 시작
 
 ✅ 합격하는 포트폴리오의 공통 패턴:
-1. 강력한 능동 동사로 시작: 설계·구현·주도·도출·검증·제안·전환·자동화·최적화·구축·분석·기획·리드
-2. [구체적 방법] + [측정 가능한 결과]: "캐싱 레이어를 도입해 API 응답 시간을 800ms→320ms(60%)로 단축"
+1. 수동태·모호어 대신 내가 한 행동을 그대로 쓰기 (설계·구현·검증·제안·전환·분석 등).
+   단, 강한 동사(주도·최적화·구축)를 한 문단에 몰아 쓰면 오히려 AI 티가 납니다 — 문단당 1~2개까지만.
+2. [구체적 방법] + [결과]: "캐싱 레이어를 도입해 API 응답 시간을 800ms→320ms(60%)로 단축"
+   (원본에 수치가 없으면 수치 없이 "무엇을 어떻게 바꿨는지"만 써도 충분합니다. 수치를 만들어 넣지 마세요.)
 3. 인과관계 명확화: "~하기 위해 ~를 선택했고, 결과적으로 ~을 달성함"
 4. 비즈니스 맥락 연결: 기술 작업이 비즈니스에 어떤 가치를 가져왔는지 반드시 포함
 5. 수치 없어도 구체화: 건수·기간·규모·빈도·팀 규모라도 반드시 포함
@@ -109,10 +118,269 @@ const WRITING_QUALITY_RULES = `
 `;
 
 // ============================================================
+// 사람이 쓴 글로 읽히게 하는 규칙 (AI 판별 신호 차단)
+//   인사담당자 인터뷰 피드백: "너무 완벽해서 오히려 반발심이 들고, 면접관이라면 떨어뜨릴 것 같다".
+//   채용 현장에서 AI 작성물을 판별하는 신호(모든 문장에 수치·동일 문형 반복·힘만 센 동사·
+//   고유명사 부재·실패 서사 부재)를 프롬프트 차원에서 금지한다.
+// ============================================================
+// 경력 단계별 눈높이 — 프론트 constants/careerStages.js와 값 동기화.
+// 같은 경험도 첫 취업 준비생과 경력 이직자는 평가 기준 자체가 다르다.
+const CAREER_STAGE_RULES = {
+  first: `
+[📏 이 지원자는 "첫 취업 준비" 단계입니다 — 눈높이를 여기에 맞추세요]
+- 정상 스케일: 팀 3~5명, 기간 2주~6개월, 사용자 수십~수백 명, 학교·동아리·대외활동·개인 프로젝트.
+- 원본 근거 없이 대기업 스케일 어휘(DAU 수십만, 매출 수억, 전사 표준화, 글로벌 서비스)를 쓰면 즉시 거짓말로 읽힙니다.
+- 평가 기준은 성과 크기가 아니라 "스스로 판단한 흔적"입니다. 작은 규모를 부풀리지 말고,
+  그 안에서 무엇을 왜 그렇게 정했는지를 드러내세요.
+- 학생 프로젝트라는 사실을 숨기거나 실무처럼 위장하지 마세요. 면접에서 바로 들통나는 지점입니다.
+- 실제로 다뤄본 적 없는 실무 용어(ROAS·리텐션·SLA·OKR 등)를 원본 근거 없이 넣지 마세요.
+- 솔직 회고(honestReview)는 이 단계에서 특히 중요합니다. 미완성·한계를 드러내는 편이 훨씬 신뢰를 얻습니다.
+`,
+  newgrad: `
+[📏 이 지원자는 "신입 지원" 단계입니다 — 눈높이를 여기에 맞추세요]
+- 인턴·직무 경험이 있습니다. 실무 맥락과 용어를 쓰되, 본인이 실제로 다룬 범위까지만 쓰세요.
+- ★ 가장 중요한 것은 기여 범위의 정확성입니다. "팀이 한 일"과 "내가 직접 한 일"을 반드시 분리하고,
+  지시받아 수행한 일과 스스로 제안한 일도 구분하세요. 신입 평가는 이 경계의 정직함에서 갈립니다.
+- 조직의 성과를 본인 성과처럼 쓰지 마세요. 팀 지표를 인용할 때는 그 안에서 내가 맡은 부분을 명시하세요.
+- 정상 스케일: 인턴·주니어가 맡는 범위(기능 단위, 특정 채널, 일부 프로세스). 조직 전체를 움직인 것처럼 쓰지 마세요.
+- 솔직 회고(honestReview)는 "배우는 중"이 아니라 "판단이 어떻게 정교해졌는지"로 쓰세요.
+`,
+  experienced: `
+[📏 이 지원자는 "경력 이직" 단계입니다 — 완성도 기준을 가장 높게 잡으세요]
+- 경력직 서류는 성과·수치·비즈니스 임팩트가 핵심 평가 대상입니다. 원본에 근거가 있다면
+  성과 수치, 영향 범위(사용자 규모·매출 비중·팀 수), 의사결정 권한과 오너십 경계를 빠짐없이 드러내세요.
+- 앞의 글로벌 기법(XYZ 공식·Second-Order Effect·Trade-off·Scope of Impact)을 이 단계에서는 적극 활용하세요.
+  단, 원본에 근거가 있는 항목에 한합니다. 근거 없는 기법 적용은 여전히 금지입니다.
+- 이해관계자 조율, 조직 설득, 리스크 판단, 후속 조직 변화까지 서술해야 경력직 눈높이에 맞습니다.
+- 실무 용어와 도메인 지표를 정확한 이름으로 쓰세요. 뭉뚱그린 표현은 경력 부족으로 읽힙니다.
+- 솔직 회고(honestReview)는 미숙함 고백이 아니라 "판단 착오 → 그 뒤 바뀐 원칙"의 기록으로 쓰세요.
+  경력직에게 이 항목은 약점이 아니라 판단 성숙도의 증거입니다.
+⚠ 단, "완성도를 높인다"는 것이 "AI가 쓴 것처럼 매끈하게 만든다"는 뜻은 아닙니다.
+  아래 AI 판별 신호 5가지는 경력직 서류에서 더 치명적입니다. 반드시 그대로 지키세요.
+`,
+};
+
+function buildHumanVoiceRules(careerStage = 'first') {
+  const stageRule = CAREER_STAGE_RULES[careerStage] || CAREER_STAGE_RULES.first;
+  return `${HUMAN_VOICE_RULES}\n${stageRule}`;
+}
+
+const HUMAN_VOICE_RULES = `
+[🧑 사람이 쓴 글로 읽히게 — 다른 모든 기법보다 우선하는 기준]
+채용담당자는 "AI가 써준 티"가 나면 내용과 무관하게 감점하거나 탈락시킵니다. 아래 신호를 절대 만들지 마세요.
+
+⛔ AI로 판별되는 5가지 신호
+1. 모든 문장·모든 항목에 수치가 붙는 완벽한 대칭
+   → 수치는 원본에 실제로 있는 자리에만 쓰세요. 나머지는 수치 없이 사실만 담담하게 서술합니다.
+     수치 없는 문장이 절반을 넘어도 전혀 문제 없습니다. 억지로 균형을 맞추지 마세요.
+2. 같은 문형의 반복 (모든 문장이 "~를 설계해 ~를 달성했다")
+   → 문장 길이와 구조를 의도적으로 섞으세요. 짧은 단문("일정이 2주 밀렸다.")을 중간에 넣으면 훨씬 사람 글처럼 읽힙니다.
+3. 힘만 센 동사의 나열 (주도·최적화·극대화·구축·혁신·고도화)
+   → 한 섹션에 강한 동사는 1~2개면 충분합니다. 실제로 한 일은 "고쳤다", "물어봤다", "다시 만들었다", "직접 돌려봤다"처럼
+     평범한 동사로 쓰는 편이 더 믿음직합니다.
+4. 구체적 고유명사가 없는 매끈한 문장
+   → 원본에 있는 도구명·파일명·화면 이름·팀/동아리 이름·과목명·행사명·실제 인원수를 그대로 살리세요.
+     이것이 "실제로 겪은 사람"임을 증명하는 유일한 증거입니다. 일반명사로 뭉개지 마세요.
+5. 실패·한계·불확실이 하나도 없는 완벽한 서사
+   → 사람은 완벽하지 않습니다. 막혔던 지점, 예상이 빗나간 순간, 아직 못 한 것을 반드시 남기세요.
+
+⛔ 즉시 AI 작성물로 판정되는 표현 (사용 금지)
+"귀사에 기여", "시너지를 창출", "역량을 함양", "성공적으로 수행", "극대화", "혁신적인", "최적의 솔루션",
+"~을 통해 ~할 수 있었습니다"의 반복, "본 프로젝트를 통해", "값진 경험이었습니다"
+`;
+
+// honestReview — 솔직 회고. "너무 완벽해서 반발심이 든다"는 피드백에 대한 직접적 산출물.
+const HONEST_REVIEW_GUIDE = `
+[★ honestReview — 솔직 회고 (면접에서 가장 깊게 파고드는 지점)]
+성과만 있는 포트폴리오는 면접관에게 "검증할 게 없다 / 과장했다"는 인상을 줍니다.
+반대로 한계를 스스로 아는 지원자는 "같이 일할 수 있는 사람"으로 읽힙니다. 아래 4개를 원본 근거로 채우세요.
+- struggle: 실제로 가장 막혔던 지점. 무엇이 왜 안 됐는지 구체적으로 1~2문장.
+- misjudgment: 처음 예상과 실제가 달랐던 지점. "~일 줄 알았는데 실제로는 ~였다" 형태.
+- limitation: 지금 결과물에 남아 있는 한계·아쉬운 점 (못 한 검증, 부족한 표본, 타협한 선택).
+- nextTime: 같은 일을 다시 한다면 무엇을 다르게 할지 1문장.
+⛔ 네 항목을 "그래서 결국 잘 해냈다"로 마무리하지 마세요. 한계는 한계로 남겨두는 편이 훨씬 신뢰를 얻습니다.
+⛔ 인성 반성문("소통의 중요성을 배웠습니다")이 아니라, 일에 대한 판단 기록이어야 합니다.
+⛔ 원본에 단서가 없는 항목은 빈 문자열로 두세요. 실패담을 지어내는 것은 성과를 지어내는 것과 똑같이 위험합니다.
+`;
+const HONEST_REVIEW_SCHEMA = ',\n  "honestReview": { "struggle": "", "misjudgment": "", "limitation": "", "nextTime": "" }';
+
+// 경험을 "성과가 있는 STAR 문장"이 아니라, 판단 과정·원문 말투·증거가 연결된
+// 재사용 가능한 경험 데이터로 보존한다. 모든 직군이 같은 스키마를 공유하되,
+// JOB_KEYEXP_META의 직군별 렌즈로 무엇을 판단/대안/근거로 볼지 달라진다.
+const DECISION_RECORD_SCHEMA = `,
+  "decisionTrace": {
+    "situation": "판단이 필요해진 당시 상황",
+    "problemJudgment": "내가 진짜 문제라고 판단한 것",
+    "problemEvidence": "그렇게 판단한 관찰·데이터·사용자 말·현상",
+    "alternatives": [
+      { "option": "검토한 선택지", "pros": "장점", "cons": "비용·리스크·포기한 가치", "reasonNotChosen": "선택하지 않은 이유" }
+    ],
+    "decisionCriteria": [
+      { "criterion": "결정을 가른 기준", "why": "이 기준이 중요했던 이유" }
+    ],
+    "choice": "최종 선택과 선택 이유",
+    "execution": "내가 직접 실행한 범위",
+    "outcomeEvidence": "결과와 그것을 확인한 근거",
+    "changedJudgment": "실패·반증·새 신호로 바뀐 판단",
+    "newPrinciple": "이후 비슷한 문제에 적용하게 된 원칙"
+  },
+  "voiceRecord": {
+    "originalQuote": "자료 속 사용자의 실제 문장 그대로",
+    "polished": "의미와 말투를 유지해 최소한으로 다듬은 문장",
+    "aiMeaning": "이 말이 보여주는 판단 방식·업무 성향"
+  },
+  "evidenceBundle": [
+    {
+      "claim": "이 자료가 증명하는 주장",
+      "type": "화면|기획서|초안|데이터|그래프|피드백|실패버전|코드|원본링크|기타",
+      "sourceRef": "원본에 나온 파일명·화면명·URL·도구명",
+      "whatItProves": "이 자료로 실제 확인할 수 있는 것",
+      "ownership": "내가 직접 만든/결정한 범위",
+      "status": "확보됨|추가 필요|확인 필요"
+    }
+  ],
+  "identitySignal": {
+    "pattern": "이 경험에서 드러난 반복 가능한 문제 해결 방식",
+    "sentence": "사용자의 말투로 쓴 '나를 보여주는 한 문장'",
+    "proof": "이 문장을 뒷받침하는 판단과 행동",
+    "confidence": "high|medium|low"
+  }`;
+
+const DECISION_RECORD_GUIDE = `
+[★★ 판단 지도·말투·증거 — 이 결과물의 핵심 산출물]
+CARL 문장을 그럴듯하게 만드는 것보다 아래 네 묶음을 정확히 보존하는 일이 더 중요합니다.
+
+1) decisionTrace — 생각의 흐름
+- situation → problemJudgment → problemEvidence → alternatives → decisionCriteria → choice → execution
+  → outcomeEvidence → changedJudgment → newPrinciple 순서가 읽혀야 합니다.
+- action을 나눈 목록이 아닙니다. "왜 처음 생각을 의심했고, 무엇과 비교했고, 어떤 기준으로 골랐는가"를 기록합니다.
+- alternatives는 원본에서 실제로 검토한 선택지만 씁니다. 단순히 가능한 대안을 AI가 제안하지 마세요.
+- decisionCriteria는 일정·비용·사용자 가치·정확도·리스크 등 실제 결정에 사용한 기준만 씁니다.
+- 결과 수치와 그 수치를 확인한 로그·리포트·피드백을 outcomeEvidence에서 연결합니다.
+- 판단이 바뀐 단서가 없으면 changedJudgment/newPrinciple은 빈 문자열로 둡니다.
+
+2) voiceRecord — 사용자의 실제 말투 보존
+- originalQuote는 원본 자료에 연속해서 실제 존재하는 문장만 그대로 복사합니다. 조사·어미·오탈자도 임의로 고치지 마세요.
+- polished는 originalQuote의 단어 선택과 문장 길이를 최대한 유지한 최소 교정본입니다.
+- aiMeaning만 분석 문체로 쓰되, 추상 역량 태그가 아니라 구체적인 판단 습관을 적습니다.
+- 인용할 실제 문장이 없으면 세 필드를 모두 빈 문자열로 둡니다. 그럴듯한 인용문 창작은 금지입니다.
+
+3) evidenceBundle — 주장 바로 옆의 증거
+- 원본에 언급되거나 첨부된 화면·문서·초안·데이터·그래프·피드백·실패 버전·코드·링크만 기록합니다.
+- sourceRef에는 원본의 정확한 이름/URL/도구명을 씁니다. URL이나 파일명을 추측해 만들지 마세요.
+- ownership에서 팀 산출물과 내가 직접 만든 부분을 분리합니다.
+- 증거가 있다는 언급만 있고 현재 확보 여부가 불명확하면 status="확인 필요", 필요한 증거를 제안만 하면 "추가 필요"입니다.
+
+4) identitySignal — 여러 경험을 연결할 정체성 단서
+- 성격 형용사("성실한", "도전적인")가 아니라 반복 가능한 행동 패턴으로 씁니다.
+- sentence는 사용자가 실제로 쓸 법한 짧고 담백한 한 문장이어야 합니다.
+- 한 경험만으로 반복성을 확정하지 마세요. proof가 약하면 confidence를 low로 두어 이후 다른 경험과 교차 검증할 수 있게 합니다.
+`;
+
+const EXPERIENCE_PROFILE_SCHEMA = `,
+  "experienceIdentity": {
+    "oneLiner": "이 경험이 보여주는 문제 해결 방식 한 문장",
+    "wayOfWorking": ["반복 확인할 행동 패턴 후보"],
+    "proofExperienceTitles": ["정체성 문장을 증명하는 핵심 경험 제목"],
+    "crossExperienceQuestion": "다른 경험에서도 같은 패턴이 있었는지 확인할 질문"
+  },
+  "voiceProfile": {
+    "frequentWords": ["자료에서 사용자가 실제로 반복한 단어"],
+    "sentenceRhythm": "짧은 단문형|이유를 덧붙이는 설명형|비교 후 결론형|혼합형",
+    "explanationPattern": "사용자가 주로 상황을 설명하는 순서",
+    "keep": ["다듬을 때 보존할 말투 특징"],
+    "avoid": ["사용자가 쓰지 않아 AI 티가 나는 표현"]
+  }`;
+
+const EXPERIENCE_PROFILE_GUIDE = `
+[경험 정체성·말투 프로필]
+- experienceIdentity.oneLiner는 직함이나 역량 목록이 아니라 "이 사람은 문제를 어떤 방식으로 보고 움직이는가"를 씁니다.
+- wayOfWorking은 아직 단일 경험에서 나온 후보입니다. "반복한다"고 단정하지 말고 다른 경험과 교차 검증 가능한 행동 단위로 씁니다.
+- proofExperienceTitles는 이번 결과의 keyExperiences 제목 중 실제 근거가 되는 것만 연결합니다.
+- crossExperienceQuestion은 같은 행동 패턴이 다른 경험에도 있었는지 사용자가 답할 수 있는 구체적인 질문입니다.
+- voiceProfile은 원문에 실제 반복 신호가 있을 때만 채웁니다. 정중함·전문성처럼 누구에게나 붙는 평가는 쓰지 마세요.
+- frequentWords는 원문에 나온 표현만, keep/avoid는 이후 AI가 문장을 다듬을 때 실질적으로 사용할 수 있는 규칙으로 씁니다.
+`;
+
+const LOW_BURDEN_INTERVIEW_PLAN_SCHEMA = `,
+  "interviewPlan": {
+    "mode": "quick|basic|deep",
+    "understanding": {
+      "problem": "AI가 이해한 문제",
+      "role": "AI가 이해한 개인 역할과 결정 범위",
+      "actions": ["AI가 이해한 핵심 행동"],
+      "result": "AI가 이해한 결과",
+      "decision": "AI가 이해한 주요 판단",
+      "uncertain": ["자료만으로 확인되지 않은 내용"]
+    },
+    "humanMoments": [
+      {
+        "id": "HM-1",
+        "type": "unexpected_result|pivot|disagreement|tradeoff|failure|voice|detail",
+        "summary": "사람의 판단이나 변화가 드러나는 한 장면",
+        "sourceEvidence": "이 장면을 찾은 원문 또는 자료 근거",
+        "inference": "AI가 추론한 핵심 고민. 사실처럼 단정하지 않음",
+        "privacy": "public|ask|private",
+        "targetExperienceIndex": 0,
+        "valueScore": 0
+      }
+    ],
+    "questions": [
+      {
+        "id": "ownership|judgment|outcome|HM-1-confirm|HM-1-followup",
+        "kind": "essential|moment_confirmation|moment_followup|evidence",
+        "question": "한 번에 하나만 답할 수 있는 짧은 질문",
+        "why": "이 답변이 결과물을 어떻게 더 좋게 만드는지 한 문장",
+        "known": "자료에서 이미 확인된 내용. 없으면 빈 문자열",
+        "target": "role|decision|result|evidence|decisionCriteria|changedJudgment",
+        "targetExperienceIndex": 0,
+        "valueScore": 0,
+        "privacy": "public|ask|private",
+        "quickChoices": ["AI 추론이 맞아요", "일부만 맞아요", "다른 고민이었어요", "기억나지 않아요", "나중에 답할게요"],
+        "followUp": {
+          "question": "확인 답변 뒤 필요한 경우에만 묻는 마지막 질문",
+          "why": "후속 질문이 채우는 정보",
+          "target": "decisionCriteria"
+        }
+      }
+    ],
+    "skippedReasons": ["이미 자료에서 확인되어 묻지 않은 항목과 이유"]
+  }`;
+
+function buildLowBurdenInterviewGuide(mode = 'basic') {
+  const safeMode = ['quick', 'basic', 'deep'].includes(mode) ? mode : 'basic';
+  const modeRule = safeMode === 'quick'
+    ? '빠른 정리: 최대 3개. 개인 기여·판단·결과 중 자료에 없는 핵심만 묻고 심층 질문은 생략합니다.'
+    : safeMode === 'deep'
+      ? '깊은 정리: 이번 세션은 최대 5개. 필수 공백 뒤 가장 밀도 높은 장면 1~2개에서 판단의 변화·감수한 것·관점 변화를 묻습니다.'
+      : '기본 정리: 최대 5개. 필수 공백 뒤 가장 밀도 높은 장면 1개를 확인하고 필요한 경우 후속 질문 1개만 둡니다.';
+
+  return `
+[저부담·고밀도 인터뷰 계획 — mode=${safeMode}]
+- 목표는 모든 정보를 한 번에 수집하는 것이 아니라, AI가 먼저 복원한 초안의 중요한 빈칸만 확인하는 것입니다.
+- ${modeRule}
+- 세션 전체 질문은 절대 5개를 넘지 않습니다. 한 질문에는 한 가지 내용만 묻습니다.
+- 우선 확인할 세 범주는 ① 본인이 직접 맡고 결정한 범위 ② 가장 판단하기 어려웠던 순간 ③ 실행 전후 달라진 수치·반응·산출물입니다.
+- 단, 원문·첨부 자료에서 이미 충분히 확인된 범주는 다시 묻지 말고 skippedReasons에 이유를 남깁니다.
+- 그 다음 unexpected_result, pivot, disagreement, tradeoff, failure, voice, detail 신호 중 차별성이 높은 장면만 최대 2개 찾습니다.
+- 질문 가치는 직무 연관성 × 차별성 × 정보 부족도 × 증거 가능성 ÷ 답변 부담으로 판단하고 valueScore를 0~100으로 매깁니다.
+- 결과에 거의 영향을 주지 않는 내용, 지나치게 사적인 감정, 이미 답한 내용, 다른 질문과 겹치는 내용은 생략합니다.
+- 감정·동기·갈등을 사실처럼 단정하지 않습니다. 추론은 반드시 "맞나요?" 형태로 확인합니다.
+- 팀 성과와 개인 기여를 분리합니다. 수치가 없으면 사용자 반응·검증 기록·실제 산출물 같은 대체 근거를 물을 수 있습니다.
+- moment_confirmation에만 빠른 선택지를 제공합니다. "맞아요" 뒤에는 판단 기준을 확인하는 후속 질문을 최대 한 번만 둡니다.
+- "기억나지 않아요", "나중에 답할게요"를 정상 응답으로 취급하고 같은 내용을 표현만 바꿔 다시 묻지 않습니다.
+- why는 "이 질문에 답하면 기능을 만들었다가 아니라 왜 선택했는지 보여줄 수 있어요"처럼 답변의 즉시 가치를 설명합니다.
+- unanswered 정보는 지어내지 말고 understanding.uncertain에 남깁니다.
+`;
+}
+
+// ============================================================
 // 국내외 대기업 합격 포트폴리오 기법 (Google/Amazon/Meta/Naver/Kakao/Toss)
 // ============================================================
 const GLOBAL_PORTFOLIO_TECHNIQUES = `
-[🌐 국내외 대기업 합격 포트폴리오 기법 — 아래 기법을 최대한 반영하세요]
+[🌐 국내외 대기업 합격 포트폴리오 기법 — 이 경험에 실제로 해당하는 것만 1~2개 골라 적용하세요]
+⚠ 아래 8개를 전부 적용하면 모든 문단이 같은 공식으로 찍혀 나와 즉시 AI 작성물로 보입니다.
+   경험의 성격에 맞는 기법만 선택하고, 해당 없는 기법은 과감히 버리세요. 억지로 끼워 맞추지 마세요.
 
 【1】 Google XYZ 공식 (Google 공식 채용 가이드)
   패턴: "Accomplished [X] as measured by [Y] by doing [Z]"
@@ -395,54 +663,74 @@ const MARKETER_DRAFT_JOB_SCHEMA = `,
 //   개발자가 커밋에서 코드·트러블슈팅을 추출하듯, 각 직무의 고유 요소를 구조화해 추출한다.
 // ============================================================
 const JOB_KEYEXP_META = {
+  common: {
+    unit: '판단이 바뀐 사건',
+    guide: '직무가 정해지지 않았더라도 활동 나열이 아니라 하나의 판단 사건으로 추출하세요. 처음 본 문제, 그 판단을 의심하게 한 근거, 실제로 비교한 선택지, 선택 기준, 직접 실행한 범위, 결과를 확인한 자료, 이후 달라진 원칙이 이어져야 합니다.',
+    schema: '{ "initialBelief": "처음 문제라고 생각한 것", "turningPoint": "판단을 바꾸거나 구체화한 관찰·피드백", "decision": "최종 선택", "criterion": "결정을 가른 기준", "verification": "결과를 확인한 방법" }',
+  },
+  dev: {
+    unit: '기술 의사결정/트러블슈팅',
+    guide: '증상 → 재현 조건 → 원인 가설 → 확인 로그·프로파일·테스트 → 비교한 해결안 → 선택 기준 → 코드/설계 변경 → 검증 → 남은 기술 부채 순으로 추출하세요. 기술 이름보다 왜 그 원인을 의심했고 어떤 증거로 다른 가설을 버렸는지가 중요합니다.',
+    schema: '{ "symptom": "사용자·시스템에서 드러난 증상", "reproduction": "재현 조건·범위", "rootCauseHypotheses": ["검토한 원인 가설"], "diagnosticEvidence": "로그·프로파일·테스트 등 원인 판단 근거", "options": ["비교한 구현/설계 대안"], "technicalDecision": "선택한 해결안과 기술적 기준", "verification": "테스트·모니터링·전후 지표", "remainingDebt": "남은 한계·기술 부채" }',
+  },
   marketer: {
     unit: '캠페인/실험',
-    guide: '각 핵심 경험을 하나의 캠페인 단위로 추출: 누구에게(타겟)·어디서(채널)·어떤 메시지로 집행해 어떤 KPI를 얻었는지가 반드시 드러나야 합니다.',
-    schema: '{ "target": "타겟 페르소나·세그먼트 (예: 2534 직장인 여성)", "channels": ["집행 채널 (예: 메타, 구글)"], "creative": "크리에이티브·메시지 전략 한 줄", "kpis": [ { "name": "ROAS", "value": "350%" } ] }',
+    guide: '비즈니스 문제 → 타깃에 대한 관찰 → 채널·메시지 가설 → 비교한 집행안 → KPI와 중단/확대 기준 → 실행 → 반응 → 귀인 한계 → 다음 실험 순으로 추출하세요. 조회수 자체보다 그 숫자를 보고 예산·메시지·타깃 판단을 어떻게 바꿨는지가 중요합니다.',
+    schema: '{ "businessProblem": "캠페인이 풀려던 비즈니스 문제", "target": "실제 근거가 있는 타깃 페르소나·세그먼트", "audienceInsight": "타깃을 이렇게 본 사용자/VOC/데이터 근거", "channels": ["검토·집행한 채널"], "creative": "메시지·크리에이티브 가설", "experimentOptions": ["비교한 타깃·채널·소재 대안"], "kpis": [ { "name": "지표명", "value": "실제 값", "decisionUse": "이 값을 보고 내린 판단" } ], "attributionLimit": "성과 귀인의 한계·외부 변수", "nextExperiment": "다음에 검증할 가설" }',
   },
   pm: {
     unit: '의사결정',
     guide: '각 핵심 경험을 하나의 프로덕트 의사결정 단위로 추출: 사용자·비즈니스 문제에서 어떤 가설을 세웠고, 무엇을 하기로 결정했으며, 어떤 대안을 왜 기각했고, 실행 중 어떤 난관에 부딪혀 어떻게 돌파했으며, 가설을 어떤 데이터·인터뷰·실험으로 검증해 무엇을 판단했는지가 드러나야 합니다. hypothesis에는 실행 내용이나 이미 달성한 성과를 요약하지 마세요. 반드시 검증 전 믿음·예상만 짧은 현재형 문장으로 쓰세요(예: "사용자는 핵심 루프를 완주한다", "AI 결과는 별도 수정 없이 채택할 만큼 유용하다"). "베타 테스트를 설계했다", "팔로워 481명을 확보했다", "시스템을 구축했다" 같은 실행·결과 문장은 hypothesis에 금지합니다. obstacle에는 실행 중 가장 막혔던 지점(리소스·이해관계·기술 제약)을, resolution에는 그것을 돌파한 구체적 방법을 적으세요. learning에는 단순 소감이 아니라 검증 전 믿음과 달라진 점, 다음 결정에서 바꿀 원칙을 작성하세요. impact/effort는 원본 근거로 1~5 정수를 반드시 추정해 채우세요(우선순위 매트릭스 좌표로 그려짐) — 근거가 전혀 없을 때만 비웁니다.',
-    schema: '{ "hypothesis": "검증 전의 믿음·예상을 나타내는 짧은 현재형 가설 1문장 (실행 내용·달성 성과 금지)", "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "obstacle": "실행 중 부딪힌 가장 큰 난관·제약 1문장", "resolution": "그 난관을 돌파한 구체적 방법 1문장", "validation": "가설 검증 방법·기준·근거 (데이터·인터뷰·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
+    schema: '{ "problemSignal": "처음 문제를 의심한 사용자 행동·VOC·데이터", "hypothesis": "검증 전의 믿음·예상을 나타내는 짧은 현재형 가설 1문장 (실행 내용·달성 성과 금지)", "successCriteria": "실행 전에 정한 성공·반증 기준", "decision": "내린 핵심 결정 한 문장", "alternatives": "고려한 대안과 기각 이유 1문장", "stakeholders": "설득·협업한 이해관계자와 방법 1문장", "obstacle": "실행 중 부딪힌 가장 큰 난관·제약 1문장", "resolution": "그 난관을 돌파한 구체적 방법 1문장", "validation": "가설 검증 방법·기준·근거 (데이터·인터뷰·실험)", "impact": "1~5 정수 — 이 결정의 비즈니스 임팩트 크기", "effort": "1~5 정수 — 투입된 리소스·난이도" }',
   },
   designer: {
     unit: '개선 반복',
-    guide: '각 핵심 경험을 하나의 디자인 개선 반복(iteration)으로 추출: 발견한 페인포인트 → 디자인 결정(왜 이 UI인지) → 테스트·검증 결과.',
-    schema: '{ "painPoint": "발견한 사용자 페인포인트 1문장", "designDecision": "디자인 결정과 이유 1~2문장", "testResult": "사용성 테스트·검증 결과 (수치 있으면 포함)" }',
+    guide: '사용 맥락 → 관찰된 행동/발화 → 페인포인트 해석 → 비교한 정보 구조·인터랙션 안 → 디자인 원칙과 제약 → 프로토타입 → 테스트 과업/기준 → 피드백 → 다음 반복 순으로 추출하세요. 예쁜 화면을 만들었다가 아니라 어떤 사용자 근거가 UI 결정을 바꿨는지를 보여주세요.',
+    schema: '{ "userContext": "문제가 발생한 사용자·과업 맥락", "researchEvidence": "인터뷰 발화·행동 관찰·퍼널 등 근거", "painPoint": "근거에서 해석한 사용자 페인포인트 1문장", "variants": ["검토한 정보구조·UI 대안"], "designDecision": "선택한 디자인과 선택 기준", "testCriteria": "테스트 과업과 성공·실패 기준", "testResult": "사용성 테스트·검증 결과", "iteration": "피드백 이후 실제로 바꾼 점", "edgeCases": "접근성·오류·빈 상태 등 남은 예외" }',
   },
   da: {
     unit: '분석',
-    guide: '각 핵심 경험을 하나의 분석 단위로 추출: 가설 → 분석 방법·도구 → 데이터에서 발견한 사실 → 실행된 비즈니스 액션.',
-    schema: '{ "hypothesis": "검증한 가설 1문장", "method": "분석 방법·도구 (SQL, A/B 테스트, 코호트 등)", "finding": "데이터에서 발견한 사실 (수치 포함)", "businessAction": "이 발견으로 실행된 비즈니스 액션", "control": "대조군(기존) 수치 (예: 2.1%) — A/B 비교가 있을 때만", "variant": "실험군(개선) 수치 (예: 3.4%)", "significance": "통계 유의성 (예: p<0.05, 신뢰수준 95%)" }',
+    guide: '비즈니스 질문 → 지표 정의 → 경쟁 가설 → 데이터 품질/편향 점검 → 비교한 분석 방법 → 발견 → 해석의 한계 → 실제 의사결정 순으로 추출하세요. SQL이나 차트 제작보다 어떤 정의와 통제 때문에 결론을 믿을 수 있는지가 중요합니다.',
+    schema: '{ "businessQuestion": "분석으로 답하려던 의사결정 질문", "metricDefinition": "분모·분자·기간·코호트가 드러난 지표 정의", "hypothesis": "검증한 가설 1문장", "competingHypotheses": ["함께 검토한 다른 설명"], "dataQuality": "결측·중복·선택 편향·추적 누락 점검", "method": "선택한 분석 방법·도구와 선택 이유", "finding": "데이터에서 발견한 사실", "businessAction": "이 발견으로 실행·제안된 액션", "limitations": "교란 변수·표본·인과 해석 한계", "control": "대조군 수치 — 실제 있을 때만", "variant": "실험군 수치 — 실제 있을 때만", "significance": "통계 유의성 — 실제 계산했을 때만" }',
   },
   hr: {
     unit: '프로그램/제도',
-    guide: '각 핵심 경험을 하나의 인사 프로그램·제도 단위로 추출: 조직 과제 → 설계한 프로세스 → 퍼널·지표 변화.',
-    schema: '{ "goal": "해결하려던 조직·채용 과제 1문장", "program": "설계·운영한 프로그램/프로세스", "funnelChange": "퍼널·지표 변화 (전환율·리드타임 등 수치)" }',
+    guide: '조직/채용 문제 → 구성원·후보자·현업의 근거 → 원인 진단 → 제도/프로그램 대안 → 공정성·법규·운영비용·수용성 기준 → 파일럿/롤아웃 → 참여·퍼널 변화 → 부작용과 개선 순으로 추출하세요.',
+    schema: '{ "goal": "해결하려던 조직·채용 과제", "diagnosisEvidence": "서베이·인터뷰·퍼널·VOC 등 진단 근거", "alternatives": ["검토한 제도·프로세스 대안"], "decisionCriteria": "공정성·법규·비용·현업 수용성 등 선택 기준", "program": "설계·운영한 프로그램/프로세스", "adoption": "현업·구성원 도입 과정과 반응", "funnelChange": "퍼널·리드타임·리텐션 등 변화", "sideEffects": "발견된 부작용·남은 리스크" }',
   },
   sales: {
     unit: '딜/계약',
-    guide: '각 핵심 경험을 하나의 딜 단위로 추출: 고객(익명화 가능) → 접근·제안 전략 → 협상 포인트 → 계약 성과.',
-    schema: '{ "client": "고객사·세그먼트 (예: 제조 대기업 A사)", "approach": "접근·제안 전략 1~2문장", "negotiation": "협상 포인트와 돌파 방법 1문장", "dealSize": "계약 규모 (ARR·MRR·금액, 원본에 있을 때만)", "stage": "딜 진행 단계 (리드·미팅·제안·협상·계약 중 하나, 원본에서 유추 가능할 때만)" }',
+    guide: '고객 상황 → ICP/리드 자격 판단 근거 → 의사결정자·사용자·반대자 맵 → 고객이 검토한 대안 → 구매 기준 → 제안/검증 → 반대와 협상 → 계약/실주 결과 → 다음 계정 전략 순으로 추출하세요. 계약 금액만이 아니라 고객 판단을 어떻게 읽고 제안을 바꿨는지 보여주세요.',
+    schema: '{ "client": "고객사·세그먼트 (익명화 가능)", "qualification": "이 리드/계정을 우선한 근거", "stakeholderMap": "의사결정자·실사용자·반대자와 관심사", "customerAlternatives": ["고객이 비교한 경쟁사·내재화·현상 유지"], "buyingCriteria": "가격·보안·도입기간·성과 등 구매 기준", "approach": "접근·제안·검증 전략", "objections": "주요 반대와 대응", "negotiation": "협상 포인트와 양보·비양보 기준", "dealSize": "계약 규모 (원본에 있을 때만)", "stage": "리드·미팅·제안·협상·계약·실주 중 하나", "accountLearning": "다음 계정 전략에서 바꿀 점" }',
   },
   aiml: {
     unit: '실험/모델',
-    guide: '각 핵심 경험을 하나의 ML 실험 단위로 추출: 데이터 → 모델 선택(대안 대비 왜) → 평가 지표 결과.',
-    schema: '{ "dataset": "데이터셋·규모", "model": "사용 모델/아키텍처", "whyModel": "이 모델을 선택한 이유 (대안 비교)", "metrics": [ { "name": "F1", "value": "0.92", "baseline": "비교 기준(베이스라인) 수치 — 원본에 있을 때만" } ] }',
+    guide: '제품/연구 목표 → 베이스라인 → 데이터 분포·라벨 문제 → 비교한 모델/특징/프롬프트 → 평가 기준과 오프라인·온라인 차이 → 실험 → 오류 분석 → 서빙 제약 → 다음 실험 순으로 추출하세요. 최고 점수만이 아니라 모델 선택의 비용과 실패 케이스를 남기세요.',
+    schema: '{ "objective": "모델이 해결할 사용자·비즈니스·연구 과제", "dataset": "데이터셋·규모·분포", "dataIssues": "라벨 품질·편향·누수·불균형 문제", "baseline": "비교 기준 모델/휴리스틱과 실제 성능", "model": "선택한 모델/아키텍처", "alternatives": ["비교한 모델·특징·프롬프트"], "whyModel": "성능·비용·지연·해석가능성 기준의 선택 이유", "metrics": [ { "name": "평가 지표", "value": "실제 값", "baseline": "실제 비교 기준" } ], "errorAnalysis": "대표 실패 케이스와 원인", "servingConstraint": "지연·비용·메모리·모니터링 제약", "nextExperiment": "다음에 검증할 것" }',
   },
   devops: {
     unit: '인시던트/개선',
-    guide: '각 핵심 경험을 하나의 인시던트 대응 또는 인프라 개선 단위로 추출: 상황 → 원인 분석 → 조치·자동화 → 지표 개선.',
-    schema: '{ "incident": "상황 (장애·비용·병목) 1문장", "rootCause": "원인 분석 결과 1문장", "actionTaken": "적용한 조치·자동화", "impact": "지표 개선 (가용성·비용·리드타임)" }',
+    guide: '서비스 위험/증상 → 탐지 신호 → 영향 범위 → 원인 가설과 근거 → 즉시 복구안과 영구 개선안 비교 → SLO·보안·비용 기준 → 롤아웃/롤백 → 영향 → 재발 방지 순으로 추출하세요.',
+    schema: '{ "incident": "장애·비용·병목 상황", "detection": "알람·로그·사용자 신고 등 탐지 신호", "blastRadius": "영향 사용자·서비스·시간 범위", "rootCauseHypotheses": ["검토한 원인 가설"], "rootCause": "증거로 확인한 근본 원인", "options": ["즉시 복구안·영구 개선안"], "decisionCriteria": "SLO·보안·비용·변경 위험 기준", "actionTaken": "적용한 조치·자동화", "rolloutRollback": "점진 배포·검증·롤백 계획", "impact": "가용성·비용·리드타임 변화", "prevention": "런북·알람·테스트 등 재발 방지" }',
   },
 };
+
+function getJobInfo(jobCategory = 'common') {
+  if (JOB_META[jobCategory]) return JOB_META[jobCategory];
+  const profile = getCareerFieldProfile(jobCategory);
+  return {
+    label: profile.label,
+    emphasis: profile.emphasis,
+    sections: profile.sections || [],
+  };
+}
 // keyExperience 프롬프트에 붙일 직무별 스키마·지침
 function buildKeyExpJobAddon(jobCategory) {
   const m = JOB_KEYEXP_META[jobCategory];
-  if (!m) return { schema: '', guide: '' };
+  if (!m) return buildFieldKeyExperienceAddon(jobCategory);
   return {
-    schema: `,\n  "jobData": ${m.schema}`,
-    guide: `\n[★ 직무 특화 추출 — ${m.unit} 단위]\n${m.guide}\njobData의 각 필드는 원본에 근거해 채우고, 근거 없는 필드는 빈 문자열/빈 배열로 두세요. context/action/result도 ${m.unit} 관점으로 서술하세요.\n`,
+    schema: `,\n  "jobData": ${m.schema},\n  "artifactRefs": ["이 경험을 증명하는 ART id"]`,
+    guide: `\n[★ 직무 특화 추출 — ${m.unit} 단위]\n${m.guide}\njobData와 artifactRefs는 artifactAnalysis의 근거 장부에 연결하세요. 각 필드는 원본에 근거해 채우고, 근거 없는 필드는 빈 문자열/빈 배열로 두세요. context/action/result도 ${m.unit} 관점으로 서술하세요.\n`,
   };
 }
 
@@ -474,8 +762,7 @@ const JOB_VISUAL_GUIDES = {
   common:   { blocks: ['kpis', 'compare'],            hint: 'kpis=원본의 정량 성과, compare=개선 전후 수치' },
 };
 function buildVisualPrompt(jobCategory) {
-  const g = JOB_VISUAL_GUIDES[jobCategory];
-  if (!g) return { schema: '', guide: '' };
+  const g = JOB_VISUAL_GUIDES[jobCategory] || JOB_VISUAL_GUIDES.common;
   const schema = ',\n  "portfolioVisuals": {\n    ' + g.blocks.map(b => VISUAL_BLOCK_SCHEMAS[b]).join(',\n    ') + '\n  }';
   const guide = `\n[portfolioVisuals — 직무 전용 시각화 데이터 (이 직군 화면의 차트가 이 데이터로 그려짐)]\n${g.hint}\n- 수치·단계는 반드시 원본 자료에 근거한 것만 넣으세요. 수치를 창작하지 마세요.\n- 근거가 없는 블록은 빈 배열([]) 또는 생략하세요. funnel/process는 단계 2개 이상일 때만.\n`;
   return { schema, guide };
@@ -497,8 +784,8 @@ function diagramSectionOf(sections) {
 //   목적: 검색·분할 없이 flash 1회로 "봐줄 수준"의 초안을 빠르게 생성.
 //   깊이 있는 보강(시장지표/검색/핵심경험 N개)은 이후 analyze 단계가 담당.
 // ============================================================
-export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
-  const jobInfo = JOB_META[jobCategory] || JOB_META.common;
+export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic') {
+  const jobInfo = getJobInfo(jobCategory);
   const isMarketer = jobCategory === 'marketer';
   const isPm = jobCategory === 'pm';
   const jobSecs = jobInfo.sections || [];
@@ -527,7 +814,10 @@ export function buildDraftAnalysisPrompt(contentText, jobCategory = 'common') {
 ${NO_HALLUCINATION_RULES}
 
 ${WRITING_QUALITY_RULES}
+
+${buildHumanVoiceRules(careerStage)}
 ${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
+${buildArtifactIntelligenceGuide(jobCategory)}
 
 [초안 작성 규칙]
 - 목표: 사용자가 읽고 "이 정도면 AI로 더 다듬고 싶다"는 생각이 들 만큼, 각 섹션에 읽을 수 있는 가닥을 잡아주세요. 초안이라 완벽하지 않아도 되지만 비어 보이면 안 됩니다.
@@ -536,20 +826,21 @@ ${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
 - 정말 아무 단서도 없는 섹션만 빈 문자열("")로 두세요. "~을 보강해 주세요" 같은 안내 문구는 넣지 마세요.
 - 같은 문장을 여러 섹션에 그대로 복사하지 마세요. 각 섹션의 역할에 맞게 다르게 정리하세요.
 - 자료가 길면 목차·인트로보다 "문제 → 실행 → 결과" 서사가 담긴 본문을 우선 반영하세요. 각 섹션에는 자료 속 구체적 내용(어떤 기능, 어떤 문제, 어떤 결정, 어떤 결과)이 담겨야 하며, 자료 없이도 쓸 수 있는 일반론으로 채우지 마세요.
-- 인터뷰 답변의 구어체("~했어요")는 포트폴리오 문체("~함/~했다")로 자연스럽게 다듬으세요.
+- 본문 섹션은 읽기 좋은 문어체로 최소한만 다듬되 사용자의 단어 선택과 설명 순서를 보존하세요. voiceRecord.originalQuote만큼은 구어체·오탈자까지 원문 그대로 둡니다.
 - keyExperiences는 자료에서 구분되는 활동·문제·성과를 1~3개로 정리하세요. 수치가 없어도 context/action/result/learning을 정성적으로 채우고, 정말 단서가 없을 때만 빈 배열로 두세요.
 - keyExperiences는 수치만 남기지 마세요. 수치는 metric에 넣고, context/action/result/learning에는 답변 속 문제 전후상황, 실행 과정, 결과 해석, 배운 점을 각각 1~3문장으로 보존하세요.
+- 각 keyExperience는 서로 다른 "판단이 필요했던 사건"이어야 합니다. 같은 프로젝트의 행동을 억지로 3개로 쪼개지 마세요.
 - "인터뷰구조화" 입력이 있으면 그 안의 context/action/result/learning을 우선 사용하되 자연스럽게 다듬으세요.
 - 시장/성과 지표는 외부 출처를 지어내지 말고, 사용자가 추가 검증할 decisionMetrics와 portfolioAngles 수준으로만 제안하세요.
 
 [섹션 역할]
-- intro: 가장 큰 성과/핵심을 앞세운 2~3문장 요약
+- intro: 이 경험이 보여주는 문제 해결 방식과 핵심 판단을 앞세운 2~3문장 요약
 - overview: 프로젝트 배경·목적·범위
-- task: 내가 직접 맡은 과제와 문제
-- process: 행동과 의사결정 과정 (왜 그렇게 했는지)
-- output: 결과·산출물 (수치가 있으면 포함)
-- growth: 배운 점·관점 변화
-- competency: 드러난 역량과 기여
+- task: 내가 무엇을 문제라고 판단했고 어떤 근거로 범위를 정했는지
+- process: 실제 대안·선택 기준·직접 실행이 이어지는 의사결정 과정
+- output: 결과·산출물과 그 주장을 확인할 증거, 남은 한계
+- growth: 틀렸거나 불완전했던 판단과 이후 달라진 원칙
+- competency: 여러 경험과 교차 검증할 수 있는 반복 행동 패턴
 
 경험 자료:
 ${contentText}
@@ -569,19 +860,19 @@ ${contentText}
   },
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
   "keyExperiences": [
-    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema} }
+    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema}${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA} }
   ],
-  "keywords": []${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
+  "keywords": []${EXPERIENCE_PROFILE_SCHEMA}${ARTIFACT_ANALYSIS_SCHEMA}${LOW_BURDEN_INTERVIEW_PLAN_SCHEMA}${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
 }
-${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${HONEST_REVIEW_GUIDE}${DECISION_RECORD_GUIDE}${EXPERIENCE_PROFILE_GUIDE}${buildLowBurdenInterviewGuide(interviewMode)}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
 수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
 }
 
 // ============================================================
 // 분할 Step 1: 프로젝트 개요 + 7개 공통 섹션 + 직군 특화 섹션 추출
 // ============================================================
-export function buildOverviewPrompt(contentText, jobCategory = 'common') {
-  const jobInfo = JOB_META[jobCategory] || JOB_META.common;
+export function buildOverviewPrompt(contentText, jobCategory = 'common', careerStage = 'first') {
+  const jobInfo = getJobInfo(jobCategory);
   const hasJobSections = jobInfo.sections.length > 0;
   const isMarketer = jobCategory === 'marketer';
   const isPm = jobCategory === 'pm';
@@ -618,48 +909,49 @@ export function buildOverviewPrompt(contentText, jobCategory = 'common') {
 
   const section7Guide = `
 [7개 필수 섹션 — 각 섹션을 최소 3문장, 아래 기준으로 작성]
-※ Google XYZ 공식("Accomplished X as measured by Y by doing Z")과 Second-Order Effect를 각 섹션에 반영하세요.
+※ 아래 기준은 "이 섹션에서 무엇을 다뤄야 하는가"의 안내지, 모든 문장에 적용할 공식이 아닙니다.
+   XYZ 공식·Second-Order Effect는 원본에 실제로 근거가 있는 섹션에서만 쓰세요.
+   7개 섹션이 모두 같은 리듬으로 쓰이면 사람이 쓴 글로 읽히지 않습니다 — 섹션마다 문체와 길이를 달리하세요.
 
-1. intro (강렬한 도입부, 3~4문장)
-   - 【피라미드 구조】 첫 문장에 가장 큰 결과·수치 배치 (Toss/카카오 스타일)
-   - 패턴: "[방법론/기술(Z)]으로 [구체적 문제]를 해결해 [수치로 측정된 성과(Y)] → [비즈니스 임팩트(X)] 달성"
-   - 두 번째 문장: 스케일 or 복잡도 ("DAU 120만 서비스에서", "레거시 환경에서 6명이서" 등)
-   - 세 번째 문장: 이 경험이 만들어낸 2차 효과 또는 지원 직무와의 연결
+1. intro (이 경험이 보여주는 나의 방식, 2~4문장)
+   - 첫 문장: 성과 자랑이 아니라 "이 경험에서 나는 어떤 방식으로 문제를 보고 움직였는가"
+   - 두 번째 문장: 처음 판단과 이를 의심하게 만든 근거 또는 핵심 선택
+   - 세 번째 문장: 검증된 결과나 이후 바뀐 원칙. 수치가 실제 있을 때만 사용
 
 2. overview (프로젝트 전체 맥락, 3~5문장)
    - 왜 이 프로젝트가 필요했는가 (비즈니스 문제·기회) → 어떤 목표를 설정했는가 → 전체 범위
-   - 【Scope of Impact】 사용자 수, 팀 규모, 기간, 처리 데이터 규모, 매출 영향 등 수치로 스케일 표현
+   - 사용자 수, 팀 규모, 기간, 처리 데이터 규모 등 원본에 있는 정보로만 스케일 표현
    - 이해관계자는 누구였는가, 왜 이 프로젝트가 비즈니스적으로 중요했는가
 
-3. task (내가 담당한 과제, 3~5문장)
-   - "팀이"가 아닌 "내가" 직접 수행한 것 명시 【Amazon Ownership 원칙】
-   - 흐름: 배경 → 문제 인식 → 핵심 과제 → 접근 방향
-   - 내가 담당한 범위의 복잡도·난이도를 명시 (Naver/삼성 스타일)
+3. task (문제 판단과 내 범위, 3~5문장)
+   - 처음 무엇을 문제라고 보았고, 어떤 데이터·행동·피드백 때문에 그렇게 판단했는지
+   - 팀의 과제와 내가 직접 판단·실행한 범위를 분리
+   - 문제 범위를 어디까지로 정했고 무엇은 의도적으로 제외했는지
 
 4. process (행동과 의사결정 과정, 3~5문장)
-   - 【Trade-off 서술】 왜 A가 아닌 B를 선택했는지 대안 비교 포함
-   - 【Bias for Action】 불확실한 상황에서도 빠르게 판단하고 실행한 결정 포함
-   - 능동 동사로 각 액션 서술: "설계했다", "분석했다", "전환했다", "설득했다"
-   - 이해관계자 조율, 반대 의견 극복, 제약 조건 내 창의적 해결 포함
+   - 실제 검토한 대안과 각각의 장단점·리스크
+   - 사용자 가치·비용·일정·정확도·안전성 등 결정을 가른 기준
+   - 최종 선택 → 내가 직접 실행한 것 → 실행 중 다시 바뀐 판단 순서
+   - 대안이 원본에 없으면 그럴듯한 선택지를 만들어 넣지 않음
 
-5. output (성과와 산출물, 3~5문장)
-   - 【Google XYZ】 수치(Y)를 포함한 성과(X)와 방법(Z)을 연결해 서술
-   - 【Second-Order Effect】 직접 성과 → 그로 인한 팀/조직/비즈니스 변화 → 최종 임팩트까지 체인으로 서술
-   - 예: "응답 72% 단축 → 이탈률 감소 → 분기 전환율 목표 초과"
+5. output (결과·증거·한계, 3~5문장)
+   - 결과 주장 바로 뒤에 그것을 확인한 로그·리포트·화면·사용자 피드백·산출물을 연결
+   - 수치는 원본에 실제 있을 때만 방법과 함께 설명
+   - 결과가 좋아도 결제·장기 유지·인과관계 등 아직 확인하지 못한 한계를 분리
 
 6. growth (성장·인사이트, 3~4문장)
-   - 【Counter-Intuitive Insight】 "처음에는 ~라고 예상했으나, 실제로는 ~임을 발견해 ~로 전환했다" 패턴 권장
-   - 이 경험 전후 나의 역량 변화를 구체적으로
-   - "경험을 통해 성장했습니다" 절대 금지 — 무엇이 어떻게 달라졌는지 구체적으로
+   - 처음에는 무엇을 믿었고 어떤 신호 때문에 그 믿음을 수정했는지
+   - 다음 비슷한 문제에서 실제로 적용할 판단 원칙
+   - "경험을 통해 성장했습니다" 같은 소감 금지
 
-7. competency (역량과 입사 후 기여, 3~4문장)
-   - "협업 능력", "리더십" 같은 추상 키워드 사용 금지
-   - 【Amazon LP 연결】 Ownership·Frugality·Think Big 관점에서 입사 후 기여를 서술
-   - 구체 패턴: "[이 경험에서 발휘된 구체적 역량]으로, 입사 초기부터 [구체적으로 어떤 문제를 어떻게] 해결할 수 있음"
+7. competency (정체성 단서, 2~4문장)
+   - "협업 능력", "리더십" 같은 추상 키워드 대신 관찰 가능한 행동 패턴
+   - 이 패턴을 증명하는 판단·행동을 연결하고, 한 경험만으로 반복성을 과장하지 않음
+   - 사용자의 실제 말투를 살린 "나를 보여주는 한 문장" 후보를 포함
 `;
 
-  return `당신은 Google·Amazon·Meta·Naver·카카오·토스 등 국내외 주요 테크 기업 인사팀에서 연간 수천 건의 포트폴리오를 검토하고 커리어 컨설팅을 진행한 전문가입니다.
-"이 사람을 꼭 면접에 불러야 한다"는 판단을 이끌어내는 포트폴리오 섹션을 작성하세요.
+  return `당신은 FitPoly의 시니어 경험 아카이브 설계자입니다.
+성과를 과장해 면접을 유도하는 문서가 아니라, "이 사람은 어떤 방식으로 문제를 보고 판단하고 움직이는가"를 원문과 증거로 확인할 수 있는 포트폴리오 섹션을 작성하세요.
 대상 직군: ${jobInfo.label}
 
 ${NO_HALLUCINATION_RULES}
@@ -667,10 +959,14 @@ ${MARKET_RESEARCH_RULES}
 ${SLIDE_PORTFOLIO_RULES}
 ${WRITING_QUALITY_RULES}
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
+${buildHumanVoiceRules(careerStage)}
 ${isMarketer ? MARKETER_RULES : ''}${isPm ? PM_RULES : ''}
 ${jobEmphasis}
 ${section7Guide}
 ${PRODUCT_EXTRACTION_GUIDE}
+${DECISION_RECORD_GUIDE}
+${EXPERIENCE_PROFILE_GUIDE}
+${buildArtifactIntelligenceGuide(jobCategory)}
 
 경험 내용:
 ${contentText}
@@ -679,7 +975,7 @@ ${contentText}
 {
   "product": { "name": "", "tagline": "", "problem": "", "solution": "", "features": [ { "name": "", "desc": "" } ], "outcomes": [ { "label": "", "value": "" } ] },
   "projectOverview": {
-    "summary": "【XYZ 공식】 핵심 성과(X)를 측정값(Y)으로 증명하고 방법(Z)을 포함한 1~2줄 임팩트 요약",
+    "summary": "이 경험이 보여주는 문제 해결 방식과 핵심 판단을 담은 1~2줄 요약",
     "background": "이 프로젝트가 왜 필요했는가 — 비즈니스 문제/기회/맥락 (구체적)",
     "goal": "달성하려 한 목표 (측정 가능한 형태, KPI 포함)",
     "role": "나의 역할과 기여 범위 (팀 내 오너십 영역, 기여도% 포함 가능)",
@@ -721,25 +1017,26 @@ ${contentText}
     "growth": { "kicker": "LEARNING", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "INSIGHT", "title": "배운 점/관점 변화", "body": "다음에 다르게 판단할 지점", "metric": "적용 범위 또는 [작성 필요]" }] },
     "competency": { "kicker": "CAPABILITY", "headline": "슬라이드 제목", "subcopy": "2~3문장 설명", "evidenceCards": [{ "label": "VALUE", "title": "발휘 역량/입사 후 기여", "body": "역량의 근거 경험", "metric": "기여 지표 또는 [작성 필요]" }] }
   },
-  "intro": "【피라미드+XYZ】 첫 문장에 최대 결과·수치 배치, 스케일 포함, 2차 효과까지 (3~4문장)",
+  "intro": "이 경험에서 드러난 문제를 보는 방식 → 핵심 판단 → 검증된 결과 또는 바뀐 원칙 (2~4문장)",
   "overview": "프로젝트 전체 맥락 (배경·목적·범위·스케일, Scope of Impact 포함, 3~5문장)",
-  "task": "내가 직접 담당한 과제 (Ownership 명시, 배경→문제→해결 흐름, 3~5문장)",
-  "process": "행동과 의사결정 과정 (Trade-off+대안 비교+Bias for Action 포함, 3~5문장)",
-  "output": "성과와 산출물 (XYZ 공식+Second-Order Effect 체인으로 서술, 3~5문장)",
-  "growth": "성장·인사이트 (Counter-Intuitive Insight 패턴 권장, 역량 변화 구체화, 3~4문장)",
-  "competency": "발휘된 역량과 입사 후 기여 (Amazon LP 관점, 구체적 기여 방법, 3~4문장)"${jobSectionSchema}${archSchema}${visual.schema}${isMarketer ? MARKETER_KIT_SCHEMA : ''}
+  "task": "내가 문제라고 판단한 것과 근거, 직접 맡은 범위 (3~5문장)",
+  "process": "검토한 대안 → 선택 기준 → 최종 선택 → 직접 실행 → 판단 수정 (3~5문장)",
+  "output": "결과와 이를 확인한 증거, 아직 남은 한계 (3~5문장)",
+  "growth": "처음 믿음 → 반증 신호 → 이후 달라진 판단 원칙 (3~4문장)",
+  "competency": "발휘된 역량과 입사 후 기여 (추상 태그 대신 실제 판단·행동 근거, 3~4문장)"${EXPERIENCE_PROFILE_SCHEMA}${ARTIFACT_ANALYSIS_SCHEMA}${jobSectionSchema}${archSchema}${visual.schema}${isMarketer ? MARKETER_KIT_SCHEMA : ''}
 }
 ${hasJobSections ? `\n[직군 특화 섹션 작성 지침 — jobSpecific]\n${jobSectionGuides}\n원본에 관련 내용이 있다면 최대한 끌어모아 3~5문장으로 풍부하게 서술하세요. 원본에 없으면 "[작성 필요] ..." 처리.` : ''}${archGuide}${visual.guide}
 ${isMarketer ? '\n[marketerKit 작성 지침] 마케터 채용 문서(포트폴리오·이력서)에 바로 붙여넣을 수 있는 수준으로 작성하세요. 성과 수치는 원본에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하고 altMetrics에 대체 지표를 제안하세요.' : ''}
 
-원본에 없는 내용은 "[작성 필요] ..." 로 남기세요. 있는 내용은 강력한 능동 동사, XYZ 공식, Second-Order Effect로 재구성하세요.`;
+원본에 없는 내용은 "[작성 필요] ..." 로 남기세요. 있는 내용은 사용자의 어휘를 살려 최소한으로 다듬고, 결과보다 판단의 인과관계와 증거 연결을 우선하세요.`;
 }
 
 // ============================================================
 // 분할 Step 2: keyExperience 개별 추출 (1개씩, 매우 작은 output)
 // ============================================================
-export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total, jobCategory = 'common') {
+export function buildSingleKeyExperiencePrompt(contentText, momentHint, index, total, jobCategory = 'common', careerStage = 'first') {
   const jobAddon = buildKeyExpJobAddon(jobCategory);
+  const jobInfo = getJobInfo(jobCategory);
   const hintBlock = momentHint ? `
 [이번에 분석할 경험 — ${index + 1}/${total}번째]
 ${JSON.stringify(momentHint, null, 2)}
@@ -750,8 +1047,9 @@ ${JSON.stringify(momentHint, null, 2)}
 원본 자료 중 아직 다루지 않은 관점/에피소드를 하나 골라 CARL 구조로 정리하세요.
 `;
 
-  return `당신은 Google·Amazon·Meta·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가입니다.
-아래 경험 자료에서 ${index + 1}번째 핵심 경험 1건만 추출해, 인사담당자가 "이 사람 꼭 불러야 해"라고 느낄 수준으로 작성하세요.
+  return `당신은 FitPoly의 경험 아카이브 설계자입니다.
+아래 경험 자료에서 ${index + 1}번째 핵심 경험 1건만 추출하세요.
+대상 직군은 "${jobInfo.label}"이며, 성과를 포장하는 것보다 지원자가 문제를 보고 판단을 바꾼 과정을 검증 가능하게 남기는 것이 목표입니다.
 
 ${NO_HALLUCINATION_RULES}
 
@@ -762,35 +1060,35 @@ ${METRIC_FILTER_GUIDELINES}
 ${WRITING_QUALITY_RULES}
 
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
+
+${buildHumanVoiceRules(careerStage)}
+${buildArtifactIntelligenceGuide(jobCategory)}
 ${hintBlock}
-[CARL 구조 작성 기준 — 글로벌 기법 적용]
-- context (2~3문장): 비즈니스 문제와 스케일(Scope of Impact) 포함
-  → "DAU 80만 서비스에서 API 응답 지연이 평균 1.2초를 초과해 모바일 이탈률이 증가하는 상황이었다."
-- action (2~3문장): Trade-off 서술 + Bias for Action + Ownership 명시
-  → "Memcached 대신 Redis를 선택(Pub/Sub 확장성 확보), 캐시 레이어를 단독으로 설계·적용하고 쿼리 인덱스를 재설계했다."
-- result (2~3문장): XYZ 공식 + Second-Order Effect 체인
-  → "응답 시간을 1.2s→340ms(72% 단축, X/Y/Z) 달성. 이탈률 감소로 분기 전환율 목표를 8% 초과 달성했다."
-- learning (1~2문장): Counter-Intuitive Insight — "배웠습니다" 금지
-  → "초기 예상과 달리 DB 쿼리가 아닌 네트워크 왕복 횟수가 병목임을 프로파일링으로 확인, 계층적 캐싱 전략으로 전환했다."
+[핵심 경험 작성 기준]
+- context: 어떤 상황에서 판단이 필요했고, 처음 무엇을 문제로 보았는지.
+- action: 문제 판단의 근거 → 실제 검토한 대안 → 결정을 가른 기준 → 내가 직접 실행한 범위가 순서대로 읽히게.
+- result: 무엇이 달라졌고 어떤 로그·데이터·피드백·산출물로 확인했는지. 수치가 없으면 정성 근거를 정확히.
+- learning: 처음 믿음이 틀렸거나 불완전했던 지점과 그 뒤 바뀐 판단 원칙. 단순 소감 금지.
+- CARL 네 문장은 decisionTrace의 읽기 좋은 요약입니다. 세부 판단 정보는 decisionTrace에서 빠짐없이 구조화하세요.
 
 원본 자료:
 ${contentText}
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON, 1개 객체만):
 {
-  "title": "능동동사+성과가 담긴 20자 이내 제목 (예: 'API 응답 72% 단축 최적화')",
+  "title": "문제 판단 또는 핵심 선택이 드러나는 24자 이내 제목",
   "metric": "원본의 핵심 수치 (예: 72%, 340ms, 3일→1일). 없으면 빈 문자열",
   "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간 단축)",
   "beforeMetric": "개선 전 수치 (있으면)",
   "afterMetric": "개선 후 수치 (있으면)",
-  "context": "비즈니스 문제+스케일(Scope of Impact) 포함, 2~3문장",
-  "action": "Trade-off+Ownership+Bias for Action 포함, 2~3문장",
-  "result": "XYZ 공식+Second-Order Effect 체인, 수치 포함, 2~3문장",
-  "learning": "Counter-Intuitive Insight 패턴, 역량 변화 구체화, 1~2문장",
+  "context": "판단이 필요했던 상황과 처음 문제라고 본 것, 2~3문장",
+  "action": "판단 근거→대안→선택 기준→직접 실행, 2~4문장",
+  "result": "달라진 결과와 그것을 확인한 근거·한계, 2~3문장",
+  "learning": "예상과 달랐던 신호와 이후 바뀐 판단 원칙, 1~2문장",
   "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
-  "chartType": "horizontalBar"${jobAddon.schema}
+  "chartType": "horizontalBar"${jobAddon.schema}${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA}
 }
-${jobAddon.guide}
+${jobAddon.guide}${HONEST_REVIEW_GUIDE}${DECISION_RECORD_GUIDE}
 원본에 before/after 수치 패턴("800ms → 480ms", "3일을 1일로 단축")이 있으면 반드시 beforeMetric/afterMetric을 모두 채워 비교 그래프를 그릴 수 있게 하세요.`;
 }
 
@@ -958,24 +1256,69 @@ ${sectionText}
 // ============================================================
 // 대화형 추출 인터뷰 — 초안에서 핵심 정보를 끌어내는 질문 생성
 // ============================================================
-export function buildInterviewQuestionsPrompt(braindump = '', jobCategory = 'common') {
-  return `당신은 Google·Amazon·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가입니다.
-아래는 지원자가 자유롭게 적은 경험 초안입니다. 이 경험을 채용 담당자가 통과시킬 수준으로 끌어올리기 위해,
-"지원자 본인만 답할 수 있고 AI가 지어낼 수 없는" 핵심 정보를 끌어내는 인터뷰 질문을 만드세요.
+export function buildInterviewQuestionsPrompt(braindump = '', jobCategory = 'common', interviewMode = 'basic') {
+  const jobInfo = getJobInfo(jobCategory);
+  const jobLens = JOB_KEYEXP_META[jobCategory] || {
+    guide: getCareerFieldProfile(jobCategory).emphasis,
+  };
+  return `당신은 FitPoly의 저부담 경험 인터뷰어입니다.
+사용자가 새 글을 길게 쓰게 하지 말고, 이미 제공한 초안을 먼저 이해한 뒤 결과물 가치가 큰 빈칸만 질문하세요.
+대상 직군: ${jobInfo.label}
+직군 렌즈: ${jobLens.guide}
 
 ${NO_HALLUCINATION_RULES}
+${buildLowBurdenInterviewGuide(interviewMode)}
 
-[질문 설계 규칙]
-- 5~7개. 반드시 다음을 우선 커버: ① 정량 수치(전/후·%·시간·비용·규모) ② 본인의 구체적 기여 범위(팀에서 정확히 직접 한 일) ③ 의사결정·대안(다른 선택지는? 왜 이걸 택했나) ④ 트러블슈팅(가장 막혔던 지점과 해결 과정).
-- 초안에 이미 충분히 드러난 내용은 다시 묻지 말고, 비어 있는 곳을 메우는 질문으로.
-- "${jobCategory}" 직무에서 채용 담당자가 가장 주목하는 포인트를 반영.
-- 각 질문은 한 문장, 친근하고 쉬운 한국어, 답하기 쉽도록 구체적으로(막연한 추상 질문 금지).
+[출력 규칙]
+- understanding에는 문제·개인 역할·핵심 행동·결과·주요 결정을 먼저 복원합니다.
+- 질문은 최대 5개이며, quick 모드는 최대 3개입니다.
+- 먼저 개인 기여 범위, 가장 어려운 판단, 실행 전후 결과 중 초안에서 확인되지 않은 것만 질문합니다.
+- 이후 사람의 판단이 가장 잘 드러나는 장면 1~2개만 골라 확인 질문을 추가합니다.
+- 질문마다 why, target, valueScore를 반드시 제공합니다.
+- 확인 질문은 "AI 추론이 맞아요 / 일부만 맞아요 / 다른 고민이었어요 / 기억나지 않아요 / 나중에 답할게요" 선택지를 제공합니다.
+- 확인 질문의 followUp은 최대 하나이며 판단 기준·포기한 것·바뀐 생각 중 가장 가치가 큰 하나만 묻습니다.
+- 사적인 갈등은 privacy="ask"로 두고 공개를 전제하지 않습니다.
+- 이미 확인한 내용을 묻지 않은 이유는 skippedReasons에 적습니다.
 
 경험 초안:
 ${braindump}
 
-아래 JSON만 출력 (마크다운 없이 순수 JSON):
-{ "questions": ["질문1", "질문2", "질문3", "질문4", "질문5"] }`;
+아래 JSON만 출력하세요. interviewPlan 객체 내부 구조는 다음 스키마를 따르세요:
+{${LOW_BURDEN_INTERVIEW_PLAN_SCHEMA.replace(/^,\s*/, '')}
+}`;
+}
+
+export function buildIdentityPatternCandidatesPrompt(experiences = []) {
+  return `당신은 FitPoly의 경험 패턴 분석가입니다.
+아래는 한 사용자의 서로 다른 경험에서 추출한 판단 방식·행동·사용자 표현입니다.
+성격을 상상하거나 경험 하나를 일반화하지 말고, 서로 다른 경험 최소 2개에서 실제로 반복된 업무 방식만 후보로 제안하세요.
+
+[원칙]
+- "성실하다", "열정적이다", "도전적이다" 같은 성격 형용사가 아니라 관찰 가능한 행동 패턴으로 씁니다.
+- 각 후보는 서로 다른 experienceId를 최소 2개 포함해야 합니다.
+- sentence는 사용자의 실제 표현 리듬을 과하게 미화하지 않은 1인칭 한 문장입니다.
+- proof에는 후보를 뒷받침하는 경험 제목과 구체적인 판단·행동을 연결합니다.
+- 근거가 약하면 후보를 만들지 않습니다. 승인 여부는 사용자가 결정하므로 approved 같은 필드를 만들지 않습니다.
+- 감정·동기·사적 갈등을 사실처럼 단정하지 않습니다.
+
+경험 데이터:
+${JSON.stringify(experiences, null, 2).slice(0, 18000)}
+
+아래 JSON만 출력하세요:
+{
+  "candidates": [
+    {
+      "id": "stable-pattern-id",
+      "pattern": "여러 경험에서 반복된 관찰 가능한 업무 방식",
+      "sentence": "나를 보여주는 1인칭 한 문장",
+      "meaning": "이 패턴이 직무 수행에서 갖는 의미",
+      "confidence": "high|medium",
+      "proofs": [
+        { "experienceId": "", "title": "", "evidence": "실제 판단 또는 행동" }
+      ]
+    }
+  ]
+}`;
 }
 
 // ============================================================
@@ -996,18 +1339,21 @@ ${WRITING_QUALITY_RULES}
 
 ${GLOBAL_PORTFOLIO_TECHNIQUES}
 
+${DECISION_RECORD_GUIDE}
+
 ★ 최소 3개 필수, 최대 10개까지 — 임팩트 있는 경험을 모조리 추출하세요 ★
 프로젝트명: ${title || '(미상)'}
 
-[추출 원칙 — 글로벌 기법 적용]
+[추출 원칙 — 판단 사건 단위]
 1. 10가지 성과 공식 중 가장 잘 맞는 유형을 'type'에 기재
-2. 정량 수치(%, 시간, 비용, 건수)가 있는 경험을 가장 먼저 추출 (그래프 시각화 가능하게)
-3. 각 CARL 섹션은 2~3문장, 글로벌 합격 패턴으로:
-   - Context: Scope of Impact(스케일) 포함 — "DAU X만 서비스에서", "6명 팀에서 단독으로"
-   - Action: Trade-off(왜 A 말고 B?) + Ownership(내가 직접) + Bias for Action
-   - Result: XYZ 공식 + Second-Order Effect 체인 (직접 성과 → 비즈니스 임팩트)
-   - Learning: Counter-Intuitive Insight — "처음 예상과 달리 ~임을 발견, ~로 전환"
+2. 수치가 큰 순간보다 문제 판단·대안·선택 기준·검증·판단 변화가 구체적인 순간을 우선 추출
+3. 각 CARL 섹션은 2~3문장:
+   - Context: 판단이 필요했던 상황과 처음 문제라고 본 것
+   - Action: 판단 근거 → 실제 대안 → 선택 기준 → 직접 실행
+   - Result: 달라진 결과와 그것을 확인한 자료·피드백·로그
+   - Learning: 예상과 달랐던 신호와 이후 바뀐 판단 원칙
 4. 원본에 없는 내용 창작 절대 금지 — 없으면 "(미확인: [질문])" 표기
+5. 같은 사건의 행동을 여러 경험으로 쪼개 개수를 채우지 않음
 
 원본 자료:
 ${rawText.substring(0, 12000)}
@@ -1018,22 +1364,22 @@ ${rawText.substring(0, 12000)}
     {
       "id": "1",
       "type": "10가지 공식 중 해당 유형명",
-      "title": "능동동사+성과가 담긴 20자 이내 제목 (예: 'API 응답 72% 단축 최적화')",
+      "title": "문제 판단 또는 핵심 선택이 드러나는 24자 이내 제목",
       "description": "Context: ...\\nAction: ...\\nResult: ...\\nLearning: ...\\n(미확인: 선택적)",
-      "context": "Scope of Impact 포함, 비즈니스 문제·배경 (2~3문장)",
-      "action": "Trade-off+Ownership+Bias for Action 포함 (2~3문장)",
-      "result": "XYZ 공식+Second-Order Effect 체인, 원본 수치 반드시 포함 (2~3문장)",
-      "learning": "Counter-Intuitive Insight 패턴, 역량 변화 구체화 (1~2문장)",
+      "context": "판단이 필요했던 상황과 처음 문제라고 본 것 (2~3문장)",
+      "action": "판단 근거→대안→선택 기준→직접 실행 (2~4문장)",
+      "result": "결과와 그것을 확인한 근거·한계 (2~3문장)",
+      "learning": "예상과 달랐던 신호와 이후 바뀐 판단 원칙 (1~2문장)",
       "metric": "원본의 핵심 수치 하나 (예: 40% 단축, 3일→1일, 800ms). 없으면 빈 문자열.",
       "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간). 없으면 빈 문자열.",
       "beforeMetric": "개선 전 수치 (원본에 있을 때만)",
       "afterMetric": "개선 후 수치 (원본에 있을 때만)",
-      "keywords": ["JD 키워드", "핵심역량", "기술/방법론"]
+      "keywords": ["JD 키워드", "핵심역량", "기술/방법론"]${DECISION_RECORD_SCHEMA}
     }
   ]
 }
 
-[⚠️ 수치 추출 필수 규칙]
+[⚠️ 사실·수치 추출 규칙]
 - 원본의 숫자(%, 시간, 비용, 건수, 배수)는 반드시 metric/beforeMetric/afterMetric에 채우세요.
 - "800ms → 480ms", "3일을 1일로 단축" 같은 before/after가 있으면 둘 다 채워 비교 그래프를 그릴 수 있게 하세요.
 - 단일 수치만 있으면(예: "40% 단축") metric에만 넣고 before/after는 비워두세요.
@@ -1135,8 +1481,8 @@ ${answer}
 
 [다듬기 규칙 — refined]
 - 답변에 없는 수치·기술명·성과·상황을 절대 만들지 마세요. 답변에 있는 수치는 그대로 보존하세요.
-- 구어체·군더더기("음", "그냥", "~같아요", "ㅋㅋ")를 제거하고 간결한 문어체 서술("~했다", "~을 개선했다")로 바꾸세요.
-- 가능하면 능동 동사(설계·구현·주도·도출·검증·개선·구축·분석)로 시작하세요.
+- "음", "ㅋㅋ" 같은 의미 없는 군더더기만 제거하세요. 사용자가 자주 쓰는 단어, 짧고 긴 문장의 리듬, 비교·설명 순서는 보존합니다.
+- 과장된 강한 동사로 교체하지 마세요. "해봤다", "물어봤다", "다시 만들었다"처럼 사용자가 쓴 평범한 동사도 그대로 살립니다.
 - "저는", "안녕하세요" 같은 도입부 금지. 1~3문장으로 압축하세요.
 - 내용을 요약·재배열만 하고 새 사실을 더하지 마세요. usable=false면 refined는 빈 문자열로 두세요.
 
@@ -1148,7 +1494,7 @@ ${answer}
 // 자유 프롬프트 기반 핵심 경험 보강 (B 방식)
 // ============================================================
 export function buildRefineKeyExperiencePrompt(currentExp, freeFormText) {
-  return `당신은 Google·Amazon·Meta·Naver·카카오·토스 인사팀 출신 포트폴리오 전문가입니다.
+  return `당신은 FitPoly의 경험 아카이브 편집자입니다.
 사용자가 입력한 "자유 보강 메모"를 바탕으로, 기존 핵심 경험의 내용을 보완하고 다듬어주세요.
 
 ${NO_HALLUCINATION_RULES}
@@ -1166,20 +1512,24 @@ ${freeFormText}
 1. 기존 데이터(context, action, result, learning 등)를 최대한 보존하되, 사용자의 메모 내용에 맞게 문맥을 자연스럽게 수정/보강하세요.
 2. 수치(metric, beforeMetric, afterMetric)가 추가되거나 변경되어야 한다면, 이를 추출해 해당 필드에 반영하세요.
 3. 빈 필드가 있다면 자유 보강 메모를 바탕으로 채우되, 없으면 억지로 만들지 마세요.
-4. 반드시 CARL 구조(Context, Action, Result, Learning)와 XYZ 공식, 임팩트 위주로 다듬으세요.
+4. CARL은 읽기 좋은 요약으로 유지하고, 새 메모에서 나온 판단 근거·대안·선택 기준·증거·바뀐 판단은 decisionTrace에 구조화하세요.
+5. 메모에 사용자의 실제 발화가 있으면 voiceRecord에 원문/최소 교정문/AI 의미를 함께 남기세요.
+6. 기존 evidenceBundle·honestReview·identitySignal은 새 메모가 명확히 수정하는 경우가 아니면 보존하세요.
 
 아래 JSON 형식으로만 응답 (마크다운 없이 순수 JSON, 1개 객체만):
 {
-  "title": "능동동사+성과가 담긴 20자 이내 제목",
+  "title": "문제 판단 또는 핵심 선택이 드러나는 24자 이내 제목",
   "metric": "원본의 핵심 수치 (예: 72%, 340ms, 3일→1일). 없으면 빈 문자열",
   "metricLabel": "수치 라벨 (예: 응답 시간 단축, 처리 기간 단축)",
   "beforeMetric": "개선 전 수치 (있으면)",
   "afterMetric": "개선 후 수치 (있으면)",
-  "context": "비즈니스 문제+스케일(Scope of Impact) 포함, 2~3문장",
-  "action": "Trade-off+Ownership+Bias for Action 포함, 2~3문장",
-  "result": "XYZ 공식+Second-Order Effect 체인, 수치 포함, 2~3문장",
-  "learning": "Counter-Intuitive Insight 패턴, 역량 변화 구체화, 1~2문장",
+  "context": "판단이 필요했던 상황과 처음 문제라고 본 것, 2~3문장",
+  "action": "판단 근거→대안→선택 기준→직접 실행, 2~4문장",
+  "result": "달라진 결과와 그것을 확인한 근거·한계, 2~3문장",
+  "learning": "예상과 달랐던 신호와 이후 바뀐 판단 원칙, 1~2문장",
   "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
-  "chartType": "horizontalBar"
-}`;
+  "chartType": "horizontalBar"${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA}
+}
+${HONEST_REVIEW_GUIDE}
+${DECISION_RECORD_GUIDE}`;
 }

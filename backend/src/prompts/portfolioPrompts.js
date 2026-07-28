@@ -122,11 +122,12 @@ export function buildPortfolioDistillPrompt({ portfolioText, slideCount, designT
 ──────────────────────────────────────────────
 [CORE RULES — 절대 준수]
 1) 템플릿의 기존 텍스트는 완전히 무시한다. 템플릿은 레이아웃·공간·디자인 톤(색·폰트·배치)만 참고한다.
-2) 사용자의 노션형 포트폴리오 데이터를 "합격자 포트폴리오" 형태로 재구성하여 삽입한다 (개조식·두괄식·결과 중심).
-3) 데이터 누락 금지: 모든 섹션을 반영하되, 특히 다음 두 가지는 반드시 돋보이게 포함한다.
+2) 사용자의 노션형 포트폴리오 데이터를 "이 사람이 어떤 방식으로 문제를 보고 움직이는지 증명하는 포트폴리오"로 재구성한다.
+3) 데이터 누락 금지: 모든 섹션을 반영하되, 특히 다음 세 가지는 반드시 돋보이게 포함한다.
    ① 성과 지표(정량 수치·데이터 시각화 요소 — %, 시간, 인원, 매출, before/after) → key_metrics + projects[*].metrics 에 빠짐없이.
-   ② 핵심경험 & 성과(STAR: problem · action · result) → projects[*].problem / action[] / result[] 에 풍성하게.
-   이 두 항목은 발표 가치가 가장 높으므로, 약하면 다른 사족을 줄여서라도 분량을 확보한다.
+   ② 판단 과정(problem_evidence · alternatives · decision_criteria · changed_judgment) → 결과보다 먼저 논리가 읽히게.
+   ③ 증거와 원문 말투(evidence · original_quote) → 주장을 실제 화면·문서·데이터와 연결.
+   이 세 항목은 발표 가치가 가장 높으므로, 약하면 다른 사족을 줄여서라도 분량을 확보한다.
 ──────────────────────────────────────────────
 
 이 단계는 콘텐츠 추출이지만, 아래 [Template Visual Style] 톤에 맞춰
@@ -139,7 +140,7 @@ ${imagesBlock}
 
 [추출 원칙]
 1. 모든 섹션을 빠짐없이 훑되, 발표 가치가 낮은 사족(중복 자기소개, 일반론)은 과감히 버린다.
-2. 각 프로젝트/경험은 **문제정의 → 과제 → 행동(3~5개) → 결과(2~4개) → 배운점** 구조로 풍성하게 요약. 한 줄로 끝내지 않음.
+2. 각 프로젝트/경험은 **상황 → 문제 판단과 근거 → 검토한 대안 → 선택 기준 → 직접 실행 → 결과와 증거 → 바뀐 판단** 구조로 요약. 행동 목록만 길게 만들지 않음.
 3. **problem(문제정의)**: 사용자가 마주한 구체적 문제·맥락 1~2줄. 모호한 일반론 금지("UX를 개선하고 싶었음" X → "신규 가입 후 7일 이내 이탈률 38%였음" O).
 4. **tech_stack**: Pre-extracted Project Briefs 의 tech_stack 을 그대로 보존. 임의 누락·각색 금지. 없는 기술은 추가하지 않음.
 5. **action(행동)**: 어떤 기술/방법을 어떻게 적용했는지 3~5개. 각 항목 ≤ 30자 개조식("Redis 캐시 도입해 응답시간 절감", "에러바운더리로 결제 흐름 보호").
@@ -151,7 +152,7 @@ ${imagesBlock}
 
 [summary 필수 필드 — 절대 비워두지 말 것]
 - summary.name: 입력에 이름이 명시되어 있으면 그대로. 없으면 "이름 미상" (절대 스킬/문장으로 채우지 말 것).
-- summary.headline: 본인을 한 문장으로 정의 (지원 직무 + 핵심 가치). 입력에 없으면 role_target 으로 만들어 채움.
+- summary.headline: "나는 어떤 사람인가"에 답하는 문장. 서로 다른 경험 2개 이상에서 반복된 문제 인식·판단·실행 패턴을 찾아 정의합니다. 직무명+추상 역량 조합("데이터 기반 문제 해결형 PM")은 금지. 반복 근거가 부족하면 입력 headline을 보존하고 새 정체성을 단정하지 않습니다.
 - summary.role_target: 지원 직무. 없으면 "직무 미정".
 - summary.tagline: 키워드 3~5개 ' · ' 연결. 스킬과 다름. 키워드가 부족하면 빈 문자열.
 - summary.contact_lines: 이메일/전화/링크. 없으면 빈 배열.
@@ -188,10 +189,16 @@ ${portfolioText.substring(0, 9000)}
       "role_period": "역할 · 기간",
       "tech_stack": ["React", "TypeScript", "Node.js", "Redis", "PostgreSQL"],
       "problem": "구체적 문제 1줄 (≤40자, 정량 맥락 포함)",
+      "problem_evidence": "왜 이것을 문제로 판단했는지 보여주는 관찰·데이터·사용자 말",
       "situation": "사업·팀 맥락 1줄",
       "task": "내가 해결할 과제 1줄",
+      "alternatives": ["실제로 검토한 대안과 포기 이유"],
+      "decision_criteria": ["최종 선택을 가른 기준"],
       "action": ["기술 X 적용해 Y 구축 (≤30자)", "...", "..."],
       "result": ["P95 응답 -42%", "전환율 +18%", "..."],
+      "evidence": ["주장을 확인할 화면·문서·데이터·피드백·원본"],
+      "original_quote": "자료 속 사용자의 실제 문장. 없으면 빈 문자열",
+      "changed_judgment": "예상과 달랐던 결과와 이후 바뀐 판단",
       "metrics": ["P95 -42%", "전환율 +18%"],
       "learning": "한 줄 (≤32자)"
     }
@@ -706,3 +713,211 @@ ${JSON.stringify(expSummary, null, 0).substring(0, 8000)}
 }`;
 }
 
+
+// ============================================================
+// 경험 구성 계획 (composition plan)
+//   기존 문제: 모든 경험이 고정된 7섹션 순서로 똑같이 조립돼
+//   사용자·경험·지원 기업이 달라도 결과물 골격이 동일했다.
+//   → AI가 "이 경험을, 이 기업에, 이 단계 지원자가" 어떻게 배치할지 설계도를 먼저 만든다.
+//   실제 글 생성이 아니라 "무엇을 · 어떤 순서로 · 무엇을 빼고" 만 정한다.
+// ============================================================
+
+
+/**
+ * 히어로 아티팩트 변형 — 경험 상세 상단에 깔리는 "그 직무다운 한 장".
+ * 렌더러는 ProjectDetailModal의 JobArtifactCover에 이미 구현돼 있는데,
+ * 지금까지 이 값을 세팅하는 곳이 손으로 만든 예시 데이터뿐이라
+ * 실제 사용자는 전부 기본 변형만 보고 있었다. 구성 계획이 경험 성격에 맞춰 고른다.
+ */
+export const ARTIFACT_VARIANTS = {
+  dev: [
+    { id: 'code-diff', when: '코드 개선·리팩터링이 핵심일 때 (변경 전후 코드 비교)' },
+    { id: 'quality-matrix', when: '테스트·품질 게이트·배포 안정성이 핵심일 때' },
+    { id: 'performance-report', when: '성능 최적화 수치(응답시간·번들·렌더링)가 핵심일 때' },
+    { id: 'accessibility-audit', when: '접근성·표준 준수 개선이 핵심일 때' },
+    { id: 'automation-flow', when: '자동화·파이프라인·반복작업 제거가 핵심일 때' },
+  ],
+  pm: [
+    { id: 'product-roadmap', when: '기간에 걸친 단계적 제품 개발이 핵심일 때' },
+    { id: 'experiment-board', when: 'A/B 테스트·가설 검증 반복이 핵심일 때' },
+    { id: 'discovery-map', when: '사용자 리서치·문제 발견 과정이 핵심일 때' },
+    { id: 'service-blueprint', when: '서비스 흐름·터치포인트 설계가 핵심일 때' },
+    { id: 'policy-system', when: '운영 정책·예외 규칙 설계가 핵심일 때' },
+  ],
+  marketer: [
+    { id: 'launch-dashboard', when: '신제품 런칭 캠페인의 KPI·퍼널이 핵심일 때' },
+    { id: 'crm-journey', when: 'CRM·리텐션·세그먼트별 여정 설계가 핵심일 때' },
+    { id: 'content-scoreboard', when: '콘텐츠 제작·채널 운영 성과가 핵심일 때' },
+    { id: 'paid-funnel', when: '유료 광고 퍼널·ROAS 최적화가 핵심일 때' },
+    { id: 'growth-report', when: '그로스 실험·지표 개선 누적이 핵심일 때' },
+  ],
+};
+
+/**
+ * 데이터 주도 히어로 레시피 — 전용 변형(ARTIFACT_VARIANTS)이 없는 직군용.
+ * 손으로 만든 dev/pm/marketer 변형 15종은 그대로 두고,
+ * 나머지 직군은 기존 시각화 프리미티브(JobVisuals)를 조합해 경험마다 다른 히어로를 만든다.
+ * 데이터가 없는 블록은 프론트에서 자동으로 빠지므로 빈 히어로가 생기지 않는다.
+ */
+export const ARTIFACT_BLOCKS = [
+  { type: 'kpis', when: '대표 지표 2~4개를 타일로 (가장 무난한 시작 블록)', needs: '지표명+값' },
+  { type: 'funnel', when: '단계별로 줄어드는 흐름 (지원→서류→면접, 노출→클릭→구매)', needs: '단계 2개 이상+수치' },
+  { type: 'compare', when: '개선 전후 대비가 강점일 때', needs: 'before/after 쌍' },
+  { type: 'process', when: '수행 절차·단계 설계가 강점일 때 (저니·파이프라인)', needs: '단계 2개 이상' },
+  { type: 'mix', when: '비중 구성이 강점일 때 (채널·예산·시간 배분)', needs: '항목+비율%' },
+  { type: 'goals', when: '목표 대비 달성 여부가 강점일 때', needs: '목표+실제' },
+  { type: 'gauges', when: '목표치 대비 현재 수준 (가용성·SLA·달성률)', needs: '지표+현재값' },
+];
+
+/** 히어로 색 톤 — 임의 색상 대신 검증된 팔레트에서만 고르게 한다 (경험마다 다른 인상) */
+export const ARTIFACT_TONES = ['navy', 'forest', 'ember', 'plum', 'slate'];
+
+/** 구성 가능한 소스 블록 — 프론트 composeDraftBlocks가 이 key로 실제 내용을 찾아 넣는다. */
+export const COMPOSABLE_SOURCES = [
+  { key: 'product', label: '서비스 소개 (문제·해결·기능)' },
+  { key: 'intro', label: '프로젝트 소개' },
+  { key: 'overview', label: '프로젝트 개요·배경' },
+  { key: 'task', label: '내가 맡은 과제' },
+  { key: 'process', label: '진행 과정·의사결정' },
+  { key: 'output', label: '결과물·성과' },
+  { key: 'growth', label: '배운 점·관점 변화' },
+  { key: 'competency', label: '발휘 역량·입사 후 기여' },
+  { key: 'keyExperiences', label: '핵심 경험 카드 (직군별 단위)' },
+  { key: 'decisionTrace', label: '판단 지도 (대안·선택 기준·바뀐 원칙)' },
+  { key: 'evidenceBundle', label: '증거 자료 목록' },
+  { key: 'honestReview', label: '솔직 회고 (막힌 지점·한계·다시 한다면)' },
+  { key: 'voiceRecord', label: '사용자의 실제 말 인용' },
+  { key: 'jobSpecific', label: '직군 특화 섹션 (기술스택·퍼널·리서치 등)' },
+  { key: 'githubStats', label: 'GitHub 기여도 통계' },
+  { key: 'leanCanvas', label: '린 캔버스' },
+  { key: 'marketerKit', label: '마케터 캠페인 킷' },
+  { key: 'portfolioVisuals', label: '지표 시각화 데이터' },
+];
+
+const NARRATIVE_TYPES = `
+[서사 골격 — 이 경험에 가장 맞는 것 하나를 고르세요]
+- problem-first : 문제 정의가 강렬할 때. 문제 → 접근 → 해결 → 결과 (기획·디자인·리서치형)
+- outcome-first : 정량 성과가 뚜렷할 때. 성과 → 어떻게 → 근거 → 확장 (마케팅·세일즈·경력직)
+- decision-first: 판단·트레이드오프가 핵심일 때. 결정 → 대안 → 기준 → 결과 (PM·아키텍처)
+- process-first : 과정의 밀도가 강점일 때. 절차 → 각 단계 판단 → 산출물 (데이터·연구·인프라)
+- build-first   : 만든 것 자체가 근거일 때. 제품 → 구조 → 구현 → 검증 (개발·AI/ML)
+`;
+
+/**
+ * 경험 1건을 지원 기업/직무/경력단계에 맞춰 어떻게 구성할지 설계도를 만든다.
+ * jobAnalysis가 없으면(기업 미지정) 경험 자체의 강점만으로 구성한다.
+ */
+export function buildExperienceCompositionPrompt({ experience, jobCategory, careerStage, jobAnalysis = null }) {
+  const ja = jobAnalysis || {};
+  const company = ja.company ? `${ja.company} / ${ja.position || ''}` : '';
+  const skills = (ja.skills || []).slice(0, 12).join(', ');
+  const weighted = (ja.skillImportance || []).slice(0, 8)
+    .map(s => `${s.skill}(중요도 ${s.weight})`).join(', ');
+  const comps = (ja.positionAnalysis?.keyCompetencies || []).slice(0, 6)
+    .map(c => `${c.name}(${c.weight})`).join(', ');
+  const essential = (ja.requirements?.essential || []).slice(0, 6).join(' / ');
+  const preferred = (ja.requirements?.preferred || []).slice(0, 5).join(' / ');
+  const values = (ja.coreValues || []).slice(0, 5).join(', ');
+  const appeal = (ja.applicationStrategy?.appealPoints || []).slice(0, 4).join(' / ');
+  const tips = (ja.applicationStrategy?.portfolioTips || []).slice(0, 4).join(' / ');
+  const cautions = (ja.applicationStrategy?.cautionPoints || []).slice(0, 3).join(' / ');
+  const variants = ARTIFACT_VARIANTS[jobCategory] || [];
+  const hasVariants = variants.length > 0;
+  const variantLines = hasVariants
+    ? `${variants.map(v => `- ${v.id}: ${v.when}`).join('\n')}
+→ 이 직군은 전용 변형이 있습니다. artifactVariant를 고르고 artifactRecipe는 null로 두세요.`
+    : `이 직군은 전용 변형이 없습니다. artifactVariant는 빈 문자열로 두고, 대신 아래 블록을 조합해 artifactRecipe를 만드세요.
+[조합 가능한 블록]
+${ARTIFACT_BLOCKS.map(b => `- ${b.type}: ${b.when} (필요 데이터: ${b.needs})`).join('\n')}
+[색 톤] ${ARTIFACT_TONES.join(' | ')} 중 하나. 경험의 성격에 맞는 인상을 고르세요
+  (성과·매출=ember / 운영·안정성=forest / 분석·데이터=navy / 사람·조직=plum / 절차·문서=slate)
+★ 블록은 2~3개. 첫 블록은 span="main"(넓게), 나머지는 "side".
+★ 경험 데이터에 실제로 값이 있는 블록만 고르세요. 데이터가 없는 블록은 화면에서 자동으로 사라집니다.
+★ title/kicker는 이 경험 고유의 문구로. "핵심 지표" 같은 일반 라벨 금지.`;
+
+  const jobBlock = company ? `
+[지원 대상 — 이 기업/직무에 맞춰 구성을 바꾸세요]
+지원처: ${company}
+필수 요건: ${essential || '(없음)'}
+우대 요건: ${preferred || '(없음)'}
+요구 스킬: ${skills || '(없음)'}
+가중치 높은 스킬: ${weighted || '(없음)'}
+핵심 역량(가중치): ${comps || '(없음)'}
+인재상·핵심가치: ${values || '(없음)'}
+어필 포인트: ${appeal || '(없음)'}
+포트폴리오 팁: ${tips || '(없음)'}
+주의 사항: ${cautions || '(없음)'}
+` : `
+[지원 대상 없음]
+기업 분석 자료가 연결되지 않았습니다. 이 경험 자체의 강점이 가장 잘 드러나는 구성을 택하고,
+jdAlignment는 빈 배열로 두세요.
+`;
+
+  return `당신은 채용 서류를 설계하는 포트폴리오 디렉터입니다.
+아래 경험 1건을 "어떤 순서로, 무엇을 넣고, 무엇을 빼서" 보여줄지 **구성 설계도**만 만드세요.
+글을 새로 쓰는 것이 아닙니다. 이미 있는 내용을 어떻게 배치할지만 결정합니다.
+
+⛔ 가장 중요한 규칙: 모든 경험에 같은 구성을 쓰지 마세요.
+   이 경험의 강점이 무엇이냐에 따라, 그리고 지원처가 무엇을 보느냐에 따라 골격과 섹션 제목이 달라져야 합니다.
+   기본 7섹션(소개·개요·과제·과정·결과·성장·역량)을 그대로 나열하는 것은 실패한 구성입니다.
+
+직군: ${jobCategory || 'common'}
+지원 단계: ${careerStage || 'first'} (first=첫 취업 / newgrad=신입 / experienced=경력 이직)
+${jobBlock}
+${NARRATIVE_TYPES}
+
+[히어로 아티팩트 — 경험 상세 맨 위에 깔리는 "그 직무다운 한 장"]
+${variantLines}
+★ 경험의 성격에 맞는 것을 고르세요. 같은 직군이어도 경험마다 달라야 합니다.
+  예: 마케터라도 신제품 런칭이면 launch-dashboard, 휴면고객 리텐션이면 crm-journey.
+  기본값을 습관적으로 고르지 마세요.
+
+[사용 가능한 소스 블록 — sections[].source는 반드시 이 key 중 하나]
+${COMPOSABLE_SOURCES.map(s => `- ${s.key}: ${s.label}`).join('\n')}
+
+[구성 규칙]
+1. sections는 4~7개. 많을수록 좋은 게 아닙니다. 근거가 약한 블록은 과감히 빼고 omitted에 이유를 쓰세요.
+2. title은 이 경험에 맞는 고유한 제목이어야 합니다. ("프로젝트 개요" 같은 기본 라벨 재사용 금지)
+   ✅ 좋은 예: "왜 색 대비가 아니라 문구였나", "1,200만원으로 만든 첫 달 매출", "금요일 밤의 502"
+   ❌ 나쁜 예: "프로젝트 소개", "진행한 일", "결과물"
+3. 지원처가 있으면 필수 요건·가중치 높은 스킬을 증명하는 블록을 앞쪽에 배치하세요.
+   요구사항과 무관한 블록은 뒤로 보내거나 뺍니다.
+4. 경력 단계 반영: first는 판단 과정과 솔직 회고를 앞세우고, experienced는 성과·오너십·의사결정을 앞세웁니다.
+5. honestReview는 마지막 근처에 두되 빼지 마세요. 지원처 주의사항에 "과장 경계"류가 있으면 더 앞으로 올립니다.
+6. 근거가 없는 소스는 넣지 마세요. 경험 데이터에 값이 비어 있는 블록을 배치하면 빈 섹션이 됩니다.
+
+경험 데이터(요약):
+${JSON.stringify(experience).slice(0, 6000)}
+
+아래 JSON으로만 응답 (마크다운 없이 순수 JSON):
+{
+  "narrative": "problem-first|outcome-first|decision-first|process-first|build-first",
+  "narrativeReason": "이 골격을 고른 이유 1문장",
+  "artifactVariant": "전용 변형이 있는 직군일 때만 그 id, 아니면 빈 문자열",
+  "artifactRecipe": null,
+  "artifactReason": "이 히어로를 고른/구성한 이유 1문장",
+  "headline": "이 경험을 한 줄로 세우는 문장 (지원처가 있으면 그 직무 언어로)",
+  "sections": [
+    {
+      "source": "위 key 중 하나",
+      "title": "이 경험에 맞는 고유한 섹션 제목",
+      "emphasis": "high|normal",
+      "why": "이 위치에 이 블록을 둔 이유 (지원처가 있으면 어떤 요건과 연결되는지)"
+    }
+  ],
+  "keyExperienceOrder": [0, 1, 2],
+  "keyExperienceReason": "첫 번째로 올린 핵심 경험을 그렇게 고른 이유",
+  "omitted": [ { "source": "뺀 key", "reason": "뺀 이유" } ],
+  "jdAlignment": [
+    { "requirement": "공고의 요구사항", "coveredBy": "이를 증명하는 섹션 제목 또는 핵심 경험", "strength": "strong|weak|missing", "note": "weak/missing이면 무엇을 보강해야 하는지" }
+  ]
+}
+
+artifactRecipe는 전용 변형이 없는 직군일 때만 아래 형태로 채우세요 (변형이 있는 직군이면 null):
+{ "kicker": "짧은 영문 라벨", "title": "이 경험 고유의 히어로 제목", "badge": "선택 배지(없으면 빈 문자열)",
+  "tone": "navy|forest|ember|plum|slate",
+  "blocks": [ { "type": "kpis|funnel|compare|process|mix|goals|gauges", "title": "블록 제목", "span": "main|side" } ] }
+
+keyExperienceOrder는 경험 데이터의 keyExperiences 배열 인덱스입니다. 지원처 요건과 가장 관련 있는 것을 앞으로 보내세요.
+jdAlignment에는 missing도 정직하게 남기세요. 다 strong으로 채우면 사용자가 무엇을 보완할지 알 수 없습니다.`;
+}

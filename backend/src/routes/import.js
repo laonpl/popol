@@ -38,11 +38,15 @@ const upload = multer({
       'image/jpeg', 'image/png', 'image/webp',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/markdown', 'text/csv', 'application/json',
+      'application/zip', 'application/x-zip-compressed',
     ];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx|docx|doc)$/i)) {
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(pdf|jpg|jpeg|png|webp|hwp|hwpx|docx|doc|pptx|xlsx|txt|md|markdown|csv|tsv|json|ya?ml|xml|sql|zip)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('PDF, Word(DOCX), 이미지, HWP 파일만 업로드할 수 있습니다'));
+      cb(new Error('PDF, Word, PPTX, XLSX, 텍스트/CSV/JSON, 이미지, HWP 또는 ZIP 파일만 업로드할 수 있습니다'));
     }
   },
 });

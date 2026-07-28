@@ -33,11 +33,15 @@ import {
   getSectionTemplates,
   extractSectionsFromDoc,
   experienceDraftBlocks,
+  composeDraftBlocks,
   extractHeadingsFromDoc,
   emptyNotionDoc,
 } from '../utils/projectSections';
 import { contentBearingCoreSections } from '../utils/coreExperienceSections';
 import JobCoreShowcase, { hasJobCoreContent } from './portfolio/JobCoreShowcase';
+import RecipeArtifactCover from './portfolio/RecipeArtifactCover';
+import { normalizePortfolioVisuals } from '../utils/devPortfolio';
+import { JOB_SPECIFIC_FIELDS } from '../stores/experienceStore';
 import { stripMd } from '../utils/textUtils';
 
 function slatePlainText(node) {
@@ -59,6 +63,19 @@ function JobArtifactCover({ exp }) {
   const structured = exp?.structuredResult || {};
   const jobCategory = exp?.jobCategory || structured.jobCategory || 'common';
   const variant = structured.exportConfig?.artifactCoverVariant;
+
+  // 전용 변형이 없는 직군(dev/pm/marketer 외)은 구성 계획이 만든 레시피로 히어로를 조립한다.
+  // 손으로 만든 15종 변형은 아래 분기에서 그대로 유지된다.
+  const recipe = structured.exportConfig?.artifactRecipe;
+  if (recipe && !['dev', 'pm', 'marketer'].includes(jobCategory)) {
+    const visuals = normalizePortfolioVisuals(structured, {
+      jobSections: JOB_SPECIFIC_FIELDS[jobCategory] || [],
+      keyExperiences: Array.isArray(structured.keyExperiences) ? structured.keyExperiences : [],
+      jobSpecific: structured.jobSpecific || {},
+      texts: Object.values(structured.jobSpecific || {}),
+    });
+    return <RecipeArtifactCover recipe={recipe} visuals={visuals} />;
+  }
 
   if (jobCategory === 'dev') {
     const stats = structured.githubStats || {};
@@ -431,6 +448,69 @@ export default function ProjectDetailModal({
     setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
     onUpdate?.({ notionDoc: nextDoc });
     toast.success('경험 정리 내용을 바탕으로 초안을 만들었습니다');
+  };
+
+  // ── 맞춤 구성 ──
+  // 고정 순서로 조립하던 초안과 달리, 경험·직군·경력단계·기업분석을 종합해
+  // AI가 만든 구성 계획(섹션 선택·순서·제목)에 따라 조립한다.
+  const [composing, setComposing] = useState(false);
+  const [composePlan, setComposePlan] = useState(null);
+
+  const composeCanvas = async () => {
+    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 맞춤 구성으로 교체할까요?')) return;
+    setComposing(true);
+    try {
+      const sr = exp?.structuredResult || {};
+      const { data: plan } = await api.post('/job/compose-experience', {
+        experience: {
+          title: exp?.title || '',
+          projectOverview: sr.projectOverview || {},
+          product: sr.product || null,
+          jobSpecific: sr.jobSpecific || {},
+          keyExperiences: (sr.keyExperiences || []).map(ke => ({
+            title: ke?.title, metric: ke?.metric, context: ke?.context, action: ke?.action,
+            result: ke?.result, learning: ke?.learning, keywords: ke?.keywords,
+            jobData: ke?.jobData || null,
+            hasDecisionTrace: !!ke?.decisionTrace, hasEvidence: !!(ke?.evidenceBundle?.length),
+            hasHonestReview: !!ke?.honestReview, hasVoice: !!ke?.voiceRecord?.originalQuote,
+          })),
+          hasGithub: !!sr.githubStats?.myCommits,
+          hasLeanCanvas: !!sr.leanCanvas,
+          hasMarketerKit: !!sr.marketerKit,
+          hasVisuals: !!sr.portfolioVisuals,
+        },
+        jobCategory: exp?.jobCategory || sr.jobCategory || 'common',
+        careerStage: exp?.careerStage || 'first',
+        jobAnalysis: jobAnalysis || null,
+      });
+      const blocks = composeDraftBlocks(exp, { allImages, sectionImages, imageConfig }, plan);
+      const nextDoc = blocksToYooptaValue(blocks);
+      canvasRef.current?.replaceBlocks(blocks);
+      docValueRef.current = nextDoc;
+      setHeadings(extractHeadingsFromDoc(nextDoc));
+      setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
+      setComposePlan(plan);
+      // 히어로 아티팩트 변형을 structuredResult에 반영 — JobArtifactCover/JobCoreShowcase가 이 값으로 렌더한다.
+      // (지금까지 이 값을 채우는 곳이 없어 실사용자는 전부 기본 변형만 보고 있었다)
+      const changes = { notionDoc: nextDoc, compositionPlan: plan };
+      if (plan?.artifactVariant || plan?.artifactRecipe) {
+        changes.structuredResult = {
+          ...sr,
+          exportConfig: {
+            ...(sr.exportConfig || {}),
+            ...(plan.artifactVariant ? { artifactCoverVariant: plan.artifactVariant } : {}),
+            ...(plan.artifactRecipe ? { artifactRecipe: plan.artifactRecipe } : {}),
+          },
+        };
+      }
+      onUpdate?.(changes);
+      toast.success(plan?._fallback
+        ? '기본 구성으로 배치했습니다 (AI 구성 실패)'
+        : `${jobAnalysis?.company ? `${jobAnalysis.company} 맞춤 ` : ''}구성으로 배치했습니다`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || '맞춤 구성에 실패했습니다');
+    }
+    setComposing(false);
   };
 
   const uploadCoverImage = async (file) => {
@@ -1006,6 +1086,45 @@ export default function ProjectDetailModal({
 
               {/* ── 자유 캔버스 ── */}
               <div>
+                {composePlan && !composePlan._fallback && (
+                  <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50/50 px-4 py-3">
+                    <p className="text-[11px] font-black text-primary-700">
+                      구성 근거 · {composePlan.narrative}
+                      {composePlan.artifactVariant && (
+                        <span className="ml-1.5 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-primary-600">
+                          {composePlan.artifactVariant}
+                        </span>
+                      )}
+                    </p>
+                    {composePlan.artifactReason && (
+                      <p className="mt-1 text-[11px] leading-snug text-bluewood-500">비주얼 · {composePlan.artifactReason}</p>
+                    )}
+                    {composePlan.narrativeReason && (
+                      <p className="mt-1 text-[11.5px] leading-relaxed text-bluewood-600">{composePlan.narrativeReason}</p>
+                    )}
+                    {composePlan.omitted?.length > 0 && (
+                      <p className="mt-1.5 text-[11px] text-bluewood-400">
+                        뺀 항목 · {composePlan.omitted.map(o => `${o.source}(${o.reason})`).join(' / ')}
+                      </p>
+                    )}
+                    {composePlan.jdAlignment?.length > 0 && (
+                      <div className="mt-2 space-y-1 border-t border-primary-100 pt-2">
+                        <p className="text-[10.5px] font-bold text-bluewood-500">공고 요건 대응</p>
+                        {composePlan.jdAlignment.map((a, i) => (
+                          <p key={i} className="text-[11px] leading-snug text-bluewood-600">
+                            <span className={`mr-1.5 font-bold ${
+                              a.strength === 'strong' ? 'text-caribbean-700' : a.strength === 'missing' ? 'text-rose-500' : 'text-amber-600'
+                            }`}>
+                              {a.strength === 'strong' ? '충족' : a.strength === 'missing' ? '없음' : '약함'}
+                            </span>
+                            {a.requirement}
+                            {a.note && <span className="text-bluewood-400"> — {a.note}</span>}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mb-3 flex items-center justify-between gap-3 border-b border-surface-100 pb-2">
                   <h4 className="text-[14px] font-bold uppercase tracking-widest text-gray-400">상세 내용</h4>
                   {!readOnly && (
@@ -1017,6 +1136,18 @@ export default function ProjectDetailModal({
                         className="inline-flex items-center gap-1.5 rounded-md bg-bluewood-800 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-bluewood-900 active:scale-95 transition-all"
                       >
                         <Wand2 size={13} /> 초안 만들기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={composeCanvas}
+                        disabled={composing}
+                        title={jobAnalysis?.company
+                          ? `${jobAnalysis.company} 공고 요건에 맞춰 섹션 구성·순서를 새로 짭니다`
+                          : '경험의 강점에 맞춰 섹션 구성·순서를 새로 짭니다 (기업 분석을 연결하면 공고 맞춤으로 구성)'}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-[12px] font-bold text-white transition-all hover:bg-primary-700 active:scale-95 disabled:opacity-50"
+                      >
+                        {composing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                        {composing ? '구성 중' : jobAnalysis?.company ? '기업 맞춤 구성' : '맞춤 구성'}
                       </button>
                       <button
                         data-tour="project-detail-image"

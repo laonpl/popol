@@ -18,6 +18,7 @@ import {
   buildRefineAnswerPrompt,
   buildMetricsResearchPrompt,
   buildInterviewQuestionsPrompt,
+  buildIdentityPatternCandidatesPrompt,
   buildDraftAnalysisPrompt,
   buildEvidenceLabelPrompt,
   buildTagPrompt,
@@ -448,6 +449,13 @@ function normalizeFallbackMoment(moment = {}, index = 0, title = '') {
     learning: learning || '인사이트, trade-off, 다음 적용점을 보강해 주세요.',
     keywords,
     chartType: moment.chartType || 'horizontalBar',
+    jobData: firstPlainObject(moment.jobData),
+    honestReview: firstPlainObject(moment.honestReview),
+    decisionTrace: firstPlainObject(moment.decisionTrace),
+    voiceRecord: firstPlainObject(moment.voiceRecord),
+    evidenceBundle: Array.isArray(moment.evidenceBundle) ? moment.evidenceBundle : [],
+    identitySignal: firstPlainObject(moment.identitySignal),
+    artifactRefs: Array.isArray(moment.artifactRefs) ? moment.artifactRefs.filter(Boolean) : [],
   };
 }
 
@@ -538,6 +546,17 @@ function mergeDraftKeyExperience(primary = {}, fallback = {}, index = 0, title =
       ...deriveFallbackKeywords(combined, 6),
     ], 8),
     chartType: primary.chartType || fallback.chartType || 'horizontalBar',
+    jobData: firstPlainObject(primary.jobData, fallback.jobData),
+    honestReview: firstPlainObject(primary.honestReview, fallback.honestReview),
+    decisionTrace: firstPlainObject(primary.decisionTrace, fallback.decisionTrace),
+    voiceRecord: firstPlainObject(primary.voiceRecord, fallback.voiceRecord),
+    evidenceBundle: Array.isArray(primary.evidenceBundle) && primary.evidenceBundle.length
+      ? primary.evidenceBundle
+      : (Array.isArray(fallback.evidenceBundle) ? fallback.evidenceBundle : []),
+    identitySignal: firstPlainObject(primary.identitySignal, fallback.identitySignal),
+    artifactRefs: Array.isArray(primary.artifactRefs) && primary.artifactRefs.length
+      ? primary.artifactRefs.filter(Boolean)
+      : (Array.isArray(fallback.artifactRefs) ? fallback.artifactRefs.filter(Boolean) : []),
   };
 }
 
@@ -618,6 +637,12 @@ function toStringList(value, limit = 10) {
 
 function nonEmptyArray(value) {
   return Array.isArray(value) && value.length > 0;
+}
+
+// jobData(직무 특화 추출) · honestReview(솔직 회고)는 직무마다 스키마가 다른 자유 객체다.
+// 필드를 화이트리스트로 고르면 직무별 값이 통째로 사라지므로, 객체인 첫 후보를 그대로 보존한다.
+function firstPlainObject(...candidates) {
+  return candidates.find(v => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0) || null;
 }
 
 function mergeObjectFallback(raw = {}, fallback = {}) {
@@ -1047,6 +1072,10 @@ function hydrateDraftAnalysis({ json = {}, content = {}, jobCategory = 'common',
     flowDiagram: normalizeArchitectureDiagram(json.flowDiagram),
     portfolioVisuals: json.portfolioVisuals && typeof json.portfolioVisuals === 'object' && !Array.isArray(json.portfolioVisuals) ? json.portfolioVisuals : null,
     leanCanvas: json.leanCanvas && typeof json.leanCanvas === 'object' && !Array.isArray(json.leanCanvas) ? json.leanCanvas : null,
+    experienceIdentity: firstPlainObject(json.experienceIdentity),
+    voiceProfile: firstPlainObject(json.voiceProfile),
+    artifactAnalysis: firstPlainObject(json.artifactAnalysis),
+    interviewPlan: firstPlainObject(json.interviewPlan),
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: Array.isArray(json.followUpQuestions) && json.followUpQuestions.length > 0
@@ -1135,6 +1164,20 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
     jobCategory: jobCategory || 'common',
     jobSpecific: {},
     ...(marketerKit ? { marketerKit } : {}),
+    interviewPlan: {
+      mode: 'basic',
+      understanding: {
+        problem: sections.task || sections.overview || '',
+        role: '',
+        actions: keyExperiences.map(item => item.action).filter(Boolean).slice(0, 3),
+        result: sections.output || '',
+        decision: sections.process || '',
+        uncertain: ['개인 기여 범위', '가장 어려웠던 판단', '실행 전후 결과 근거'],
+      },
+      humanMoments: [],
+      questions: [],
+      skippedReasons: [],
+    },
     keywords,
     highlights: buildDraftHighlights(sections, keyExperiences),
     followUpQuestions: [
@@ -1150,7 +1193,7 @@ export function buildFallbackExperienceAnalysis(content = {}, keyExperienceCount
  * "봐줄 수준"의 초안을 빠르게 만들고, 깊이 있는 보강은 analyzeExperience가 담당.
  * 실패 시 throw — 라우트/프론트가 로컬 초안(buildDraftStructuredResult)으로 폴백.
  */
-export async function generateDraftAnalysis(content, jobCategory = 'common') {
+export async function generateDraftAnalysis(content, jobCategory = 'common', careerStage = 'first', interviewMode = 'basic') {
   const entries = Object.entries(content || {}).filter(([, val]) => val && String(val).trim().length > 0);
   if (entries.length === 0) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
@@ -1163,7 +1206,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common') {
     .join('\n');
   if (contentText.length > 24000) contentText = contentText.substring(0, 24000);
 
-  const prompt = buildDraftAnalysisPrompt(contentText, jobCategory);
+  const prompt = buildDraftAnalysisPrompt(contentText, jobCategory, careerStage, interviewMode);
   const text = await withTimeout(
     generateWithRetry(prompt, {
       models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
@@ -1190,10 +1233,30 @@ export async function generateProfileBoostDraft({ profile = {}, experiences = []
     const c = e.content || {};
     const sr = e.structuredResult || {};
     const ov = sr.projectOverview || {};
+    const identity = sr.experienceIdentity || {};
+    const decisionSignals = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
+      .slice(0, 3)
+      .map(item => {
+        const trace = item?.decisionTrace || {};
+        const signal = item?.identitySignal || {};
+        return [
+          item?.title,
+          trace.problemJudgment && `문제판단=${trace.problemJudgment}`,
+          trace.choice && `선택=${trace.choice}`,
+          trace.changedJudgment && `바뀐판단=${trace.changedJudgment}`,
+          trace.newPrinciple && `새원칙=${trace.newPrinciple}`,
+          signal.sentence && `정체성문장=${signal.sentence}`,
+        ].filter(Boolean).join(' / ');
+      })
+      .filter(Boolean)
+      .join('\n');
     const parts = [
       e.title && `제목: ${e.title}`,
       (c.intro || sr.intro) && `소개: ${c.intro || sr.intro}`,
       ov.summary && `개요: ${ov.summary}`,
+      identity.oneLiner && `문제해결방식: ${identity.oneLiner}`,
+      Array.isArray(identity.wayOfWorking) && identity.wayOfWorking.length && `행동패턴후보: ${identity.wayOfWorking.join(', ')}`,
+      decisionSignals && `판단기록:\n${decisionSignals}`,
       (c.competency || sr.competency) && `역량: ${c.competency || sr.competency}`,
       (c.growth || sr.growth) && `성장: ${c.growth || sr.growth}`,
       e.category && `유형: ${e.category}`,
@@ -1227,7 +1290,8 @@ export async function generateProfileBoostDraft({ profile = {}, experiences = []
 규칙:
 - 제공된 정보에만 근거합니다. 사실을 지어내지 마세요. 근거가 없으면 빈 문자열("") 또는 빈 배열([])로 두세요.
 - 담백하고 자연스러운 평서문("~습니다")으로 작성합니다. 과장·미사여구 금지.
-- valuesEssay(자기소개): 1인칭, 2~3문장. 어떤 문제를 어떤 역량으로 풀어왔는지 중심. 공고가 있으면 직무와 자연스럽게 연결.
+- valuesEssay(자기소개): 단순 역량·성과 요약이 아니라 여러 경험에서 실제로 반복된 "문제를 보는 방식 → 판단 기준 → 움직이는 방식"을 1인칭 2~3문장으로 압축. 첫 문장은 "나는 어떤 사람인가"에 답하는 한 문장, 다음 문장은 그 패턴을 증명하는 서로 다른 대표 경험 2~3개를 짧게 연결. 한 경험에만 나온 특징은 정체성처럼 단정하지 않음. 공고가 있으면 마지막에만 자연스럽게 연결.
+- 사용자의 정체성문장·실제 단어가 있으면 우선 재사용하고, 모든 지원자에게 붙는 "데이터 기반 문제 해결형 인재" 같은 상투어는 금지.
 - skills: 역량/스킬을 짧은 키워드(1~3단어)로 5~8개. 공고의 문장형 인재상을 그대로 넣지 말고 실제 보유 역량 위주.
 - values: 가치관/업무 성향을 짧은 단어/구로 3~6개. 문장 금지.
 - goals: 앞으로의 목표를 짧은 문장 1~3개.
@@ -1280,7 +1344,7 @@ ${jobText || '(없음)'}
  * 각 단계는 Pro 우선 모드로 호출하며, Pro가 끝까지 실패하는 경우에만 Lite로 폴백.
  * 분할 호출 덕분에 각 요청은 Pro의 TPM/output 한도 내에 충분히 들어감.
  */
-export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common') {
+export async function analyzeExperience(content, keyExperienceCount = 3, reviewedMoments = null, jobCategory = 'common', careerStage = 'first') {
   const entries = Object.entries(content).filter(([, val]) => val && String(val).trim().length > 0);
   if (entries.length === 0) {
     throw new Error('분석할 경험 내용이 비어있습니다. 내용을 먼저 작성해주세요.');
@@ -1309,7 +1373,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   // 각 단계는 서로의 결과에 의존하지 않으므로 동시 실행 가능.
   // ============================================================
   const overviewPromise = (async () => {
-    const prompt = buildOverviewPrompt(contentText, jobCategory);
+    const prompt = buildOverviewPrompt(contentText, jobCategory, careerStage);
     try {
       const text = hasReviewed
         ? await callFastLite(prompt, 'Step1-Overview-Fast')
@@ -1340,7 +1404,7 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   })();
 
   const keyExpPromises = momentHints.map((hint, i) => (async () => {
-    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount);
+    const expPrompt = buildSingleKeyExperiencePrompt(contentText, hint, i, targetCount, jobCategory, careerStage);
     try {
       const expText = hasReviewed
         ? await callFastLite(expPrompt, `Step2-KeyExp-Fast[${i + 1}/${targetCount}]`)
@@ -1365,6 +1429,17 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           learning: pick(expJson.learning, hint.learning),
           keywords: (expJson.keywords && expJson.keywords.length ? expJson.keywords : (hint.keywords || [])),
           chartType: expJson.chartType || 'horizontalBar',
+          jobData: firstPlainObject(expJson.jobData, hint.jobData),
+          honestReview: firstPlainObject(expJson.honestReview, hint.honestReview),
+          decisionTrace: firstPlainObject(expJson.decisionTrace, hint.decisionTrace),
+          voiceRecord: firstPlainObject(expJson.voiceRecord, hint.voiceRecord),
+          evidenceBundle: Array.isArray(expJson.evidenceBundle) && expJson.evidenceBundle.length
+            ? expJson.evidenceBundle
+            : (Array.isArray(hint.evidenceBundle) ? hint.evidenceBundle : []),
+          identitySignal: firstPlainObject(expJson.identitySignal, hint.identitySignal),
+          artifactRefs: Array.isArray(expJson.artifactRefs) && expJson.artifactRefs.length
+            ? expJson.artifactRefs.filter(Boolean)
+            : (Array.isArray(hint.artifactRefs) ? hint.artifactRefs.filter(Boolean) : []),
         };
       }
       return {
@@ -1379,6 +1454,13 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
         learning: expJson.learning || '',
         keywords: expJson.keywords || [],
         chartType: expJson.chartType || 'horizontalBar',
+        jobData: firstPlainObject(expJson.jobData),
+        honestReview: firstPlainObject(expJson.honestReview),
+        decisionTrace: firstPlainObject(expJson.decisionTrace),
+        voiceRecord: firstPlainObject(expJson.voiceRecord),
+        evidenceBundle: Array.isArray(expJson.evidenceBundle) ? expJson.evidenceBundle : [],
+        identitySignal: firstPlainObject(expJson.identitySignal),
+        artifactRefs: Array.isArray(expJson.artifactRefs) ? expJson.artifactRefs.filter(Boolean) : [],
       };
     } catch (err) {
       console.warn(`[Step2-KeyExp[${i + 1}]] 추출 실패:`, err.message);
@@ -1395,6 +1477,13 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
           learning: hint.learning || '',
           keywords: hint.keywords || [],
           chartType: 'horizontalBar',
+          jobData: firstPlainObject(hint.jobData),
+          honestReview: firstPlainObject(hint.honestReview),
+          decisionTrace: firstPlainObject(hint.decisionTrace),
+          voiceRecord: firstPlainObject(hint.voiceRecord),
+          evidenceBundle: Array.isArray(hint.evidenceBundle) ? hint.evidenceBundle : [],
+          identitySignal: firstPlainObject(hint.identitySignal),
+          artifactRefs: Array.isArray(hint.artifactRefs) ? hint.artifactRefs.filter(Boolean) : [],
         };
       }
       return null;
@@ -1472,6 +1561,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
     flowDiagram: normalizeArchitectureDiagram(overviewJson.flowDiagram),
     portfolioVisuals: overviewJson.portfolioVisuals && typeof overviewJson.portfolioVisuals === 'object' && !Array.isArray(overviewJson.portfolioVisuals) ? overviewJson.portfolioVisuals : null,
     leanCanvas: overviewJson.leanCanvas && typeof overviewJson.leanCanvas === 'object' && !Array.isArray(overviewJson.leanCanvas) ? overviewJson.leanCanvas : null,
+    experienceIdentity: firstPlainObject(overviewJson.experienceIdentity),
+    voiceProfile: firstPlainObject(overviewJson.voiceProfile),
+    artifactAnalysis: firstPlainObject(overviewJson.artifactAnalysis),
     keywords: resultKeywords,
     competencyTags: metaJson.competencyTags || [],
     workStyleTags: metaJson.workStyleTags || [],
@@ -1514,11 +1606,26 @@ export async function refineKeyExperience(currentExp, freeFormText) {
   const text = await callFastLite(prompt, 'RefineKeyExp-Fast', { callTimeoutMs: 30000 });
   const refined = parseJSON(text);
   
-  // 차트 타입 등 기본값 유지
-  refined.chartType = refined.chartType || currentExp.chartType || 'horizontalBar';
+  // AI가 보강 메모에 없는 자유 객체를 생략해도 기존 판단 지도·증거·말투 기록은 잃지 않는다.
+  const merged = {
+    ...currentExp,
+    ...refined,
+    chartType: refined.chartType || currentExp.chartType || 'horizontalBar',
+    jobData: firstPlainObject(refined.jobData, currentExp.jobData),
+    honestReview: firstPlainObject(refined.honestReview, currentExp.honestReview),
+    decisionTrace: firstPlainObject(refined.decisionTrace, currentExp.decisionTrace),
+    voiceRecord: firstPlainObject(refined.voiceRecord, currentExp.voiceRecord),
+    evidenceBundle: Array.isArray(refined.evidenceBundle) && refined.evidenceBundle.length
+      ? refined.evidenceBundle
+      : (Array.isArray(currentExp.evidenceBundle) ? currentExp.evidenceBundle : []),
+    identitySignal: firstPlainObject(refined.identitySignal, currentExp.identitySignal),
+    artifactRefs: Array.isArray(refined.artifactRefs) && refined.artifactRefs.length
+      ? refined.artifactRefs.filter(Boolean)
+      : (Array.isArray(currentExp.artifactRefs) ? currentExp.artifactRefs.filter(Boolean) : []),
+  };
   
   console.log(`[RefineKeyExp] ✓ 보강 완료`);
-  return refined;
+  return merged;
   } catch (err) {
     console.warn('[RefineKeyExp] AI refinement failed. Preserving user input:', err.message);
     return {
@@ -1693,30 +1800,182 @@ export async function generateExperienceTags(text = '') {
 }
 
 /**
- * 대화형 추출 인터뷰 질문 생성 — 초안 텍스트에서 핵심 정보를 끌어내는 질문 5~7개.
+ * 저부담 경험 인터뷰 계획 생성.
+ * 이미 확인된 내용은 생략하고 필수 공백 3종 + 핵심 장면 질문 2개 이내로 제한한다.
  */
-export async function generateInterviewQuestions(braindump, jobCategory = 'common') {
-  const fallbackQuestions = [
-    'What problem or goal made this experience important?',
-    'Which part did you directly own, and what decisions did you make?',
-    'What alternatives did you compare before choosing your approach?',
-    'What measurable output, metric, or before/after change can you attach?',
-    'What was difficult, and how did you resolve it?',
-    'What did you learn that you would apply again?',
-  ];
+export async function generateInterviewQuestions(braindump, jobCategory = 'common', interviewMode = 'basic') {
+  const maxQuestions = interviewMode === 'quick' ? 3 : 5;
+  const fallbackPlan = {
+    mode: interviewMode,
+    understanding: {
+      problem: '',
+      role: '',
+      actions: [],
+      result: '',
+      decision: '',
+      uncertain: ['개인 기여 범위', '가장 어려웠던 판단', '실행 전후 결과 근거'],
+    },
+    humanMoments: [],
+    questions: [
+      {
+        id: 'ownership',
+        kind: 'essential',
+        question: '팀 전체가 아니라 본인이 직접 맡고 결정한 부분은 어디까지였나요?',
+        why: '이 답변이 있으면 팀 성과와 본인의 기여를 분리해 보여줄 수 있어요.',
+        target: 'role',
+        valueScore: 100,
+        quickChoices: [],
+      },
+      {
+        id: 'judgment',
+        kind: 'essential',
+        question: '이 프로젝트에서 가장 판단하기 어려웠던 순간은 언제였나요?',
+        why: '한 행동의 나열이 아니라 어떤 기준으로 움직였는지 보여줄 수 있어요.',
+        target: 'decision',
+        valueScore: 95,
+        quickChoices: [],
+      },
+      {
+        id: 'outcome',
+        kind: 'evidence',
+        question: '실행 전후 달라진 수치나 사용자·팀의 반응, 확인 가능한 산출물이 있나요?',
+        why: '성과 주장을 수치나 실제 근거와 바로 연결할 수 있어요.',
+        target: 'evidence',
+        valueScore: 90,
+        quickChoices: [],
+      },
+    ].slice(0, maxQuestions),
+    skippedReasons: [],
+  };
 
   try {
-    const prompt = buildInterviewQuestionsPrompt(braindump, jobCategory);
+    const prompt = buildInterviewQuestionsPrompt(braindump, jobCategory, interviewMode);
     const text = await callProFirst(prompt, 'InterviewQuestions');
     const parsed = parseJSON(text) || {};
-    const qs = Array.isArray(parsed.questions)
-      ? parsed.questions.map(q => String(q || '').trim()).filter(Boolean)
+    const rawPlan = parsed.interviewPlan && typeof parsed.interviewPlan === 'object'
+      ? parsed.interviewPlan
+      : parsed;
+    const questions = Array.isArray(rawPlan.questions)
+      ? rawPlan.questions
+        .map((item, index) => {
+          if (typeof item === 'string') {
+            return {
+              id: `question-${index + 1}`,
+              kind: 'essential',
+              question: item.trim(),
+              why: '이 답변으로 경험의 핵심 판단과 근거를 더 분명하게 만들 수 있어요.',
+              target: 'decision',
+              valueScore: 50,
+              quickChoices: [],
+            };
+          }
+          const question = String(item?.question || '').trim();
+          if (!question) return null;
+          return {
+            id: String(item.id || `question-${index + 1}`),
+            kind: String(item.kind || 'essential'),
+            question,
+            why: String(item.why || '이 답변으로 경험의 핵심 판단과 근거를 더 분명하게 만들 수 있어요.'),
+            known: String(item.known || ''),
+            target: String(item.target || 'decision'),
+            targetExperienceIndex: Number.isInteger(Number(item.targetExperienceIndex))
+              ? Number(item.targetExperienceIndex)
+              : 0,
+            valueScore: Math.max(0, Math.min(100, Number(item.valueScore) || 50)),
+            privacy: ['public', 'ask', 'private'].includes(item.privacy) ? item.privacy : 'public',
+            quickChoices: Array.isArray(item.quickChoices)
+              ? item.quickChoices.map(choice => String(choice || '').trim()).filter(Boolean).slice(0, 5)
+              : [],
+            followUp: item.followUp && typeof item.followUp === 'object'
+              ? {
+                  question: String(item.followUp.question || '').trim(),
+                  why: String(item.followUp.why || '').trim(),
+                  target: String(item.followUp.target || 'decisionCriteria'),
+                }
+              : null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          const essentialKinds = new Set(['essential', 'evidence']);
+          const kindDelta = Number(essentialKinds.has(b.kind)) - Number(essentialKinds.has(a.kind));
+          return kindDelta || b.valueScore - a.valueScore;
+        })
+        .slice(0, maxQuestions)
       : [];
-    return qs.length > 0 ? qs.slice(0, 7) : fallbackQuestions;
+    return {
+      mode: interviewMode,
+      understanding: firstPlainObject(rawPlan.understanding),
+      humanMoments: Array.isArray(rawPlan.humanMoments) ? rawPlan.humanMoments.slice(0, 2) : [],
+      questions: questions.length > 0 ? questions : fallbackPlan.questions,
+      skippedReasons: Array.isArray(rawPlan.skippedReasons)
+        ? rawPlan.skippedReasons.map(value => String(value || '').trim()).filter(Boolean)
+        : [],
+    };
   } catch (err) {
     console.warn('[InterviewQuestions] AI generation failed. Using fallback questions:', err.message);
-    return fallbackQuestions;
+    return fallbackPlan;
   }
+}
+
+export async function generateIdentityPatternCandidates(experiences = []) {
+  const source = (experiences || []).map(exp => {
+    const sr = exp.structuredResult || {};
+    return {
+      experienceId: exp.id,
+      title: exp.title || sr.projectOverview?.summary || '제목 없는 경험',
+      jobCategory: exp.jobCategory || sr.jobCategory || 'common',
+      oneLiner: sr.experienceIdentity?.oneLiner || '',
+      waysOfWorking: Array.isArray(sr.experienceIdentity?.wayOfWorking)
+        ? sr.experienceIdentity.wayOfWorking.slice(0, 5)
+        : [],
+      signals: (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [])
+        .slice(0, 5)
+        .map(item => ({
+          title: item?.title || '',
+          pattern: item?.identitySignal?.pattern || '',
+          sentence: item?.identitySignal?.sentence || '',
+          proof: item?.identitySignal?.proof || '',
+          decision: item?.decisionTrace?.choice || '',
+          changedJudgment: item?.decisionTrace?.changedJudgment || '',
+          originalQuote: item?.voiceRecord?.originalQuote || '',
+        })),
+    };
+  }).filter(item => (
+    item.oneLiner
+    || item.waysOfWorking.length
+    || item.signals.some(signal => signal.pattern || signal.proof || signal.decision || signal.changedJudgment)
+  ));
+
+  if (source.length < 2) return [];
+  const allowedIds = new Set(source.map(item => String(item.experienceId)));
+  const text = await callFastLite(
+    buildIdentityPatternCandidatesPrompt(source),
+    'IdentityPatternCandidates',
+  );
+  const parsed = parseJSON(text) || {};
+  return (Array.isArray(parsed.candidates) ? parsed.candidates : [])
+    .map((candidate, index) => {
+      const proofs = (Array.isArray(candidate?.proofs) ? candidate.proofs : [])
+        .map(proof => ({
+          experienceId: String(proof?.experienceId || ''),
+          title: String(proof?.title || '').trim(),
+          evidence: String(proof?.evidence || '').trim(),
+        }))
+        .filter(proof => allowedIds.has(proof.experienceId) && proof.evidence);
+      const uniqueProofIds = new Set(proofs.map(proof => proof.experienceId));
+      if (uniqueProofIds.size < 2) return null;
+      return {
+        id: String(candidate?.id || `pattern-${index + 1}`).replace(/[^a-zA-Z0-9가-힣_-]/g, '-').slice(0, 80),
+        pattern: String(candidate?.pattern || '').trim(),
+        sentence: String(candidate?.sentence || '').trim(),
+        meaning: String(candidate?.meaning || '').trim(),
+        confidence: candidate?.confidence === 'high' ? 'high' : 'medium',
+        proofs,
+      };
+    })
+    .filter(candidate => candidate?.pattern && candidate?.sentence)
+    .slice(0, 3);
 }
 
 /**
@@ -2086,6 +2345,9 @@ function collectPortfolioForPptx(portfolio = {}) {
     const content = exp.frameworkContent || exp.structuredResult || exp.content || {};
     const ov = content?.projectOverview || {};
     const git = exp._git || {};
+    const artifactAnalysis = content?.artifactAnalysis && typeof content.artifactAnalysis === 'object'
+      ? content.artifactAnalysis
+      : {};
     const expTitle = exp.title || exp.company || exp.name || ov.name || `프로젝트 ${idx + 1}`;
     const role = exp.role || ov.role || '';
     const period = exp.period || exp.date || ov.duration || git.period || '';
@@ -2127,6 +2389,28 @@ function collectPortfolioForPptx(portfolio = {}) {
         result: compactText(it.result, 240),
         learning: compactText(it.learning, 200),
         keywords: Array.isArray(it.keywords) ? it.keywords.slice(0, 5).map(k => compactText(k, 30)).filter(Boolean) : [],
+        decisionTrace: it.decisionTrace && typeof it.decisionTrace === 'object' ? {
+          problemJudgment: compactText(it.decisionTrace.problemJudgment, 180),
+          problemEvidence: compactText(it.decisionTrace.problemEvidence, 220),
+          alternatives: (Array.isArray(it.decisionTrace.alternatives) ? it.decisionTrace.alternatives : []).slice(0, 4),
+          decisionCriteria: (Array.isArray(it.decisionTrace.decisionCriteria) ? it.decisionTrace.decisionCriteria : []).slice(0, 4),
+          choice: compactText(it.decisionTrace.choice, 220),
+          changedJudgment: compactText(it.decisionTrace.changedJudgment, 200),
+          newPrinciple: compactText(it.decisionTrace.newPrinciple, 180),
+        } : null,
+        voiceRecord: it.voiceRecord && typeof it.voiceRecord === 'object' ? {
+          originalQuote: compactText(it.voiceRecord.originalQuote, 220),
+          polished: compactText(it.voiceRecord.polished, 220),
+          aiMeaning: compactText(it.voiceRecord.aiMeaning, 180),
+        } : null,
+        evidenceBundle: (Array.isArray(it.evidenceBundle) ? it.evidenceBundle : []).slice(0, 4),
+        artifactRefs: (Array.isArray(it.artifactRefs) ? it.artifactRefs : []).slice(0, 8),
+        identitySignal: it.identitySignal && typeof it.identitySignal === 'object' ? {
+          pattern: compactText(it.identitySignal.pattern, 180),
+          sentence: compactText(it.identitySignal.sentence, 160),
+          proof: compactText(it.identitySignal.proof, 200),
+          confidence: compactText(it.identitySignal.confidence, 20),
+        } : null,
       }));
 
     // 문제 정의 — 명시적 problem_definition 우선, keyExperience.context 도 포함
@@ -2217,6 +2501,37 @@ function collectPortfolioForPptx(portfolio = {}) {
         if (ke.action) lines.push(`    핵심행동: ${ke.action}`);
         if (ke.result) lines.push(`    결과: ${ke.result}`);
         if (ke.learning) lines.push(`    배운점: ${ke.learning}`);
+        if (ke.decisionTrace?.problemJudgment) lines.push(`    문제판단: ${ke.decisionTrace.problemJudgment}`);
+        if (ke.decisionTrace?.problemEvidence) lines.push(`    판단근거: ${ke.decisionTrace.problemEvidence}`);
+        if (ke.decisionTrace?.choice) lines.push(`    최종선택: ${ke.decisionTrace.choice}`);
+        if (ke.decisionTrace?.changedJudgment) lines.push(`    바뀐판단: ${ke.decisionTrace.changedJudgment}`);
+        if (ke.decisionTrace?.newPrinciple) lines.push(`    다음원칙: ${ke.decisionTrace.newPrinciple}`);
+        if (ke.voiceRecord?.originalQuote) lines.push(`    실제말: "${ke.voiceRecord.originalQuote}"`);
+        if (ke.identitySignal?.sentence) lines.push(`    정체성단서: ${ke.identitySignal.sentence}`);
+        (ke.evidenceBundle || []).forEach(source => {
+          const ref = source?.sourceRef || source?.type || '';
+          const proof = source?.whatItProves || source?.claim || '';
+          if (ref || proof) lines.push(`    증거: ${[ref, proof].filter(Boolean).join(' — ')}`);
+        });
+      });
+    }
+
+    const artifactEvidence = (Array.isArray(artifactAnalysis.evidenceLedger) ? artifactAnalysis.evidenceLedger : [])
+      .slice(0, 8)
+      .map(row => ({
+        claim: compactText(row?.claim, 180),
+        artifactIds: (Array.isArray(row?.artifactIds) ? row.artifactIds : []).slice(0, 6),
+        location: compactText(row?.location, 100),
+        proofLevel: compactText(row?.proofLevel, 8),
+        ownership: compactText(row?.ownership, 140),
+        gap: compactText(row?.gap, 160),
+      }))
+      .filter(row => row.claim);
+    if (artifactEvidence.length) {
+      lines.push('자료 근거 장부:');
+      artifactEvidence.forEach(row => {
+        const source = [row.artifactIds.join(', '), row.location, row.proofLevel && `등급 ${row.proofLevel}`].filter(Boolean).join(' · ');
+        lines.push(`- ${row.claim}${source ? ` (${source})` : ''}${row.ownership ? ` / 기여: ${row.ownership}` : ''}${row.gap ? ` / 미확인: ${row.gap}` : ''}`);
       });
     }
 
@@ -2253,6 +2568,7 @@ function collectPortfolioForPptx(portfolio = {}) {
       metrics: projectMetrics,
       learning: learningLines,
       key_experiences: keyExperiences,
+      artifact_evidence: artifactEvidence,
     });
   });
 
@@ -2404,10 +2720,16 @@ function ensureContentPackSafety(pack, portfolio, slideCount, extras = {}) {
         role_period: aiProj.role_period || [brief.role, brief.period].filter(Boolean).join(' · '),
         tech_stack,
         problem,
+        problem_evidence: aiProj.problem_evidence || '',
         situation: aiProj.situation || problem,
         task: aiProj.task || (brief.problem?.[1] || ''),
+        alternatives: Array.isArray(aiProj.alternatives) ? aiProj.alternatives.slice(0, 5) : [],
+        decision_criteria: Array.isArray(aiProj.decision_criteria) ? aiProj.decision_criteria.slice(0, 5) : [],
         action: aiAction.length ? aiAction.slice(0, 6) : brief.action.slice(0, 6),
         result: aiResult.length ? aiResult.slice(0, 6) : brief.result.slice(0, 6),
+        evidence: Array.isArray(aiProj.evidence) ? aiProj.evidence.slice(0, 6) : [],
+        original_quote: aiProj.original_quote || '',
+        changed_judgment: aiProj.changed_judgment || '',
         metrics: Array.isArray(aiProj.metrics) && aiProj.metrics.length ? aiProj.metrics : brief.metrics,
         learning: aiProj.learning || brief.learning?.[0] || '',
         // 결정적 keyExperiences 는 AI 가 생성하지 않음 — brief 에서만 채움 (사용자가 직접 작성한 STAR 케이스)

@@ -1,5 +1,6 @@
 import { callGeminiModel, callGitHubModelsFallback, acquireSemaphore, releaseSemaphore } from '../config/geminiClient.js';
 import { createWorker } from 'tesseract.js';
+import JSZip from 'jszip';
 
 // Gemini 모델 폴백 + 재시도
 const MODEL_FALLBACKS = [
@@ -441,6 +442,113 @@ export async function importFromPDF(pdfText, fileName) {
   };
 }
 
+function decodeXmlText(value = '') {
+  return String(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+function naturalNumber(path = '') {
+  return Number(String(path).match(/(\d+)(?!.*\d)/)?.[1] || 0);
+}
+
+async function readZipEntryText(zip, path, maxUncompressedBytes = 1000000) {
+  const entry = zip.file(path);
+  if (!entry) return '';
+  const size = Number(entry._data?.uncompressedSize || 0);
+  if (size > maxUncompressedBytes) {
+    throw new Error(`${path} 항목이 너무 커서 안전하게 읽을 수 없습니다.`);
+  }
+  return entry.async('string');
+}
+
+async function extractPptxText(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const slidePaths = Object.keys(zip.files)
+    .filter(path => /^ppt\/slides\/slide\d+\.xml$/i.test(path))
+    .sort((a, b) => naturalNumber(a) - naturalNumber(b))
+    .slice(0, 100);
+  const slides = [];
+  for (const path of slidePaths) {
+    const xml = await readZipEntryText(zip, path, 600000);
+    const values = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/gi)]
+      .map(match => decodeXmlText(match[1]))
+      .filter(Boolean);
+    if (values.length) slides.push(`[슬라이드 ${naturalNumber(path)}]\n${values.join('\n')}`);
+  }
+  return slides.join('\n\n').slice(0, 160000);
+}
+
+async function extractXlsxText(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const sharedXml = zip.file('xl/sharedStrings.xml')
+    ? await readZipEntryText(zip, 'xl/sharedStrings.xml', 8000000)
+    : '';
+  const sharedStrings = [...sharedXml.matchAll(/<si(?:\s[^>]*)?>([\s\S]*?)<\/si>/gi)]
+    .map(match => [...match[1].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/gi)]
+      .map(textMatch => decodeXmlText(textMatch[1]))
+      .join(''));
+  const sheetPaths = Object.keys(zip.files)
+    .filter(path => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path))
+    .sort((a, b) => naturalNumber(a) - naturalNumber(b))
+    .slice(0, 40);
+  const sheets = [];
+  for (const path of sheetPaths) {
+    const xml = await readZipEntryText(zip, path, 1500000);
+    const rows = [];
+    for (const cell of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gi)) {
+      if (rows.length >= 4000) break;
+      const attrs = cell[1] || '';
+      const body = cell[2] || '';
+      const ref = attrs.match(/\br="([^"]+)"/i)?.[1] || '';
+      const type = attrs.match(/\bt="([^"]+)"/i)?.[1] || '';
+      const inline = [...body.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/gi)]
+        .map(match => decodeXmlText(match[1]))
+        .join('');
+      const raw = body.match(/<v(?:\s[^>]*)?>([\s\S]*?)<\/v>/i)?.[1];
+      const value = inline || (raw == null
+        ? ''
+        : type === 's'
+          ? sharedStrings[Number(raw)] || ''
+          : decodeXmlText(raw));
+      if (value !== '') rows.push(`${ref || '?'}=${value}`);
+    }
+    if (rows.length) sheets.push(`[시트 ${naturalNumber(path)}]\n${rows.join('\n')}`);
+  }
+  return sheets.join('\n\n').slice(0, 160000);
+}
+
+const ZIP_TEXT_FILE = /\.(?:txt|md|markdown|csv|tsv|json|ya?ml|xml|html?|css|scss|js|jsx|ts|tsx|py|java|kt|swift|go|rs|c|cc|cpp|h|hpp|sql|r|rb|php|sh|ps1|toml|ini|env\.example)$/i;
+
+async function extractZipText(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const paths = Object.keys(zip.files)
+    .filter(path => !zip.files[path].dir)
+    .filter(path => ZIP_TEXT_FILE.test(path))
+    .filter(path => !/(^|\/)(node_modules|dist|build|coverage|vendor|\.git)(\/|$)/i.test(path))
+    .slice(0, 80);
+  const chunks = [];
+  let total = 0;
+  for (const path of paths) {
+    const entry = zip.file(path);
+    if (!entry || entry._data?.uncompressedSize > 500000) continue;
+    const value = (await readZipEntryText(zip, path, 500000)).replace(/\0/g, '').trim();
+    if (!value) continue;
+    const chunk = `[ZIP 파일: ${path}]\n${value.slice(0, 12000)}`;
+    if (total + chunk.length > 180000) break;
+    chunks.push(chunk);
+    total += chunk.length;
+  }
+  return chunks.join('\n\n');
+}
+
 /**
  * 파일 업로드를 통한 임포트 (서버 사이드 파싱)
  * PDF → pdf-parse 텍스트 추출 → 부족시 Gemini Vision OCR
@@ -449,6 +557,7 @@ export async function importFromPDF(pdfText, fileName) {
  */
 export async function importFromFile(buffer, mimeType, fileName) {
   let extractedText = '';
+  const extension = String(fileName || '').toLowerCase().match(/(\.[^.]+)$/)?.[1] || '';
 
   if (mimeType === 'application/pdf') {
     // 1단계: pdf-parse v2로 텍스트 추출
@@ -517,6 +626,23 @@ export async function importFromFile(buffer, mimeType, fileName) {
         throw new Error('Word 문서에서 텍스트를 추출할 수 없습니다.');
       }
     }
+  } else if (
+    mimeType?.startsWith('text/') ||
+    ['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.yaml', '.yml', '.xml', '.sql'].includes(extension)
+  ) {
+    extractedText = buffer.toString('utf8').replace(/^\uFEFF/, '');
+  } else if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    extension === '.pptx'
+  ) {
+    extractedText = await extractPptxText(buffer);
+  } else if (
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    extension === '.xlsx'
+  ) {
+    extractedText = await extractXlsxText(buffer);
+  } else if (mimeType === 'application/zip' || extension === '.zip') {
+    extractedText = await extractZipText(buffer);
   } else {
     // HWP 등 기타 → Gemini Vision 시도
     try {

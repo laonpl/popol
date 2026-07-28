@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
+import { CAREER_STAGES, DEFAULT_CAREER_STAGE } from '../../constants/careerStages';
 import { importFileUpload, importFromUrl } from '../../services/importAI';
 import { uploadDocumentFile } from '../../services/uploadImage';
 import api from '../../services/api';
@@ -16,7 +17,7 @@ import { useOnboarding } from '../../components/OnboardingOverlay';
 import GuidedTutorial from '../../components/GuidedTutorial';
 import { buildDraftStructuredResult, cleanRawText } from '../../utils/experienceDraft';
 
-const ACCEPT_FILES = '.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp';
+const ACCEPT_FILES = '.pdf,.docx,.doc,.pptx,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.sql,.zip,.hwp,.hwpx,.jpg,.jpeg,.png,.webp';
 const TUTORIAL_PROJECT = {
   title: '가상 경험: 교내 공지 서비스 개선 프로젝트',
   startDate: '2026-03',
@@ -486,6 +487,7 @@ export default function TemplateSelect() {
   const [isOngoing, setIsOngoing] = useState(false);
   const [field, setField] = useState('');
   const [jobCategory, setJobCategory] = useState('');
+  const [careerStage, setCareerStage] = useState(DEFAULT_CAREER_STAGE);
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [textInput, setTextInput] = useState('');
@@ -1086,7 +1088,7 @@ export default function TemplateSelect() {
           const techStacks = gitAnalysis.experiences.map(e => e.core_tech_stack).filter(Boolean);
           if (techStacks.length) draftContent.기술스택 = [...new Set(techStacks.join(', ').split(/,\s*/))].filter(Boolean).join(', ');
         }
-        draftAnalysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common' });
+        draftAnalysis = await draftAnalyze({ content: draftContent, jobCategory: jobCategory || 'common', careerStage });
       } catch (draftErr) {
         console.warn('[TemplateSelect] AI 초안 실패 → 로컬 초안 폴백:', draftErr?.message);
         draftAnalysis = buildDraftStructuredResult({
@@ -1111,6 +1113,7 @@ export default function TemplateSelect() {
         period,
         field: field || undefined,
         jobCategory: jobCategory || 'common',
+        careerStage,
         content: { rawInput: finalText },
         momentsCount: moments.length,
         reviewedMoments: syncedMoments,
@@ -1131,6 +1134,7 @@ export default function TemplateSelect() {
           analysis: draftWithStats,
           title: title.trim(),
           jobCategory,
+          careerStage,
           framework: 'STRUCTURED',
           content: { rawInput: finalText },
           showFeedback: true,
@@ -2116,6 +2120,49 @@ export default function TemplateSelect() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* 04 경력 단계 — 같은 경험도 지원 단계에 따라 정리 기준(눈높이·문체·성과 서술)이 달라진다 */}
+            <div className="grid md:grid-cols-[200px_1fr] gap-2 py-6">
+              <div className="flex items-start gap-2 pt-0.5">
+                <span className="text-[15px] font-bold text-bluewood-200 tabular-nums mt-0.5">04</span>
+                <div>
+                  <p className="text-[11px] font-semibold text-bluewood-700">경력 단계</p>
+                  <p className="text-[11px] text-bluewood-300 mt-0.5">눈높이를 맞춰 정리해요</p>
+                </div>
+              </div>
+              <div>
+                <div className="divide-y divide-surface-50">
+                  {CAREER_STAGES.map(opt => {
+                    const selected = careerStage === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCareerStage(opt.value)}
+                        className="w-full flex items-center gap-2 py-1.5 text-left transition-all group"
+                      >
+                        <div className={`w-[14px] h-[14px] rounded-full border-2 flex-shrink-0 transition-all flex items-center justify-center ${
+                          selected ? 'border-primary-600 bg-primary-600' : 'border-surface-300 group-hover:border-bluewood-400'
+                        }`}>
+                          {selected && <div className="w-[7px] h-[7px] rounded-full bg-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`block text-[13px] font-semibold leading-tight ${selected ? 'text-primary-600' : 'text-bluewood-600 group-hover:text-bluewood-800'}`}>{opt.label}</span>
+                          <span className={`block text-[11px] mt-0.5 leading-snug ${selected ? 'text-bluewood-400' : 'text-bluewood-300'}`}>{opt.description}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-bluewood-300">
+                  {careerStage === 'experienced'
+                    ? '경력직 기준으로 성과·수치·오너십 범위까지 최대한 촘촘하게 정리합니다.'
+                    : careerStage === 'newgrad'
+                      ? '팀이 한 일과 내가 직접 한 일을 정확히 나눠서 정리합니다.'
+                      : '학생·대외활동 규모에 맞춰, 성과 크기보다 스스로 판단한 과정을 살려 정리합니다.'}
+                </p>
               </div>
             </div>
 

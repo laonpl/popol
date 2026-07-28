@@ -10,6 +10,7 @@ import {
   generateTailoredPortfolio,
   tailorExperienceContent,
   tailorPortfolioSections,
+  composeExperienceLayout,
   generateWithRetry,
 } from '../services/jobAnalysisService.js';
 import { callProFirst, parseJSON } from '../services/geminiService.js';
@@ -443,6 +444,28 @@ router.post('/tailor-portfolio', authMiddleware, requireCredits, async (req, res
     res.json(result);
   } catch (err) {
     console.error('[Job] 포트폴리오 맞춤화 실패:', err.code || err.message);
+    sendError(res, err);
+  }
+});
+
+// ── 경험 구성 계획 ────────────────────────────────────
+// 경험/직군/경력단계/기업분석을 종합해 "어떤 블록을 어떤 순서·제목으로 놓을지" 설계도를 만든다.
+// jobAnalysis는 선택 — 없으면 경험 자체의 강점만으로 구성한다.
+router.post('/compose-experience', authMiddleware, requireCredits, async (req, res) => {
+  try {
+    const { experience, jobCategory, careerStage, jobAnalysis } = req.body;
+    if (!experience || typeof experience !== 'object') {
+      return res.status(400).json({ error: '경험 데이터가 필요합니다' });
+    }
+    const plan = await composeExperienceLayout({
+      experience,
+      jobCategory: jobCategory || 'common',
+      careerStage: careerStage || 'first',
+      jobAnalysis: jobAnalysis ? sanitizeJobAnalysis(jobAnalysis) : null,
+    });
+    res.json(plan);
+  } catch (err) {
+    console.error('[Job] 경험 구성 계획 실패:', err.code || err.message);
     sendError(res, err);
   }
 });

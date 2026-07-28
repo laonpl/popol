@@ -497,3 +497,153 @@ export function insertYooptaBlocks(editor, blocks, atOrder) {
   });
   editor.setEditorValue(next);
 }
+
+// ============================================================
+// 구성 계획 기반 조립 (composeDraftBlocks)
+//   experienceDraftBlocks는 모든 경험을 같은 순서로 조립해 결과물 골격이 늘 동일했다.
+//   여기서는 백엔드가 만든 구성 계획(plan)을 따라
+//   "무엇을 · 어떤 순서로 · 어떤 제목으로" 넣을지 경험마다 다르게 조립한다.
+//   plan이 없으면 호출부가 experienceDraftBlocks로 폴백한다.
+// ============================================================
+
+/** 판단 지도 — 대안 비교·선택 기준·바뀐 원칙 */
+function decisionTraceBlocks(keyExps) {
+  const blocks = [];
+  keyExps.forEach((ke, i) => {
+    const t = ke?.decisionTrace || {};
+    const alts = (Array.isArray(t.alternatives) ? t.alternatives : [])
+      .map(a => (typeof a === 'string' ? a : [a?.option, a?.reasonNotChosen || a?.cons].filter(Boolean).join(' — ')))
+      .filter(Boolean);
+    const crit = (Array.isArray(t.decisionCriteria) ? t.decisionCriteria : [])
+      .map(c => (typeof c === 'string' ? c : [c?.criterion, c?.why].filter(Boolean).join(' — ')))
+      .filter(Boolean);
+    const lines = [
+      usableText(t.problemJudgment) && `문제 판단 · ${usableText(t.problemJudgment)}`,
+      usableText(t.problemEvidence) && `판단 근거 · ${usableText(t.problemEvidence)}`,
+      ...alts.map(a => `검토한 대안 · ${a}`),
+      ...crit.map(c => `선택 기준 · ${c}`),
+      usableText(t.choice) && `최종 선택 · ${usableText(t.choice)}`,
+      usableText(t.changedJudgment) && `바뀐 판단 · ${usableText(t.changedJudgment)}`,
+      usableText(t.newPrinciple) && `다음 원칙 · ${usableText(t.newPrinciple)}`,
+    ].filter(Boolean);
+    if (lines.length === 0) return;
+    blocks.push(headingBlock(sanitizeText(ke?.title) || `판단 ${i + 1}`, 'HeadingThree'));
+    lines.forEach(l => blocks.push(...textToParagraphs(l)));
+  });
+  return blocks;
+}
+
+/** 증거 자료 목록 — 주장 옆에 붙는 근거 */
+function evidenceBlocks(keyExps) {
+  const rows = keyExps.flatMap(ke => (Array.isArray(ke?.evidenceBundle) ? ke.evidenceBundle : []))
+    .map(e => [usableText(e?.sourceRef) || usableText(e?.type), usableText(e?.whatItProves) || usableText(e?.claim),
+      usableText(e?.ownership) && `기여: ${usableText(e.ownership)}`, usableText(e?.status) && `(${usableText(e.status)})`]
+      .filter(Boolean).join(' · '))
+    .filter(Boolean);
+  return rows.map(r => paragraphBlock(r));
+}
+
+/** 솔직 회고 — 막힌 지점·오판·한계·다시 한다면 */
+function honestReviewBlocks(keyExps) {
+  const blocks = [];
+  keyExps.forEach(ke => {
+    const h = ke?.honestReview || {};
+    const lines = [
+      usableText(h.struggle) && `막혔던 지점 · ${usableText(h.struggle)}`,
+      usableText(h.misjudgment) && `예상과 달랐던 점 · ${usableText(h.misjudgment)}`,
+      usableText(h.limitation) && `남은 한계 · ${usableText(h.limitation)}`,
+      usableText(h.nextTime) && `다시 한다면 · ${usableText(h.nextTime)}`,
+    ].filter(Boolean);
+    lines.forEach(l => blocks.push(...textToParagraphs(l)));
+  });
+  return blocks;
+}
+
+/** 사용자의 실제 말 인용 */
+function voiceBlocks(keyExps) {
+  return keyExps.map(ke => usableText(ke?.voiceRecord?.originalQuote))
+    .filter(Boolean).map(q => paragraphBlock(`"${q}"`));
+}
+
+/** 지표 시각화 데이터 → 텍스트 요약 (캔버스는 텍스트 기반이라 수치만 옮긴다) */
+function visualBlocks(sr) {
+  const pv = sr?.portfolioVisuals || {};
+  const lines = [
+    ...(Array.isArray(pv.kpis) ? pv.kpis : []).map(k => [usableText(k?.label), usableText(k?.value)].filter(Boolean).join(' · ')),
+    ...(Array.isArray(pv.compare) ? pv.compare : []).map(c => {
+      const l = usableText(c?.label), b = usableText(c?.before), a = usableText(c?.after);
+      return l && (b || a) ? `${l} · ${b} → ${a}` : '';
+    }),
+  ].filter(Boolean);
+  return lines.map(l => paragraphBlock(l));
+}
+
+/** 직군 특화 섹션 전체 */
+function jobSpecificBlocks(sr) {
+  const blocks = [];
+  Object.entries(sr?.jobSpecific || {}).forEach(([key, value]) => {
+    const content = usableText(value);
+    if (!content) return;
+    blocks.push(headingBlock(JOB_FIELD_LABELS[key] || key, 'HeadingThree'), ...textToParagraphs(content));
+  });
+  return blocks;
+}
+
+/** source key → 실제 블록. 내용이 없으면 빈 배열을 돌려 섹션 자체가 생략된다. */
+function blocksForSource(source, exp, sr, keyExps, imageData) {
+  switch (source) {
+    case 'product': return productDraftBlocks(sr);
+    case 'keyExperiences': return keyExps.flatMap((ke, i) => keyExperienceToBlocks(ke, i));
+    case 'decisionTrace': return decisionTraceBlocks(keyExps);
+    case 'evidenceBundle': return evidenceBlocks(keyExps);
+    case 'honestReview': return honestReviewBlocks(keyExps);
+    case 'voiceRecord': return voiceBlocks(keyExps);
+    case 'jobSpecific': return jobSpecificBlocks(sr);
+    case 'githubStats': return githubDraftBlocks(sr);
+    case 'marketerKit': return marketerDraftBlocks(sr);
+    case 'leanCanvas': return leanCanvasDraftBlocks(sr);
+    case 'portfolioVisuals': return visualBlocks(sr);
+    default: {
+      // 기본 7섹션(intro/overview/task/process/output/growth/competency)
+      const content = usableText(sr?.[source]);
+      if (!content) return [];
+      return sectionToBlocks({ key: source, label: '', content, blocks: [] }, imageData)
+        .filter(b => b.type !== 'HeadingTwo');
+    }
+  }
+}
+
+/**
+ * 구성 계획(plan)에 따라 경험을 조립한다.
+ * plan.sections의 순서·제목을 그대로 쓰되, 내용이 비어 있는 블록은 건너뛴다.
+ */
+export function composeDraftBlocks(exp, imageData = {}, plan = null) {
+  if (!plan?.sections?.length) return experienceDraftBlocks(exp, imageData);
+  const sr = exp?.structuredResult || {};
+  const allKeyExps = (Array.isArray(sr.keyExperiences) ? sr.keyExperiences : []).filter(Boolean);
+
+  // 계획이 지정한 순서로 핵심 경험을 재배열 (지원 직무와 가장 관련 있는 것을 앞으로)
+  const order = (plan.keyExperienceOrder || []).filter(i => i < allKeyExps.length);
+  const keyExps = order.length
+    ? [...order.map(i => allKeyExps[i]), ...allKeyExps.filter((_, i) => !order.includes(i))]
+    : allKeyExps;
+
+  const blocks = [headingBlock(sanitizeText(exp?.title) || '제목 없음', 'HeadingOne')];
+  if (usableText(plan.headline)) blocks.push(paragraphBlock(usableText(plan.headline)));
+
+  const overview = sr.projectOverview || {};
+  [
+    overview.duration && `기간 · ${overview.duration}`,
+    overview.role && `역할 · ${overview.role}`,
+    Array.isArray(overview.techStack) && overview.techStack.length > 0 && `기술 · ${overview.techStack.join(', ')}`,
+  ].filter(Boolean).filter(l => !isPlaceholderText(l)).forEach(l => blocks.push(paragraphBlock(sanitizeText(l))));
+
+  plan.sections.forEach(section => {
+    const body = blocksForSource(section.source, exp, sr, keyExps, imageData);
+    if (body.length === 0) return;
+    blocks.push(headingBlock(sanitizeText(section.title) || section.source, 'HeadingTwo'), ...body);
+  });
+
+  if (blocks.length <= 1) return experienceDraftBlocks(exp, imageData);
+  return blocks;
+}

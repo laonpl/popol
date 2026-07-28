@@ -1,4 +1,9 @@
-const VALID_JOB_CATEGORIES = new Set(['common', 'dev', 'aiml', 'da', 'devops', 'pm', 'designer', 'marketer', 'hr', 'sales']);
+const VALID_JOB_CATEGORIES = new Set([
+  'common', 'dev', 'aiml', 'da', 'devops', 'security', 'qa', 'engineering',
+  'pm', 'project', 'designer', 'marketer', 'content',
+  'hr', 'sales', 'customer_success', 'finance', 'strategy', 'operations',
+  'research', 'education', 'policy', 'legal', 'healthcare',
+]);
 const JOB_CATEGORY_ALIASES = {
   developer: 'dev', frontend: 'dev', backend: 'dev', engineer: 'dev', '개발': 'dev', '개발자': 'dev',
   ai: 'aiml', ml: 'aiml', 'ai/ml': 'aiml', '인공지능': 'aiml',
@@ -9,6 +14,20 @@ const JOB_CATEGORY_ALIASES = {
   marketing: 'marketer', '마케팅': 'marketer', '마케터': 'marketer',
   recruit: 'hr', recruiting: 'hr', '인사': 'hr', '채용': 'hr',
   business: 'sales', bd: 'sales', '사업개발': 'sales', '영업': 'sales',
+  security: 'security', cybersecurity: 'security', appsec: 'security', '보안': 'security', '정보보안': 'security',
+  qa: 'qa', tester: 'qa', testing: 'qa', '테스트': 'qa', '품질보증': 'qa',
+  hardware: 'engineering', mechanical: 'engineering', electrical: 'engineering', '기계': 'engineering', '전기': 'engineering', '전자': 'engineering',
+  project: 'project', pmo: 'project', '프로젝트관리': 'project', '사업관리': 'project',
+  content: 'content', editor: 'content', media: 'content', '콘텐츠': 'content', '에디터': 'content',
+  cs: 'customer_success', cx: 'customer_success', 'customer success': 'customer_success', '고객성공': 'customer_success', '고객지원': 'customer_success',
+  finance: 'finance', accounting: 'finance', investment: 'finance', '재무': 'finance', '회계': 'finance', '투자': 'finance',
+  strategy: 'strategy', consulting: 'strategy', '전략': 'strategy', '컨설팅': 'strategy',
+  operations: 'operations', logistics: 'operations', manufacturing: 'operations', '운영': 'operations', '물류': 'operations', '생산': 'operations',
+  research: 'research', researcher: 'research', '연구': 'research', '연구원': 'research',
+  education: 'education', teacher: 'education', training: 'education', '교육': 'education', '교사': 'education',
+  policy: 'policy', government: 'policy', '정책': 'policy', '공공': 'policy', '행정': 'policy',
+  legal: 'legal', compliance: 'legal', '법무': 'legal', '컴플라이언스': 'legal',
+  healthcare: 'healthcare', clinical: 'healthcare', medical: 'healthcare', '보건': 'healthcare', '의료': 'healthcare',
 };
 
 const JOB_SPECIFIC_KEYS = {
@@ -21,6 +40,20 @@ const JOB_SPECIFIC_KEYS = {
   marketer: ['funnel', 'targetChannel', 'kpiEvidence', 'resumeBullets', 'jdKeywordMap'],
   hr: ['hiringPipeline', 'funnelData', 'retention'],
   sales: ['leadGen', 'salesFunnel', 'contractResult'],
+  security: ['threatAssessment', 'verification', 'securityOwnership'],
+  qa: ['qualityStrategy', 'testEvidence', 'releaseImpact'],
+  engineering: ['requirementsDesign', 'prototypeTest', 'failureRedesign'],
+  project: ['planControl', 'riskDecision', 'deliveryLearning'],
+  content: ['editorialStrategy', 'productionRevision', 'distributionLearning'],
+  customer_success: ['customerDiagnosis', 'serviceIntervention', 'customerOutcome'],
+  finance: ['financialLogic', 'riskControl', 'decisionImpact'],
+  strategy: ['problemStructure', 'optionAnalysis', 'implementationImpact'],
+  operations: ['processBaseline', 'rootCausePilot', 'controlOutcome'],
+  research: ['researchQuestion', 'validationFinding', 'researchContribution'],
+  education: ['learningDesign', 'assessmentEvidence', 'teachingIteration'],
+  policy: ['policyDesign', 'resultsFramework', 'evaluationEquity'],
+  legal: ['issueAuthority', 'riskRecommendation', 'complianceOutcome'],
+  healthcare: ['careQuality', 'interventionTeam', 'qualityOutcome'],
 };
 
 const text = (value) => String(value ?? '').trim();
@@ -38,6 +71,20 @@ const normalizeCategory = (value) => {
   if (/마케팅|마케터|market/.test(raw)) return 'marketer';
   if (/인사|채용|recruit|human resource/.test(raw)) return 'hr';
   if (/세일즈|영업|사업.?개발|sales|business development/.test(raw)) return 'sales';
+  if (/보안|security|cyber|appsec/.test(raw)) return 'security';
+  if (/\bqa\b|테스트|tester|quality assurance/.test(raw)) return 'qa';
+  if (/하드웨어|기계|전기|전자|mechanical|electrical|hardware/.test(raw)) return 'engineering';
+  if (/프로젝트.?관리|사업.?관리|program manager|\bpmo\b/.test(raw)) return 'project';
+  if (/콘텐츠|에디터|영상|copywriter|editor|media/.test(raw)) return 'content';
+  if (/고객.?성공|고객.?지원|customer success|service operation|\bcx\b/.test(raw)) return 'customer_success';
+  if (/재무|회계|투자|finance|accounting|investment/.test(raw)) return 'finance';
+  if (/전략|컨설팅|consulting|corporate strategy/.test(raw)) return 'strategy';
+  if (/운영|공급망|물류|생산|operations|supply chain|logistics|manufacturing/.test(raw)) return 'operations';
+  if (/연구|research|scientist/.test(raw)) return 'research';
+  if (/교육|교사|강의|instructional|teacher/.test(raw)) return 'education';
+  if (/정책|공공|행정|public policy|government/.test(raw)) return 'policy';
+  if (/법무|컴플라이언스|legal|compliance/.test(raw)) return 'legal';
+  if (/보건|의료|헬스케어|healthcare|clinical|medical/.test(raw)) return 'healthcare';
   return '';
 };
 
