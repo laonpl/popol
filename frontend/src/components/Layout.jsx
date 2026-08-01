@@ -3,6 +3,8 @@ import useAuthStore from '../stores/authStore';
 import { useEffect, useRef, useState } from 'react';
 import { Settings, X, Gift } from 'lucide-react';
 import useCreditStore from '../stores/creditStore';
+import useExperienceStore from '../stores/experienceStore';
+import usePortfolioStore from '../stores/portfolioStore';
 import CreditDepletedModal from './CreditDepletedModal';
 import FeedbackModal from './FeedbackModal';
 
@@ -14,6 +16,8 @@ const navItems = [
 export default function Layout() {
   const { user, profile, signOut } = useAuthStore();
   const { wallet, loadWallet, refreshWallet, clearWallet } = useCreditStore();
+  const clearExperiences = useExperienceStore(s => s.clearExperiences);
+  const clearPortfolios = usePortfolioStore(s => s.clearPortfolios);
   const navigate = useNavigate();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -27,6 +31,8 @@ export default function Layout() {
   const handleSignOut = async () => {
     await signOut();
     clearWallet();
+    clearExperiences();
+    clearPortfolios();
     navigate('/');
   };
 
@@ -48,6 +54,7 @@ export default function Layout() {
   };
 
   useEffect(() => {
+    if (!user) return undefined;
     loadWallet({ silent: true }).catch(() => {});
     window.addEventListener('credits:refresh', refreshWallet);
     window.addEventListener('credits:depleted', showCreditModal);
@@ -55,7 +62,7 @@ export default function Layout() {
       window.removeEventListener('credits:refresh', refreshWallet);
       window.removeEventListener('credits:depleted', showCreditModal);
     };
-  }, [loadWallet, refreshWallet, creditModalKey]);
+  }, [user, loadWallet, refreshWallet, creditModalKey]);
 
   useEffect(() => {
     if (!wallet || !creditModalKey) return;
@@ -146,8 +153,18 @@ export default function Layout() {
             ))}
           </nav>
 
-          {/* 유저 */}
+          {/* 유저 — 비로그인 방문자에게는 로그인 버튼만 노출 */}
           <div className="ml-auto flex items-center gap-3">
+            {!user ? (
+              <button
+                type="button"
+                onClick={() => navigate('/login', { state: { from: location.pathname + location.search } })}
+                className="rounded-full bg-primary-600 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700"
+              >
+                로그인
+              </button>
+            ) : (
+              <>
             <div className="relative" ref={creditAreaRef}>
               <button
                 type="button"
@@ -261,6 +278,8 @@ export default function Layout() {
             >
               로그아웃
             </button>
+              </>
+            )}
           </div>
         </div>
       </header>

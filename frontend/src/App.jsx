@@ -68,6 +68,15 @@ function ProfileGuard({ children }) {
   return children;
 }
 
+// /app 공통 셸. 비로그인 방문자에게도 레이아웃을 렌더해 허브 화면을 볼 수 있게 하고,
+// 로그인한 사용자에게만 기존 프로필 설정 가드를 적용한다.
+function AppShell() {
+  const { user, loading } = useAuthStore();
+  if (loading) return <PageLoader />;
+  if (!user) return <Layout />;
+  return <ProfileGuard><Layout /></ProfileGuard>;
+}
+
 // 루트 레이아웃: 인증 구독 초기화 + Suspense. 데이터 라우터의 최상위 element.
 function RootLayout() {
   const init = useAuthStore(s => s.init);
@@ -105,29 +114,30 @@ const router = createBrowserRouter(
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />
       <Route path="/app/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
-      <Route path="/app" element={<PrivateRoute><ProfileGuard><Layout /></ProfileGuard></PrivateRoute>}>
+      {/* 허브 화면은 비로그인도 볼 수 있고(가입 전 제품 확인), 기능 실행 시점에만 로그인을 요구한다. */}
+      <Route path="/app" element={<AppShell />}>
         <Route index element={<Navigate to="/app/experience" replace />} />
         {/* 경험정리 */}
         <Route path="experience" element={<ExperienceHub />} />
-        <Route path="experience/new" element={<TemplateSelect />} />
-        <Route path="experience/interview" element={<ExperienceInterview />} />
-        <Route path="experience/chat" element={<ExperienceChat />} />
-        <Route path="experience/result/:id" element={<ExperienceResult />} />
-        <Route path="experience/edit/:id" element={<ExperienceEditor />} />
-        <Route path="experience/edit/new/:framework" element={<ExperienceEditor />} />
-        <Route path="experience/analysis/:id" element={<AnalysisResult />} />
-        <Route path="experience/structured/:id" element={<StructuredResult />} />
-        <Route path="experience/dev-portfolio/:id" element={<DeveloperPortfolio />} />
+        <Route path="experience/new" element={<PrivateRoute><TemplateSelect /></PrivateRoute>} />
+        <Route path="experience/interview" element={<PrivateRoute><ExperienceInterview /></PrivateRoute>} />
+        <Route path="experience/chat" element={<PrivateRoute><ExperienceChat /></PrivateRoute>} />
+        <Route path="experience/result/:id" element={<PrivateRoute><ExperienceResult /></PrivateRoute>} />
+        <Route path="experience/edit/:id" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
+        <Route path="experience/edit/new/:framework" element={<PrivateRoute><ExperienceEditor /></PrivateRoute>} />
+        <Route path="experience/analysis/:id" element={<PrivateRoute><AnalysisResult /></PrivateRoute>} />
+        <Route path="experience/structured/:id" element={<PrivateRoute><StructuredResult /></PrivateRoute>} />
+        <Route path="experience/dev-portfolio/:id" element={<PrivateRoute><DeveloperPortfolio /></PrivateRoute>} />
         {/* 포트폴리오 */}
         <Route path="portfolio" element={<PortfolioHub />} />
-        <Route path="portfolio/new" element={<PortfolioTemplateSelect />} />
-        <Route path="portfolio/edit/:id" element={<NotionPortfolioEditor />} />
-        <Route path="portfolio/edit-notion/:id" element={<NotionPortfolioEditor />} />
-        <Route path="portfolio/preview/:id" element={<NotionPortfolioPreview />} />
-        <Route path="portfolio/web-edit/:id" element={<WebPortfolioEditor />} />
-        <Route path="portfolio/web-preview/:id" element={<WebPortfolioPreview />} />
-        <Route path="portfolio/ai-ppt/:id" element={<AiPptExport />} />
-        <Route path="settings/credits" element={<CreditSettings />} />
+        <Route path="portfolio/new" element={<PrivateRoute><PortfolioTemplateSelect /></PrivateRoute>} />
+        <Route path="portfolio/edit/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/edit-notion/:id" element={<PrivateRoute><NotionPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/preview/:id" element={<PrivateRoute><NotionPortfolioPreview /></PrivateRoute>} />
+        <Route path="portfolio/web-edit/:id" element={<PrivateRoute><WebPortfolioEditor /></PrivateRoute>} />
+        <Route path="portfolio/web-preview/:id" element={<PrivateRoute><WebPortfolioPreview /></PrivateRoute>} />
+        <Route path="portfolio/ai-ppt/:id" element={<PrivateRoute><AiPptExport /></PrivateRoute>} />
+        <Route path="settings/credits" element={<PrivateRoute><CreditSettings /></PrivateRoute>} />
       </Route>
     </Route>
   )

@@ -24,9 +24,13 @@ const usePortfolioStore = create((set, get) => ({
   },
   exportReady: false,
   loading: false,
+  loadError: null,
+
+  // 로그아웃 시 호출 — 스토어는 메모리에만 있어서 비우지 않으면 다음 방문자에게 이전 사용자 데이터가 보인다.
+  clearPortfolios: () => set({ portfolios: [], currentPortfolio: null, exportReady: false, loading: false, loadError: null }),
 
   fetchPortfolios: async (userId) => {
-    set({ loading: true });
+    set({ loading: true, loadError: null });
     try {
       const { data } = await api.get('/portfolio/list');
       const portfolios = (Array.isArray(data) ? data : [])
@@ -34,7 +38,8 @@ const usePortfolioStore = create((set, get) => ({
       set({ portfolios, loading: false });
     } catch (error) {
       console.error('포트폴리오 로딩 실패:', error);
-      set({ loading: false });
+      // 실패를 '데이터 없음'으로 오인하면 사용자가 데이터가 사라진 줄 안다. 구분해서 알린다.
+      set({ loading: false, loadError: error?.message || '포트폴리오를 불러오지 못했습니다' });
     }
   },
 

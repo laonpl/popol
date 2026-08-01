@@ -133,7 +133,10 @@ const inputCls = 'w-full px-3 py-2 border border-surface-200 rounded-lg text-[13
  * 이미 작성한 경험정리에서 역량/가치/키워드를 추천으로 제안해 채우기를 돕는다.
  * 입력값은 부모가 기존 profile과 병합 저장한다.
  */
-export default function ProfileBoostStep({ profile, jobAnalysis, submitting, onBack, onSkip, onSubmit }) {
+export default function ProfileBoostStep({
+  profile, jobAnalysis, submitting, onBack, onSkip, onSubmit,
+  recommendations, selectedExperienceIds, onSelectedExperienceIdsChange,
+}) {
   const experiences = useExperienceStore(s => s.experiences);
   const fetchExperiences = useExperienceStore(s => s.fetchExperiences);
   const generateBoostDraft = useExperienceStore(s => s.generateBoostDraft);
@@ -141,6 +144,24 @@ export default function ProfileBoostStep({ profile, jobAnalysis, submitting, onB
   useEffect(() => {
     if (!experiences.length) fetchExperiences();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 추천은 이전 단계에서 미리 받아둔 것을 쓴다. 추천 여부는 표시·기본 체크에만 쓰고, 목록은 전체 경험을 보여준다.
+  const recList = recommendations || [];
+  const recIdSet = new Set(recList.map(r => r.experience?.id).filter(Boolean));
+  const reasonById = new Map(recList.map(r => [r.experience?.id, r.reason]).filter(([id]) => id));
+  // 추천된 경험을 위로 올리되, 추천 순서를 그대로 유지한다.
+  const recOrder = new Map(recList.map((r, i) => [r.experience?.id, i]));
+  const pickableExperiences = [...experiences].sort((a, b) => {
+    const ra = recOrder.has(a.id) ? recOrder.get(a.id) : Number.MAX_SAFE_INTEGER;
+    const rb = recOrder.has(b.id) ? recOrder.get(b.id) : Number.MAX_SAFE_INTEGER;
+    return ra - rb;
+  });
+
+  const selectedIds = selectedExperienceIds || [];
+  const toggleExp = (id) => {
+    const next = selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id];
+    onSelectedExperienceIdsChange?.(next);
+  };
 
   const job = deriveJobContext(jobAnalysis);
   const exp = deriveExperienceContext(experiences);
@@ -227,8 +248,68 @@ export default function ProfileBoostStep({ profile, jobAnalysis, submitting, onB
       </button>
       <h1 className="text-[28px] font-bold text-primary-600 tracking-[-0.02em] mb-1">빈 섹션 채우기</h1>
       <p className="text-[15px] text-bluewood-400 mb-5">
-        포트폴리오에 들어가지만 아직 비어있는 항목이에요. 전부 선택이고, 적은 내용은 <b>포트폴리오와 내 정보 관리에 함께 저장</b>됩니다.
+        포트폴리오에 들어가지만 아직 비어있는 항목이에요. 전부 선택이며, 적은 내용은 <b>이 포트폴리오에만 적용</b>됩니다. 기업마다 강조할 내용이 다르므로 내 정보에는 저장되지 않아요.
       </p>
+
+      {/* 포트폴리오에 넣을 경험 고르기 — 전체 목록을 보여주고 추천된 것만 기본 체크 */}
+      {pickableExperiences.length > 0 && (
+        <div className="rounded-2xl border border-surface-200 bg-white p-4 mb-5">
+          <p className="text-[14px] font-bold text-bluewood-900">포트폴리오에 넣을 경험</p>
+          <p className="text-[12px] text-bluewood-500 mt-0.5">
+            {jobAnalysis
+              ? '공고와 맞는 경험을 미리 체크해뒀어요. 추천이 아닌 경험도 자유롭게 고를 수 있습니다.'
+              : '포트폴리오에 넣을 경험을 골라주세요.'}
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {pickableExperiences.map(exp => {
+              const checked = selectedIds.includes(exp.id);
+              const isRec = recIdSet.has(exp.id);
+              const reason = reasonById.get(exp.id);
+              return (
+                <button
+                  key={exp.id}
+                  type="button"
+                  onClick={() => toggleExp(exp.id)}
+                  aria-pressed={checked}
+                  className={`flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-colors ${
+                    checked ? 'border-primary-300 bg-primary-50' : 'border-surface-200 bg-white hover:bg-surface-50'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex flex-shrink-0 items-center justify-center rounded border text-white ${
+                      checked ? 'border-primary-600 bg-primary-600' : 'border-surface-300 bg-white'
+                    }`}
+                    style={{ width: 18, height: 18 }}
+                  >
+                    {checked && <span className="text-[11px] font-bold leading-none">✓</span>}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[13.5px] font-bold text-bluewood-900">
+                        {toText(exp.title) || '제목 없음'}
+                      </span>
+                      {isRec && (
+                        <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10.5px] font-bold text-primary-700">
+                          공고 추천
+                        </span>
+                      )}
+                    </span>
+                    {isRec && reason && (
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-bluewood-500" style={{ wordBreak: 'keep-all' }}>
+                        {toText(reason)}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2.5 text-right text-[12px] font-semibold text-primary-700">
+            {selectedIds.length}개 선택됨
+          </p>
+        </div>
+      )}
 
       {/* 맞춤 안내 배너 — 공고 + 내 경험 기반 추천 */}
       {(job || canDraft) && (

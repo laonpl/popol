@@ -79,7 +79,15 @@ function extractScriptDataText(html = '') {
   }
 
   return chunks
-    .map(chunk => jsonToReadableText(chunk).join('\n') || chunk)
+    .map(chunk => {
+      // 문자열을 그대로 넘기면 jsonToReadableText가 원문을 되돌려주기만 해서
+      // 광고·배너 키 필터가 적용되지 않는다. 먼저 파싱한 뒤 변환한다.
+      try {
+        return jsonToReadableText(JSON.parse(chunk)).join('\n');
+      } catch {
+        return chunk; // JSON이 아니면(예: Next flight 조각) 기존대로 원문 유지
+      }
+    })
     .map(decodeHtmlEntities)
     .join('\n');
 }
@@ -426,7 +434,10 @@ function jsonToReadableText(value, prefix = '') {
   }
   if (typeof value === 'object') {
     return Object.entries(value).flatMap(([key, child]) => {
-      if (/^(id|created_at|updated_at|image|image_url|webp_image_url|view_count|favorite_count|resumes_count|chat|advertise|popupAdvertises)$/i.test(key)) {
+      // 광고·배너 키는 다른 기업(광고주) 이름을 실어 나른다. 분석 대상 기업이 뒤바뀌는 원인이라 통째로 제외한다.
+      // (loadingAdvertises 처럼 이름이 조금씩 달라 개별 나열 대신 패턴으로 거른다)
+      if (/advertis|banner/i.test(key)) return [];
+      if (/^(id|created_at|updated_at|image|image_url|webp_image_url|view_count|favorite_count|resumes_count|chat)$/i.test(key)) {
         return [];
       }
       return jsonToReadableText(child, prefix ? `${prefix}.${key}` : key);
@@ -439,8 +450,13 @@ async function fetchJasoseolStructuredText(url) {
   let parsed;
   try { parsed = new URL(url); } catch { return ''; }
   if (!/jasoseol\.com$/i.test(parsed.hostname)) return '';
-  const recruitId = parsed.pathname.match(/\/recruit\/(\d+)/)?.[1];
-  if (!recruitId) return '';
+  // 자소설닷컴은 /recruit/{id} 외에 /recruit?ec={id} 형태의 링크도 쓴다.
+  // 쿼리 형태를 놓치면 공고 API를 못 불러 광고 배너 JSON만 분석되는 문제가 생긴다.
+  const recruitId = parsed.pathname.match(/\/recruit\/(\d+)/)?.[1]
+    || parsed.searchParams.get('ec')
+    || parsed.searchParams.get('recruit_id')
+    || parsed.searchParams.get('employment_id');
+  if (!recruitId || !/^\d+$/.test(recruitId)) return '';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
@@ -571,7 +587,9 @@ async function fetchJobWithHttp(url) {
   text = prioritizeJobPostingText(text).substring(0, 15000);
   // 너무 짧거나, SPA 플랫폼 껍데기(실제 공고 본문 아님)면 실패 처리 → Puppeteer/검색 폴백
   if (text.length < 300 || isLikelyShell(url, text)) throw new Error('CONTENT_TOO_SHORT');
-  return text;
+  // 제목에 담긴 기업명을 맨 앞에 고정 (추천 공고의 다른 기업명과 혼동 방지)
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, ' ').trim();
+  return title ? `[페이지 제목] ${title}\n\n${text}` : text;
 }
 
 // ── 채용공고 스크래핑 (Puppeteer 동시 인스턴스 제한) ──────
@@ -694,13 +712,32 @@ export async function scrapeJobPosting(url) {
       ),
     ]);
 
-    const scraped = await scrapeWithTimeout;
+    const rawText = await scrapeWithTimeout;
+    // HTTP 경로와 동일하게 공고 본문 구간을 앞으로 끌어올린다.
+    // (이 처리가 없으면 사이드바·추천 공고가 앞에 남아 다른 기업이 분석되는 원인이 된다)
+    const scraped = prioritizeJobPostingText(rawText);
     // 로그인 벽/빈 SPA 또는 플랫폼 껍데기만 받았으면 원문 수집 실패로 처리한다.
     if (!scraped || scraped.length < 200 || isLikelyShell(url, scraped)) throw new Error('CONTENT_TOO_SHORT');
+    // 페이지는 정상적으로 읽혔지만 채용공고가 아닌 경우(회사 홈페이지·기사 등).
+    // 이때 추정으로 분석하면 엉뚱한 결과가 나오므로 여기서 끊는다.
+    if (!looksLikeJobPosting(scraped)) throw new Error('NOT_JOB_POSTING');
+
+    // 페이지 제목은 해당 공고의 기업명을 가장 안정적으로 담고 있어(예: "○○ 채용공고 - 직무 | 잡코리아")
+    // 프롬프트 맨 앞에 고정해 추천 공고의 다른 기업명과 혼동되지 않게 한다.
+    let pageTitle = '';
+    try { pageTitle = (await page.title()) || ''; } catch { /* 제목을 못 읽어도 계속 진행 */ }
+
     console.log('[Job] Puppeteer 스크래핑 성공:', maskedHost, '길이:', scraped.length);
-    return scraped;
+    return pageTitle ? `[페이지 제목] ${pageTitle.trim()}\n\n${scraped}` : scraped;
   } catch (err) {
     console.error('[Job] Puppeteer 스크래핑 실패:', err.message);
+    if (err.message === 'NOT_JOB_POSTING') {
+      // 폴백(검색 기반 추정)으로 넘기면 안 되는 경우라 별도 코드로 구분해 올린다.
+      const e = new Error('채용공고 페이지가 아닌 것 같습니다. 공고 상세 페이지 링크를 넣거나 공고 내용을 직접 붙여넣어주세요.');
+      e.code = 'NOT_JOB_POSTING';
+      e.status = 400;
+      throw e;
+    }
     if (err.message === 'SCRAPE_TIMEOUT') {
       throw new Error('채용공고 페이지 로딩 시간이 초과됐습니다. 직접 텍스트를 붙여넣어주세요.');
     }
@@ -731,6 +768,12 @@ ${text.substring(0, 8000)}
 ${sourceUrl || '(직접 붙여넣기 또는 URL 없음)'}
 
 분석 지침:
+0. [기업 확정 규칙 — 최우선] 이 공고를 낸 기업은 하나뿐입니다.
+   - 원문 맨 앞의 "[페이지 제목]" 줄이 있으면 그 제목에 적힌 기업명을 company로 쓰세요. 채용 플랫폼 이름(잡코리아, 사람인, 자소설닷컴, 워티드, 인크루트 등)은 기업명이 아닙니다.
+   - 페이지에는 "추천 공고", "이 공고를 본 사람이 본 공고", "관련 채용", 배너·광고 형태로 **다른 기업의 공고**가 함께 섞여 있습니다. 그 기업명은 절대 company로 쓰지 마세요.
+   - 제목과 본문의 기업명이 다르면 제목을 우선하세요.
+   - 어떤 기업의 공고인지 원문에서 확정할 수 없으면 company를 빈 문자열("")로 두세요. 검색으로 추측해서 채우지 마세요.
+   - companyAnalysis는 위에서 확정한 그 기업에 대해서만 작성하세요. 다른 기업 정보를 섞지 마세요.
 1. company, position, deadline, tasks, requirements, skills, documents, questions, workConditions는 공고 원문에서 확인되는 문장만 바탕으로 작성하세요.
 2. 직무 적합도 weight/reason은 원문 요구사항의 반복, 필수/우대 구분, 담당업무와의 직접 관련성만 근거로 부여하세요.
 3. 급여 정보가 원문에 없으면 salary와 estimatedSalaryRange의 min/max는 null로 두고 basis에 "공고에 급여 정보가 명시되지 않았습니다."라고 쓰세요.

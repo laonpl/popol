@@ -951,6 +951,31 @@ const SECTIONS_BASE = [
  * 사용자 경험(experiences 컬렉션) 1건 → 포트폴리오 experiences 항목으로 변환.
  * importExperience(수동 선택)와 신규 생성 시 자동 채움이 공유한다.
  */
+/* 공고 분석 직후, 그 공고에 맞는 경험만 본문에 남긴다.
+   신규 포트폴리오는 생성 시 전체 경험이 자동으로 채워지므로, 그 상태면 추천된 것만 남기고 걸러낸다.
+   사용자가 직접 골라 담은 상태(전체가 아님)라면 기존 것을 지우지 않고 추천된 것만 덧붙인다. */
+async function applyRecommendedExperiences({ analysis, portfolio, userExperiences, update }) {
+  const pool = userExperiences || [];
+  if (!analysis || pool.length === 0) return { count: 0, removed: 0 };
+
+  const { data: rec } = await api.post('/job/recommend-experiences', { jobAnalysis: analysis });
+  const recIds = (rec.recommendations || []).map(r => r.experience?.id).filter(Boolean);
+  // 추천이 비면 본문을 비워버리는 사고가 나므로 아무것도 건드리지 않는다.
+  if (recIds.length === 0) return { count: 0, removed: 0 };
+
+  const current = portfolio?.experiences || [];
+  const byExpId = new Map(current.map(e => [e.experienceId, e]));
+
+  // 추천 순서대로 재구성한다. 이미 있던 항목은 객체를 그대로 재사용해 사용자가 손본 내용을 보존한다.
+  const next = recIds
+    .map(id => byExpId.get(id) || (pool.find(e => e.id === id) ? buildPortfolioExpEntry(pool.find(e => e.id === id)) : null))
+    .filter(Boolean);
+  if (next.length === 0) return { count: 0, removed: 0 };
+
+  update('experiences', next);
+  return { count: next.length, removed: Math.max(0, current.length - next.length) };
+}
+
 function buildPortfolioExpEntry(exp) {
   const aiResult = exp.structuredResult || {};
   const savedExportCfg = aiResult.exportConfig;
@@ -1122,7 +1147,13 @@ export default function NotionPortfolioEditor() {
       if (snapData?.pendingAutofill && !location.state?.exportConfig) {
         const allExps = useExperienceStore.getState().experiences || [];
         let chosen = allExps;
-        if (snapData.jobAnalysis && allExps.length > 0) {
+        // 생성 마법사 3단계에서 고른 경험이 있으면 그것만 채운다(추천 재호출도 불필요).
+        const preselected = Array.isArray(snapData.experienceIds) ? snapData.experienceIds : [];
+        if (preselected.length > 0) {
+          const picked = new Set(preselected);
+          const filtered = allExps.filter(e => picked.has(e.id));
+          if (filtered.length > 0) chosen = filtered;
+        } else if (snapData.jobAnalysis && allExps.length > 0) {
           try {
             const { data: rec } = await api.post('/job/recommend-experiences', { jobAnalysis: snapData.jobAnalysis });
             const recIds = new Set((rec.recommendations || []).map(r => r.experience?.id).filter(Boolean));
@@ -1602,11 +1633,26 @@ export default function NotionPortfolioEditor() {
         open={analysisOpen}
         onToggle={setAnalysisOpen}
         analysis={portfolio.jobAnalysis || null}
-        onAnalysis={(analysis) => {
+        onAnalysis={async (analysis) => {
           update('jobAnalysis', analysis);
           if (analysis?.company) update('targetCompany', analysis.company);
           if (analysis?.position) update('targetPosition', analysis.position);
-          if (analysis) toast.success('기업 분석이 완료되었습니다');
+          if (!analysis) return;
+          toast.success('기업 분석이 완료되었습니다');
+          // 공고를 연결하면 그 공고에 맞는 경험만 본문에 남긴다.
+          try {
+            const { count, removed } = await applyRecommendedExperiences({
+              analysis,
+              portfolio: portfolioRef.current || portfolio,
+              userExperiences,
+              update,
+            });
+            if (count > 0) {
+              toast.success(removed > 0
+                ? `이 공고에 맞는 경험 ${count}건만 남겼어요 (${removed}건 제외)`
+                : `이 공고에 맞는 경험 ${count}건을 연결했어요`);
+            }
+          } catch { /* 추천 실패해도 기업 분석 결과는 유지 */ }
         }}
         collectSections={() => {
           const p = portfolioRef.current || portfolio;
@@ -3514,10 +3560,20 @@ function AcademicVisualEditor({ portfolio, update, updateNested, addToArray, rem
     setJobError(null);
     try {
       const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
-      update('jobAnalysis', respData.analysis);
+      const analysis = respData.analysis;
+      update('jobAnalysis', analysis);
       setShowJobInput(false);
       setJobUrl('');
       toast.success('기업 분석이 완료되었습니다');
+      // 분석에 이어 이 공고에 맞는 경험을 바로 채워준다. (추천이 실패해도 분석 결과는 유지)
+      try {
+        const { count, removed } = await applyRecommendedExperiences({ analysis, portfolio, userExperiences, update });
+        if (count > 0) {
+          toast.success(removed > 0
+            ? `이 공고에 맞는 경험 ${count}건만 남겼어요 (${removed}건 제외)`
+            : `이 공고에 맞는 경험 ${count}건을 연결했어요`);
+        }
+      } catch { /* 추천 실패는 무시 */ }
     } catch (err) {
       setJobError(err.response?.data?.error || '분석에 실패했습니다');
     }
@@ -5284,10 +5340,20 @@ function NotionVisualEditor({ portfolio, update, updateNested, addToArray, remov
     setJobError(null);
     try {
       const { data: respData } = await api.post('/job/analyze', { url: jobUrl.trim() });
-      update('jobAnalysis', respData.analysis);
+      const analysis = respData.analysis;
+      update('jobAnalysis', analysis);
       setShowJobInput(false);
       setJobUrl('');
       toast.success('기업 분석이 완료되었습니다');
+      // 분석에 이어 이 공고에 맞는 경험을 바로 채워준다. (추천이 실패해도 분석 결과는 유지)
+      try {
+        const { count, removed } = await applyRecommendedExperiences({ analysis, portfolio, userExperiences, update });
+        if (count > 0) {
+          toast.success(removed > 0
+            ? `이 공고에 맞는 경험 ${count}건만 남겼어요 (${removed}건 제외)`
+            : `이 공고에 맞는 경험 ${count}건을 연결했어요`);
+        }
+      } catch { /* 추천 실패는 무시 */ }
     } catch (err) {
       setJobError(err.response?.data?.error || '분석에 실패했습니다');
     }
