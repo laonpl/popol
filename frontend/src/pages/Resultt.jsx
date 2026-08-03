@@ -3,24 +3,18 @@ import {
   Activity,
   ArrowRight,
   BarChart3,
-  BrainCircuit,
-  Briefcase,
   CheckCircle2,
   Clock3,
   Code2,
-  Database,
   FileCode2,
   Github,
   GitCommit,
   Layers3,
   Megaphone,
   Network,
-  Palette,
-  ServerCog,
   Sparkles,
   Target,
   TrendingUp,
-  Users,
 } from 'lucide-react';
 import JobShowcase from '../components/portfolio/JobShowcase';
 import { CodeSnippet } from '../components/portfolio/GitInsights';
@@ -59,98 +53,6 @@ const ROLES = [
     ],
   },
   {
-    id: 'aiml',
-    label: 'AI·ML',
-    short: 'ENGINEER',
-    icon: BrainCircuit,
-    accent: '#7c3aed',
-    activeClass: 'border-violet-600 bg-violet-600 text-white shadow-violet-200',
-    softClass: 'border-violet-100 bg-violet-50 text-violet-700',
-    title: '직무 역량 분류 모델 실험 및 서빙',
-    subtitle: '데이터셋, 모델 성능, 학습 곡선과 추론 파이프라인을 하나의 결과로 정리',
-    metrics: [
-      { label: 'Macro F1', value: '0.86', note: 'Baseline 0.68' },
-      { label: '미분류율', value: '7%', note: '15%p 감소' },
-      { label: '추론 지연', value: '1.9초', note: '60% 단축' },
-    ],
-    showcase: {
-      techList: ['Python', 'PyTorch', 'KoELECTRA', 'FAISS', 'FastAPI'],
-      keyExps: [{
-        title: '역량 분류 모델',
-        jobData: {
-          model: 'KoELECTRA + LLM Router',
-          metrics: [
-            { name: 'Macro F1', value: '0.86', baseline: '0.68' },
-            { name: 'Recall', value: '0.83', baseline: '0.65' },
-            { name: '미분류율', value: '7%', baseline: '22%' },
-          ],
-        },
-      }],
-      visuals: {},
-    },
-  },
-  {
-    id: 'da',
-    label: '데이터 분석',
-    short: 'ANALYST',
-    icon: Database,
-    accent: '#0f766e',
-    activeClass: 'border-teal-600 bg-teal-600 text-white shadow-teal-200',
-    softClass: 'border-teal-100 bg-teal-50 text-teal-700',
-    title: '경험 작성 퍼널 이탈 원인 분석',
-    subtitle: '이벤트 정의부터 세그먼트 분석, A/B 검증과 제품 제안까지 연결',
-    metrics: [
-      { label: '작성 완료율', value: '64%', note: '+26%p' },
-      { label: '3단계 이탈률', value: '19%', note: '22%p 감소' },
-      { label: '재방문율', value: '29%', note: '+12%p' },
-    ],
-    showcase: {
-      visuals: {
-        kpis: [
-          { label: '작성 완료율', value: '64%' },
-          { label: '3단계 이탈률', value: '19%' },
-          { label: '재방문율', value: '29%' },
-        ],
-      },
-      keyExps: [{
-        title: '답변 예시 노출 실험',
-        jobData: { control: '38%', variant: '64%', significance: 'p < 0.01 · 통계적으로 유의' },
-      }],
-    },
-  },
-  {
-    id: 'devops',
-    label: 'DevOps',
-    short: 'INFRA',
-    icon: ServerCog,
-    accent: '#ea580c',
-    activeClass: 'border-orange-600 bg-orange-600 text-white shadow-orange-200',
-    softClass: 'border-orange-100 bg-orange-50 text-orange-700',
-    title: '배포 파이프라인과 서비스 관측성 개선',
-    subtitle: '운영 지표, CI/CD 흐름과 장애 대응 결과를 실제 콘솔 형태로 시각화',
-    metrics: [
-      { label: '가용성', value: '99.95%', note: '최근 30일' },
-      { label: '배포 시간', value: '7분', note: '71% 단축' },
-      { label: 'MTTR', value: '14분', note: '73% 단축' },
-    ],
-    showcase: {
-      visuals: {
-        gauges: [
-          { label: '가용성', value: 99.95, unit: '%' },
-          { label: 'p95 지연', value: 182, unit: 'ms' },
-          { label: 'RPS', value: 1.2, unit: 'k' },
-        ],
-        process: [
-          { label: 'Build' },
-          { label: 'Test' },
-          { label: 'Deploy' },
-          { label: 'Health Check' },
-          { label: 'Monitor' },
-        ],
-      },
-    },
-  },
-  {
     id: 'pm',
     label: '기획·PM',
     short: 'PRODUCT',
@@ -181,27 +83,6 @@ const ROLES = [
     },
   },
   {
-    id: 'designer',
-    label: '프로덕트 디자인',
-    short: 'UX / UI',
-    icon: Palette,
-    accent: '#db2777',
-    activeClass: 'border-pink-600 bg-pink-600 text-white shadow-pink-200',
-    softClass: 'border-pink-100 bg-pink-50 text-pink-700',
-    title: '복잡한 경험 입력 화면의 단계형 UX 개선',
-    subtitle: '리서치부터 프로토타입, 디자인 토큰과 사용성 검증 결과까지 시각화',
-    metrics: [
-      { label: '과업 성공률', value: '84%', note: '+38%p' },
-      { label: '입력 시간', value: '11분', note: '59% 단축' },
-      { label: 'SUS 점수', value: '78점', note: '+24점' },
-    ],
-    showcase: {
-      visuals: {
-        compare: [{ label: '과업 성공률', before: '46%', after: '84%' }],
-      },
-    },
-  },
-  {
     id: 'marketer',
     label: '마케터',
     short: 'GROWTH',
@@ -227,58 +108,6 @@ const ROLES = [
         kpis: [{ label: 'ROAS', value: '382%' }],
       },
       keyExps: [{ jobData: { channels: ['Instagram', 'YouTube', 'Naver', 'Meta Ads'] } }],
-    },
-  },
-  {
-    id: 'hr',
-    label: 'HR·채용',
-    short: 'PEOPLE',
-    icon: Users,
-    accent: '#d97706',
-    activeClass: 'border-amber-600 bg-amber-600 text-white shadow-amber-200',
-    softClass: 'border-amber-100 bg-amber-50 text-amber-700',
-    title: '지원자 경험 기반 채용 프로세스 개선',
-    subtitle: '지원 퍼널, 단계별 전환과 면접 일정 자동화 효과를 ATS 보드로 정리',
-    metrics: [
-      { label: '지원 완료율', value: '81%', note: '+19%p' },
-      { label: '반복 문의', value: '11건', note: '68% 감소' },
-      { label: '온보딩 만족도', value: '4.5점', note: '+1.1점' },
-    ],
-    showcase: {
-      visuals: {
-        funnel: [
-          { label: '지원 시작', value: 520 },
-          { label: '지원 제출', value: 421 },
-          { label: '서류 통과', value: 148 },
-          { label: '면접', value: 62 },
-          { label: '최종 합격', value: 18 },
-        ],
-        compare: [{ label: '채용 리드타임', before: '32일', after: '14일' }],
-      },
-    },
-  },
-  {
-    id: 'sales',
-    label: 'B2B 영업',
-    short: 'SALES / BD',
-    icon: Briefcase,
-    accent: '#059669',
-    activeClass: 'border-emerald-600 bg-emerald-600 text-white shadow-emerald-200',
-    softClass: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    title: '대학 취업센터 대상 파일럿 제안 및 계약',
-    subtitle: 'ICP, 아웃바운드 시퀀스와 고객 ROI를 영업 워크스페이스로 변환',
-    metrics: [
-      { label: '유효 리드', value: '18개', note: '42개 기관 조사' },
-      { label: '미팅 전환율', value: '44%', note: '8개 기관' },
-      { label: '첫 계약', value: '1,200만', note: '연간 계약' },
-    ],
-    showcase: {
-      keyExps: [
-        { jobData: { client: '학생 3천 명 이상 대학' } },
-        { jobData: { client: '취업상담 인력 5명 이하' } },
-        { jobData: { client: '포트폴리오 교육 운영 기관' } },
-      ],
-      visuals: {},
     },
   },
 ];
@@ -1183,6 +1012,112 @@ function GenericDashboard({ role }) {
   );
 }
 
+/* ──────────────────────────────────────────────────────────────
+ * 경험정리 결과 재현
+ * 실제 화면(StructuredResult)의 7개 섹션 구조·번호 거터·근거 등급 표기를 그대로 따른다.
+ * 숫자/라벨/부제는 StructuredResult의 SECTION_META와 동일하게 유지할 것.
+ * ────────────────────────────────────────────────────────────── */
+const EXPERIENCE_SECTIONS = [
+  { key: 'intro',      num: '01', label: '프로젝트 소개', subtitle: '서비스 이름 or 프로젝트 특징 + 소개 한 줄' },
+  { key: 'overview',   num: '02', label: '프로젝트 개요', subtitle: '배경과 목적' },
+  { key: 'task',       num: '03', label: '진행한 일',     subtitle: '배경-문제-(핵심)-해결' },
+  { key: 'process',    num: '04', label: '과정',          subtitle: '나의 직접적인 액션 + 인사이트' },
+  { key: 'output',     num: '05', label: '결과물',        subtitle: '최종으로 진행한 내용 + 포인트' },
+  { key: 'growth',     num: '06', label: '성장한 점',     subtitle: '성과가 있는 경우: 성과 / 없는 경우: 배운 점' },
+  { key: 'competency', num: '07', label: '나의 역량',     subtitle: '입사 시 기여할 수 있는 부분' },
+];
+
+/* 근거 장부 표기 — 실제 화면과 동일하게 주장 성격 + 근거 등급(A~D)을 함께 단다 */
+const EVIDENCE_STYLE = {
+  A: { label: 'A · 직접 자료', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  B: { label: 'B · 작업 기록', cls: 'border-sky-200 bg-sky-50 text-sky-700' },
+  C: { label: 'C · 정리본',   cls: 'border-amber-200 bg-amber-50 text-amber-700' },
+  D: { label: 'D · 회상',     cls: 'border-slate-200 bg-slate-50 text-slate-500' },
+};
+
+const EXPERIENCE_SAMPLES = {
+  common: {
+    intro:      { tag: '사실', level: 'A', body: 'FitPoly 경험 구조화 서비스 — 흩어진 자료에서 판단 근거를 복원해 직무 언어로 정리하는 웹 서비스입니다.' },
+    overview:   { tag: '사실', level: 'B', body: '취업 준비생이 경험을 "활동 나열"로 적어 평가자가 기여 범위를 판단하기 어렵다는 문제에서 출발했습니다. 자료를 먼저 판독하고 판단이 바뀐 사건 단위로 추출하는 것을 목표로 삼았습니다.' },
+    task:       { tag: '사실', level: 'A', body: '자료 업로드부터 구조화·근거 표기까지의 파이프라인을 설계하고, 직무별 추출 스키마를 정의했습니다.' },
+    process:    { tag: '해석', level: 'B', body: '사용자 8명의 초안을 직접 읽고 어떤 문장이 근거 없이 단정되는지 분류했습니다. 그 결과 문장 다듬기보다 "무엇이 사실인지" 먼저 가르는 것이 핵심이라고 판단했습니다.' },
+    output:     { tag: '사실', level: 'A', body: '7개 공통 섹션, 근거 등급 A~D 표기, 직군별 특화 섹션과 시각 산출물을 포함한 결과 화면을 완성했습니다.' },
+    growth:     { tag: '해석', level: 'C', body: '좋은 문장을 만드는 일과 사실을 판별하는 일은 다른 작업이라는 것을 배웠습니다. 이후에는 생성보다 판독을 먼저 설계합니다.' },
+    competency: { tag: '추정', level: 'B', body: '모호한 요구를 판단 가능한 기준으로 바꾸고, 근거 수준을 구분해 커뮤니케이션할 수 있습니다.' },
+  },
+  dev: {
+    intro:      { tag: '사실', level: 'A', body: 'FitPoly 경험 구조화·검증 파이프라인 — 업로드된 문서와 GitHub 기록에서 기여 근거를 추출하는 백엔드 파이프라인입니다.' },
+    overview:   { tag: '사실', level: 'B', body: '분석 요청이 몰릴 때 응답이 지연되고 일부 요청이 타임아웃으로 유실되는 문제가 반복됐습니다. 처리량을 늘리기보다 실패 지점을 관측 가능하게 만드는 것이 우선이라고 봤습니다.' },
+    task:       { tag: '사실', level: 'A', body: '증상은 대용량 PPTX 업로드 시 분석이 45초를 넘겨 중단되는 것이었습니다. 재현 조건을 슬라이드 30장 이상·이미지 20MB 이상으로 좁혔습니다.' },
+    process:    { tag: '사실', level: 'A', body: '원인 가설을 AI 호출 지연, 파일 파싱 병목, 메모리 부족 셋으로 두고 프로파일을 떴습니다. AI 호출은 8초대로 정상이었고 파싱 단계에서 92%의 시간이 소요돼 앞의 두 가설을 버렸습니다.' },
+    output:     { tag: '사실', level: 'A', body: '파싱을 스트리밍 방식으로 바꾸고 이미지 추출을 지연 처리했습니다. 동시 실행 수를 2개로 제한해 메모리 상한을 확보했습니다.' },
+    growth:     { tag: '사실', level: 'B', body: '분석 성공률이 71% → 96%로 올랐고 평균 처리 시간은 45초 → 12초로 줄었습니다. 다만 100장 이상 문서는 여전히 분할 처리가 필요합니다.' },
+    competency: { tag: '추정', level: 'B', body: '추측으로 고치지 않고 재현 조건을 먼저 좁힌 뒤 근거로 가설을 버리는 방식으로 문제를 해결할 수 있습니다.' },
+  },
+  pm: {
+    intro:      { tag: '사실', level: 'A', body: '대화형 경험정리 MVP — 빈 양식 대신 AI가 질문을 던져 경험을 끌어내는 입력 방식입니다.' },
+    overview:   { tag: '사실', level: 'B', body: '기존 입력 화면에서 프레임워크 5종 중 하나를 고르게 했는데, 첫 화면 이탈이 가장 높았습니다. 사용자가 프레임워크 이름을 모른다는 신호로 읽었습니다.' },
+    task:       { tag: '가정', level: 'B', body: '검증 전 가설: "사용자는 형식을 고르지 못해서 이탈한다. 질문에 답하는 방식이면 완주한다." 성공 기준은 초안 완성률 40% 이상, 반증 기준은 대화 이탈이 기존보다 높을 때로 정했습니다.' },
+    process:    { tag: '사실', level: 'A', body: '프레임워크 선택을 없애고 대화형을 기본 진입으로 두는 안과, 선택지를 3개로 줄이는 안을 비교했습니다. 후자는 인지 부하를 완전히 없애지 못한다고 판단해 기각했습니다.' },
+    output:     { tag: '사실', level: 'A', body: '대화형 입력을 기본 경로로 전환하고 프레임워크는 AI가 내용에 맞춰 선택하도록 했습니다. 직접 고르기는 고급 옵션으로 내렸습니다.' },
+    growth:     { tag: '해석', level: 'C', body: '초안 완성률은 목표를 넘겼지만, 이탈이 형식 선택이 아니라 "무엇을 쓸지 모르는 것"에서도 발생했음을 인터뷰에서 확인했습니다. 다음에는 첫 질문 자체를 더 좁히겠습니다.' },
+    competency: { tag: '추정', level: 'B', body: '실행 전에 성공·반증 기준을 정하고, 검증 결과로 처음 가설을 수정하는 방식으로 제품 결정을 내릴 수 있습니다.' },
+  },
+  marketer: {
+    intro:      { tag: '사실', level: 'A', body: '취업 준비생 타깃 콘텐츠 캠페인 — 경험정리 서비스의 초기 사용자를 모으기 위한 콘텐츠·유입 캠페인입니다.' },
+    overview:   { tag: '사실', level: 'B', body: '가입은 늘었지만 첫 경험을 작성하지 않고 이탈하는 비율이 높았습니다. 유입량이 아니라 유입의 질이 문제라고 봤습니다.' },
+    task:       { tag: '사실', level: 'B', body: '타깃을 "공고를 이미 보고 있는 3~4학년"으로 좁혔습니다. 근거는 온보딩 설문에서 이 집단의 첫 작성률이 다른 집단의 2배였다는 점입니다.' },
+    process:    { tag: '사실', level: 'A', body: '커뮤니티 게시글, 검색 유입 콘텐츠, 숏폼 세 채널을 같은 예산으로 2주씩 집행했습니다. 소재는 "포트폴리오 예시 공개"와 "경험 정리법" 두 축으로 나눠 비교했습니다.' },
+    output:     { tag: '사실', level: 'A', body: '예시 공개형 소재가 정리법 소재보다 첫 작성 전환이 높아 예산을 7:3으로 재배분했습니다. 숏폼은 유입은 많았으나 작성 전환이 낮아 중단했습니다.' },
+    growth:     { tag: '해석', level: 'C', body: '가입 후 첫 작성률이 개선됐지만, 같은 기간 서비스 온보딩도 함께 바뀌어 캠페인 단독 효과로 단정할 수 없습니다. 다음에는 채널별 홀드아웃 집단을 두고 증분을 확인하겠습니다.' },
+    competency: { tag: '추정', level: 'B', body: '숫자를 성과로 보고하는 데 그치지 않고 그 숫자로 예산·소재·타깃 판단을 바꿀 수 있습니다.' },
+  },
+};
+
+function ExperienceResultReplica({ role }) {
+  const sample = EXPERIENCE_SAMPLES[role.id] || EXPERIENCE_SAMPLES.common;
+  return (
+    <div className="border-b border-surface-200 bg-white px-5 py-6 sm:px-8 sm:py-8">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="rounded-md bg-[#002F6C] px-2 py-1 text-[10px] font-black tracking-[0.1em] text-white">경험정리 결과</span>
+        <span className="text-[12px] font-semibold text-bluewood-500">
+          {role.label} · 실제 서비스 화면과 동일한 7개 섹션 구성
+        </span>
+      </div>
+
+      <div className="space-y-7">
+        {EXPERIENCE_SECTIONS.map(meta => {
+          const item = sample[meta.key];
+          if (!item) return null;
+          const ev = EVIDENCE_STYLE[item.level] || EVIDENCE_STYLE.D;
+          return (
+            <div key={meta.key} className="flex gap-3 sm:gap-5">
+              {/* 좌측 번호 거터 — 실제 결과 화면과 동일 */}
+              <span className="shrink-0 w-6 pt-0.5 text-right text-[14px] font-black tabular-nums" style={{ color: '#002F6C' }}>{meta.num}</span>
+              <div className="min-w-0 flex-1">
+                <div className="mb-3.5 flex items-center gap-3.5">
+                  <h3 className="flex-shrink-0 text-[19px] font-extrabold leading-snug tracking-tight text-bluewood-900 sm:text-[21px]">{meta.label}</h3>
+                  <span className="h-px flex-1 bg-surface-200" />
+                </div>
+                <p className="mb-2 text-[12px] font-semibold text-bluewood-400">{meta.subtitle}</p>
+                <p className="text-[14.5px] leading-relaxed text-bluewood-800" style={{ wordBreak: 'keep-all' }}>{item.body}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-md border border-surface-200 bg-surface-50 px-2 py-0.5 text-[11px] font-bold text-bluewood-600">{item.tag}</span>
+                  <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${ev.cls}`}>{ev.label}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-6 text-[11px] font-medium text-bluewood-400">
+        ※ 각 섹션에는 주장 성격(사실·추정·가정·해석)과 근거 등급(A~D)이 함께 기록됩니다. 실제 서비스에서는 업로드한 자료에서 자동으로 판정됩니다.
+      </p>
+    </div>
+  );
+}
+
 /**
  * roleId를 넘기면 해당 직무 하나만 보여주는 예시 페이지가 된다(탭 숨김).
  * 직무별로 URL을 분리해 각각 검색 색인·공유가 가능하게 하려는 용도다. (/example4~6)
@@ -1244,18 +1179,13 @@ export default function Resultt({ roleId }) {
         </div>
 
         <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[#f8fafc] shadow-[0_24px_80px_rgba(15,23,42,0.09)]">
+          {/* 실제 서비스 화면과 같은 배율로 보여준다. (이전에는 0.65배로 축소해 실제와 크기가 달랐다) */}
           <style>{`
-            .resultt-output-scale {
-              width: 153.8462%;
-              transform: scale(0.65);
-              transform-origin: top left;
-            }
-            @media (max-width: 1023px) {
-              .resultt-output-scale { width: 100%; transform: none; }
-            }
+            .resultt-output-scale { width: 100%; }
           `}</style>
           <div className="resultt-output-scale">
             <ResultHeader role={role} />
+            <ExperienceResultReplica role={role} />
             {role.id === 'common' ? (
               <CommonDashboard />
             ) : role.id === 'dev' ? (
