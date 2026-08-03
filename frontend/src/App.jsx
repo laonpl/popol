@@ -44,6 +44,7 @@ const WebPortfolioPreview   = lazy(() => import('./pages/portfolio/WebPortfolioP
 const PortfolioExample      = lazy(() => import('./pages/portfolio/PortfolioExample'));
 const DeveloperPitchDemo    = lazy(() => import('./pages/DeveloperPitchDemo'));
 const Demo                  = lazy(() => import('./pages/Demo'));
+const Resultt               = lazy(() => import('./pages/Resultt')); // 직무별 경험정리 결과 예시
 
 function PageLoader() {
   return (
@@ -99,6 +100,11 @@ const router = createBrowserRouter(
       <Route path="/example1" element={<PortfolioExample exampleId="example1" />} />
       <Route path="/example2" element={<PortfolioExample exampleId="example2" />} />
       <Route path="/example3" element={<PortfolioExample exampleId="example3" />} />
+      {/* 경험정리 결과 예시 — /resultt는 직무 탭, /example4~6은 직무별 전용 URL(각각 색인·공유용) */}
+      <Route path="/resultt" element={<Resultt />} />
+      <Route path="/example4" element={<Resultt roleId="dev" />} />
+      <Route path="/example5" element={<Resultt roleId="marketer" />} />
+      <Route path="/example6" element={<Resultt roleId="pm" />} />
       <Route path="/tpl-lab/:tid" element={<TemplateLab />} /> {/* 웹사이트형 템플릿 검토용 */}
       <Route path="/feedback" element={<PrivateRoute><FeedbackAdmin /></PrivateRoute>} />
       <Route path="/admin" element={<AdminCredits />} />
