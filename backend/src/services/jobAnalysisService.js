@@ -346,11 +346,25 @@ function prioritizeJobPostingText(text = '') {
     'qualifications',
   ];
 
+  // 글자 수로 그대로 자르면 문장 중간이 끊겨 AI가 잘린 조각을 그대로 인용한다.
+  // 앞뒤 경계를 가까운 문장 끝/공백까지 밀어서 완결된 문장만 남긴다.
+  const snapStart = (i) => {
+    if (i <= 0) return 0;
+    const m = source.slice(Math.max(0, i - 200), i).search(/[.!?。\n][^.!?。\n]*$/);
+    return m === -1 ? i : Math.max(0, i - 200) + m + 1;
+  };
+  const snapEnd = (i) => {
+    if (i >= source.length) return source.length;
+    const rest = source.slice(i, i + 200);
+    const m = rest.search(/[.!?。\n]/);
+    return m === -1 ? i : i + m + 1;
+  };
+
   const windows = [];
   for (const term of priorityTerms) {
     const idx = source.toLowerCase().indexOf(term.toLowerCase());
     if (idx === -1) continue;
-    windows.push(source.slice(Math.max(0, idx - 700), idx + 3500));
+    windows.push(source.slice(snapStart(Math.max(0, idx - 700)), snapEnd(idx + 3500)));
   }
 
   const lead = source.slice(0, 2200);
@@ -774,6 +788,11 @@ ${sourceUrl || '(직접 붙여넣기 또는 URL 없음)'}
    - 제목과 본문의 기업명이 다르면 제목을 우선하세요.
    - 어떤 기업의 공고인지 원문에서 확정할 수 없으면 company를 빈 문자열("")로 두세요. 검색으로 추측해서 채우지 마세요.
    - companyAnalysis는 위에서 확정한 그 기업에 대해서만 작성하세요. 다른 기업 정보를 섞지 마세요.
+   - "[페이지 제목]" 줄은 기업 식별용 메타데이터입니다. company/position 판단에만 쓰고,
+     그 문장을 tasks·requirements·portfolioRequirements 같은 내용 필드에 절대 그대로 옮기지 마세요.
+   - 채용 플랫폼 자체의 안내 문구(예: "사람인 양식 이력서만 분석 가능", "AI 서류 합격률은 예측 정보",
+     "스크랩", "지원하기", "채용 마감일 D-", 로그인·회원가입 안내)는 공고 내용이 아닙니다. 어떤 필드에도 넣지 마세요.
+   - 원문이 문장 중간에서 끊겨 있으면 그 조각을 그대로 인용하지 말고, 완결된 문장으로 확인되는 내용만 쓰세요.
 1. company, position, deadline, tasks, requirements, skills, documents, questions, workConditions는 공고 원문에서 확인되는 문장만 바탕으로 작성하세요.
 2. 직무 적합도 weight/reason은 원문 요구사항의 반복, 필수/우대 구분, 담당업무와의 직접 관련성만 근거로 부여하세요.
 3. 급여 정보가 원문에 없으면 salary와 estimatedSalaryRange의 min/max는 null로 두고 basis에 "공고에 급여 정보가 명시되지 않았습니다."라고 쓰세요.
