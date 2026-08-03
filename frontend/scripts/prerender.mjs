@@ -27,6 +27,33 @@ const ORIGIN = 'https://www.fitpoly.kr';
 /** 경로별 메타와 크롤러용 요약. 실제 화면 내용과 일치시킬 것. */
 const ROUTES = [
   {
+    // 홈은 브랜드 검색("FitPoly", "핏폴리")의 착지 지점이다.
+    // 크롤러가 읽을 내용이 없으면 색인 자체가 되지 않으므로 본문을 실제로 담는다.
+    path: '/',
+    title: 'FitPoly(핏폴리) - 경험정리 · AI 포트폴리오 플랫폼',
+    description: 'FitPoly(핏폴리)는 흩어진 경험과 자료를 한곳에 정리하고, AI가 채용공고에 맞는 포트폴리오와 자기소개서를 만들어주는 취업 준비 플랫폼입니다.',
+    h1: 'FitPoly(핏폴리) — 여기저기 흩어진 경험을 한곳에',
+    body: [
+      'FitPoly는 취업을 준비하는 대학생과 신입 지원자를 위한 경험 정리·포트폴리오 제작 서비스입니다. 한글로는 핏폴리라고 읽습니다.',
+      '문서, 발표자료, 깃허브 기록, 메신저 대화처럼 흩어져 있는 자료를 올리면 그 안에서 실제로 한 일과 근거를 찾아 하나의 경험으로 정리합니다.',
+      '정리한 경험은 채용공고에 맞춰 다시 구성됩니다. 공고 링크를 넣으면 그 공고와 맞는 경험만 골라 포트폴리오를 만들어 줍니다.',
+      '직무마다 평가 기준이 달라 개발자, 기획·PM, 마케터 등 직군별로 다른 구조로 정리합니다. 개발자는 문제 재현과 원인 추적, 기획·PM은 가설과 검증, 마케터는 성과와 귀인 근거를 중심으로 봅니다.',
+      '완성한 포트폴리오는 웹 링크, PDF, PPT, 노션 형태로 내보낼 수 있습니다.',
+    ],
+    sections: [
+      { h: '이런 분들이 씁니다', items: [
+        '자소서와 포트폴리오를 매번 처음부터 다시 쓰는 취업 준비생',
+        '한 일은 많은데 무엇을 썼는지 정리되지 않은 학생',
+        '지원할 회사마다 포트폴리오를 새로 만들어야 하는 분',
+      ] },
+      { h: '주요 기능', items: [
+        '경험 정리와 구조화 — 자료에서 근거를 찾아 경험 단위로 정리',
+        'AI 기반 포트폴리오 분석 — 채용공고와 내 경험의 적합도 확인',
+        '맞춤형 포트폴리오 작성과 내보내기 — 웹, PDF, PPT, 노션',
+      ] },
+    ],
+  },
+  {
     path: '/sample',
     title: 'FitPoly 포트폴리오 결과물 예시 — 경험 정리부터 완성본까지',
     description: 'FitPoly로 정리한 경험이 실제 포트폴리오로 어떻게 완성되는지 단계별 예시로 확인해보세요.',
@@ -139,17 +166,20 @@ function buildPage(template, route) {
   const crawlBody = [
     `<h1>${esc(route.h1)}</h1>`,
     ...route.body.map(p => `<p>${esc(p)}</p>`),
+    ...(route.sections || []).map(sec =>
+      `<section><h2>${esc(sec.h)}</h2><ul>${sec.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>`
+    ),
     '<nav><a href="/">FitPoly 홈</a> <a href="/terms">이용약관</a> <a href="/privacy">개인정보처리방침</a></nav>',
   ].join('');
 
-  // 기존 홈용 요약 <main>…</main>을 이 경로의 요약으로 교체
+  // 기존 <main>…</main>을 이 경로의 본문으로 교체한다.
+  // 여는 태그의 숨김 스타일(clip:rect)도 함께 걷어낸다 — 크롤러에만 보이는 텍스트는
+  // 클로킹으로 오해될 수 있다. React가 마운트되면 #root째로 교체되고 그 전까지는
+  // 부팅 스플래시가 덮으므로 사용자 화면에는 영향이 없다.
   const s = html.indexOf('<main style="position:absolute');
   if (s !== -1) {
     const e = html.indexOf('</main>', s);
-    if (e !== -1) {
-      const openEnd = html.indexOf('>', s) + 1;
-      html = html.slice(0, openEnd) + crawlBody + html.slice(e);
-    }
+    if (e !== -1) html = html.slice(0, s) + '<main>' + crawlBody + html.slice(e);
   }
   return html;
 }
