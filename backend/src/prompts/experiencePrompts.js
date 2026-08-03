@@ -145,8 +145,24 @@ const CAREER_STAGE_RULES = {
 - 정상 스케일: 인턴·주니어가 맡는 범위(기능 단위, 특정 채널, 일부 프로세스). 조직 전체를 움직인 것처럼 쓰지 마세요.
 - 솔직 회고(honestReview)는 "배우는 중"이 아니라 "판단이 어떻게 정교해졌는지"로 쓰세요.
 `,
+  // 8년+ — 이 구간의 성과는 대부분 "타인을 통해" 만들어진다.
+  // 1인칭 판단 기록만 요구하면 실제 기여(위임·설계·교정·채용)가 산출물에서 사라진다.
+  lead: `
+[📏 이 지원자는 "리드 · 8년 이상" 단계입니다 — 성과의 단위가 다릅니다]
+- 이 단계의 성과는 본인이 직접 만든 것보다 "다른 사람이 만들게 한 것"이 큽니다.
+  위임한 판단, 세운 기준·프로세스, 교정한 후배 결정, 채용·조직 구성, 남긴 문서와 그 뒤 조직의 변화를
+  원본 근거가 있는 만큼 정확히 드러내세요.
+- ★ 그러면서도 "내가 직접 한 것"과 "내가 만들게 한 것"을 반드시 구분하세요. 팀 성과를 개인 성과로
+  뭉개면 이 연차에서는 가장 크게 감점됩니다.
+- 정상 스케일: 여러 팀·분기 이상의 기간·조직 차원 의사결정. 반대로 개별 기능 구현만 나열하면
+  연차에 맞지 않는 서류로 읽힙니다.
+- 판단 기록(decisionTrace)에서 alternatives는 "기술 선택"보다 "조직·우선순위·투자" 대안이 주로 옵니다.
+  실제로 검토했던 것만 쓰세요.
+- 솔직 회고(honestReview)는 "내 판단 착오가 조직에 어떻게 번졌고, 그 뒤 무슨 기준을 세웠는지"로 쓰세요.
+⚠ AI 판별 신호 5가지는 이 연차에서 가장 치명적입니다. 매끈함보다 구체적 고유명사와 한계 서술을 우선하세요.
+`,
   experienced: `
-[📏 이 지원자는 "경력 이직" 단계입니다 — 완성도 기준을 가장 높게 잡으세요]
+[📏 이 지원자는 "경력 이직(3~7년)" 단계입니다 — 완성도 기준을 가장 높게 잡으세요]
 - 경력직 서류는 성과·수치·비즈니스 임팩트가 핵심 평가 대상입니다. 원본에 근거가 있다면
   성과 수치, 영향 범위(사용자 규모·매출 비중·팀 수), 의사결정 권한과 오너십 경계를 빠짐없이 드러내세요.
 - 앞의 글로벌 기법(XYZ 공식·Second-Order Effect·Trade-off·Scope of Impact)을 이 단계에서는 적극 활용하세요.
@@ -203,6 +219,28 @@ const HONEST_REVIEW_GUIDE = `
 ⛔ 원본에 단서가 없는 항목은 빈 문자열로 두세요. 실패담을 지어내는 것은 성과를 지어내는 것과 똑같이 위험합니다.
 `;
 const HONEST_REVIEW_SCHEMA = ',\n  "honestReview": { "struggle": "", "misjudgment": "", "limitation": "", "nextTime": "" }';
+
+/* scope — 경험의 "이식성" 판단 축. 직군 렌즈는 "무엇을 했나"만 나누므로
+   스타트업 PM과 대기업 PM이 같은 모양으로 읽힌다. 채용담당자의 실제 질문은
+   "이 경험이 우리 맥락으로 옮겨오는가"이고, 그 판단에는 팀 규모·내 권한·다룬 규모·제약이 필요하다.
+   decisionTrace.situation 안에 녹아 있으면 경험끼리 비교가 되지 않으므로 별도 필드로 뽑는다. */
+const SCOPE_SCHEMA = `,
+  "scope": {
+    "teamSize": "함께 일한 사람 수와 구성 (예: 개발 2 · 디자인 1 · 기획 1). 원본에 없으면 빈 문자열",
+    "myAuthority": "내가 최종 결정할 수 있었던 범위와 승인이 필요했던 범위",
+    "scale": "다룬 규모 — 사용자 수·트래픽·예산·데이터량·처리 건수 등 원본에 있는 것만",
+    "constraints": "당시 제약 — 기간·인력·예산·레거시·규정 중 실제로 판단을 제한한 것"
+  }`;
+
+const SCOPE_GUIDE = `
+[★ scope — 이 경험이 다른 조직으로 옮겨질 수 있는지 판단하는 정보]
+같은 "결제 전환율 개선"도 사용자 300명과 30만 명은 완전히 다른 일입니다. 네 항목을 원본 근거로만 채우세요.
+- teamSize: 인원 수를 부풀리지 말고 원본에 적힌 그대로. 혼자 한 일이면 "1인"이라고 쓰는 편이 낫습니다.
+- myAuthority: "제안만 했다 / 내가 결정했다 / 승인을 받아 실행했다"의 구분이 핵심입니다. 과장하면 면접에서 바로 무너집니다.
+- scale: 원본에 규모 수치가 없으면 빈 문자열로 두세요. 추정 금지.
+- constraints: 제약이 없었다면 비워 두세요. 제약을 지어내면 판단의 난이도를 위조하는 것입니다.
+⛔ 네 항목 모두 원본에 근거가 없으면 전부 빈 문자열로 둡니다. 여기서 만들어낸 숫자는 가장 쉽게 들통나는 거짓말입니다.
+`;
 
 // 경험을 "성과가 있는 STAR 문장"이 아니라, 판단 과정·원문 말투·증거가 연결된
 // 재사용 가능한 경험 데이터로 보존한다. 모든 직군이 같은 스키마를 공유하되,
@@ -860,11 +898,11 @@ ${contentText}
   },
   "intro": "", "overview": "", "task": "", "process": "", "output": "", "growth": "", "competency": "",
   "keyExperiences": [
-    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema}${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA} }
+    { "title": "", "metric": "", "metricLabel": "", "beforeMetric": "", "afterMetric": "", "context": "", "action": "", "result": "", "learning": "", "keywords": [], "chartType": "horizontalBar"${keyExpAddon.schema}${HONEST_REVIEW_SCHEMA}${SCOPE_SCHEMA}${DECISION_RECORD_SCHEMA} }
   ],
   "keywords": []${EXPERIENCE_PROFILE_SCHEMA}${ARTIFACT_ANALYSIS_SCHEMA}${LOW_BURDEN_INTERVIEW_PLAN_SCHEMA}${isMarketer ? MARKETER_DRAFT_JOB_SCHEMA : jobSpecificSchema}${archSchema}${visual.schema}
 }
-${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${HONEST_REVIEW_GUIDE}${DECISION_RECORD_GUIDE}${EXPERIENCE_PROFILE_GUIDE}${buildLowBurdenInterviewGuide(interviewMode)}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
+${PRODUCT_EXTRACTION_GUIDE}${jobGuide}${keyExpAddon.guide}${HONEST_REVIEW_GUIDE}${SCOPE_GUIDE}${DECISION_RECORD_GUIDE}${EXPERIENCE_PROFILE_GUIDE}${buildLowBurdenInterviewGuide(interviewMode)}${isMarketer ? '\nmarketerKit와 jobSpecific은 마케터 채용 문서에 바로 쓸 수 있는 수준으로 작성하되, 성과 수치는 자료에 있는 것만 쓰고 없으면 "[확인 필요]"로 표기하세요.' : ''}
 수치·기술명·고유명사·성과는 자료에 없으면 지어내지 마세요. 단, 자료에 단서가 있는 정성적 내용은 최대한 재구성해 채우고, 정말 단서가 없는 필드만 빈 문자열/빈 배열로 두세요.`;
 }
 
@@ -1086,9 +1124,9 @@ ${contentText}
   "result": "달라진 결과와 그것을 확인한 근거·한계, 2~3문장",
   "learning": "예상과 달랐던 신호와 이후 바뀐 판단 원칙, 1~2문장",
   "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
-  "chartType": "horizontalBar"${jobAddon.schema}${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA}
+  "chartType": "horizontalBar"${jobAddon.schema}${HONEST_REVIEW_SCHEMA}${SCOPE_SCHEMA}${DECISION_RECORD_SCHEMA}
 }
-${jobAddon.guide}${HONEST_REVIEW_GUIDE}${DECISION_RECORD_GUIDE}
+${jobAddon.guide}${HONEST_REVIEW_GUIDE}${SCOPE_GUIDE}${DECISION_RECORD_GUIDE}
 원본에 before/after 수치 패턴("800ms → 480ms", "3일을 1일로 단축")이 있으면 반드시 beforeMetric/afterMetric을 모두 채워 비교 그래프를 그릴 수 있게 하세요.`;
 }
 
@@ -1528,7 +1566,7 @@ ${freeFormText}
   "result": "달라진 결과와 그것을 확인한 근거·한계, 2~3문장",
   "learning": "예상과 달랐던 신호와 이후 바뀐 판단 원칙, 1~2문장",
   "keywords": ["JD 키워드1", "핵심역량2", "기술/방법론3"],
-  "chartType": "horizontalBar"${HONEST_REVIEW_SCHEMA}${DECISION_RECORD_SCHEMA}
+  "chartType": "horizontalBar"${HONEST_REVIEW_SCHEMA}${SCOPE_SCHEMA}${DECISION_RECORD_SCHEMA}
 }
 ${HONEST_REVIEW_GUIDE}
 ${DECISION_RECORD_GUIDE}`;

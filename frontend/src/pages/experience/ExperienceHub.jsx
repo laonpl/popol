@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import CareerNarrativeSections from '../../components/CareerNarrativeSections';
 import { db } from '../../config/firebase';
 import useAuthStore from '../../stores/authStore';
 import useExperienceStore, { JOB_CATEGORIES } from '../../stores/experienceStore';
@@ -81,23 +82,34 @@ function hasRealPeriod(exp) {
   return /(\d{4})[.\-/](\d{1,2})/.test(period);
 }
 
+// 타임라인 바 팔레트. chip/chipJob은 바 위에 얹히는 태그 스타일로,
+// 어두운 바에서는 흰 배경, 밝은 바에서는 브랜드 톤 배경을 써서 두 경우 모두 읽히게 한다.
+const CHIP_ON_DARK = 'bg-white/95 text-bluewood-600';
+const CHIP_JOB_ON_DARK = 'bg-white/95 text-primary-600';
+const CHIP_ON_LIGHT = 'bg-surface-100 text-bluewood-500';
+const CHIP_JOB_ON_LIGHT = 'bg-primary-50 text-primary-700';
+
 const COLOR_PALETTES = {
   blue: [
-    { bar: 'bg-blue-500',  barText: 'text-white',     light: 'bg-blue-50' },
-    { bar: 'bg-white',     barText: 'text-blue-600',  light: 'bg-gray-50', border: 'border border-blue-200' },
-    { bar: 'bg-gray-200',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+    { bar: 'bg-primary-600', barText: 'text-white',       light: 'bg-primary-50', chip: CHIP_ON_DARK,  chipJob: CHIP_JOB_ON_DARK },
+    { bar: 'bg-white',       barText: 'text-primary-700', light: 'bg-surface-50', border: 'border border-primary-200', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
+    { bar: 'bg-surface-200', barText: 'text-bluewood-700', light: 'bg-surface-50', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
   ],
   green: [
-    { bar: 'bg-emerald-500', barText: 'text-white',       light: 'bg-emerald-50' },
-    { bar: 'bg-white',       barText: 'text-emerald-600', light: 'bg-gray-50', border: 'border border-emerald-200' },
-    { bar: 'bg-gray-200',    barText: 'text-gray-700',    light: 'bg-gray-50' },
+    { bar: 'bg-caribbean-600', barText: 'text-white',         light: 'bg-caribbean-50', chip: CHIP_ON_DARK, chipJob: CHIP_JOB_ON_DARK },
+    { bar: 'bg-white',         barText: 'text-caribbean-700', light: 'bg-surface-50', border: 'border border-caribbean-200', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
+    { bar: 'bg-surface-200',   barText: 'text-bluewood-700',  light: 'bg-surface-50', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
   ],
   dark: [
-    { bar: 'bg-gray-900',  barText: 'text-white',     light: 'bg-gray-100' },
-    { bar: 'bg-white',     barText: 'text-gray-800',  light: 'bg-gray-50', border: 'border border-gray-300' },
-    { bar: 'bg-gray-300',  barText: 'text-gray-700',  light: 'bg-gray-50' },
+    { bar: 'bg-bluewood-900', barText: 'text-white',        light: 'bg-bluewood-50', chip: CHIP_ON_DARK, chipJob: CHIP_JOB_ON_DARK },
+    { bar: 'bg-white',        barText: 'text-bluewood-800', light: 'bg-surface-50', border: 'border border-bluewood-200', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
+    { bar: 'bg-surface-300',  barText: 'text-bluewood-800', light: 'bg-surface-50', chip: CHIP_ON_LIGHT, chipJob: CHIP_JOB_ON_LIGHT },
   ],
 };
+
+// 타임라인 행 간격. 카드 실제 높이(태그줄+제목+패딩 ≈ 62px)보다 넉넉해야 겹치지 않는다.
+const TIMELINE_ROW_PITCH = 78;
+const TIMELINE_ROW_TOP = 20;
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const MONTH_VALUES = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
@@ -888,9 +900,9 @@ export default function ExperienceHub() {
                 {/* 팔레트 선택 */}
                 <div className="flex items-center gap-1.5">
                   {[
-                    { key: 'blue',  colors: ['bg-blue-500', 'bg-blue-400', 'bg-blue-600'] },
-                    { key: 'green', colors: ['bg-emerald-500', 'bg-teal-500', 'bg-green-600'] },
-                    { key: 'dark',  colors: ['bg-gray-800', 'bg-gray-600', 'bg-gray-900'] },
+                    { key: 'blue',  colors: ['bg-primary-600', 'bg-white border border-primary-200', 'bg-surface-200'] },
+                    { key: 'green', colors: ['bg-caribbean-600', 'bg-white border border-caribbean-200', 'bg-surface-200'] },
+                    { key: 'dark',  colors: ['bg-bluewood-900', 'bg-white border border-bluewood-200', 'bg-surface-300'] },
                   ].map(p => (
                     <button
                       key={p.key}
@@ -956,7 +968,7 @@ export default function ExperienceHub() {
                     </div>
 
                     {/* 바 렌더 영역 */}
-                    <div className="relative" style={{ minHeight: `${Math.max(timelineItems.length, 1) * 56 + 40}px` }}>
+                    <div className="relative" style={{ minHeight: `${Math.max(timelineItems.length, 1) * TIMELINE_ROW_PITCH + TIMELINE_ROW_TOP * 2}px` }}>
                       {/* 수직 격자선 */}
                       <div className="absolute inset-0 flex pointer-events-none">
                         {ganttData.months.map((m, i) => (
@@ -979,7 +991,7 @@ export default function ExperienceHub() {
                             key={exp.id}
                             data-tour={exp.isTutorialDemo ? 'experience-demo-bar' : undefined}
                             className="absolute group"
-                            style={{ top: `${idx * 56 + 16}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '120px', zIndex: isEditingThis ? 50 : 1 }}
+                            style={{ top: `${idx * TIMELINE_ROW_PITCH + TIMELINE_ROW_TOP}px`, left: `${startOffset}%`, width: `${barWidth}%`, minWidth: '150px', zIndex: isEditingThis ? 50 : 1 }}
                             onMouseEnter={(e) => { if (!isEditingThis) setHoveredBar({ exp, rect: e.currentTarget.getBoundingClientRect() }); }}
                             onMouseLeave={() => setHoveredBar(null)}
                           >
@@ -1042,7 +1054,7 @@ export default function ExperienceHub() {
                               /* ── 일반 바 ── */
                               <div className="relative">
                                 <div
-                                  className={`${theme.bar} ${theme.border || ''} rounded-lg px-4 py-2.5 cursor-pointer transition-all duration-200 ${
+                                  className={`${theme.bar} ${theme.border || ''} flex h-[62px] flex-col justify-center rounded-xl px-4 py-2 shadow-[0_0_0_2px_rgba(255,255,255,0.9)] cursor-pointer transition-all duration-200 ${
                                     isSelected ? 'ring-2 ring-offset-1 ring-primary-500 shadow-md' : 'hover:shadow-md'
                                   }`}
                                   onClick={() => {
@@ -1058,7 +1070,7 @@ export default function ExperienceHub() {
                                     if (!exp.isTutorialDemo) navigate(`/app/experience/result/${exp.id}`);
                                   }}
                                 >
-                                  <span className="mb-1 flex items-center gap-1.5 min-w-0">
+                                  <span className="mb-1.5 flex items-center gap-1.5 min-w-0">
                                     <select
                                       value={readCategory(exp) === UNCATEGORIZED ? '' : readCategory(exp)}
                                       onMouseDown={() => setHoveredBar(null)}
@@ -1068,7 +1080,7 @@ export default function ExperienceHub() {
                                       disabled={categorySavingId === exp.id}
                                       aria-label={`${stripMd(exp.title)} 활동 유형 변경`}
                                       title="클릭해서 활동 유형 변경"
-                                      className="min-w-0 cursor-pointer appearance-none truncate rounded border-0 bg-white/90 px-1.5 py-0.5 text-[9px] font-extrabold text-gray-600 outline-none disabled:cursor-wait disabled:opacity-60"
+                                      className={`min-w-0 cursor-pointer appearance-none truncate rounded-md border-0 px-2 py-[3px] text-[10px] font-bold outline-none disabled:cursor-wait disabled:opacity-60 ${theme.chip}`}
                                     >
                                       <option value="">{UNCATEGORIZED}</option>
                                       {EXPERIENCE_CATEGORIES.map(category => (
@@ -1076,7 +1088,7 @@ export default function ExperienceHub() {
                                       ))}
                                     </select>
                                     <span
-                                      className="max-w-[45%] shrink-0 truncate rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700"
+                                      className={`max-w-[45%] shrink-0 truncate rounded-md px-2 py-[3px] text-[10px] font-bold ${theme.chipJob}`}
                                       title={`직무 · ${readJobCategoryLabel(exp)}`}
                                     >
                                       {readJobCategoryLabel(exp)}
@@ -2160,6 +2172,7 @@ function CareerDashboard({ experiences = [], user, profile }) {
   };
 
   return (
+    <>
     <div className="rounded-2xl border border-gray-200 bg-white px-8 py-7 shadow-sm">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -2464,6 +2477,12 @@ function CareerDashboard({ experiences = [], user, profile }) {
         </div>
       </div>
     </div>
+
+    <CareerNarrativeSections
+      experiences={experiences}
+      targetCompetencies={topFamily?.competencies || []}
+    />
+    </>
   );
 }
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check:jobs": "node ../scripts/check-job-sync.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

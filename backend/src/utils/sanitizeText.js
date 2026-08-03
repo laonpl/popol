@@ -26,6 +26,9 @@ export function stripFormulaArtifacts(value) {
   s = s.replace(/\[\s*\]/g, '');
   s = s.replace(/[ \t]{2,}/g, ' ');
   s = s.replace(/[ \t]+([.,)\]」』。、])/g, '$1');
+  // 값이 통째로 지워져 "역할 ·" 처럼 라벨과 구분자만 남는 경우 구분자까지 정리
+  s = s.replace(/[·:\-—]\s*$/g, '');
+  s = s.replace(/^\s*[·:\-—]\s*/g, '');
   return s.trim();
 }
 

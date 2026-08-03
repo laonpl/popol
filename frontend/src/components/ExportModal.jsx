@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { X, Loader2, Copy, Download, FileText, FileDown, ScrollText, Globe, Link2, Check, ExternalLink, Info, HelpCircle, AlertCircle, CheckCircle2, Lock, Unlock, UploadCloud } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { trackExport } from '../services/outcomeMetrics';
 
 const FORMATS = [
   {
@@ -74,6 +75,8 @@ export default function ExportModal({ type, data, onClose, onTogglePublic }) {
 
   const handleExport = async () => {
     if (!format) return;
+    // 어떤 산출물이 실제로 쓰이는지 기록 (숫자·식별자만, 본문 없음)
+    trackExport({ format, templateId: data?.templateType || data?.templateId, jobCategory: data?.jobCategory });
 
     if (format === 'Link') {
       if (data.id) setResult(`https://fitpoly.kr/p/${data.id}`);

@@ -638,10 +638,34 @@ export function composeDraftBlocks(exp, imageData = {}, plan = null) {
     Array.isArray(overview.techStack) && overview.techStack.length > 0 && `기술 · ${overview.techStack.join(', ')}`,
   ].filter(Boolean).filter(l => !isPlaceholderText(l)).forEach(l => blocks.push(paragraphBlock(sanitizeText(l))));
 
+  // 문단 단위 중복 제거 — 같은 문장이 product·intro·task·핵심경험에 겹쳐 들어가는 것을 막는다.
+  // (섹션 종류는 계획 단계에서 이미 중복 제거됨. 여기서는 "내용"의 중복을 막는다)
+  const seenText = new Set();
+  const dedupeKey = (block) => {
+    if (!block || block.type === 'Image') return null;
+    const text = (block.value || [])
+      .map(node => slateText(node))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .replace(/[·.,!?~\-—]/g, '')
+      .trim()
+      .toLowerCase();
+    return text.length >= 12 ? text : null; // 짧은 라벨성 문구는 중복 판정에서 제외
+  };
+
   plan.sections.forEach(section => {
     const body = blocksForSource(section.source, exp, sr, keyExps, imageData);
-    if (body.length === 0) return;
-    blocks.push(headingBlock(sanitizeText(section.title) || section.source, 'HeadingTwo'), ...body);
+    const fresh = body.filter(block => {
+      const key = dedupeKey(block);
+      if (!key) return true;
+      if (seenText.has(key)) return false;
+      seenText.add(key);
+      return true;
+    });
+    // 헤딩만 남고 본문이 전부 중복이면 섹션 자체를 넣지 않는다
+    const hasBody = fresh.some(b => b.type === 'Image' || dedupeKey(b) || b.type === 'HeadingThree');
+    if (fresh.length === 0 || !hasBody) return;
+    blocks.push(headingBlock(sanitizeText(section.title) || section.source, 'HeadingTwo'), ...fresh);
   });
 
   if (blocks.length <= 1) return experienceDraftBlocks(exp, imageData);

@@ -14,7 +14,6 @@ import { PipelineDiagram, TopologyDiagram } from '../../components/portfolio/Job
 import { ContributionStats, GitProjectCard, toLines } from '../../components/portfolio/GitInsights';
 import { ArchitectureDiagram, ArchitectureEditorCanvas, buildFallbackDiagram, computeNodeMetrics, autoLayoutPositions, hasXY, PAD } from '../../components/portfolio/ArchDiagram';
 import JobSectionPanel, { hasJobSectionPanel } from '../../components/portfolio/JobStorySections';
-import JobShowcase, { hasJobShowcase } from '../../components/portfolio/JobShowcase';
 import VisualDataEditor from '../../components/portfolio/VisualDataEditor';
 import {
   Github, ExternalLink, Code2, Wrench, Gauge, ArrowLeft,
@@ -548,10 +547,7 @@ export default function DeveloperPortfolio() {
 
         {!editContent && (<>
         {/* ════ 직무 SaaS 쇼케이스 — 각 직무의 실무 툴(W&B·Grafana·Tableau·CRM...)을 재현한 라이브 대시보드 ════ */}
-        {hasJobShowcase(jobCategory) && (
-          <JobShowcase job={jobCategory} accent={pmeta.accent} visuals={visuals} keyExps={keyExps}
-            jobSpecific={effectiveJobSpecific} techList={techList} />
-        )}
+        {/* 연출용 시뮬레이션 시각화 제거 — 실데이터는 아래 JobCoreShowcase가 렌더 */}
 
         {/* ════ GitHub 기여도 (개발자) ════ */}
         {githubStats && <ContributionStats stats={githubStats} />}

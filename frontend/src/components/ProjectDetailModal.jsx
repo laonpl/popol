@@ -438,8 +438,9 @@ export default function ProjectDetailModal({
     onUpdate?.(changes);
   };
 
-  const replaceCanvasWithDraft = () => {
-    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 초안으로 교체할까요?')) return;
+  // 폴백 전용 — AI 구성이 실패했을 때만 쓰는 결정론적 조립
+  const replaceCanvasWithDraft = (skipConfirm = false) => {
+    if (!skipConfirm && !docIsEmpty && !window.confirm('현재 캔버스 내용을 초안으로 교체할까요?')) return;
     const blocks = experienceDraftBlocks(exp, { allImages, sectionImages, imageConfig });
     const nextDoc = blocksToYooptaValue(blocks);
     canvasRef.current?.replaceBlocks(blocks);
@@ -447,7 +448,7 @@ export default function ProjectDetailModal({
     setHeadings(extractHeadingsFromDoc(nextDoc));
     setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
     onUpdate?.({ notionDoc: nextDoc });
-    toast.success('경험 정리 내용을 바탕으로 초안을 만들었습니다');
+    setDocIsEmpty(!docHasMeaningfulContent(nextDoc));
   };
 
   // ── 맞춤 구성 ──
@@ -457,7 +458,7 @@ export default function ProjectDetailModal({
   const [composePlan, setComposePlan] = useState(null);
 
   const composeCanvas = async () => {
-    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 맞춤 구성으로 교체할까요?')) return;
+    if (!docIsEmpty && !window.confirm('현재 캔버스 내용을 새 초안으로 교체할까요?')) return;
     setComposing(true);
     try {
       const sr = exp?.structuredResult || {};
@@ -508,7 +509,10 @@ export default function ProjectDetailModal({
         ? '기본 구성으로 배치했습니다 (AI 구성 실패)'
         : `${jobAnalysis?.company ? `${jobAnalysis.company} 맞춤 ` : ''}구성으로 배치했습니다`);
     } catch (err) {
-      toast.error(err.response?.data?.error || '맞춤 구성에 실패했습니다');
+      // AI 구성 실패 시에도 사용자를 막지 않는다 — 결정론적 초안으로 폴백
+      console.warn('[Compose] 실패, 기본 초안으로 폴백:', err?.message);
+      replaceCanvasWithDraft(true);
+      toast.error(err.response?.data?.error || 'AI 구성에 실패해 기본 초안으로 만들었습니다');
     }
     setComposing(false);
   };
@@ -694,9 +698,9 @@ export default function ProjectDetailModal({
     {
       selector: '[data-tour="project-detail-draft"]',
       title: '빈 화면이 부담되면 초안을 만드세요',
-      body: '초안 만들기는 속성, 작성된 섹션, 핵심 경험을 한 번에 캔버스에 배치합니다.',
+      body: '초안 만들기는 경험·직군·지원 기업을 함께 보고 넣을 섹션과 순서를 매번 새로 정합니다.',
       actionLabel: '초안 만들기',
-      onAction: replaceCanvasWithDraft,
+      onAction: composeCanvas,
     },
     {
       selector: '[data-tour="project-detail-keyexp"]',
@@ -754,16 +758,46 @@ export default function ProjectDetailModal({
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {!readOnly && jobAnalysis && !genericMode && (
-              <button
-                onClick={openTailor}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${tailorOpen ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}
-              >
-                <Sparkles size={13} /> AI 첨삭
-              </button>
+          {/* 캔버스 액션을 헤더 한 줄로 모았다 (본문에 흩어져 있어 찾기 어려웠음).
+              초안 만들기 = 새로 구성 / 다듬기 = 이미 쓴 본문을 공고에 맞게 첨삭 */}
+          <div className="flex items-center gap-1.5">
+            {!readOnly && !genericMode && (
+              <>
+                <button
+                  data-tour="project-detail-draft"
+                  onClick={composeCanvas}
+                  disabled={composing}
+                  title={jobAnalysis?.company
+                    ? `${jobAnalysis.company} 공고에 맞춰 넣을 섹션과 순서를 새로 정합니다`
+                    : '경험의 강점에 맞춰 넣을 섹션과 순서를 정합니다 (기업 분석을 연결하면 공고 맞춤)'}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {composing ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                  {composing ? '구성 중' : jobAnalysis?.company ? `${jobAnalysis.company} 맞춤 초안` : '초안 만들기'}
+                </button>
+                {jobAnalysis && (
+                  <button
+                    onClick={openTailor}
+                    disabled={docIsEmpty}
+                    title={docIsEmpty ? '먼저 초안을 만든 뒤 사용할 수 있어요' : '작성된 본문을 공고에 맞게 다듬습니다'}
+                    className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 ${
+                      tailorOpen ? 'bg-primary-700 text-white' : 'border border-primary-200 bg-white text-primary-700 hover:bg-primary-50'
+                    }`}
+                  >
+                    <Sparkles size={13} /> 다듬기
+                  </button>
+                )}
+                <button
+                  data-tour="project-detail-image"
+                  onClick={() => canvasRef.current?.openImagePicker()}
+                  title="캔버스에 이미지 추가"
+                  className="flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-xs font-semibold text-bluewood-600 transition-all hover:border-primary-200 hover:bg-primary-50"
+                >
+                  <ImagePlus size={13} /> 이미지
+                </button>
+              </>
             )}
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
+            <button onClick={onClose} className="ml-1 p-1.5 hover:bg-gray-100 rounded-lg flex-shrink-0"><X size={18} /></button>
           </div>
         </div>
 
@@ -1127,38 +1161,7 @@ export default function ProjectDetailModal({
                 )}
                 <div className="mb-3 flex items-center justify-between gap-3 border-b border-surface-100 pb-2">
                   <h4 className="text-[14px] font-bold uppercase tracking-widest text-gray-400">상세 내용</h4>
-                  {!readOnly && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        data-tour="project-detail-draft"
-                        type="button"
-                        onClick={replaceCanvasWithDraft}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-bluewood-800 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-bluewood-900 active:scale-95 transition-all"
-                      >
-                        <Wand2 size={13} /> 초안 만들기
-                      </button>
-                      <button
-                        type="button"
-                        onClick={composeCanvas}
-                        disabled={composing}
-                        title={jobAnalysis?.company
-                          ? `${jobAnalysis.company} 공고 요건에 맞춰 섹션 구성·순서를 새로 짭니다`
-                          : '경험의 강점에 맞춰 섹션 구성·순서를 새로 짭니다 (기업 분석을 연결하면 공고 맞춤으로 구성)'}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-[12px] font-bold text-white transition-all hover:bg-primary-700 active:scale-95 disabled:opacity-50"
-                      >
-                        {composing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                        {composing ? '구성 중' : jobAnalysis?.company ? '기업 맞춤 구성' : '맞춤 구성'}
-                      </button>
-                      <button
-                        data-tour="project-detail-image"
-                        type="button"
-                        onClick={() => canvasRef.current?.openImagePicker()}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-3 py-1.5 text-[12px] font-bold text-bluewood-600 hover:border-primary-200 hover:bg-primary-50 active:scale-95 transition-all"
-                      >
-                        <ImagePlus size={13} /> 이미지 추가
-                      </button>
-                    </div>
-                  )}
+                  {/* 캔버스 액션은 헤더로 이동 */}
                 </div>
                 {!readOnly && docIsEmpty && (
                   <div className="mb-3 rounded-lg border border-dashed border-primary-200 bg-primary-50/45 px-4 py-3 text-[13px] leading-relaxed text-bluewood-500">

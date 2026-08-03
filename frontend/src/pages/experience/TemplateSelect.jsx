@@ -2159,11 +2159,13 @@ export default function TemplateSelect() {
                   })}
                 </div>
                 <p className="mt-3 text-[11px] leading-relaxed text-bluewood-300">
-                  {careerStage === 'experienced'
-                    ? '경력직 기준으로 성과·수치·오너십 범위까지 최대한 촘촘하게 정리합니다.'
-                    : careerStage === 'newgrad'
-                      ? '팀이 한 일과 내가 직접 한 일을 정확히 나눠서 정리합니다.'
-                      : '학생·대외활동 규모에 맞춰, 성과 크기보다 스스로 판단한 과정을 살려 정리합니다.'}
+                  {careerStage === 'lead'
+                    ? '직접 한 일과 다른 사람이 하게 만든 일(위임·기준 설계·조직 변화)을 나눠서 정리합니다.'
+                    : careerStage === 'experienced'
+                      ? '경력직 기준으로 성과·수치·오너십 범위까지 최대한 촘촘하게 정리합니다.'
+                      : careerStage === 'newgrad'
+                        ? '팀이 한 일과 내가 직접 한 일을 정확히 나눠서 정리합니다.'
+                        : '학생·대외활동 규모에 맞춰, 성과 크기보다 스스로 판단한 과정을 살려 정리합니다.'}
                 </p>
               </div>
             </div>

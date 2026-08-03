@@ -67,11 +67,30 @@ function CardFootnote({ exp, accent }) {
     { label: '선택', text: s(trace.choice) },
     { label: '바뀐 원칙', text: s(trace.newPrinciple) || s(trace.changedJudgment) },
   ].filter(item => item.text);
+  // scope — 이 경험이 다른 조직으로 옮겨질 수 있는지 판단하는 축(팀 규모·내 권한·다룬 규모·제약).
+  // 같은 직무라도 스타트업과 대기업이 완전히 다른 일이므로, 있으면 카드 맨 앞에 메타 줄로 보여준다.
+  const scope = exp.scope || {};
+  const scopeChips = [
+    { label: '팀', text: s(scope.teamSize) },
+    { label: '내 권한', text: s(scope.myAuthority) },
+    { label: '규모', text: s(scope.scale) },
+    { label: '제약', text: s(scope.constraints) },
+  ].filter(c => c.text);
   const hasDeepRecord = decisionSteps.length > 0 || alternatives.length > 0 || criteria.length > 0
     || s(voice.originalQuote) || s(voice.aiMeaning) || evidence.length > 0 || s(identity.sentence);
-  if (!learning && rows.length === 0 && !hasDeepRecord) return null;
+  if (!learning && rows.length === 0 && !hasDeepRecord && scopeChips.length === 0) return null;
   return (
     <div className="space-y-3 border-t border-dashed border-surface-200 pt-3">
+      {scopeChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {scopeChips.map(c => (
+            <span key={c.label} className="inline-flex items-center gap-1 rounded-md bg-surface-100 px-2 py-1 text-[11px] text-bluewood-600">
+              <span className="font-bold text-bluewood-400">{c.label}</span>
+              <span className="font-semibold">{c.text.length > 46 ? `${c.text.slice(0, 45)}…` : c.text}</span>
+            </span>
+          ))}
+        </div>
+      )}
       {hasDeepRecord && (
         <details className="group rounded-xl bg-surface-50 px-3.5 py-3">
           <summary className="cursor-pointer list-none text-[11px] font-black text-bluewood-600">

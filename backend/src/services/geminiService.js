@@ -9,6 +9,7 @@
  *   Pro가 끝까지 실패한 경우에만 Lite로 최후 폴백.
  */
 import { generateWithRetry } from '../config/geminiClient.js';
+import { sanitizeArtifactsDeep } from '../utils/sanitizeText.js';
 import {
   buildExtractMomentsPrompt,
   buildOverviewPrompt,
@@ -1220,7 +1221,7 @@ export async function generateDraftAnalysis(content, jobCategory = 'common', car
   );
   const json = parseJSON(text);
   const hydrated = hydrateDraftAnalysis({ json, content, jobCategory, contentText });
-  return groundAnalysisMetrics(hydrated, contentText);
+  return sanitizeArtifactsDeep(groundAnalysisMetrics(hydrated, contentText));
 }
 
 /**
@@ -1572,7 +1573,9 @@ export async function analyzeExperience(content, keyExperienceCount = 3, reviewe
   };
 
   console.log(`[경험분석] ✓ 완료: keyExperiences ${keyExperiences.length}개`);
-  return groundAnalysisMetrics(result, contentText);
+  // 프롬프트 지시 표기([작성 필요]·(원본에 없음)·【XYZ 공식】 등)가 본문에 섞여 나가는 것을 제거.
+  // 값이 없으면 빈 문자열로 두고, 무엇을 채워야 하는지는 화면의 입력 유도 UI가 담당한다.
+  return sanitizeArtifactsDeep(groundAnalysisMetrics(result, contentText));
 }
 
 /**

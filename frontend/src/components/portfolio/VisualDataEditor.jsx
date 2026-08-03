@@ -154,8 +154,10 @@ function BlockEditor({ block, pv, onChange, accent }) {
   const def = BLOCK_DEFS[block];
   const rows = getRows(pv, def);
   const update = (next) => onChange(setRows(pv, def, next));
-  const setCell = (i, key, value) => update(rows.map((r, ri) => (ri === i ? { ...r, [key]: value } : r)));
-  const addRow = () => update([...rows, Object.fromEntries(def.cols.map(c => [c.key, c.bool ? false : '']))]);
+  // 사용자가 손으로 넣거나 고친 값은 source:'self' 로 표시한다 —
+  // AI가 원본 근거에서 뽑은 수치와 근거 강도가 다르므로 차트에서 구분해 그린다(JobVisuals.SelfTag).
+  const setCell = (i, key, value) => update(rows.map((r, ri) => (ri === i ? { ...r, [key]: value, source: 'self' } : r)));
+  const addRow = () => update([...rows, { ...Object.fromEntries(def.cols.map(c => [c.key, c.bool ? false : ''])), source: 'self' }]);
   const delRow = (i) => update(rows.filter((_, ri) => ri !== i));
 
   return (
@@ -213,6 +215,7 @@ export default function VisualDataEditor({ jobCategory, value, onChange, accent 
         <div>
           <p className="text-[14px] font-bold text-bluewood-700">차트 데이터 편집</p>
           <p className="text-[12px] text-bluewood-400">표에 수치를 입력하면 포트폴리오 차트에 그대로 반영됩니다 — AI가 채운 값을 보정하거나 직접 추가하세요.</p>
+          <p className="mt-0.5 text-[11.5px] text-bluewood-300">직접 입력·수정한 값은 차트에서 점선 + &quot;본인 기재&quot;로 표시됩니다. 자료로 확인되는 수치와 구분하기 위한 표시입니다.</p>
         </div>
       </div>
       <div className="space-y-4 bg-surface-50/30 p-5">

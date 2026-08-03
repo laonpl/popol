@@ -1,5 +1,5 @@
 ﻿import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import {
   ArrowRight, Briefcase, FileText,
   ChevronLeft, ChevronRight,
@@ -7,7 +7,7 @@ import {
   Check, Star, Users, Target,
   Building2, Search, ChevronDown, BarChart3, Award,
   Code, GraduationCap, Calendar, List, PenTool,
-  MapPin, Phone, Mail
+  MapPin, Phone, Mail, Globe, Presentation
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 
@@ -77,250 +77,182 @@ const ResponsiveScaleWrapper = ({ children, minWidth = 1000 }) => {
   );
 };
 
-/* ── 웹 포트폴리오 쇼케이스 (핵심 기능 02) ─────────────────────────────
-   실제 WebPortfolioTemplates 4종의 무드를 미니 브라우저 목업으로 재현해
-   자동 순환. 별도 컴포넌트로 분리해 인터벌 리렌더가 Landing 전체에
-   번지지 않게 하고, IntersectionObserver로 화면 밖에서는 정지한다. */
+/* ── 산출물 쇼케이스 (핵심 기능 02) ─────────────────────────────────
+   웹사이트 · 노션형 문서 · PPT 세 가지 산출물을 한 자리에서 보여준다.
+   웹/노션은 목업이 아니라 실제 서비스와 동일한 렌더러(LandingOutputPreview)를
+   샘플 데이터로 그대로 렌더한다. PPT는 사용자가 올린 PPTX 디자인 위에 내용을
+   채우는 방식이라 고정 디자인이 없어, 자동 구성되는 슬라이드 구조만 보여준다.
 
-const WEB_SHOWCASE_INTERVAL = 4200;
+   렌더러 번들이 무거워 섹션이 화면에 들어올 때 lazy 로드하고, 화면 밖에서는
+   인터벌·애니메이션을 정지한다. 스테이지는 1280×800 가상 화면을 컨테이너 폭에
+   맞춰 축소하므로, 화면 크기와 무관하게 항상 같은 영역이 보인다. */
 
-const WEB_SHOWCASE_TEMPLATES = [
-  { id: 'bold',      name: 'Bold One-Page',   desc: '초대형 타이포 원페이지', bg: '#f4f1ea', accent: '#ff4d00' },
-  { id: 'bento',     name: 'Bento Grid',      desc: '타일형 대시보드',        bg: '#eef0f4', accent: '#002a61' },
-  { id: 'editorial', name: 'Editorial Finder', desc: '아카이브형 에디토리얼', bg: '#f5f5f2', accent: '#b7ff22' },
-  { id: 'impact',    name: 'Impact Grid',     desc: '임팩트 중심 쇼케이스',   bg: '#ffffff', accent: '#00bd66' },
+const LandingOutputPreview = lazy(() => import('../components/landing/LandingOutputPreview'));
+
+const OUTPUT_INTERVAL = 7000;
+const STAGE_W = 1280;
+const STAGE_H = 800;
+
+const OUTPUT_FORMATS = [
+  { key: 'web',    label: '웹사이트',    icon: Globe,        chrome: 'fitpoly.kr/p/gildong',         note: '링크 하나로 바로 공유' },
+  { key: 'notion', label: '노션형 문서', icon: FileText,     chrome: 'fitpoly.kr/portfolio/gildong', note: '섹션까지 채워진 문서형' },
+  { key: 'ppt',    label: 'PPT',        icon: Presentation, chrome: '홍길동_포트폴리오.pptx',        note: '내 PPT 템플릿 디자인에 자동 매핑' },
 ];
 
-/** live일 때만 스태거 리빌 애니메이션을 적용하는 래퍼 */
-function Rv({ live, delay = 0, className = '', style, children }) {
-  return (
-    <div
-      className={`${className} ${live ? 'wp-reveal' : ''}`}
-      style={{ ...style, animationDelay: live ? `${delay}ms` : undefined }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function BoldPreview({ live }) {
-  const t = { bg: '#f4f1ea', ink: '#141414', accent: '#ff4d00' };
-  const skills = ['FIGMA', 'UX RESEARCH', 'PROTOTYPING', 'DESIGN SYSTEM', 'DATA ANALYSIS'];
-  return (
-    <div className="w-full h-full flex flex-col" style={{ background: t.bg, color: t.ink }}>
-      <Rv live={live} delay={0} className="flex items-center justify-between px-5 pt-3.5">
-        <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em' }}>SEOYEON.KIM</span>
-        <div className="flex items-center gap-3" style={{ fontSize: '8.5px', fontWeight: 700, color: 'rgba(20,20,20,0.55)' }}>
-          <span>WORK</span><span>ABOUT</span>
-          <span style={{ background: t.ink, color: t.bg, padding: '3px 9px', borderRadius: '999px' }}>CONTACT</span>
-        </div>
-      </Rv>
-      <div className="px-5 mt-4">
-        <Rv live={live} delay={90}>
-          <p style={{ fontSize: '9px', fontWeight: 800, color: t.accent, letterSpacing: '0.14em', marginBottom: '7px' }}>PRODUCT DESIGNER — SEOUL</p>
-        </Rv>
-        <Rv live={live} delay={160}>
-          <p style={{ fontSize: '40px', fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.03em' }}>DESIGN<span style={{ color: t.accent }}>*</span></p>
-        </Rv>
-        <Rv live={live} delay={230} className="flex items-center gap-2.5">
-          <span style={{ display: 'inline-block', width: '52px', height: '24px', borderRadius: '999px', background: t.accent }} />
-          <p style={{ fontSize: '40px', fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.03em' }}>PORTFOLIO</p>
-        </Rv>
-        <Rv live={live} delay={320} className="mt-3.5 flex items-end justify-between gap-4">
-          <p style={{ fontSize: '9px', color: 'rgba(20,20,20,0.6)', fontWeight: 600, maxWidth: '230px', lineHeight: 1.55 }}>
-            데이터로 문제를 정의하고, 검증으로 끝맺는 프로덕트 디자이너입니다.
-          </p>
-          <span style={{ fontSize: '8.5px', fontWeight: 800, border: '1px solid rgba(20,20,20,0.6)', borderRadius: '999px', padding: '4px 10px', whiteSpace: 'nowrap' }}>SCROLL ↓</span>
-        </Rv>
-      </div>
-      <div className="mt-auto overflow-hidden py-2" style={{ borderTop: '1px solid rgba(20,20,20,0.14)', borderBottom: '1px solid rgba(20,20,20,0.14)' }}>
-        <div className="flex whitespace-nowrap w-max" style={{ animation: 'wpMarquee 16s linear infinite', animationPlayState: live ? 'running' : 'paused', willChange: 'transform' }}>
-          {[0, 1].map((d) => (
-            <div key={d} className="flex shrink-0">
-              {skills.map((s, i) => (
-                <span key={i} className="flex items-center" style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', padding: '0 13px', gap: '13px' }}>
-                  {s}<span style={{ color: t.accent }}>✦</span>
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="px-5 py-3 space-y-2">
-        {[
-          ['01', '결제 전환율 18% 개선 프로젝트', '2025'],
-          ['02', 'AI 챗봇으로 CS 응대 40% 단축', '2025'],
-        ].map(([n, title, y], i) => (
-          <Rv key={n} live={live} delay={430 + i * 90} className="flex items-center justify-between"
-            style={{ paddingBottom: i === 0 ? '8px' : 0, borderBottom: i === 0 ? '1px solid rgba(20,20,20,0.1)' : 'none' }}>
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: '9px', fontWeight: 800, color: t.accent }}>{n}</span>
-              <span style={{ fontSize: '11px', fontWeight: 800 }}>{title}</span>
-            </div>
-            <span className="flex items-center gap-2" style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(20,20,20,0.45)' }}>{y} <span style={{ fontSize: '11px' }}>↗</span></span>
-          </Rv>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function BentoPreview({ live }) {
-  const t = { bg: '#eef0f4', ink: '#0f172a', accent: '#002a61' };
-  const tile = 'bg-white rounded-xl shadow-[0_1px_6px_rgb(15,23,42,0.06)]';
-  return (
-    <div className="w-full h-full p-3" style={{ background: t.bg, color: t.ink }}>
-      <div className="grid grid-cols-4 gap-2 h-full" style={{ gridTemplateRows: 'repeat(3, 1fr)' }}>
-        <Rv live={live} delay={0} className={`${tile} col-span-2 row-span-2 p-3 flex flex-col`}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{ background: t.accent }}>
-            <span style={{ fontSize: '10px', fontWeight: 800, color: '#fff' }}>SK</span>
-          </div>
-          <p style={{ fontSize: '14px', fontWeight: 900 }}>김서연</p>
-          <p style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Product Designer</p>
-          <p style={{ fontSize: '8.5px', color: '#64748b', lineHeight: 1.55 }}>
-            데이터 기반 문제 정의로 6개의 프로젝트를 이끌었습니다.
-          </p>
-          <div className="flex flex-wrap gap-1 mt-auto">
-            {['UX 리서치', '기획', 'A/B 테스트'].map((s, i) => (
-              <span key={i} style={{ fontSize: '7.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: '#eef0f4', color: '#475569' }}>{s}</span>
-            ))}
-          </div>
-        </Rv>
-        <Rv live={live} delay={80} className={`${tile} p-2.5 flex flex-col justify-between`}>
-          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>전환율 개선</p>
-          <p style={{ fontSize: '17px', fontWeight: 900, color: t.accent }}>+18%</p>
-        </Rv>
-        <Rv live={live} delay={140} className={`${tile} p-2.5 flex flex-col justify-between`}>
-          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>프로젝트</p>
-          <p style={{ fontSize: '17px', fontWeight: 900 }}>6</p>
-        </Rv>
-        <Rv live={live} delay={200} className={`${tile} col-span-2 p-2.5 flex flex-col justify-between`}>
-          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>SKILLS</p>
-          <div className="flex flex-wrap gap-1">
-            {['Figma', 'SQL', 'GA4', 'Python'].map((s, i) => (
-              <span key={i} style={{ fontSize: '8px', fontWeight: 800, padding: '2.5px 7px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>{s}</span>
-            ))}
-          </div>
-        </Rv>
-        <Rv live={live} delay={260} className={`${tile} col-span-2 p-2.5 flex flex-col justify-between`}>
-          <p style={{ fontSize: '8px', fontWeight: 700, color: '#94a3b8' }}>FEATURED</p>
-          <p style={{ fontSize: '10px', fontWeight: 800 }}>AI 챗봇 CS 자동화</p>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: '#eef0f4' }}>
-            <div className="h-full rounded-full" style={{ width: '72%', background: t.accent }} />
-          </div>
-        </Rv>
-        <Rv live={live} delay={320} className="rounded-xl p-2.5 flex flex-col justify-between" style={{ background: t.accent }}>
-          <p style={{ fontSize: '8px', fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>CONTACT</p>
-          <p style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Say hi ↗</p>
-        </Rv>
-        <Rv live={live} delay={380} className={`${tile} p-2.5 flex flex-col justify-between`}>
-          <span style={{ fontSize: '12px' }}>🏆</span>
-          <p style={{ fontSize: '8.5px', fontWeight: 800, lineHeight: 1.3 }}>해커톤 대상</p>
-        </Rv>
-      </div>
-    </div>
-  );
-}
-
-function EditorialPreview({ live }) {
-  const t = { bg: '#f5f5f2', ink: '#090909', accent: '#b7ff22' };
-  return (
-    <div className="w-full h-full flex flex-col px-5 py-4" style={{ background: t.bg, color: t.ink }}>
-      <Rv live={live} delay={0} className="flex items-center justify-between" style={{ fontSize: '8.5px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(9,9,9,0.55)' }}>
-        <span>PORTFOLIO ARCHIVE — 2026</span>
-        <span>SEOUL, KR</span>
-      </Rv>
-      <Rv live={live} delay={110}>
-        <p style={{ fontSize: '38px', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.05, margin: '10px 0 12px' }}>
-          <span style={{ background: t.accent, padding: '0 6px' }}>KIM</span> SEOYEON<sup style={{ fontSize: '14px' }}>®</sup>
-        </p>
-      </Rv>
-      <Rv live={live} delay={220} className="flex items-center gap-2 rounded-lg px-3 py-2 mb-3" style={{ border: '1.5px solid #090909', background: '#fff' }}>
-        <Search size={11} />
-        <span style={{ fontSize: '10px', fontWeight: 700 }}>UX 리서치</span>
-        <span className="wp-caret" style={{ width: '1.5px', height: '12px', background: t.ink }} />
-        <span className="ml-auto" style={{ fontSize: '8px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: '#f1f1ee', color: '#6b7280' }}>⌘K</span>
-      </Rv>
-      <div className="flex-1 flex flex-col justify-start">
-        {[
-          { n: '001', title: '설문 84명 기반 문제 정의', tag: 'RESEARCH', y: '2023', hot: true },
-          { n: '002', title: '결제 전환율 18% 개선', tag: 'PRODUCT', y: '2025', hot: false },
-          { n: '003', title: '공지 누락률 32% 감소', tag: 'SERVICE', y: '2024', hot: false },
-        ].map((row, i) => (
-          <Rv key={row.n} live={live} delay={330 + i * 90} className="flex items-center gap-3 px-2 py-2 rounded-md"
-            style={{ background: row.hot ? t.accent : 'transparent', borderBottom: row.hot ? 'none' : '1px solid rgba(9,9,9,0.1)' }}>
-            <span style={{ fontSize: '8px', fontWeight: 800, color: row.hot ? t.ink : 'rgba(9,9,9,0.4)' }}>{row.n}</span>
-            <span style={{ fontSize: '10.5px', fontWeight: 800, flex: 1 }}>{row.title}</span>
-            <span style={{ fontSize: '7.5px', fontWeight: 800, letterSpacing: '0.08em', padding: '2px 6px', borderRadius: '999px', border: '1px solid rgba(9,9,9,0.35)' }}>{row.tag}</span>
-            <span style={{ fontSize: '8.5px', fontWeight: 700, color: 'rgba(9,9,9,0.5)' }}>{row.y}</span>
-            <span style={{ fontSize: '11px' }}>↗</span>
-          </Rv>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ImpactPreview({ live }) {
-  const t = { bg: '#ffffff', ink: '#111111', accent: '#00bd66' };
-  return (
-    <div className="w-full h-full flex flex-col px-5 py-4 overflow-hidden" style={{ background: t.bg, color: t.ink }}>
-      <Rv live={live} delay={0} className="flex items-center justify-between">
-        <span style={{ fontSize: '12px', fontWeight: 900 }}>S<span style={{ color: t.accent }}>.</span></span>
-        <div className="flex items-center gap-3" style={{ fontSize: '8.5px', fontWeight: 700, color: '#6b7280' }}>
-          <span>Projects</span><span>Impact</span>
-          <span style={{ background: t.accent, color: '#fff', padding: '3px 9px', borderRadius: '999px', fontWeight: 800 }}>Resume</span>
-        </div>
-      </Rv>
-      <Rv live={live} delay={110}>
-        <p style={{ fontSize: '20px', fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.02em', margin: '14px 0 10px', wordBreak: 'keep-all' }}>
-          사용자의 문제를<br />
-          <span style={{ boxShadow: `inset 0 -9px 0 ${t.accent}55` }}>데이터로 해결</span>합니다
-        </p>
-      </Rv>
-      <Rv live={live} delay={210} className="flex flex-wrap gap-1.5 mb-3.5">
-        {['CS 응대 40%↓', '전환율 18%↑', '공지 누락 32%↓'].map((s, i) => (
-          <span key={i} style={{ fontSize: '8.5px', fontWeight: 800, padding: '3px 8px', borderRadius: '999px', background: `${t.accent}14`, color: '#00794a', border: `1px solid ${t.accent}44` }}>{s}</span>
-        ))}
-      </Rv>
-      <Rv live={live} delay={300} className="flex-1 min-h-0">
-        <div className="flex gap-2 h-full" style={{ animation: 'wpRail 10s ease-in-out infinite alternate', animationPlayState: live ? 'running' : 'paused', willChange: 'transform' }}>
-          {[
-            { title: 'AI 챗봇 CS 자동화', metric: '응대 40% 단축', emoji: '🤖' },
-            { title: '결제 플로우 재설계', metric: '전환율 18% 향상', emoji: '💳' },
-            { title: '공지 통합 서비스', metric: '누락률 32% 감소', emoji: '📌' },
-            { title: 'VOC 리포트 자동화', metric: '주 4시간 절감', emoji: '📊' },
-          ].map((c, i) => (
-            <div key={i} className="shrink-0 rounded-xl p-2.5 flex flex-col justify-between" style={{ width: '150px', background: '#f7faf8', border: '1px solid #e6efe9' }}>
-              <span style={{ fontSize: '15px' }}>{c.emoji}</span>
-              <div>
-                <p style={{ fontSize: '10px', fontWeight: 800, lineHeight: 1.35 }}>{c.title}</p>
-                <p style={{ fontSize: '8.5px', fontWeight: 800, color: t.accent, marginTop: '3px' }}>{c.metric}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Rv>
-    </div>
-  );
-}
-
-const WEB_PREVIEW_COMPONENTS = {
-  bold: BoldPreview,
-  bento: BentoPreview,
-  editorial: EditorialPreview,
-  impact: ImpactPreview,
+// id 는 실제 서비스의 템플릿 ID — 렌더러가 이 ID로 실제 화면을 그린다.
+const OUTPUT_ITEMS = {
+  web: [
+    { id: 'web-1', name: '웹사이트 A', desc: '빅 타이포 랜딩',    bg: '#f4f1ea', accent: '#ff4d00' },
+    { id: 'web-3', name: '웹사이트 B', desc: '에디토리얼 파인더', bg: '#f5f5f2', accent: '#b7ff22' },
+    { id: 'web-4', name: '웹사이트 C', desc: '블루 티켓',         bg: '#ffffff', accent: '#1e3fa0' },
+    { id: 'web-6', name: '웹사이트 D', desc: '임팩트 카드',       bg: '#ffffff', accent: '#00bd66' },
+  ],
+  notion: [
+    { id: 'visual-9', name: '템플릿 11', desc: '합격자형 프리미엄', bg: '#ffffff', accent: '#4f46e5' },
+    { id: 'visual-1', name: '템플릿 3',  desc: '기본 노션형',      bg: '#ffffff', accent: '#111827' },
+    { id: 'visual-2', name: '템플릿 4',  desc: '베이지 톤',        bg: '#f3f2eb', accent: '#8a7f6a' },
+    { id: 'visual-8', name: '템플릿 10', desc: '개발자 다크',      bg: '#191919', accent: '#38bdf8' },
+  ],
+  ppt: [
+    { id: 'cover',   name: '표지',      desc: '이름 · 한 줄 소개',   bg: '#ffffff', accent: '#1B264F' },
+    { id: 'project', name: '프로젝트',  desc: '문제 → 실행 → 결과', bg: '#ffffff', accent: '#1B264F' },
+    { id: 'impact',  name: '성과 요약', desc: '지표 하이라이트',     bg: '#ffffff', accent: '#1B264F' },
+  ],
 };
 
-function WebPortfolioShowcase() {
-  const [active, setActive] = useState(0);
+/** 컨테이너 폭 대비 가상 폭(virtualWidth) 축소 배율 */
+function useFitScale(virtualWidth) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(0.5);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setScale(el.clientWidth / virtualWidth);
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    update();
+    return () => observer.disconnect();
+  }, [virtualWidth]);
+  return [ref, scale];
+}
+
+/* PPT 산출물은 업로드한 템플릿 디자인을 따르므로, 여기서는 AI가 자동으로 구성하는
+   슬라이드 골격(표지 / 프로젝트 / 성과 요약)만 보여준다. */
+function PptSlide({ id }) {
+  const ink = '#1B264F';
+  const accent = '#4F46E5';
+  const frame = { width: '1120px', height: '600px', margin: '100px auto 0', background: '#fff', boxShadow: '0 24px 60px rgb(15,23,42,0.14)', borderRadius: '6px' };
+
+  if (id === 'cover') {
+    return (
+      <div style={frame} className="relative overflow-hidden flex">
+        <div style={{ width: '14px', background: ink }} />
+        <div className="flex-1 flex flex-col justify-center px-16">
+          <p style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '0.24em', color: accent }}>PORTFOLIO · 2026</p>
+          <p style={{ fontSize: '86px', fontWeight: 900, color: ink, lineHeight: 1.1, marginTop: '18px' }}>홍길동</p>
+          <p style={{ fontSize: '28px', fontWeight: 700, color: '#64748b', marginTop: '14px' }}>데이터로 문제를 해결하는 프로덕트 매니저</p>
+          <div className="flex items-center gap-3 mt-12">
+            {['프로덕트 기획', '데이터 분석', 'A/B 테스트'].map((t) => (
+              <span key={t} style={{ fontSize: '18px', fontWeight: 800, color: ink, border: `2px solid ${ink}22`, borderRadius: '999px', padding: '8px 18px' }}>{t}</span>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col justify-between items-end py-14 pr-16">
+          <span style={{ fontSize: '120px', fontWeight: 900, color: '#eef0f6', lineHeight: 1 }}>01</span>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#94a3b8', textAlign: 'right', lineHeight: 1.6 }}>
+            hello@fitpoly.kr<br />서울, 대한민국
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (id === 'project') {
+    return (
+      <div style={frame} className="relative overflow-hidden px-16 py-14">
+        <div className="flex items-end justify-between" style={{ borderBottom: `3px solid ${ink}`, paddingBottom: '18px' }}>
+          <div>
+            <p style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '0.2em', color: accent }}>PROJECT 01</p>
+            <p style={{ fontSize: '40px', fontWeight: 900, color: ink, marginTop: '8px' }}>결제 플로우 재설계로 전환율 18% 개선</p>
+          </div>
+          <span style={{ fontSize: '18px', fontWeight: 800, color: '#94a3b8' }}>2025.03 – 2025.08</span>
+        </div>
+        <div className="grid grid-cols-3 gap-8 mt-12">
+          {[
+            { t: '문제', b: '결제 3단계에서 이탈이 집중됐고, 원인이 체감으로만 공유되고 있었습니다.' },
+            { t: '실행', b: 'GA4·세션 리플레이로 이탈 구간을 특정하고 단계를 2단계로 줄여 A/B 테스트했습니다.' },
+            { t: '결과', b: '전환율 18% 상승, 결제 문의 건수 24% 감소로 CS 부하까지 줄였습니다.' },
+          ].map((c, i) => (
+            <div key={c.t}>
+              <div className="flex items-center gap-3 mb-4">
+                <span style={{ width: '30px', height: '30px', borderRadius: '8px', background: i === 2 ? accent : `${ink}12`, color: i === 2 ? '#fff' : ink, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                <span style={{ fontSize: '24px', fontWeight: 900, color: ink }}>{c.t}</span>
+              </div>
+              <p style={{ fontSize: '19px', lineHeight: 1.75, color: '#475569', wordBreak: 'keep-all' }}>{c.b}</p>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-4 mt-12">
+          {['전환율 +18%', '결제 문의 -24%', '리서치 84명'].map((m) => (
+            <span key={m} style={{ fontSize: '20px', fontWeight: 900, color: ink, background: '#f1f3f9', borderRadius: '10px', padding: '14px 22px' }}>{m}</span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={frame} className="relative overflow-hidden px-16 py-14">
+      <p style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '0.2em', color: accent }}>IMPACT SUMMARY</p>
+      <p style={{ fontSize: '40px', fontWeight: 900, color: ink, marginTop: '8px' }}>숫자로 정리한 3년</p>
+      <div className="grid grid-cols-3 gap-6 mt-11">
+        {[
+          { v: '+18%', l: '결제 전환율' },
+          { v: '-40%', l: 'CS 응대 시간' },
+          { v: '6건', l: '리드한 프로젝트' },
+        ].map((k) => (
+          <div key={k.l} style={{ background: '#f7f8fc', borderRadius: '14px', padding: '30px 28px', borderLeft: `6px solid ${accent}` }}>
+            <p style={{ fontSize: '54px', fontWeight: 900, color: ink, lineHeight: 1 }}>{k.v}</p>
+            <p style={{ fontSize: '19px', fontWeight: 700, color: '#64748b', marginTop: '10px' }}>{k.l}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-11 space-y-5">
+        {[
+          'AI 챗봇 도입으로 단순 반복 문의 65%를 자동화',
+          '교내 공지 통합 서비스로 공지 누락률 32% 감소',
+          '주간 VOC 리포트 자동화로 주 4시간 절감',
+        ].map((row) => (
+          <div key={row} className="flex items-center gap-4">
+            <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: accent }} />
+            <span style={{ fontSize: '21px', fontWeight: 700, color: '#334155' }}>{row}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OutputShowcase() {
+  const [format, setFormat] = useState('web');
+  const [index, setIndex] = useState(0);
   const [tick, setTick] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const rootRef = useRef(null);
+  const [stageRef, scale] = useFitScale(STAGE_W);
+
+  const items = OUTPUT_ITEMS[format];
+  const item = items[index] || items[0];
+  const meta = OUTPUT_FORMATS.find((f) => f.key === format);
+  const isPpt = format === 'ppt';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
+      ([entry]) => {
+        setVisible(entry.isIntersecting);
+        if (entry.isIntersecting) setMounted(true);
+      },
       { threshold: 0.2 }
     );
     if (rootRef.current) observer.observe(rootRef.current);
@@ -329,99 +261,116 @@ function WebPortfolioShowcase() {
 
   useEffect(() => {
     if (!visible) return;
-    const id = setInterval(() => setActive((a) => (a + 1) % WEB_SHOWCASE_TEMPLATES.length), WEB_SHOWCASE_INTERVAL);
+    const id = setInterval(() => setIndex((i) => (i + 1) % items.length), OUTPUT_INTERVAL);
     return () => clearInterval(id);
-  }, [visible, tick]);
+  }, [visible, tick, items.length]);
 
-  const select = (i) => { setActive(i); setTick((v) => v + 1); };
+  const selectFormat = (key) => { setFormat(key); setIndex(0); setTick((v) => v + 1); };
+  const selectItem = (i) => { setIndex(i); setTick((v) => v + 1); };
 
   return (
     <div ref={rootRef} className="w-full">
       <style>{`
-        .wp-frame {
-          transition: opacity 0.65s cubic-bezier(0.22,1,0.36,1), transform 0.65s cubic-bezier(0.22,1,0.36,1);
-          will-change: opacity, transform;
-        }
-        @keyframes wpReveal {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .wp-reveal { opacity: 0; animation: wpReveal 0.5s cubic-bezier(0.22,1,0.36,1) both; }
-        @keyframes wpMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        @keyframes wpProgress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-        @keyframes wpRail {
-          0%, 18%  { transform: translateX(0); }
-          44%, 60% { transform: translateX(-158px); }
-          88%, 100%{ transform: translateX(-316px); }
-        }
-        @keyframes wpCaretBlink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
-        .wp-caret { display: inline-block; animation: wpCaretBlink 1s step-end infinite; }
+        @keyframes lpStageScroll { 0%, 42% { transform: translateY(0); } 100% { transform: translateY(-12%); } }
+        .lp-stage-scroll { animation: lpStageScroll ${OUTPUT_INTERVAL}ms cubic-bezier(.4,0,.6,1) both; will-change: transform; }
+        @keyframes lpFade { from { opacity: 0; } to { opacity: 1; } }
+        .lp-fade { animation: lpFade .5s cubic-bezier(.22,1,.36,1) both; }
+        @keyframes lpProgress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
         @media (prefers-reduced-motion: reduce) {
-          .wp-reveal { animation: none; opacity: 1; }
+          .lp-stage-scroll, .lp-fade { animation: none; }
         }
       `}</style>
 
-      {/* 브라우저 프레임 스테이지 */}
-      <div className="relative" style={{ height: '410px' }}>
-        {WEB_SHOWCASE_TEMPLATES.map((t, i) => {
-          const isActive = i === active;
-          const Preview = WEB_PREVIEW_COMPONENTS[t.id];
-          return (
-            <div
-              key={t.id}
-              className="wp-frame absolute inset-0 rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-[0_16px_48px_rgb(0,0,0,0.1)]"
-              style={{
-                opacity: isActive ? 1 : 0,
-                transform: isActive ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.975)',
-                pointerEvents: isActive ? 'auto' : 'none',
-                zIndex: isActive ? 2 : 1,
-              }}
-            >
-              {/* 브라우저 크롬 */}
-              <div className="flex items-center gap-2 px-3.5" style={{ height: '34px', background: '#f5f6f8', borderBottom: '1px solid #e5e7eb' }}>
-                <div className="flex gap-1.5 shrink-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-                </div>
-                <div className="flex-1 flex justify-center">
-                  <div className="flex items-center gap-1.5 bg-white rounded-full px-3.5 py-1 border border-gray-200" style={{ fontSize: '9px', color: '#6b7280', fontWeight: 600 }}>
-                    <span style={{ fontSize: '8px' }}>🔒</span> fitpoly.kr/p/seoyeon
-                  </div>
-                </div>
-                <span className="shrink-0" style={{ fontSize: '9px', fontWeight: 700, color: '#9ca3af' }}>{t.name}</span>
-              </div>
-              {/* 활성화될 때마다 key 교체로 스태거 리빌 재생 */}
-              <div key={isActive ? `live-${tick}-${active}` : 'idle'} style={{ height: 'calc(100% - 34px)' }}>
-                <Preview live={isActive && visible} />
-              </div>
-            </div>
-          );
-        })}
+      {/* 산출물 포맷 탭 */}
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+          {OUTPUT_FORMATS.map((f) => {
+            const Icon = f.icon;
+            const on = f.key === format;
+            return (
+              <button
+                key={f.key}
+                onClick={() => selectFormat(f.key)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-bold transition-colors ${
+                  on ? 'bg-white text-[#1B264F] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon size={13} /> {f.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[13px] font-semibold text-gray-400 truncate">{meta.note}</p>
       </div>
 
-      {/* 템플릿 선택 레일 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-4">
-        {WEB_SHOWCASE_TEMPLATES.map((t, i) => (
+      {/* 산출물 프레임 */}
+      <div className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-[0_16px_48px_rgb(0,0,0,0.1)]">
+        <div className="flex items-center gap-2 px-3.5" style={{ height: '34px', background: '#f5f6f8', borderBottom: '1px solid #e5e7eb' }}>
+          <div className="flex gap-1.5 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+          </div>
+          <div className="flex-1 flex justify-center">
+            <div className="flex items-center gap-1.5 bg-white rounded-full px-3.5 py-1 border border-gray-200" style={{ fontSize: '9px', color: '#6b7280', fontWeight: 600 }}>
+              <span style={{ fontSize: '8px' }}>{isPpt ? '📄' : '🔒'}</span> {meta.chrome}
+            </div>
+          </div>
+          <span className="shrink-0" style={{ fontSize: '9px', fontWeight: 700, color: '#9ca3af' }}>
+            {item.name} · {item.desc}
+          </span>
+        </div>
+
+        <div
+          ref={stageRef}
+          className="relative overflow-hidden"
+          style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}`, background: isPpt ? '#e9ebf0' : item.bg }}
+        >
+          <div className="absolute top-0 left-0" style={{ width: `${STAGE_W}px`, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+            {isPpt ? (
+              <div key={`${item.id}-${tick}`} className="lp-fade" style={{ height: `${STAGE_H}px` }}>
+                <PptSlide id={item.id} />
+              </div>
+            ) : mounted && (
+              <Suspense fallback={null}>
+                <div key={`${item.id}-${tick}`} className="lp-fade">
+                  <div className="lp-stage-scroll" style={{ animationPlayState: visible ? 'running' : 'paused' }}>
+                    <LandingOutputPreview templateId={item.id} />
+                  </div>
+                </div>
+              </Suspense>
+            )}
+          </div>
+          {!isPpt && !mounted && (
+            <div className="absolute inset-0 flex items-center justify-center text-[13px] font-bold text-gray-300">
+              실제 템플릿 불러오는 중…
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 선택 레일 */}
+      <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-4 ${items.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
+        {items.map((t, i) => (
           <button
             key={t.id}
-            onClick={() => select(i)}
+            onClick={() => selectItem(i)}
             className="relative text-left rounded-xl border bg-white p-3 pb-4 overflow-hidden transition-colors duration-300 hover:border-gray-400"
-            style={{ borderColor: i === active ? '#1B264F' : '#e5e7eb' }}
+            style={{ borderColor: i === index ? '#1B264F' : '#e5e7eb' }}
           >
             <div className="flex items-center gap-2 mb-1">
               <span className="w-3.5 h-3.5 rounded-[5px] border border-black/10 flex items-center justify-center shrink-0" style={{ background: t.bg }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: t.accent }} />
               </span>
-              <span className={`text-[12px] font-extrabold truncate ${i === active ? 'text-gray-900' : 'text-gray-500'}`}>{t.name}</span>
+              <span className={`text-[12px] font-extrabold truncate ${i === index ? 'text-gray-900' : 'text-gray-500'}`}>{t.name}</span>
             </div>
             <p className="text-[11px] text-gray-400 font-medium truncate">{t.desc}</p>
             <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gray-100">
-              {i === active && (
+              {i === index && (
                 <div
-                  key={`${active}-${tick}`}
+                  key={`${index}-${tick}`}
                   className="h-full origin-left bg-[#1B264F]"
-                  style={{ animation: visible ? `wpProgress ${WEB_SHOWCASE_INTERVAL}ms linear both` : 'none' }}
+                  style={{ animation: visible ? `lpProgress ${OUTPUT_INTERVAL}ms linear both` : 'none' }}
                 />
               )}
             </div>
@@ -1617,29 +1566,33 @@ export default function Landing() {
             </ResponsiveScaleWrapper>
           </div>
 
-          {/* 웹 포트폴리오 쇼케이스 */}
+          {/* 산출물 쇼케이스 — 웹사이트 · 노션형 문서 · PPT */}
           <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 mt-6 sm:mt-8">
             <ResponsiveScaleWrapper minWidth={1000}>
               <div className="flex flex-row flex-nowrap gap-10 items-start w-full">
                 <div className="w-[380px] shrink-0">
-                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">웹 포트폴리오</span>
+                  <span className="inline-block px-2.5 py-1 bg-primary-100 text-primary-700 text-[13px] font-bold rounded mb-4 sm:mb-6">웹 · 노션 · PPT</span>
                   <h3 className="text-[24px] sm:text-[30px] font-extrabold text-primary-600 leading-[1.3] mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
-                    문서로 끝나지 않고,<br />
-                    <span className="text-primary-500">나만의 웹사이트로<br />공유됩니다</span>
+                    문서 하나로 끝나지 않고,<br />
+                    <span className="text-primary-500">웹사이트 · 노션 · PPT로<br />전부 만들어집니다</span>
                   </h3>
                   <p className="text-[14px] sm:text-[15px] text-bluewood-500 leading-relaxed mb-5 sm:mb-6" style={{ wordBreak: 'keep-all' }}>
-                    원하는 무드의 웹사이트형 템플릿을 고르면, 정리된 경험이 그대로 채워집니다.
-                    색상 테마까지 커스텀해 <strong className="text-primary-600">링크 하나로 바로 공유</strong>하세요.
+                    정리된 경험 하나로 세 가지 산출물이 동시에 완성됩니다.
+                    웹사이트형 템플릿은 <strong className="text-primary-600">링크 하나로 바로 공유</strong>하고,
+                    노션형 문서는 섹션까지 채워서 받고, PPT는 <strong className="text-primary-600">가지고 있는 템플릿 디자인 위에 자동으로</strong> 채워 드려요.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {['웹사이트형 템플릿', '테마 커스텀', '링크 공유'].map((t, i) => (
+                    {['웹사이트 링크 공유', '노션형 문서', 'PPT 자동 매핑', '테마 커스텀'].map((t, i) => (
                       <span key={i} className="px-3 py-1.5 bg-primary-50 text-primary-600 text-[14px] font-bold rounded-full border border-primary-100">{t}</span>
                     ))}
                   </div>
+                  <p className="text-[13px] text-bluewood-400 mt-4 leading-relaxed" style={{ wordBreak: 'keep-all' }}>
+                    아래 웹 · 노션 미리보기는 목업이 아니라 실제 서비스와 같은 화면입니다.
+                  </p>
                 </div>
 
                 <div className="flex-1 w-full min-w-0">
-                  <WebPortfolioShowcase />
+                  <OutputShowcase />
                 </div>
               </div>
             </ResponsiveScaleWrapper>

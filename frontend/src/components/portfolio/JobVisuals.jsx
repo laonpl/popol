@@ -16,6 +16,33 @@ const num = (v) => {
   return m ? parseFloat(m[0]) : null;
 };
 
+/* ── 자기기재 수치 표시 ─────────────────────────────────────────────
+   AI가 원본 자료에서 근거와 함께 뽑은 수치와, 사용자가 빈칸을 기억으로 채운 수치는
+   근거 강도가 다르다. 둘을 같은 모양으로 그리면 안티-과장 장치(원본 없으면 비워라)가
+   시각화 단계에서 우회된다. source === 'self' 인 값은 점선 + "본인 기재"로 구분한다.
+   값을 지우거나 낮춰 보이게 하지는 않는다 — 숨기는 게 아니라 표시하는 것이 목적이다. */
+export const isSelfReported = (row) => row?.source === 'self';
+const countSelf = (rows = []) => rows.filter(isSelfReported).length;
+
+export function SelfTag() {
+  return (
+    <span className="mt-1.5 inline-block rounded border border-dashed border-bluewood-300 px-1.5 py-0.5 text-[9.5px] font-bold text-bluewood-400">
+      본인 기재
+    </span>
+  );
+}
+
+/** 막대·퍼널처럼 행마다 라벨을 붙이기 어려운 차트용 각주 */
+export function SelfNote({ rows }) {
+  const n = countSelf(rows);
+  if (!n) return null;
+  return (
+    <p className="mt-3 border-t border-dashed border-surface-200 pt-2 text-[10.5px] text-bluewood-400">
+      이 중 {n}개 값은 본인이 직접 기재한 수치입니다 (원본 자료 미연결)
+    </p>
+  );
+}
+
 export function SectionShell({ icon: Icon, title, accent, children }) {
   return (
     <section className="mt-8">
@@ -38,7 +65,7 @@ export function KpiTileRow({ title, items, accent }) {
           const v = num(k.value), t = num(k.target);
           const pct = v != null && t ? Math.max(0, Math.min(100, (v / t) * 100)) : null;
           return (
-            <div key={i} className="rounded-2xl border border-surface-200 bg-surface-50/50 p-4">
+            <div key={i} className={`rounded-2xl border border-surface-200 bg-surface-50/50 p-4 ${isSelfReported(k) ? 'border-dashed' : ''}`}>
               <p className="text-[11.5px] font-medium leading-snug text-bluewood-500">{k.label}</p>
               <p className="mt-1.5 text-[24px] font-black leading-none" style={{ color: accent }}>{k.value}</p>
               {pct != null && (
@@ -50,6 +77,7 @@ export function KpiTileRow({ title, items, accent }) {
                 </div>
               )}
               {k.note && pct == null && <p className="mt-1.5 text-[10.5px] text-bluewood-400">{k.note}</p>}
+              {isSelfReported(k) && <SelfTag />}
             </div>
           );
         })}
@@ -90,6 +118,7 @@ export function FunnelChart({ title, stages, accent }) {
             );
           })}
         </div>
+        <SelfNote rows={stages} />
         {stages[0].value > 0 && (
           <p className="mt-3.5 border-t border-surface-100 pt-2.5 text-[11.5px] text-bluewood-500">
             전체 전환율 <span className="font-bold text-bluewood-800">{Math.round((stages[n - 1].value / stages[0].value) * 1000) / 10}%</span>
@@ -152,6 +181,7 @@ export function DumbbellCompare({ title, rows, accent }) {
             );
           })}
         </div>
+        <SelfNote rows={rows} />
       </div>
     </SectionShell>
   );
@@ -180,6 +210,7 @@ export function MixBar({ title, items, accent }) {
             </span>
           ))}
         </div>
+        <SelfNote rows={items} />
       </div>
     </SectionShell>
   );
@@ -192,7 +223,7 @@ export function GoalBoard({ title, goals, accent }) {
     <SectionShell icon={Target} title={title} accent={accent}>
       <div className="grid gap-3 sm:grid-cols-2">
         {goals.slice(0, 4).map((g, i) => (
-          <div key={i} className="rounded-2xl border border-surface-200 p-4">
+          <div key={i} className={`rounded-2xl border border-surface-200 p-4 ${isSelfReported(g) ? 'border-dashed' : ''}`}>
             <div className="flex items-center gap-1.5">
               {g.achieved
                 ? <CheckCircle2 size={15} style={{ color: '#0ca30c' }} />
@@ -207,6 +238,7 @@ export function GoalBoard({ title, goals, accent }) {
                 {g.actual && <>실제 <span className="font-black" style={{ color: accent }}>{g.actual}</span></>}
               </p>
             )}
+            {isSelfReported(g) && <SelfTag />}
           </div>
         ))}
       </div>
@@ -215,7 +247,7 @@ export function GoalBoard({ title, goals, accent }) {
 }
 
 /* ── 게이지 행 — 가용성·SLA·MTTR 달성률 등 "목표 대비 현재" 반원 게이지 (데브옵스) ── */
-function ArcGauge({ label, value, unit, target, accent }) {
+function ArcGauge({ label, value, unit, target, accent, self = false }) {
   const v = num(value);
   // 게이지 채움 비율: 목표가 있으면 목표 대비, 없으면 %값은 그대로·그 외는 90% 가정
   const pct = v == null ? 0
@@ -225,7 +257,7 @@ function ArcGauge({ label, value, unit, target, accent }) {
   const R = 46, C = Math.PI * R; // 반원 둘레
   const dash = (pct / 100) * C;
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-surface-200 bg-surface-50/50 p-4">
+    <div className={`flex flex-col items-center rounded-2xl border border-surface-200 bg-surface-50/50 p-4 ${self ? 'border-dashed' : ''}`}>
       <svg viewBox="0 0 120 66" width="118" style={{ display: 'block' }}>
         <path d="M 14 60 A 46 46 0 0 1 106 60" fill="none" stroke={tint(accent, 0.85)} strokeWidth="10" strokeLinecap="round" />
         <path d="M 14 60 A 46 46 0 0 1 106 60" fill="none" stroke={accent} strokeWidth="10" strokeLinecap="round"
@@ -234,6 +266,7 @@ function ArcGauge({ label, value, unit, target, accent }) {
       </svg>
       <p className="mt-1 text-center text-[12px] font-semibold text-bluewood-700">{label}</p>
       {target && <p className="mt-0.5 text-[10.5px] text-bluewood-400">목표 {target}</p>}
+      {self && <SelfTag />}
     </div>
   );
 }
@@ -244,7 +277,7 @@ export function GaugeRow({ title, items, accent }) {
     <SectionShell icon={Gauge} title={title} accent={accent}>
       <div className={`grid gap-3 ${list.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : list.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {list.slice(0, 4).map((g, i) => (
-          <ArcGauge key={i} label={g.label || g.name} value={g.value} unit={g.unit} target={g.target} accent={accent} />
+          <ArcGauge key={i} label={g.label || g.name} value={g.value} unit={g.unit} target={g.target} accent={accent} self={isSelfReported(g)} />
         ))}
       </div>
     </SectionShell>

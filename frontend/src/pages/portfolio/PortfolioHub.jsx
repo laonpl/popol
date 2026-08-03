@@ -8,6 +8,47 @@ import DetailModal from '../../components/DetailModal';
 import ExportModal from '../../components/ExportModal';
 import api from '../../services/api';
 
+
+/* ── 템플릿별 카드 아이덴티티 ──
+   기존에는 모든 카드가 같은 네이비 배경 + 클로버 로고여서 어떤 템플릿으로 만든 건지
+   목록에서 구분할 수 없었다. 계열별로 색과 "레이아웃 뼈대" 그림을 달리해
+   썸네일만 봐도 종류가 보이도록 한다. */
+const TEMPLATE_STYLES = {
+  notion:   { label: '노션형',     from: '#002F6C', to: '#00214d', ink: '#87add5', layout: 'doc' },
+  ashley:   { label: '에디토리얼', from: '#7a1030', to: '#4a0a1d', ink: '#f2a8bb', layout: 'split' },
+  academic: { label: '아카데믹',   from: '#123a63', to: '#0a2440', ink: '#8fc0e8', layout: 'paper' },
+  timeline: { label: '타임라인형', from: '#7a4a09', to: '#4a2c04', ink: '#f5c775', layout: 'timeline' },
+  visual:   { label: '비주얼형',   from: '#0a5f35', to: '#063d22', ink: '#76ffb5', layout: 'grid' },
+  web:      { label: '웹사이트형', from: '#3c2a63', to: '#241940', ink: '#c0a8f0', layout: 'web' },
+  default:  { label: '기본형',     from: '#314157', to: '#1d2735', ink: '#a4b2c2', layout: 'doc' },
+};
+
+function templateStyleOf(templateType) {
+  const t = String(templateType || '');
+  if (t.startsWith('visual-')) return TEMPLATE_STYLES.visual;
+  if (t.startsWith('web-')) return TEMPLATE_STYLES.web;
+  return TEMPLATE_STYLES[t] || TEMPLATE_STYLES.default;
+}
+
+/* 레이아웃 뼈대 — 색만으로는 구분이 약해서, 템플릿 구조를 단순 도형으로 보여준다 */
+function TemplateGlyph({ layout, ink }) {
+  const box = (x, y, w, h, o = 0.5, r = 2) =>
+    <rect key={`${x}-${y}-${w}`} x={x} y={y} width={w} height={h} rx={r} fill={ink} opacity={o} />;
+  const shapes = {
+    doc:      [box(18, 14, 64, 6, 0.75), box(18, 26, 44, 4, 0.4), box(18, 40, 64, 3, 0.28), box(18, 48, 64, 3, 0.28), box(18, 56, 40, 3, 0.28)],
+    split:    [box(14, 14, 32, 46, 0.55), box(52, 14, 34, 6, 0.75), box(52, 26, 34, 3, 0.3), box(52, 34, 34, 3, 0.3), box(52, 42, 22, 3, 0.3)],
+    paper:    [box(30, 12, 40, 5, 0.7), box(18, 24, 64, 3, 0.28), box(18, 32, 64, 3, 0.28), box(18, 40, 30, 3, 0.28), box(54, 40, 28, 3, 0.28), box(18, 52, 64, 3, 0.28)],
+    timeline: [box(22, 14, 3, 48, 0.45), box(32, 16, 40, 5, 0.7), box(32, 26, 28, 3, 0.3), box(32, 38, 44, 5, 0.7), box(32, 48, 24, 3, 0.3)],
+    grid:     [box(16, 14, 32, 22, 0.6), box(52, 14, 32, 22, 0.4), box(16, 42, 32, 22, 0.4), box(52, 42, 32, 22, 0.6)],
+    web:      [box(14, 12, 72, 8, 0.6), box(14, 26, 72, 20, 0.35), box(14, 52, 22, 12, 0.5), box(40, 52, 22, 12, 0.5), box(66, 52, 20, 12, 0.5)],
+  };
+  return (
+    <svg viewBox="0 0 100 76" width="118" height="90" aria-hidden="true">
+      {shapes[layout] || shapes.doc}
+    </svg>
+  );
+}
+
 /* ── 두들링 배경 SVG ── */
 function DoodleBackground({ templateType }) {
   const palettes = {
@@ -428,6 +469,8 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
   };
   const s = statusMap[status] || statusMap.draft;
 
+  const tpl = templateStyleOf(templateType);
+
   const [favorited, setFavorited] = useState(isFavorite || false);
 
   const handleToggleFavorite = async (e) => {
@@ -450,27 +493,31 @@ function PortfolioCard({ portfolio, onDelete, onDetail, onExport, exportMode, on
       style={{ aspectRatio: '3/4' }}
       onClick={handleOpen}
     >
-      {/* ── 메인 컬러 배경 ── */}
-      <div className="absolute inset-0 bg-primary-600 flex flex-col items-center justify-center">
-        {/* 미세한 빛 효과 */}
+      {/* ── 템플릿별 컬러 배경 + 레이아웃 뼈대 ── */}
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-center"
+        style={{ background: `linear-gradient(150deg, ${tpl.from} 0%, ${tpl.to} 100%)` }}
+      >
         <div
           className="absolute inset-0 opacity-10"
           style={{
             backgroundImage: 'radial-gradient(circle at 70% 20%, white 0%, transparent 55%), radial-gradient(circle at 20% 80%, white 0%, transparent 50%)',
           }}
         />
-
-        {/* 세잎클로버 로고 */}
-        <div className="mb-2 opacity-75">
-          <CloverIcon />
-        </div>
-
-        {/* 사이트명 */}
-        <p className="text-white/35 text-[11px] font-bold tracking-[0.2em] uppercase">FitPoly</p>
+        <TemplateGlyph layout={tpl.layout} ink={tpl.ink} />
+        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: tpl.ink, opacity: 0.65 }}>
+          {tpl.label}
+        </p>
       </div>
 
       {/* 하단 정보 영역 */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-10 bg-gradient-to-t from-black/55 to-transparent">
+        <span
+          className="mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-wide"
+          style={{ backgroundColor: 'rgba(255,255,255,0.16)', color: tpl.ink }}
+        >
+          {tpl.label}
+        </span>
         <p className="text-white font-bold text-[15px] leading-snug line-clamp-2 drop-shadow">{displayTitle}</p>
         <p className="text-white/60 text-[12px] mt-1 truncate">{subtitle}</p>
       </div>

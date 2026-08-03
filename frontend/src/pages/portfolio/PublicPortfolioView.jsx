@@ -8,6 +8,7 @@ import { doc, getDoc, collection, query, where, getDocs } from '../../services/f
 import { db } from '../../config/firebase';
 import VisualPortfolioRenderer, { VISUAL_TEMPLATE_IDS, VHtml } from './VisualPortfolioTemplates';
 import WebPortfolioRenderer, { WEB_TEMPLATE_IDS } from './WebPortfolioTemplates';
+import { trackViewDepth, trackDwell } from '../../services/outcomeMetrics';
 const ProjectDetailModal = lazy(() => import('../../components/ProjectDetailModal'));
 
 const DEFAULT_PROJECT_LOGO = '/logo.png';
@@ -158,6 +159,16 @@ export default function PublicPortfolioView() {
     };
     load();
   }, [id]);
+
+  /* 열람 깊이·체류 시간 — 어느 섹션까지 실제로 읽히는지 확인용.
+     본문·개인정보는 보내지 않고 id·템플릿·숫자만 보낸다 (outcomeMetrics 주석 참고). */
+  useEffect(() => {
+    if (!portfolio) return;
+    const meta = { portfolioId: portfolio.id, templateId: portfolio.templateId || 'notion' };
+    const stopDepth = trackViewDepth(meta);
+    const stopDwell = trackDwell(meta);
+    return () => { stopDepth(); stopDwell(); };
+  }, [portfolio]);
 
   if (loading) {
     return (

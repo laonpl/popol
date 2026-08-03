@@ -9,7 +9,7 @@
  */
 import { useState } from 'react';
 import { GitProjectCard } from './GitInsights';
-import JobShowcase, { hasJobShowcase } from './JobShowcase';
+import { KpiTileRow, FunnelChart, DumbbellCompare, MixBar, GoalBoard, GaugeRow, ProcessFlow } from './JobVisuals';
 import { getJobPortfolioMeta, normalizePortfolioVisuals } from '../../utils/devPortfolio';
 import { JOB_CATEGORIES, JOB_SPECIFIC_FIELDS } from '../../stores/experienceStore';
 import { PriorityMatrix } from './JobSignature';
@@ -1430,6 +1430,24 @@ function GenericVisualEditor({ visuals = {}, onChange }) {
   );
 }
 
+
+/* 실제 추출된 수치만 그리는 시각화 묶음.
+   데이터가 없는 블록은 프리미티브가 null을 반환하므로 자동으로 빠진다. */
+function RealDataVisuals({ visuals, accent }) {
+  const v = visuals || {};
+  const blocks = [
+    v.kpis?.length ? <KpiTileRow key="kpis" title="핵심 지표" items={v.kpis} accent={accent} /> : null,
+    v.funnel?.length >= 2 ? <FunnelChart key="funnel" title="단계별 전환" stages={v.funnel} accent={accent} /> : null,
+    v.compare?.length ? <DumbbellCompare key="compare" title="개선 전 · 후" rows={v.compare} accent={accent} /> : null,
+    v.gauges?.length ? <GaugeRow key="gauges" title="목표 대비 현재" items={v.gauges} accent={accent} /> : null,
+    v.goals?.length ? <GoalBoard key="goals" title="목표와 결과" goals={v.goals} accent={accent} /> : null,
+    v.mix?.length >= 2 ? <MixBar key="mix" title="구성 비중" items={v.mix} accent={accent} /> : null,
+    v.steps?.length >= 2 ? <ProcessFlow key="steps" title="수행 단계" steps={v.steps} accent={accent} /> : null,
+  ].filter(Boolean);
+  if (blocks.length === 0) return null;
+  return <div className="space-y-5">{blocks}</div>;
+}
+
 function GenericJobCore({ exp, sr, jobCategory, editing, onChange }) {
   const jobFields = JOB_SPECIFIC_FIELDS[jobCategory] || [];
   const jobSpecific = sr.jobSpecific || {};
@@ -1448,9 +1466,10 @@ function GenericJobCore({ exp, sr, jobCategory, editing, onChange }) {
 
   return (
     <div>
-      {hasJobShowcase(jobCategory) && (
-        <JobShowcase job={jobCategory} accent={getJobPortfolioMeta(jobCategory).accent} visuals={visuals} keyExps={keyExps} jobSpecific={jobSpecific} techList={techList} />
-      )}
+      {/* 실데이터 시각화만 렌더한다.
+          기존 JobShowcase는 loss 곡선·GPU 사용률·히트맵을 "연출용 시뮬레이션"으로 그려 넣어
+          없는 성과를 있는 것처럼 보이게 했다 — 진정성 기준과 정면으로 충돌해 제거. */}
+      <RealDataVisuals visuals={visuals} accent={getJobPortfolioMeta(jobCategory).accent} />
 
       {visibleSections.length > 0 && (
         <div className="mt-7 grid gap-3 sm:grid-cols-2">

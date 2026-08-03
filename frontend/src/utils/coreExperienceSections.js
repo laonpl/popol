@@ -7,6 +7,7 @@
  *  - 노션 프로젝트 화면 구성(ProjectDetailModal 팔레트·초안·기본 렌더링, projectSections)
  * 이 같은 섹션 목록을 공유한다. 섹션 type은 'core'.
  */
+import { buildJdEvidenceMap } from './jdEvidenceMap';
 
 function sanitizeText(text) {
   if (text == null) return '';
@@ -69,6 +70,11 @@ function buildKeyExperienceExportSection(keyExperiences = [], keyExpImages = {},
       `${index + 1}. ${coreText(item?.title) || (isPm ? `의사결정 ${index + 1}` : `핵심 경험 ${index + 1}`)}`,
       after ? `성과: ${before ? `${before} → ${after}` : after}` : '',
       coreLine('상황', item?.context || item?.situation),
+      // 경험 맥락 — 같은 직무도 팀 규모·권한·규모가 다르면 다른 경험이다 (이식성 판단 축)
+      coreLine('팀 구성', item?.scope?.teamSize),
+      coreLine('내 결정 권한', item?.scope?.myAuthority),
+      coreLine('다룬 규모', item?.scope?.scale),
+      coreLine('당시 제약', item?.scope?.constraints),
       ...(isPm ? [
         coreLine('의사결정', jd.decision),
         coreLine('기각한 대안', jd.alternatives),
@@ -88,9 +94,12 @@ function buildKeyExperienceExportSection(keyExperiences = [], keyExpImages = {},
       coreLine('결과의 근거', trace.outcomeEvidence),
       coreLine('바뀐 판단', trace.changedJudgment),
       coreLine('다음 판단 원칙', trace.newPrinciple),
-      coreLine('사용자의 실제 말', voice.originalQuote),
-      coreLine('최소 교정', voice.polished),
-      coreLine('AI 핵심 의미', voice.aiMeaning),
+      /* 말투 보존 — 산출물에는 originalQuote를 인용부호로 그대로 싣는다.
+         polished(AI가 다듬은 문장)는 내보내지 않는다: 원문을 애써 보존한 설계가
+         마지막 한 걸음에서 "AI가 쓴 매끈한 문장"으로 바뀌는 것을 막기 위함이다.
+         polished는 화면 편집 보조로만 남는다. */
+      coreText(voice.originalQuote) ? `본인의 말: "${coreText(voice.originalQuote)}"` : '',
+      coreLine('이 말이 보여주는 것', voice.aiMeaning),
       evidence.length ? `증거 자료:\n${evidence.map(line => `- ${line}`).join('\n')}` : '',
       coreLine('나를 보여주는 한 문장', identity.sentence),
       // 솔직 회고 — 성과만 나열된 결과물이 "너무 완벽해 보인다"는 피드백에 대응하는 블록
@@ -316,6 +325,37 @@ function buildArtifactEvidenceSection(sr = {}) {
   return { key: 'core-artifact-evidence', label: '자료 판독 · 근거 장부', type: 'core', content, enabled: !!content };
 }
 
+/* 전 직군 공통 — 채용공고 요구 역량 × 그것을 증명하는 내 증거 × 공백.
+   스킬 기반 채용에서 심사자가 보는 단위가 "경험"이 아니라 "역량↔근거"라서,
+   기업 분석(jobAnalysis)이 있을 때만 만들어진다.
+   ⚠️ 근거 등급(A~D)은 여기 싣지 않는다 — 심사자에게는 등급이 감점 신호로 읽힌다.
+      확인 가능한 근거가 붙은 역량을 앞에 세우고, 공백은 "보완 필요"로만 남긴다. */
+function buildJdEvidenceSection(sr = {}, jobAnalysis = null, expTitle = '') {
+  if (!jobAnalysis) return { key: 'core-jd-evidence', label: '역량 · 증거 매핑', type: 'core', content: '', enabled: false };
+  const { rows, summary } = buildJdEvidenceMap({
+    jobAnalysis,
+    experiences: [{ title: expTitle, structuredResult: sr }],
+  });
+  if (!rows.length) return { key: 'core-jd-evidence', label: '역량 · 증거 매핑', type: 'core', content: '', enabled: false };
+
+  const evidenced = rows.filter(row => row.status === '근거 있음');
+  const narrative = rows.filter(row => row.status === '서술만 있음');
+  const gaps = rows.filter(row => row.status === '공백');
+
+  const renderRow = (row) => joinCoreLines([
+    `${row.kind} · ${coreText(row.requirement)}`,
+    ...row.matched.map(m => `- ${coreText(m.text)}${m.source ? ` (${coreText(m.source)})` : ''}`),
+  ]);
+
+  const content = joinCoreLines([
+    summary ? `요구 역량 ${summary.total}개 중 근거 확인 ${summary.evidenced} · 서술만 ${summary.narrativeOnly} · 보완 필요 ${summary.gaps}` : '',
+    evidenced.length ? `[근거로 확인되는 역량]\n${evidenced.map(renderRow).join('\n\n')}` : '',
+    narrative.length ? `[경험은 있으나 자료 보강이 필요한 역량]\n${narrative.map(row => `- ${coreText(row.requirement)}`).join('\n')}` : '',
+    gaps.length ? `[보완 필요]\n${gaps.map(row => `- ${row.kind} · ${coreText(row.requirement)}`).join('\n')}` : '',
+  ]);
+  return { key: 'core-jd-evidence', label: '역량 · 증거 매핑', type: 'core', content, enabled: !!content };
+}
+
 /* 마케터 — marketerKit의 캠페인 스토리(퍼널)와 KPI */
 function buildMarketerCampaignSection(sr = {}) {
   const kit = sr.marketerKit || {};
@@ -388,7 +428,7 @@ function finalizeSection(section) {
  * 직군별 핵심 경험 페이지 전체 → 내보내기 기본 틀 섹션 목록 (핵심 경험 페이지의 읽기 순서 유지).
  * key-experiences 섹션을 포함하며, 노션 캔버스처럼 핵심 경험을 따로 다루는 화면은 key로 걸러 쓴다.
  */
-export function buildCoreExperienceSections({ jobCategory = 'common', sr = {}, caseStudy = null, keyExperiences = [], keyExpImages = {} } = {}) {
+export function buildCoreExperienceSections({ jobCategory = 'common', sr = {}, caseStudy = null, keyExperiences = [], keyExpImages = {}, jobAnalysis = null, expTitle = '' } = {}) {
   const keyExpSection = buildKeyExperienceExportSection(keyExperiences, keyExpImages, jobCategory);
   let sections;
   if (CORE_DEV_GIT_JOBS.includes(jobCategory)) {
@@ -402,6 +442,7 @@ export function buildCoreExperienceSections({ jobCategory = 'common', sr = {}, c
   } else {
     sections = [keyExpSection];
   }
+  sections.push(buildJdEvidenceSection(sr, jobAnalysis, expTitle));
   sections.push(buildArtifactEvidenceSection(sr));
   sections.push(buildCaseBodySection(caseStudy, jobCategory));
   return sections.map(finalizeSection).filter(Boolean);
@@ -416,6 +457,8 @@ export function buildCoreSectionsForExperience(exp = {}) {
     caseStudy: exp?.caseStudy || null,
     keyExperiences: Array.isArray(sr.keyExperiences) ? sr.keyExperiences : [],
     keyExpImages: exp?.keyExpImages || {},
+    jobAnalysis: exp?.jobAnalysis || sr.jobAnalysis || null,
+    expTitle: exp?.title || '',
   });
 }
 

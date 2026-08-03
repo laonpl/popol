@@ -33,6 +33,10 @@ import FeedbackModal, { isFeedbackSnoozed } from '../../components/FeedbackModal
 import YooptaMiniEditor from '../../components/YooptaMiniEditor';
 import { blocksToYooptaValue } from '../../utils/projectSections';
 import { normalizeExperienceForCurrentJob } from '../../utils/experienceCompatibility';
+import MissingFieldsPanel from '../../components/MissingFieldsPanel';
+import InterviewPrepPanel from '../../components/InterviewPrepPanel';
+import OnePagerPanel from '../../components/OnePagerPanel';
+import { collectMissingFields } from '../../utils/missingFields';
 
 /* GitHub 커밋 분석 기반 딥다이브를 쓰는 개발 직군 */
 const DEV_GIT_JOBS = ['dev', 'aiml', 'devops'];
@@ -4653,6 +4657,25 @@ export default function ExperienceResult() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const [exp, setExp] = useState(state?.analysis ? normalizeExperienceForCurrentJob({ structuredResult: state.analysis, title: state.title, jobCategory: state.jobCategory }) : null);
+  const [fillOpen, setFillOpen] = useState(false);
+  const [prepOpen, setPrepOpen] = useState(false);
+  const [onePagerOpen, setOnePagerOpen] = useState(false);
+  const missingCount = useMemo(() => (exp ? collectMissingFields(exp).length : 0), [exp]);
+
+  // 채우기 패널 → 원본 반영. 화면과 Firestore를 함께 갱신한다.
+  const applyMissingFields = async (nextStructured) => {
+    setExp(prev => ({ ...(prev || {}), structuredResult: nextStructured }));
+    if (id && id !== 'demo') {
+      try {
+        await updateDoc(doc(db, 'experiences', id), { structuredResult: nextStructured, updatedAt: new Date() });
+        toast.success('원본에 반영했습니다');
+        return;
+      } catch {
+        setDirty(true);
+      }
+    }
+    toast.success('반영했습니다 (저장은 잠시 후 자동으로 시도합니다)');
+  };
   const [cs, setCs] = useState(null);
   const [kit, setKit] = useState(null); // 마케터 전용 산출물(marketerKit) 편집 상태
   const [loading, setLoading] = useState(!state?.analysis);
@@ -5024,6 +5047,30 @@ export default function ExperienceResult() {
 
           <div className="flex items-center gap-2.5 shrink-0">
             {dirty && <span className="hidden sm:inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-500"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />저장 안 됨</span>}
+            {missingCount > 0 && (
+              <button
+                onClick={() => setFillOpen(true)}
+                title="AI가 원본에서 근거를 못 찾은 항목을 한 번에 채웁니다"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3.5 py-2 text-[13px] font-bold text-primary-700 transition-colors hover:bg-primary-50"
+              >
+                채우면 좋은 항목
+                <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[10.5px] font-black leading-none text-white">{missingCount}</span>
+              </button>
+            )}
+            <button
+              onClick={() => setOnePagerOpen(true)}
+              title="요구 역량 순서로 근거 한 줄씩 세운 A4 한 장 (60초 검토용)"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-bold text-bluewood-600 transition-colors hover:border-surface-300 hover:bg-surface-50"
+            >
+              한 장 요약
+            </button>
+            <button
+              onClick={() => setPrepOpen(true)}
+              title="정리한 판단·근거로 예상 질문과 취약 지점을 뽑습니다 (본인용, 산출물에는 포함되지 않음)"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3.5 py-2 text-[13px] font-bold text-bluewood-600 transition-colors hover:border-surface-300 hover:bg-surface-50"
+            >
+              면접 준비
+            </button>
             {isMarketer && (
               <button
                 onClick={() => window.print()}
@@ -5454,6 +5501,15 @@ export default function ExperienceResult() {
         </div>
       </article>
     </div>
+    {fillOpen && (
+      <MissingFieldsPanel exp={exp} onApply={applyMissingFields} onClose={() => setFillOpen(false)} />
+    )}
+    {prepOpen && (
+      <InterviewPrepPanel exp={exp} onClose={() => setPrepOpen(false)} />
+    )}
+    {onePagerOpen && (
+      <OnePagerPanel exp={exp} profile={{ userName: exp?.userName, headline: exp?.structuredResult?.projectOverview?.role }} onClose={() => setOnePagerOpen(false)} />
+    )}
     </>
   );
 }

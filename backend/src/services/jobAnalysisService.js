@@ -1790,12 +1790,14 @@ function fallbackComposition(jobCategory = 'common', careerStage = 'first') {
     common: ['intro', 'task', 'process', 'output', 'keyExperiences', 'honestReview'],
   };
   const order = byJob[jobCategory] || byJob.common;
-  // 경력직은 성과를 앞으로, 첫 취업은 판단 과정을 앞으로
-  const sources = careerStage === 'experienced'
+  // 경력직(3~7년)·리드(8년+)는 성과를 앞으로, 첫 취업은 판단 과정을 앞으로.
+  // 리드는 성과보다 판단·조직 변화가 평가 대상이라 decision-first로 읽히게 한다.
+  const isSenior = careerStage === 'experienced' || careerStage === 'lead';
+  const sources = isSenior
     ? ['output', ...order.filter(k => k !== 'output')]
     : order;
   return {
-    narrative: careerStage === 'experienced' ? 'outcome-first' : 'problem-first',
+    narrative: careerStage === 'lead' ? 'decision-first' : careerStage === 'experienced' ? 'outcome-first' : 'problem-first',
     artifactVariant: (ARTIFACT_VARIANTS[jobCategory] || [])[0]?.id || '',
     artifactRecipe: null,
     artifactReason: '',

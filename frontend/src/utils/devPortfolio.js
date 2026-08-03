@@ -77,6 +77,121 @@ export const JOB_PORTFOLIO_META = {
       { type: 'compare', title: '성과 개선 (Before → After)' },
     ],
   },
+  // 아래 14개는 careerFieldProfiles의 metrics 정의에 맞춰 구성을 지정한다.
+  // 이 값이 없으면 24직군이 전부 common(지표+전후) 두 블록으로 렌더돼 직군 특화가 라벨만 남는다.
+  // 동기화 확인: node scripts/check-job-sync.mjs
+  security: {
+    accent: BRAND_ACCENT, kicker: 'SECURITY PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'process', title: '위협 탐지 → 검증 → 완화' },
+      { type: 'kpis',    title: '보안 지표 (위험도 · 대응 시간)' },
+      { type: 'compare', title: '완화 전후' },
+    ],
+  },
+  qa: {
+    accent: BRAND_ACCENT, kicker: 'QA PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'kpis',    title: '품질 지표 (커버리지 · 결함 누출)' },
+      { type: 'compare', title: '개선 전후' },
+      { type: 'process', title: '테스트 설계 → 실행 → 릴리스 판단' },
+    ],
+  },
+  engineering: {
+    accent: BRAND_ACCENT, kicker: 'ENGINEERING PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'compare', title: '시험 결과 (설계 전후)' },
+      { type: 'kpis',    title: '성능 · 공차 · 신뢰성 지표' },
+      { type: 'process', title: '설계 → 시제품 → 시험 → 재설계' },
+    ],
+  },
+  project: {
+    accent: BRAND_ACCENT, kicker: 'PROJECT PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'goals',   title: '마일스톤 달성' },
+      { type: 'kpis',    title: '일정 · 예산 편차' },
+      { type: 'process', title: '계획 → 변경 통제 → 인수' },
+    ],
+  },
+  content: {
+    accent: BRAND_ACCENT, kicker: 'CONTENT PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'kpis',    title: '콘텐츠 성과 (완독 · 저장 · 유입)' },
+      { type: 'funnel',  title: '노출 → 열람 → 반응' },
+      { type: 'mix',     title: '채널 · 포맷 믹스' },
+    ],
+  },
+  customer_success: {
+    accent: BRAND_ACCENT, kicker: 'CS PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'kpis',    title: '고객 지표 (해결 시간 · CSAT · 갱신)' },
+      { type: 'funnel',  title: '온보딩 → 채택 → 갱신' },
+      { type: 'compare', title: '운영 개선 전후' },
+    ],
+  },
+  finance: {
+    accent: BRAND_ACCENT, kicker: 'FINANCE PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'kpis',    title: '재무 지표 (수익성 · 현금흐름)' },
+      { type: 'compare', title: '예측 대비 실제' },
+      { type: 'mix',     title: '비용 · 포트폴리오 구성' },
+    ],
+  },
+  strategy: {
+    accent: BRAND_ACCENT, kicker: 'STRATEGY PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'process', title: '문제 구조 → 가설 → 권고' },
+      { type: 'kpis',    title: '시장 · 경제성 핵심 수치' },
+      { type: 'goals',   title: '실행 마일스톤' },
+    ],
+  },
+  operations: {
+    accent: BRAND_ACCENT, kicker: 'OPERATIONS PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'compare', title: '개선 전후 (리드타임 · 수율)' },
+      { type: 'kpis',    title: '운영 지표' },
+      { type: 'process', title: '프로세스 · 파일럿 → 표준화' },
+    ],
+  },
+  research: {
+    accent: BRAND_ACCENT, kicker: 'RESEARCH PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'compare', title: '베이스라인 대비 결과' },
+      { type: 'kpis',    title: '효과크기 · 표본 · 재현' },
+      { type: 'process', title: '연구 질문 → 방법 → 검증' },
+    ],
+  },
+  education: {
+    accent: BRAND_ACCENT, kicker: 'EDUCATION PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'compare', title: '사전 → 사후 성취' },
+      { type: 'goals',   title: '학습 목표 달성' },
+      { type: 'kpis',    title: '참여 · 완료 · 전이 지표' },
+    ],
+  },
+  policy: {
+    accent: BRAND_ACCENT, kicker: 'POLICY PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'process', title: '논리모형 (투입 → 산출 → 성과)' },
+      { type: 'funnel',  title: '대상 → 도달 → 집행' },
+      { type: 'kpis',    title: '집행 · 성과 · 형평성 지표' },
+    ],
+  },
+  legal: {
+    accent: BRAND_ACCENT, kicker: 'LEGAL PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'process', title: '쟁점 → 권고 → 통제' },
+      { type: 'kpis',    title: '검토 리드타임 · 예외 · 위반' },
+      { type: 'compare', title: '시정 전후' },
+    ],
+  },
+  healthcare: {
+    accent: BRAND_ACCENT, kicker: 'HEALTHCARE PORTFOLIO', diagramKey: null, diagramTitle: null,
+    visuals: [
+      { type: 'kpis',    title: '안전 · 품질 지표' },
+      { type: 'compare', title: '개선 전후' },
+      { type: 'process', title: '진단 → 중재 → 재측정' },
+    ],
+  },
   common: {
     accent: BRAND_ACCENT, kicker: 'PORTFOLIO', diagramKey: null, diagramTitle: null,
     visuals: [
